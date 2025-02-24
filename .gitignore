@@ -1,3 +1,6 @@
 # ENV files
 .env
 .env.local
+
+# Build output 
+_build
