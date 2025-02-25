@@ -17,6 +17,6 @@
         "singleQuote": true,
         "proseWrap": "always",
         "lineWidth": 80,
-        "semiColons": true
+        "semiColons": false
     }
 }
