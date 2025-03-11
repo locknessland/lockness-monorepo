@@ -1,5 +1,5 @@
-import { Controller, Get, Post } from '../core/decorators/controller.ts'
-import type { Context } from '../core/decorators/controller.ts'
+import { Controller, Get, Post } from '@lockness/core'
+import type { Context } from '@lockness/core'
 
 interface Todo {
     id: number

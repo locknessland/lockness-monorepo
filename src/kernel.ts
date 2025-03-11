@@ -1,4 +1,4 @@
-import { app } from './core/decorators/controller.ts'
+import { app } from '@lockness/core'
 import './Controller/TodoController.ts'
 
 export default app

@@ -21,7 +21,7 @@ const app = new Hono({
     }),
 })
 
-export interface BaseController {}
+interface BaseController {}
 
 type Constructor<T extends BaseController = BaseController> = {
     new (): T
