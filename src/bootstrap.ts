@@ -1,4 +1,4 @@
-import { App } from '@lockness/core'
+import { App } from '../lockness/core/_index-core.ts'
 import { TodoController } from './Controller/TodoController.ts'
 
 interface AppModule {
