@@ -1,5 +1,5 @@
-import { Controller, Get, Post } from '@lockness/core'
-import type { Context } from '@lockness/core'
+import { Controller, Get, Post } from '../../lockness-core/hono.ts'
+import type { Context } from '../../lockness-core/hono.ts'
 
 interface Todo {
     id: number

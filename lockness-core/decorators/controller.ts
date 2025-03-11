@@ -1,7 +1,4 @@
-import { Context as HonoContext, Hono } from 'jsr:@hono/hono'
-import { SmartRouter } from 'jsr:@hono/hono/router/smart-router'
-import { RegExpRouter } from 'jsr:@hono/hono/router/reg-exp-router'
-import { TrieRouter } from 'jsr:@hono/hono/router/trie-router'
+import { Context as HonoContext, Hono, RegExpRouter, SmartRouter, TrieRouter } from '@lockness/core'
 
 // Stockage des métadonnées des routes
 const routeMetadata = new Map<string, RouteDefinition[]>()
@@ -123,4 +120,4 @@ function createParamDecorator(handler: (c: HonoContext) => any) {
 }
 
 export type { HonoContext as Context }
-export { app }
+export { app, RegExpRouter, SmartRouter, TrieRouter }
