@@ -1,3 +1,4 @@
-import app from './_routes.ts'
+import { app } from './core/decorators/controller.ts'
+import './Controller/TodoController.ts'
 
-Deno.serve(app.fetch)
+export default app
