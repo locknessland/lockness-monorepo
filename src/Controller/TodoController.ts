@@ -38,6 +38,6 @@ export class TodoController {
         }
 
         this.todos.push(newTodo)
-        return c.json(newTodo, 201)
+        return c.json(this.todos, 201)
     }
 }
