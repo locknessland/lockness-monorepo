@@ -4,10 +4,10 @@
         "dev": "deno run --env-file=.env -A --watch main.ts"
     },
     "imports": {
-        "@lockness/core": "./lockness-core/lockness.ts",
+        "@lockness/core": "./lockness/core/lockness.ts",
         "@lockness/bootstrap": "./src/bootstrap.ts",
-        "@lockness/hono": "./lockness-core/hono.ts",
-        "@lockness/decorators": "./lockness-core/decorators.ts",
+        "@lockness/hono": "./lockness/core/hono.ts",
+        "@lockness/decorators": "./lockness/core/decorators.ts",
         "@hono/hono": "jsr:@hono/hono@^4",
         "@hono/hono/": "jsr:@hono/hono@^4/",
         "@std/assert": "jsr:@std/assert@1",

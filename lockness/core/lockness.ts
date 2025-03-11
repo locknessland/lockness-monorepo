@@ -34,7 +34,8 @@ export class App {
         })
     }
 
-    async init(module: Module) {
+
+    init(module: Module) {
         if (module.controllers) {
             // Register each controller
             for (const controller of module.controllers) {
@@ -44,7 +45,7 @@ export class App {
         return this
     }
 
-    async listen(port: number) {
+    listen(port: number) {
         return Deno.serve({ port }, this.app.fetch.bind(this.app))
     }
 
