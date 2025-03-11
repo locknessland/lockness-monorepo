@@ -23,24 +23,6 @@ export default app
 
 Just run this:
 
-::: code-group
-
-```sh [npm]
-npm create hono@latest
-```
-
-```sh [yarn]
-yarn create hono
-```
-
-```sh [pnpm]
-pnpm create hono@latest
-```
-
-```sh [bun]
-bun create hono@latest
-```
-
 ```sh [deno]
 deno init --npm hono@latest
 ```
