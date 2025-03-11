@@ -4,7 +4,7 @@
         "dev": "deno run --env-file=.env -A --watch main.ts"
     },
     "imports": {
-        "@lockness/core": "./lockness/core/lockness.ts",
+        "@lockness/core": "./lockness/core/_index.ts",
         "@lockness/bootstrap": "./src/bootstrap.ts",
         "@lockness/hono": "./lockness/core/hono.ts",
         "@lockness/decorators": "./lockness/core/decorators.ts",
