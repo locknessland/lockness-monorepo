@@ -21,9 +21,16 @@ const app = new Hono({
     }),
 })
 
+export interface BaseController {}
+
+type Constructor<T extends BaseController = BaseController> = {
+    new (): T
+    name: string
+}
+
 // Décorateur Controller
 export function Controller(prefix: string = '') {
-    return function (target: any) {
+    return function <T extends BaseController>(target: Constructor<T>) {
         const routes = routeMetadata.get(target.name) || []
 
         routes.forEach((route) => {
