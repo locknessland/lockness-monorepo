@@ -7,7 +7,7 @@ interface Todo {
     completed: boolean
 }
 
-@Controller('/todos')
+@Controller('/')
 export class TodoController {
     private todos: Todo[] = []
 

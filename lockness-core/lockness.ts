@@ -20,7 +20,7 @@ interface Module {
     controllers?: any[]
 }
 
-export class LocknessApplication {
+export class App {
     private app: Hono
 
     constructor() {
