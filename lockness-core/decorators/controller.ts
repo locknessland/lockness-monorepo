@@ -82,28 +82,34 @@ export function All(path: string = '') {
 
 function createMethodDecorator(method: string, path: string) {
     return function (
-        target: any,
-        propertyKey: string,
-        descriptor: PropertyDescriptor,
+        _target: any,
+        context: ClassMethodDecoratorContext,
     ) {
-        const controllerName = target.constructor.name
-        const routes = routeMetadata.get(controllerName) || []
+        const methodName = context.name as string
+        if (context.kind !== 'method') {
+            throw new Error(`${methodName} is not a method`)
+        }
 
-        routes.push({
-            path,
-            method: method as
-                | 'get'
-                | 'post'
-                | 'put'
-                | 'delete'
-                | 'patch'
-                | 'all',
-            handler: descriptor.value,
-            middlewares: [],
-        })
+        return function (this: any, ...args: any[]) {
+            const controllerName = this.constructor.name
+            const routes = routeMetadata.get(controllerName) || []
 
-        routeMetadata.set(controllerName, routes)
-        return descriptor
+            routes.push({
+                path,
+                method: method as
+                    | 'get'
+                    | 'post'
+                    | 'put'
+                    | 'delete'
+                    | 'patch'
+                    | 'all',
+                handler: (c: HonoContext) => this[methodName].call(this, c),
+                middlewares: [],
+            })
+
+            routeMetadata.set(controllerName, routes)
+            return this[methodName].apply(this, args)
+        }
     }
 }
 
