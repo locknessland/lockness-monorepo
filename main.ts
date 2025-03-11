@@ -1,3 +1,3 @@
-import app from './src/kernel.ts'
+import app from '@lockness/kernel'
 
-Deno.serve({ port: 3000 }, app.fetch)
+Deno.serve({ port: Number(Deno.env.get('PORT') || 3000) }, app.fetch)
