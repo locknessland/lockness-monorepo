@@ -1,29 +1,32 @@
-import { Context, Hono, RegExpRouter, SmartRouter, TrieRouter } from './hono.ts'
-
-/** Lockness framework */
+import 'reflect-metadata'
 import {
-    All,
-    Body,
+    Context,
+    Hono,
+    RegExpRouter,
+    SmartRouter,
+    TrieRouter,
+} from '@lockness/hono'
+
+/** Lockness Decorators */
+import {
     Controller,
     Delete,
     Get,
-    Param,
     Patch,
     Post,
     Put,
     registerController,
-    Req,
-    Res,
-} from './decorators/controller.ts'
+} from '@lockness/decorators'
 
 interface Module {
     controllers?: any[]
 }
 
 export class App {
-    private app: Hono
+    private readonly app: Hono
 
     constructor() {
+        // Initialize Hono with SmartRouter for best performance
         this.app = new Hono({
             router: new SmartRouter({
                 routers: [new RegExpRouter(), new TrieRouter()],
@@ -33,6 +36,7 @@ export class App {
 
     async init(module: Module) {
         if (module.controllers) {
+            // Register each controller
             for (const controller of module.controllers) {
                 registerController(this.app, controller)
             }
@@ -41,7 +45,7 @@ export class App {
     }
 
     async listen(port: number) {
-        return Deno.serve({ port }, this.app.fetch)
+        return Deno.serve({ port }, this.app.fetch.bind(this.app))
     }
 
     getApp() {
@@ -49,6 +53,9 @@ export class App {
     }
 }
 
-export { All, Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, Res }
-export { Hono, RegExpRouter, SmartRouter, TrieRouter }
+// Export everything needed for controllers
+export { Controller, Delete, Get, Patch, Post, Put }
+
+// Export Hono types and classes
 export type { Context }
+export { Hono, RegExpRouter, SmartRouter, TrieRouter }

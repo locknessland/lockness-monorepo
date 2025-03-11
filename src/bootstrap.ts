@@ -1,10 +1,21 @@
 import { App } from '@lockness/core'
 import { TodoController } from './Controller/TodoController.ts'
 
+interface AppModule {
+    controllers: any[]
+}
+
 export const bootstrap = async () => {
+    // Create Lockness application
     const app = new App()
-    await app.init({
+
+    // Configure module
+    const module: AppModule = {
         controllers: [TodoController],
-    })
+    }
+
+    // Initialize the application with the module
+    await app.init(module)
+
     return app
 }
