@@ -1,7 +1,14 @@
-import { Context as HonoContext, Hono, RegExpRouter, SmartRouter, TrieRouter } from '@lockness/core'
+import {
+    Context as HonoContext,
+    Hono,
+    RegExpRouter,
+    SmartRouter,
+    TrieRouter,
+} from '@lockness/core'
 
 // Stockage des métadonnées des routes
 const routeMetadata = new Map<string, RouteDefinition[]>()
+const controllerMetadata = new Map<string, { prefix: string }>()
 
 // Interface pour les métadonnées de route
 interface RouteDefinition {
@@ -29,15 +36,23 @@ type Constructor<T extends BaseController = BaseController> = {
 export function Controller(prefix: string = '') {
     return function <T extends BaseController>(target: Constructor<T>) {
         const routes = routeMetadata.get(target.name) || []
-
-        routes.forEach((route) => {
-            const fullPath = `${prefix}${route.path}`
-            app[route.method](fullPath, async (c: HonoContext) => {
-                const instance = new target()
-                return await route.handler.call(instance, c)
-            })
-        })
+        routeMetadata.set(target.name, routes)
+        controllerMetadata.set(target.name, { prefix })
+        return target
     }
+}
+
+export function registerController(app: Hono, controller: Constructor) {
+    const routes = routeMetadata.get(controller.name) || []
+    const metadata = controllerMetadata.get(controller.name) || { prefix: '' }
+
+    routes.forEach((route) => {
+        const fullPath = `${metadata.prefix}${route.path}`
+        app[route.method](fullPath, async (c: HonoContext) => {
+            const instance = new controller()
+            return await route.handler.call(instance, c)
+        })
+    })
 }
 
 // Décorateurs de méthodes HTTP

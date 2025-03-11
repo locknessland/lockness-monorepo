@@ -1,3 +1,4 @@
-import app from '@lockness/kernel'
+import { bootstrap } from '@lockness/bootstrap'
 
-Deno.serve({ port: Number(Deno.env.get('PORT') || 3000) }, app.fetch)
+const app = await bootstrap()
+await app.listen(Number(Deno.env.get('PORT') || 3000))

@@ -5,7 +5,7 @@
     },
     "imports": {
         "@lockness/core": "./lockness-core/lockness.ts",
-        "@lockness/kernel": "./src/kernel.ts",
+        "@lockness/bootstrap": "./src/bootstrap.ts",
         "@hono/hono": "jsr:@hono/hono@^4",
         "@hono/hono/": "jsr:@hono/hono@^4/",
         "@std/assert": "jsr:@std/assert@1"
