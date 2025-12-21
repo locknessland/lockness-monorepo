@@ -1,5 +1,5 @@
 import { App } from '../lockness/core/_index-core.ts'
-import { TodoController } from './Controller/TodoController.ts'
+import { TodoController } from './Controller/todo_controller.ts'
 
 interface AppModule {
     controllers: any[]
