@@ -4,8 +4,10 @@
         "dev": "deno run --env-file=.env -A --watch main.ts"
     },
     "imports": {
-        "@lockness/core": "./lockness/core/_index.ts",
+        "@/": "./",
         "@std/assert": "jsr:@std/assert@1",
+        "lockness": "./lockness/core/index.ts",
+        "lockness/": "./lockness/core/",
         "hono": "npm:hono@^4.11.1"
     },
     "fmt": {
