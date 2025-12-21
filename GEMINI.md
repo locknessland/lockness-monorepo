@@ -57,3 +57,7 @@ familiar MVC (Model-View-Controller) architecture.
 - **Root Files & `src/`**: These files represent the framework's boilerplate structure generated for users.
 - **`docs/`**: Contains reference documentation and rules, including HonoJS docs, for AI assistance.
 - **`_output/`**: Output directory for builds (`server.ts`) and compiled binaries.
+
+## ⚙️ Development Workflow
+
+- **Quality Assurance**: Every code modification must be validated by running `deno fmt` and `deno lint`. This ensures that the codebase remains clean, consistent, and free of linting errors.

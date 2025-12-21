@@ -50,3 +50,4 @@ Lockness JS is powered by **HonoJS** for routing and middleware but abstracts it
 - Ensure all components are modular and follow the MVC pattern.
 - Prioritize security and modern tooling provided by Deno.
 - When generating code, skip explanations unless asked, and focus on providing complete, functional MVC components.
+- **Validation**: Always verify your changes by running `deno fmt` and `deno lint` to ensure code quality and consistency.
