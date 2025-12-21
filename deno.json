@@ -19,7 +19,8 @@
         "@std/cli": "jsr:@std/cli@1",
         "@std/fs": "jsr:@std/fs@1",
         "@std/path": "jsr:@std/path@1",
-        "lockness": "./lockness/core.ts"
+        "lockness": "./lockness/core.ts",
+        "hono": "npm:hono@^4.11.1"
     },
     "unstable": [
         "kv"
