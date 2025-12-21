@@ -9,6 +9,7 @@ Lockness JS is powered by **HonoJS** for routing and middleware but abstracts it
 - **`lockness/`**: Core library source code. This is the package intended for publication.
 - **Root & `src/`**: Framework boilerplate/template. This structure is what the CLI generates for new projects.
 - **`docs/`**: Contains reference documentation and rules, including HonoJS docs, for AI assistance.
+- **`_output/`**: Output directory for builds (`server.ts`) and compiled binaries.
 
 
 ## 🚀 Core Philosophy

@@ -39,5 +39,5 @@ familiar MVC (Model-View-Controller) architecture.
 - **Root Files & `src/`**: These files represent the framework's boilerplate
   structure. When a user initializes a new Lockness project using the CLI, this
   is the architecture that will be generated.
-- **`docs/`**: Contains internal documentation and AI rules, including HonoJS
-  references, to assist in development.
+- **`docs/`**: Contains reference documentation and rules, including HonoJS docs, for AI assistance.
+- **`_output/`**: Output directory for builds (`server.ts`) and compiled binaries from the compile task.

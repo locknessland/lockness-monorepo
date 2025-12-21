@@ -23,9 +23,15 @@ deno task dev
 ```
 
 ### Production Build
-Bundle your application into a single, optimized JavaScript file in the `_build` directory:
+Bundle your application into an optimized TypeScript file in the `_output` directory:
 ```bash
 deno task build
+```
+
+### Compile to Binary
+Create a standalone executable for your target platform:
+```bash
+deno task compile
 ```
 
 ### Running in Production
@@ -41,6 +47,8 @@ deno task start
 - **`lockness/`**: The core library source code.
 - **`src/`**: Your application logic (Controllers, Kernels, etc.).
 - **`data/`**: Assets and static data.
+- **`_output/`**: Build artifacts and compiled binaries.
+
 
 ---
 
