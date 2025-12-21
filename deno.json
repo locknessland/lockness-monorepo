@@ -9,9 +9,9 @@
         "@service/": "./src/service/",
         "@middleware/": "./src/middleware/",
         "@model/": "./src/model/",
-        "@router": "./router.ts",
+        "@router": "./src/router.ts",
         "@repository/": "./src/repository/",
-        "@kernel": "./kernel.ts",
+        "@kernel": "./src/kernel.ts",
         "@std/assert": "jsr:@std/assert@1",
         "lockness": "./lockness/core.ts",
         "hono": "npm:hono@^4.11.1"
