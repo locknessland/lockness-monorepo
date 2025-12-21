@@ -97,6 +97,37 @@ export class TodoController {
     "createdAt": "2025-12-21T11:30:00Z"
   }
 ]
+`,
+    "README.md": `# 🌊 Lockness JS
+
+**Lockness JS** is a high-performance, fullstack MVC web framework built natively for **Deno**. Heavily inspired by the elegance of Laravel and AdonisJS, it leverages the speed of **HonoJS** while providing a structured and ergonomic development experience.
+
+### Development
+Start the development server with hot-reload and environment variables:
+\`\`\`bash
+deno task dev
+\`\`\`
+
+### Production Build
+Bundle your application into an optimized TypeScript file in the \`_output\` directory:
+\`\`\`bash
+deno task build
+\`\`\`
+
+### Compile to Binary
+Create a standalone executable for your target platform:
+\`\`\`bash
+deno task compile
+\`\`\`
+
+### Running in Production
+Run the optimized production build:
+\`\`\`bash
+deno task start
+\`\`\`
+
+
+
 `
 };
 
