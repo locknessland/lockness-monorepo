@@ -5,6 +5,12 @@ You are an expert developer working on **Lockness JS**, a fullstack MVC framewor
 ## 🎯 Project Overview
 Lockness JS is powered by **HonoJS** for routing and middleware but abstracts it into a complete MVC (Model-View-Controller) architecture.
 
+## 📂 Repository Structure
+- **`lockness/`**: Core library source code. This is the package intended for publication.
+- **Root & `src/`**: Framework boilerplate/template. This structure is what the CLI generates for new projects.
+- **`rules/`**: Contains reference documentation and rules, including HonoJS docs, for AI assistance.
+
+
 ## 🚀 Core Philosophy
 - **Deno First**: Use native Deno features. No `node_modules`. Use TypeScript natively.
 - **MVC Architecture**: Strictly separate business logic (Controllers), data (Models), and display (Views).

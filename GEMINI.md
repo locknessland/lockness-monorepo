@@ -31,3 +31,13 @@ familiar MVC (Model-View-Controller) architecture.
 - **ORM / Query Builder** (to be defined/integrated)
 - **View Engine** (JSX)
 - **Dependency Injection**
+
+## 📂 Repository Structure
+
+- **`lockness/`**: This directory contains the core library code. This is the
+  package that will be published to JSR/NPM.
+- **Root Files & `src/`**: These files represent the framework's boilerplate
+  structure. When a user initializes a new Lockness project using the CLI, this
+  is the architecture that will be generated.
+- **`rules/`**: Contains internal documentation and AI rules, including HonoJS
+  references, to assist in development.
