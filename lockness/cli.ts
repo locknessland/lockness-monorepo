@@ -111,7 +111,35 @@ export class Ace {
             }
         });
 
+        this.register("make:repository", async (args) => {
+            const name = args[0];
+            if (!name) {
+                console.error("❌ Please provide a repository name (e.g., User)");
+                return;
+            }
+
+            const className = name.charAt(0).toUpperCase() + name.slice(1);
+            const modelFileName = name.toLowerCase();
+            const fileName = `${name.toLowerCase()}_repository.ts`;
+            const dirPath = `./src/repository`;
+            const filePath = `${dirPath}/${fileName}`;
+
+            try {
+                const content = await Stub.render('make', 'repository', {
+                    className,
+                    modelFileName
+                });
+
+                await Deno.mkdir(dirPath, { recursive: true });
+                await Deno.writeTextFile(filePath, content);
+                console.log(`✅ Repository created at ${filePath}`);
+            } catch (error) {
+                console.error(`❌ Failed to create repository: ${(error as Error).message}`);
+            }
+        });
+
         this.register("list", () => {
+
 
 
             console.log("Available commands:");

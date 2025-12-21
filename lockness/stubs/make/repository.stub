@@ -1,0 +1,27 @@
+import { {{ className }} } from '@model/{{ modelFileName }}.ts'
+
+export class {{ className }}Repository {
+    /**
+     * Find all {{ className }}
+     */
+    async findAll(): Promise<{{ className }}[]> {
+        // TODO: Implement database logic
+        return []
+    }
+
+    /**
+     * Find {{ className }} by ID
+     */
+    async findById(id: number): Promise<{{ className }} | null> {
+        // TODO: Implement database logic
+        return null
+    }
+
+    /**
+     * Create a new {{ className }}
+     */
+    async create(data: Partial<{{ className }}>): Promise<{{ className }}> {
+        // TODO: Implement database logic
+        return new {{ className }}(data)
+    }
+}
