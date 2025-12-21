@@ -183,7 +183,7 @@ async function main() {
             "@model/": "./src/model/",
             "@repository/": "./src/repository/",
             "@kernel": "./src/kernel.ts",
-            "lockness": "jsr:@lockness/core@^0.1.1",
+            "lockness": "jsr:@lockness/core@^0.1.2",
             "@std/assert": "jsr:@std/assert@1",
             "hono": "npm:hono@^4.11.1"
         },
