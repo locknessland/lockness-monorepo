@@ -1,26 +1,33 @@
-Fullstack MVC framework for Deno Lockness JS is a fullstack Web framework with
-focus on ergonomics and speed . It takes care of much of the Web development
-hassles, offering you a clean and stable API to build Web apps and micro
-services.
+Fullstack MVC framework for Deno. Lockness JS is a fullstack Web framework with
+a focus on ergonomics and speed. It takes care of much of the Web development
+hassles, offering you a clean and stable API to build Web apps and
+microservices.
 
-## 🎯 Objectif du Projet
+## 🎯 Project Objective
 
-L'objectif principal de Lockness est de fournir une expérience de développement robuste et structurée, similaire à ce que l'on retrouve dans les écosystèmes établis comme **Laravel**, **AdonisJS** ou **Symfony**, tout en tirant parti de la modernité et de la vitesse de Deno.
+The main objective of Lockness is to provide a robust and structured development
+experience, similar to what is found in established ecosystems like **Laravel**,
+**AdonisJS**, or **Symfony**, while leveraging the modernity and speed of Deno.
 
-Bien que propulsé par le moteur performant de **HonoJS** (pour le routing, les middlewares, etc.), Lockness abstraire cette couche pour offrir une architecture MVC (Modèle-Vue-Contrôleur) complète et familière.
+Although powered by the high-performance engine of **HonoJS** (for routing,
+middleware, etc.), Lockness abstracts this layer to offer a complete and
+familiar MVC (Model-View-Controller) architecture.
 
-## 🚀 Philosophie
+## 🚀 Philosophy
 
--   **Base Solide** : Utilise HonoJS sous le capot pour des performances maximales et une gestion efficace des requêtes HTTP.
--   **Architecture MVC** : Structure claire séparant la logique métier, les données et l'affichage.
--   **Inspiration** : Fortement inspiré par l'élégance de Laravel et AdonisJS.
--   **Deno First** : Construit nativement pour Deno, profitant de sa sécurité et de son outillage moderne (TypeScript natif, pas de `node_modules`, etc.).
+- **Solid Foundation**: Uses HonoJS under the hood for maximum performance and
+  efficient HTTP request management.
+- **MVC Architecture**: A clear structure separating business logic, data, and
+  display.
+- **Inspiration**: Heavily inspired by the elegance of Laravel and AdonisJS.
+- **Deno First**: Built natively for Deno, taking advantage of its security and
+  modern tooling (native TypeScript, no `node_modules`, etc.).
 
-## 🛠 Fonctionnalités Cibles
+## 🛠 Target Features
 
--   **Routing expressif** (basé sur Hono mais adapté MVC)
--   **Contrôleurs** pour la logique de requête
--   **Support Middleware** robuste
--   **ORM / Query Builder** (à définir/intégrer)
--   **Moteur de Vues** (JSX)
--   **Injection de Dépendances**
+- **Expressive Routing** (based on Hono but adapted for MVC)
+- **Controllers** for request logic
+- **Robust Middleware Support**
+- **ORM / Query Builder** (to be defined/integrated)
+- **View Engine** (JSX)
+- **Dependency Injection**
