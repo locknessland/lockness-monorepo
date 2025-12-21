@@ -3,9 +3,9 @@
     "version": "0.1.1",
     "license": "MIT",
     "exports": {
-        ".": "./lockness/core.ts",
-        "./init": "./lockness/init.ts",
-        "./cli": "./lockness/cli.ts"
+        ".": "./core.ts",
+        "./init": "./init.ts",
+        "./cli": "./cli.ts"
     },
     "publish": {
         "include": [
