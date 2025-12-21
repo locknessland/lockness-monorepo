@@ -36,7 +36,7 @@ export class ${className}Controller {
                 await Deno.writeTextFile(filePath, content);
                 console.log(`✅ Controller created at ${filePath}`);
             } catch (error) {
-                console.error(`❌ Failed to create controller: ${error.message}`);
+                console.error(`❌ Failed to create controller: ${(error as Error).message}`);
             }
         });
 
@@ -71,7 +71,7 @@ export class ${className}Middleware implements IMiddleware {
                 await Deno.writeTextFile(filePath, content);
                 console.log(`✅ Middleware created at ${filePath}`);
             } catch (error) {
-                console.error(`❌ Failed to create middleware: ${error.message}`);
+                console.error(`❌ Failed to create middleware: ${(error as Error).message}`);
             }
         });
 
@@ -106,4 +106,4 @@ export class ${className}Middleware implements IMiddleware {
     }
 }
 
-export const ace = new Ace();
+export const ace: Ace = new Ace();

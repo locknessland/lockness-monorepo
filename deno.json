@@ -2,7 +2,11 @@
     "name": "@lockness/core",
     "version": "0.1.0",
     "license": "MIT",
-    "exports": "./lockness/core.ts",
+    "exports": {
+        ".": "./lockness/core.ts",
+        "./init": "./lockness/init.ts",
+        "./cli": "./lockness/cli.ts"
+    },
     "publish": {
         "include": [
             "lockness",
@@ -27,6 +31,9 @@
         "@repository/": "./src/repository/",
         "@kernel": "./src/kernel.ts",
         "@std/assert": "jsr:@std/assert@1",
+        "@std/cli": "jsr:@std/cli@1",
+        "@std/fs": "jsr:@std/fs@1",
+        "@std/path": "jsr:@std/path@1",
         "lockness": "./lockness/core.ts",
         "hono": "npm:hono@^4.11.1"
     },
