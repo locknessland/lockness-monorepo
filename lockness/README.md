@@ -14,6 +14,17 @@
 
 ---
 
+## 🛠️ Installation
+
+To create a new Lockness JS project, run the following command:
+
+```bash
+deno run -A jsr:@lockness/core/init my-app
+cd my-app
+```
+
+---
+
 ## 🛠️ Usage
 
 ### Development
