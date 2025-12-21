@@ -1,0 +1,9 @@
+import { Controller, Get, Context } from 'lockness'
+
+@Controller('/{{ route }}')
+export class {{ className }}Controller {
+    @Get('/')
+    index(c: Context) {
+        return c.json({ message: 'Hello from {{ className }}Controller' })
+    }
+}

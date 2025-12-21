@@ -1,5 +1,7 @@
 
 
+import { Stub } from './stubs.ts'
+
 export class Ace {
     private commands: Map<string, (args: string[]) => Promise<void>> = new Map();
 
@@ -20,18 +22,12 @@ export class Ace {
             const dirPath = `./src/controller`;
             const filePath = `${dirPath}/${fileName}`;
 
-            const content = `import { Controller, Get, Context } from 'lockness'
-
-@Controller('/${name.toLowerCase()}')
-export class ${className}Controller {
-    @Get('/')
-    index(c: Context) {
-        return c.json({ message: 'Hello from ${className}Controller' })
-    }
-}
-`;
-
             try {
+                const content = await Stub.render('make', 'controller', {
+                    className,
+                    route: name.toLowerCase()
+                });
+
                 await Deno.mkdir(dirPath, { recursive: true });
                 await Deno.writeTextFile(filePath, content);
                 console.log(`✅ Controller created at ${filePath}`);
@@ -39,8 +35,6 @@ export class ${className}Controller {
                 console.error(`❌ Failed to create controller: ${(error as Error).message}`);
             }
         });
-
-
 
         this.register("make:middleware", async (args) => {
             const name = args[0];
@@ -54,19 +48,11 @@ export class ${className}Controller {
             const dirPath = `./src/middleware`;
             const filePath = `${dirPath}/${fileName}`;
 
-            const content = `import type { Context, Next } from 'hono'
-import { Middleware, type IMiddleware } from 'lockness'
-
-@Middleware()
-export class ${className}Middleware implements IMiddleware {
-    async handle(c: Context, next: Next) {
-        console.log('🔹 Executing ${className}Middleware')
-        await next()
-    }
-}
-`;
-
             try {
+                const content = await Stub.render('make', 'middleware', {
+                    className
+                });
+
                 await Deno.mkdir(dirPath, { recursive: true });
                 await Deno.writeTextFile(filePath, content);
                 console.log(`✅ Middleware created at ${filePath}`);
@@ -107,3 +93,4 @@ export class ${className}Middleware implements IMiddleware {
 }
 
 export const ace: Ace = new Ace();
+
