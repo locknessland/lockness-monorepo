@@ -37,7 +37,8 @@ familiar MVC (Model-View-Controller) architecture.
 ```text
 .
 ├── lockness/              # 🏗️ Core Library (Internal Logic)
-│   └── core.ts            # Main class & decorators
+│   ├── core.ts            # Main class & decorators
+│   └── cli.ts             # CLI engine (Ace)
 ├── src/                   # 🚀 Framework Template (Boilerplate)
 │   ├── controller/        # HTTP Controllers
 │   ├── model/             # Database Models
@@ -48,6 +49,7 @@ familiar MVC (Model-View-Controller) architecture.
 ├── scripts/               # Build & Internal Scripts
 ├── _output/               # Build Artifacts & Binaries
 ├── main.ts                # Entry point
+├── ace.ts                 # CLI Entry point
 └── deno.json              # Config & Aliases
 ```
 

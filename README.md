@@ -22,6 +22,12 @@ Start the development server with hot-reload and environment variables:
 deno task dev
 ```
 
+### Generating Components
+Scaffold new controllers using the Ace CLI:
+```bash
+deno task ace make:controller User
+```
+
 ### Production Build
 Bundle your application into an optimized TypeScript file in the `_output` directory:
 ```bash
@@ -47,7 +53,8 @@ deno task start
 ```text
 .
 ├── lockness/              # 🏗️ Core Library (Internal Logic)
-│   └── core.ts            # Main class & decorators
+│   ├── core.ts            # Main class & decorators
+│   └── cli.ts             # CLI engine (Ace)
 ├── src/                   # 🚀 Framework Template (Boilerplate)
 │   ├── controller/        # HTTP Controllers
 │   ├── model/             # Database Models
@@ -57,13 +64,16 @@ deno task start
 ├── scripts/               # Build & Internal Scripts
 ├── _output/               # Build Artifacts & Binaries
 ├── main.ts                # Entry point
+├── ace.ts                 # CLI Entry point
 └── deno.json              # Config & Aliases
 ```
 
 - **`lockness/`**: Core library source code (Development).
 - **`src/`**: Application logic following the MVC pattern.
+- **`ace.ts`**: Command-line interface entry point.
 - **`data/`**: Assets and static data.
 - **`_output/`**: Build artifacts and compiled binaries.
+
 
 
 

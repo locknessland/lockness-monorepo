@@ -9,6 +9,8 @@ Lockness JS is powered by **HonoJS** for routing and middleware but abstracts it
 ```text
 .
 ├── lockness/              # 🏗️ Core Library (Library Development)
+│   ├── core.ts            # Core Logic
+│   └── cli.ts             # Ace Engine
 ├── src/                   # 🚀 Framework Architecture (Boilerplate)
 │   ├── controller/        # User Controllers
 │   ├── model/             # Models
@@ -19,6 +21,7 @@ Lockness JS is powered by **HonoJS** for routing and middleware but abstracts it
 ├── scripts/               # Build Scripts
 ├── _output/               # Build Artifacts
 ├── main.ts                # Application Entry point
+├── ace.ts                 # CLI Entry point
 └── deno.json              # Configuration
 ```
 - **`lockness/`**: Core library source code. This is the package intended for publication.
