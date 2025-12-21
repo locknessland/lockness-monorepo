@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Context } from 'lockness'
+import todo from '@/data/todo.json' with { type: 'json' }
 
 interface Todo {
     id: number
@@ -8,7 +9,7 @@ interface Todo {
 
 @Controller('/')
 export class TodoController {
-    private todos: Todo[] = []
+    private todos: Todo[] = todo
 
     @Get()
     findAll(c: Context) {
