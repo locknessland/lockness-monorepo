@@ -1,5 +1,4 @@
-import { Controller, Get, Post } from 'lockness'
-import type { Context } from 'lockness'
+import { Controller, Get, Post, Context } from 'lockness'
 
 interface Todo {
     id: number
