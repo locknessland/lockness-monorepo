@@ -8,3 +8,6 @@ export class Options { }
 export class Head { }
 export class Trace { }
 export class Connect { }
+export class Middleware { }
+export class Context { }
+
