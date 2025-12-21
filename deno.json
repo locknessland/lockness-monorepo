@@ -2,8 +2,8 @@
     "tasks": {
         "dev": "deno run --env-file=.env -A --watch main.ts",
         "build": "deno run -A scripts/build.ts",
-        "start": "deno run --allow-net --allow-env _build/server.ts",
-        "compile": "deno compile --allow-read --allow-net --output _compiled/server main.ts"
+        "start": "deno run --allow-net --allow-env _output/server.ts",
+        "compile": "deno compile --allow-read --allow-net --output _output/server main.ts"
     },
     "imports": {
         "@/": "./",
