@@ -8,7 +8,7 @@ const build = async () => {
         await esbuild.build({
             plugins: [...denoPlugins({ configPath: Deno.realPathSync("./deno.json") })],
             entryPoints: ["./main.ts"],
-            outfile: "./_build/main.js",
+            outfile: "./_build/main.ts",
             bundle: true,
             format: "esm",
             platform: "neutral",
