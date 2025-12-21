@@ -1,4 +1,15 @@
 {
+    "name": "@lockness/core",
+    "version": "0.1.0",
+    "license": "MIT",
+    "exports": "./lockness/core.ts",
+    "publish": {
+        "include": [
+            "lockness",
+            "README.md",
+            "deno.json"
+        ]
+    },
     "tasks": {
         "dev": "deno run --env-file=.env -A --watch main.ts",
         "build": "deno run -A scripts/build.ts",
