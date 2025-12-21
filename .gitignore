@@ -5,5 +5,6 @@
 .env.local.development
 .env.local.test 
 
-# Build output 
+# Build & compile output 
 _build
+_compiled
