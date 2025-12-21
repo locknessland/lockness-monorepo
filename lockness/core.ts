@@ -1,4 +1,4 @@
-import { Hono, type Context } from 'hono'
+import { type Context, Hono } from 'hono'
 
 export type { Context }
 
@@ -16,7 +16,9 @@ interface ControllerMetadata {
 }
 
 // deno-lint-ignore no-explicit-any
-type ControllerClass = (new (...args: any[]) => Record<string, any>) & ControllerMetadata
+type ControllerClass =
+    & (new (...args: any[]) => Record<string, any>)
+    & ControllerMetadata
 
 export interface Module {
     controllers: ControllerClass[]
@@ -34,49 +36,66 @@ export class App {
 
             for (const route of routes) {
                 const fullPath = (basePath + route.path).replace(/\/+/g, '/')
-                const method = route.method.toLowerCase() as 'get' | 'post' | 'put' | 'delete' | 'patch'
+                const method = route.method.toLowerCase() as
+                    | 'get'
+                    | 'post'
+                    | 'put'
+                    | 'delete'
+                    | 'patch'
 
-                const routeMiddlewares = (middlewares[route.methodName] || []).map((MiddlewareClass: any) => {
-                    const middlewareInstance = new MiddlewareClass() as IMiddleware
-                    return middlewareInstance.handle.bind(middlewareInstance)
-                })
-
-                // deno-lint-ignore no-explicit-any
-                this.hono[method](fullPath, ...routeMiddlewares, (c) => (instance as any)[route.methodName](c))
+                const routeMiddlewares = (middlewares[route.methodName] || [])
+                    .map((MiddlewareClass: any) => {
+                        const middlewareInstance =
+                            new MiddlewareClass() as IMiddleware
+                        return middlewareInstance.handle.bind(
+                            middlewareInstance,
+                        )
+                    }) // deno-lint-ignore no-explicit-any
+                    ; (this.hono as any)[method](
+                        fullPath,
+                        ...routeMiddlewares,
+                        (c: Context) => (instance as any)[route.methodName](c),
+                    )
             }
         }
     }
 
-    listen(port: number) {
+    listen(port: number): Deno.HttpServer<Deno.NetAddr> {
         return Deno.serve({ port }, this.hono.fetch.bind(this.hono))
     }
 }
 
-export function Controller(path: string) {
+export function Controller(path: string): (value: any, _context: ClassDecoratorContext) => void {
     // deno-lint-ignore no-explicit-any
     return (value: any, _context: ClassDecoratorContext) => {
         value._basePath = path
     }
 }
 
-function createRouteDecorator(method: string) {
+type RouteDecorator = (path?: string) => (_value: any, context: ClassMethodDecoratorContext) => void
+
+function createRouteDecorator(method: string): RouteDecorator {
     return function (path = '') {
         // deno-lint-ignore no-explicit-any
         return (_value: any, context: ClassMethodDecoratorContext) => {
             context.addInitializer(function (this: any) {
                 const constructor = this.constructor as ControllerClass
                 if (!constructor._routes) constructor._routes = []
-                constructor._routes.push({ method, path, methodName: context.name as string })
+                constructor._routes.push({
+                    method,
+                    path,
+                    methodName: context.name as string,
+                })
             })
         }
     }
 }
 
-export const Get = createRouteDecorator('get')
-export const Post = createRouteDecorator('post')
-export const Put = createRouteDecorator('put')
-export const Delete = createRouteDecorator('delete')
-export const Patch = createRouteDecorator('patch')
+export const Get: RouteDecorator = createRouteDecorator('get')
+export const Post: RouteDecorator = createRouteDecorator('post')
+export const Put: RouteDecorator = createRouteDecorator('put')
+export const Delete: RouteDecorator = createRouteDecorator('delete')
+export const Patch: RouteDecorator = createRouteDecorator('patch')
 
 // Placeholders for other things for now
 import type { MiddlewareHandler } from 'hono'
@@ -85,22 +104,23 @@ export interface IMiddleware {
     handle: MiddlewareHandler
 }
 
-export function Middleware() {
+export function Middleware(): (value: any, _context: ClassDecoratorContext) => any {
     // deno-lint-ignore no-explicit-any
     return (value: any, _context: ClassDecoratorContext) => {
         return value
     }
 }
 
-export function Use(middleware: (new () => IMiddleware)) {
+export function Use(middleware: new () => IMiddleware): (_value: any, context: ClassMethodDecoratorContext) => void {
     // deno-lint-ignore no-explicit-any
     return (_value: any, context: ClassMethodDecoratorContext) => {
         context.addInitializer(function (this: any) {
             const constructor = this.constructor
             if (!constructor._middlewares) constructor._middlewares = {}
-            if (!constructor._middlewares[context.name]) constructor._middlewares[context.name] = []
+            if (!constructor._middlewares[context.name]) {
+                constructor._middlewares[context.name] = []
+            }
             constructor._middlewares[context.name].push(middleware)
         })
     }
 }
-
