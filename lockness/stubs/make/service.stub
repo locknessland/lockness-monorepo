@@ -1,0 +1,9 @@
+export class {{ className }}Service {
+    /**
+     * Business logic for {{ className }}
+     */
+    async execute() {
+        // TODO: Implement logic
+        console.log('🔹 {{ className }}Service is running')
+    }
+}

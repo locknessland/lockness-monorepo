@@ -86,7 +86,33 @@ export class Ace {
             }
         });
 
+        this.register("make:service", async (args) => {
+            const name = args[0];
+            if (!name) {
+                console.error("❌ Please provide a service name (e.g., Auth)");
+                return;
+            }
+
+            const className = name.charAt(0).toUpperCase() + name.slice(1);
+            const fileName = `${name.toLowerCase()}_service.ts`;
+            const dirPath = `./src/service`;
+            const filePath = `${dirPath}/${fileName}`;
+
+            try {
+                const content = await Stub.render('make', 'service', {
+                    className
+                });
+
+                await Deno.mkdir(dirPath, { recursive: true });
+                await Deno.writeTextFile(filePath, content);
+                console.log(`✅ Service created at ${filePath}`);
+            } catch (error) {
+                console.error(`❌ Failed to create service: ${(error as Error).message}`);
+            }
+        });
+
         this.register("list", () => {
+
 
             console.log("Available commands:");
             for (const cmd of this.commands.keys()) {
