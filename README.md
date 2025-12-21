@@ -44,10 +44,27 @@ deno task start
 
 ## 📂 Project Structure
 
-- **`lockness/`**: The core library source code.
-- **`src/`**: Your application logic (Controllers, Kernels, etc.).
+```text
+.
+├── lockness/              # 🏗️ Core Library (Internal Logic)
+│   └── core.ts            # Main class & decorators
+├── src/                   # 🚀 Framework Template (Boilerplate)
+│   ├── controller/        # HTTP Controllers
+│   ├── model/             # Database Models
+│   ├── service/           # Business Logic
+│   └── kernel.ts          # App Initialization
+├── data/                  # Static Data & Assets
+├── scripts/               # Build & Internal Scripts
+├── _output/               # Build Artifacts & Binaries
+├── main.ts                # Entry point
+└── deno.json              # Config & Aliases
+```
+
+- **`lockness/`**: Core library source code (Development).
+- **`src/`**: Application logic following the MVC pattern.
 - **`data/`**: Assets and static data.
 - **`_output/`**: Build artifacts and compiled binaries.
+
 
 
 ---

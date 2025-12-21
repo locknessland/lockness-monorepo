@@ -6,6 +6,21 @@ You are an expert developer working on **Lockness JS**, a fullstack MVC framewor
 Lockness JS is powered by **HonoJS** for routing and middleware but abstracts it into a complete MVC (Model-View-Controller) architecture.
 
 ## 📂 Repository Structure
+```text
+.
+├── lockness/              # 🏗️ Core Library (Library Development)
+├── src/                   # 🚀 Framework Architecture (Boilerplate)
+│   ├── controller/        # User Controllers
+│   ├── model/             # Models
+│   ├── service/           # Services
+│   └── kernel.ts          # Bootstrapper
+├── data/                  # Static Data
+├── docs/                  # Reference Documentation
+├── scripts/               # Build Scripts
+├── _output/               # Build Artifacts
+├── main.ts                # Application Entry point
+└── deno.json              # Configuration
+```
 - **`lockness/`**: Core library source code. This is the package intended for publication.
 - **Root & `src/`**: Framework boilerplate/template. This structure is what the CLI generates for new projects.
 - **`docs/`**: Contains reference documentation and rules, including HonoJS docs, for AI assistance.

@@ -34,10 +34,24 @@ familiar MVC (Model-View-Controller) architecture.
 
 ## 📂 Repository Structure
 
-- **`lockness/`**: This directory contains the core library code. This is the
-  package that will be published to JSR/NPM.
-- **Root Files & `src/`**: These files represent the framework's boilerplate
-  structure. When a user initializes a new Lockness project using the CLI, this
-  is the architecture that will be generated.
+```text
+.
+├── lockness/              # 🏗️ Core Library (Internal Logic)
+│   └── core.ts            # Main class & decorators
+├── src/                   # 🚀 Framework Template (Boilerplate)
+│   ├── controller/        # HTTP Controllers
+│   ├── model/             # Database Models
+│   ├── service/           # Business Logic
+│   └── kernel.ts          # App Initialization
+├── data/                  # Static Data & Assets
+├── docs/                  # Documentation & AI Rules
+├── scripts/               # Build & Internal Scripts
+├── _output/               # Build Artifacts & Binaries
+├── main.ts                # Entry point
+└── deno.json              # Config & Aliases
+```
+
+- **`lockness/`**: This directory contains the core library code. This is the package that will be published to JSR/NPM.
+- **Root Files & `src/`**: These files represent the framework's boilerplate structure generated for users.
 - **`docs/`**: Contains reference documentation and rules, including HonoJS docs, for AI assistance.
-- **`_output/`**: Output directory for builds (`server.ts`) and compiled binaries from the compile task.
+- **`_output/`**: Output directory for builds (`server.ts`) and compiled binaries.
