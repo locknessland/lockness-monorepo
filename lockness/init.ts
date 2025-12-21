@@ -4,13 +4,101 @@ import { join, dirname } from "@std/path";
 
 const ARGS = parseArgs(Deno.args);
 const PROJECT_NAME = ARGS._[0] || "lockness-app";
-const BASE_URL = "https://raw.githubusercontent.com/locknessjs/lockness/main";
 
-async function fetchFile(path: string): Promise<string> {
-    const res = await fetch(`${BASE_URL}/${path}`);
-    if (!res.ok) throw new Error(`Failed to fetch ${path}: ${res.statusText}`);
-    return res.text();
+// Templates stored as strings to avoid fetching from private repo
+const TEMPLATES = {
+    "main.ts": `import { bootstrap } from '@kernel'
+
+const app = await bootstrap()
+await app.listen(Number(Deno.env.get('PORT') || 8888))
+`,
+    "ace.ts": `import { ace } from "jsr:@lockness/core/cli";
+
+if (import.meta.main) {
+    await ace.run(Deno.args);
 }
+`,
+    "src/kernel.ts": `import { App, type Module } from 'lockness'
+import { TodoController } from '@controller/todo_controller.ts'
+
+export const bootstrap = async () => {
+    // Create Lockness application
+    const app = new App()
+
+    // Configure module
+    const module: Module = {
+        // deno-lint-ignore no-explicit-any
+        controllers: [TodoController as any],
+    }
+
+    // Initialize the application with the module
+    await app.init(module)
+
+    return app
+}
+`,
+    "src/controller/todo_controller.ts": `import { Controller, Get, Post, Context } from 'lockness'
+import todo from '@/data/todo.json' with { type: 'json' }
+
+interface Todo {
+    id: number
+    title: string
+    completed: boolean
+}
+
+@Controller('/todos')
+export class TodoController {
+    private todos: Todo[] = todo
+
+    @Get()
+    findAll(c: Context) {
+        return c.json(this.todos)
+    }
+
+    @Get('/:id')
+    findOne(c: Context) {
+        const id = parseInt(c.req.param('id'))
+        const todo = this.todos.find((t) => t.id === id)
+
+        if (!todo) {
+            return c.json({ error: 'Todo not found' }, 404)
+        }
+
+        return c.json(todo)
+    }
+
+    @Post()
+    async create(c: Context) {
+        const body = await c.req.json()
+        const newTodo: Todo = {
+            id: this.todos.length + 1,
+            title: body.title,
+            completed: false,
+        }
+
+        this.todos.push(newTodo)
+        return c.json(this.todos, 201)
+    }
+}
+`,
+    "data/todo.json": `[
+  {
+    "id": 1,
+    "title": "Learn Lockness JS",
+    "description": "Explore the fullstack MVC framework for Deno.",
+    "completed": true,
+    "createdAt": "2025-12-21T10:00:00Z"
+  },
+  {
+    "id": 2,
+    "title": "Set up project structure",
+    "description": "Organize controllers, models, and views.",
+    "completed": true,
+    "createdAt": "2025-12-21T11:30:00Z"
+  }
+]
+`
+};
 
 async function write(path: string, content: string) {
     const fullPath = join(String(PROJECT_NAME), path);
@@ -23,29 +111,12 @@ async function main() {
     console.log(`Scaffolding Lockness project in ${PROJECT_NAME}...`);
     await ensureDir(String(PROJECT_NAME));
 
-    // 1. Create main.ts
-    const mainTs = await fetchFile("main.ts");
-    await write("main.ts", mainTs);
+    // Write file templates
+    for (const [path, content] of Object.entries(TEMPLATES)) {
+        await write(path, content);
+    }
 
-    // 2. Create ace.ts
-    // Replace relative import with package import
-    let aceTs = await fetchFile("ace.ts");
-    aceTs = aceTs.replace('"./lockness/cli.ts"', '"jsr:@lockness/core/cli"');
-    await write("ace.ts", aceTs);
-
-    // 3. Create src/kernel.ts
-    const kernelTs = await fetchFile("src/kernel.ts");
-    await write("src/kernel.ts", kernelTs);
-
-    // 4. Create controller
-    const todoController = await fetchFile("src/controller/todo_controller.ts");
-    await write("src/controller/todo_controller.ts", todoController);
-
-    // 5. Create data
-    const todoData = await fetchFile("data/todo.json");
-    await write("data/todo.json", todoData);
-
-    // 6. Create deno.json
+    // Create deno.json
     const denoJson = {
         "tasks": {
             "dev": "deno run --env-file=.env -A --watch main.ts",
@@ -71,7 +142,7 @@ async function main() {
     };
     await write("deno.json", JSON.stringify(denoJson, null, 4));
 
-    // 7. Create empty directories
+    // Create empty directories
     const dirs = [
         "src/model",
         "src/service",
