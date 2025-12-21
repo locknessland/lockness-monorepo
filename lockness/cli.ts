@@ -40,34 +40,69 @@ export class ${className}Controller {
             }
         });
 
-        this.register("list", async () => {
-            console.log("Available commands:");
-            for (const cmd of this.commands.keys()) {
-                console.log(`  - ${cmd}`);
-            }
-        });
-    }
+    });
 
-    register(name: string, handler: (args: string[]) => Promise<void>) {
-        this.commands.set(name, handler);
-    }
-
-    async run(args: string[]) {
-        const [commandName, ...rest] = args;
-
-        if (!commandName) {
-            await this.commands.get("list")!([]);
+        this.register("make:middleware", async (args) => {
+        const name = args[0];
+        if (!name) {
+            console.error("❌ Please provide a middleware name (e.g., Auth)");
             return;
         }
 
-        const handler = this.commands.get(commandName);
-        if (handler) {
-            await handler(rest);
-        } else {
-            console.error(`❌ Unknown command: ${commandName}`);
-            await this.commands.get("list")!([]);
-        }
+        const className = name.charAt(0).toUpperCase() + name.slice(1);
+        const fileName = `${name.toLowerCase()}_middleware.ts`;
+        const dirPath = `./src/middleware`;
+        const filePath = `${dirPath}/${fileName}`;
+
+        const content = `import type { Context, Next } from 'hono'
+import { Middleware, type IMiddleware } from 'lockness'
+
+@Middleware()
+export class ${className}Middleware implements IMiddleware {
+    async handle(c: Context, next: Next) {
+        console.log('🔹 Executing ${className}Middleware')
+        await next()
     }
+}
+`;
+
+        try {
+            await Deno.mkdir(dirPath, { recursive: true });
+            await Deno.writeTextFile(filePath, content);
+            console.log(`✅ Middleware created at ${filePath}`);
+        } catch (error) {
+            console.error(`❌ Failed to create middleware: ${error.message}`);
+        }
+    });
+
+this.register("list", async () => {
+    console.log("Available commands:");
+    for (const cmd of this.commands.keys()) {
+        console.log(`  - ${cmd}`);
+    }
+});
+    }
+
+register(name: string, handler: (args: string[]) => Promise<void>) {
+    this.commands.set(name, handler);
+}
+
+    async run(args: string[]) {
+    const [commandName, ...rest] = args;
+
+    if (!commandName) {
+        await this.commands.get("list")!([]);
+        return;
+    }
+
+    const handler = this.commands.get(commandName);
+    if (handler) {
+        await handler(rest);
+    } else {
+        console.error(`❌ Unknown command: ${commandName}`);
+        await this.commands.get("list")!([]);
+    }
+}
 }
 
 export const ace = new Ace();
