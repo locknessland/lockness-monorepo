@@ -1,7 +1,9 @@
-# Lockness
+# Lockness JS
 
-Start your project
+Fullstack MVC framework for Deno
 
-```
-deno task start
+Start your dev server
+
+```bash
+deno task dev
 ```
