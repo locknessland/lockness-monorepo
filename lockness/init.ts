@@ -128,6 +128,24 @@ deno task start
 
 
 
+
+
+`
+    ,
+    ".env.exemple": `ENV=development
+PORT=8888
+`,
+    ".gitignore": `# ENV files
+.env
+.env.local
+.env.local.production
+.env.local.development
+.env.local.test 
+
+# Build & compile output 
+_build
+_compiled
+_output
 `
 };
 
@@ -146,6 +164,9 @@ async function main() {
     for (const [path, content] of Object.entries(TEMPLATES)) {
         await write(path, content);
     }
+
+    // Create .env from .env.exemple
+    await write(".env", TEMPLATES[".env.exemple"]);
 
     // Create deno.json
     const denoJson = {

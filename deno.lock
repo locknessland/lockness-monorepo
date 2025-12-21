@@ -2,26 +2,38 @@
   "version": "5",
   "specifiers": {
     "jsr:@hono/hono@*": "4.7.2",
+    "jsr:@lockness/core@*": "0.1.1",
     "jsr:@luca/esbuild-deno-loader@0.11": "0.11.1",
     "jsr:@std/assert@1": "1.0.11",
     "jsr:@std/bytes@^1.0.2": "1.0.6",
+    "jsr:@std/cli@1": "1.0.24",
     "jsr:@std/encoding@^1.0.5": "1.0.10",
+    "jsr:@std/fs@1": "1.0.20",
     "jsr:@std/internal@^1.0.12": "1.0.12",
     "jsr:@std/internal@^1.0.5": "1.0.5",
+    "jsr:@std/path@1": "1.1.3",
     "jsr:@std/path@^1.0.6": "1.1.3",
-    "npm:@types/node@*": "22.12.0",
-    "npm:hono@^4.11.1": "4.11.1"
+    "jsr:@std/path@^1.1.3": "1.1.3",
+    "npm:@types/node@*": "22.12.0"
   },
   "jsr": {
     "@hono/hono@4.7.2": {
       "integrity": "73466a24bd6eb3b527cde18e59ca5543890ddacb4312fc0bc7504d28a7e57a38"
+    },
+    "@lockness/core@0.1.1": {
+      "integrity": "ddec863b010e244d372a69bfd9c7ebfceccc0bfedc415f3fe53d32555e383e4d",
+      "dependencies": [
+        "jsr:@std/cli",
+        "jsr:@std/fs",
+        "jsr:@std/path@1"
+      ]
     },
     "@luca/esbuild-deno-loader@0.11.1": {
       "integrity": "dc020d16d75b591f679f6b9288b10f38bdb4f24345edb2f5732affa1d9885267",
       "dependencies": [
         "jsr:@std/bytes",
         "jsr:@std/encoding",
-        "jsr:@std/path"
+        "jsr:@std/path@^1.0.6"
       ]
     },
     "@std/assert@1.0.11": {
@@ -33,8 +45,18 @@
     "@std/bytes@1.0.6": {
       "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
     },
+    "@std/cli@1.0.24": {
+      "integrity": "b655a5beb26aa94f98add6bc8889f5fb9bc3ee2cc3fc954e151201f4c4200a5e"
+    },
     "@std/encoding@1.0.10": {
       "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
+    },
+    "@std/fs@1.0.20": {
+      "integrity": "e953206aae48d46ee65e8783ded459f23bec7dd1f3879512911c35e5484ea187",
+      "dependencies": [
+        "jsr:@std/internal@^1.0.12",
+        "jsr:@std/path@^1.1.3"
+      ]
     },
     "@std/internal@1.0.5": {
       "integrity": "54a546004f769c1ac9e025abd15a76b6671ddc9687e2313b67376125650dc7ba"
@@ -56,9 +78,6 @@
         "undici-types"
       ]
     },
-    "hono@4.11.1": {
-      "integrity": "sha512-KsFcH0xxHes0J4zaQgWbYwmz3UPOOskdqZmItstUG93+Wk1ePBLkLGwbP9zlmh1BFUiL8Qp+Xfu9P7feJWpGNg=="
-    },
     "undici-types@6.20.0": {
       "integrity": "sha512-Ny6QZ2Nju20vw1SRHe3d9jVu6gJ+4e3+MMpqu7pqE5HT6WsTSlce++GQmK5UXS8mzV8DSYHrQH+Xrf2jVcuKNg=="
     }
@@ -72,7 +91,9 @@
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1",
-      "npm:hono@^4.11.1"
+      "jsr:@std/cli@1",
+      "jsr:@std/fs@1",
+      "jsr:@std/path@1"
     ]
   }
 }
