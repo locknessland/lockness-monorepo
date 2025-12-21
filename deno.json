@@ -16,6 +16,9 @@
         "lockness": "./lockness/core.ts",
         "hono": "npm:hono@^4.11.1"
     },
+    "unstable": [
+        "kv"
+    ],
     "fmt": {
         "indentWidth": 4,
         "useTabs": false,
