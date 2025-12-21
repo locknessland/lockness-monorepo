@@ -61,7 +61,33 @@ export class Ace {
             }
         });
 
+        this.register("make:model", async (args) => {
+            const name = args[0];
+            if (!name) {
+                console.error("❌ Please provide a model name (e.g., User)");
+                return;
+            }
+
+            const className = name.charAt(0).toUpperCase() + name.slice(1);
+            const fileName = `${name.toLowerCase()}.ts`;
+            const dirPath = `./src/model`;
+            const filePath = `${dirPath}/${fileName}`;
+
+            try {
+                const content = await Stub.render('make', 'model', {
+                    className
+                });
+
+                await Deno.mkdir(dirPath, { recursive: true });
+                await Deno.writeTextFile(filePath, content);
+                console.log(`✅ Model created at ${filePath}`);
+            } catch (error) {
+                console.error(`❌ Failed to create model: ${(error as Error).message}`);
+            }
+        });
+
         this.register("list", () => {
+
             console.log("Available commands:");
             for (const cmd of this.commands.keys()) {
                 console.log(`  - ${cmd}`);

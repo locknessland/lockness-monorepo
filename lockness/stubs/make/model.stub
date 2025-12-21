@@ -1,0 +1,9 @@
+export class {{ className }} {
+  id?: number
+  createdAt?: Date
+  updatedAt?: Date
+
+  constructor(data: Partial<{{ className }}>) {
+    Object.assign(this, data)
+  }
+}
