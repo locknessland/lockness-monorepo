@@ -5,11 +5,11 @@
 - [x] **ORM Integration (Drizzle)**
   - [x] Setup Drizzle ORM core integration.
   - [x] Create a `Database` service for DI.
-  - [x] Implement initial Ace commands.
-  - [ ] Implement `make:migration` and `db:migrate` (running SQL files).
+  - [x] Implement Ace commands (`db:generate`, `db:migrate`, `db:push`,
+        `db:studio`).
 - [ ] **Database Advanced**
-  - [ ] Real `db:migrate` (running SQL files) vs `db:push`.
-  - [ ] Seeders implementation.
+  - [ ] Seeders implementation (`db:seed`).
+  - [ ] `make:model` command with repository stub.
 
 ## 🛠 Framework Core
 
