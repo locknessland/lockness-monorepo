@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@hono/hono@*": "4.7.2",
     "jsr:@std/assert@1": "1.0.11",
+    "jsr:@std/cli@1": "1.0.24",
     "jsr:@std/internal@^1.0.12": "1.0.12",
     "jsr:@std/internal@^1.0.5": "1.0.5",
     "jsr:@std/path@1": "1.1.3",
@@ -27,6 +28,9 @@
       "dependencies": [
         "jsr:@std/internal@^1.0.5"
       ]
+    },
+    "@std/cli@1.0.24": {
+      "integrity": "b655a5beb26aa94f98add6bc8889f5fb9bc3ee2cc3fc954e151201f4c4200a5e"
     },
     "@std/internal@1.0.5": {
       "integrity": "54a546004f769c1ac9e025abd15a76b6671ddc9687e2313b67376125650dc7ba"
