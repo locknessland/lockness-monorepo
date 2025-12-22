@@ -41,6 +41,21 @@ Create a standalone executable for your target platform:
 deno task compile
 ```
 
+### Docker
+
+Build and run the production image:
+
+```bash
+# Build the image
+docker build -t my-lockness-app .
+
+# Run the container
+docker run -p 8888:8888 --env-file .env.production my-lockness-app
+
+# Override Deno version at build time
+docker build --build-arg DENO_VERSION=2.7.0 -t my-app .
+```
+
 ### Testing
 
 Run the test suite:

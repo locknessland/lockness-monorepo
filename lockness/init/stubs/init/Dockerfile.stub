@@ -1,0 +1,74 @@
+# ============================================================================
+# Lockness JS - Production Dockerfile
+# Multi-stage build for optimized production image
+#
+# Build: docker build -t my-app .
+# Run:   docker run -p 8888:8888 --env-file .env.production my-app
+#
+# Override Deno version: docker build --build-arg DENO_VERSION=2.7.0 -t my-app .
+# ============================================================================
+
+# Deno version - can be overridden at build time
+ARG DENO_VERSION=2.6.3
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build
+# -----------------------------------------------------------------------------
+FROM denoland/deno:${DENO_VERSION} AS builder
+
+WORKDIR /app
+
+# Copy dependency files first for better caching
+COPY deno.json deno.lock* ./
+COPY vite.config.ts ./
+
+# Copy source files
+COPY src/ ./src/
+COPY public/ ./public/
+COPY main.ts ace.ts ./
+
+# Cache dependencies
+RUN deno install
+
+# Build the production bundle (SSR)
+RUN deno run -A npm:vite build && deno run -A npm:vite build --ssr
+
+# -----------------------------------------------------------------------------
+# Stage 2: Production
+# -----------------------------------------------------------------------------
+ARG DENO_VERSION
+FROM denoland/deno:${DENO_VERSION} AS production
+
+WORKDIR /app
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 lockness && \
+    adduser --system --uid 1001 lockness
+
+# Copy built assets from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/deno.json ./
+COPY --from=builder /app/deno.lock* ./
+
+# Copy public assets if needed
+COPY --from=builder /app/public ./public
+
+# Set ownership
+RUN chown -R lockness:lockness /app
+
+# Switch to non-root user
+USER lockness
+
+# Expose the application port
+EXPOSE 8888
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD deno eval "const r = await fetch('http://localhost:8888/'); if (!r.ok) Deno.exit(1);" || exit 1
+
+# Environment variables
+ENV DENO_ENV=production
+ENV PORT=8888
+
+# Run the production server
+CMD ["deno", "run", "--allow-net", "--allow-read", "--allow-env", "--allow-sys", "dist/server.js"]

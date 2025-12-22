@@ -776,3 +776,51 @@ The REPL supports:
 - **Async/await**: Top-level await is supported
 - **Multiline input**: Open braces `{` start multiline mode
 - **Colored output**: Results are syntax-highlighted
+
+## 🐳 Docker Deployment
+
+Lockness includes a production-ready Dockerfile with multi-stage build for
+optimized images.
+
+### Dockerfile Structure
+
+```dockerfile
+ARG DENO_VERSION=2.6.3
+
+# Stage 1: Build
+FROM denoland/deno:${DENO_VERSION} AS builder
+# ... builds the SSR bundle
+
+# Stage 2: Production
+FROM denoland/deno:${DENO_VERSION} AS production
+# ... runs the optimized server
+```
+
+**Features:**
+
+- Multi-stage build (smaller final image)
+- Non-root user for security
+- Health check endpoint
+- Configurable Deno version via `ARG`
+
+### Build & Run
+
+```bash
+# Build the image
+docker build -t my-lockness-app .
+
+# Run the container
+docker run -p 8888:8888 --env-file .env.production my-lockness-app
+
+# Override Deno version at build time
+docker build --build-arg DENO_VERSION=2.7.0 -t my-app .
+```
+
+### .dockerignore
+
+The `.dockerignore` file excludes unnecessary files from the build context:
+
+- `node_modules/`, `.git/`, `coverage/`
+- Environment files (`.env`, `.env.local`)
+- Test files (`*.test.ts`)
+- IDE files (`.vscode/`, `.idea/`)
