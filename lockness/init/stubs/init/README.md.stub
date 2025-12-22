@@ -48,7 +48,16 @@ deno task ace make:seeder User
 
 # Run seeders
 deno task ace db:seed
+
+# Scaffold a complete entity
+deno task ace make:model Post -a
 ```
+
+The `make:model` command supports flags:
+- `-r` repository
+- `-s` seeder  
+- `-c` controller (CRUD)
+- `-a` all of the above
 
 ### Request Validation
 

@@ -106,6 +106,35 @@ Run a specific seeder:
 deno task ace db:seed User
 ```
 
+### Scaffolding with make:model
+
+Quickly scaffold a complete entity with model, repository, seeder, and CRUD
+controller:
+
+```bash
+# Create just the model
+deno task ace make:model Post
+
+# Create model + repository
+deno task ace make:model Post -r
+
+# Create model + seeder
+deno task ace make:model Post -s
+
+# Create model + CRUD controller (with validation)
+deno task ace make:model Post -c
+
+# Create everything at once
+deno task ace make:model Post -a
+```
+
+The `-a` flag generates:
+
+- `src/model/post.ts` - Drizzle table + drizzle-zod schemas
+- `src/repository/post_repository.ts` - Full CRUD with DI
+- `src/seeder/post_seeder.ts` - Seeder template
+- `src/controller/post_controller.ts` - REST API with validation
+
 ### Request Validation with drizzle-zod
 
 Lockness uses **drizzle-zod** to generate Zod validation schemas directly from
