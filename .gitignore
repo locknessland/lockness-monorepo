@@ -12,3 +12,7 @@ _output
 
 # Node modules
 node_modules
+.vite
+
+# Vite output
+dist

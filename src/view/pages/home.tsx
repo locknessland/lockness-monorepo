@@ -66,16 +66,16 @@ export const HomeView = () => {
                         </div>
 
                         <h1 class='text-6xl md:text-8xl font-black mb-8 tracking-tighter leading-[0.9] text-foreground'>
-                            MVC elegance meets <br />
+                            MVC Elegance Meets <br />
                             <span class='text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-400'>
-                                Deno performance
+                                Deno Performance
                             </span>
                         </h1>
 
                         <p class='text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-12 leading-relaxed'>
                             A high-performance, fullstack MVC web framework
                             inspired by Laravel and AdonisJS. Built natively for
-                            Deno, powered by the speed of Hono.
+                            Deno, powered by the speed of Hono
                         </p>
 
                         <div class='flex flex-wrap justify-center gap-6 mb-20'>

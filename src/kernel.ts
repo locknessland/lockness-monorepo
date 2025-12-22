@@ -11,9 +11,24 @@ export const bootstrap = async () => {
     // Create Lockness application
     const app = new App()
 
-    // Initialize the application with auto-discovery
+    // Initialize the application with auto-discovery via Vite glob import
+    // @ts-ignore: Vite specific syntax
+    const modules = import.meta.glob('./controller/*.{ts,tsx}', { eager: true });
+    const controllers: any[] = [];
+
+    for (const path in modules) {
+        const mod = modules[path] as any;
+        for (const key in mod) {
+            const Exported = mod[key];
+            if (typeof Exported === 'function' && Exported._basePath !== undefined) {
+                controllers.push(Exported);
+            }
+        }
+    }
+    console.log(`🔌 Vite loaded ${controllers.length} controllers`)
+
     await app.init({
-        controllersDir: './src/controller',
+        controllers,
         staticDir: 'public',
     })
 

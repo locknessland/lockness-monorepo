@@ -1,0 +1,64 @@
+import { defineConfig } from 'vite'
+import devServer from '@hono/vite-dev-server'
+import { resolve } from 'node:path'
+
+export default defineConfig({
+    resolve: {
+        alias: {
+            '@': resolve(Deno.cwd(), './'),
+            '@controller': resolve(Deno.cwd(), './src/controller'),
+            '@service': resolve(Deno.cwd(), './src/service'),
+            '@middleware': resolve(Deno.cwd(), './src/middleware'),
+            '@model': resolve(Deno.cwd(), './src/model'),
+            '@router': resolve(Deno.cwd(), './src/router.ts'),
+            '@repository': resolve(Deno.cwd(), './src/repository'),
+            '@kernel': resolve(Deno.cwd(), './src/kernel.ts'),
+            'lockness': resolve(Deno.cwd(), './lockness/core/core.ts'),
+            '@lockness/core': resolve(Deno.cwd(), './lockness/core/core.ts'),
+            '@lockness/ace': resolve(Deno.cwd(), './lockness/ace/cli.ts'),
+            '@lockness/kysely': resolve(Deno.cwd(), './lockness/kysely/database.ts'),
+        }
+    },
+    define: {
+        'import.meta.main': 'false',
+    },
+    plugins: [
+        devServer({
+            entry: 'main.ts',
+            injectClientScript: true,
+        }),
+    ],
+    esbuild: {
+        jsx: 'automatic',
+        jsxImportSource: 'hono/jsx',
+        tsconfigRaw: {
+            compilerOptions: {
+                experimentalDecorators: true,
+            },
+        },
+    },
+    build: {
+        target: 'es2022',
+        ssr: './main.ts',
+        outDir: 'dist',
+        rollupOptions: {
+            input: './main.ts',
+            output: {
+                entryFileNames: 'server.js',
+                format: 'esm',
+            },
+            // We can leave this empty if ssr.external handles it, or keep regex
+            external: [
+                /^node:/,
+            ]
+        },
+    },
+    // Prevent Vite from bundling dependencies that should be external in Deno
+    ssr: {
+        external: [
+            'node:process', 'node:path', 'node:fs', 'node:os', 'node:net', 'node:tls', 'node:crypto', 'node:perf_hooks', 'node:stream', 'node:events', 'node:util', 'node:buffer', 'node:string_decoder', 'node:querystring', 'node:zlib', 'node:url', 'node:dns', 'node:http', 'node:https',
+            'process', 'path', 'fs', 'os', 'net', 'tls', 'crypto', 'perf_hooks', 'stream', 'events', 'util', 'buffer', 'string_decoder', 'querystring', 'zlib', 'url', 'dns', 'http', 'https',
+            '@std/path', '@std/fs'
+        ]
+    }
+})

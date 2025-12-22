@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { Hono } from 'hono'
-import { join } from '@std/path'
+import { join } from 'node:path'
 import { jsxRenderer } from 'hono/jsx-renderer'
 import type {
     AppConfig,
@@ -22,6 +22,10 @@ export class App {
 
     public static(path: string, root: string = 'public') {
         this.hono.use(path, serveStatic({ root }))
+    }
+
+    public get fetch() {
+        return this.hono.fetch.bind(this.hono)
     }
 
     async init(config: Module | AppConfig) {
