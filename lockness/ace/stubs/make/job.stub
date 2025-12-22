@@ -8,11 +8,17 @@ interface {{ className }}Payload extends JobPayload {
 /**
  * {{ className }} Job
  *
- * Run with: dispatch(new {{ className }}({ userId: 1 }))
+ * @example
+ * await dispatch(new {{ className }}({ ... }))
  */
 export class {{ className }} implements Job<{{ className }}Payload> {
-    name = '{{ jobName }}'
-    maxAttempts = 3
+    readonly name = '{{ jobName }}'
+    readonly maxAttempts = 3
+    readonly payload: {{ className }}Payload
+
+    constructor(payload: {{ className }}Payload) {
+        this.payload = payload
+    }
 
     async handle(payload: {{ className }}Payload): Promise<void> {
         console.log('Processing {{ className }}:', payload)

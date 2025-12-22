@@ -30,13 +30,15 @@ export interface Job<T extends JobPayload = JobPayload> {
     name: string
     /** Maximum retry attempts */
     maxAttempts?: number
+    /** Job payload data */
+    payload: T
     /** Handle the job */
     handle(payload: T): Promise<void>
     /** Called when job fails after all retries */
     failed?(payload: T, error: Error): Promise<void>
 }
 
-export type JobClass<T extends JobPayload = JobPayload> = new () => Job<T>
+export type JobClass<T extends JobPayload = JobPayload> = new (payload: T) => Job<T>
 
 export interface QueueConfig {
     /** Default queue driver */
@@ -289,21 +291,24 @@ export interface DispatchOptions {
 
 /**
  * Dispatch a job to the queue
+ * 
+ * @example
+ * await dispatch(new SendEmailJob({ userId: 1, email: 'test@example.com' }))
+ * await dispatch(new SendEmailJob({ userId: 1 }), { delay: 60000 }) // delay 1 minute
+ * await dispatch(new SendEmailJob({ userId: 1 }), { queue: 'emails' }) // specific queue
  */
 export async function dispatch<T extends JobPayload>(
-    jobClass: JobClass<T>,
-    payload: T,
+    jobInstance: Job<T>,
     options: DispatchOptions = {},
 ): Promise<string> {
-    const instance = new jobClass()
     const config = globalQueueConfig
 
     const job: SerializedJob = {
         id: generateJobId(),
-        name: instance.name,
-        payload,
+        name: jobInstance.name,
+        payload: jobInstance.payload,
         attempts: 0,
-        maxAttempts: instance.maxAttempts ?? 3,
+        maxAttempts: jobInstance.maxAttempts ?? 3,
         delay: options.delay ?? 0,
         queue: options.queue ?? config.defaultQueue,
         createdAt: Date.now(),
@@ -311,8 +316,8 @@ export async function dispatch<T extends JobPayload>(
     }
 
     // Register job class if not already registered
-    if (!jobRegistry.has(instance.name)) {
-        registerJob(jobClass)
+    if (!jobRegistry.has(jobInstance.name)) {
+        registerJob(jobInstance.constructor as JobClass<T>)
     }
 
     await getDriver().push(job)
