@@ -79,3 +79,29 @@ deno task ace db:studio
 
 _Note: Make sure to set your `DATABASE_URL` environment variable in `.env` or
 `.env.local`._
+
+#### Database Seeding
+
+Create a new seeder:
+
+```bash
+deno task ace make:seeder User
+```
+
+Create the main database seeder (orchestrator):
+
+```bash
+deno task ace make:seeder Database
+```
+
+Run all seeders:
+
+```bash
+deno task ace db:seed
+```
+
+Run a specific seeder:
+
+```bash
+deno task ace db:seed User
+```

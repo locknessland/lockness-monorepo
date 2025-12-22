@@ -185,3 +185,5 @@ experience:
   - `deno task ace db:migrate`: Applies pending migrations.
   - `deno task ace db:push`: Pushes schema directly to database.
   - `deno task ace db:studio`: Launches Drizzle Studio.
+  - `deno task ace make:seeder`: Creates a new seeder class.
+  - `deno task ace db:seed`: Runs database seeders.
