@@ -160,6 +160,39 @@ await auth(c).logout()
 const user = await auth(c).user()
 ```
 
+### Social Authentication (OAuth2)
+
+Add social login with Google, GitHub, Discord:
+
+```bash
+deno task ace make:auth --social
+```
+
+```typescript
+import { configureSocialite, socialite } from 'lockness'
+
+// Configure in kernel.ts
+configureSocialite({
+    google: {
+        clientId: Deno.env.get('GOOGLE_CLIENT_ID')!,
+        clientSecret: Deno.env.get('GOOGLE_CLIENT_SECRET')!,
+        redirectUri: Deno.env.get('APP_URL') + '/auth/google/callback',
+    },
+})
+
+// In controller
+@Get('/auth/google')
+google(c: Context) {
+    return socialite('google').redirect()
+}
+
+@Get('/auth/google/callback')
+async callback(c: Context) {
+    const user = await socialite('google').user(c)
+    // { id, email, name, avatar, accessToken }
+}
+```
+
 ### Mail
 
 ```typescript

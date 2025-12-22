@@ -434,6 +434,65 @@ const hash = await hashPassword('secret123')
 const valid = await verifyPassword('secret123', hash)
 ```
 
+### Social Authentication (OAuth2)
+
+Add social login with Google, GitHub, Discord, and more:
+
+```bash
+# Scaffold auth with social providers
+deno task ace make:auth --social
+```
+
+Configure providers in `src/kernel.ts`:
+
+```typescript
+import { configureSocialite } from 'lockness'
+
+configureSocialite({
+    google: {
+        clientId: Deno.env.get('GOOGLE_CLIENT_ID')!,
+        clientSecret: Deno.env.get('GOOGLE_CLIENT_SECRET')!,
+        redirectUri: Deno.env.get('APP_URL') + '/auth/google/callback',
+    },
+    github: {
+        clientId: Deno.env.get('GITHUB_CLIENT_ID')!,
+        clientSecret: Deno.env.get('GITHUB_CLIENT_SECRET')!,
+        redirectUri: Deno.env.get('APP_URL') + '/auth/github/callback',
+    },
+    discord: {
+        clientId: Deno.env.get('DISCORD_CLIENT_ID')!,
+        clientSecret: Deno.env.get('DISCORD_CLIENT_SECRET')!,
+        redirectUri: Deno.env.get('APP_URL') + '/auth/discord/callback',
+    },
+})
+```
+
+Use in controllers:
+
+```typescript
+import { socialite, generateState, session } from 'lockness'
+
+@Get('/auth/google')
+google(c: Context) {
+    const state = generateState()
+    session(c).set('oauth_state', state)
+    return socialite('google').redirect(state)
+}
+
+@Get('/auth/google/callback')
+async googleCallback(c: Context) {
+    const user = await socialite('google').user(c)
+    // user: { id, email, name, avatar, accessToken, ... }
+    
+    // Find or create user, then log them in
+    session(c).set('user_id', user.id)
+    return c.redirect('/dashboard')
+}
+```
+
+Available providers: `google`, `github`, `discord`. Add custom providers with
+`registerSocialiteDriver()`.
+
 ### Mail System
 
 Send emails with an expressive fluent API:

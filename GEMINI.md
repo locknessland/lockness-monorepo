@@ -368,6 +368,106 @@ const valid = await verifyPassword('secret123', hash)
 
 Both decorators can be used at class or method level.
 
+### Social Authentication (Socialite)
+
+Lockness provides OAuth2 social login with built-in support for Google, GitHub,
+and Discord.
+
+**Scaffold with social auth:**
+
+```bash
+deno task ace make:auth --social
+```
+
+**Configuration in kernel.ts:**
+
+```typescript
+import { configureSocialite } from 'lockness'
+
+configureSocialite({
+    google: {
+        clientId: Deno.env.get('GOOGLE_CLIENT_ID')!,
+        clientSecret: Deno.env.get('GOOGLE_CLIENT_SECRET')!,
+        redirectUri: Deno.env.get('APP_URL') + '/auth/google/callback',
+    },
+    github: {
+        clientId: Deno.env.get('GITHUB_CLIENT_ID')!,
+        clientSecret: Deno.env.get('GITHUB_CLIENT_SECRET')!,
+        redirectUri: Deno.env.get('APP_URL') + '/auth/github/callback',
+    },
+    discord: {
+        clientId: Deno.env.get('DISCORD_CLIENT_ID')!,
+        clientSecret: Deno.env.get('DISCORD_CLIENT_SECRET')!,
+        redirectUri: Deno.env.get('APP_URL') + '/auth/discord/callback',
+    },
+})
+```
+
+**Using socialite in controllers:**
+
+```typescript
+import { generateState, session, socialite } from 'lockness'
+
+@Controller('/auth')
+export class SocialAuthController {
+    @Get('/google')
+    google(c: Context) {
+        const state = generateState()
+        session(c).set('oauth_state', state)
+        return socialite('google').redirect(state)
+    }
+
+    @Get('/google/callback')
+    async googleCallback(c: Context) {
+        // Verify CSRF state
+        const storedState = session(c).get('oauth_state')
+        const returnedState = c.req.query('state')
+        if (storedState !== returnedState) {
+            return c.redirect('/auth/login')
+        }
+
+        const user = await socialite('google').user(c)
+        // user: { id, email, name, avatar, accessToken, refreshToken, raw }
+
+        // Find or create user in your database, then log them in
+        session(c).set('user_id', user.id)
+        return c.redirect('/dashboard')
+    }
+}
+```
+
+**SocialUser object:**
+
+| Property       | Type             | Description                  |
+| -------------- | ---------------- | ---------------------------- |
+| `id`           | `string`         | Provider-specific user ID    |
+| `email`        | `string`         | User's email                 |
+| `name`         | `string`         | User's display name          |
+| `avatar`       | `string \| null` | Avatar URL                   |
+| `accessToken`  | `string`         | OAuth access token           |
+| `refreshToken` | `string \| null` | Refresh token (if available) |
+| `expiresIn`    | `number \| null` | Token expiration (seconds)   |
+| `raw`          | `object`         | Raw provider response        |
+
+**Custom providers:**
+
+```typescript
+import { BaseOAuth2Driver, registerSocialiteDriver } from 'lockness'
+
+class CustomDriver extends BaseOAuth2Driver {
+    protected authUrl = 'https://custom.com/oauth/authorize'
+    protected tokenUrl = 'https://custom.com/oauth/token'
+    protected userInfoUrl = 'https://custom.com/api/user'
+    protected defaultScopes = ['profile', 'email']
+
+    async getUserFromTokens(tokens) {
+        // Fetch and normalize user data
+    }
+}
+
+registerSocialiteDriver('custom', CustomDriver)
+```
+
 ### Mail System
 
 Lockness provides an expressive API for sending emails with multiple driver
