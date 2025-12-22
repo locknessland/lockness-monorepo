@@ -1,4 +1,4 @@
-# 🌊 Lockness JS
+# Lockness JS
 
 **Lockness JS** is a high-performance, fullstack MVC web framework built natively for **Deno**. Heavily inspired by the elegance of Laravel and AdonisJS, it leverages the speed of **HonoJS** while providing a structured and ergonomic development experience.
 
