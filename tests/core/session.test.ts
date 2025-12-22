@@ -3,11 +3,7 @@
  */
 
 import { assertEquals, assertExists } from '@std/assert'
-import {
-    MemorySessionDriver,
-    SessionStore,
-    type SessionConfig,
-} from 'lockness'
+import { MemorySessionDriver, type SessionConfig, SessionStore } from 'lockness'
 
 const defaultConfig: SessionConfig = {
     driver: 'memory',
@@ -61,7 +57,12 @@ Deno.test('session system', async (t) => {
 
     await t.step('SessionStore get and set', () => {
         const driver = new MemorySessionDriver()
-        const store = new SessionStore('test-store-session', {}, driver, defaultConfig)
+        const store = new SessionStore(
+            'test-store-session',
+            {},
+            driver,
+            defaultConfig,
+        )
 
         store.set('name', 'John')
         store.set('age', 30)
@@ -72,7 +73,12 @@ Deno.test('session system', async (t) => {
 
     await t.step('SessionStore has and forget', () => {
         const driver = new MemorySessionDriver()
-        const store = new SessionStore('test-has-session', {}, driver, defaultConfig)
+        const store = new SessionStore(
+            'test-has-session',
+            {},
+            driver,
+            defaultConfig,
+        )
 
         store.set('key', 'value')
         assertEquals(store.has('key'), true)
@@ -83,7 +89,12 @@ Deno.test('session system', async (t) => {
 
     await t.step('SessionStore flash messages', () => {
         const driver = new MemorySessionDriver()
-        const store = new SessionStore('test-flash-session', {}, driver, defaultConfig)
+        const store = new SessionStore(
+            'test-flash-session',
+            {},
+            driver,
+            defaultConfig,
+        )
 
         store.flash('success', 'Operation completed!')
         // Flash data is available via get within same session
@@ -92,7 +103,12 @@ Deno.test('session system', async (t) => {
 
     await t.step('SessionStore all and flush', () => {
         const driver = new MemorySessionDriver()
-        const store = new SessionStore('test-all-session', {}, driver, defaultConfig)
+        const store = new SessionStore(
+            'test-all-session',
+            {},
+            driver,
+            defaultConfig,
+        )
 
         store.set('a', 1)
         store.set('b', 2)

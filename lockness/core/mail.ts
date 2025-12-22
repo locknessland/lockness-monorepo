@@ -109,7 +109,8 @@ export class ConsoleMailDriver implements MailDriver {
         }
         if (message.attachments?.length) {
             console.log(
-                `Attachments: ${message.attachments.map((a) => a.filename).join(', ')
+                `Attachments: ${
+                    message.attachments.map((a) => a.filename).join(', ')
                 }`,
             )
         }
@@ -465,11 +466,17 @@ export class Mail {
         }
 
         if (!this.message.to?.length) {
-            return Promise.resolve({ success: false, error: 'No recipients specified' })
+            return Promise.resolve({
+                success: false,
+                error: 'No recipients specified',
+            })
         }
 
         if (!this.message.subject) {
-            return Promise.resolve({ success: false, error: 'No subject specified' })
+            return Promise.resolve({
+                success: false,
+                error: 'No subject specified',
+            })
         }
 
         // Get driver
@@ -479,7 +486,10 @@ export class Mail {
             switch (config.driver) {
                 case 'smtp':
                     if (!config.smtp) {
-                        return Promise.resolve({ success: false, error: 'SMTP not configured' })
+                        return Promise.resolve({
+                            success: false,
+                            error: 'SMTP not configured',
+                        })
                     }
                     driver = new SmtpMailDriver(config.smtp)
                     break
