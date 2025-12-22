@@ -171,8 +171,7 @@ export class App {
                     onListen: ({ port, hostname }) => {
                         const protocol = 'http'
                         const host = hostname === '0.0.0.0' ? 'localhost' : hostname
-                        console.log(`  Environment: ${envLabel}`)
-                        console.log(`  CWD: ${Deno.cwd()}\n`)
+                        console.log(`  Environment: ${envLabel}\n`)
                         console.log(
                             `  🚀 Server is flying at \x1b[36m${protocol}://${host}:${port}\x1b[0m`,
                         )

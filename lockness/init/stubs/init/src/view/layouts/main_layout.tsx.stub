@@ -20,7 +20,6 @@ export const Layout = (props: { title: string; children: Child }) => {
                         <h1 class="text-2xl font-bold text-blue-400">🌊 Lockness</h1>
                         <div class="space-x-4">
                             <a href="/" class="hover:text-blue-400">Home</a>
-                            <a href="/test" class="hover:text-blue-400">Test</a>
                         </div>
                     </div>
                 </nav>
@@ -31,5 +30,3 @@ export const Layout = (props: { title: string; children: Child }) => {
         </html>
     )
 }
-
-

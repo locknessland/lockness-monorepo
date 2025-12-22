@@ -1,4 +1,4 @@
-import { Asset, html, ViteScripts } from 'lockness'
+import { Asset, ViteScripts } from 'lockness'
 
 // deno-lint-ignore no-explicit-any
 export const LandingLayout = (props: { title: string; children: any }) => {

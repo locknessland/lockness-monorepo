@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import devServer from '@hono/vite-dev-server'
 import { resolve } from 'node:path'
 
-export default defineConfig({
+export default defineConfig(({ isSsrBuild }) => ({
     resolve: {
         alias: {
             '@': resolve(Deno.cwd(), './'),
@@ -13,10 +13,6 @@ export default defineConfig({
             '@router': resolve(Deno.cwd(), './src/router.ts'),
             '@repository': resolve(Deno.cwd(), './src/repository'),
             '@kernel': resolve(Deno.cwd(), './src/kernel.ts'),
-            'lockness': resolve(Deno.cwd(), './lockness/core/core.ts'),
-            '@lockness/core': resolve(Deno.cwd(), './lockness/core/core.ts'),
-            '@lockness/ace': resolve(Deno.cwd(), './lockness/ace/cli.ts'),
-            '@lockness/kysely': resolve(Deno.cwd(), './lockness/kysely/database.ts'),
         }
     },
     plugins: [
@@ -36,17 +32,23 @@ export default defineConfig({
     },
     build: {
         target: 'es2022',
-        ssr: './main.ts',
-        outDir: 'dist',
+        ssr: isSsrBuild ? './main.ts' : false,
+        outDir: isSsrBuild ? 'dist' : 'dist/static',
+        emptyOutDir: !isSsrBuild,
+        manifest: true,
         rollupOptions: {
-            input: './main.ts',
-            output: {
-                entryFileNames: 'server.js',
-                format: 'esm',
-            },
-            external: [
-                /^node:/,
-            ]
+            input: isSsrBuild ? './main.ts' : './src/view/app.ts',
+            output: isSsrBuild
+                ? {
+                    entryFileNames: 'server.js',
+                    format: 'esm',
+                }
+                : {
+                    entryFileNames: 'assets/[name]-[hash].js',
+                    chunkFileNames: 'assets/[name]-[hash].js',
+                    assetFileNames: 'assets/[name]-[hash].[ext]',
+                },
+            external: isSsrBuild ? [/^node:/, 'hono', 'hono/deno', 'hono/jsx', 'hono/jsx-renderer', 'hono/html', /^npm:/, 'lockness'] : []
         },
     },
     ssr: {
@@ -56,4 +58,4 @@ export default defineConfig({
             '@std/path', '@std/fs'
         ]
     }
-})
+}))

@@ -9,7 +9,7 @@ deno task dev
 ```
 
 ### Production Build
-Bundle your application into an optimized TypeScript file in the `_output` directory:
+Bundle your application and assets into the `dist` directory:
 ```bash
 deno task build
 ```

@@ -29,7 +29,7 @@ export const bootstrap = async () => {
 
     await app.init({
         controllers,
-        staticDir: 'public',
+        staticDir: Deno.env.get('VITE') ? 'public' : 'dist/static',
     })
 
     return app
