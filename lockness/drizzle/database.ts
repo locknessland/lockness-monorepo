@@ -12,12 +12,18 @@ export class Database {
      * Connect to the database
      */
     public async connect(url: string, schema?: any) {
-        this.client = postgres(url)
-        this.db = drizzle(this.client, { schema })
-        console.log('✅ Database connected')
-        // We don't strictly need await here for postgres.js client creation
-        // but it's good practice for the connect method signature
-        await Promise.resolve()
+        try {
+            this.client = postgres(url)
+            this.db = drizzle(this.client, { schema })
+
+            // Verify the connection by running a simple query
+            await this.client`SELECT 1`
+            console.log('✅ Database connected')
+        } catch (error) {
+            console.error('❌ Database connection failed:', (error as Error).message)
+            // We don't throw here to avoid crashing the whole app if DB is optional,
+            // but the user will see the error in the console.
+        }
     }
 
     /**
