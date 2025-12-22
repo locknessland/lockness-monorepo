@@ -92,7 +92,7 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ;(this.hono as any)[route.method](
+            ; (this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
@@ -167,19 +167,71 @@ export class App {
   ▐▖▙▌▙▖▛▖▌▌▙▖▄▌▄▌ v${pkg.version}
         `)
 
-        const server = Deno.serve({
-            port,
-            onListen: ({ port, hostname }) => {
-                const protocol = 'http'
-                const host = hostname === '0.0.0.0' ? 'localhost' : hostname
-                console.log(`  Environment: ${envLabel}\n`)
-                console.log(
-                    `  🚀 Server is flying at \x1b[36m${protocol}://${host}:${port}\x1b[0m`,
-                )
-                console.log(`  📂 Ready to serve your awesome app!\n`)
-            },
-        }, this.hono.fetch.bind(this.hono))
+        const tryServe = async () => {
+            try {
+                return Deno.serve({
+                    port,
+                    onListen: ({ port, hostname }) => {
+                        const protocol = 'http'
+                        const host = hostname === '0.0.0.0' ? 'localhost' : hostname
+                        console.log(`  Environment: ${envLabel}\n`)
+                        console.log(
+                            `  🚀 Server is flying at \x1b[36m${protocol}://${host}:${port}\x1b[0m`,
+                        )
+                        console.log(`  📂 Ready to serve your awesome app!\n`)
+                    },
+                }, this.hono.fetch.bind(this.hono))
+            } catch (error) {
+                if (error instanceof Deno.errors.AddrInUse) {
+                    const hasForce = Deno.args.includes('--force')
 
-        return server
+                    if (hasForce) {
+                        try {
+                            console.log(`  🛠  Port ${port} in use. Attempting to force release...`)
+                            const lsof = new Deno.Command("lsof", {
+                                args: ["-ti", `:${port}`],
+                                stdout: "piped",
+                            })
+                            const { stdout } = await lsof.output()
+                            const pids = new TextDecoder().decode(stdout).trim().split('\n').filter(p => p.length > 0)
+
+                            if (pids.length > 0) {
+                                for (const pid of pids) {
+                                    const kill = new Deno.Command("kill", {
+                                        args: ["-9", pid],
+                                    })
+                                    await kill.output()
+                                }
+                                // Small delay to let OS release the port
+                                await new Promise(r => setTimeout(r, 800))
+                                return await tryServe()
+                            }
+                        } catch (e) {
+                            console.error(`  ⚠️  Failed to force release port ${port}: ${e.message}`)
+                        }
+                    }
+
+                    console.error(`\x1b[31m
+  ❌ Error: Port ${port} is already in use.
+  
+  The server could not start because another process is already listening on this port.
+
+  Possible solutions:
+  1. Kill the process using this port:
+     lsof -ti:${port} | xargs kill -9
+  2. Use the --force flag to let Lockness do it for you:
+     deno task start -- --force
+  3. Use a different port by setting the PORT environment variable:
+     PORT=9999 deno task start
+                \x1b[0m`)
+                    Deno.exit(1)
+                }
+                throw error
+            }
+        }
+
+        // Return a promise that resolves to the server
+        // Note: Deno.serve is synchronous in Deno 1.x but we wrap it for the --force retry logic
+        return tryServe() as any
     }
 }

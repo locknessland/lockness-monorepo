@@ -25,7 +25,7 @@ export const bootstrap = async () => {
             }
         }
     }
-    console.log(`🔌 Vite loaded ${controllers.length} controllers`)
+    console.log(`🔌 Loaded ${controllers.length} controllers`)
 
     await app.init({
         controllers,
