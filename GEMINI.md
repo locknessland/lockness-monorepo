@@ -217,6 +217,15 @@ Eloquent.
 - **Quality Assurance**: Every code modification must be validated by running
   `deno fmt` and `deno lint`. This ensures that the codebase remains clean,
   consistent, and free of linting errors.
+- **Stub Synchronization**: When modifying source files that have corresponding
+  stubs (see `STUBS.md`), always update the stub templates as well. This ensures
+  that newly scaffolded projects stay in sync with the framework's latest
+  features. Key mappings:
+  - `src/kernel.ts` → `lockness/init/stubs/init/src/kernel.ts.stub`
+  - `deno.json` → `lockness/init/stubs/init/deno.json.stub`
+  - `README.md` → `lockness/init/stubs/init/README.md.stub`
+  - `make:*` command outputs → corresponding stubs in `lockness/ace/stubs/` and
+    `lockness/drizzle/stubs/`
 
 ## 🛠 Development Stack
 
