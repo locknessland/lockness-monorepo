@@ -1,4 +1,5 @@
 import { LandingLayout } from '../layouts/landing_layout.tsx'
+import { Card } from '../components/ui.tsx'
 import pkg from '../../../lockness/core/deno.json' with { type: 'json' }
 
 export const HomeView = () => {
@@ -151,43 +152,21 @@ export const HomeView = () => {
                 <section id='features' class='py-32 px-6 bg-accent/5'>
                     <div class='max-w-6xl mx-auto'>
                         <div class='grid md:grid-cols-3 gap-8'>
-                            <div class='p-10 rounded-3xl bg-card border border-border hover:border-primary/50 transition-colors group'>
+                            <Card title="MVC Foundation" description="A clear structure separating logic, data, and display. Inspired by the elegance of Laravel.">
                                 <div class='w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors text-2xl'>
                                     🏗️
                                 </div>
-                                <h3 class='text-2xl font-bold mb-4 text-card-foreground'>
-                                    MVC Foundation
-                                </h3>
-                                <p class='text-muted-foreground leading-relaxed'>
-                                    A clear structure separating logic, data,
-                                    and display. Inspired by the elegance of
-                                    Laravel.
-                                </p>
-                            </div>
-                            <div class='p-10 rounded-3xl bg-card border border-border hover:border-primary/50 transition-colors group'>
+                            </Card>
+                            <Card title="Dependency Injection" description="Built-in IoC container for clean, testable code. Just use the @Inject decorator.">
                                 <div class='w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors text-2xl'>
                                     💉
                                 </div>
-                                <h3 class='text-2xl font-bold mb-4 text-card-foreground'>
-                                    Dependency Injection
-                                </h3>
-                                <p class='text-muted-foreground leading-relaxed'>
-                                    Built-in IoC container for clean, testable
-                                    code. Just use the @Inject decorator.
-                                </p>
-                            </div>
-                            <div class='p-10 rounded-3xl bg-card border border-border hover:border-primary/50 transition-colors group'>
+                            </Card>
+                            <Card title="Deno First" description="Native TypeScript, no node_modules, and top-tier security out of the box.">
                                 <div class='w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors text-2xl'>
                                     ⚡
                                 </div>
-                                <h3 class='text-2xl font-bold mb-4 text-card-foreground'>
-                                    Deno First
-                                </h3>
-                                <p class='text-muted-foreground leading-relaxed'>
-                                    Native TypeScript, no node_modules, and
-                                    top-tier security out of the box.
-                                </p>
-                            </div>
+                            </Card>
                         </div>
                     </div>
                 </section>
@@ -220,7 +199,7 @@ export const HomeView = () => {
                                 <li class='flex items-center gap-3 text-muted-foreground'>
                                     <div class='w-2 h-2 rounded-full bg-primary'>
                                     </div>{' '}
-                                    Official Drizzle ORM extension
+                                    Official Kysely ORM extension
                                 </li>
                             </ul>
                         </div>
@@ -246,7 +225,7 @@ export const HomeView = () => {
                                     ORM
                                 </div>
                                 <div class='text-xs text-muted-foreground uppercase tracking-widest font-bold'>
-                                    Drizzle/Prisma
+                                    Kysely
                                 </div>
                             </div>
                             <div class='p-6 rounded-2xl bg-primary/10 border border-primary/20 text-center shadow-sm shadow-primary/20'>

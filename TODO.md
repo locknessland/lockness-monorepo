@@ -35,11 +35,11 @@
 
 ## 🌐 Frontend & Assets
 
-- [ ] **Vite Integration**
-  - [ ] Seamless frontend building with Vite.
-  - [ ] `asset()` helper for versioned assets.
-- [ ] **Layout & Component Helpers**
-  - [ ] Improved JSX base components.
+- [x] **Vite Integration**
+  - [x] Seamless frontend building with Vite.
+  - [x] `asset()` helper for versioned assets.
+- [x] **Layout & Component Helpers**
+  - [x] Improved JSX base components.
 
 ## 📡 Services
 

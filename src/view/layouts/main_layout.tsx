@@ -1,14 +1,18 @@
-import { html } from 'lockness'
+import { Asset, ViteScripts } from 'lockness'
 import type { Child } from 'hono/jsx'
 
 export const Layout = (props: { title: string; children: Child }) => {
-    return html`
-        <!DOCTYPE html>
+    return (
         <html lang="en">
             <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>${props.title} | Lockness</title>
+                <title>{props.title} | Lockness</title>
+
+                {/* Automatic asset resolution */}
+                <Asset href="src/view/assets/style.css" />
+                <ViteScripts entry="src/view/app.ts" />
+
                 <script src="https://cdn.tailwindcss.com"></script>
             </head>
             <body class="bg-slate-900 text-white min-h-screen">
@@ -22,9 +26,10 @@ export const Layout = (props: { title: string; children: Child }) => {
                     </div>
                 </nav>
                 <main class="container mx-auto p-6">
-                    ${props.children}
+                    {props.children}
                 </main>
             </body>
         </html>
-    `
+    )
 }
+

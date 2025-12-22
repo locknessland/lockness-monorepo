@@ -13,7 +13,9 @@ export const bootstrap = async () => {
 
     // Initialize the application with auto-discovery via Vite glob import
     // @ts-ignore: Vite specific syntax
-    const modules = import.meta.glob('./controller/*.{ts,tsx}', { eager: true });
+    const modules = typeof (import.meta as any).glob === 'function'
+        ? (import.meta as any).glob('./controller/*.{ts,tsx}', { eager: true })
+        : {};
     const controllers: any[] = [];
 
     for (const path in modules) {
@@ -29,7 +31,7 @@ export const bootstrap = async () => {
 
     await app.init({
         controllers,
-        staticDir: 'public',
+        staticDir: Deno.env.get('VITE') ? 'public' : 'dist/static',
     })
 
     return app

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import devServer from '@hono/vite-dev-server'
 import { resolve } from 'node:path'
 
-export default defineConfig({
+export default defineConfig(({ isSsrBuild }) => ({
     resolve: {
         alias: {
             '@': resolve(Deno.cwd(), './'),
@@ -36,21 +36,25 @@ export default defineConfig({
     },
     build: {
         target: 'es2022',
-        ssr: './main.ts',
-        outDir: 'dist',
+        ssr: isSsrBuild ? './main.ts' : false,
+        outDir: isSsrBuild ? 'dist' : 'dist/static',
+        emptyOutDir: !isSsrBuild,
+        manifest: true,
         rollupOptions: {
-            input: './main.ts',
-            output: {
-                entryFileNames: 'server.js',
-                format: 'esm',
-            },
-            // We can leave this empty if ssr.external handles it, or keep regex
-            external: [
-                /^node:/,
-            ]
+            input: isSsrBuild ? './main.ts' : './src/view/app.ts',
+            output: isSsrBuild
+                ? {
+                    entryFileNames: 'server.js',
+                    format: 'esm',
+                }
+                : {
+                    entryFileNames: 'assets/[name]-[hash].js',
+                    chunkFileNames: 'assets/[name]-[hash].js',
+                    assetFileNames: 'assets/[name]-[hash].[ext]',
+                },
+            external: isSsrBuild ? [/^node:/] : []
         },
     },
-    // Prevent Vite from bundling dependencies that should be external in Deno
     ssr: {
         external: [
             'node:process', 'node:path', 'node:fs', 'node:os', 'node:net', 'node:tls', 'node:crypto', 'node:perf_hooks', 'node:stream', 'node:events', 'node:util', 'node:buffer', 'node:string_decoder', 'node:querystring', 'node:zlib', 'node:url', 'node:dns', 'node:http', 'node:https',
@@ -58,4 +62,4 @@ export default defineConfig({
             '@std/path', '@std/fs'
         ]
     }
-})
+}))
