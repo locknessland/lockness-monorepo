@@ -30,6 +30,7 @@ export interface Module {
 
 export interface AppConfig {
     controllersDir?: string
+    staticDir?: string
 }
 
 export interface IMiddleware {

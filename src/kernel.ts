@@ -6,7 +6,8 @@ export const bootstrap = async () => {
 
     // Initialize the application with auto-discovery
     await app.init({
-        controllersDir: './src/controller'
+        controllersDir: './src/controller',
+        staticDir: 'public'
     })
 
     return app

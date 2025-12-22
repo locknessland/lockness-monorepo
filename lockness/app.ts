@@ -4,6 +4,8 @@ import { join } from '@std/path'
 import { jsxRenderer } from 'hono/jsx-renderer'
 import type { Context, ControllerClass, Module, AppConfig, IMiddleware } from './types.ts'
 
+import { serveStatic } from 'hono/deno'
+
 export class App {
     private hono = new Hono({ strict: false })
 
@@ -11,13 +13,22 @@ export class App {
         this.hono.use('*', jsxRenderer(({ children }) => children as any))
     }
 
+    public static(path: string, root: string = 'public') {
+        this.hono.use(path, serveStatic({ root }))
+    }
+
     async init(config: Module | AppConfig) {
         let controllers: ControllerClass[] = []
 
         if ('controllers' in config) {
             controllers = config.controllers
-        } else if (config.controllersDir) {
-            controllers = await this.discoverControllers(config.controllersDir)
+        } else {
+            if (config.controllersDir) {
+                controllers = await this.discoverControllers(config.controllersDir)
+            }
+            if (config.staticDir) {
+                this.static('/*', config.staticDir)
+            }
         }
 
         const allRoutes: {
