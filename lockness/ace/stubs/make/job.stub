@@ -8,7 +8,7 @@ interface {{ className }}Payload extends JobPayload {
 /**
  * {{ className }} Job
  *
- * Run with: dispatch({{ className }}, { /* payload */ })
+ * Run with: dispatch(new {{ className }}({ userId: 1 }))
  */
 export class {{ className }} implements Job<{{ className }}Payload> {
     name = '{{ jobName }}'

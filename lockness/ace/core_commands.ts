@@ -194,7 +194,7 @@ export function registerCoreCommands(ace: Ace) {
             await Deno.mkdir(dirPath, { recursive: true })
             await Deno.writeTextFile(filePath, content)
             console.log(`✅ Job created at ${filePath}`)
-            console.log(`💡 Dispatch with: dispatch(${className}, { /* payload */ })`)
+            console.log(`💡 Dispatch with: dispatch(new ${className}({ ... }))`)
         } catch (error) {
             console.error(
                 `❌ Failed to create job: ${(error as Error).message}`,
@@ -249,17 +249,21 @@ export function registerCoreCommands(ace: Ace) {
         console.log('')
     }, 'Scaffold authentication (controller + provider)')
 
-    ace.register('queue:work', async (args, flags) => {
+    ace.register('queue:work', async (args) => {
         // Dynamic import to avoid loading queue module at CLI startup
         const { QueueWorker, configureQueue, registerJob } = await import(
             '@lockness/core'
         )
 
-        // Parse flags
-        const queue = flags['queue'] || 'default'
-        const sleep = Number(flags['sleep']) || 1000
-        const maxJobs = Number(flags['max-jobs']) || 0
-        const once = args.includes('--once') || flags['once'] === 'true'
+        // Parse flags from args
+        const parseFlag = (name: string, def: string): string => {
+            const flag = args.find((a) => a.startsWith(`--${name}=`))
+            return flag ? flag.split('=')[1] : def
+        }
+        const queue = parseFlag('queue', 'default')
+        const sleep = Number(parseFlag('sleep', '1000'))
+        const maxJobs = Number(parseFlag('max-jobs', '0'))
+        const once = args.includes('--once')
 
         // Configure queue driver from env
         const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') || 'memory'
