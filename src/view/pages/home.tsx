@@ -114,7 +114,7 @@ export const HomeView = () => {
                                     <div class='flex gap-3'>
                                         <span class='text-primary'>$</span>
                                         <span class='text-foreground'>
-                                            deno add jsr:@lockness/core
+                                            deno run -Ar jsr:@lockness/init
                                         </span>
                                     </div>
                                     <div class='text-muted-foreground'>
