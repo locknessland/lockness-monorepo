@@ -17,6 +17,7 @@ const build = async () => {
             target: 'esnext',
             minify: true,
             jsx: 'transform',
+            external: ['node:*'],
         })
         console.log('✅ Build complete: _output/server.ts')
     } catch (e) {

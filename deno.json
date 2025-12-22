@@ -36,7 +36,27 @@
         "kysely": "npm:kysely@^0.28.9",
         "kysely-postgres-js": "npm:kysely-postgres-js@^2.0.0",
         "esbuild": "https://deno.land/x/esbuild@v0.21.5/mod.js",
-        "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@^0.11.0"
+        "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@^0.11.0",
+        "perf_hooks": "node:perf_hooks",
+        "async_hooks": "node:async_hooks",
+        "events": "node:events",
+        "string_decoder": "node:string_decoder",
+        "buffer": "node:buffer",
+        "stream": "node:stream",
+        "util": "node:util",
+        "crypto": "node:crypto",
+        "fs": "node:fs",
+        "path": "node:path",
+        "net": "node:net",
+        "os": "node:os",
+        "tls": "node:tls",
+        "dns": "node:dns",
+        "process": "node:process",
+        "querystring": "node:querystring",
+        "url": "node:url",
+        "zlib": "node:zlib",
+        "http": "node:http",
+        "https": "node:https"
     },
 
     "unstable": [

@@ -1,9 +1,9 @@
 # ENV files
 .env
 .env.local
-.env.local.production
-.env.local.development
-.env.local.test 
+.env.production.local
+.env.development.local
+.env.test.local 
 
 # Build & compile output 
 _build
