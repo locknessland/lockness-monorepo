@@ -52,7 +52,7 @@ export default defineConfig(({ isSsrBuild }) => ({
                     chunkFileNames: 'assets/[name]-[hash].js',
                     assetFileNames: 'assets/[name]-[hash].[ext]',
                 },
-            external: isSsrBuild ? [/^node:/] : []
+            external: isSsrBuild ? [/^node:/, 'hono', 'hono/deno', 'hono/jsx', 'hono/jsx-renderer', 'hono/html', /^npm:/, 'lockness'] : []
         },
     },
     ssr: {

@@ -33,7 +33,8 @@ export const ViteScripts = ({ entry }: { entry: string }) => {
         const item = manifest[entry]
         if (item && item.css) {
             for (const cssFile of item.css) {
-                tags.push(<link key={cssFile} rel="stylesheet" href={`/${cssFile}`} />)
+                const resolvedCss = cssFile.replace(/^\//, '')
+                tags.push(<link key={resolvedCss} rel="stylesheet" href={`/${resolvedCss}`} />)
             }
         }
     }

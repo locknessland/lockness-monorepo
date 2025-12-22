@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { Hono } from 'hono'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { jsxRenderer } from 'hono/jsx-renderer'
 import type {
     AppConfig,
@@ -11,20 +11,17 @@ import type {
 } from './types.ts'
 
 import { serveStatic } from 'hono/deno'
-import { html } from 'hono/html'
 import pkg from './deno.json' with { type: 'json' }
 
 export class App {
     private hono = new Hono({ strict: false })
 
     constructor() {
-        this.hono.use('*', jsxRenderer(({ children }) => {
-            return html`<!DOCTYPE html>${children}` as any
-        }))
+        this.hono.use('*', jsxRenderer(({ children }) => children as any))
     }
 
-    public static(path: string, root: string = 'public') {
-        this.hono.use(path, serveStatic({ root }))
+    public static(pathPattern: string, root: string = 'public') {
+        this.hono.use(pathPattern, serveStatic({ root }))
     }
 
     public get fetch() {
@@ -36,15 +33,12 @@ export class App {
 
         if ('controllers' in config) {
             controllers = config.controllers
-        } else {
-            if (config.controllersDir) {
-                controllers = await this.discoverControllers(
-                    config.controllersDir,
-                )
-            }
-            if (config.staticDir) {
-                this.static('/*', config.staticDir)
-            }
+        } else if (config.controllersDir) {
+            controllers = await this.discoverControllers(config.controllersDir)
+        }
+
+        if ('staticDir' in config && config.staticDir) {
+            this.static('/*', config.staticDir)
         }
 
         const allRoutes: {
@@ -177,7 +171,8 @@ export class App {
                     onListen: ({ port, hostname }) => {
                         const protocol = 'http'
                         const host = hostname === '0.0.0.0' ? 'localhost' : hostname
-                        console.log(`  Environment: ${envLabel}\n`)
+                        console.log(`  Environment: ${envLabel}`)
+                        console.log(`  CWD: ${Deno.cwd()}\n`)
                         console.log(
                             `  🚀 Server is flying at \x1b[36m${protocol}://${host}:${port}\x1b[0m`,
                         )

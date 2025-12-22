@@ -22,27 +22,25 @@ export function getManifest(): any {
     return manifest
 }
 
-/**
- * Resolves the path to an asset.
- * In development, it points to the source file.
- * In production, it resolves the versioned file from the manifest.
- */
 export function asset(path: string): string {
     const isDev = !!Deno.env.get('VITE')
 
-    // Normalize path to remove leading slash
-    const normalizedPath = path.startsWith('/') ? path.slice(1) : path
+    // Normalize path: replace backslashes and remove leading slash
+    const normalizedPath = path.replace(/\\/g, '/').replace(/^\//, '')
 
     if (isDev) {
-        // In development, Vite serves files directly
+        // In development, Vite serves files directly (usually with a prefix)
         return `/${normalizedPath}`
     }
 
     const currentManifest = getManifest()
     const entry = currentManifest[normalizedPath]
+
     if (entry) {
-        return `/${entry.file}`
+        // Use the bundled file path from manifest
+        return `/${entry.file.replace(/^\//, '')}`
     }
 
-    return `/${normalizedPath}`
+    // Fallback: if it's a direct path to an asset that wasn't bundled (e.g. in public/)
+    return `/${normalizedPath.replace(/^public\//, '')}`
 }
