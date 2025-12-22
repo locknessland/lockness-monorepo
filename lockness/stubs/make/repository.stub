@@ -1,5 +1,7 @@
+import { Service } from 'lockness'
 import { {{ className }} } from '@model/{{ modelFileName }}.ts'
 
+@Service()
 export class {{ className }}Repository {
     /**
      * Find all {{ className }}

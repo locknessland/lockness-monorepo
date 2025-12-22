@@ -1,3 +1,6 @@
+import { Service } from 'lockness'
+
+@Service()
 export class {{ className }}Service {
     /**
      * Business logic for {{ className }}
