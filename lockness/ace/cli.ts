@@ -78,7 +78,7 @@ export class Ace {
     constructor() {
         this.register(
             'list',
-            async () => {
+            () => {
                 console.log('Available commands:')
                 const sortedCommands = [...this.commands.entries()].sort(
                     (a, b) => a[0].localeCompare(b[0]),
@@ -90,6 +90,7 @@ export class Ace {
                         console.log(`  ${name}`)
                     }
                 }
+                return Promise.resolve()
             },
             'List all available commands',
         )
@@ -152,8 +153,7 @@ export class Ace {
                         }
                     } catch (e) {
                         console.warn(
-                            `⚠️ Failed to load command ${entry.name}: ${
-                                (e as Error).message
+                            `⚠️ Failed to load command ${entry.name}: ${(e as Error).message
                             }`,
                         )
                     }
