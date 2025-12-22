@@ -74,8 +74,10 @@ export class Ace {
             const filePath = `${dirPath}/${fileName}`;
 
             try {
+                const tableName = name.toLowerCase() + 's';
                 const content = await Stub.render('make', 'model', {
-                    className
+                    className,
+                    tableName
                 });
 
                 await Deno.mkdir(dirPath, { recursive: true });
@@ -125,9 +127,11 @@ export class Ace {
             const filePath = `${dirPath}/${fileName}`;
 
             try {
+                const tableName = name.toLowerCase() + 's';
                 const content = await Stub.render('make', 'repository', {
                     className,
-                    modelFileName
+                    modelFileName,
+                    tableName
                 });
 
                 await Deno.mkdir(dirPath, { recursive: true });

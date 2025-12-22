@@ -16,8 +16,10 @@
     "jsr:@std/path@^1.1.3": "1.1.3",
     "npm:@hono/zod-validator@~0.4.1": "0.4.3_hono@4.11.1_zod@3.25.76",
     "npm:@types/node@*": "22.12.0",
+    "npm:drizzle-orm@~0.31.2": "0.31.4_postgres@3.4.7",
     "npm:hono@*": "4.11.1",
     "npm:hono@^4.11.1": "4.11.1",
+    "npm:postgres@^3.4.4": "3.4.7",
     "npm:zod@^3.23.8": "3.25.76"
   },
   "jsr": {
@@ -92,8 +94,20 @@
         "undici-types"
       ]
     },
+    "drizzle-orm@0.31.4_postgres@3.4.7": {
+      "integrity": "sha512-VGD9SH9aStF2z4QOTnVlVX/WghV/EnuEzTmsH3fSVp2E4fFgc8jl3viQrS/XUJx1ekW4rVVLJMH42SfGQdjX3Q==",
+      "dependencies": [
+        "postgres"
+      ],
+      "optionalPeers": [
+        "postgres"
+      ]
+    },
     "hono@4.11.1": {
       "integrity": "sha512-KsFcH0xxHes0J4zaQgWbYwmz3UPOOskdqZmItstUG93+Wk1ePBLkLGwbP9zlmh1BFUiL8Qp+Xfu9P7feJWpGNg=="
+    },
+    "postgres@3.4.7": {
+      "integrity": "sha512-Jtc2612XINuBjIl/QTWsV5UvE8UHuNblcO3vVADSrKsrc6RqGX6lOW1cEo3CM2v0XG4Nat8nI+YM7/f26VxXLw=="
     },
     "undici-types@6.20.0": {
       "integrity": "sha512-Ny6QZ2Nju20vw1SRHe3d9jVu6gJ+4e3+MMpqu7pqE5HT6WsTSlce++GQmK5UXS8mzV8DSYHrQH+Xrf2jVcuKNg=="
@@ -114,14 +128,18 @@
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
       "jsr:@std/path@1",
-      "npm:hono@^4.11.1"
+      "npm:drizzle-orm@~0.31.2",
+      "npm:hono@^4.11.1",
+      "npm:postgres@^3.4.4"
     ],
     "members": {
       "lockness": {
         "dependencies": [
           "jsr:@std/path@1",
           "npm:@hono/zod-validator@~0.4.1",
+          "npm:drizzle-orm@~0.31.2",
           "npm:hono@^4.11.1",
+          "npm:postgres@^3.4.4",
           "npm:zod@^3.23.8"
         ]
       }

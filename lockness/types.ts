@@ -31,6 +31,10 @@ export interface Module {
 export interface AppConfig {
     controllersDir?: string
     staticDir?: string
+    database?: {
+        url: string
+        schema?: any
+    }
 }
 
 export interface IMiddleware {

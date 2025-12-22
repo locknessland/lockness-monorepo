@@ -1,9 +1,10 @@
-export class {{ className }} {
-  id?: number
-  createdAt?: Date
-  updatedAt?: Date
+import { pgTable, serial, timestamp } from 'drizzle-orm/pg-core'
 
-  constructor(data: Partial<{{ className }}>) {
-    Object.assign(this, data)
-  }
-}
+export const {{ tableName }} = pgTable('{{ tableName }}', {
+  id: serial('id').primaryKey(),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+export type {{ className }} = typeof {{ tableName }}.$inferSelect
+export type New{{ className }} = typeof {{ tableName }}.$inferInsert

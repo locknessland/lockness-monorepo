@@ -1,27 +1,32 @@
-import { User } from '@model/user.ts'
+import { Service, Inject, Database } from 'lockness'
+import { users, type User, type NewUser } from '@model/user.ts'
+import { eq } from 'drizzle-orm'
 
+@Service()
 export class UserRepository {
+    @Inject(Database)
+    private database!: Database
+
     /**
      * Find all User
      */
     async findAll(): Promise<User[]> {
-        // TODO: Implement database logic
-        return []
+        return await this.database.db.select().from(users)
     }
 
     /**
      * Find User by ID
      */
     async findById(id: number): Promise<User | null> {
-        // TODO: Implement database logic
-        return null
+        const result = await this.database.db.select().from(users).where(eq(users.id, id))
+        return result[0] || null
     }
 
     /**
      * Create a new User
      */
-    async create(data: Partial<User>): Promise<User> {
-        // TODO: Implement database logic
-        return new User(data)
+    async create(data: NewUser): Promise<User> {
+        const result = await this.database.db.insert(users).values(data).returning()
+        return result[0]
     }
 }

@@ -24,7 +24,10 @@
         "@std/path": "jsr:@std/path@1",
         "lockness": "./lockness/core.ts",
         "hono": "npm:hono@^4.11.1",
-        "hono/": "npm:hono@^4.11.1/"
+        "hono/": "npm:hono@^4.11.1/",
+        "drizzle-orm": "npm:drizzle-orm@^0.31.2",
+        "drizzle-orm/": "npm:/drizzle-orm@^0.31.2/",
+        "postgres": "npm:postgres@^3.4.4"
     },
 
     "unstable": [

@@ -5,12 +5,21 @@ import { jsxRenderer } from 'hono/jsx-renderer'
 import type { Context, ControllerClass, Module, AppConfig, IMiddleware } from './types.ts'
 
 import { serveStatic } from 'hono/deno'
+import { container } from './container.ts'
+import { Database } from './database.ts'
 
 export class App {
     private hono = new Hono({ strict: false })
 
     constructor() {
         this.hono.use('*', jsxRenderer(({ children }) => children as any))
+    }
+
+    private async initDatabase(config: AppConfig) {
+        if (config.database) {
+            const dbService = container.get<Database>(Database)
+            await dbService.connect(config.database.url, config.database.schema)
+        }
     }
 
     public static(path: string, root: string = 'public') {
@@ -23,6 +32,7 @@ export class App {
         if ('controllers' in config) {
             controllers = config.controllers
         } else {
+            await this.initDatabase(config)
             if (config.controllersDir) {
                 controllers = await this.discoverControllers(config.controllersDir)
             }
