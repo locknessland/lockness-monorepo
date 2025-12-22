@@ -1,4 +1,5 @@
 {
+    "workspace": [],
     "nodeModulesDir": "auto",
     "tasks": {
         "dev": "VITE=true deno run -A --env npm:vite dev",
