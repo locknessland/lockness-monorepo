@@ -8,7 +8,10 @@ import type { ZodSchema } from 'zod'
  * @param target The part of the request to validate ('json', 'query', 'param', etc.)
  * @param schema The Zod schema to validate against
  */
-export function Validate(target: keyof ValidationTargets, schema: ZodSchema) {
+export function Validate(
+    target: keyof ValidationTargets,
+    schema: ZodSchema,
+): (value: any, context: ClassMethodDecoratorContext) => void {
     return (_value: any, context: ClassMethodDecoratorContext) => {
         context.addInitializer(function (this: any) {
             const constructor = this.constructor
@@ -24,7 +27,7 @@ export function Validate(target: keyof ValidationTargets, schema: ZodSchema) {
                         return c.json({
                             success: false,
                             message: 'Validation failed',
-                            errors: result.error.flatten().fieldErrors
+                            errors: result.error.flatten().fieldErrors,
                         }, 400)
                     }
                 })

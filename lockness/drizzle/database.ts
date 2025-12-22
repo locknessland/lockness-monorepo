@@ -20,7 +20,10 @@ export class Database {
             await this.client`SELECT 1`
             console.log('✅ Database connected')
         } catch (error) {
-            console.error('❌ Database connection failed:', (error as Error).message)
+            console.error(
+                '❌ Database connection failed:',
+                (error as Error).message,
+            )
             // We don't throw here to avoid crashing the whole app if DB is optional,
             // but the user will see the error in the console.
         }

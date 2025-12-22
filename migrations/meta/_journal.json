@@ -1,13 +1,13 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1766367110268,
-      "tag": "0000_cloudy_wolfpack",
-      "breakpoints": true
-    }
-  ]
+    "version": "7",
+    "dialect": "postgresql",
+    "entries": [
+        {
+            "idx": 0,
+            "version": "7",
+            "when": 1766367110268,
+            "tag": "0000_cloudy_wolfpack",
+            "breakpoints": true
+        }
+    ]
 }

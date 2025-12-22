@@ -1,13 +1,17 @@
 // deno-lint-ignore-file no-explicit-any
 import type { ControllerClass, IMiddleware } from './types.ts'
 
-export function Controller(path: string): (value: any, _context: ClassDecoratorContext) => void {
+export function Controller(
+    path: string,
+): (value: any, _context: ClassDecoratorContext) => void {
     return (value: any, _context: ClassDecoratorContext) => {
         value._basePath = path
     }
 }
 
-type RouteDecorator = (path?: string) => (_value: any, context: ClassMethodDecoratorContext) => void
+type RouteDecorator = (
+    path?: string,
+) => (_value: any, context: ClassMethodDecoratorContext) => void
 
 function createRouteDecorator(method: string): RouteDecorator {
     return function (path = '') {
@@ -31,13 +35,18 @@ export const Put: RouteDecorator = createRouteDecorator('put')
 export const Delete: RouteDecorator = createRouteDecorator('delete')
 export const Patch: RouteDecorator = createRouteDecorator('patch')
 
-export function Middleware(): (value: any, _context: ClassDecoratorContext) => any {
+export function Middleware(): (
+    value: any,
+    _context: ClassDecoratorContext,
+) => any {
     return (value: any, _context: ClassDecoratorContext) => {
         return value
     }
 }
 
-export function Use(middleware: new () => IMiddleware): (_value: any, context: ClassMethodDecoratorContext) => void {
+export function Use(
+    middleware: new () => IMiddleware,
+): (_value: any, context: ClassMethodDecoratorContext) => void {
     return (_value: any, context: ClassMethodDecoratorContext) => {
         context.addInitializer(function (this: any) {
             const constructor = this.constructor

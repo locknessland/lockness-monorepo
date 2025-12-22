@@ -1,6 +1,6 @@
-import { Service, Inject } from 'lockness'
+import { Inject, Service } from 'lockness'
 import { Database } from '@lockness/drizzle'
-import { users, type User, type NewUser } from '@model/user.ts'
+import { type NewUser, type User, users } from '@model/user.ts'
 import { eq } from 'drizzle-orm'
 
 @Service()
@@ -19,7 +19,9 @@ export class UserRepository {
      * Find User by ID
      */
     async findById(id: number): Promise<User | null> {
-        const result = await this.database.db.select().from(users).where(eq(users.id, id))
+        const result = await this.database.db.select().from(users).where(
+            eq(users.id, id),
+        )
         return result[0] || null
     }
 
@@ -27,7 +29,8 @@ export class UserRepository {
      * Create a new User
      */
     async create(data: NewUser): Promise<User> {
-        const result = await this.database.db.insert(users).values(data).returning()
+        const result = await this.database.db.insert(users).values(data)
+            .returning()
         return result[0]
     }
 }

@@ -26,16 +26,23 @@ familiar MVC (Model-View-Controller) architecture.
 ## 🛠 Target Features
 
 - **Expressive Routing**: (based on Hono but adapted for MVC)
-- **Controllers**: Class-based controllers with decorators (`@Controller`, `@Get`, `@Post`, etc.)
-- **Robust Middleware Support**: Class-based middlewares with the `@Middleware` decorator
-- **Dependency Injection**: A built-in IoC container managing services with `@Service` and `@Inject` decorators
-- **View Engine (JSX)**: Native JSX support powered by Hono's JSX runtime, facilitating component-based UI development
+- **Controllers**: Class-based controllers with decorators (`@Controller`,
+  `@Get`, `@Post`, etc.)
+- **Robust Middleware Support**: Class-based middlewares with the `@Middleware`
+  decorator
+- **Dependency Injection**: A built-in IoC container managing services with
+  `@Service` and `@Inject` decorators
+- **View Engine (JSX)**: Native JSX support powered by Hono's JSX runtime,
+  facilitating component-based UI development
 - **ORM / Query Builder**: (to be defined/integrated)
 
 ## 🛠 Architectural Highlights
 
 ### Dependency Injection (DI)
-Lockness features a built-in Service Container for managing dependencies. Services should be decorated with `@Service()` and can be injected into controllers or other services using `@Inject(ServiceClass)`.
+
+Lockness features a built-in Service Container for managing dependencies.
+Services should be decorated with `@Service()` and can be injected into
+controllers or other services using `@Inject(ServiceClass)`.
 
 ```typescript
 @Service()
@@ -51,7 +58,9 @@ export class UserController {
 ```
 
 ### View Engine (JSX)
-The framework uses Hono's JSX runtime. To ensure correct resolution, the root `deno.json` must be configured with:
+
+The framework uses Hono's JSX runtime. To ensure correct resolution, the root
+`deno.json` must be configured with:
 
 ```json
 "compilerOptions": {
@@ -59,7 +68,9 @@ The framework uses Hono's JSX runtime. To ensure correct resolution, the root `d
     "jsxImportSource": "hono/jsx"
 }
 ```
+
 And Hono must be mapped in the imports:
+
 ```json
 "imports": {
     "hono": "npm:hono@^4.11.1",
@@ -90,11 +101,17 @@ And Hono must be mapped in the imports:
 └── deno.json              # Config & Aliases
 ```
 
-- **`lockness/`**: Contains the decoupled libraries. This modularity allows for an ORM-agnostic core while providing official extensions like `lockness-drizzle`.
+- **`lockness/`**: Contains the decoupled libraries. This modularity allows for
+  an ORM-agnostic core while providing official extensions like
+  `lockness-drizzle`.
 - **Root Files & `src/`**: Boilerplate structure generated for users.
-- **`docs/`**: Contains reference documentation and rules, including HonoJS docs, for AI assistance.
-- **`_output/`**: Output directory for builds (`server.ts`) and compiled binaries.
+- **`docs/`**: Contains reference documentation and rules, including HonoJS
+  docs, for AI assistance.
+- **`_output/`**: Output directory for builds (`server.ts`) and compiled
+  binaries.
 
 ## ⚙️ Development Workflow
 
-- **Quality Assurance**: Every code modification must be validated by running `deno fmt` and `deno lint`. This ensures that the codebase remains clean, consistent, and free of linting errors.
+- **Quality Assurance**: Every code modification must be validated by running
+  `deno fmt` and `deno lint`. This ensures that the codebase remains clean,
+  consistent, and free of linting errors.

@@ -4,7 +4,9 @@ import { Database } from '@lockness/drizzle'
 export const bootstrap = async () => {
     // Initialize Database (Optional)
     const db = container.get<Database>(Database)
-    await db.connect(Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness')
+    await db.connect(
+        Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness',
+    )
 
     // Create Lockness application
     const app = new App()
@@ -12,7 +14,7 @@ export const bootstrap = async () => {
     // Initialize the application with auto-discovery
     await app.init({
         controllersDir: './src/controller',
-        staticDir: 'public'
+        staticDir: 'public',
     })
 
     return app

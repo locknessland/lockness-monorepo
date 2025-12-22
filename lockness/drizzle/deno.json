@@ -1,13 +1,13 @@
 {
-  "name": "@lockness/drizzle",
-  "version": "0.1.0",
-  "exports": {
-    ".": "./database.ts",
-    "./commands": "./ace_commands.ts"
-  },
-  "imports": {
-    "@lockness/core": "../core/core.ts",
-    "drizzle-orm": "npm:drizzle-orm@^0.31.2",
-    "postgres": "npm:postgres@^3.4.4"
-  }
+    "name": "@lockness/drizzle",
+    "version": "0.1.0",
+    "exports": {
+        ".": "./database.ts",
+        "./commands": "./ace_commands.ts"
+    },
+    "imports": {
+        "@lockness/core": "../core/core.ts",
+        "drizzle-orm": "npm:drizzle-orm@^0.31.2",
+        "postgres": "npm:postgres@^3.4.4"
+    }
 }

@@ -2,7 +2,7 @@ export class RegistrationService {
     /**
      * Business logic for Registration
      */
-    async execute() {
+    execute() {
         // TODO: Implement logic
         console.log('🔹 RegistrationService is running')
     }

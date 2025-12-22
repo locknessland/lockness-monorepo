@@ -35,7 +35,9 @@
         "drizzle-orm": "npm:drizzle-orm@^0.31.2",
         "drizzle-orm/": "npm:/drizzle-orm@^0.31.2/",
         "drizzle-kit": "npm:drizzle-kit@^0.22.7",
-        "postgres": "npm:postgres@^3.4.4"
+        "postgres": "npm:postgres@^3.4.4",
+        "esbuild": "https://deno.land/x/esbuild@v0.21.5/mod.js",
+        "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader@^0.11.0"
     },
 
     "unstable": [
@@ -52,5 +54,5 @@
     "compilerOptions": {
         "jsx": "precompile",
         "jsxImportSource": "hono/jsx"
-    }   
+    }
 }

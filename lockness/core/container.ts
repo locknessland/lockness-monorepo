@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 
-class Container {
+export class Container {
     private services = new Map<any, any>()
 
     /**
@@ -21,12 +21,15 @@ class Container {
     }
 }
 
-export const container = new Container()
+export const container: Container = new Container()
 
 /**
  * Decorator to mark a class as a Service
  */
-export function Service(): (value: any, _context: ClassDecoratorContext) => any {
+export function Service(): (
+    value: any,
+    _context: ClassDecoratorContext,
+) => any {
     return (value: any, _context: ClassDecoratorContext) => {
         return value
     }
@@ -35,8 +38,13 @@ export function Service(): (value: any, _context: ClassDecoratorContext) => any 
 /**
  * Decorator to inject a service into a property
  */
-export function Inject(ServiceClass: any) {
-    return function (_value: undefined, _context: ClassFieldDecoratorContext): any {
+export function Inject(
+    ServiceClass: any,
+): (value: undefined, context: ClassFieldDecoratorContext) => any {
+    return function (
+        _value: undefined,
+        _context: ClassFieldDecoratorContext,
+    ): any {
         return function (this: any) {
             return container.get(ServiceClass)
         }

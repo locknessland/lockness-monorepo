@@ -1,4 +1,4 @@
-import { Controller, Get, Context } from 'lockness'
+import { Context, Controller, Get } from 'lockness'
 import { HomeView } from '../view/pages/home.tsx'
 
 @Controller('/')

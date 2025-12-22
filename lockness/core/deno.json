@@ -1,14 +1,14 @@
 {
-  "name": "@lockness/core",
-  "version": "0.1.2",
-  "exports": {
-    ".": "./core.ts"
-  },
-  "imports": {
-    "hono": "npm:hono@^4.11.1",
-    "hono/": "npm:/hono@^4.11.1/",
-    "zod": "npm:zod@^3.23.8",
-    "@hono/zod-validator": "npm:@hono/zod-validator@^0.4.1",
-    "@std/path": "jsr:@std/path@^1.0.0"
-  }
+    "name": "@lockness/core",
+    "version": "0.1.2",
+    "exports": {
+        ".": "./core.ts"
+    },
+    "imports": {
+        "hono": "npm:hono@^4.11.1",
+        "hono/": "npm:/hono@^4.11.1/",
+        "zod": "npm:zod@^3.23.8",
+        "@hono/zod-validator": "npm:@hono/zod-validator@^0.4.1",
+        "@std/path": "jsr:@std/path@^1.0.0"
+    }
 }
