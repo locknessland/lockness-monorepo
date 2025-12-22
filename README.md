@@ -41,6 +41,28 @@ Create a standalone executable for your target platform:
 deno task compile
 ```
 
+### Testing
+
+Run the test suite:
+
+```bash
+deno task test
+```
+
+Run tests with coverage report:
+
+```bash
+deno task test:coverage
+```
+
+Run tests in watch mode (re-run on file changes):
+
+```bash
+deno task test:watch
+```
+
+Test files are located in the `tests/` directory. Coverage reports are generated in `coverage/html/`.
+
 ### Database Management (Drizzle ORM)
 
 Lockness uses **Drizzle ORM** for type-safe database operations.

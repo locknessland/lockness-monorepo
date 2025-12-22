@@ -632,6 +632,9 @@ experience:
   - `deno task ace make:seeder`: Creates a new seeder class.
   - `deno task ace db:seed`: Runs database seeders.
   - `deno task ace tinker`: Starts an interactive REPL session.
+  - `deno task test`: Runs the test suite.
+  - `deno task test:coverage`: Runs tests with coverage report.
+  - `deno task test:watch`: Runs tests in watch mode.
 
 ### ACE Tinker (REPL)
 

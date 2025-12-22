@@ -26,6 +26,20 @@ Run the optimized production build:
 deno task start
 ```
 
+### Testing
+
+Run the test suite:
+
+```bash
+deno task test
+```
+
+Run tests with coverage:
+
+```bash
+deno task test:coverage
+```
+
 ### Database Management (Drizzle ORM)
 
 Lockness uses **Drizzle ORM** for type-safe database operations.
