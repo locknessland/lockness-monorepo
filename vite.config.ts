@@ -19,9 +19,6 @@ export default defineConfig({
             '@lockness/kysely': resolve(Deno.cwd(), './lockness/kysely/database.ts'),
         }
     },
-    define: {
-        'import.meta.main': 'false',
-    },
     plugins: [
         devServer({
             entry: 'main.ts',

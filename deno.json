@@ -10,7 +10,7 @@
         "dev": "VITE=true deno run -A --env --node-modules-dir npm:vite dev",
         "build": "deno run -A --node-modules-dir npm:vite build",
         "preview": "deno run -A --node-modules-dir npm:vite preview",
-        "start": "deno run --allow-net --allow-read --allow-env --allow-sys --env dist/server.js",
+        "start": "deno run --allow-net --allow-read --allow-env --allow-sys --env-file=.env.production.local dist/server.js",
         "ace": "deno run -A ace.ts"
     },
     "imports": {
@@ -36,7 +36,6 @@
         "kysely": "npm:kysely@^0.28.9",
         "kysely-postgres-js": "npm:kysely-postgres-js@^2.0.0",
         "vite": "npm:vite@^5.0.0",
-        "@vitejs/plugin-react": "npm:@vitejs/plugin-react@^4.2.1",
         "@hono/vite-dev-server": "npm:@hono/vite-dev-server@^0.12.0",
         "@hono/zod-validator": "npm:@hono/zod-validator@^0.4.1",
         "zod": "npm:zod@^3.23.8"
