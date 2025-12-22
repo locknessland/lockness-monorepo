@@ -33,8 +33,9 @@ familiar MVC (Model-View-Controller) architecture.
 - **Dependency Injection**: A built-in IoC container managing services with
   `@Service` and `@Inject` decorators
 - **View Engine (JSX)**: Native JSX support powered by Hono's JSX runtime,
-  facilitating component-based UI development
-- **ORM / Query Builder**: (to be defined/integrated)
+  facilitating component-based UI development.
+- **Vite Integration**: High-performance development server with Hot Module Replacement (HMR) and optimized SSR production builds.
+- **ORM / Query Builder**: Official integration with **Kysely** for type-safe database queries.
 
 ## 🛠 Architectural Highlights
 
@@ -85,7 +86,7 @@ And Hono must be mapped in the imports:
 ├── lockness/              # 📦 Modular Framework Libraries
 │   ├── core/              # Core Web & DI logic
 │   ├── ace/               # CLI Command Engine (Ace)
-│   ├── drizzle/           # Drizzle ORM Extension
+│   ├── kysely/            # Kysely ORM Extension
 │   └── init/              # Scaffolding & Project Init
 ├── src/                   # 🚀 Framework Template (Boilerplate)
 │   ├── controller/        # HTTP Controllers
@@ -103,15 +104,26 @@ And Hono must be mapped in the imports:
 
 - **`lockness/`**: Contains the decoupled libraries. This modularity allows for
   an ORM-agnostic core while providing official extensions like
-  `lockness-drizzle`.
+  `lockness-kysely`.
 - **Root Files & `src/`**: Boilerplate structure generated for users.
 - **`docs/`**: Contains reference documentation and rules, including HonoJS
   docs, for AI assistance.
-- **`_output/`**: Output directory for builds (`server.ts`) and compiled
-  binaries.
+- **`dist/`**: Output directory for production SSR builds (`server.js`).
 
 ## ⚙️ Development Workflow
 
 - **Quality Assurance**: Every code modification must be validated by running
   `deno fmt` and `deno lint`. This ensures that the codebase remains clean,
   consistent, and free of linting errors.
+
+## 🛠 Development Stack
+
+Lockness uses a modern development stack to ensure the best developer experience:
+
+- **Vite**: Used for Hot Module Replacement (HMR) during development.
+- **SSR (Server-Side Rendering)**: Compiles the entire application into a single `dist/server.js` file for production.
+- **Deno Tasks**:
+    - `deno task dev`: Starts the Vite dev server (on port 5173).
+    - `deno task build`: Generates the production SSR bundle.
+    - `deno task start`: Runs the production server (on port 8888). Use `-- --force` to automatically kill any process already using the port.
+    - `deno task ace init`: Scaffolds a new project.
