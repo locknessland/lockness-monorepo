@@ -158,7 +158,7 @@ export class App {
             'development'
         const isProd = env.toLowerCase() === 'production'
         const envLabel = isProd
-            ? '\x1b[41m\x1b[37m PRODUCTION \x1b[0m'
+            ? '\x1b[43m\x1b[30m PRODUCTION \x1b[0m'
             : '\x1b[44m\x1b[37m DEVELOPMENT \x1b[0m'
 
         console.log(`
