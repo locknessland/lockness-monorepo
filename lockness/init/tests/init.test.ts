@@ -164,4 +164,89 @@ describe('init command', () => {
             Deno.chdir(originalCwd)
         }
     })
+
+    it('creates Dockerfile with correct content', async () => {
+        const { registerInitCommand } = await import('../init.ts')
+
+        let capturedHandler: ((args: string[]) => Promise<void>) | null = null
+        const aceMock = {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
+                capturedHandler = handler
+            },
+        }
+
+        registerInitCommand(aceMock as never)
+
+        const originalCwd = Deno.cwd()
+        Deno.chdir(TEST_DIR)
+
+        try {
+            await capturedHandler!(['docker-test'])
+
+            expect(existsSync('docker-test/Dockerfile')).toBe(true)
+
+            const dockerfile = await Deno.readTextFile(
+                'docker-test/Dockerfile',
+            )
+
+            // Check for multi-stage build
+            expect(dockerfile).toContain('FROM denoland/deno')
+            expect(dockerfile).toContain('AS builder')
+            expect(dockerfile).toContain('AS production')
+
+            // Check for DENO_VERSION arg
+            expect(dockerfile).toContain('ARG DENO_VERSION=')
+
+            // Check for non-root user
+            expect(dockerfile).toContain('USER lockness')
+
+            // Check for health check
+            expect(dockerfile).toContain('HEALTHCHECK')
+
+            // Check for correct port
+            expect(dockerfile).toContain('EXPOSE 8888')
+        } finally {
+            Deno.chdir(originalCwd)
+        }
+    })
+
+    it('creates .dockerignore with correct content', async () => {
+        const { registerInitCommand } = await import('../init.ts')
+
+        let capturedHandler: ((args: string[]) => Promise<void>) | null = null
+        const aceMock = {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
+                capturedHandler = handler
+            },
+        }
+
+        registerInitCommand(aceMock as never)
+
+        const originalCwd = Deno.cwd()
+        Deno.chdir(TEST_DIR)
+
+        try {
+            await capturedHandler!(['dockerignore-test'])
+
+            expect(existsSync('dockerignore-test/.dockerignore')).toBe(true)
+
+            const dockerignore = await Deno.readTextFile(
+                'dockerignore-test/.dockerignore',
+            )
+
+            // Check for common ignores
+            expect(dockerignore).toContain('node_modules')
+            expect(dockerignore).toContain('.git')
+            expect(dockerignore).toContain('.env')
+            expect(dockerignore).toContain('coverage')
+        } finally {
+            Deno.chdir(originalCwd)
+        }
+    })
 })
