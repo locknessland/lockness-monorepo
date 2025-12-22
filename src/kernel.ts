@@ -2,8 +2,8 @@ import {
     App,
     configureSession,
     container,
-    createSessionMiddleware,
     type ControllerClass,
+    createSessionMiddleware,
 } from 'lockness'
 import { Database } from '@lockness/drizzle'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
@@ -40,7 +40,7 @@ export const bootstrap = async () => {
             if (
                 typeof Exported === 'function' &&
                 (Exported as unknown as Record<string, unknown>)._basePath !==
-                undefined
+                    undefined
             ) {
                 controllers.push(Exported as ControllerClass)
             }

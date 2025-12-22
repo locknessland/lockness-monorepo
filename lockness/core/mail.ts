@@ -108,7 +108,11 @@ export class ConsoleMailDriver implements MailDriver {
             console.log('[HTML content available]')
         }
         if (message.attachments?.length) {
-            console.log(`Attachments: ${message.attachments.map((a) => a.filename).join(', ')}`)
+            console.log(
+                `Attachments: ${
+                    message.attachments.map((a) => a.filename).join(', ')
+                }`,
+            )
         }
         console.log('═══════════════════════════════════════════════════\n')
 
@@ -332,7 +336,10 @@ export class Mail {
     /**
      * Add recipient(s)
      */
-    to(email: string | string[] | MailAddress | MailAddress[], name?: string): this {
+    to(
+        email: string | string[] | MailAddress | MailAddress[],
+        name?: string,
+    ): this {
         if (!this.message.to) this.message.to = []
 
         if (typeof email === 'string') {
@@ -428,7 +435,11 @@ export class Mail {
     /**
      * Add attachment
      */
-    attach(filename: string, content: string | Uint8Array, contentType?: string): this {
+    attach(
+        filename: string,
+        content: string | Uint8Array,
+        contentType?: string,
+    ): this {
         if (!this.message.attachments) this.message.attachments = []
 
         this.message.attachments.push({ filename, content, contentType })
@@ -475,7 +486,10 @@ export class Mail {
                     break
                 case 'resend':
                     if (!config.resend?.apiKey) {
-                        return { success: false, error: 'Resend API key not configured' }
+                        return {
+                            success: false,
+                            error: 'Resend API key not configured',
+                        }
                     }
                     driver = new ResendMailDriver(config.resend.apiKey)
                     break

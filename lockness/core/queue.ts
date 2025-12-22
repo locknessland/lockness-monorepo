@@ -38,7 +38,9 @@ export interface Job<T extends JobPayload = JobPayload> {
     failed?(payload: T, error: Error): Promise<void>
 }
 
-export type JobClass<T extends JobPayload = JobPayload> = new (payload: T) => Job<T>
+export type JobClass<T extends JobPayload = JobPayload> = new (
+    payload: T,
+) => Job<T>
 
 // deno-lint-ignore no-explicit-any
 type AnyJobClass = new (payload: any) => Job<any>
@@ -295,7 +297,7 @@ export interface DispatchOptions {
 
 /**
  * Dispatch a job to the queue
- * 
+ *
  * @example
  * await dispatch(new SendEmailJob({ userId: 1, email: 'test@example.com' }))
  * await dispatch(new SendEmailJob({ userId: 1 }), { delay: 60000 }) // delay 1 minute
@@ -377,7 +379,9 @@ export class QueueWorker {
     async start(): Promise<void> {
         this.running = true
         console.log(
-            `🚀 Queue worker started. Processing: ${this.options.queues.join(', ')}`,
+            `🚀 Queue worker started. Processing: ${
+                this.options.queues.join(', ')
+            }`,
         )
 
         while (this.running) {
@@ -440,7 +444,9 @@ export class QueueWorker {
             console.log(`✅ Completed [${serializedJob.name}]`)
         } catch (error) {
             console.error(
-                `❌ Failed [${serializedJob.name}]: ${(error as Error).message}`,
+                `❌ Failed [${serializedJob.name}]: ${
+                    (error as Error).message
+                }`,
             )
 
             serializedJob.attempts = attempt

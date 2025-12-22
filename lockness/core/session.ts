@@ -6,7 +6,7 @@
  */
 
 import type { Context, MiddlewareHandler } from 'hono'
-import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 
 // =============================================================================
 // Types & Interfaces
@@ -519,7 +519,10 @@ export function createSessionMiddleware(
         await next()
 
         // Save session after response
-        if (session.isDirty() || Object.keys(session.getFlashDataToSave()).length > 0) {
+        if (
+            session.isDirty() ||
+            Object.keys(session.getFlashDataToSave()).length > 0
+        ) {
             await session.save()
         }
     }

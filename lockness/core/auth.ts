@@ -6,7 +6,7 @@
  */
 
 import type { Context, MiddlewareHandler } from 'hono'
-import { session, type Session } from './session.ts'
+import { type Session, session } from './session.ts'
 
 // =============================================================================
 // Types & Interfaces
@@ -342,8 +342,7 @@ export function createAuthMiddleware(
 
             // Check if it's an API request
             const accept = c.req.header('Accept') || ''
-            const isApi =
-                accept.includes('application/json') ||
+            const isApi = accept.includes('application/json') ||
                 c.req.path.startsWith('/api')
 
             if (isApi) {

@@ -170,12 +170,17 @@ export function registerCoreCommands(ace: Ace) {
     ace.register('make:job', async (args) => {
         const name = args[0]
         if (!name) {
-            console.error('❌ Please provide a job name (e.g., SendWelcomeEmail)')
+            console.error(
+                '❌ Please provide a job name (e.g., SendWelcomeEmail)',
+            )
             return
         }
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
-        const jobName = name.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')
+        const jobName = name.replace(/([A-Z])/g, '-$1').toLowerCase().replace(
+            /^-/,
+            '',
+        )
         const fileName = `${name.toLowerCase()}_job.ts`
         const dirPath = `./src/job`
         const filePath = `${dirPath}/${fileName}`
@@ -220,25 +225,41 @@ export function registerCoreCommands(ace: Ace) {
 
         for (const file of files) {
             try {
-                const content = await Stub.renderFrom(STUBS_PATH, 'auth', file.stub, {
-                    className: '',
-                })
+                const content = await Stub.renderFrom(
+                    STUBS_PATH,
+                    'auth',
+                    file.stub,
+                    {
+                        className: '',
+                    },
+                )
 
-                const dirPath = file.output.substring(0, file.output.lastIndexOf('/'))
+                const dirPath = file.output.substring(
+                    0,
+                    file.output.lastIndexOf('/'),
+                )
                 await Deno.mkdir(dirPath, { recursive: true })
                 await Deno.writeTextFile(file.output, content)
                 console.log(`✅ ${file.name} created at ${file.output}`)
             } catch (error) {
-                console.error(`❌ Failed to create ${file.name}: ${(error as Error).message}`)
+                console.error(
+                    `❌ Failed to create ${file.name}: ${
+                        (error as Error).message
+                    }`,
+                )
             }
         }
 
         console.log('\n📝 Next steps:')
-        console.log('1. Ensure you have a User model with email and password fields')
+        console.log(
+            '1. Ensure you have a User model with email and password fields',
+        )
         console.log('2. Configure auth in your kernel.ts:')
         console.log('')
         console.log("   import { configureAuth } from 'lockness'")
-        console.log("   import { UserProvider } from '@provider/user_provider.ts'")
+        console.log(
+            "   import { UserProvider } from '@provider/user_provider.ts'",
+        )
         console.log('')
         console.log('   configureAuth({')
         console.log('       userProvider: container.get(UserProvider),')
@@ -266,7 +287,8 @@ export function registerCoreCommands(ace: Ace) {
         const once = args.includes('--once')
 
         // Configure queue driver from env
-        const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') || 'memory'
+        const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') ||
+            'memory'
         configureQueue({ driver })
 
         // Auto-discover and register jobs from src/job/
@@ -312,7 +334,8 @@ export function registerCoreCommands(ace: Ace) {
         const { clearQueue, configureQueue } = await import('@lockness/core')
 
         const queue = args[0] || 'default'
-        const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') || 'memory'
+        const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') ||
+            'memory'
         configureQueue({ driver })
 
         await clearQueue(queue)
@@ -360,7 +383,8 @@ async function loadTinkerContext(context: Record<string, unknown>) {
 
                         // Also export default if it's a class/function
                         if (module.default) {
-                            const name = module.default.name || entry.name.replace('.ts', '')
+                            const name = module.default.name ||
+                                entry.name.replace('.ts', '')
                             context[name] = module.default
                         }
                     } catch {
@@ -389,14 +413,16 @@ async function loadTinkerContext(context: Record<string, unknown>) {
     // Add helper utilities
     context.help = () => {
         console.log('\n📦 Available in context:')
-        const keys = Object.keys(context).filter(k => k !== 'help')
+        const keys = Object.keys(context).filter((k) => k !== 'help')
         if (keys.length === 0) {
             console.log('  (none loaded)')
         } else {
-            keys.forEach(k => {
+            keys.forEach((k) => {
                 const val = context[k]
                 const type = typeof val === 'function'
-                    ? (val.toString().startsWith('class') ? 'class' : 'function')
+                    ? (val.toString().startsWith('class')
+                        ? 'class'
+                        : 'function')
                     : typeof val
                 console.log(`  ${k}: ${type}`)
             })
@@ -405,7 +431,7 @@ async function loadTinkerContext(context: Record<string, unknown>) {
     }
 
     // Show loaded context
-    const loaded = Object.keys(context).filter(k => k !== 'help')
+    const loaded = Object.keys(context).filter((k) => k !== 'help')
     if (loaded.length > 0) {
         console.log('📦 Loaded:', loaded.join(', '))
         console.log('')
@@ -470,7 +496,7 @@ async function startRepl(context: Record<string, unknown>) {
 
             if (line === '.context') {
                 if (context.help && typeof context.help === 'function') {
-                    (context.help as () => void)()
+                    ;(context.help as () => void)()
                 }
                 prompt()
                 continue

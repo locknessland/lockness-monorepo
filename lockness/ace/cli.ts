@@ -148,7 +148,8 @@ export class Ace {
                         }
                     } catch (e) {
                         console.warn(
-                            `⚠️ Failed to load command ${entry.name}: ${(e as Error).message
+                            `⚠️ Failed to load command ${entry.name}: ${
+                                (e as Error).message
                             }`,
                         )
                     }
