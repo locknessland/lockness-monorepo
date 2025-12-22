@@ -3,7 +3,7 @@
  */
 
 import { assertEquals, assertExists } from '@std/assert'
-import { MemorySessionDriver, type SessionConfig, SessionStore } from 'lockness'
+import { MemorySessionDriver, type SessionConfig, SessionStore } from '../core.ts'
 
 const defaultConfig: SessionConfig = {
     driver: 'memory',

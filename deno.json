@@ -13,9 +13,11 @@
         "start": "deno run --allow-net --allow-read --allow-env --allow-sys --allow-run --env-file=.env.production.local dist/server.js",
         "compile": "deno compile --allow-all --output lockness-server dist/server.js",
         "ace": "deno run -A --env ace.ts",
-        "test": "deno test -A --env tests/",
-        "test:coverage": "rm -rf coverage && deno test -A --env --coverage=coverage tests/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
-        "test:watch": "deno test -A --env --watch tests/"
+        "test": "deno test -A --env lockness/",
+        "test:coverage": "rm -rf coverage && deno test -A --env --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
+        "test:watch": "deno test -A --env --watch lockness/",
+        "test:ace": "cd lockness/ace && deno task test",
+        "test:core": "cd lockness/core && deno task test"
     },
     "imports": {
         "@/": "./",

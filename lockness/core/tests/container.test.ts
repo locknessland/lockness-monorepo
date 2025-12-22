@@ -3,7 +3,7 @@
  */
 
 import { assertEquals, assertExists } from '@std/assert'
-import { container } from 'lockness'
+import { container } from '../core.ts'
 
 class TestService {
     getValue(): string {

@@ -12,7 +12,7 @@ import {
     MemoryQueueDriver,
     QueueWorker,
     registerJob,
-} from 'lockness'
+} from '../core.ts'
 
 interface TestPayload extends JobPayload {
     message: string

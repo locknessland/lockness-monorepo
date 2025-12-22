@@ -3,7 +3,7 @@
  */
 
 import { assertEquals, assertExists } from '@std/assert'
-import { hashPassword, verifyPassword } from 'lockness'
+import { hashPassword, verifyPassword } from '../core.ts'
 
 Deno.test('auth system', async (t) => {
     await t.step('hashPassword returns a hash', async () => {

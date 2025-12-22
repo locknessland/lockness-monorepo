@@ -2,17 +2,10 @@
  * Tests for ACE make:middleware command
  */
 
-import { assertEquals, assertStringIncludes } from '@std/assert'
-import { existsSync } from '@std/fs'
-import { Stub } from '@lockness/ace'
-
-const STUB_PATH = './lockness/ace/stubs/make/middleware.stub'
+import { assertStringIncludes } from '@std/assert'
+import { Stub } from '../stubs.ts'
 
 Deno.test('make:middleware', async (t) => {
-    await t.step('stub file exists', () => {
-        assertEquals(existsSync(STUB_PATH), true)
-    })
-
     await t.step('generates valid middleware from stub', async () => {
         const content = await Stub.render('make', 'middleware', {
             className: 'AuthMiddleware',

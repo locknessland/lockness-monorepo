@@ -8,7 +8,7 @@ import {
     ConsoleMailDriver,
     mail,
     MemoryMailDriver,
-} from 'lockness'
+} from '../core.ts'
 
 Deno.test('mail system', async (t) => {
     await t.step('configureMail sets up mail config', () => {

@@ -982,11 +982,14 @@
     "members": {
       "lockness/ace": {
         "dependencies": [
+          "jsr:@std/assert@1",
+          "jsr:@std/fs@1",
           "jsr:@std/path@1"
         ]
       },
       "lockness/core": {
         "dependencies": [
+          "jsr:@std/assert@1",
           "jsr:@std/path@1",
           "npm:@hono/zod-validator@~0.4.1",
           "npm:hono@^4.11.1",

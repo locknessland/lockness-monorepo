@@ -1,7 +1,7 @@
 /**
- * Test Helpers
+ * Test Helpers for ACE
  *
- * Utility functions for testing Lockness framework
+ * Utility functions for testing ACE commands
  */
 
 import { existsSync } from '@std/fs'

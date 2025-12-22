@@ -4,11 +4,16 @@
     "exports": {
         ".": "./core.ts"
     },
+    "tasks": {
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
     "imports": {
         "hono": "npm:hono@^4.11.1",
         "hono/": "npm:/hono@^4.11.1/",
         "zod": "npm:zod@^3.23.8",
         "@hono/zod-validator": "npm:@hono/zod-validator@^0.4.1",
-        "@std/path": "jsr:@std/path@^1.0.0"
+        "@std/path": "jsr:@std/path@^1.0.0",
+        "@std/assert": "jsr:@std/assert@1"
     }
 }
