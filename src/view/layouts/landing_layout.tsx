@@ -3,18 +3,22 @@ import { Asset, ViteScripts } from 'lockness'
 // deno-lint-ignore no-explicit-any
 export const LandingLayout = (props: { title: string; children: any }) => {
     return (
-        <html lang="en">
+        <html lang='en'>
             <head>
-                <meta charset="UTF-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <meta charset='UTF-8' />
+                <meta
+                    name='viewport'
+                    content='width=device-width, initial-scale=1.0'
+                />
                 <title>{props.title} | Lockness</title>
 
                 {/* Automatic asset resolution & dependency injection */}
-                <ViteScripts entry="src/view/app.ts" />
+                <ViteScripts entry='src/view/app.ts' />
 
-                <script src="https://cdn.tailwindcss.com"></script>
-                <script dangerouslySetInnerHTML={{
-                    __html: `
+                <script src='https://cdn.tailwindcss.com'></script>
+                <script
+                    dangerouslySetInnerHTML={{
+                        __html: `
                 tailwind.config = {
                     darkMode: 'class',
                     theme: {
@@ -54,19 +58,17 @@ export const LandingLayout = (props: { title: string; children: any }) => {
                         }
                     }
                 }
-                ` }} />
+                `,
+                    }}
+                />
                 <link
-                    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-                    rel="stylesheet"
+                    href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'
+                    rel='stylesheet'
                 />
             </head>
-            <body
-                class="dark bg-background text-foreground min-h-screen antialiased overflow-x-hidden"
-            >
+            <body class='dark bg-background text-foreground min-h-screen antialiased overflow-x-hidden'>
                 {props.children}
             </body>
         </html>
     )
 }
-
-

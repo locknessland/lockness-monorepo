@@ -152,17 +152,26 @@ export const HomeView = () => {
                 <section id='features' class='py-32 px-6 bg-accent/5'>
                     <div class='max-w-6xl mx-auto'>
                         <div class='grid md:grid-cols-3 gap-8'>
-                            <Card title="MVC Foundation" description="A clear structure separating logic, data, and display. Inspired by the elegance of Laravel.">
+                            <Card
+                                title='MVC Foundation'
+                                description='A clear structure separating logic, data, and display. Inspired by the elegance of Laravel.'
+                            >
                                 <div class='w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors text-2xl'>
                                     🏗️
                                 </div>
                             </Card>
-                            <Card title="Dependency Injection" description="Built-in IoC container for clean, testable code. Just use the @Inject decorator.">
+                            <Card
+                                title='Dependency Injection'
+                                description='Built-in IoC container for clean, testable code. Just use the @Inject decorator.'
+                            >
                                 <div class='w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors text-2xl'>
                                     💉
                                 </div>
                             </Card>
-                            <Card title="Deno First" description="Native TypeScript, no node_modules, and top-tier security out of the box.">
+                            <Card
+                                title='Deno First'
+                                description='Native TypeScript, no node_modules, and top-tier security out of the box.'
+                            >
                                 <div class='w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors text-2xl'>
                                     ⚡
                                 </div>

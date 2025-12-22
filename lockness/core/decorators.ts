@@ -15,14 +15,18 @@ type RouteDecorator = (
 
 function createRouteDecorator(method: string): RouteDecorator {
     return function (path = '') {
-        return (target: any, propertyKey: string | symbol, _descriptor: PropertyDescriptor) => {
-            const constructor = target.constructor;
-            if (!constructor._routes) constructor._routes = [];
+        return (
+            target: any,
+            propertyKey: string | symbol,
+            _descriptor: PropertyDescriptor,
+        ) => {
+            const constructor = target.constructor
+            if (!constructor._routes) constructor._routes = []
             constructor._routes.push({
                 method,
                 path,
-                 methodName: propertyKey as string,
-             });
+                methodName: propertyKey as string,
+            })
         }
     }
 }
@@ -35,20 +39,24 @@ export const Patch: RouteDecorator = createRouteDecorator('patch')
 
 export function Middleware(): ClassDecorator {
     return (_target: any) => {
-    // no-op or registration
+        // no-op or registration
     }
 }
 
 export function Use(
     middleware: new () => IMiddleware,
 ): MethodDecorator {
-    return (target: any, propertyKey: string | symbol, _descriptor: PropertyDescriptor) => {
-        const constructor = target.constructor;
-        if (!constructor._middlewares) constructor._middlewares = {};
-        const key = propertyKey as string;
+    return (
+        target: any,
+        propertyKey: string | symbol,
+        _descriptor: PropertyDescriptor,
+    ) => {
+        const constructor = target.constructor
+        if (!constructor._middlewares) constructor._middlewares = {}
+        const key = propertyKey as string
         if (!constructor._middlewares[key]) {
-            constructor._middlewares[key] = [];
+            constructor._middlewares[key] = []
         }
-        constructor._middlewares[key].push(middleware);
+        constructor._middlewares[key].push(middleware)
     }
 }

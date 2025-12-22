@@ -15,8 +15,8 @@ deno task dev
 
 ### Production Build
 
-Bundle your application into an optimized SSR bundle in the `dist`
-directory using Vite:
+Bundle your application into an optimized SSR bundle in the `dist` directory
+using Vite:
 
 ```bash
 deno task build
@@ -30,7 +30,8 @@ Run the optimized production server (on port 8888):
 deno task start
 ```
 
-*Note: Use `deno task start -- --force` to automatically kill any process already using the port.*
+_Note: Use `deno task start -- --force` to automatically kill any process
+already using the port._
 
 ### Compile to Binary
 

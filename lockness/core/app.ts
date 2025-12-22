@@ -89,7 +89,7 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ; (this.hono as any)[route.method](
+            ;(this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
@@ -142,7 +142,8 @@ export class App {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${(error as Error).message
+                `❌ Error during controller discovery: ${
+                    (error as Error).message
                 }`,
             )
         }
@@ -170,7 +171,9 @@ export class App {
                     port,
                     onListen: ({ port, hostname }) => {
                         const protocol = 'http'
-                        const host = hostname === '0.0.0.0' ? 'localhost' : hostname
+                        const host = hostname === '0.0.0.0'
+                            ? 'localhost'
+                            : hostname
                         console.log(`  Environment: ${envLabel}\n`)
                         console.log(
                             `  🚀 Server is flying at \x1b[36m${protocol}://${host}:${port}\x1b[0m`,
@@ -184,27 +187,32 @@ export class App {
 
                     if (hasForce) {
                         try {
-                            console.log(`  🛠  Port ${port} in use. Attempting to force release...`)
-                            const lsof = new Deno.Command("lsof", {
-                                args: ["-ti", `:${port}`],
-                                stdout: "piped",
+                            console.log(
+                                `  🛠  Port ${port} in use. Attempting to force release...`,
+                            )
+                            const lsof = new Deno.Command('lsof', {
+                                args: ['-ti', `:${port}`],
+                                stdout: 'piped',
                             })
                             const { stdout } = await lsof.output()
-                            const pids = new TextDecoder().decode(stdout).trim().split('\n').filter(p => p.length > 0)
+                            const pids = new TextDecoder().decode(stdout).trim()
+                                .split('\n').filter((p) => p.length > 0)
 
                             if (pids.length > 0) {
                                 for (const pid of pids) {
-                                    const kill = new Deno.Command("kill", {
-                                        args: ["-9", pid],
+                                    const kill = new Deno.Command('kill', {
+                                        args: ['-9', pid],
                                     })
                                     await kill.output()
                                 }
                                 // Small delay to let OS release the port
-                                await new Promise(r => setTimeout(r, 800))
+                                await new Promise((r) => setTimeout(r, 800))
                                 return await tryServe()
                             }
                         } catch (e) {
-                            console.error(`  ⚠️  Failed to force release port ${port}: ${e.message}`)
+                            console.error(
+                                `  ⚠️  Failed to force release port ${port}: ${e.message}`,
+                            )
                         }
                     }
 

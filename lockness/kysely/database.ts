@@ -17,14 +17,14 @@ export class Database {
             this.client = postgres(url)
             this.db = new Kysely({
                 dialect: new PostgresJSDialect({
-                    postgres: this.client
-                })
+                    postgres: this.client,
+                }),
             })
 
             // Verify the connection by running a simple query
             await this.db.executeQuery(
                 // @ts-ignore: compiled query mock
-                { sql: 'SELECT 1', parameters: [], query: { kind: 'RawNode' } }
+                { sql: 'SELECT 1', parameters: [], query: { kind: 'RawNode' } },
             )
             // Or simpler check:
             // await this.client`SELECT 1`

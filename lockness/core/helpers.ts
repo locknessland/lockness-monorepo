@@ -8,11 +8,22 @@ let manifest: any = null
 export function getManifest(): any {
     if (!manifest) {
         try {
-            const manifestPath = join(Deno.cwd(), 'dist', 'static', '.vite', 'manifest.json')
+            const manifestPath = join(
+                Deno.cwd(),
+                'dist',
+                'static',
+                '.vite',
+                'manifest.json',
+            )
             manifest = JSON.parse(Deno.readTextFileSync(manifestPath))
         } catch (_e) {
             try {
-                const legacyPath = join(Deno.cwd(), 'dist', 'static', 'manifest.json')
+                const legacyPath = join(
+                    Deno.cwd(),
+                    'dist',
+                    'static',
+                    'manifest.json',
+                )
                 manifest = JSON.parse(Deno.readTextFileSync(legacyPath))
             } catch (__e) {
                 return {}

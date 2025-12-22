@@ -14,15 +14,18 @@ export const bootstrap = async () => {
     // Initialize the application with auto-discovery via Vite glob import
     // This MUST be a literal string for Vite to transform it correctly
     // @ts-ignore
-    const modules = import.meta.glob('./controller/*.{ts,tsx}', { eager: true });
-    const controllers: any[] = [];
+    const modules = import.meta.glob('./controller/*.{ts,tsx}', { eager: true })
+    const controllers: any[] = []
 
     for (const path in modules) {
-        const mod = modules[path] as any;
+        const mod = modules[path] as any
         for (const key in mod) {
-            const Exported = mod[key];
-            if (typeof Exported === 'function' && Exported._basePath !== undefined) {
-                controllers.push(Exported);
+            const Exported = mod[key]
+            if (
+                typeof Exported === 'function' &&
+                Exported._basePath !== undefined
+            ) {
+                controllers.push(Exported)
             }
         }
     }

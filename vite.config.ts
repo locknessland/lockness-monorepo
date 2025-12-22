@@ -16,8 +16,11 @@ export default defineConfig(({ isSsrBuild }) => ({
             'lockness': resolve(Deno.cwd(), './lockness/core/core.ts'),
             '@lockness/core': resolve(Deno.cwd(), './lockness/core/core.ts'),
             '@lockness/ace': resolve(Deno.cwd(), './lockness/ace/cli.ts'),
-            '@lockness/kysely': resolve(Deno.cwd(), './lockness/kysely/database.ts'),
-        }
+            '@lockness/kysely': resolve(
+                Deno.cwd(),
+                './lockness/kysely/database.ts',
+            ),
+        },
     },
     plugins: [
         devServer({
@@ -52,14 +55,62 @@ export default defineConfig(({ isSsrBuild }) => ({
                     chunkFileNames: 'assets/[name]-[hash].js',
                     assetFileNames: 'assets/[name]-[hash].[ext]',
                 },
-            external: isSsrBuild ? [/^node:/, 'hono', 'hono/deno', 'hono/jsx', 'hono/jsx-renderer', 'hono/html', /^npm:/, 'lockness'] : []
+            external: isSsrBuild
+                ? [
+                    /^node:/,
+                    'hono',
+                    'hono/deno',
+                    'hono/jsx',
+                    'hono/jsx-renderer',
+                    'hono/html',
+                    /^npm:/,
+                    'lockness',
+                ]
+                : [],
         },
     },
     ssr: {
         external: [
-            'node:process', 'node:path', 'node:fs', 'node:os', 'node:net', 'node:tls', 'node:crypto', 'node:perf_hooks', 'node:stream', 'node:events', 'node:util', 'node:buffer', 'node:string_decoder', 'node:querystring', 'node:zlib', 'node:url', 'node:dns', 'node:http', 'node:https',
-            'process', 'path', 'fs', 'os', 'net', 'tls', 'crypto', 'perf_hooks', 'stream', 'events', 'util', 'buffer', 'string_decoder', 'querystring', 'zlib', 'url', 'dns', 'http', 'https',
-            '@std/path', '@std/fs'
-        ]
-    }
+            'node:process',
+            'node:path',
+            'node:fs',
+            'node:os',
+            'node:net',
+            'node:tls',
+            'node:crypto',
+            'node:perf_hooks',
+            'node:stream',
+            'node:events',
+            'node:util',
+            'node:buffer',
+            'node:string_decoder',
+            'node:querystring',
+            'node:zlib',
+            'node:url',
+            'node:dns',
+            'node:http',
+            'node:https',
+            'process',
+            'path',
+            'fs',
+            'os',
+            'net',
+            'tls',
+            'crypto',
+            'perf_hooks',
+            'stream',
+            'events',
+            'util',
+            'buffer',
+            'string_decoder',
+            'querystring',
+            'zlib',
+            'url',
+            'dns',
+            'http',
+            'https',
+            '@std/path',
+            '@std/fs',
+        ],
+    },
 }))

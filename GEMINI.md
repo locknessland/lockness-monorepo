@@ -34,8 +34,10 @@ familiar MVC (Model-View-Controller) architecture.
   `@Service` and `@Inject` decorators
 - **View Engine (JSX)**: Native JSX support powered by Hono's JSX runtime,
   facilitating component-based UI development.
-- **Vite Integration**: High-performance development server with Hot Module Replacement (HMR) and optimized SSR production builds.
-- **ORM / Query Builder**: Official integration with **Kysely** for type-safe database queries.
+- **Vite Integration**: High-performance development server with Hot Module
+  Replacement (HMR) and optimized SSR production builds.
+- **ORM / Query Builder**: Official integration with **Kysely** for type-safe
+  database queries.
 
 ## 🛠 Architectural Highlights
 
@@ -118,12 +120,15 @@ And Hono must be mapped in the imports:
 
 ## 🛠 Development Stack
 
-Lockness uses a modern development stack to ensure the best developer experience:
+Lockness uses a modern development stack to ensure the best developer
+experience:
 
 - **Vite**: Used for Hot Module Replacement (HMR) during development.
-- **SSR (Server-Side Rendering)**: Compiles the entire application into a single `dist/server.js` file for production.
+- **SSR (Server-Side Rendering)**: Compiles the entire application into a single
+  `dist/server.js` file for production.
 - **Deno Tasks**:
-    - `deno task dev`: Starts the Vite dev server (on port 5173).
-    - `deno task build`: Generates the production SSR bundle.
-    - `deno task start`: Runs the production server (on port 8888). Use `-- --force` to automatically kill any process already using the port.
-    - `deno task ace init`: Scaffolds a new project.
+  - `deno task dev`: Starts the Vite dev server (on port 5173).
+  - `deno task build`: Generates the production SSR bundle.
+  - `deno task start`: Runs the production server (on port 8888). Use
+    `-- --force` to automatically kill any process already using the port.
+  - `deno task ace init`: Scaffolds a new project.

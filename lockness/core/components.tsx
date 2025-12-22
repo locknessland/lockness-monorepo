@@ -10,11 +10,11 @@ export const Asset = ({ src, href, ...props }: any) => {
     const resolved = asset(path)
 
     if (path.endsWith('.css')) {
-        return <link rel="stylesheet" href={resolved} {...props} />
+        return <link rel='stylesheet' href={resolved} {...props} />
     }
-    
+
     if (path.endsWith('.js') || path.endsWith('.ts')) {
-        return <script src={resolved} type="module" {...props}></script>
+        return <script src={resolved} type='module' {...props}></script>
     }
 
     return null
@@ -34,12 +34,18 @@ export const ViteScripts = ({ entry }: { entry: string }) => {
         if (item && item.css) {
             for (const cssFile of item.css) {
                 const resolvedCss = cssFile.replace(/^\//, '')
-                tags.push(<link key={resolvedCss} rel="stylesheet" href={`/${resolvedCss}`} />)
+                tags.push(
+                    <link
+                        key={resolvedCss}
+                        rel='stylesheet'
+                        href={`/${resolvedCss}`}
+                    />,
+                )
             }
         }
     }
 
     tags.push(<Asset key={entry} src={entry} />)
-    
+
     return <>{tags}</>
 }
