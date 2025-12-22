@@ -42,7 +42,6 @@ export class App {
 
 
     async init(config: Module | AppConfig) {
-
         let controllers: ControllerClass[] = []
 
         if ('controllers' in config) {
@@ -51,6 +50,14 @@ export class App {
             controllers = await this.discoverControllers(config.controllersDir)
         }
 
+        const allRoutes: {
+            fullPath: string,
+            method: string,
+            handler: (c: Context) => any,
+            middlewares: any[]
+        }[] = []
+
+        // 1. Collect all routes from all controllers
         for (const Controller of controllers) {
             const instance = new Controller()
             const basePath = Controller._basePath || ''
@@ -58,35 +65,50 @@ export class App {
             const middlewares = Controller._middlewares || {}
 
             for (const route of routes) {
-                // Ensure basePath and route.path are joined correctly
                 let fullPath = `/${basePath}/${route.path}`.replace(/\/+/g, '/')
                 if (fullPath.length > 1 && fullPath.endsWith('/')) {
                     fullPath = fullPath.slice(0, -1)
                 }
 
-                const method = route.method.toLowerCase() as
-                    | 'get'
-                    | 'post'
-                    | 'put'
-                    | 'delete'
-                    | 'patch'
-
                 const routeMiddlewares = (middlewares[route.methodName] || [])
                     .map((MiddlewareClass: any) => {
-                        const middlewareInstance =
-                            new MiddlewareClass() as IMiddleware
-                        return middlewareInstance.handle.bind(
-                            middlewareInstance,
-                        )
-                    }) // deno-lint-ignore no-explicit-any
-                    ; (this.hono as any)[method](
-                        fullPath,
-                        ...routeMiddlewares,
-                        (c: Context) => (instance as any)[route.methodName](c),
-                    )
+                        const middlewareInstance = new MiddlewareClass() as IMiddleware
+                        return middlewareInstance.handle.bind(middlewareInstance)
+                    })
+
+                allRoutes.push({
+                    fullPath,
+                    method: route.method.toLowerCase(),
+                    handler: (c: Context) => (instance as any)[route.methodName](c),
+                    middlewares: routeMiddlewares
+                })
             }
         }
+
+        // 2. Sort routes: static routes first, then routes with parameters (:)
+        // We prioritize routes with fewer parameters and more static segments
+        allRoutes.sort((a, b) => {
+            const aHasParam = a.fullPath.includes(':')
+            const bHasParam = b.fullPath.includes(':')
+
+            if (aHasParam && !bHasParam) return 1
+            if (!aHasParam && bHasParam) return -1
+
+            // If both have params or both are static, longer path first (more specific)
+            return b.fullPath.length - a.fullPath.length
+        })
+
+        // 3. Register sorted routes in Hono
+        for (const route of allRoutes) {
+            // deno-lint-ignore no-explicit-any
+            (this.hono as any)[route.method](
+                route.fullPath,
+                ...route.middlewares,
+                route.handler
+            )
+        }
     }
+
 
 
     private async discoverControllers(dirPath: string): Promise<ControllerClass[]> {
