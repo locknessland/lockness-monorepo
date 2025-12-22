@@ -167,6 +167,53 @@ export function registerCoreCommands(ace: Ace) {
         }
     }, 'Create a new CLI command')
 
+    ace.register('make:auth', async () => {
+        console.log('🔐 Scaffolding authentication system...\n')
+
+        const files = [
+            {
+                stub: 'auth_controller',
+                output: './src/controller/auth_controller.ts',
+                name: 'AuthController',
+            },
+            {
+                stub: 'user_provider',
+                output: './src/provider/user_provider.ts',
+                name: 'UserProvider',
+            },
+        ]
+
+        for (const file of files) {
+            try {
+                const content = await Stub.renderFrom(STUBS_PATH, 'auth', file.stub, {
+                    className: '',
+                })
+
+                const dirPath = file.output.substring(0, file.output.lastIndexOf('/'))
+                await Deno.mkdir(dirPath, { recursive: true })
+                await Deno.writeTextFile(file.output, content)
+                console.log(`✅ ${file.name} created at ${file.output}`)
+            } catch (error) {
+                console.error(`❌ Failed to create ${file.name}: ${(error as Error).message}`)
+            }
+        }
+
+        console.log('\n📝 Next steps:')
+        console.log('1. Ensure you have a User model with email and password fields')
+        console.log('2. Configure auth in your kernel.ts:')
+        console.log('')
+        console.log("   import { configureAuth } from 'lockness'")
+        console.log("   import { UserProvider } from '@provider/user_provider.ts'")
+        console.log('')
+        console.log('   configureAuth({')
+        console.log('       userProvider: container.get(UserProvider),')
+        console.log("       redirectTo: '/auth/login',")
+        console.log('   })')
+        console.log('')
+        console.log('3. Use @Auth() decorator on protected routes')
+        console.log('')
+    }, 'Scaffold authentication (controller + provider)')
+
     ace.register('tinker', async () => {
         console.log('\n🔮 Lockness Tinker - Interactive REPL')
         console.log('Type ".help" for commands, ".exit" to quit\n')

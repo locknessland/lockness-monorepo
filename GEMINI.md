@@ -269,7 +269,105 @@ export class DashboardController {
 - **deno-kv**: Uses Deno KV for distributed session storage (with TTL support)
 - **memory**: In-memory storage (for development only)
 
-````
+### Authentication System
+
+Lockness provides a complete authentication system with session-based auth,
+password hashing, and guards.
+
+**Quick Setup:**
+
+```bash
+# Scaffold auth controller and user provider
+deno task ace make:auth
+```
+
+**Configure in kernel.ts:**
+
+```typescript
+import { configureAuth, container } from 'lockness'
+import { UserProvider } from '@provider/user_provider.ts'
+
+// Configure authentication
+configureAuth({
+    userProvider: container.get(UserProvider),
+    redirectTo: '/auth/login',
+})
+```
+
+**Using auth in controllers:**
+
+```typescript
+import { Controller, Get, Post, Auth, Guest, Context, auth, session } from 'lockness'
+
+@Controller('/dashboard')
+@Auth() // Protect entire controller
+export class DashboardController {
+    @Get('/')
+    async index(c: Context) {
+        const user = await auth(c).user()
+        return c.json({ user })
+    }
+}
+
+@Controller('/auth')
+export class AuthController {
+    @Guest('/dashboard') // Redirect if already logged in
+    @Get('/login')
+    showLogin(c: Context) { ... }
+
+    @Post('/login')
+    async login(c: Context) {
+        const { email, password } = await c.req.parseBody()
+        const success = await auth(c).attempt(email, password)
+
+        if (!success) {
+            session(c).flash('error', 'Invalid credentials')
+            return c.redirect('/auth/login')
+        }
+
+        return c.redirect('/dashboard')
+    }
+
+    @Post('/logout')
+    async logout(c: Context) {
+        await auth(c).logout()
+        return c.redirect('/auth/login')
+    }
+}
+```
+
+**Auth Guard API:**
+
+| Method                         | Description                        |
+| ------------------------------ | ---------------------------------- |
+| `auth(c).check()`              | Check if user is authenticated     |
+| `auth(c).guest()`              | Check if user is NOT authenticated |
+| `auth(c).user()`               | Get authenticated user             |
+| `auth(c).id()`                 | Get user ID from session           |
+| `auth(c).attempt(email, pass)` | Attempt login with credentials     |
+| `auth(c).login(user)`          | Log in a user directly             |
+| `auth(c).loginById(id)`        | Log in user by ID                  |
+| `auth(c).logout()`             | Log out current user               |
+
+**Password Hashing:**
+
+```typescript
+import { hashPassword, verifyPassword } from 'lockness'
+
+// Hash a password (for registration)
+const hash = await hashPassword('secret123')
+
+// Verify password (for login)
+const valid = await verifyPassword('secret123', hash)
+```
+
+**Decorators:**
+
+- `@Auth()` - Require authentication (redirects to login or returns 401)
+- `@Guest(redirectTo?)` - Require NOT authenticated (for login/register pages)
+
+Both decorators can be used at class or method level.
+
 **Why Drizzle?** With recent improvements in Deno's NPM compatibility
 (`nodeModulesDir: auto`) and Vite's external configuration, Drizzle now works
 seamlessly in our stack. It offers a better developer experience than query
@@ -297,7 +395,7 @@ Eloquent.
 ├── main.ts                # Entry point
 ├── ace.ts                 # CLI Entry point
 └── deno.json              # Config & Aliases
-````
+```
 
 - **`lockness/`**: Contains the decoupled libraries. This modularity allows for
   an ORM-agnostic core while providing official extensions like

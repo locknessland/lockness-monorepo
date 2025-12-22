@@ -30,10 +30,12 @@
 - [x] **Session Management**
   - [x] Cookie-based session store.
   - [x] Drivers for Memory / Deno KV.
-- [ ] **Authentication System**
-  - [ ] `@UseAuth` decorator/guard.
-  - [ ] Built-in Auth service for login/register logic.
-  - [ ] Social Auth providers (OIDC).
+- [x] **Authentication System**
+  - [x] `@Auth` and `@Guest` decorators/guards.
+  - [x] Built-in Auth guard for login/logout logic.
+  - [x] Password hashing with Web Crypto (PBKDF2).
+  - [x] `make:auth` command to scaffold auth controller + provider.
+  - [ ] Social Auth providers (OIDC) - future.
 
 ## 🌐 Frontend & Assets
 

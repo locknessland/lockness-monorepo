@@ -2,6 +2,11 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { join } from 'node:path'
 import { jsxRenderer } from 'hono/jsx-renderer'
+import {
+    auth,
+    createAuthMiddleware,
+    createGuestMiddleware,
+} from './auth.ts'
 import type {
     AppConfig,
     Context,
@@ -107,6 +112,12 @@ export class App {
             const middlewares = Controller._middlewares || {}
             const validators = Controller._validators || {}
 
+            // Check for class-level @Auth or @Guest decorators
+            const classAuthRequired = Controller._authRequired === true
+            const classAuthOptions = Controller._authOptions
+            const classGuestRequired = Controller._guestRequired === true
+            const classGuestRedirectTo = Controller._guestRedirectTo || '/'
+
             for (const route of routes) {
                 let fullPath = `/${basePath}/${route.path}`.replace(/\/+/g, '/')
                 if (fullPath.length > 1 && fullPath.endsWith('/')) {
@@ -124,12 +135,41 @@ export class App {
                     )
                     .filter((h: any) => h !== null)
 
+                // Build auth middlewares
+                const authMiddlewares: MiddlewareHandler[] = []
+
+                // Get method reference
+                const methodRef = (instance as any)[route.methodName]
+
+                // Check method-level @Auth decorator
+                const methodAuth = methodRef?._auth
+                // Check method-level @Guest decorator
+                const methodGuest = methodRef?._guest
+
+                if (methodAuth?.required) {
+                    // Method-level @Auth takes precedence
+                    authMiddlewares.push(createAuthMiddleware(methodAuth.options))
+                } else if (methodGuest?.required) {
+                    // Method-level @Guest takes precedence
+                    authMiddlewares.push(createGuestMiddleware(methodGuest.redirectTo))
+                } else if (classAuthRequired) {
+                    // Fall back to class-level @Auth
+                    authMiddlewares.push(createAuthMiddleware(classAuthOptions))
+                } else if (classGuestRequired) {
+                    // Fall back to class-level @Guest
+                    authMiddlewares.push(createGuestMiddleware(classGuestRedirectTo))
+                }
+
                 allRoutes.push({
                     fullPath,
                     method: route.method.toLowerCase(),
                     handler: (c: Context) =>
                         (instance as any)[route.methodName](c),
-                    middlewares: [...routeValidators, ...routeMiddlewares],
+                    middlewares: [
+                        ...authMiddlewares,
+                        ...routeValidators,
+                        ...routeMiddlewares,
+                    ],
                 })
             }
         }
@@ -144,7 +184,7 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ;(this.hono as any)[route.method](
+            ; (this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
@@ -197,8 +237,7 @@ export class App {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${
-                    (error as Error).message
+                `❌ Error during controller discovery: ${(error as Error).message
                 }`,
             )
         }
@@ -266,8 +305,7 @@ export class App {
                             }
                         } catch (e) {
                             console.error(
-                                `  ⚠️  Failed to force release port ${port}: ${
-                                    (e as Error).message
+                                `  ⚠️  Failed to force release port ${port}: ${(e as Error).message
                                 }`,
                             )
                         }

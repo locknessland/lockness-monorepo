@@ -1,0 +1,103 @@
+import { Controller, Get, Post, Guest, Context, auth, session, Validate } from 'lockness'
+import { z } from 'zod'
+
+const loginSchema = z.object({
+    email: z.string().email('Invalid email'),
+    password: z.string().min(1, 'Password is required'),
+})
+
+const registerSchema = z.object({
+    email: z.string().email('Invalid email'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password_confirmation: z.string(),
+}).refine((data) => data.password === data.password_confirmation, {
+    message: 'Passwords do not match',
+    path: ['password_confirmation'],
+})
+
+@Controller('/auth')
+export class AuthController {
+    @Guest('/dashboard')
+    @Get('/login')
+    showLogin(c: Context) {
+        const error = session(c).getFlash('error')
+        return c.html(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>Login</title></head>
+            <body>
+                <h1>Login</h1>
+                ${error ? `<p style="color: red">${error}</p>` : ''}
+                <form method="POST" action="/auth/login">
+                    <input type="email" name="email" placeholder="Email" required />
+                    <input type="password" name="password" placeholder="Password" required />
+                    <button type="submit">Login</button>
+                </form>
+                <p>Don't have an account? <a href="/auth/register">Register</a></p>
+            </body>
+            </html>
+        `)
+    }
+
+    @Guest('/dashboard')
+    @Post('/login')
+    @Validate('form', loginSchema)
+    async login(c: Context) {
+        const { email, password } = c.req.valid('form')
+        const guard = auth(c)
+
+        const success = await guard.attempt(email, password)
+
+        if (!success) {
+            session(c).flash('error', 'Invalid credentials')
+            return c.redirect('/auth/login')
+        }
+
+        session(c).flash('success', 'Welcome back!')
+        return c.redirect('/dashboard')
+    }
+
+    @Guest('/dashboard')
+    @Get('/register')
+    showRegister(c: Context) {
+        const error = session(c).getFlash('error')
+        return c.html(`
+            <!DOCTYPE html>
+            <html>
+            <head><title>Register</title></head>
+            <body>
+                <h1>Register</h1>
+                ${error ? `<p style="color: red">${error}</p>` : ''}
+                <form method="POST" action="/auth/register">
+                    <input type="email" name="email" placeholder="Email" required />
+                    <input type="password" name="password" placeholder="Password" required />
+                    <input type="password" name="password_confirmation" placeholder="Confirm Password" required />
+                    <button type="submit">Register</button>
+                </form>
+                <p>Already have an account? <a href="/auth/login">Login</a></p>
+            </body>
+            </html>
+        `)
+    }
+
+    @Guest('/dashboard')
+    @Post('/register')
+    @Validate('form', registerSchema)
+    async register(c: Context) {
+        // TODO: Implement registration logic
+        // 1. Check if user exists
+        // 2. Hash password with hashPassword()
+        // 3. Create user in database
+        // 4. Log in the user
+
+        session(c).flash('success', 'Account created! Please log in.')
+        return c.redirect('/auth/login')
+    }
+
+    @Post('/logout')
+    async logout(c: Context) {
+        await auth(c).logout()
+        session(c).flash('success', 'Logged out successfully')
+        return c.redirect('/auth/login')
+    }
+}

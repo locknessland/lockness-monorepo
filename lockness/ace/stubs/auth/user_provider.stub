@@ -1,0 +1,36 @@
+import { Service, Inject, type UserProvider, type Authenticatable } from 'lockness'
+import { Database } from '@lockness/drizzle'
+import { users, type User } from '@model/user.ts'
+import { eq } from 'drizzle-orm'
+
+/**
+ * User Provider for Authentication
+ *
+ * This class is responsible for fetching users from the database
+ * for the authentication system.
+ */
+@Service()
+export class {{ className }}UserProvider implements UserProvider<User> {
+    @Inject(Database)
+    private database!: Database
+
+    async findById(id: number | string): Promise<User | null> {
+        const result = await this.database.db
+            .select()
+            .from(users)
+            .where(eq(users.id, Number(id)))
+            .limit(1)
+
+        return result[0] || null
+    }
+
+    async findByEmail(email: string): Promise<User | null> {
+        const result = await this.database.db
+            .select()
+            .from(users)
+            .where(eq(users.email, email))
+            .limit(1)
+
+        return result[0] || null
+    }
+}
