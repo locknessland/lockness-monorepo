@@ -71,9 +71,11 @@ And Hono must be mapped in the imports:
 
 ```text
 .
-├── lockness/              # 🏗️ Core Library (Internal Logic)
-│   ├── core.ts            # Main class & decorators
-│   └── cli.ts             # CLI engine (Ace)
+├── lockness-lib/          # 📦 Modular Framework Libraries
+│   ├── core/              # Core Web & DI logic
+│   ├── ace/               # CLI Command Engine (Ace)
+│   ├── drizzle/           # Drizzle ORM Extension
+│   └── init/              # Scaffolding & Project Init
 ├── src/                   # 🚀 Framework Template (Boilerplate)
 │   ├── controller/        # HTTP Controllers
 │   ├── model/             # Database Models
@@ -88,8 +90,8 @@ And Hono must be mapped in the imports:
 └── deno.json              # Config & Aliases
 ```
 
-- **`lockness/`**: This directory contains the core library code. This is the package that will be published to JSR/NPM.
-- **Root Files & `src/`**: These files represent the framework's boilerplate structure generated for users.
+- **`lockness-lib/`**: Contains the decoupled libraries. This modularity allows for an ORM-agnostic core while providing official extensions like `lockness-drizzle`.
+- **Root Files & `src/`**: Boilerplate structure generated for users.
 - **`docs/`**: Contains reference documentation and rules, including HonoJS docs, for AI assistance.
 - **`_output/`**: Output directory for builds (`server.ts`) and compiled binaries.
 

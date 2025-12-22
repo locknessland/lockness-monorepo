@@ -1,0 +1,11 @@
+{
+  "name": "@lockness/ace",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./cli.ts",
+    "./commands": "./core_commands.ts"
+  },
+  "imports": {
+    "@std/path": "jsr:@std/path@^1.0.0"
+  }
+}

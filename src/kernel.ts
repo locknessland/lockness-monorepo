@@ -1,6 +1,11 @@
-import { App } from 'lockness'
+import { App, container } from 'lockness'
+import { Database } from '@lockness/drizzle'
 
 export const bootstrap = async () => {
+    // Initialize Database (Optional)
+    const db = container.get<Database>(Database)
+    await db.connect(Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness')
+
     // Create Lockness application
     const app = new App()
 

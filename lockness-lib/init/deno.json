@@ -1,0 +1,11 @@
+{
+  "name": "@lockness/init",
+  "version": "0.1.0",
+  "exports": {
+    ".": "./init.ts"
+  },
+  "imports": {
+    "@lockness/ace": "../ace/cli.ts",
+    "@std/path": "jsr:@std/path@^1.0.0"
+  }
+}
