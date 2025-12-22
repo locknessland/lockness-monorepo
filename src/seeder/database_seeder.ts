@@ -17,7 +17,7 @@ export class DatabaseSeeder {
         console.log('🌱 Starting database seeding...')
 
         // Add your seeders here in order
-        const seeders: { new(): { run(): Promise<void> } }[] = [
+        const seeders: { new (): { run(): Promise<void> } }[] = [
             UserSeeder,
         ]
 

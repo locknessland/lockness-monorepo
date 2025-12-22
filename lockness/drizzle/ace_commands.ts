@@ -6,11 +6,12 @@ import { Database } from './database.ts'
 const currentDir = dirname(fromFileUrl(import.meta.url))
 const STUBS_PATH = join(currentDir, 'stubs')
 
-async function initDatabase(): Promise<void> {
+async function initDatabase(): Promise<Database> {
     const db = container.get<Database>(Database)
     await db.connect(
         Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness',
     )
+    return db
 }
 
 export function registerDrizzleCommands(ace: Ace) {
@@ -76,7 +77,7 @@ export function registerDrizzleCommands(ace: Ace) {
         console.log('🌱 Running seeders...')
 
         // Initialize database connection
-        await initDatabase()
+        const db = await initDatabase()
 
         const seederDir = './src/seeder'
         const specificSeeder = args[0]
@@ -128,14 +129,25 @@ export function registerDrizzleCommands(ace: Ace) {
                             '❌ DatabaseSeeder class not found. Run `deno task ace make:seeder Database` first.',
                         )
                     }
-                } catch (_e) {
-                    console.error(
-                        '❌ No database_seeder.ts found. Run `deno task ace make:seeder Database` first.',
-                    )
+                } catch (e) {
+                    const error = e as Error
+                    if (error.message.includes('Module not found')) {
+                        console.error(
+                            '❌ No database_seeder.ts found. Run `deno task ace make:seeder Database` first.',
+                        )
+                    } else {
+                        console.error(`❌ Seeding failed: ${error.message}`)
+                        if (error.stack) {
+                            console.error(error.stack)
+                        }
+                    }
                 }
             }
         } catch (error) {
             console.error(`❌ Seeding failed: ${(error as Error).message}`)
+        } finally {
+            // Close database connection
+            await db.close()
         }
     })
 

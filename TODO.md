@@ -7,8 +7,8 @@
   - [x] Create a `Database` service for DI.
   - [x] Implement Ace commands (`db:generate`, `db:migrate`, `db:push`,
         `db:studio`).
-- [ ] **Database Advanced**
-  - [ ] Seeders implementation (`db:seed`).
+- [x] **Database Advanced**
+  - [x] Seeders implementation (`db:seed`, `make:seeder`).
   - [ ] `make:model` command with repository stub.
 
 ## 🛠 Framework Core
