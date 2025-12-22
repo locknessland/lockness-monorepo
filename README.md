@@ -61,7 +61,8 @@ Run tests in watch mode (re-run on file changes):
 deno task test:watch
 ```
 
-Test files are located in the `tests/` directory. Coverage reports are generated in `coverage/html/`.
+Test files are located in the `tests/` directory. Coverage reports are generated
+in `coverage/html/`.
 
 ### Database Management (Drizzle ORM)
 
