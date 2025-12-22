@@ -94,6 +94,42 @@ TypeScript support and type safety. The framework includes:
 - **Migration System**: Built-in support for database migrations via
   `drizzle-kit`
 
+### Request Validation
+
+Lockness provides a `@Validate` decorator for automatic request validation using
+**Zod** schemas:
+
+```typescript
+import { Context, Controller, Post, Validate, z } from 'lockness'
+
+const CreateUserSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+})
+
+@Controller('/api/users')
+export class UserController {
+    @Post('/')
+    @Validate('json', CreateUserSchema)
+    create(c: Context) {
+        const data = c.req.valid('json') // Typed & validated!
+        return c.json({ success: true, data })
+    }
+}
+```
+
+Validation targets: `json`, `query`, `param`, `header`, `cookie`, `form`.
+
+On validation failure, returns:
+
+```json
+{
+    "success": false,
+    "message": "Validation failed",
+    "errors": { "email": ["Invalid email format"] }
+}
+```
+
 Example model definition:
 
 ```typescript

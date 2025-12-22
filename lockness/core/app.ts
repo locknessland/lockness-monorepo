@@ -57,6 +57,7 @@ export class App {
             const basePath = Controller._basePath || ''
             const routes = Controller._routes || []
             const middlewares = Controller._middlewares || {}
+            const validators = Controller._validators || {}
 
             for (const route of routes) {
                 let fullPath = `/${basePath}/${route.path}`.replace(/\/+/g, '/')
@@ -64,6 +65,11 @@ export class App {
                     fullPath = fullPath.slice(0, -1)
                 }
 
+                // Get validator middlewares (run first)
+                const routeValidators = (validators[route.methodName] || [])
+                    .map((v: { middleware: any }) => v.middleware)
+
+                // Get regular middlewares
                 const routeMiddlewares = (middlewares[route.methodName] || [])
                     .map((MiddlewareClass: any) => {
                         const middlewareInstance =
@@ -78,7 +84,7 @@ export class App {
                     method: route.method.toLowerCase(),
                     handler: (c: Context) =>
                         (instance as any)[route.methodName](c),
-                    middlewares: routeMiddlewares,
+                    middlewares: [...routeValidators, ...routeMiddlewares],
                 })
             }
         }

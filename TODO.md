@@ -13,9 +13,9 @@
 
 ## 🛠 Framework Core
 
-- [ ] **Enhanced Validation**
-  - [ ] `@Validate(schema)` decorator for automatic request validation.
-  - [ ] Centralized error handling for validation errors.
+- [x] **Enhanced Validation**
+  - [x] `@Validate(schema)` decorator for automatic request validation.
+  - [x] Centralized error handling for validation errors.
 - [ ] **Middleware Improvements**
   - [ ] Global middleware support.
   - [ ] Named middleware (e.g., `middleware('auth')`).

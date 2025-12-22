@@ -96,7 +96,7 @@ export function registerDrizzleCommands(ace: Ace) {
                         (v) =>
                             typeof v === 'function' &&
                             v.prototype?.run,
-                    ) as { new(): { run(): Promise<void> } } | undefined
+                    ) as { new (): { run(): Promise<void> } } | undefined
 
                     if (SeederClass) {
                         const seeder = new SeederClass()
@@ -118,7 +118,7 @@ export function registerDrizzleCommands(ace: Ace) {
                         `file://${Deno.cwd()}/${mainSeederPath}`
                     )
                     const DatabaseSeeder = module.DatabaseSeeder as
-                        | { new(): { run(): Promise<void> } }
+                        | { new (): { run(): Promise<void> } }
                         | undefined
 
                     if (DatabaseSeeder) {

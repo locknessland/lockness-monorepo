@@ -55,6 +55,7 @@
     },
     "compilerOptions": {
         "jsx": "precompile",
-        "jsxImportSource": "hono/jsx"
+        "jsxImportSource": "hono/jsx",
+        "experimentalDecorators": true
     }
 }

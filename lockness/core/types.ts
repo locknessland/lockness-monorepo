@@ -22,6 +22,7 @@ export interface ControllerMetadata {
     _basePath?: string
     _routes?: Route[]
     _middlewares?: Record<string, any[]>
+    _validators?: Record<string, any[]>
 }
 
 export type ControllerClass =
