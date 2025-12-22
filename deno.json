@@ -2,7 +2,7 @@
     "workspace": [
         "./lockness/core",
         "./lockness/ace",
-        "./lockness/kysely",
+        "./lockness/drizzle",
         "./lockness/init"
     ],
     "nodeModulesDir": "auto",
@@ -12,7 +12,11 @@
         "preview": "deno run -A npm:vite preview",
         "start": "deno run --allow-net --allow-read --allow-env --allow-sys --allow-run --env-file=.env.production.local dist/server.js",
         "compile": "deno compile --allow-all --output lockness-server dist/server.js",
-        "ace": "deno run -A ace.ts"
+        "ace": "deno run -A ace.ts",
+        "db:generate": "deno run -A npm:drizzle-kit generate",
+        "db:migrate": "deno run -A npm:drizzle-kit migrate",
+        "db:push": "deno run -A npm:drizzle-kit push",
+        "db:studio": "deno run -A npm:drizzle-kit studio"
     },
     "imports": {
         "@/": "./",
@@ -30,12 +34,12 @@
         "lockness": "./lockness/core/core.ts",
         "@lockness/core": "./lockness/core/core.ts",
         "@lockness/ace": "./lockness/ace/cli.ts",
-        "@lockness/kysely": "./lockness/kysely/database.ts",
+        "@lockness/drizzle": "./lockness/drizzle/database.ts",
         "hono": "npm:hono@^4.11.1",
         "hono/": "npm:/hono@^4.11.1/",
         "postgres": "npm:postgres@^3.4.4",
-        "kysely": "npm:kysely@^0.28.9",
-        "kysely-postgres-js": "npm:kysely-postgres-js@^2.0.0",
+        "drizzle-orm": "npm:drizzle-orm@^0.36.3",
+        "drizzle-kit": "npm:drizzle-kit@^0.27.2",
         "vite": "npm:vite@^5.0.0",
         "@hono/vite-dev-server": "npm:@hono/vite-dev-server@^0.12.0",
         "@hono/zod-validator": "npm:@hono/zod-validator@^0.4.1",

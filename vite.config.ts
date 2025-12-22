@@ -16,9 +16,9 @@ export default defineConfig(({ isSsrBuild }) => ({
             'lockness': resolve(Deno.cwd(), './lockness/core/core.ts'),
             '@lockness/core': resolve(Deno.cwd(), './lockness/core/core.ts'),
             '@lockness/ace': resolve(Deno.cwd(), './lockness/ace/cli.ts'),
-            '@lockness/kysely': resolve(
+            '@lockness/drizzle': resolve(
                 Deno.cwd(),
-                './lockness/kysely/database.ts',
+                './lockness/drizzle/database.ts',
             ),
         },
     },

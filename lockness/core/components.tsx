@@ -1,9 +1,9 @@
+// deno-lint-ignore-file no-explicit-any
 import { asset, getManifest } from './helpers.ts'
 
 /**
  * Enhanced Asset component that automatically resolves paths.
  */
-// deno-lint-ignore no-explicit-any
 export const Asset = (
     { src, href, ...props }: Record<string, unknown>,
 ): any => {
@@ -27,7 +27,6 @@ export const Asset = (
  * Vite scripts component for easy entry point inclusion.
  * Automatically injects CSS dependencies in production.
  */
-// deno-lint-ignore no-explicit-any
 export const ViteScripts = ({ entry }: { entry: string }): any => {
     const isProd = !Deno.env.get('VITE')
     const manifest = isProd ? getManifest() : null

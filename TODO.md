@@ -2,8 +2,8 @@
 
 ## 🚀 High Priority (Next Steps)
 
-- [x] **ORM Integration (Kysely)**
-  - [x] Setup Kysely core integration.
+- [x] **ORM Integration (Drizzle)**
+  - [x] Setup Drizzle ORM core integration.
   - [x] Create a `Database` service for DI.
   - [x] Implement initial Ace commands.
   - [ ] Implement `make:migration` and `db:migrate` (running SQL files).

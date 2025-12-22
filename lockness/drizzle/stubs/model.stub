@@ -1,0 +1,11 @@
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+
+export const {{tableName}} = pgTable('{{tableName}}', {
+    id: serial('id').primaryKey(),
+    // Add your columns here
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+export type {{ModelName}} = typeof {{tableName}}.$inferSelect
+export type New{{ModelName}} = typeof {{tableName}}.$inferInsert

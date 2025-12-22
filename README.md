@@ -40,3 +40,42 @@ Create a standalone executable for your target platform:
 ```bash
 deno task compile
 ```
+
+### Database Management (Drizzle ORM)
+
+Lockness uses **Drizzle ORM** for type-safe database operations.
+
+#### Generate Migrations
+
+Generate migration files from your schema definitions:
+
+```bash
+deno task db:generate
+```
+
+#### Run Migrations
+
+Apply pending migrations to your database:
+
+```bash
+deno task db:migrate
+```
+
+#### Push Schema
+
+Push your schema directly to the database (useful for development):
+
+```bash
+deno task db:push
+```
+
+#### Drizzle Studio
+
+Launch Drizzle Studio to visualize and manage your database:
+
+```bash
+deno task db:studio
+```
+
+_Note: Make sure to set your `DATABASE_URL` environment variable in `.env` or
+`.env.local`._

@@ -1,5 +1,5 @@
 import { App, container, type ControllerClass } from 'lockness'
-import { Database } from '@lockness/kysely'
+import { Database } from '@lockness/drizzle'
 
 export const bootstrap = async () => {
     // Initialize Database (Optional)
@@ -23,7 +23,8 @@ export const bootstrap = async () => {
             const Exported = mod[key]
             if (
                 typeof Exported === 'function' &&
-                (Exported as Record<string, unknown>)._basePath !== undefined
+                (Exported as unknown as Record<string, unknown>)._basePath !==
+                undefined
             ) {
                 controllers.push(Exported as ControllerClass)
             }

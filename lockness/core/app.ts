@@ -93,7 +93,7 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ;(this.hono as any)[route.method](
+            ; (this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
@@ -146,8 +146,7 @@ export class App {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${
-                    (error as Error).message
+                `❌ Error during controller discovery: ${(error as Error).message
                 }`,
             )
         }
@@ -215,7 +214,8 @@ export class App {
                             }
                         } catch (e) {
                             console.error(
-                                `  ⚠️  Failed to force release port ${port}: ${e.message}`,
+                                `  ⚠️  Failed to force release port ${port}: ${(e as Error).message
+                                }`,
                             )
                         }
                     }

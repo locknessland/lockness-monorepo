@@ -1,11 +1,18 @@
 import { join } from 'node:path'
 
-let manifest: Record<string, unknown> | null = null
+interface ManifestEntry {
+    file: string
+    src?: string
+    css?: string[]
+    isEntry?: boolean
+}
+
+let manifest: Record<string, ManifestEntry> | null = null
 
 /**
  * Returns the parsed manifest object.
  */
-export function getManifest(): Record<string, unknown> {
+export function getManifest(): Record<string, ManifestEntry> {
     if (!manifest) {
         try {
             const manifestPath = join(

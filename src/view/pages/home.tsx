@@ -208,7 +208,7 @@ export const HomeView = () => {
                                 <li class='flex items-center gap-3 text-muted-foreground'>
                                     <div class='w-2 h-2 rounded-full bg-primary'>
                                     </div>{' '}
-                                    Official Kysely ORM extension
+                                    Official Drizzle ORM extension
                                 </li>
                             </ul>
                         </div>
@@ -234,7 +234,7 @@ export const HomeView = () => {
                                     ORM
                                 </div>
                                 <div class='text-xs text-muted-foreground uppercase tracking-widest font-bold'>
-                                    Kysely
+                                    Drizzle
                                 </div>
                             </div>
                             <div class='p-6 rounded-2xl bg-primary/10 border border-primary/20 text-center shadow-sm shadow-primary/20'>

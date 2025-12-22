@@ -13,6 +13,10 @@ export default defineConfig(({ isSsrBuild }) => ({
             '@router': resolve(Deno.cwd(), './src/router.ts'),
             '@repository': resolve(Deno.cwd(), './src/repository'),
             '@kernel': resolve(Deno.cwd(), './src/kernel.ts'),
+            '@lockness/drizzle': resolve(
+                Deno.cwd(),
+                './lockness/drizzle/database.ts',
+            ),
         }
     },
     plugins: [

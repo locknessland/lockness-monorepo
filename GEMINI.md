@@ -36,8 +36,8 @@ familiar MVC (Model-View-Controller) architecture.
   facilitating component-based UI development.
 - **Vite Integration**: High-performance development server with Hot Module
   Replacement (HMR) and optimized SSR production builds.
-- **ORM / Query Builder**: Official integration with **Kysely** for type-safe
-  database queries.
+- **ORM / Query Builder**: Official integration with **Drizzle ORM** for
+  type-safe database queries with PostgreSQL support.
 
 ## 🛠 Architectural Highlights
 
@@ -81,6 +81,55 @@ And Hono must be mapped in the imports:
 }
 ```
 
+### Drizzle ORM Integration
+
+Lockness uses **Drizzle ORM** for database operations, providing excellent
+TypeScript support and type safety. The framework includes:
+
+- **Database Service**: Injectable `Database` service with connection management
+- **Type-Safe Models**: Uses Drizzle's schema definition with automatic type
+  inference
+- **Repository Pattern**: Structured data access layer for clean separation of
+  concerns
+- **Migration System**: Built-in support for database migrations via
+  `drizzle-kit`
+
+Example model definition:
+
+```typescript
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+
+export const users = pgTable('users', {
+    id: serial('id').primaryKey(),
+    email: text('email').notNull().unique(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
+```
+
+Example repository:
+
+```typescript
+@Service()
+export class UserRepository {
+    @Inject(Database)
+    private database!: Database
+
+    async findAll(): Promise<User[]> {
+        return await this.database.db.select().from(users)
+    }
+}
+```
+
+**Why Drizzle?** With recent improvements in Deno's NPM compatibility
+(`nodeModulesDir: auto`) and Vite's external configuration, Drizzle now works
+seamlessly in our stack. It offers a better developer experience than query
+builders, with powerful type inference and an intuitive API similar to Laravel's
+Eloquent.
+
 ## 📂 Repository Structure
 
 ```text
@@ -88,7 +137,7 @@ And Hono must be mapped in the imports:
 ├── lockness/              # 📦 Modular Framework Libraries
 │   ├── core/              # Core Web & DI logic
 │   ├── ace/               # CLI Command Engine (Ace)
-│   ├── kysely/            # Kysely ORM Extension
+│   ├── drizzle/           # Drizzle ORM Extension
 │   └── init/              # Scaffolding & Project Init
 ├── src/                   # 🚀 Framework Template (Boilerplate)
 │   ├── controller/        # HTTP Controllers
@@ -106,7 +155,7 @@ And Hono must be mapped in the imports:
 
 - **`lockness/`**: Contains the decoupled libraries. This modularity allows for
   an ORM-agnostic core while providing official extensions like
-  `lockness-kysely`.
+  `lockness-drizzle`.
 - **Root Files & `src/`**: Boilerplate structure generated for users.
 - **`docs/`**: Contains reference documentation and rules, including HonoJS
   docs, for AI assistance.
