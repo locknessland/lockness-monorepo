@@ -107,6 +107,23 @@ export class App {
     }
 
     listen(port: number): Deno.HttpServer<Deno.NetAddr> {
-        return Deno.serve({ port }, this.hono.fetch.bind(this.hono))
+        console.log(`
+   __    _____  ____  __ _  ____  ____  ____ 
+  (  )  (  _  )(  __)(  / )(  _ \\(  __)/ ___\\
+  / (_/\\ )(_)(  ) _)  )  (  )   / ) _) \\___ \\
+  \\____/(_____)(____)(__\\_)(__\\_)(____)(____/  v0.1.0
+        `)
+
+        const server = Deno.serve({
+            port,
+            onListen: ({ port, hostname }) => {
+                const protocol = 'http'
+                const host = hostname === '0.0.0.0' ? 'localhost' : hostname
+                console.log(`  🚀 Server is flying at \x1b[36m${protocol}://${host}:${port}\x1b[0m`)
+                console.log(`  📂 Ready to serve your awesome app!\n`)
+            }
+        }, this.hono.fetch.bind(this.hono))
+
+        return server
     }
 }
