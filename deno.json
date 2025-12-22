@@ -9,7 +9,7 @@
     "tasks": {
         "dev": "deno run --env-file=.env -A --watch main.ts",
         "build": "deno run -A scripts/build.ts",
-        "start": "deno run --allow-net --allow-env _output/server.ts",
+        "start": "deno run --allow-net --allow-env --env-file=.env.production.local _output/server.ts",
         "compile": "deno compile --allow-read --allow-net --allow-env --output _output/server main.ts",
         "ace": "deno run -A ace.ts"
     },
