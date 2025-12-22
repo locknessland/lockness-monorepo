@@ -13,6 +13,7 @@
         "lockness": "jsr:@lockness/core@^0.1.3",
         "@lockness/core": "jsr:@lockness/core@^0.1.3",
         "@lockness/ace": "jsr:@lockness/ace@^0.1.3",
+        "@lockness/ace/commands": "jsr:@lockness/ace@^0.1.3/commands",
         "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.3",
         "@lockness/drizzle/commands": "jsr:@lockness/drizzle@^0.1.3/commands",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",

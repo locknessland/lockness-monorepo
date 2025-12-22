@@ -68,12 +68,14 @@ files.
 
 When modifying core framework files, check this list:
 
+- [ ] Modified `ace.ts`? → Update `ace.ts.stub`
 - [ ] Modified `src/kernel.ts`? → Update `kernel.ts.stub`
 - [ ] Modified `deno.json` imports? → Update `deno.json.stub`
 - [ ] Added new decorator/feature? → Update relevant `make:*` stubs
 - [ ] Changed validation pattern? → Update `controller.stub` in drizzle
 - [ ] Changed middleware pattern? → Update `middleware.stub`
 - [ ] Updated README.md? → Update `README.md.stub`
+- [ ] Added new ACE command? → Update `ace.ts.stub` if needed
 
 ---
 
