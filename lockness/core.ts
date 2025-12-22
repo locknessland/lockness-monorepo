@@ -38,8 +38,11 @@ export class App {
         if ('controllers' in config) {
             controllers = config.controllers
         } else if (config.controllersDir) {
+            console.log(`🔍 Scanning for controllers in: ${config.controllersDir}`)
             controllers = await this.discoverControllers(config.controllersDir)
         }
+
+        console.log(`🚀 Found ${controllers.length} controllers`)
 
         for (const Controller of controllers) {
             const instance = new Controller()
@@ -47,8 +50,12 @@ export class App {
             const routes = Controller._routes || []
             const middlewares = Controller._middlewares || {}
 
+            console.log(`📦 Registering controller: ${Controller.name} (basePath: ${basePath})`)
+
             for (const route of routes) {
                 const fullPath = (basePath + route.path).replace(/\/+/g, '/')
+                console.log(`   - ${route.method.toUpperCase()} ${fullPath}`)
+
                 const method = route.method.toLowerCase() as
                     | 'get'
                     | 'post'
