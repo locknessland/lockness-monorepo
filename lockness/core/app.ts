@@ -2,7 +2,7 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { join } from 'node:path'
 import { jsxRenderer } from 'hono/jsx-renderer'
-import { auth, createAuthMiddleware, createGuestMiddleware } from './auth.ts'
+import { type auth, createAuthMiddleware, createGuestMiddleware } from './auth.ts'
 import type {
     AppConfig,
     Context,
