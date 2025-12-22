@@ -12,10 +12,9 @@ export const bootstrap = async () => {
     const app = new App()
 
     // Initialize the application with auto-discovery via Vite glob import
-    // @ts-ignore: Vite specific syntax
-    const modules = typeof (import.meta as any).glob === 'function'
-        ? (import.meta as any).glob('./controller/*.{ts,tsx}', { eager: true })
-        : {};
+    // This MUST be a literal string for Vite to transform it correctly
+    // @ts-ignore
+    const modules = import.meta.glob('./controller/*.{ts,tsx}', { eager: true });
     const controllers: any[] = [];
 
     for (const path in modules) {
