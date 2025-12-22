@@ -22,18 +22,18 @@ directory:
 deno task build
 ```
 
-### Compile to Binary
-
-Create a standalone executable for your target platform:
-
-```bash
-deno task compile
-```
-
 ### Running in Production
 
 Run the optimized production build:
 
 ```bash
 deno task start
+```
+
+### Compile to Binary
+
+Create a standalone executable for your target platform:
+
+```bash
+deno task compile
 ```
