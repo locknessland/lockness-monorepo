@@ -41,3 +41,21 @@ export interface AppConfig {
 export interface IMiddleware {
     handle: MiddlewareHandler
 }
+
+/**
+ * Middleware class type
+ */
+export type MiddlewareClass = new () => IMiddleware
+
+/**
+ * Registry of named middlewares
+ */
+export type MiddlewareRegistry = Record<string, MiddlewareClass>
+
+/**
+ * Extended Module config with middleware support
+ */
+export interface ModuleWithMiddleware extends Module {
+    globalMiddlewares?: MiddlewareClass[]
+    middlewares?: MiddlewareRegistry
+}

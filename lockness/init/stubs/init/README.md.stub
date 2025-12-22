@@ -84,3 +84,27 @@ create(c: Context) {
     return c.json({ success: true, data })
 }
 ```
+
+### Middleware
+
+Create and use middlewares:
+
+```bash
+deno task ace make:middleware Auth
+```
+
+```typescript
+// src/kernel.ts
+await app.init({
+    controllers,
+    globalMiddlewares: [LoggerMiddleware],  // Applied to all routes
+    middlewares: { auth: AuthMiddleware },  // Named middlewares
+})
+```
+
+```typescript
+// In controllers
+@Get('/protected')
+@Use('auth')  // or @Use(AuthMiddleware)
+protected(c: Context) { ... }
+```

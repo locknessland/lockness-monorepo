@@ -29,7 +29,7 @@ familiar MVC (Model-View-Controller) architecture.
 - **Controllers**: Class-based controllers with decorators (`@Controller`,
   `@Get`, `@Post`, etc.)
 - **Robust Middleware Support**: Class-based middlewares with the `@Middleware`
-  decorator
+  decorator, supporting global middlewares and named middleware registration
 - **Dependency Injection**: A built-in IoC container managing services with
   `@Service` and `@Inject` decorators
 - **View Engine (JSX)**: Native JSX support powered by Hono's JSX runtime,
@@ -234,6 +234,7 @@ experience:
   - `deno task ace init`: Scaffolds a new project.
   - `deno task ace make:model <Name> [-r] [-s] [-c] [-a]`: Scaffolds a model
     with optional repository (-r), seeder (-s), controller (-c), or all (-a).
+  - `deno task ace make:middleware <Name>`: Creates a new middleware class.
   - `deno task ace db:generate`: Generates database migrations.
   - `deno task ace db:migrate`: Applies pending migrations.
   - `deno task ace db:push`: Pushes schema directly to database.

@@ -183,3 +183,61 @@ export class UserApiController {
 
 Supported validation targets: `json`, `query`, `param`, `header`, `cookie`,
 `form`.
+
+### Middleware System
+
+Create a new middleware:
+
+```bash
+deno task ace make:middleware Auth
+```
+
+This creates `src/middleware/auth_middleware.ts`.
+
+#### Global Middlewares
+
+Apply middlewares to all routes in `src/kernel.ts`:
+
+```typescript
+await app.init({
+    controllers,
+    globalMiddlewares: [LoggerMiddleware, CorsMiddleware],
+})
+```
+
+#### Named Middlewares
+
+Register middlewares by name for use with `@Use('name')`:
+
+```typescript
+await app.init({
+    controllers,
+    middlewares: {
+        auth: AuthMiddleware,
+        admin: AdminMiddleware,
+    },
+})
+```
+
+#### Using Middlewares in Controllers
+
+```typescript
+import { Controller, Get, Use } from 'lockness'
+import { AuthMiddleware } from '@middleware/auth_middleware.ts'
+
+@Controller('/dashboard')
+export class DashboardController {
+    @Get('/')
+    @Use(AuthMiddleware) // Class reference
+    index(c: Context) {
+        return c.json({ dashboard: true })
+    }
+
+    @Get('/admin')
+    @Use('auth') // Named middleware
+    @Use('admin')
+    admin(c: Context) {
+        return c.json({ admin: true })
+    }
+}
+```

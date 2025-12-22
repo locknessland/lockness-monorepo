@@ -1,10 +1,27 @@
 import type { Context, Next } from 'hono'
 import { Middleware, type IMiddleware } from 'lockness'
 
+/**
+ * {{ className }} Middleware
+ *
+ * Register in kernel.ts:
+ * - Global: globalMiddlewares: [{{ className }}Middleware]
+ * - Named: middlewares: { '{{ middlewareName }}': {{ className }}Middleware }
+ *
+ * Usage in controller:
+ * - @Use({{ className }}Middleware)  // class reference
+ * - @Use('{{ middlewareName }}')     // named (if registered)
+ */
 @Middleware()
 export class {{ className }}Middleware implements IMiddleware {
     async handle(c: Context, next: Next) {
         console.log('🔹 Executing {{ className }}Middleware')
+
+        // Add your middleware logic here
+        // Example: Check auth, log request, modify headers, etc.
+
         await next()
+
+        // Optional: Post-processing after the route handler
     }
 }

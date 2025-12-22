@@ -1,5 +1,7 @@
 import { App, container, type ControllerClass } from 'lockness'
 import { Database } from '@lockness/drizzle'
+// import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
+// import { AuthMiddleware } from '@middleware/auth_middleware.ts'
 
 export const bootstrap = async () => {
     // Initialize Database (Optional)
@@ -33,6 +35,14 @@ export const bootstrap = async () => {
     await app.init({
         controllers,
         staticDir: Deno.env.get('VITE') ? 'public' : 'dist/static',
+
+        // Global middlewares (applied to all routes)
+        // globalMiddlewares: [LoggerMiddleware],
+
+        // Named middlewares (use with @Use('auth'))
+        // middlewares: {
+        //     auth: AuthMiddleware,
+        // },
     })
 
     return app

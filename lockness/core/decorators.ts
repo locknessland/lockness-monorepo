@@ -43,8 +43,19 @@ export function Middleware(): ClassDecorator {
     }
 }
 
+/**
+ * Apply a middleware to a route method.
+ * Can accept either a middleware class or a named middleware string.
+ *
+ * @example
+ * // Using a class directly
+ * @Use(AuthMiddleware)
+ *
+ * // Using a named middleware (must be registered in kernel)
+ * @Use('auth')
+ */
 export function Use(
-    middleware: new () => IMiddleware,
+    middleware: (new () => IMiddleware) | string,
 ): MethodDecorator {
     return (
         target: any,

@@ -1,5 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import { Hono } from 'hono'
+import { Hono, type MiddlewareHandler } from 'hono'
 import { join } from 'node:path'
 import { jsxRenderer } from 'hono/jsx-renderer'
 import type {
@@ -7,7 +7,10 @@ import type {
     Context,
     ControllerClass,
     IMiddleware,
+    MiddlewareClass,
+    MiddlewareRegistry,
     Module,
+    ModuleWithMiddleware,
 } from './types.ts'
 
 import { serveStatic } from 'hono/deno'
@@ -15,6 +18,7 @@ import pkg from './deno.json' with { type: 'json' }
 
 export class App {
     private hono = new Hono({ strict: false })
+    private middlewareRegistry: MiddlewareRegistry = {}
 
     constructor() {
         this.hono.use('*', jsxRenderer(({ children }) => children as any))
@@ -32,17 +36,61 @@ export class App {
         return this.hono.fetch.bind(this.hono)
     }
 
-    async init(config: Module | AppConfig) {
+    /**
+     * Resolve a middleware (class or named string) to a handler function
+     */
+    private resolveMiddleware(
+        middleware: MiddlewareClass | string,
+    ): MiddlewareHandler | null {
+        if (typeof middleware === 'string') {
+            // Named middleware - look up in registry
+            const MiddlewareClass = this.middlewareRegistry[middleware]
+            if (!MiddlewareClass) {
+                console.warn(
+                    `⚠️ Named middleware '${middleware}' not found in registry`,
+                )
+                return null
+            }
+            const instance = new MiddlewareClass() as IMiddleware
+            return instance.handle.bind(instance)
+        } else {
+            // Class middleware
+            const instance = new middleware() as IMiddleware
+            return instance.handle.bind(instance)
+        }
+    }
+
+    async init(config: Module | ModuleWithMiddleware | AppConfig) {
         let controllers: ControllerClass[] = []
+        let globalMiddlewares: MiddlewareClass[] = []
 
         if ('controllers' in config) {
             controllers = config.controllers
+
+            // Register named middlewares
+            if ('middlewares' in config && config.middlewares) {
+                this.middlewareRegistry = config.middlewares
+            }
+
+            // Get global middlewares
+            if ('globalMiddlewares' in config && config.globalMiddlewares) {
+                globalMiddlewares = config.globalMiddlewares
+            }
         } else if (config.controllersDir) {
             controllers = await this.discoverControllers(config.controllersDir)
         }
 
         if ('staticDir' in config && config.staticDir) {
             this.static('/*', config.staticDir)
+        }
+
+        // Apply global middlewares to all routes
+        const globalHandlers = globalMiddlewares
+            .map((M) => this.resolveMiddleware(M))
+            .filter((h) => h !== null)
+
+        if (globalHandlers.length > 0) {
+            this.hono.use('*', ...globalHandlers as any)
         }
 
         const allRoutes: {
@@ -69,15 +117,12 @@ export class App {
                 const routeValidators = (validators[route.methodName] || [])
                     .map((v: { middleware: any }) => v.middleware)
 
-                // Get regular middlewares
+                // Get regular middlewares (support both class and named string)
                 const routeMiddlewares = (middlewares[route.methodName] || [])
-                    .map((MiddlewareClass: any) => {
-                        const middlewareInstance =
-                            new MiddlewareClass() as IMiddleware
-                        return middlewareInstance.handle.bind(
-                            middlewareInstance,
-                        )
-                    })
+                    .map((m: MiddlewareClass | string) =>
+                        this.resolveMiddleware(m)
+                    )
+                    .filter((h: any) => h !== null)
 
                 allRoutes.push({
                     fullPath,

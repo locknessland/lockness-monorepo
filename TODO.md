@@ -17,9 +17,9 @@
 - [x] **Enhanced Validation**
   - [x] `@Validate(schema)` decorator for automatic request validation.
   - [x] Centralized error handling for validation errors.
-- [ ] **Middleware Improvements**
-  - [ ] Global middleware support.
-  - [ ] Named middleware (e.g., `middleware('auth')`).
+- [x] **Middleware Improvements**
+  - [x] Global middleware support (`globalMiddlewares` in kernel).
+  - [x] Named middleware (e.g., `@Use('auth')` with registry in kernel).
 - [ ] **CLI (Ace) Enhancements**
   - [ ] Support for user-defined commands in `src/command/`.
   - [ ] `ace tinker` (REPL) for application interaction.

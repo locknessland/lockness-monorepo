@@ -46,6 +46,7 @@ export function registerCoreCommands(ace: Ace) {
         }
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
+        const middlewareName = name.toLowerCase() // for named middleware registration
         const fileName = `${name.toLowerCase()}_middleware.ts`
         const dirPath = `./src/middleware`
         const filePath = `${dirPath}/${fileName}`
@@ -57,6 +58,7 @@ export function registerCoreCommands(ace: Ace) {
                 'middleware',
                 {
                     className,
+                    middlewareName,
                 },
             )
 
