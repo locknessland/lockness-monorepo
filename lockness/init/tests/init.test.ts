@@ -9,7 +9,6 @@ import { expect } from '@std/expect'
 import { existsSync } from '@std/fs'
 
 const TEST_DIR = './.test-init-output'
-const TEST_PROJECT = `${TEST_DIR}/test-project`
 
 async function cleanupTestDir(): Promise<void> {
     if (existsSync(TEST_DIR)) {
