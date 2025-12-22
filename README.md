@@ -50,7 +50,7 @@ Lockness uses **Drizzle ORM** for type-safe database operations.
 Generate migration files from your schema definitions:
 
 ```bash
-deno task db:generate
+deno task ace db:generate
 ```
 
 #### Run Migrations
@@ -58,7 +58,7 @@ deno task db:generate
 Apply pending migrations to your database:
 
 ```bash
-deno task db:migrate
+deno task ace db:migrate
 ```
 
 #### Push Schema
@@ -66,7 +66,7 @@ deno task db:migrate
 Push your schema directly to the database (useful for development):
 
 ```bash
-deno task db:push
+deno task ace db:push
 ```
 
 #### Drizzle Studio
@@ -74,7 +74,7 @@ deno task db:push
 Launch Drizzle Studio to visualize and manage your database:
 
 ```bash
-deno task db:studio
+deno task ace db:studio
 ```
 
 _Note: Make sure to set your `DATABASE_URL` environment variable in `.env` or

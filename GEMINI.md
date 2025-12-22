@@ -181,3 +181,7 @@ experience:
   - `deno task start`: Runs the production server (on port 8888). Use
     `-- --force` to automatically kill any process already using the port.
   - `deno task ace init`: Scaffolds a new project.
+  - `deno task ace db:generate`: Generates database migrations.
+  - `deno task ace db:migrate`: Applies pending migrations.
+  - `deno task ace db:push`: Pushes schema directly to database.
+  - `deno task ace db:studio`: Launches Drizzle Studio.
