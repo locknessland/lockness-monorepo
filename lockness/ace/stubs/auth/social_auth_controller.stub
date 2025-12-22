@@ -1,0 +1,156 @@
+import { Controller, Get, Context, session, socialite, generateState, type SocialUser } from 'lockness'
+
+/**
+ * Social Authentication Controller
+ *
+ * Handles OAuth2 login with social providers (Google, GitHub, Discord)
+ *
+ * Configuration required in your main.ts:
+ * ```typescript
+ * configureSocialite({
+ *     google: {
+ *         clientId: Deno.env.get('GOOGLE_CLIENT_ID')!,
+ *         clientSecret: Deno.env.get('GOOGLE_CLIENT_SECRET')!,
+ *         redirectUri: Deno.env.get('APP_URL') + '/auth/google/callback',
+ *     },
+ *     github: {
+ *         clientId: Deno.env.get('GITHUB_CLIENT_ID')!,
+ *         clientSecret: Deno.env.get('GITHUB_CLIENT_SECRET')!,
+ *         redirectUri: Deno.env.get('APP_URL') + '/auth/github/callback',
+ *     },
+ *     discord: {
+ *         clientId: Deno.env.get('DISCORD_CLIENT_ID')!,
+ *         clientSecret: Deno.env.get('DISCORD_CLIENT_SECRET')!,
+ *         redirectUri: Deno.env.get('APP_URL') + '/auth/discord/callback',
+ *     },
+ * })
+ * ```
+ */
+@Controller('/auth')
+export class SocialAuthController {
+    // ========================================================================
+    // Google OAuth
+    // ========================================================================
+
+    @Get('/google')
+    google(c: Context) {
+        const state = generateState()
+        session(c).set('oauth_state', state)
+        return socialite('google').redirect(state)
+    }
+
+    @Get('/google/callback')
+    async googleCallback(c: Context) {
+        return this.handleCallback(c, 'google')
+    }
+
+    // ========================================================================
+    // GitHub OAuth
+    // ========================================================================
+
+    @Get('/github')
+    github(c: Context) {
+        const state = generateState()
+        session(c).set('oauth_state', state)
+        return socialite('github').redirect(state)
+    }
+
+    @Get('/github/callback')
+    async githubCallback(c: Context) {
+        return this.handleCallback(c, 'github')
+    }
+
+    // ========================================================================
+    // Discord OAuth
+    // ========================================================================
+
+    @Get('/discord')
+    discord(c: Context) {
+        const state = generateState()
+        session(c).set('oauth_state', state)
+        return socialite('discord').redirect(state)
+    }
+
+    @Get('/discord/callback')
+    async discordCallback(c: Context) {
+        return this.handleCallback(c, 'discord')
+    }
+
+    // ========================================================================
+    // Common Callback Handler
+    // ========================================================================
+
+    private async handleCallback(c: Context, provider: string) {
+        try {
+            // Verify CSRF state
+            const storedState = session(c).get('oauth_state')
+            const returnedState = c.req.query('state')
+
+            if (!storedState || storedState !== returnedState) {
+                session(c).flash('error', 'Invalid OAuth state. Please try again.')
+                return c.redirect('/auth/login')
+            }
+
+            // Clear the state
+            session(c).forget('oauth_state')
+
+            // Get the user from the provider
+            const socialUser = await socialite(provider).user(c)
+
+            // Find or create user in your database
+            const user = await this.findOrCreateUser(socialUser, provider)
+
+            // Log the user in
+            session(c).set('user_id', user.id)
+            session(c).flash('success', `Welcome${user.name ? `, ${user.name}` : ''}!`)
+
+            return c.redirect('/dashboard')
+        } catch (error) {
+            console.error(`OAuth ${provider} error:`, error)
+            session(c).flash('error', `Failed to authenticate with ${provider}. Please try again.`)
+            return c.redirect('/auth/login')
+        }
+    }
+
+    /**
+     * Find or create a user from social login data
+     *
+     * TODO: Implement this method with your User model/repository
+     */
+    private async findOrCreateUser(socialUser: SocialUser, provider: string) {
+        // Example implementation:
+        //
+        // const userRepo = container.get(UserRepository)
+        //
+        // // Try to find by provider ID
+        // let user = await userRepo.findByProvider(provider, socialUser.id)
+        //
+        // if (!user) {
+        //     // Try to find by email (link accounts)
+        //     user = await userRepo.findByEmail(socialUser.email)
+        //
+        //     if (user) {
+        //         // Link the social account to existing user
+        //         await userRepo.linkSocialAccount(user.id, provider, socialUser.id)
+        //     } else {
+        //         // Create new user
+        //         user = await userRepo.create({
+        //             email: socialUser.email,
+        //             name: socialUser.name,
+        //             avatar: socialUser.avatar,
+        //             providers: { [provider]: socialUser.id },
+        //         })
+        //     }
+        // }
+        //
+        // return user
+
+        // Placeholder - returns social user data as user
+        return {
+            id: `${provider}_${socialUser.id}`,
+            email: socialUser.email,
+            name: socialUser.name,
+            avatar: socialUser.avatar,
+        }
+    }
+}

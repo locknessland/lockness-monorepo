@@ -35,7 +35,7 @@
   - [x] Built-in Auth guard for login/logout logic.
   - [x] Password hashing with Web Crypto (PBKDF2).
   - [x] `make:auth` command to scaffold auth controller + provider.
-  - [ ] Social Auth providers (OIDC) - future.
+  - [x] Social Auth providers (OAuth2) - Google, GitHub, Discord.
 
 ## 🌐 Frontend & Assets
 

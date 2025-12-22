@@ -207,68 +207,119 @@ export function registerCoreCommands(ace: Ace) {
         }
     }, 'Create a new background job')
 
-    ace.register('make:auth', async () => {
-        console.log('🔐 Scaffolding authentication system...\n')
+    ace.register(
+        'make:auth',
+        async (args) => {
+            const includeSocial = args.includes('--social') ||
+                args.includes('-s')
 
-        const files = [
-            {
-                stub: 'auth_controller',
-                output: './src/controller/auth_controller.ts',
-                name: 'AuthController',
-            },
-            {
-                stub: 'user_provider',
-                output: './src/provider/user_provider.ts',
-                name: 'UserProvider',
-            },
-        ]
+            console.log('🔐 Scaffolding authentication system...\n')
 
-        for (const file of files) {
-            try {
-                const content = await Stub.renderFrom(
-                    STUBS_PATH,
-                    'auth',
-                    file.stub,
-                    {
-                        className: '',
-                    },
+            const files = [
+                {
+                    stub: 'auth_controller',
+                    output: './src/controller/auth_controller.ts',
+                    name: 'AuthController',
+                },
+                {
+                    stub: 'user_provider',
+                    output: './src/provider/user_provider.ts',
+                    name: 'UserProvider',
+                },
+            ]
+
+            // Add social auth controller if requested
+            if (includeSocial) {
+                files.push({
+                    stub: 'social_auth_controller',
+                    output: './src/controller/social_auth_controller.ts',
+                    name: 'SocialAuthController',
+                })
+            }
+
+            for (const file of files) {
+                try {
+                    const content = await Stub.renderFrom(
+                        STUBS_PATH,
+                        'auth',
+                        file.stub,
+                        {
+                            className: '',
+                        },
+                    )
+
+                    const dirPath = file.output.substring(
+                        0,
+                        file.output.lastIndexOf('/'),
+                    )
+                    await Deno.mkdir(dirPath, { recursive: true })
+                    await Deno.writeTextFile(file.output, content)
+                    console.log(`✅ ${file.name} created at ${file.output}`)
+                } catch (error) {
+                    console.error(
+                        `❌ Failed to create ${file.name}: ${
+                            (error as Error).message
+                        }`,
+                    )
+                }
+            }
+
+            console.log('\n📝 Next steps:')
+            console.log(
+                '1. Ensure you have a User model with email and password fields',
+            )
+            console.log('2. Configure auth in your kernel.ts:')
+            console.log('')
+            console.log("   import { configureAuth } from 'lockness'")
+            console.log(
+                "   import { UserProvider } from '@provider/user_provider.ts'",
+            )
+            console.log('')
+            console.log('   configureAuth({')
+            console.log('       userProvider: container.get(UserProvider),')
+            console.log("       redirectTo: '/auth/login',")
+            console.log('   })')
+            console.log('')
+
+            if (includeSocial) {
+                console.log(
+                    '3. Configure socialite providers in your kernel.ts:',
                 )
-
-                const dirPath = file.output.substring(
-                    0,
-                    file.output.lastIndexOf('/'),
+                console.log('')
+                console.log("   import { configureSocialite } from 'lockness'")
+                console.log('')
+                console.log('   configureSocialite({')
+                console.log('       google: {')
+                console.log(
+                    "           clientId: Deno.env.get('GOOGLE_CLIENT_ID')!,",
                 )
-                await Deno.mkdir(dirPath, { recursive: true })
-                await Deno.writeTextFile(file.output, content)
-                console.log(`✅ ${file.name} created at ${file.output}`)
-            } catch (error) {
-                console.error(
-                    `❌ Failed to create ${file.name}: ${
-                        (error as Error).message
-                    }`,
+                console.log(
+                    "           clientSecret: Deno.env.get('GOOGLE_CLIENT_SECRET')!,",
+                )
+                console.log(
+                    "           redirectUri: Deno.env.get('APP_URL') + '/auth/google/callback',",
+                )
+                console.log('       },')
+                console.log('       // Add github, discord, etc.')
+                console.log('   })')
+                console.log('')
+                console.log('4. Add to your .env:')
+                console.log('   GOOGLE_CLIENT_ID=your-google-client-id')
+                console.log('   GOOGLE_CLIENT_SECRET=your-google-client-secret')
+                console.log('   APP_URL=http://localhost:3000')
+                console.log('')
+                console.log('5. Use @Auth() decorator on protected routes')
+            } else {
+                console.log('3. Use @Auth() decorator on protected routes')
+                console.log('')
+                console.log(
+                    '💡 Tip: Run `deno task ace make:auth --social` to add OAuth providers',
                 )
             }
-        }
-
-        console.log('\n📝 Next steps:')
-        console.log(
-            '1. Ensure you have a User model with email and password fields',
-        )
-        console.log('2. Configure auth in your kernel.ts:')
-        console.log('')
-        console.log("   import { configureAuth } from 'lockness'")
-        console.log(
-            "   import { UserProvider } from '@provider/user_provider.ts'",
-        )
-        console.log('')
-        console.log('   configureAuth({')
-        console.log('       userProvider: container.get(UserProvider),')
-        console.log("       redirectTo: '/auth/login',")
-        console.log('   })')
-        console.log('')
-        console.log('3. Use @Auth() decorator on protected routes')
-        console.log('')
-    }, 'Scaffold authentication (controller + provider)')
+            console.log('')
+        },
+        'Scaffold authentication (controller + provider). Use --social for OAuth',
+    )
 
     ace.register('queue:work', async (args) => {
         // Dynamic import to avoid loading queue module at CLI startup

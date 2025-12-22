@@ -1015,7 +1015,9 @@
       "lockness/core": {
         "dependencies": [
           "jsr:@std/assert@1",
+          "jsr:@std/expect@1",
           "jsr:@std/path@1",
+          "jsr:@std/testing@1",
           "npm:@hono/zod-validator@~0.4.1",
           "npm:hono@^4.11.1",
           "npm:zod@^3.23.8"
