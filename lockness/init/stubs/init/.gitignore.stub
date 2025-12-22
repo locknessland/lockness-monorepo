@@ -6,6 +6,8 @@
 .env.local.test 
 
 # Build & compile output 
-_build
-_compiled
-_output
+dist
+.vite
+
+# Node modules
+node_modules

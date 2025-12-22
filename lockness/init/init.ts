@@ -1,14 +1,18 @@
 import { parseArgs } from '@std/cli/parse-args'
+import { dirname, fromFileUrl, join } from '@std/path'
 import { Stub } from '@lockness/ace'
 
 const ARGS = parseArgs(Deno.args)
 const PROJECT_NAME = ARGS._[0] || 'lockness-app'
 
 async function main() {
+    const currentFile = fromFileUrl(import.meta.url)
+    const stubsDir = join(dirname(currentFile), 'stubs', 'init')
+
     console.log(`🌊 Scaffolding Lockness project in ${PROJECT_NAME}...`)
 
     try {
-        await Stub.scaffold('init', String(PROJECT_NAME), {
+        await Stub.scaffoldFrom(stubsDir, String(PROJECT_NAME), {
             projectName: String(PROJECT_NAME),
         })
 

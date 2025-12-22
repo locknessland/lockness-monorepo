@@ -1,4 +1,4 @@
-import { ace } from "jsr:@lockness/core/cli";
+import { ace } from 'lockness'
 
 if (import.meta.main) {
     await ace.run(Deno.args);

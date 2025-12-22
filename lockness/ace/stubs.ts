@@ -64,16 +64,13 @@ export class Stub {
     }
 
     /**
-     * Scaffolds a whole directory structure from stubs.
-     * Useful for initializing a new project.
+     * Scaffolds a whole directory structure from stubs in a custom directory.
      */
-    static async scaffold(
-        type: string,
+    static async scaffoldFrom(
+        sourceDir: string,
         targetDir: string,
         data: Record<string, string> = {},
     ) {
-        const sourceDir = join(this.getStubsDir(), type)
-
         const walk = async (currentSource: string, currentTarget: string) => {
             const entries = []
             for await (const entry of Deno.readDir(currentSource)) {
@@ -104,5 +101,18 @@ export class Stub {
 
         await Deno.mkdir(targetDir, { recursive: true })
         await walk(sourceDir, targetDir)
+    }
+
+    /**
+     * Scaffolds a whole directory structure from stubs.
+     * Useful for initializing a new project.
+     */
+    static async scaffold(
+        type: string,
+        targetDir: string,
+        data: Record<string, string> = {},
+    ) {
+        const sourceDir = join(this.getStubsDir(), type)
+        await this.scaffoldFrom(sourceDir, targetDir, data)
     }
 }
