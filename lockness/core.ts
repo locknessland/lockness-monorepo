@@ -1,4 +1,5 @@
 import { type Context, Hono } from 'hono'
+import { join } from '@std/path'
 
 export type { Context }
 
@@ -24,11 +25,23 @@ export interface Module {
     controllers: ControllerClass[]
 }
 
+export interface AppConfig {
+    controllersDir?: string
+}
+
 export class App {
     private hono = new Hono()
 
-    init(module: Module) {
-        for (const Controller of module.controllers) {
+    async init(config: Module | AppConfig) {
+        let controllers: ControllerClass[] = []
+
+        if ('controllers' in config) {
+            controllers = config.controllers
+        } else if (config.controllersDir) {
+            controllers = await this.discoverControllers(config.controllersDir)
+        }
+
+        for (const Controller of controllers) {
             const instance = new Controller()
             const basePath = Controller._basePath || ''
             const routes = Controller._routes || []
@@ -58,6 +71,27 @@ export class App {
                     )
             }
         }
+    }
+
+    private async discoverControllers(dirPath: string): Promise<ControllerClass[]> {
+        const controllers: ControllerClass[] = []
+        const absolutePath = Deno.realPathSync(dirPath)
+
+        for await (const entry of Deno.readDir(absolutePath)) {
+            if (entry.isFile && (entry.name.endsWith('.ts') || entry.name.endsWith('.js'))) {
+                const filePath = `file://${join(absolutePath, entry.name)}`
+                const module = await import(filePath)
+
+                for (const exportKey in module) {
+                    const Exported = module[exportKey]
+                    if (typeof Exported === 'function' && Exported._basePath !== undefined) {
+                        controllers.push(Exported as ControllerClass)
+                    }
+                }
+            }
+        }
+
+        return controllers
     }
 
     listen(port: number): Deno.HttpServer<Deno.NetAddr> {

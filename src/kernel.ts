@@ -1,20 +1,13 @@
-import { App, type Module } from 'lockness'
-import { TodoController } from '@controller/todo_controller.ts'
+import { App } from 'lockness'
 
 export const bootstrap = async () => {
     // Create Lockness application
     const app = new App()
 
-    // Configure module
-    const module: Module = {
-        // deno-lint-ignore no-explicit-any
-        controllers: [TodoController as any],
-    }
-
-
-
-    // Initialize the application with the module
-    await app.init(module)
+    // Initialize the application with auto-discovery
+    await app.init({
+        controllersDir: './src/controller'
+    })
 
     return app
 }
