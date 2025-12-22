@@ -6,6 +6,7 @@ import type { Context, ControllerClass, Module, AppConfig, IMiddleware } from '.
 
 import { serveStatic } from 'hono/deno'
 import { container } from './container.ts'
+import pkg from './deno.json' with { type: 'json' }
 
 export class App {
     private hono = new Hono({ strict: false })
@@ -110,7 +111,7 @@ export class App {
         console.log(`
   ▜     ▌         
   ▐ ▛▌▛▘▙▘▛▌█▌▛▘▛▘
-  ▐▖▙▌▙▖▛▖▌▌▙▖▄▌▄▌ v0.1.0
+  ▐▖▙▌▙▖▛▖▌▌▙▖▄▌▄▌ v${pkg.version}
         `)
 
         const server = Deno.serve({
