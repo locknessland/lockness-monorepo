@@ -127,6 +127,13 @@ export class App {
     }
 
     listen(port: number): Deno.HttpServer<Deno.NetAddr> {
+        const env = Deno.env.get('DENO_ENV') || Deno.env.get('APP_ENV') ||
+            'development'
+        const isProd = env.toLowerCase() === 'production'
+        const envLabel = isProd
+            ? '\x1b[41m\x1b[37m PRODUCTION \x1b[0m'
+            : '\x1b[44m\x1b[37m DEVELOPMENT \x1b[0m'
+
         console.log(`
   ▜     ▌         
   ▐ ▛▌▛▘▙▘▛▌█▌▛▘▛▘
@@ -138,6 +145,7 @@ export class App {
             onListen: ({ port, hostname }) => {
                 const protocol = 'http'
                 const host = hostname === '0.0.0.0' ? 'localhost' : hostname
+                console.log(`  Environment: ${envLabel}\n`)
                 console.log(
                     `  🚀 Server is flying at \x1b[36m${protocol}://${host}:${port}\x1b[0m`,
                 )
