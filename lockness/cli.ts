@@ -142,6 +142,46 @@ export class Ace {
             }
         });
 
+        this.register("make:migration", async () => {
+            await this.commands.get("db:generate")!([]);
+        });
+
+        this.register("db:generate", async () => {
+            console.log("⏳ Generating migrations...");
+            const process = new Deno.Command("deno", {
+                args: ["run", "-A", "--env-file=.env", "npm:drizzle-kit", "generate"],
+            });
+            const { success, stderr } = await process.output();
+            if (success) {
+                console.log("✅ Migrations generated successfully");
+            } else {
+                console.error("❌ Failed to generate migrations");
+                console.error(new TextDecoder().decode(stderr));
+            }
+        });
+
+        this.register("db:push", async () => {
+            console.log("⏳ Pushing schema to database...");
+            const process = new Deno.Command("deno", {
+                args: ["run", "-A", "--env-file=.env", "npm:drizzle-kit", "push"],
+            });
+            const { success, stderr } = await process.output();
+            if (success) {
+                console.log("✅ Schema pushed successfully");
+            } else {
+                console.error("❌ Failed to push schema");
+                console.error(new TextDecoder().decode(stderr));
+            }
+        });
+
+        this.register("db:studio", async () => {
+            console.log("🚀 Starting Drizzle Studio...");
+            const process = new Deno.Command("deno", {
+                args: ["run", "-A", "--env-file=.env", "npm:drizzle-kit", "studio"],
+            });
+            await process.spawn().status;
+        });
+
         this.register("make:view", async (args) => {
             const name = args[0];
             if (!name) {

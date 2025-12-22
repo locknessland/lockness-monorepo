@@ -9,3 +9,6 @@
 _build
 _compiled
 _output
+
+# Node modules
+node_modules

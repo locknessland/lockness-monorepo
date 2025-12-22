@@ -1,11 +1,15 @@
 # 📝 Lockness JS - Roadmap & TODO
 
 ## 🚀 High Priority (Next Steps)
-- [ ] **ORM Integration (Drizzle)**
-    - [ ] Setup Drizzle ORM core integration.
-    - [ ] Create a `DatabaseService` for DI.
-    - [ ] Implement `make:model` and `make:migration` in Ace CLI.
-    - [ ] Add `db:migrate` and `db:seed` commands.
+- [x] **ORM Integration (Drizzle)**
+    - [x] Setup Drizzle ORM core integration.
+    - [x] Create a `DatabaseService` for DI.
+    - [x] Implement `make:model` and `make:migration` in Ace CLI.
+    - [x] Add `db:migrate` and `db:seed` commands. (Note: db:push is implemented)
+- [ ] **Database Advanced**
+    - [ ] Real `db:migrate` (running SQL files) vs `db:push`.
+    - [ ] Seeders implementation.
+
 
 ## 🛠 Framework Core
 - [ ] **Enhanced Validation**
