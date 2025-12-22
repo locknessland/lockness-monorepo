@@ -5,7 +5,7 @@
         "./lockness/kysely",
         "./lockness/init"
     ],
-    "nodeModulesDir": "auto",
+    "nodeModulesDir": "none",
     "tasks": {
         "dev": "deno run --env-file=.env -A --watch main.ts",
         "build": "deno run -A scripts/build.ts",
