@@ -68,7 +68,8 @@ The framework uses Hono's JSX runtime. To ensure correct resolution, the root
 ```json
 "compilerOptions": {
     "jsx": "precompile",
-    "jsxImportSource": "hono/jsx"
+    "jsxImportSource": "hono/jsx",
+    "experimentalDecorators": true
 }
 ```
 

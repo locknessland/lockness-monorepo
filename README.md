@@ -105,3 +105,29 @@ Run a specific seeder:
 ```bash
 deno task ace db:seed User
 ```
+
+### Request Validation
+
+Lockness provides automatic request validation using Zod schemas:
+
+```typescript
+import { Context, Controller, Post, Validate, z } from 'lockness'
+
+const CreateUserSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+})
+
+@Controller('/api/users')
+export class UserController {
+    @Post('/')
+    @Validate('json', CreateUserSchema)
+    create(c: Context) {
+        const data = c.req.valid('json') // Typed & validated!
+        return c.json({ success: true, data })
+    }
+}
+```
+
+Supported validation targets: `json`, `query`, `param`, `header`, `cookie`,
+`form`.
