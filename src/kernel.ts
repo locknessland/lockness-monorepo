@@ -1,4 +1,10 @@
-import { App, container, type ControllerClass } from 'lockness'
+import {
+    App,
+    configureSession,
+    container,
+    createSessionMiddleware,
+    type ControllerClass,
+} from 'lockness'
 import { Database } from '@lockness/drizzle'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { AuthMiddleware } from '@middleware/auth_middleware.ts'
@@ -9,6 +15,14 @@ export const bootstrap = async () => {
     await db.connect(
         Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness',
     )
+
+    // Configure session (optional - defaults to cookie driver)
+    configureSession({
+        driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
+        secret: Deno.env.get('APP_KEY') || 'change-me-in-production',
+        lifetime: 7200, // 2 hours
+        secure: Deno.env.get('APP_ENV') === 'production',
+    })
 
     // Create Lockness application
     const app = new App()
@@ -26,7 +40,7 @@ export const bootstrap = async () => {
             if (
                 typeof Exported === 'function' &&
                 (Exported as unknown as Record<string, unknown>)._basePath !==
-                    undefined
+                undefined
             ) {
                 controllers.push(Exported as ControllerClass)
             }
@@ -39,7 +53,10 @@ export const bootstrap = async () => {
         staticDir: Deno.env.get('VITE') ? 'public' : 'dist/static',
 
         // Global middlewares (applied to all routes)
-        globalMiddlewares: [LoggerMiddleware],
+        globalMiddlewares: [
+            createSessionMiddleware(), // Session middleware
+            LoggerMiddleware,
+        ],
 
         // Named middlewares (use with @Use('auth'))
         middlewares: {

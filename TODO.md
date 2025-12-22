@@ -27,9 +27,9 @@
 
 ## 🔒 Security & Auth
 
-- [ ] **Session Management**
-  - [ ] Cookie-based session store.
-  - [ ] Drivers for Redis / Deno KV.
+- [x] **Session Management**
+  - [x] Cookie-based session store.
+  - [x] Drivers for Memory / Deno KV.
 - [ ] **Authentication System**
   - [ ] `@UseAuth` decorator/guard.
   - [ ] Built-in Auth service for login/register logic.

@@ -175,6 +175,101 @@ export class UserRepository {
 }
 ```
 
+### Session Management
+
+Lockness provides a flexible session management system with multiple driver
+support. Sessions are stored server-side (or in encrypted cookies) and accessed
+via a simple API.
+
+**Configuration in kernel.ts:**
+
+```typescript
+import { configureSession, createSessionMiddleware } from 'lockness'
+
+// Configure session
+configureSession({
+    driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
+    secret: Deno.env.get('APP_KEY') || 'change-me',
+    lifetime: 7200, // 2 hours in seconds
+    secure: Deno.env.get('APP_ENV') === 'production',
+})
+
+// Add to global middlewares
+await app.init({
+    globalMiddlewares: [createSessionMiddleware()],
+})
+```
+
+**Using sessions in controllers:**
+
+```typescript
+import { Context, Controller, Get, Post, session } from 'lockness'
+
+@Controller('/dashboard')
+export class DashboardController {
+    @Get('/')
+    index(c: Context) {
+        const sess = session(c)
+
+        // Get values
+        const userId = sess.get<number>('user_id')
+        const visits = sess.get('visits', 0) as number
+
+        // Set values
+        sess.set('visits', visits + 1)
+
+        // Flash messages (available only for next request)
+        sess.flash('success', 'Welcome back!')
+
+        return c.json({ userId, visits })
+    }
+
+    @Post('/logout')
+    async logout(c: Context) {
+        const sess = session(c)
+
+        // Destroy session
+        await sess.destroy()
+
+        return c.redirect('/login')
+    }
+
+    @Post('/login')
+    async login(c: Context) {
+        const sess = session(c)
+
+        // Regenerate session ID (security best practice after login)
+        await sess.regenerate()
+
+        sess.set('user_id', 123)
+        return c.redirect('/dashboard')
+    }
+}
+```
+
+**Session API:**
+
+| Method               | Description                         |
+| -------------------- | ----------------------------------- |
+| `get(key, default?)` | Get a value from session            |
+| `set(key, value)`    | Set a value in session              |
+| `has(key)`           | Check if key exists                 |
+| `forget(key)`        | Remove a key                        |
+| `all()`              | Get all session data                |
+| `flush()`            | Clear all data                      |
+| `regenerate()`       | Regenerate session ID (after login) |
+| `destroy()`          | Destroy the session                 |
+| `flash(key, value)`  | Flash data for next request         |
+| `getFlash(key)`      | Get flash data                      |
+
+**Available Drivers:**
+
+- **cookie**: Stores encrypted session data in cookies (default, no server
+  storage needed)
+- **deno-kv**: Uses Deno KV for distributed session storage (with TTL support)
+- **memory**: In-memory storage (for development only)
+
+````
 **Why Drizzle?** With recent improvements in Deno's NPM compatibility
 (`nodeModulesDir: auto`) and Vite's external configuration, Drizzle now works
 seamlessly in our stack. It offers a better developer experience than query
@@ -202,7 +297,7 @@ Eloquent.
 ├── main.ts                # Entry point
 ├── ace.ts                 # CLI Entry point
 └── deno.json              # Config & Aliases
-```
+````
 
 - **`lockness/`**: Contains the decoupled libraries. This modularity allows for
   an ORM-agnostic core while providing official extensions like
