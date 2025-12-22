@@ -25,12 +25,47 @@ familiar MVC (Model-View-Controller) architecture.
 
 ## 🛠 Target Features
 
-- **Expressive Routing** (based on Hono but adapted for MVC)
-- **Controllers** for request logic
-- **Robust Middleware Support**
-- **ORM / Query Builder** (to be defined/integrated)
-- **View Engine** (JSX)
-- **Dependency Injection**
+- **Expressive Routing**: (based on Hono but adapted for MVC)
+- **Controllers**: Class-based controllers with decorators (`@Controller`, `@Get`, `@Post`, etc.)
+- **Robust Middleware Support**: Class-based middlewares with the `@Middleware` decorator
+- **Dependency Injection**: A built-in IoC container managing services with `@Service` and `@Inject` decorators
+- **View Engine (JSX)**: Native JSX support powered by Hono's JSX runtime, facilitating component-based UI development
+- **ORM / Query Builder**: (to be defined/integrated)
+
+## 🛠 Architectural Highlights
+
+### Dependency Injection (DI)
+Lockness features a built-in Service Container for managing dependencies. Services should be decorated with `@Service()` and can be injected into controllers or other services using `@Inject(ServiceClass)`.
+
+```typescript
+@Service()
+export class UserService {
+    execute() { ... }
+}
+
+@Controller('/users')
+export class UserController {
+    @Inject(UserService)
+    private userService!: UserService
+}
+```
+
+### View Engine (JSX)
+The framework uses Hono's JSX runtime. To ensure correct resolution, the root `deno.json` must be configured with:
+
+```json
+"compilerOptions": {
+    "jsx": "precompile",
+    "jsxImportSource": "hono/jsx"
+}
+```
+And Hono must be mapped in the imports:
+```json
+"imports": {
+    "hono": "npm:hono@^4.11.1",
+    "hono/": "npm:hono@^4.11.1/"
+}
+```
 
 ## 📂 Repository Structure
 

@@ -41,8 +41,12 @@ Lockness JS is powered by **HonoJS** for routing and middleware but abstracts it
 - **Routing**: Expressive routing based on Hono but adapted for MVC.
 - **Logic**: Use Controllers for all request handling logic.
 - **Middleware**: Use robust middleware support for cross-cutting concerns.
-- **Views**: Use JSX as the primary view engine.
-- **Dependency Injection**: Utilize DI for managing services and dependencies.
+- **Views**: Use JSX as the primary view engine powered by Hono's JSX runtime.
+    - Path mapping for `hono/jsx` must be present in `deno.json`.
+- **Dependency Injection**: 
+    - Use the `@Service()` decorator for classes in `src/service/` or `src/repository/`.
+    - Use the `@Inject(ServiceClass)` decorator to inject dependencies into controllers or other services.
+    - Dependencies are managed as singletons via the internal `container`.
 - **Database**: Use the integrated ORM / Query Builder (as defined in the project).
 
 ## 📝 Coding Standards
