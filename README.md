@@ -15,8 +15,8 @@ deno task dev
 
 ### Production Build
 
-Bundle your application into an optimized TypeScript file in the `_output`
-directory:
+Bundle your application into an optimized SSR bundle in the `dist`
+directory using Vite:
 
 ```bash
 deno task build
@@ -24,11 +24,13 @@ deno task build
 
 ### Running in Production
 
-Run the optimized production build:
+Run the optimized production server (on port 8888):
 
 ```bash
 deno task start
 ```
+
+*Note: Use `deno task start -- --force` to automatically kill any process already using the port.*
 
 ### Compile to Binary
 
