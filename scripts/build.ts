@@ -17,14 +17,6 @@ const build = async () => {
             target: 'esnext',
             minify: true,
             jsx: 'transform',
-            external: ['node:*'],
-            alias: {
-                'perf_hooks': 'node:perf_hooks',
-                'async_hooks': 'node:async_hooks',
-                'net': 'node:net',
-                'fs': 'node:fs',
-                'path': 'node:path',
-            },
         })
         console.log('✅ Build complete: _output/server.ts')
     } catch (e) {

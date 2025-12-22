@@ -1,5 +1,5 @@
 {
-    "name": "@lockness/drizzle",
+    "name": "@lockness/kysely",
     "version": "0.1.0",
     "exports": {
         ".": "./database.ts",
@@ -7,7 +7,8 @@
     },
     "imports": {
         "@lockness/core": "../core/core.ts",
-        "drizzle-orm": "npm:drizzle-orm@^0.31.2",
+        "kysely": "npm:kysely@^0.28.9",
+        "kysely-postgres-js": "npm:kysely-postgres-js@^2.0.0",
         "postgres": "npm:postgres@^3.4.4"
     }
 }

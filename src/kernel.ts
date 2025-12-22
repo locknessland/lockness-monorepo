@@ -1,5 +1,5 @@
 import { App, container } from 'lockness'
-import { Database } from '@lockness/drizzle'
+import { Database } from '@lockness/kysely'
 
 export const bootstrap = async () => {
     // Initialize Database (Optional)
