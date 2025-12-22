@@ -7,10 +7,10 @@
     ],
     "nodeModulesDir": "none",
     "tasks": {
-        "dev": "VITE=true deno run -A --node-modules-dir npm:vite dev",
+        "dev": "VITE=true deno run -A --env --node-modules-dir npm:vite dev",
         "build": "deno run -A --node-modules-dir npm:vite build",
         "preview": "deno run -A --node-modules-dir npm:vite preview",
-        "start": "deno run --allow-net --allow-read --allow-env --allow-sys dist/server.js",
+        "start": "deno run --allow-net --allow-read --allow-env --allow-sys --env dist/server.js",
         "ace": "deno run -A ace.ts"
     },
     "imports": {

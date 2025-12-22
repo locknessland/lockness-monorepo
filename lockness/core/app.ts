@@ -130,7 +130,7 @@ export class App {
                         entry.name.endsWith('.tsx'))
                 ) {
                     const filePath = `file://${join(absolutePath, entry.name)}`
-                    const module = await import(filePath)
+                    const module = await import(/* @vite-ignore */ filePath)
 
                     for (const exportKey in module) {
                         const Exported = module[exportKey]
