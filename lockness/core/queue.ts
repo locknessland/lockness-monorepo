@@ -40,6 +40,9 @@ export interface Job<T extends JobPayload = JobPayload> {
 
 export type JobClass<T extends JobPayload = JobPayload> = new (payload: T) => Job<T>
 
+// deno-lint-ignore no-explicit-any
+type AnyJobClass = new (payload: any) => Job<any>
+
 export interface QueueConfig {
     /** Default queue driver */
     driver: 'memory' | 'deno-kv'
@@ -90,20 +93,21 @@ export function getQueueConfig(): QueueConfig {
 // Job Registry
 // =============================================================================
 
-const jobRegistry = new Map<string, JobClass>()
+const jobRegistry = new Map<string, AnyJobClass>()
 
 /**
- * Register a job class
+ * Register a job class by providing an instance or class with a name
  */
 export function registerJob<T extends JobPayload>(jobClass: JobClass<T>): void {
-    const instance = new jobClass()
-    jobRegistry.set(instance.name, jobClass)
+    // Create a dummy instance to get the name
+    const instance = new jobClass({} as T)
+    jobRegistry.set(instance.name, jobClass as AnyJobClass)
 }
 
 /**
  * Get a job class by name
  */
-export function getJobClass(name: string): JobClass | undefined {
+export function getJobClass(name: string): AnyJobClass | undefined {
     return jobRegistry.get(name)
 }
 
@@ -337,7 +341,8 @@ export async function dispatchByName(
     if (!JobClass) {
         throw new Error(`Job "${jobName}" not registered`)
     }
-    return dispatch(JobClass, payload, options)
+    const instance = new JobClass(payload)
+    return dispatch(instance, options)
 }
 
 // =============================================================================
@@ -422,7 +427,7 @@ export class QueueWorker {
             return
         }
 
-        const job = new JobClass()
+        const job = new JobClass(serializedJob.payload)
         const attempt = serializedJob.attempts + 1
 
         console.log(
