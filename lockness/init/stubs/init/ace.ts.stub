@@ -1,5 +1,11 @@
-import { ace } from 'lockness'
+import { Ace } from '@lockness/ace'
+import { registerDrizzleCommands } from '@lockness/drizzle/commands'
+
+const ace = new Ace()
+
+// Register Drizzle ORM commands (db:generate, db:migrate, db:seed, etc.)
+registerDrizzleCommands(ace)
 
 if (import.meta.main) {
-    await ace.run(Deno.args);
+    await ace.run(Deno.args)
 }
