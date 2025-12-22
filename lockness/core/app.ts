@@ -5,7 +5,6 @@ import { jsxRenderer } from 'hono/jsx-renderer'
 import type { Context, ControllerClass, Module, AppConfig, IMiddleware } from './types.ts'
 
 import { serveStatic } from 'hono/deno'
-import { container } from './container.ts'
 import pkg from './deno.json' with { type: 'json' }
 
 export class App {
