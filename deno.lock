@@ -4,9 +4,11 @@
     "jsr:@hono/hono@*": "4.7.2",
     "jsr:@std/assert@1": "1.0.11",
     "jsr:@std/cli@1": "1.0.24",
+    "jsr:@std/fs@1": "1.0.20",
     "jsr:@std/internal@^1.0.12": "1.0.12",
-    "jsr:@std/internal@^1.0.5": "1.0.5",
+    "jsr:@std/internal@^1.0.5": "1.0.12",
     "jsr:@std/path@1": "1.1.3",
+    "jsr:@std/path@^1.1.3": "1.1.3",
     "npm:@hono/vite-dev-server@0.12": "0.12.2_hono@4.11.1",
     "npm:@hono/zod-validator@~0.4.1": "0.4.3_hono@4.11.1_zod@3.25.76",
     "npm:@types/node@*": "22.12.0",
@@ -33,6 +35,13 @@
     },
     "@std/cli@1.0.24": {
       "integrity": "b655a5beb26aa94f98add6bc8889f5fb9bc3ee2cc3fc954e151201f4c4200a5e"
+    },
+    "@std/fs@1.0.20": {
+      "integrity": "e953206aae48d46ee65e8783ded459f23bec7dd1f3879512911c35e5484ea187",
+      "dependencies": [
+        "jsr:@std/internal@^1.0.12",
+        "jsr:@std/path@^1.1.3"
+      ]
     },
     "@std/internal@1.0.5": {
       "integrity": "54a546004f769c1ac9e025abd15a76b6671ddc9687e2313b67376125650dc7ba"

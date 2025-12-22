@@ -76,19 +76,23 @@ export class Ace {
     > = new Map()
 
     constructor() {
-        this.register('list', () => {
-            console.log('Available commands:')
-            const sortedCommands = [...this.commands.entries()].sort((a, b) =>
-                a[0].localeCompare(b[0])
-            )
-            for (const [name, { description }] of sortedCommands) {
-                if (description) {
-                    console.log(`  ${name.padEnd(20)} ${description}`)
-                } else {
-                    console.log(`  ${name}`)
+        this.register(
+            'list',
+            async () => {
+                console.log('Available commands:')
+                const sortedCommands = [...this.commands.entries()].sort(
+                    (a, b) => a[0].localeCompare(b[0]),
+                )
+                for (const [name, { description }] of sortedCommands) {
+                    if (description) {
+                        console.log(`  ${name.padEnd(20)} ${description}`)
+                    } else {
+                        console.log(`  ${name}`)
+                    }
                 }
-            }
-        }, 'List all available commands')
+            },
+            'List all available commands',
+        )
     }
 
     register(
@@ -148,8 +152,7 @@ export class Ace {
                         }
                     } catch (e) {
                         console.warn(
-                            `⚠️ Failed to load command ${entry.name}: ${
-                                (e as Error).message
+                            `⚠️ Failed to load command ${entry.name}: ${(e as Error).message
                             }`,
                         )
                     }

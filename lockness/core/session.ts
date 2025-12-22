@@ -168,6 +168,7 @@ export class CookieSessionDriver implements SessionDriver {
     regenerate(_oldId: string, _newId: string): Promise<void> {
         // For cookie driver, regeneration is handled at session level
         // No action needed here
+        return Promise.resolve()
     }
 
     // Simple encryption using Web Crypto API

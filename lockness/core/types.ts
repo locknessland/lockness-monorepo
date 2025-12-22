@@ -23,6 +23,10 @@ export interface ControllerMetadata {
     _routes?: Route[]
     _middlewares?: Record<string, any[]>
     _validators?: Record<string, any[]>
+    _authRequired?: boolean
+    _authOptions?: { redirectTo?: string }
+    _guestRequired?: boolean
+    _guestRedirectTo?: string
 }
 
 export type ControllerClass =

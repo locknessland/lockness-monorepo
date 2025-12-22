@@ -12,7 +12,10 @@
         "preview": "deno run -A npm:vite preview",
         "start": "deno run --allow-net --allow-read --allow-env --allow-sys --allow-run --env-file=.env.production.local dist/server.js",
         "compile": "deno compile --allow-all --output lockness-server dist/server.js",
-        "ace": "deno run -A --env ace.ts"
+        "ace": "deno run -A --env ace.ts",
+        "test": "deno test -A --env tests/",
+        "test:coverage": "deno test -A --env --coverage=coverage tests/ && deno coverage coverage --lcov > coverage/lcov.info",
+        "test:watch": "deno test -A --env --watch tests/"
     },
     "imports": {
         "@/": "./",
