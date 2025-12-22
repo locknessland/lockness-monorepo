@@ -1,4 +1,5 @@
 import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 
 export const {{tableName}} = pgTable('{{tableName}}', {
     id: serial('id').primaryKey(),
@@ -7,5 +8,10 @@ export const {{tableName}} = pgTable('{{tableName}}', {
     updatedAt: timestamp('updated_at').defaultNow(),
 })
 
+// Zod schemas for validation (customize as needed)
+export const insert{{ModelName}}Schema = createInsertSchema({{tableName}})
+export const select{{ModelName}}Schema = createSelectSchema({{tableName}})
+
+// TypeScript types
 export type {{ModelName}} = typeof {{tableName}}.$inferSelect
 export type New{{ModelName}} = typeof {{tableName}}.$inferInsert

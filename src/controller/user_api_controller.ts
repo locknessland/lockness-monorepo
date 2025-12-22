@@ -1,12 +1,7 @@
 import { Context, Controller, Get, Post, Validate, z } from 'lockness'
+import { insertUserSchema } from '@model/user.ts'
 
-// Define validation schemas
-const CreateUserSchema = z.object({
-    email: z.string().email('Invalid email format'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    name: z.string().optional(),
-})
-
+// Validation schema for URL params
 const UserIdSchema = z.object({
     id: z.string().regex(/^\d+$/, 'ID must be a number'),
 })
@@ -25,7 +20,7 @@ export class UserApiController {
     }
 
     @Post('/')
-    @Validate('json', CreateUserSchema)
+    @Validate('json', insertUserSchema)
     create(c: Context) {
         // Data is already validated at this point
         const data = c.req.valid('json')

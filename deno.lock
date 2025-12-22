@@ -13,6 +13,7 @@
     "npm:drizzle-kit@*": "0.27.2_esbuild@0.19.12",
     "npm:drizzle-kit@~0.27.2": "0.27.2_esbuild@0.19.12",
     "npm:drizzle-orm@~0.36.3": "0.36.4_postgres@3.4.7",
+    "npm:drizzle-zod@~0.5.1": "0.5.1_drizzle-orm@0.36.4__postgres@3.4.7_zod@3.25.76_postgres@3.4.7",
     "npm:hono@*": "4.11.1",
     "npm:hono@^4.11.1": "4.11.1",
     "npm:postgres@^3.4.4": "3.4.7",
@@ -650,6 +651,13 @@
         "postgres"
       ]
     },
+    "drizzle-zod@0.5.1_drizzle-orm@0.36.4__postgres@3.4.7_zod@3.25.76_postgres@3.4.7": {
+      "integrity": "sha512-C/8bvzUH/zSnVfwdSibOgFjLhtDtbKYmkbPbUCq46QZyZCH6kODIMSOgZ8R7rVjoI+tCj3k06MRJMDqsIeoS4A==",
+      "dependencies": [
+        "drizzle-orm",
+        "zod@3.25.76"
+      ]
+    },
     "esbuild-register@3.6.0_esbuild@0.19.12": {
       "integrity": "sha512-H2/S7Pm8a9CL1uhp9OvjwrBh5Pvx0H8qVOxNu8Wed9Y7qv56MPtq+GGM8RJpq6glYJn9Wspr8uw7l55uyinNeg==",
       "dependencies": [
@@ -953,6 +961,7 @@
       "npm:@hono/zod-validator@~0.4.1",
       "npm:drizzle-kit@~0.27.2",
       "npm:drizzle-orm@~0.36.3",
+      "npm:drizzle-zod@~0.5.1",
       "npm:hono@^4.11.1",
       "npm:postgres@^3.4.4",
       "npm:vite@5",

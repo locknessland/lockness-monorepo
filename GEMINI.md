@@ -95,23 +95,48 @@ TypeScript support and type safety. The framework includes:
 - **Migration System**: Built-in support for database migrations via
   `drizzle-kit`
 
-### Request Validation
+### Request Validation with drizzle-zod
 
-Lockness provides a `@Validate` decorator for automatic request validation using
-**Zod** schemas:
+Lockness uses **drizzle-zod** to generate Zod validation schemas directly from
+your Drizzle models. This eliminates duplication between your database schema
+and validation logic:
 
 ```typescript
-import { Context, Controller, Post, Validate, z } from 'lockness'
+// src/model/user.ts
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
+import { z } from 'zod'
 
-const CreateUserSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(8),
+export const users = pgTable('users', {
+    id: serial('id').primaryKey(),
+    email: text('email').notNull().unique(),
+    password: text('password').notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
 })
 
+// Generated schemas with optional refinements
+export const insertUserSchema = createInsertSchema(users, {
+    email: z.string().email('Invalid email format'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+})
+export const selectUserSchema = createSelectSchema(users)
+
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
+```
+
+Then use the `@Validate` decorator in your controllers:
+
+```typescript
+// src/controller/user_api_controller.ts
+import { Context, Controller, Post, Validate } from 'lockness'
+import { insertUserSchema } from '../model/user.ts'
+
 @Controller('/api/users')
-export class UserController {
+export class UserApiController {
     @Post('/')
-    @Validate('json', CreateUserSchema)
+    @Validate('json', insertUserSchema)
     create(c: Context) {
         const data = c.req.valid('json') // Typed & validated!
         return c.json({ success: true, data })
@@ -131,21 +156,10 @@ On validation failure, returns:
 }
 ```
 
-Example model definition:
-
-```typescript
-import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
-
-export const users = pgTable('users', {
-    id: serial('id').primaryKey(),
-    email: text('email').notNull().unique(),
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
-})
-
-export type User = typeof users.$inferSelect
-export type NewUser = typeof users.$inferInsert
-```
+**Why drizzle-zod?** It generates Zod schemas from your Drizzle table
+definitions, so you define your data structure once in the model. You can add
+custom refinements (like email format, min length) while the base schema stays
+in sync with your database.
 
 Example repository:
 

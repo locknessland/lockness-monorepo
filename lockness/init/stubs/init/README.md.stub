@@ -25,3 +25,53 @@ Run the optimized production build:
 ```bash
 deno task start
 ```
+
+### Database Management (Drizzle ORM)
+
+Lockness uses **Drizzle ORM** for type-safe database operations.
+
+```bash
+# Generate migrations from schema
+deno task ace db:generate
+
+# Apply pending migrations
+deno task ace db:migrate
+
+# Push schema directly (dev)
+deno task ace db:push
+
+# Launch Drizzle Studio
+deno task ace db:studio
+
+# Create a seeder
+deno task ace make:seeder User
+
+# Run seeders
+deno task ace db:seed
+```
+
+### Request Validation
+
+Use **drizzle-zod** to generate validation schemas from your models:
+
+```typescript
+// src/model/user.ts
+import { createInsertSchema } from 'drizzle-zod'
+
+export const insertUserSchema = createInsertSchema(users, {
+    email: z.string().email(),
+    password: z.string().min(8),
+})
+```
+
+```typescript
+// src/controller/user_controller.ts
+import { insertUserSchema } from '../model/user.ts'
+
+@Post('/')
+@Validate('json', insertUserSchema)
+create(c: Context) {
+    const data = c.req.valid('json') // Typed!
+    return c.json({ success: true, data })
+}
+```

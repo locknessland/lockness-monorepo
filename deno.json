@@ -35,6 +35,7 @@
         "hono/": "npm:/hono@^4.11.1/",
         "postgres": "npm:postgres@^3.4.4",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
+        "drizzle-zod": "npm:drizzle-zod@^0.5.1",
         "drizzle-kit": "npm:drizzle-kit@^0.27.2",
         "vite": "npm:vite@^5.0.0",
         "@hono/vite-dev-server": "npm:@hono/vite-dev-server@^0.12.0",
