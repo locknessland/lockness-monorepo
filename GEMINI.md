@@ -251,3 +251,45 @@ experience:
   - `deno task ace db:studio`: Launches Drizzle Studio.
   - `deno task ace make:seeder`: Creates a new seeder class.
   - `deno task ace db:seed`: Runs database seeders.
+  - `deno task ace tinker`: Starts an interactive REPL session.
+
+### ACE Tinker (REPL)
+
+The `ace tinker` command starts an interactive REPL (Read-Eval-Print Loop) for
+exploring your application. It automatically loads:
+
+- **Models**: All exports from `src/model/`
+- **Services**: All classes from `src/service/`
+- **Repositories**: All classes from `src/repository/`
+- **Database**: The `db` instance from your kernel (if available)
+
+```bash
+$ deno task ace tinker
+
+🔮 Lockness Tinker - Interactive REPL
+Type ".help" for commands, ".exit" to quit
+
+📦 Loaded: users, insertUserSchema, UserService, UserRepository
+
+>>> 2 + 2
+4
+>>> users
+{ ... } # Your users table schema
+>>> await UserRepository.findAll()
+[{ id: 1, email: "..." }, ...]
+>>> .exit
+👋 Bye!
+```
+
+**REPL Commands:**
+
+- `.help` - Show available commands
+- `.context` - List loaded variables and their types
+- `.clear` - Clear the screen
+- `.exit` - Exit the REPL
+
+The REPL supports:
+
+- **Async/await**: Top-level await is supported
+- **Multiline input**: Open braces `{` start multiline mode
+- **Colored output**: Results are syntax-highlighted
