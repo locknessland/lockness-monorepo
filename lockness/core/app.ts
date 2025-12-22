@@ -9,6 +9,7 @@ import type {
     ControllerClass,
     IMiddleware,
     MiddlewareClass,
+    MiddlewareInput,
     MiddlewareRegistry,
     Module,
     ModuleWithMiddleware,
@@ -38,10 +39,10 @@ export class App {
     }
 
     /**
-     * Resolve a middleware (class or named string) to a handler function
+     * Resolve a middleware (class, function, or named string) to a handler function
      */
     private resolveMiddleware(
-        middleware: MiddlewareClass | string,
+        middleware: MiddlewareInput | string,
     ): MiddlewareHandler | null {
         if (typeof middleware === 'string') {
             // Named middleware - look up in registry
@@ -54,16 +55,23 @@ export class App {
             }
             const instance = new MiddlewareClass() as IMiddleware
             return instance.handle.bind(instance)
-        } else {
-            // Class middleware
-            const instance = new middleware() as IMiddleware
-            return instance.handle.bind(instance)
+        } else if (typeof middleware === 'function') {
+            // Check if it's a class (has prototype with handle) or a plain function
+            if (middleware.prototype && middleware.prototype.handle) {
+                // Class middleware
+                const instance = new (middleware as MiddlewareClass)() as IMiddleware
+                return instance.handle.bind(instance)
+            } else {
+                // Plain function middleware (like createSessionMiddleware())
+                return middleware as MiddlewareHandler
+            }
         }
+        return null
     }
 
     async init(config: Module | ModuleWithMiddleware | AppConfig) {
         let controllers: ControllerClass[] = []
-        let globalMiddlewares: MiddlewareClass[] = []
+        let globalMiddlewares: MiddlewareInput[] = []
 
         if ('controllers' in config) {
             controllers = config.controllers

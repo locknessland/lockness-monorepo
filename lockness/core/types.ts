@@ -52,6 +52,11 @@ export interface IMiddleware {
 export type MiddlewareClass = new () => IMiddleware
 
 /**
+ * Middleware input - can be a class or a handler function
+ */
+export type MiddlewareInput = MiddlewareClass | MiddlewareHandler
+
+/**
  * Registry of named middlewares
  */
 export type MiddlewareRegistry = Record<string, MiddlewareClass>
@@ -60,6 +65,6 @@ export type MiddlewareRegistry = Record<string, MiddlewareClass>
  * Extended Module config with middleware support
  */
 export interface ModuleWithMiddleware extends Module {
-    globalMiddlewares?: MiddlewareClass[]
+    globalMiddlewares?: MiddlewareInput[]
     middlewares?: MiddlewareRegistry
 }
