@@ -4,7 +4,7 @@
  * Tests for the project scaffolding functionality
  */
 
-import { describe, it, beforeEach, afterEach } from '@std/testing/bdd'
+import { afterEach, beforeEach, describe, it } from '@std/testing/bdd'
 import { expect } from '@std/expect'
 import { existsSync } from '@std/fs'
 
@@ -46,7 +46,10 @@ describe('init command', () => {
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const aceMock = {
-            register: (_name: string, handler: (args: string[]) => Promise<void>) => {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
                 capturedHandler = handler
             },
         }
@@ -78,7 +81,10 @@ describe('init command', () => {
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const aceMock = {
-            register: (_name: string, handler: (args: string[]) => Promise<void>) => {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
                 capturedHandler = handler
             },
         }
@@ -92,7 +98,7 @@ describe('init command', () => {
             await capturedHandler!(['my-awesome-app'])
 
             const denoJson = JSON.parse(
-                await Deno.readTextFile('my-awesome-app/deno.json')
+                await Deno.readTextFile('my-awesome-app/deno.json'),
             )
             // Verify deno.json has the expected structure
             expect(denoJson.tasks).toBeDefined()
@@ -108,7 +114,10 @@ describe('init command', () => {
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const aceMock = {
-            register: (_name: string, handler: (args: string[]) => Promise<void>) => {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
                 capturedHandler = handler
             },
         }
@@ -132,7 +141,10 @@ describe('init command', () => {
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const aceMock = {
-            register: (_name: string, handler: (args: string[]) => Promise<void>) => {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
                 capturedHandler = handler
             },
         }
