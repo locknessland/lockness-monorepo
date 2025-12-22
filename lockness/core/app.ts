@@ -100,27 +100,50 @@ export class App {
         dirPath: string,
     ): Promise<ControllerClass[]> {
         const controllers: ControllerClass[] = []
-        const absolutePath = Deno.realPathSync(dirPath)
+        let absolutePath: string
 
-        for await (const entry of Deno.readDir(absolutePath)) {
-            if (
-                entry.isFile &&
-                (entry.name.endsWith('.ts') || entry.name.endsWith('.js') ||
-                    entry.name.endsWith('.tsx'))
-            ) {
-                const filePath = `file://${join(absolutePath, entry.name)}`
-                const module = await import(filePath)
+        try {
+            absolutePath = Deno.realPathSync(dirPath)
+        } catch (_e) {
+            // If it fails, try to use CWD + dirPath
+            try {
+                absolutePath = join(Deno.cwd(), dirPath)
+                // Test if it's a directory
+                const info = Deno.statSync(absolutePath)
+                if (!info.isDirectory) return []
+            } catch (__e) {
+                console.warn(`⚠️ Controllers directory not found: ${dirPath}`)
+                return []
+            }
+        }
 
-                for (const exportKey in module) {
-                    const Exported = module[exportKey]
-                    if (
-                        typeof Exported === 'function' &&
-                        Exported._basePath !== undefined
-                    ) {
-                        controllers.push(Exported as ControllerClass)
+        try {
+            for await (const entry of Deno.readDir(absolutePath)) {
+                if (
+                    entry.isFile &&
+                    (entry.name.endsWith('.ts') ||
+                        entry.name.endsWith('.js') ||
+                        entry.name.endsWith('.tsx'))
+                ) {
+                    const filePath = `file://${join(absolutePath, entry.name)}`
+                    const module = await import(filePath)
+
+                    for (const exportKey in module) {
+                        const Exported = module[exportKey]
+                        if (
+                            typeof Exported === 'function' &&
+                            Exported._basePath !== undefined
+                        ) {
+                            controllers.push(Exported as ControllerClass)
+                        }
                     }
                 }
             }
+        } catch (error) {
+            console.error(
+                `❌ Error during controller discovery: ${(error as Error).message
+                }`,
+            )
         }
 
         return controllers

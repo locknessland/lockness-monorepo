@@ -1,6 +1,5 @@
 import * as esbuild from 'esbuild'
 import { denoPlugins } from '@luca/esbuild-deno-loader'
-import { polyfillNode } from 'esbuild-plugin-polyfill-node'
 
 const build = async () => {
     console.log('🚀 Building Lockness app...')
@@ -8,13 +7,6 @@ const build = async () => {
     try {
         await esbuild.build({
             plugins: [
-                polyfillNode({
-                    polyfills: {
-                        fs: true,
-                        crypto: true,
-                        path: false,
-                    },
-                }) as any,
                 ...denoPlugins({ configPath: Deno.realPathSync('./deno.json') }),
             ],
             entryPoints: ['./main.ts'],
@@ -26,6 +18,13 @@ const build = async () => {
             minify: true,
             jsx: 'transform',
             external: ['node:*'],
+            alias: {
+                'perf_hooks': 'node:perf_hooks',
+                'async_hooks': 'node:async_hooks',
+                'net': 'node:net',
+                'fs': 'node:fs',
+                'path': 'node:path',
+            },
         })
         console.log('✅ Build complete: _output/server.ts')
     } catch (e) {
