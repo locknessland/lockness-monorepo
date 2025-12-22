@@ -71,7 +71,7 @@ And Hono must be mapped in the imports:
 
 ```text
 .
-├── lockness-lib/          # 📦 Modular Framework Libraries
+├── lockness/              # 📦 Modular Framework Libraries
 │   ├── core/              # Core Web & DI logic
 │   ├── ace/               # CLI Command Engine (Ace)
 │   ├── drizzle/           # Drizzle ORM Extension
@@ -90,7 +90,7 @@ And Hono must be mapped in the imports:
 └── deno.json              # Config & Aliases
 ```
 
-- **`lockness-lib/`**: Contains the decoupled libraries. This modularity allows for an ORM-agnostic core while providing official extensions like `lockness-drizzle`.
+- **`lockness/`**: Contains the decoupled libraries. This modularity allows for an ORM-agnostic core while providing official extensions like `lockness-drizzle`.
 - **Root Files & `src/`**: Boilerplate structure generated for users.
 - **`docs/`**: Contains reference documentation and rules, including HonoJS docs, for AI assistance.
 - **`_output/`**: Output directory for builds (`server.ts`) and compiled binaries.

@@ -1,9 +1,9 @@
 {
     "workspace": [
-        "./lockness-lib/core",
-        "./lockness-lib/ace",
-        "./lockness-lib/drizzle",
-        "./lockness-lib/init"
+        "./lockness/core",
+        "./lockness/ace",
+        "./lockness/drizzle",
+        "./lockness/init"
     ],
     "nodeModulesDir": "auto",
     "tasks": {
@@ -26,10 +26,10 @@
         "@std/cli": "jsr:@std/cli@1",
         "@std/fs": "jsr:@std/fs@1",
         "@std/path": "jsr:@std/path@1",
-        "lockness": "./lockness-lib/core/core.ts",
-        "@lockness/core": "./lockness-lib/core/core.ts",
-        "@lockness/ace": "./lockness-lib/ace/cli.ts",
-        "@lockness/drizzle": "./lockness-lib/drizzle/database.ts",
+        "lockness": "./lockness/core/core.ts",
+        "@lockness/core": "./lockness/core/core.ts",
+        "@lockness/ace": "./lockness/ace/cli.ts",
+        "@lockness/drizzle": "./lockness/drizzle/database.ts",
         "hono": "npm:hono@^4.11.1",
         "hono/": "npm:hono@^4.11.1/",
         "drizzle-orm": "npm:drizzle-orm@^0.31.2",

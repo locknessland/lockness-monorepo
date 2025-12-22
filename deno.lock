@@ -483,12 +483,12 @@
       "npm:postgres@^3.4.4"
     ],
     "members": {
-      "lockness-lib/ace": {
+      "lockness/ace": {
         "dependencies": [
           "jsr:@std/path@1"
         ]
       },
-      "lockness-lib/core": {
+      "lockness/core": {
         "dependencies": [
           "jsr:@std/path@1",
           "npm:@hono/zod-validator@~0.4.1",
@@ -496,13 +496,13 @@
           "npm:zod@^3.23.8"
         ]
       },
-      "lockness-lib/drizzle": {
+      "lockness/drizzle": {
         "dependencies": [
           "npm:drizzle-orm@~0.31.2",
           "npm:postgres@^3.4.4"
         ]
       },
-      "lockness-lib/init": {
+      "lockness/init": {
         "dependencies": [
           "jsr:@std/path@1"
         ]
