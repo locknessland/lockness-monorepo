@@ -109,7 +109,8 @@ export class ConsoleMailDriver implements MailDriver {
         }
         if (message.attachments?.length) {
             console.log(
-                `Attachments: ${message.attachments.map((a) => a.filename).join(', ')
+                `Attachments: ${
+                    message.attachments.map((a) => a.filename).join(', ')
                 }`,
             )
         }

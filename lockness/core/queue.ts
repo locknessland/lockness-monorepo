@@ -383,7 +383,8 @@ export class QueueWorker {
     async start(): Promise<void> {
         this.running = true
         console.log(
-            `🚀 Queue worker started. Processing: ${this.options.queues.join(', ')
+            `🚀 Queue worker started. Processing: ${
+                this.options.queues.join(', ')
             }`,
         )
 
@@ -447,7 +448,8 @@ export class QueueWorker {
             console.log(`✅ Completed [${serializedJob.name}]`)
         } catch (error) {
             console.error(
-                `❌ Failed [${serializedJob.name}]: ${(error as Error).message
+                `❌ Failed [${serializedJob.name}]: ${
+                    (error as Error).message
                 }`,
             )
 
