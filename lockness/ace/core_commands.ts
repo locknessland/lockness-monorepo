@@ -36,7 +36,7 @@ export function registerCoreCommands(ace: Ace) {
                 `❌ Failed to create controller: ${(error as Error).message}`,
             )
         }
-    })
+    }, 'Create a new controller class')
 
     ace.register('make:middleware', async (args) => {
         const name = args[0]
@@ -70,7 +70,7 @@ export function registerCoreCommands(ace: Ace) {
                 `❌ Failed to create middleware: ${(error as Error).message}`,
             )
         }
-    })
+    }, 'Create a new middleware class')
 
     ace.register('make:service', async (args) => {
         const name = args[0]
@@ -102,7 +102,7 @@ export function registerCoreCommands(ace: Ace) {
                 `❌ Failed to create service: ${(error as Error).message}`,
             )
         }
-    })
+    }, 'Create a new service class')
 
     ace.register('make:view', async (args) => {
         const name = args[0]
@@ -130,5 +130,40 @@ export function registerCoreCommands(ace: Ace) {
                 `❌ Failed to create view: ${(error as Error).message}`,
             )
         }
-    })
+    }, 'Create a new view page')
+
+    ace.register('make:command', async (args) => {
+        const name = args[0]
+        if (!name) {
+            console.error('❌ Please provide a command name (e.g., Greet)')
+            return
+        }
+
+        const className = name.charAt(0).toUpperCase() + name.slice(1)
+        const commandName = name.toLowerCase()
+        const fileName = `${name.toLowerCase()}_command.ts`
+        const dirPath = `./src/command`
+        const filePath = `${dirPath}/${fileName}`
+
+        try {
+            const content = await Stub.renderFrom(
+                STUBS_PATH,
+                'make',
+                'command',
+                {
+                    className,
+                    commandName,
+                },
+            )
+
+            await Deno.mkdir(dirPath, { recursive: true })
+            await Deno.writeTextFile(filePath, content)
+            console.log(`✅ Command created at ${filePath}`)
+            console.log(`💡 Run it with: deno task ace ${commandName}`)
+        } catch (error) {
+            console.error(
+                `❌ Failed to create command: ${(error as Error).message}`,
+            )
+        }
+    }, 'Create a new CLI command')
 }

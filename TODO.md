@@ -20,8 +20,9 @@
 - [x] **Middleware Improvements**
   - [x] Global middleware support (`globalMiddlewares` in kernel).
   - [x] Named middleware (e.g., `@Use('auth')` with registry in kernel).
-- [ ] **CLI (Ace) Enhancements**
-  - [ ] Support for user-defined commands in `src/command/`.
+- [x] **CLI (Ace) Enhancements**
+  - [x] Support for user-defined commands in `src/command/` with `@Command`
+        decorator.
   - [ ] `ace tinker` (REPL) for application interaction.
 
 ## 🔒 Security & Auth

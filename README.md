@@ -241,3 +241,35 @@ export class DashboardController {
     }
 }
 ```
+
+### Custom CLI Commands
+
+Create your own CLI commands that integrate with ACE:
+
+```bash
+deno task ace make:command Greet
+```
+
+This creates `src/command/greet_command.ts`:
+
+```typescript
+import { Command, type CommandContext, type ICommand } from '@lockness/ace'
+
+@Command('greet', 'Say hello to someone')
+export class GreetCommand implements ICommand {
+    async handle(ctx: CommandContext) {
+        const name = ctx.arg(0) || 'World'
+        console.log(`Hello, ${name}!`)
+    }
+}
+```
+
+Run it:
+
+```bash
+deno task ace greet John
+# Hello, John!
+```
+
+Commands are auto-discovered from `src/command/`. Use `ctx.args` for arguments,
+`ctx.hasFlag('verbose')` for flags, and `ctx.getFlag('name')` for flag values.

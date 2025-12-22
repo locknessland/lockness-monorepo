@@ -1,0 +1,22 @@
+import { Command, type CommandContext, type ICommand } from '@lockness/ace'
+
+@Command('{{ commandName }}', 'Description of {{ commandName }} command')
+export class {{ className }}Command implements ICommand {
+    async handle(ctx: CommandContext) {
+        const name = ctx.arg(0) || 'World'
+        
+        // Check for flags
+        if (ctx.hasFlag('verbose')) {
+            console.log('Running in verbose mode...')
+        }
+        
+        console.log(`Hello from {{ className }}Command!`)
+        console.log(`Arguments: ${ctx.args.join(', ') || '(none)'}`)
+        
+        // Example: Get a flag value
+        const format = ctx.getFlag('format')
+        if (format) {
+            console.log(`Format: ${format}`)
+        }
+    }
+}

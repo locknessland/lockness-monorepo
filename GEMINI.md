@@ -244,6 +244,7 @@ experience:
   - `deno task ace make:model <Name> [-r] [-s] [-c] [-a]`: Scaffolds a model
     with optional repository (-r), seeder (-s), controller (-c), or all (-a).
   - `deno task ace make:middleware <Name>`: Creates a new middleware class.
+  - `deno task ace make:command <Name>`: Creates a new CLI command.
   - `deno task ace db:generate`: Generates database migrations.
   - `deno task ace db:migrate`: Applies pending migrations.
   - `deno task ace db:push`: Pushes schema directly to database.

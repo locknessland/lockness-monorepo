@@ -10,6 +10,9 @@ registerCoreCommands(ace)
 registerDrizzleCommands(ace)
 registerInitCommand(ace)
 
+// Discover user-defined commands in src/command/
+await ace.discoverCommands('./src/command')
+
 if (import.meta.main) {
     await ace.run(Deno.args)
 }
