@@ -76,7 +76,7 @@ export class Ace {
     > = new Map()
 
     constructor() {
-        this.register('list', async () => {
+        this.register('list', () => {
             console.log('Available commands:')
             const sortedCommands = [...this.commands.entries()].sort((a, b) =>
                 a[0].localeCompare(b[0])
@@ -148,8 +148,7 @@ export class Ace {
                         }
                     } catch (e) {
                         console.warn(
-                            `⚠️ Failed to load command ${entry.name}: ${
-                                (e as Error).message
+                            `⚠️ Failed to load command ${entry.name}: ${(e as Error).message
                             }`,
                         )
                     }

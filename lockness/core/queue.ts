@@ -127,27 +127,29 @@ export class MemoryQueueDriver implements QueueDriver {
         return memoryQueues.get(name)!
     }
 
-    async push(job: SerializedJob): Promise<void> {
+    push(job: SerializedJob): Promise<void> {
         const queue = this.getQueue(job.queue)
         queue.push(job)
+        return Promise.resolve()
     }
 
-    async pop(queueName: string): Promise<SerializedJob | null> {
+    pop(queueName: string): Promise<SerializedJob | null> {
         const queue = this.getQueue(queueName)
         const now = Date.now()
 
         // Find first available job (not delayed)
         const index = queue.findIndex((j) => j.availableAt <= now)
-        if (index === -1) return null
+        if (index === -1) return Promise.resolve(null)
 
-        return queue.splice(index, 1)[0]
+        return Promise.resolve(queue.splice(index, 1)[0])
     }
 
     async complete(_job: SerializedJob): Promise<void> {
         // Job already removed from queue in pop()
+        await Promise.resolve()
     }
 
-    async fail(job: SerializedJob, _error: Error): Promise<void> {
+    fail(job: SerializedJob, _error: Error): Promise<void> {
         if (job.attempts < job.maxAttempts) {
             // Requeue with delay
             job.attempts++
@@ -155,14 +157,16 @@ export class MemoryQueueDriver implements QueueDriver {
             const queue = this.getQueue(job.queue)
             queue.push(job)
         }
+        return Promise.resolve()
     }
 
-    async size(queueName: string): Promise<number> {
-        return this.getQueue(queueName).length
+    size(queueName: string): Promise<number> {
+        return Promise.resolve(this.getQueue(queueName).length)
     }
 
-    async clear(queueName: string): Promise<void> {
+    clear(queueName: string): Promise<void> {
         memoryQueues.set(queueName, [])
+        return Promise.resolve()
     }
 }
 
@@ -334,7 +338,7 @@ export async function dispatch<T extends JobPayload>(
 /**
  * Dispatch a job by name (for dynamic dispatching)
  */
-export async function dispatchByName(
+export function dispatchByName(
     jobName: string,
     payload: JobPayload,
     options: DispatchOptions = {},
@@ -379,8 +383,7 @@ export class QueueWorker {
     async start(): Promise<void> {
         this.running = true
         console.log(
-            `🚀 Queue worker started. Processing: ${
-                this.options.queues.join(', ')
+            `🚀 Queue worker started. Processing: ${this.options.queues.join(', ')
             }`,
         )
 
@@ -444,8 +447,7 @@ export class QueueWorker {
             console.log(`✅ Completed [${serializedJob.name}]`)
         } catch (error) {
             console.error(
-                `❌ Failed [${serializedJob.name}]: ${
-                    (error as Error).message
+                `❌ Failed [${serializedJob.name}]: ${(error as Error).message
                 }`,
             )
 
@@ -470,14 +472,14 @@ export class QueueWorker {
 /**
  * Get queue size
  */
-export async function queueSize(queue?: string): Promise<number> {
+export function queueSize(queue?: string): Promise<number> {
     return getDriver().size(queue ?? globalQueueConfig.defaultQueue)
 }
 
 /**
  * Clear a queue
  */
-export async function clearQueue(queue?: string): Promise<void> {
+export function clearQueue(queue?: string): Promise<void> {
     return getDriver().clear(queue ?? globalQueueConfig.defaultQueue)
 }
 
@@ -495,6 +497,7 @@ export async function clearQueue(queue?: string): Promise<void> {
  * }
  */
 export function Queueable(name: string, maxAttempts = 3): ClassDecorator {
+    // deno-lint-ignore no-explicit-any
     return function (target: any) {
         target.prototype.name = name
         target.prototype.maxAttempts = maxAttempts

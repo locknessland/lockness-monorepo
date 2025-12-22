@@ -157,14 +157,15 @@ export class CookieSessionDriver implements SessionDriver {
         })
     }
 
-    async destroy(_sessionId: string): Promise<void> {
+    destroy(_sessionId: string): Promise<void> {
         deleteCookie(this.context, this.config.cookieName, {
             path: this.config.path,
             domain: this.config.domain,
         })
+        return Promise.resolve()
     }
 
-    async regenerate(_oldId: string, _newId: string): Promise<void> {
+    regenerate(_oldId: string, _newId: string): Promise<void> {
         // For cookie driver, regeneration is handled at session level
         // No action needed here
     }
@@ -300,17 +301,17 @@ export class DenoKvSessionDriver implements SessionDriver {
 const memoryStore = new Map<string, { data: SessionData; expires: number }>()
 
 export class MemorySessionDriver implements SessionDriver {
-    async read(sessionId: string): Promise<SessionData | null> {
+    read(sessionId: string): Promise<SessionData | null> {
         const entry = memoryStore.get(sessionId)
-        if (!entry) return null
+        if (!entry) return Promise.resolve(null)
         if (Date.now() > entry.expires) {
             memoryStore.delete(sessionId)
-            return null
+            return Promise.resolve(null)
         }
-        return entry.data
+        return Promise.resolve(entry.data)
     }
 
-    async write(
+    write(
         sessionId: string,
         data: SessionData,
         lifetime: number,
@@ -319,27 +320,31 @@ export class MemorySessionDriver implements SessionDriver {
             data,
             expires: Date.now() + lifetime * 1000,
         })
+        return Promise.resolve()
     }
 
-    async destroy(sessionId: string): Promise<void> {
+    destroy(sessionId: string): Promise<void> {
         memoryStore.delete(sessionId)
+        return Promise.resolve()
     }
 
-    async regenerate(oldId: string, newId: string): Promise<void> {
+    regenerate(oldId: string, newId: string): Promise<void> {
         const entry = memoryStore.get(oldId)
         if (entry) {
             memoryStore.set(newId, entry)
             memoryStore.delete(oldId)
         }
+        return Promise.resolve()
     }
 
-    async gc(): Promise<void> {
+    gc(): Promise<void> {
         const now = Date.now()
         for (const [key, entry] of memoryStore.entries()) {
             if (now > entry.expires) {
                 memoryStore.delete(key)
             }
         }
+        return Promise.resolve()
     }
 }
 
@@ -543,14 +548,4 @@ export function session(c: Context): Session {
         )
     }
     return sess
-}
-
-// =============================================================================
-// Type augmentation for Hono Context
-// =============================================================================
-
-declare module 'hono' {
-    interface ContextVariableMap {
-        'lockness:session': Session
-    }
 }

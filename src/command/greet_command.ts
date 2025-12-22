@@ -2,8 +2,8 @@ import { Command, type CommandContext, type ICommand } from '@lockness/ace'
 
 @Command('greet', 'Description of greet command')
 export class GreetCommand implements ICommand {
-    async handle(ctx: CommandContext) {
-        const name = ctx.arg(0) || 'World'
+    handle(ctx: CommandContext) {
+        const _name = ctx.arg(0) || 'World'
 
         // Check for flags
         if (ctx.hasFlag('verbose')) {

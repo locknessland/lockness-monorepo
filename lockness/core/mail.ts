@@ -87,7 +87,7 @@ export function getMailConfig(): MailConfig {
 // =============================================================================
 
 export class ConsoleMailDriver implements MailDriver {
-    async send(message: MailMessage): Promise<MailResult> {
+    send(message: MailMessage): Promise<MailResult> {
         console.log('\n📧 ═══════════════════════════════════════════════')
         console.log('   MAIL SENT (Console Driver)')
         console.log('═══════════════════════════════════════════════════')
@@ -109,17 +109,16 @@ export class ConsoleMailDriver implements MailDriver {
         }
         if (message.attachments?.length) {
             console.log(
-                `Attachments: ${
-                    message.attachments.map((a) => a.filename).join(', ')
+                `Attachments: ${message.attachments.map((a) => a.filename).join(', ')
                 }`,
             )
         }
         console.log('═══════════════════════════════════════════════════\n')
 
-        return {
+        return Promise.resolve({
             success: true,
             messageId: `console-${Date.now()}`,
-        }
+        })
     }
 }
 
@@ -130,12 +129,12 @@ export class ConsoleMailDriver implements MailDriver {
 const sentEmails: MailMessage[] = []
 
 export class MemoryMailDriver implements MailDriver {
-    async send(message: MailMessage): Promise<MailResult> {
+    send(message: MailMessage): Promise<MailResult> {
         sentEmails.push(message)
-        return {
+        return Promise.resolve({
             success: true,
             messageId: `memory-${sentEmails.length}`,
-        }
+        })
     }
 
     /** Get all sent emails (for testing) */
@@ -457,7 +456,7 @@ export class Mail {
     /**
      * Send the email
      */
-    async send(): Promise<MailResult> {
+    send(): Promise<MailResult> {
         const config = getMailConfig()
 
         // Apply defaults

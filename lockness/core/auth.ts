@@ -397,11 +397,14 @@ export function createGuestMiddleware(
  *     profile(c: Context) { ... }
  * }
  */
+// deno-lint-ignore no-explicit-any
 export function Auth(options?: Partial<AuthConfig>): any {
     return function (
+        // deno-lint-ignore no-explicit-any
         target: any,
         propertyKey?: string,
         descriptor?: PropertyDescriptor,
+        // deno-lint-ignore no-explicit-any
     ): any {
         if (propertyKey && descriptor) {
             // Method decorator
@@ -425,11 +428,14 @@ export function Auth(options?: Partial<AuthConfig>): any {
 /**
  * Mark a controller or method as guest-only (not authenticated).
  */
+// deno-lint-ignore no-explicit-any
 export function Guest(redirectTo = '/'): any {
     return function (
+        // deno-lint-ignore no-explicit-any
         target: any,
         propertyKey?: string,
         descriptor?: PropertyDescriptor,
+        // deno-lint-ignore no-explicit-any
     ): any {
         if (propertyKey && descriptor) {
             // Method decorator
@@ -442,15 +448,5 @@ export function Guest(redirectTo = '/'): any {
             target._guestRedirectTo = redirectTo
             return target
         }
-    }
-}
-
-// =============================================================================
-// Type augmentation for Hono Context
-// =============================================================================
-
-declare module 'hono' {
-    interface ContextVariableMap {
-        'lockness:auth': AuthGuard
     }
 }

@@ -26,10 +26,8 @@ export const container: Container = new Container()
 /**
  * Decorator to mark a class as a Service (legacy TypeScript decorators)
  */
-// deno-lint-ignore no-explicit-any
-export function Service(): (target: any) => any {
-    // deno-lint-ignore no-explicit-any
-    return function (target: any): any {
+export function Service(): (target: unknown) => unknown {
+    return function (target: unknown): unknown {
         return target
     }
 }
@@ -37,8 +35,7 @@ export function Service(): (target: any) => any {
 /**
  * Decorator to inject a service into a property (legacy TypeScript decorators)
  */
-// deno-lint-ignore no-explicit-any
-export function Inject(ServiceClass: any): PropertyDecorator {
+export function Inject(ServiceClass: unknown): PropertyDecorator {
     return function (_target: object, _propertyKey: string | symbol): void {
         Object.defineProperty(_target.constructor.prototype, _propertyKey, {
             get() {
