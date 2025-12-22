@@ -49,6 +49,7 @@ files.
 | `make:middleware` | `middleware.stub` | `src/middleware/{name}_middleware.ts` |
 | `make:service`    | `service.stub`    | `src/service/{name}_service.ts`       |
 | `make:view`       | `view.stub`       | `src/view/pages/{name}.tsx`           |
+| `make:command`    | `command.stub`    | `src/command/{name}_command.ts`       |
 
 ### Drizzle ACE Stubs (`lockness/drizzle/stubs/`)
 
