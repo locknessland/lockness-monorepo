@@ -30,7 +30,7 @@ export interface AppConfig {
 }
 
 export class App {
-    private hono = new Hono()
+    private hono = new Hono({ strict: false })
 
     async init(config: Module | AppConfig) {
         let controllers: ControllerClass[] = []
@@ -38,11 +38,8 @@ export class App {
         if ('controllers' in config) {
             controllers = config.controllers
         } else if (config.controllersDir) {
-            console.log(`🔍 Scanning for controllers in: ${config.controllersDir}`)
             controllers = await this.discoverControllers(config.controllersDir)
         }
-
-        console.log(`🚀 Found ${controllers.length} controllers`)
 
         for (const Controller of controllers) {
             const instance = new Controller()
@@ -50,11 +47,12 @@ export class App {
             const routes = Controller._routes || []
             const middlewares = Controller._middlewares || {}
 
-            console.log(`📦 Registering controller: ${Controller.name} (basePath: ${basePath})`)
-
             for (const route of routes) {
-                const fullPath = (basePath + route.path).replace(/\/+/g, '/')
-                console.log(`   - ${route.method.toUpperCase()} ${fullPath}`)
+                // Ensure basePath and route.path are joined correctly
+                let fullPath = `/${basePath}/${route.path}`.replace(/\/+/g, '/')
+                if (fullPath.length > 1 && fullPath.endsWith('/')) {
+                    fullPath = fullPath.slice(0, -1)
+                }
 
                 const method = route.method.toLowerCase() as
                     | 'get'
@@ -79,6 +77,7 @@ export class App {
             }
         }
     }
+
 
     private async discoverControllers(dirPath: string): Promise<ControllerClass[]> {
         const controllers: ControllerClass[] = []
