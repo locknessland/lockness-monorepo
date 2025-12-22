@@ -24,29 +24,32 @@ export class Container {
 export const container: Container = new Container()
 
 /**
- * Decorator to mark a class as a Service
+ * Decorator to mark a class as a Service (legacy TypeScript decorators)
  */
-export function Service(): (
-    value: any,
-    _context: ClassDecoratorContext,
-) => any {
-    return (value: any, _context: ClassDecoratorContext) => {
-        return value
+// deno-lint-ignore no-explicit-any
+export function Service(): (target: any) => any {
+    // deno-lint-ignore no-explicit-any
+    return function (target: any): any {
+        return target
     }
 }
 
 /**
- * Decorator to inject a service into a property
+ * Decorator to inject a service into a property (legacy TypeScript decorators)
  */
-export function Inject(
-    ServiceClass: any,
-): (value: undefined, context: ClassFieldDecoratorContext) => any {
-    return function (
-        _value: undefined,
-        _context: ClassFieldDecoratorContext,
-    ): any {
-        return function (this: any) {
-            return container.get(ServiceClass)
-        }
+// deno-lint-ignore no-explicit-any
+export function Inject(ServiceClass: any): PropertyDecorator {
+    return function (_target: object, _propertyKey: string | symbol): void {
+        Object.defineProperty(_target.constructor.prototype, _propertyKey, {
+            get() {
+                const key = `_${String(_propertyKey)}_instance`
+                if (!this[key]) {
+                    this[key] = container.get(ServiceClass)
+                }
+                return this[key]
+            },
+            enumerable: true,
+            configurable: true,
+        })
     }
 }

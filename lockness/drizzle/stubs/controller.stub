@@ -1,0 +1,76 @@
+import { Context, Controller, Delete, Get, Inject, Post, Put, Validate } from 'lockness'
+import { {{RepositoryName}} } from '@repository/{{fileName}}_repository.ts'
+import { insert{{ModelName}}Schema } from '@model/{{fileName}}.ts'
+
+@Controller('/{{route}}')
+export class {{ModelName}}Controller {
+    @Inject({{RepositoryName}})
+    private {{repositoryVar}}!: {{RepositoryName}}
+
+    /**
+     * GET /{{route}} - List all
+     */
+    @Get('/')
+    async index(c: Context) {
+        const items = await this.{{repositoryVar}}.findAll()
+        return c.json({ data: items })
+    }
+
+    /**
+     * GET /{{route}}/:id - Get one
+     */
+    @Get('/:id')
+    async show(c: Context) {
+        const id = Number(c.req.param('id'))
+        const item = await this.{{repositoryVar}}.findById(id)
+
+        if (!item) {
+            return c.json({ error: '{{ModelName}} not found' }, 404)
+        }
+
+        return c.json({ data: item })
+    }
+
+    /**
+     * POST /{{route}} - Create
+     */
+    @Post('/')
+    @Validate('json', insert{{ModelName}}Schema)
+    async store(c: Context) {
+        const data = c.req.valid('json')
+        const item = await this.{{repositoryVar}}.create(data)
+        return c.json({ data: item }, 201)
+    }
+
+    /**
+     * PUT /{{route}}/:id - Update
+     */
+    @Put('/:id')
+    @Validate('json', insert{{ModelName}}Schema.partial())
+    async update(c: Context) {
+        const id = Number(c.req.param('id'))
+        const data = c.req.valid('json')
+        const item = await this.{{repositoryVar}}.update(id, data)
+
+        if (!item) {
+            return c.json({ error: '{{ModelName}} not found' }, 404)
+        }
+
+        return c.json({ data: item })
+    }
+
+    /**
+     * DELETE /{{route}}/:id - Delete
+     */
+    @Delete('/:id')
+    async destroy(c: Context) {
+        const id = Number(c.req.param('id'))
+        const deleted = await this.{{repositoryVar}}.delete(id)
+
+        if (!deleted) {
+            return c.json({ error: '{{ModelName}} not found' }, 404)
+        }
+
+        return c.json({ message: '{{ModelName}} deleted' })
+    }
+}

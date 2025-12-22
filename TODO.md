@@ -9,7 +9,8 @@
         `db:studio`).
 - [x] **Database Advanced**
   - [x] Seeders implementation (`db:seed`, `make:seeder`).
-  - [ ] `make:model` command with repository stub.
+  - [x] `make:model` command with flags (`-r` repository, `-s` seeder, `-c`
+        controller, `-a` all).
 
 ## 🛠 Framework Core
 
