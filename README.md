@@ -437,3 +437,33 @@ configureMail({
 ```
 
 Available drivers: `console` (dev), `memory` (testing), `smtp`, `resend`.
+
+### Background Jobs
+
+Process long-running tasks in the background:
+
+```bash
+# Create a job
+deno task ace make:job SendWelcomeEmail
+
+# Process jobs
+deno task ace queue:work
+
+# Clear a queue
+deno task ace queue:clear
+```
+
+Dispatch jobs from your application:
+
+```typescript
+import { dispatch } from 'lockness'
+import { SendWelcomeEmailJob } from '@job/sendwelcomeemail_job.ts'
+
+// Immediate dispatch
+await dispatch(SendWelcomeEmailJob, { userId: 1, email: 'user@example.com' })
+
+// Delayed dispatch (5 seconds)
+await dispatch(SendWelcomeEmailJob, { userId: 1 }, { delay: 5000 })
+```
+
+Drivers: `memory` (dev) or `deno-kv` (production with persistence).

@@ -453,6 +453,108 @@ const lastEmail = MemoryMailDriver.getLastEmail()
 MemoryMailDriver.clear()
 ```
 
+### Background Jobs & Queues
+
+Lockness provides a queue system for processing jobs in the background. Perfect
+for sending emails, processing uploads, or any long-running task.
+
+**Create a job:**
+
+```bash
+deno task ace make:job SendWelcomeEmail
+```
+
+This creates `src/job/sendwelcomeemail_job.ts`:
+
+```typescript
+import { type Job, type JobPayload } from 'lockness'
+
+interface SendWelcomeEmailPayload extends JobPayload {
+    userId: number
+    email: string
+}
+
+export class SendWelcomeEmailJob implements Job<SendWelcomeEmailPayload> {
+    name = 'send-welcome-email'
+    maxAttempts = 3
+
+    async handle(payload: SendWelcomeEmailPayload): Promise<void> {
+        // Send the email
+        await mail()
+            .to(payload.email)
+            .subject('Welcome!')
+            .html('<h1>Welcome to our app!</h1>')
+            .send()
+    }
+
+    async failed(
+        payload: SendWelcomeEmailPayload,
+        error: Error,
+    ): Promise<void> {
+        console.error('Failed to send welcome email:', error)
+        // Log to error tracking service
+    }
+}
+```
+
+**Dispatch a job:**
+
+```typescript
+import { dispatch } from 'lockness'
+import { SendWelcomeEmailJob } from '@job/sendwelcomeemail_job.ts'
+
+// Dispatch immediately
+await dispatch(SendWelcomeEmailJob, { userId: 1, email: 'user@example.com' })
+
+// Dispatch with delay (5 seconds)
+await dispatch(SendWelcomeEmailJob, { userId: 1, email: 'user@example.com' }, {
+    delay: 5000,
+})
+
+// Dispatch to specific queue
+await dispatch(SendWelcomeEmailJob, { userId: 1, email: 'user@example.com' }, {
+    queue: 'emails',
+})
+```
+
+**Process jobs:**
+
+```bash
+# Process jobs from default queue
+deno task ace queue:work
+
+# Process specific queue
+deno task ace queue:work --queue=emails
+
+# Process multiple queues
+deno task ace queue:work --queue=high,default,low
+
+# Process once and stop when empty
+deno task ace queue:work --once
+
+# Clear a queue
+deno task ace queue:clear emails
+```
+
+**Configure queue driver:**
+
+```typescript
+import { configureQueue } from 'lockness'
+
+configureQueue({
+    driver: 'deno-kv', // 'memory' | 'deno-kv'
+    defaultQueue: 'default',
+    retryDelay: 3000, // ms before retry
+})
+```
+
+**Available Drivers:**
+
+| Driver    | Description                   | Use Case                |
+| --------- | ----------------------------- | ----------------------- |
+| `memory`  | In-memory queue               | Development, testing    |
+| `deno-kv` | Persistent queue with Deno KV | Production, distributed |
+
 **Why Drizzle?** With recent improvements in Deno's NPM compatibility
 (`nodeModulesDir: auto`) and Vite's external configuration, Drizzle now works
 seamlessly in our stack. It offers a better developer experience than query

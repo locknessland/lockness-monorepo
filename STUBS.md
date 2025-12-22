@@ -50,6 +50,14 @@ files.
 | `make:service`    | `service.stub`    | `src/service/{name}_service.ts`       |
 | `make:view`       | `view.stub`       | `src/view/pages/{name}.tsx`           |
 | `make:command`    | `command.stub`    | `src/command/{name}_command.ts`       |
+| `make:job`        | `job.stub`        | `src/job/{name}_job.ts`               |
+
+### Auth Stubs (`lockness/ace/stubs/auth/`)
+
+| Command     | Stub File              | Generates                           |
+| ----------- | ---------------------- | ----------------------------------- |
+| `make:auth` | `auth_controller.stub` | `src/controller/auth_controller.ts` |
+| `make:auth` | `user_provider.stub`   | `src/auth/user_provider.ts`         |
 
 ### Drizzle ACE Stubs (`lockness/drizzle/stubs/`)
 
@@ -75,6 +83,7 @@ When modifying core framework files, check this list:
 - [ ] Changed validation pattern? → Update `controller.stub` in drizzle
 - [ ] Changed middleware pattern? → Update `middleware.stub`
 - [ ] Updated README.md? → Update `README.md.stub`
+- [ ] Updated `.env.exemple`? → Update `.env.exemple.stub`
 - [ ] Added new ACE command? → Update `ace.ts.stub` if needed
 
 ---

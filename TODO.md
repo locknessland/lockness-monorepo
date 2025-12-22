@@ -50,8 +50,12 @@
 - [x] **Mail System**
   - [x] Expressive fluent API for sending emails.
   - [x] Drivers for Console, Memory, SMTP, Resend.
-- [ ] **Background Jobs / Queues**
-  - [ ] Task queuing system (built-in or using Deno KV queues).
+- [x] **Background Jobs / Queues**
+  - [x] Job interface and `@Queueable` decorator.
+  - [x] Drivers for Memory and Deno KV.
+  - [x] `dispatch()` API with delay and queue options.
+  - [x] `queue:work` and `queue:clear` commands.
+  - [x] `make:job` scaffolding command.
 
 ---
 

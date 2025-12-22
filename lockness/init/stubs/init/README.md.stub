@@ -158,6 +158,26 @@ await mail()
     .send()
 ```
 
+### Background Jobs
+
+```bash
+deno task ace make:job SendWelcomeEmail
+```
+
+```typescript
+import { dispatch } from 'lockness'
+import { SendWelcomeEmailJob } from './job/send_welcome_email_job.ts'
+
+// Dispatch immediately
+await dispatch(new SendWelcomeEmailJob({ userId: 1 }))
+
+// Dispatch with delay
+await dispatch(new SendWelcomeEmailJob({ userId: 1 }), { delay: 60000 })
+
+// Start worker
+deno task ace queue:work
+```
+
 ### Interactive REPL
 
 ```bash

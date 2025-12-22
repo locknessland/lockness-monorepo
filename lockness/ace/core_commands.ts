@@ -167,6 +167,41 @@ export function registerCoreCommands(ace: Ace) {
         }
     }, 'Create a new CLI command')
 
+    ace.register('make:job', async (args) => {
+        const name = args[0]
+        if (!name) {
+            console.error('❌ Please provide a job name (e.g., SendWelcomeEmail)')
+            return
+        }
+
+        const className = name.charAt(0).toUpperCase() + name.slice(1)
+        const jobName = name.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '')
+        const fileName = `${name.toLowerCase()}_job.ts`
+        const dirPath = `./src/job`
+        const filePath = `${dirPath}/${fileName}`
+
+        try {
+            const content = await Stub.renderFrom(
+                STUBS_PATH,
+                'make',
+                'job',
+                {
+                    className,
+                    jobName,
+                },
+            )
+
+            await Deno.mkdir(dirPath, { recursive: true })
+            await Deno.writeTextFile(filePath, content)
+            console.log(`✅ Job created at ${filePath}`)
+            console.log(`💡 Dispatch with: dispatch(${className}, { /* payload */ })`)
+        } catch (error) {
+            console.error(
+                `❌ Failed to create job: ${(error as Error).message}`,
+            )
+        }
+    }, 'Create a new background job')
+
     ace.register('make:auth', async () => {
         console.log('🔐 Scaffolding authentication system...\n')
 
@@ -213,6 +248,72 @@ export function registerCoreCommands(ace: Ace) {
         console.log('3. Use @Auth() decorator on protected routes')
         console.log('')
     }, 'Scaffold authentication (controller + provider)')
+
+    ace.register('queue:work', async (args, flags) => {
+        // Dynamic import to avoid loading queue module at CLI startup
+        const { QueueWorker, configureQueue, registerJob } = await import(
+            '@lockness/core'
+        )
+
+        // Parse flags
+        const queue = flags['queue'] || 'default'
+        const sleep = Number(flags['sleep']) || 1000
+        const maxJobs = Number(flags['max-jobs']) || 0
+        const once = args.includes('--once') || flags['once'] === 'true'
+
+        // Configure queue driver from env
+        const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') || 'memory'
+        configureQueue({ driver })
+
+        // Auto-discover and register jobs from src/job/
+        try {
+            for await (const entry of Deno.readDir('./src/job')) {
+                if (entry.isFile && entry.name.endsWith('.ts')) {
+                    const modulePath = `${Deno.cwd()}/src/job/${entry.name}`
+                    const module = await import(modulePath)
+                    for (const key in module) {
+                        const Exported = module[key]
+                        if (
+                            typeof Exported === 'function' &&
+                            Exported.prototype?.handle
+                        ) {
+                            registerJob(Exported)
+                        }
+                    }
+                }
+            }
+        } catch {
+            // No jobs directory
+        }
+
+        const worker = new QueueWorker({
+            queues: queue.split(','),
+            sleep,
+            maxJobs,
+            stopWhenEmpty: once,
+        })
+
+        // Handle graceful shutdown
+        const controller = new AbortController()
+        Deno.addSignalListener('SIGINT', () => {
+            console.log('\n🛑 Shutting down worker...')
+            worker.stop()
+            controller.abort()
+        })
+
+        await worker.start()
+    }, 'Process jobs from the queue')
+
+    ace.register('queue:clear', async (args) => {
+        const { clearQueue, configureQueue } = await import('@lockness/core')
+
+        const queue = args[0] || 'default'
+        const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') || 'memory'
+        configureQueue({ driver })
+
+        await clearQueue(queue)
+        console.log(`✅ Queue '${queue}' cleared`)
+    }, 'Clear all jobs from a queue')
 
     ace.register('tinker', async () => {
         console.log('\n🔮 Lockness Tinker - Interactive REPL')

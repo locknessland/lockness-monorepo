@@ -1,0 +1,28 @@
+import { type Job, type JobPayload } from 'lockness'
+
+interface {{ className }}Payload extends JobPayload {
+    // Define your job payload here
+    // Example: userId: number
+}
+
+/**
+ * {{ className }} Job
+ *
+ * Run with: dispatch({{ className }}, { /* payload */ })
+ */
+export class {{ className }} implements Job<{{ className }}Payload> {
+    name = '{{ jobName }}'
+    maxAttempts = 3
+
+    async handle(payload: {{ className }}Payload): Promise<void> {
+        console.log('Processing {{ className }}:', payload)
+
+        // TODO: Implement job logic here
+    }
+
+    async failed(payload: {{ className }}Payload, error: Error): Promise<void> {
+        console.error('{{ className }} failed after all retries:', error.message)
+
+        // TODO: Handle permanent failure (notify, log, etc.)
+    }
+}
