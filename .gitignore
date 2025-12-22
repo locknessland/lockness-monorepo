@@ -16,3 +16,6 @@ node_modules
 
 # Vite output
 dist
+
+# Test coverage
+coverage

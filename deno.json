@@ -14,7 +14,7 @@
         "compile": "deno compile --allow-all --output lockness-server dist/server.js",
         "ace": "deno run -A --env ace.ts",
         "test": "deno test -A --env tests/",
-        "test:coverage": "deno test -A --env --coverage=coverage tests/ && deno coverage coverage --lcov > coverage/lcov.info",
+        "test:coverage": "rm -rf coverage && deno test -A --env --coverage=coverage tests/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
         "test:watch": "deno test -A --env --watch tests/"
     },
     "imports": {
