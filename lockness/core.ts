@@ -1,7 +1,10 @@
 import { type Context, Hono } from 'hono'
 import { join } from '@std/path'
+import { html } from 'hono/html'
+import { jsxRenderer } from 'hono/jsx-renderer'
 
 export type { Context }
+export { html }
 
 interface Route {
     method: string
@@ -32,7 +35,14 @@ export interface AppConfig {
 export class App {
     private hono = new Hono({ strict: false })
 
+    constructor() {
+        // deno-lint-ignore no-explicit-any
+        this.hono.use('*', jsxRenderer(({ children }) => children as any))
+    }
+
+
     async init(config: Module | AppConfig) {
+
         let controllers: ControllerClass[] = []
 
         if ('controllers' in config) {
@@ -84,8 +94,9 @@ export class App {
         const absolutePath = Deno.realPathSync(dirPath)
 
         for await (const entry of Deno.readDir(absolutePath)) {
-            if (entry.isFile && (entry.name.endsWith('.ts') || entry.name.endsWith('.js'))) {
+            if (entry.isFile && (entry.name.endsWith('.ts') || entry.name.endsWith('.js') || entry.name.endsWith('.tsx'))) {
                 const filePath = `file://${join(absolutePath, entry.name)}`
+
                 const module = await import(filePath)
 
                 for (const exportKey in module) {

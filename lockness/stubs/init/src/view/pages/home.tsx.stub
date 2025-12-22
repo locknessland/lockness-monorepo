@@ -1,0 +1,23 @@
+import { Layout } from './layouts/main_layout.tsx'
+
+export const Home = (props: { items: any[] }) => {
+  return (
+    <Layout title="Welcome">
+      <div class="space-y-6">
+        <header>
+          <h2 class="text-4xl font-bold">Welcome to Lockness JS</h2>
+          <p class="text-slate-400 mt-2">The framework that lets you build fast, with style.</p>
+        </header>
+
+        <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {props.items.map((item) => (
+            <div class="p-4 rounded-xl bg-slate-800 border border-slate-700 hover:border-blue-500 transition-colors">
+              <h3 class="font-bold text-lg">{item.title}</h3>
+              <p class="text-sm text-slate-400 mt-1">{item.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Layout>
+  )
+}

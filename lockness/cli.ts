@@ -138,7 +138,34 @@ export class Ace {
             }
         });
 
+        this.register("make:view", async (args) => {
+            const name = args[0];
+            if (!name) {
+                console.error("❌ Please provide a view name (e.g., Post)");
+                return;
+            }
+
+            const className = name.charAt(0).toUpperCase() + name.slice(1);
+            const fileName = name.toLowerCase();
+            const dirPath = `./src/view/pages`;
+            const filePath = `${dirPath}/${fileName}.tsx`;
+
+            try {
+                const content = await Stub.render('make', 'view', {
+                    className,
+                    fileName
+                });
+
+                await Deno.mkdir(dirPath, { recursive: true });
+                await Deno.writeTextFile(filePath, content);
+                console.log(`✅ View created at ${filePath}`);
+            } catch (error) {
+                console.error(`❌ Failed to create view: ${(error as Error).message}`);
+            }
+        });
+
         this.register("list", () => {
+
 
 
 
