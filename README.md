@@ -410,3 +410,30 @@ import { hashPassword, verifyPassword } from 'lockness'
 const hash = await hashPassword('secret123')
 const valid = await verifyPassword('secret123', hash)
 ```
+
+### Mail System
+
+Send emails with an expressive fluent API:
+
+```typescript
+import { mail } from 'lockness'
+
+await mail()
+    .to('user@example.com')
+    .subject('Welcome!')
+    .html('<h1>Hello!</h1>')
+    .send()
+```
+
+Configure mail in `src/kernel.ts`:
+
+```typescript
+import { configureMail } from 'lockness'
+
+configureMail({
+    driver: 'console', // 'console' | 'memory' | 'smtp' | 'resend'
+    from: { email: 'noreply@example.com', name: 'My App' },
+})
+```
+
+Available drivers: `console` (dev), `memory` (testing), `smtp`, `resend`.

@@ -146,6 +146,18 @@ await auth(c).logout()
 const user = await auth(c).user()
 ```
 
+### Mail
+
+```typescript
+import { mail } from 'lockness'
+
+await mail()
+    .to('user@example.com')
+    .subject('Welcome!')
+    .html('<h1>Hello!</h1>')
+    .send()
+```
+
 ### Interactive REPL
 
 ```bash

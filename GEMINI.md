@@ -368,6 +368,91 @@ const valid = await verifyPassword('secret123', hash)
 
 Both decorators can be used at class or method level.
 
+### Mail System
+
+Lockness provides an expressive API for sending emails with multiple driver
+support (Console, Memory, SMTP, Resend).
+
+**Configuration in kernel.ts:**
+
+```typescript
+import { configureMail } from 'lockness'
+
+configureMail({
+    driver: (Deno.env.get('MAIL_DRIVER') as 'console' | 'smtp' | 'resend') ||
+        'console',
+    from: {
+        email: Deno.env.get('MAIL_FROM_ADDRESS') || 'noreply@example.com',
+        name: Deno.env.get('MAIL_FROM_NAME') || 'Lockness App',
+    },
+    // SMTP configuration
+    smtp: {
+        host: Deno.env.get('SMTP_HOST') || 'localhost',
+        port: Number(Deno.env.get('SMTP_PORT')) || 587,
+        auth: {
+            user: Deno.env.get('SMTP_USER') || '',
+            pass: Deno.env.get('SMTP_PASS') || '',
+        },
+    },
+    // Resend configuration
+    resend: {
+        apiKey: Deno.env.get('RESEND_API_KEY') || '',
+    },
+})
+```
+
+**Sending emails with fluent API:**
+
+```typescript
+import { mail } from 'lockness'
+
+// Simple email
+await mail()
+    .to('user@example.com')
+    .subject('Welcome!')
+    .html('<h1>Hello!</h1>')
+    .send()
+
+// Full featured email
+await mail()
+    .from('support@myapp.com', 'Support Team')
+    .to('user@example.com', 'John Doe')
+    .cc('manager@myapp.com')
+    .replyTo('noreply@myapp.com')
+    .subject('Your order has shipped')
+    .text('Plain text version')
+    .html('<h1>Your order has shipped!</h1>')
+    .attach('invoice.pdf', pdfContent, 'application/pdf')
+    .send()
+
+// Using JSX templates
+await mail()
+    .to(user.email)
+    .subject('Welcome!')
+    .view(<WelcomeEmail user={user} />)
+    .send()
+```
+
+**Available Drivers:**
+
+| Driver    | Description             | Use Case          |
+| --------- | ----------------------- | ----------------- |
+| `console` | Logs email to console   | Development       |
+| `memory`  | Stores emails in memory | Testing           |
+| `smtp`    | Sends via SMTP server   | Self-hosted       |
+| `resend`  | Sends via Resend API    | Production (SaaS) |
+
+**Testing emails:**
+
+```typescript
+import { MemoryMailDriver } from 'lockness'
+
+// After sending emails in tests
+const sent = MemoryMailDriver.getSentEmails()
+const lastEmail = MemoryMailDriver.getLastEmail()
+MemoryMailDriver.clear()
+```
+
 **Why Drizzle?** With recent improvements in Deno's NPM compatibility
 (`nodeModulesDir: auto`) and Vite's external configuration, Drizzle now works
 seamlessly in our stack. It offers a better developer experience than query

@@ -47,9 +47,9 @@
 
 ## 📡 Services
 
-- [ ] **Mail System**
-  - [ ] Expressive API for sending emails.
-  - [ ] Drivers for SMTP, Resend, Postmark.
+- [x] **Mail System**
+  - [x] Expressive fluent API for sending emails.
+  - [x] Drivers for Console, Memory, SMTP, Resend.
 - [ ] **Background Jobs / Queues**
   - [ ] Task queuing system (built-in or using Deno KV queues).
 
