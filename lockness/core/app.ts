@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { Hono } from 'hono'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { jsxRenderer } from 'hono/jsx-renderer'
 import type {
     AppConfig,
@@ -24,7 +24,11 @@ export class App {
         this.hono.use(pathPattern, serveStatic({ root }))
     }
 
-    public get fetch() {
+    public get fetch(): (
+        request: Request,
+        Env?: any,
+        executionContext?: any,
+    ) => Response | Promise<Response> {
         return this.hono.fetch.bind(this.hono)
     }
 

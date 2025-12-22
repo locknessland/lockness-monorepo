@@ -3,8 +3,11 @@ import { asset, getManifest } from './helpers.ts'
 /**
  * Enhanced Asset component that automatically resolves paths.
  */
-export const Asset = ({ src, href, ...props }: any) => {
-    const path = src || href
+// deno-lint-ignore no-explicit-any
+export const Asset = (
+    { src, href, ...props }: Record<string, unknown>,
+): any => {
+    const path = (src || href) as string
     if (!path) return null
 
     const resolved = asset(path)
@@ -24,10 +27,11 @@ export const Asset = ({ src, href, ...props }: any) => {
  * Vite scripts component for easy entry point inclusion.
  * Automatically injects CSS dependencies in production.
  */
-export const ViteScripts = ({ entry }: { entry: string }) => {
+// deno-lint-ignore no-explicit-any
+export const ViteScripts = ({ entry }: { entry: string }): any => {
     const isProd = !Deno.env.get('VITE')
     const manifest = isProd ? getManifest() : null
-    const tags: any[] = []
+    const tags: unknown[] = []
 
     if (isProd && manifest) {
         const item = manifest[entry]

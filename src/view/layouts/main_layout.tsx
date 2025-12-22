@@ -1,4 +1,4 @@
-import { Asset, ViteScripts } from 'lockness'
+import { ViteScripts } from 'lockness'
 import type { Child } from 'hono/jsx'
 
 export const Layout = (props: { title: string; children: Child }) => {

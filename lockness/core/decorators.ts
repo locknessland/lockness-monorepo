@@ -1,5 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import type { ControllerClass, IMiddleware } from './types.ts'
+import type { IMiddleware } from './types.ts'
 
 export function Controller(
     path: string,

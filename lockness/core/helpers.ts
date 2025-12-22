@@ -1,11 +1,11 @@
 import { join } from 'node:path'
 
-let manifest: any = null
+let manifest: Record<string, unknown> | null = null
 
 /**
  * Returns the parsed manifest object.
  */
-export function getManifest(): any {
+export function getManifest(): Record<string, unknown> {
     if (!manifest) {
         try {
             const manifestPath = join(
@@ -30,7 +30,7 @@ export function getManifest(): any {
             }
         }
     }
-    return manifest
+    return manifest || {}
 }
 
 export function asset(path: string): string {

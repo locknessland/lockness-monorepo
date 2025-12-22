@@ -4,7 +4,7 @@ export const Button = (
     { children, variant = 'primary', ...props }: {
         children: Child
         variant?: 'primary' | 'secondary' | 'outline'
-    } & any,
+    } & Record<string, unknown>,
 ) => {
     const baseStyles =
         'px-6 py-3 rounded-xl font-bold transition-all active:scale-95 text-center inline-block cursor-pointer'

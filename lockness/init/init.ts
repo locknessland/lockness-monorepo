@@ -1,11 +1,8 @@
 import { parseArgs } from '@std/cli/parse-args'
 import { dirname, fromFileUrl, join } from '@std/path'
-import { Stub } from '@lockness/ace'
+import { type Ace, Stub } from '@lockness/ace'
 
-const ARGS = parseArgs(Deno.args)
-const PROJECT_NAME = ARGS._[0] || 'lockness-app'
-
-export function registerInitCommand(ace: any) {
+export function registerInitCommand(ace: Ace) {
     ace.register('init', async (args: string[]) => {
         const projectName = args[0] || 'lockness-app'
         const currentFile = fromFileUrl(import.meta.url)
@@ -53,10 +50,11 @@ export function registerInitCommand(ace: any) {
 }
 
 if (import.meta.main) {
-    const ARGS = parseArgs(Deno.args)
-    const PROJECT_NAME = ARGS._[0] || 'lockness-app'
+    const args = parseArgs(Deno.args)
+    const name = args._[0] || 'lockness-app'
     const aceMock = {
-        register: (_name: string, handler: any) => handler([PROJECT_NAME]),
+        register: (_name: string, handler: (args: string[]) => Promise<void>) =>
+            handler([String(name)]),
     }
-    registerInitCommand(aceMock)
+    registerInitCommand(aceMock as unknown as Ace)
 }
