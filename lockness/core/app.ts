@@ -11,13 +11,16 @@ import type {
 } from './types.ts'
 
 import { serveStatic } from 'hono/deno'
+import { html } from 'hono/html'
 import pkg from './deno.json' with { type: 'json' }
 
 export class App {
     private hono = new Hono({ strict: false })
 
     constructor() {
-        this.hono.use('*', jsxRenderer(({ children }) => children as any))
+        this.hono.use('*', jsxRenderer(({ children }) => {
+            return html`<!DOCTYPE html>${children}` as any
+        }))
     }
 
     public static(path: string, root: string = 'public') {

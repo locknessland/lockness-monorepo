@@ -9,8 +9,7 @@ export const Layout = (props: { title: string; children: Child }) => {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <title>{props.title} | Lockness</title>
 
-                {/* Automatic asset resolution */}
-                <Asset href="src/view/assets/style.css" />
+                {/* Automatic asset resolution & dependency injection */}
                 <ViteScripts entry="src/view/app.ts" />
 
                 <script src="https://cdn.tailwindcss.com"></script>
@@ -32,4 +31,5 @@ export const Layout = (props: { title: string; children: Child }) => {
         </html>
     )
 }
+
 

@@ -8,10 +8,6 @@ body {
     background-color: var(--bg);
     color: var(--text);
     font-family: 'Inter', system-ui, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
     margin: 0;
 }
 

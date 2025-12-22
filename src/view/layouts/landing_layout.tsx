@@ -9,7 +9,7 @@ export const LandingLayout = (props: { title: string; children: any }) => {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <title>{props.title} | Lockness</title>
 
-                <Asset href="src/view/assets/landing.css" />
+                {/* Automatic asset resolution & dependency injection */}
                 <ViteScripts entry="src/view/app.ts" />
 
                 <script src="https://cdn.tailwindcss.com"></script>
@@ -68,4 +68,5 @@ export const LandingLayout = (props: { title: string; children: any }) => {
         </html>
     )
 }
+
 
