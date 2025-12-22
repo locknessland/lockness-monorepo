@@ -1,49 +1,13 @@
 {
-    "name": "@lockness/core",
-    "version": "0.1.2",
-    "license": "MIT",
-    "exports": {
-        ".": "./core.ts",
-        "./init": "./init.ts",
-        "./cli": "./cli.ts"
-    },
-    "publish": {
-        "include": [
-            "core.ts",
-            "init.ts",
-            "cli.ts",
-            "README.md",
-            "deno.json"
-        ]
-    },
-    "tasks": {
-        "dev": "deno run --env-file=.env -A --watch main.ts",
-        "build": "deno run -A scripts/build.ts",
-        "start": "deno run --allow-net --allow-env _output/server.ts",
-        "compile": "deno compile --allow-read --allow-net --allow-env --output _output/server main.ts",
-        "ace": "deno run -A ace.ts"
-    },
-    "imports": {
-        "@/": "./",
-        "@std/assert": "jsr:@std/assert@1",
-        "@std/cli": "jsr:@std/cli@1",
-        "@std/fs": "jsr:@std/fs@1",
-        "@std/path": "jsr:@std/path@1",
-        "hono": "npm:hono@^4.11.1"
-    },
-    "unstable": [
-        "kv"
-    ],
-    "fmt": {
-        "indentWidth": 4,
-        "useTabs": false,
-        "singleQuote": true,
-        "proseWrap": "always",
-        "lineWidth": 80,
-        "semiColons": false
-    },
-    "compilerOptions": {
-        "jsx": "precompile",
-        "jsxImportSource": "hono/jsx"
-    }   
+"name": "@lockness/core",
+"version": "0.1.0",
+"exports": {
+    ".": "./core.ts"
+},
+"imports": {
+    "hono": "npm:hono@^4.11.1",
+    "zod": "npm:zod@^3.23.8",
+    "@hono/zod-validator": "npm:@hono/zod-validator@^0.4.1",
+    "@std/path": "jsr:@std/path@^1.0.0"
+}
 }

@@ -2,4 +2,7 @@ export * from './types.ts'
 export * from './app.ts'
 export * from './decorators.ts'
 export * from './container.ts'
+export * from './validation.ts'
 export { html } from 'hono/html'
+export { z } from 'zod'
+

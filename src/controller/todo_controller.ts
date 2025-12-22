@@ -1,5 +1,9 @@
-import { Controller, Get, Post, Context } from 'lockness'
+import { Controller, Get, Post, Validate, z, type Context } from 'lockness'
 import todo from '@/data/todo.json' with { type: 'json' }
+
+const createTodoSchema = z.object({
+    title: z.string().min(3, 'Le titre doit faire au moins 3 caractères'),
+})
 
 interface Todo {
     id: number
@@ -29,8 +33,10 @@ export class TodoController {
     }
 
     @Post()
-    async create(c: Context) {
-        const body = await c.req.json()
+    @Validate('json', createTodoSchema)
+    create(c: Context) {
+        const body = c.req.valid('json')
+
         const newTodo: Todo = {
             id: this.todos.length + 1,
             title: body.title,

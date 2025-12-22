@@ -1,6 +1,12 @@
-import type { Context, MiddlewareHandler } from 'hono'
+// deno-lint-ignore-file no-explicit-any
+import type { Context as HonoContext, MiddlewareHandler, ValidationTargets } from 'hono'
+import type { Env, Input } from 'hono/types'
 
-export type { Context }
+export type Context<
+    E extends Env = any,
+    P extends string = any,
+    I extends Input = { out: { [K in keyof ValidationTargets]: any } }
+> = HonoContext<E, P, I>
 
 export interface Route {
     method: string
@@ -11,11 +17,9 @@ export interface Route {
 export interface ControllerMetadata {
     _basePath?: string
     _routes?: Route[]
-    // deno-lint-ignore no-explicit-any
     _middlewares?: Record<string, any[]>
 }
 
-// deno-lint-ignore no-explicit-any
 export type ControllerClass =
     & (new (...args: any[]) => Record<string, any>)
     & ControllerMetadata
