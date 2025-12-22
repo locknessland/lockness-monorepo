@@ -108,3 +108,46 @@ await app.init({
 @Use('auth')  // or @Use(AuthMiddleware)
 protected(c: Context) { ... }
 ```
+
+### Sessions
+
+```typescript
+import { session } from 'lockness'
+
+session(c).set('user_id', 123)
+session(c).get('user_id')
+session(c).flash('success', 'Done!')  // For next request only
+```
+
+### Authentication
+
+Scaffold auth system:
+
+```bash
+deno task ace make:auth
+```
+
+Use auth guards:
+
+```typescript
+import { Auth, Guest, auth } from 'lockness'
+
+@Auth()  // Require authentication
+@Controller('/dashboard')
+export class DashboardController { ... }
+
+@Guest('/dashboard')  // Redirect if already logged in
+@Get('/login')
+showLogin(c: Context) { ... }
+
+// Login/logout
+await auth(c).attempt(email, password)
+await auth(c).logout()
+const user = await auth(c).user()
+```
+
+### Interactive REPL
+
+```bash
+deno task ace tinker
+```

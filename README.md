@@ -273,3 +273,140 @@ deno task ace greet John
 
 Commands are auto-discovered from `src/command/`. Use `ctx.args` for arguments,
 `ctx.hasFlag('verbose')` for flags, and `ctx.getFlag('name')` for flag values.
+
+### Interactive REPL (Tinker)
+
+Explore your application interactively with `ace tinker`:
+
+```bash
+deno task ace tinker
+```
+
+```
+🔮 Lockness Tinker - Interactive REPL
+📦 Loaded: users, UserService, UserRepository
+
+>>> 2 + 2
+4
+>>> await UserRepository.findAll()
+[{ id: 1, email: "..." }]
+>>> .exit
+👋 Bye!
+```
+
+Commands: `.help`, `.context`, `.clear`, `.exit`. Supports async/await and
+multiline input.
+
+### Session Management
+
+Lockness provides session management with multiple drivers.
+
+Configure sessions in `src/kernel.ts`:
+
+```typescript
+import { configureSession, createSessionMiddleware } from 'lockness'
+
+configureSession({
+    driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
+    secret: Deno.env.get('APP_KEY') || 'change-me',
+    lifetime: 7200, // 2 hours
+})
+
+await app.init({
+    globalMiddlewares: [createSessionMiddleware()],
+})
+```
+
+Use sessions in controllers:
+
+```typescript
+import { session } from 'lockness'
+
+@Get('/dashboard')
+index(c: Context) {
+    const visits = session(c).get('visits', 0) as number
+    session(c).set('visits', visits + 1)
+
+    // Flash messages (available only for next request)
+    session(c).flash('success', 'Welcome!')
+    const msg = session(c).getFlash('success')
+
+    return c.json({ visits })
+}
+```
+
+Available methods: `get()`, `set()`, `has()`, `forget()`, `all()`, `flush()`,
+`regenerate()`, `destroy()`, `flash()`, `getFlash()`.
+
+### Authentication
+
+Scaffold a complete authentication system:
+
+```bash
+deno task ace make:auth
+```
+
+This creates an `AuthController` and `UserProvider`.
+
+Configure auth in `src/kernel.ts`:
+
+```typescript
+import { configureAuth, container } from 'lockness'
+import { UserProvider } from '@provider/user_provider.ts'
+
+configureAuth({
+    userProvider: container.get(UserProvider),
+    redirectTo: '/auth/login',
+})
+```
+
+Use auth in controllers:
+
+```typescript
+import { Auth, Guest, auth } from 'lockness'
+
+// Protect entire controller
+@Auth()
+@Controller('/dashboard')
+export class DashboardController {
+    @Get('/')
+    async index(c: Context) {
+        const user = await auth(c).user()
+        return c.json({ user })
+    }
+}
+
+// Guest-only routes (redirect if logged in)
+@Controller('/auth')
+export class AuthController {
+    @Guest('/dashboard')
+    @Get('/login')
+    showLogin(c: Context) { ... }
+
+    @Post('/login')
+    async login(c: Context) {
+        const { email, password } = await c.req.parseBody()
+        const success = await auth(c).attempt(email, password)
+        if (!success) {
+            session(c).flash('error', 'Invalid credentials')
+            return c.redirect('/auth/login')
+        }
+        return c.redirect('/dashboard')
+    }
+
+    @Post('/logout')
+    async logout(c: Context) {
+        await auth(c).logout()
+        return c.redirect('/auth/login')
+    }
+}
+```
+
+Password hashing:
+
+```typescript
+import { hashPassword, verifyPassword } from 'lockness'
+
+const hash = await hashPassword('secret123')
+const valid = await verifyPassword('secret123', hash)
+```
