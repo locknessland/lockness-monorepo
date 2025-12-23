@@ -1,11 +1,13 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { PageTitle } from '@view/components/page_title.tsx'
+import { MarkdownRenderer } from '@view/components/markdown_renderer.tsx'
+import { loadMarkdownContent } from '@view/helpers/markdown.ts'
 
-export const ModelsPage = () => (
-    <DocsLayout title='Models' currentPath='/docs/models'>
-        <div class='prose prose-invert max-w-none'>
-            <PageTitle>Models & Database</PageTitle>
-            <p class='text-lg'>Full documentation coming soon...</p>
-        </div>
-    </DocsLayout>
-)
+export const ModelsPage = () => {
+    const content = loadMarkdownContent('models')
+    
+    return (
+        <DocsLayout title='Models' currentPath='/docs/models'>
+            <MarkdownRenderer blocks={content} />
+        </DocsLayout>
+    )
+}
