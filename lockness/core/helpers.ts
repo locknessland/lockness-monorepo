@@ -15,28 +15,16 @@ let manifest: Record<string, ManifestEntry> | null = null
 export function getManifest(): Record<string, ManifestEntry> {
     if (!manifest) {
         try {
-            // Try relative to cwd first (when running from dist/)
-            const relativePath = join(
+            // When running in production, cwd is dist/
+            const manifestPath = join(
                 Deno.cwd(),
                 'static',
                 '.vite',
                 'manifest.json',
             )
-            manifest = JSON.parse(Deno.readTextFileSync(relativePath))
+            manifest = JSON.parse(Deno.readTextFileSync(manifestPath))
         } catch (_e) {
-            try {
-                // Try from cwd (when running from project root)
-                const manifestPath = join(
-                    Deno.cwd(),
-                    'dist',
-                    'static',
-                    '.vite',
-                    'manifest.json',
-                )
-                manifest = JSON.parse(Deno.readTextFileSync(manifestPath))
-            } catch (__e) {
-                return {}
-            }
+            return {}
         }
     }
     return manifest || {}
