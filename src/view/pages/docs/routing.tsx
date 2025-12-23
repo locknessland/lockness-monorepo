@@ -16,7 +16,7 @@ export const RoutingPage = () => {
                     expressive routing:
                 </p>
 
-                <CodeBlock>
+                <CodeBlock lang='typescript'>
                 {`
     import { Controller, Get, Post, Put, Delete, Context } from 'lockness'
 
