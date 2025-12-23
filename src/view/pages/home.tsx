@@ -106,31 +106,30 @@ const CopyIcon = () => (
 // Feature Card Component
 const FeatureCard = ({ icon, title, description, delay = 0 }: { icon: any; title: string; description: string; delay?: number }) => (
     <div 
-        class="group relative p-6 rounded-xl border border-border bg-card/50 backdrop-blur-sm hover:bg-card hover:border-primary/30 transition-all duration-300 hover-lift card-tilt animate-slide-up"
+        class="group relative p-5 pixel-card animate-slide-up"
         style={`animation-delay: ${delay}ms; animation-fill-mode: backwards;`}
     >
-        <div class="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:bg-primary/20 group-hover:scale-110 transition-all duration-300">
+        <div class="h-10 w-10 pixel-icon flex items-center justify-center text-primary mb-4 bg-background group-hover:bg-primary/20 transition-all duration-200">
             <span class="group-hover:animate-float">{icon}</span>
         </div>
-        <h3 class="text-lg font-semibold text-foreground mb-2 group-hover:text-primary transition-colors">{title}</h3>
-        <p class="text-sm text-muted-foreground leading-relaxed">{description}</p>
-        <div class="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" style="box-shadow: 0 0 30px color-mix(in oklch, var(--primary) 15%, transparent);"></div>
+        <h3 class="font-pixel text-xs text-foreground mb-3 group-hover:text-primary group-hover:crt-glow transition-colors leading-relaxed">{title}</h3>
+        <p class="text-muted-foreground leading-relaxed">{description}</p>
     </div>
 )
 
 // Code Block Component
 const CodeBlock = ({ filename, children }: { filename: string; children: any }) => (
-    <div class="rounded-xl border border-border bg-card overflow-hidden hover-lift transition-all duration-300 hover:border-primary/30">
-        <div class="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b border-border">
-            <div class="flex gap-1.5">
-                <div class="w-3 h-3 rounded-full bg-red-500/60 hover:bg-red-500 transition-colors cursor-pointer"></div>
-                <div class="w-3 h-3 rounded-full bg-yellow-500/60 hover:bg-yellow-500 transition-colors cursor-pointer"></div>
-                <div class="w-3 h-3 rounded-full bg-green-500/60 hover:bg-green-500 transition-colors cursor-pointer"></div>
+    <div class="pixel-code overflow-hidden transition-all duration-200 hover:translate-x-[-2px] hover:translate-y-[-2px]">
+        <div class="flex items-center gap-2 px-4 py-2 bg-card/50 border-b-3 border-border">
+            <div class="flex gap-2">
+                <div class="w-3 h-3 bg-red-500/80"></div>
+                <div class="w-3 h-3 bg-yellow-500/80"></div>
+                <div class="w-3 h-3 bg-green-500/80"></div>
             </div>
-            <span class="ml-2 text-xs text-muted-foreground font-mono">{filename}</span>
+            <span class="ml-2 text-sm text-primary font-pixel-body">{filename}</span>
         </div>
-        <pre class="p-4 overflow-x-auto text-sm">
-            <code class="text-foreground font-mono leading-relaxed whitespace-pre-wrap break-words">{children}</code>
+        <pre class="p-4 overflow-x-auto">
+            <code class="text-foreground font-pixel-body leading-relaxed whitespace-pre-wrap break-words">{children}</code>
         </pre>
     </div>
 )
@@ -153,41 +152,43 @@ export const HomeView = () => {
         <LandingLayout title='Lockness JS - The Fullstack MVC Framework for Deno'>
             <div class='min-h-screen'>
                 {/* Header */}
-                <header class='fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl animate-fade-in'>
+                <header class='fixed top-0 left-0 right-0 z-50 border-b-4 border-border bg-background/95 animate-fade-in'>
                     <div class='max-w-6xl mx-auto px-6 h-16 flex items-center justify-between'>
-                        <div class='flex items-center gap-2 group cursor-pointer'>
-                            <span class='text-xl font-bold text-foreground transition-transform group-hover:scale-105'>
-                                Lockness<span class='text-primary'>JS</span>
+                        <div class='flex items-center gap-3 group cursor-pointer'>
+                            <div class='w-8 h-8 bg-primary flex items-center justify-center border-2 border-primary-foreground/20' style='box-shadow: 2px 2px 0 0 rgba(0,0,0,0.5);'>
+                                <span class='font-pixel text-[8px] text-primary-foreground'>L</span>
+                            </div>
+                            <span class='font-pixel text-xs text-foreground tracking-tight mt-1'>
+                                LOCKNESS<span class='text-primary'>JS</span>
                             </span>
                         </div>
                         
-                        <nav class='hidden md:flex items-center gap-8'>
-                            <a href='#features' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Features</a>
-                            <a href='#getting-started' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Getting Started</a>
-                            <a href='#examples' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Examples</a>
-                            <a href='https://jsr.io/@lockness/core' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>JSR</a>
+                        <nav class='hidden md:flex items-center gap-6'>
+                            <a href='#features' class='text-muted-foreground hover:text-primary transition-colors'>Features</a>
+                            <a href='#getting-started' class='text-muted-foreground hover:text-primary transition-colors'>Getting Started</a>
+                            <a href='#examples' class='text-muted-foreground hover:text-primary transition-colors'>Examples</a>
+                            <span class='font-pixel text-[8px] px-3 py-1 border-2 border-primary/50 bg-background text-primary'>v1.0.0</span>
                         </nav>
 
                         <div class='flex items-center gap-3'>
-                            <a href='https://github.com/locknessjs/lockness' class='hidden md:inline-flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-all hover:scale-105'>
+                            <a href='https://github.com/locknessjs/lockness' class='hidden md:inline-flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-primary transition-all'>
                                 <GithubIcon />
-                                <span>GitHub</span>
                             </a>
-                            <a href='#getting-started' class='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all btn-interactive hover:scale-105 hover:shadow-lg'>
-                                Get Started
+                            <a href='#getting-started' class='pixel-btn bg-primary text-primary-foreground'>
+                                START
                             </a>
                         </div>
                     </div>
                 </header>
 
                 {/* Hero Section */}
-                <section class='pt-28 pb-20 px-6 relative overflow-hidden'>
-                    {/* Background Pattern */}
-                    <div class='absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-40'></div>
+                <section class='pt-28 pb-20 px-6 relative overflow-hidden scanlines'>
+                    {/* Background Pattern - Pixel grid */}
+                    <div class='absolute inset-0 bg-[linear-gradient(to_right,var(--border)_2px,transparent_2px),linear-gradient(to_bottom,var(--border)_2px,transparent_2px)] bg-[size:2rem_2rem] opacity-30'></div>
                     
                     {/* Animated glow orbs */}
-                    <div class='absolute top-20 left-1/4 w-72 h-72 bg-primary/20 rounded-full blur-[120px] animate-pulse-glow'></div>
-                    <div class='absolute bottom-20 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-[150px] animate-pulse-glow' style='animation-delay: 1s;'></div>
+                    <div class='absolute top-20 left-1/4 w-72 h-72 bg-primary/30 blur-[100px] animate-pulse-glow'></div>
+                    <div class='absolute bottom-20 right-1/4 w-96 h-96 bg-secondary/30 blur-[120px] animate-pulse-glow' style='animation-delay: 1s;'></div>
                     
                     <div class='max-w-7xl mx-auto relative z-10'>
                         <div class='flex flex-col lg:flex-row items-center gap-12 lg:gap-16'>
@@ -195,40 +196,39 @@ export const HomeView = () => {
                             {/* Left side - Text content */}
                             <div class='flex-1 text-center lg:text-left space-y-6'>
                                 {/* Badge */}
-                                <div class='inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30 text-sm animate-slide-up cursor-default'>
+                                <div class='inline-flex items-center gap-2 px-3 py-2 border-2 border-primary/50 bg-background text-sm animate-slide-up cursor-default' style='box-shadow: 3px 3px 0 0 rgba(0,0,0,0.3);'>
                                     <span class='relative flex h-2 w-2'>
-                                        <span class='animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75'></span>
-                                        <span class='relative inline-flex rounded-full h-2 w-2 bg-primary'></span>
+                                        <span class='animate-ping absolute inline-flex h-full w-full bg-primary opacity-75'></span>
+                                        <span class='relative inline-flex h-2 w-2 bg-primary'></span>
                                     </span>
-                                    <span class='text-primary font-medium'>v{pkg.version} on JSR</span>
+                                    <span class='text-primary font-pixel text-[8px] mt-0.5'>v{pkg.version} ON JSR</span>
                                 </div>
 
                                 {/* Title */}
-                                <h1 class='text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight animate-slide-up' style='animation-delay: 100ms; animation-fill-mode: backwards;'>
+                                <h1 class='font-pixel text-xl md:text-2xl lg:text-3xl leading-relaxed tracking-tight animate-slide-up animate-flicker' style='animation-delay: 100ms; animation-fill-mode: backwards;'>
                                     Build fullstack apps<br/>
-                                    <span class='text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/60'>at monster speed.</span>
+                                    <span class='text-primary crt-glow'>at monster speed.</span>
                                 </h1>
 
                                 {/* Description */}
-                                <p class='text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed animate-slide-up' style='animation-delay: 200ms; animation-fill-mode: backwards;'>
-                                    The MVC framework that combines <strong class='text-foreground'>Laravel's</strong> elegance with <strong class='text-foreground'>HonoJS</strong> speed. Native to Deno.
+                                <p class='text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed animate-slide-up' style='animation-delay: 200ms; animation-fill-mode: backwards;'>
+                                    The MVC framework that combines <strong class='text-primary'>Laravel's</strong> elegance with <strong class='text-primary'>HonoJS</strong> speed. Native to Deno.
                                 </p>
 
                                 {/* CTA Buttons */}
                                 <div class='flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start pt-2 animate-slide-up' style='animation-delay: 300ms; animation-fill-mode: backwards;'>
-                                    <a href='#getting-started' class='inline-flex items-center gap-2 px-6 py-3 text-base font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all group btn-interactive hover:scale-105 shadow-lg shadow-primary/25'>
-                                        Get Started
-                                        <span class='group-hover:translate-x-1 transition-transform'><ArrowRightIcon /></span>
+                                    <a href='#getting-started' class='pixel-btn bg-primary text-primary-foreground'>
+                                        GET STARTED
                                     </a>
                                     
                                     {/* Install Command */}
-                                    <div class='flex items-center gap-2 px-4 py-3 rounded-lg bg-card border border-border font-mono text-sm hover:border-primary/50 transition-all group cursor-pointer' id='install-command'>
+                                    <div class='flex items-center gap-2 px-4 py-3 bg-background border-3 border-border font-pixel-body text-lg cursor-pointer group' id='install-command' style='box-shadow: 3px 3px 0 0 rgba(0,0,0,0.4);'>
                                         <span class='text-primary'>$</span>
                                         <span class='text-foreground' id='install-text'>deno run -Ar jsr:@lockness/init</span>
                                         <button 
                                             type='button' 
                                             id='copy-btn'
-                                            class='p-1 rounded hover:bg-muted transition-all text-muted-foreground hover:text-foreground cursor-pointer'
+                                            class='p-1 hover:text-primary transition-all text-muted-foreground cursor-pointer'
                                             title='Copy to clipboard'
                                         >
                                             <span id='copy-icon'><CopyIcon /></span>
@@ -242,20 +242,20 @@ export const HomeView = () => {
                             <div class='flex-1 w-full max-w-lg lg:max-w-xl animate-slide-up' style='animation-delay: 400ms; animation-fill-mode: backwards;'>
                                 <div class='relative'>
                                     {/* Glow effect behind the card */}
-                                    <div class='absolute -inset-4 bg-gradient-to-r from-primary/20 to-cyan-500/20 rounded-2xl blur-2xl opacity-50'></div>
+                                    <div class='absolute -inset-4 bg-primary/20 blur-2xl opacity-50'></div>
                                     
                                     {/* Code block */}
-                                    <div class='relative rounded-xl border border-border bg-card/95 backdrop-blur overflow-hidden shadow-2xl transform hover:rotate-0 rotate-1 transition-transform duration-500'>
-                                        <div class='flex items-center px-4 py-3 bg-muted/50 border-b border-border gap-2'>
-                                            <div class='flex gap-1.5'>
-                                                <div class='w-3 h-3 rounded-full bg-red-500/40'></div>
-                                                <div class='w-3 h-3 rounded-full bg-yellow-500/40'></div>
-                                                <div class='w-3 h-3 rounded-full bg-green-500/40'></div>
+                                    <div class='relative pixel-code overflow-hidden transform hover:translate-x-[-2px] hover:translate-y-[-2px] transition-transform duration-200'>
+                                        <div class='flex items-center px-4 py-2 bg-card border-b-3 border-border gap-2'>
+                                            <div class='flex gap-2'>
+                                                <div class='w-3 h-3 bg-red-500/80'></div>
+                                                <div class='w-3 h-3 bg-yellow-500/80'></div>
+                                                <div class='w-3 h-3 bg-green-500/80'></div>
                                             </div>
-                                            <span class='ml-auto text-xs text-muted-foreground font-mono'>src/controller/home_controller.ts</span>
+                                            <span class='ml-auto text-sm text-primary font-pixel-body'>home_controller.ts</span>
                                         </div>
-                                        <div class='p-5 overflow-x-auto text-sm font-mono leading-relaxed'>
-                                            <pre><code class='whitespace-pre-wrap'><Decorator>@Controller</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>{'\n'}<Keyword>export class</Keyword> <Type>HomeController</Type> <Punctuation>{'{'}</Punctuation>{'\n'}{'\n'}{'    '}<Decorator>@Get</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>{'\n'}{'    '}<Decorator>@Use</Decorator><Punctuation>(</Punctuation><Type>AuthMiddleware</Type><Punctuation>)</Punctuation>{'\n'}{'    '}<Keyword>async</Keyword> <Func>index</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>:</Punctuation> <Type>Context</Type><Punctuation>)</Punctuation> <Punctuation>{'{'}</Punctuation>{'\n'}{'        '}<Keyword>const</Keyword> <Variable>user</Variable> <Symbol>=</Symbol> <Keyword>await</Keyword> <Func>auth</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>)</Punctuation>.<Func>user</Func><Punctuation>()</Punctuation>{'\n'}{'\n'}{'        '}<Keyword>return</Keyword> <Variable>c</Variable>.<Func>json</Func><Punctuation>(</Punctuation><Punctuation>{'{'}</Punctuation>{'\n'}{'            '}monster<Punctuation>:</Punctuation> <Type>true</Type><Punctuation>,</Punctuation>{'\n'}{'            '}message<Punctuation>:</Punctuation> <String>"Hello from the Deep"</String>{'\n'}{'        '}<Punctuation>{'}'}</Punctuation><Punctuation>)</Punctuation>{'\n'}{'    '}<Punctuation>{'}'}</Punctuation>{'\n'}<Punctuation>{'}'}</Punctuation></code></pre>
+                                        <div class='p-5 overflow-x-auto font-pixel-body text-lg leading-relaxed'>
+                                            <pre><code class='whitespace-pre-wrap'><Decorator>@Controller</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>{"\n"}<Keyword>export class</Keyword> <Type>HomeController</Type> <Punctuation>{'{'}</Punctuation>{"\n"}{"\n"}{'    '}<Decorator>@Get</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>{"\n"}{'    '}<Decorator>@Use</Decorator><Punctuation>(</Punctuation><Type>AuthMiddleware</Type><Punctuation>)</Punctuation>{"\n"}{'    '}<Keyword>async</Keyword> <Func>index</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>:</Punctuation> <Type>Context</Type><Punctuation>)</Punctuation> <Punctuation>{'{'}</Punctuation>{"\n"}{'        '}<Keyword>const</Keyword> <Variable>user</Variable> <Symbol>=</Symbol> <Keyword>await</Keyword> <Func>auth</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>)</Punctuation>.<Func>user</Func><Punctuation>()</Punctuation>{"\n"}{"\n"}{'        '}<Keyword>return</Keyword> <Variable>c</Variable>.<Func>json</Func><Punctuation>(</Punctuation><Punctuation>{'{'}</Punctuation>{"\n"}{'            '}monster<Punctuation>:</Punctuation> <Type>true</Type><Punctuation>,</Punctuation>{"\n"}{'            '}message<Punctuation>:</Punctuation> <String>"Hello from the Deep"</String>{"\n"}{'        '}<Punctuation>{'}'}</Punctuation><Punctuation>)</Punctuation>{"\n"}{'    '}<Punctuation>{'}'}</Punctuation>{"\n"}<Punctuation>{'}'}</Punctuation></code></pre>
                                         </div>
                                     </div>
                                 </div>
@@ -283,24 +283,24 @@ export const HomeView = () => {
                 </section>
 
                 {/* Stats Section */}
-                <section class='py-12 px-6 border-y border-border bg-muted/30'>
+                <section class='py-12 px-6 border-y-4 border-border bg-card/50'>
                     <div class='max-w-5xl mx-auto'>
                         <div class='grid grid-cols-2 md:grid-cols-4 gap-8'>
                             <div class='text-center group cursor-default'>
-                                <div class='text-3xl font-bold text-foreground group-hover:text-primary transition-colors group-hover:scale-110 inline-block'>MVC</div>
-                                <div class='text-sm text-muted-foreground mt-1'>Architecture</div>
+                                <div class='font-pixel text-sm text-foreground group-hover:text-primary group-hover:crt-glow transition-colors'>MVC</div>
+                                <div class='text-muted-foreground mt-2'>Architecture</div>
                             </div>
                             <div class='text-center group cursor-default'>
-                                <div class='text-3xl font-bold text-foreground group-hover:text-primary transition-colors group-hover:scale-110 inline-block'>TypeScript</div>
-                                <div class='text-sm text-muted-foreground mt-1'>First Class</div>
+                                <div class='font-pixel text-sm text-foreground group-hover:text-primary group-hover:crt-glow transition-colors'>TypeScript</div>
+                                <div class='text-muted-foreground mt-2'>First Class</div>
                             </div>
                             <div class='text-center group cursor-default'>
-                                <div class='text-3xl font-bold text-foreground group-hover:text-primary transition-colors group-hover:scale-110 inline-block'>Deno 2.0</div>
-                                <div class='text-sm text-muted-foreground mt-1'>Native Support</div>
+                                <div class='font-pixel text-sm text-foreground group-hover:text-primary group-hover:crt-glow transition-colors'>Deno 2.0</div>
+                                <div class='text-muted-foreground mt-2'>Native Support</div>
                             </div>
                             <div class='text-center group cursor-default'>
-                                <div class='text-3xl font-bold text-foreground group-hover:text-primary transition-colors group-hover:scale-110 inline-block'>Hono</div>
-                                <div class='text-sm text-muted-foreground mt-1'>Powered</div>
+                                <div class='font-pixel text-sm text-foreground group-hover:text-primary group-hover:crt-glow transition-colors'>Hono</div>
+                                <div class='text-muted-foreground mt-2'>Powered</div>
                             </div>
                         </div>
                     </div>
@@ -310,8 +310,8 @@ export const HomeView = () => {
                 <section id='features' class='py-24 px-6'>
                     <div class='max-w-5xl mx-auto'>
                         <div class='text-center mb-16'>
-                            <h2 class='text-3xl md:text-4xl font-bold text-foreground mb-4'>Everything you need to build modern apps</h2>
-                            <p class='text-lg text-muted-foreground max-w-2xl mx-auto'>
+                            <h2 class='font-pixel text-lg md:text-xl text-foreground mb-6'>L'ARSENAL COMPLET</h2>
+                            <p class='text-xl text-muted-foreground max-w-2xl mx-auto'>
                                 Lockness provides a complete toolkit with batteries included for rapid development
                             </p>
                         </div>
@@ -379,8 +379,8 @@ export const HomeView = () => {
                 <section id='getting-started' class='py-24 px-6 bg-muted/20'>
                     <div class='max-w-5xl mx-auto'>
                         <div class='text-center mb-16'>
-                            <h2 class='text-3xl md:text-4xl font-bold text-foreground mb-4'>Get started in seconds</h2>
-                            <p class='text-lg text-muted-foreground max-w-2xl mx-auto'>
+                            <h2 class='font-pixel text-lg md:text-xl text-foreground mb-6'>PRODUCTIVITE ACE</h2>
+                            <p class='text-xl text-muted-foreground max-w-2xl mx-auto'>
                                 Initialize your project and start building immediately
                             </p>
                         </div>
@@ -408,33 +408,33 @@ export const HomeView = () => {
 
                             {/* Commands List */}
                             <div class='space-y-4'>
-                                <div class='p-4 rounded-lg border border-border bg-card hover-lift transition-all hover:border-primary/30 group'>
+                                <div class='p-4 pixel-card group'>
                                     <div class='flex items-center gap-3 mb-2'>
-                                        <span class='text-primary group-hover:scale-110 transition-transform'><CheckIcon /></span>
-                                        <span class='font-medium text-foreground'>Development</span>
+                                        <span class='text-primary'><CheckIcon /></span>
+                                        <span class='font-pixel text-[10px] text-foreground'>Development</span>
                                     </div>
-                                    <code class='text-sm text-muted-foreground font-mono'>deno task dev</code>
+                                    <code class='text-muted-foreground font-pixel-body text-lg'>deno task dev</code>
                                 </div>
-                                <div class='p-4 rounded-lg border border-border bg-card hover-lift transition-all hover:border-primary/30 group'>
+                                <div class='p-4 pixel-card group'>
                                     <div class='flex items-center gap-3 mb-2'>
-                                        <span class='text-primary group-hover:scale-110 transition-transform'><CheckIcon /></span>
-                                        <span class='font-medium text-foreground'>Production Build</span>
+                                        <span class='text-primary'><CheckIcon /></span>
+                                        <span class='font-pixel text-[10px] text-foreground'>Production Build</span>
                                     </div>
-                                    <code class='text-sm text-muted-foreground font-mono'>deno task build && deno task start</code>
+                                    <code class='text-muted-foreground font-pixel-body text-lg'>deno task build && deno task start</code>
                                 </div>
-                                <div class='p-4 rounded-lg border border-border bg-card hover-lift transition-all hover:border-primary/30 group'>
+                                <div class='p-4 pixel-card group'>
                                     <div class='flex items-center gap-3 mb-2'>
-                                        <span class='text-primary group-hover:scale-110 transition-transform'><CheckIcon /></span>
-                                        <span class='font-medium text-foreground'>Database Migrations</span>
+                                        <span class='text-primary'><CheckIcon /></span>
+                                        <span class='font-pixel text-[10px] text-foreground'>Database Migrations</span>
                                     </div>
-                                    <code class='text-sm text-muted-foreground font-mono'>deno task ace db:generate && deno task ace db:migrate</code>
+                                    <code class='text-muted-foreground font-pixel-body text-lg'>deno task ace db:migrate</code>
                                 </div>
-                                <div class='p-4 rounded-lg border border-border bg-card hover-lift transition-all hover:border-primary/30 group'>
+                                <div class='p-4 pixel-card group'>
                                     <div class='flex items-center gap-3 mb-2'>
-                                        <span class='text-primary group-hover:scale-110 transition-transform'><CheckIcon /></span>
-                                        <span class='font-medium text-foreground'>Testing</span>
+                                        <span class='text-primary'><CheckIcon /></span>
+                                        <span class='font-pixel text-[10px] text-foreground'>Testing</span>
                                     </div>
-                                    <code class='text-sm text-muted-foreground font-mono'>deno task test</code>
+                                    <code class='text-muted-foreground font-pixel-body text-lg'>deno task test</code>
                                 </div>
                             </div>
                         </div>
@@ -445,8 +445,8 @@ export const HomeView = () => {
                 <section id='examples' class='py-24 px-6'>
                     <div class='max-w-5xl mx-auto'>
                         <div class='text-center mb-16'>
-                            <h2 class='text-3xl md:text-4xl font-bold text-foreground mb-4'>Clean, expressive code</h2>
-                            <p class='text-lg text-muted-foreground max-w-2xl mx-auto'>
+                            <h2 class='font-pixel text-lg md:text-xl text-foreground mb-6'>CODE EXAMPLES</h2>
+                            <p class='text-xl text-muted-foreground max-w-2xl mx-auto'>
                                 Write elegant code with decorators, dependency injection, and type-safe validation
                             </p>
                         </div>
@@ -516,74 +516,73 @@ export const HomeView = () => {
                 </section>
 
                 {/* CTA Section */}
-                <section class='py-24 px-6 relative overflow-hidden'>
-                    <div class='absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent'></div>
+                <section class='py-24 px-6 relative overflow-hidden border-t-4 border-border'>
+                    <div class='absolute inset-0 bg-card/50'></div>
                     {/* Animated background elements */}
-                    <div class='absolute top-1/2 left-1/4 w-64 h-64 bg-primary/10 rounded-full blur-[100px] animate-pulse-glow'></div>
-                    <div class='absolute top-1/3 right-1/4 w-48 h-48 bg-secondary/10 rounded-full blur-[80px] animate-pulse-glow' style='animation-delay: 0.5s;'></div>
+                    <div class='absolute top-1/2 left-1/4 w-64 h-64 bg-primary/20 blur-[100px] animate-pulse-glow'></div>
+                    <div class='absolute top-1/3 right-1/4 w-48 h-48 bg-secondary/20 blur-[80px] animate-pulse-glow' style='animation-delay: 0.5s;'></div>
                     <div class='max-w-3xl mx-auto relative z-10 text-center space-y-8'>
-                        <h2 class='text-3xl md:text-5xl font-bold text-foreground'>
-                            Ready to build something <span class='gradient-text'>amazing</span>?
+                        <h2 class='font-pixel text-lg md:text-xl text-foreground leading-relaxed'>
+                            READY TO BUILD<br/>SOMETHING <span class='text-primary crt-glow'>AMAZING</span>?
                         </h2>
-                        <p class='text-lg text-muted-foreground'>
+                        <p class='text-xl text-muted-foreground'>
                             Start building your next project with Lockness JS today
                         </p>
                         <div class='flex flex-col sm:flex-row items-center justify-center gap-4'>
-                            <a href='https://jsr.io/@lockness/core' class='inline-flex items-center gap-2 px-6 py-3 text-base font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all group btn-interactive hover:scale-105 hover:shadow-lg glow-primary'>
-                                Get Started Now
-                                <span class='group-hover:translate-x-1 transition-transform'><ArrowRightIcon /></span>
+                            <a href='https://jsr.io/@lockness/core' class='pixel-btn bg-primary text-primary-foreground'>
+                                GET STARTED NOW
                             </a>
-                            <a href='https://github.com/locknessjs/lockness' class='inline-flex items-center gap-2 px-6 py-3 text-base font-medium rounded-lg border border-border bg-card hover:bg-muted transition-all hover:scale-105 hover:border-primary/50'>
-                                <GithubIcon />
-                                Star on GitHub
+                            <a href='https://github.com/locknessjs/lockness' class='pixel-btn bg-card text-foreground border-2 border-border'>
+                                STAR ON GITHUB
                             </a>
                         </div>
                     </div>
                 </section>
 
                 {/* Footer */}
-                <footer class='border-t border-border py-16 px-6'>
+                <footer class='border-t-4 border-border py-16 px-6 bg-card/30'>
                     <div class='max-w-5xl mx-auto'>
                         <div class='grid grid-cols-1 md:grid-cols-4 gap-12'>
                             <div class='space-y-4'>
-                                <div class='text-lg font-bold group cursor-pointer inline-block'>
-                                    <span class='group-hover:scale-105 inline-block transition-transform'>Lockness<span class='text-primary'>JS</span></span>
+                                <div class='font-pixel text-[10px] group cursor-pointer inline-block'>
+                                    <span class='text-foreground'>LOCKNESS<span class='text-primary'>JS</span></span>
                                 </div>
-                                <p class='text-sm text-muted-foreground leading-relaxed'>
+                                <p class='text-muted-foreground leading-relaxed'>
                                     The modern full-stack MVC framework for Deno 2.0
                                 </p>
                             </div>
                             
                             <div>
-                                <h3 class='font-semibold mb-4'>Product</h3>
+                                <h3 class='font-pixel text-[8px] mb-4 text-foreground'>PRODUCT</h3>
                                 <ul class='space-y-3'>
-                                    <li><a href='#features' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Features</a></li>
-                                    <li><a href='#getting-started' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Getting Started</a></li>
-                                    <li><a href='#examples' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Examples</a></li>
+                                    <li><a href='#features' class='text-muted-foreground hover:text-primary transition-colors'>Features</a></li>
+                                    <li><a href='#getting-started' class='text-muted-foreground hover:text-primary transition-colors'>Getting Started</a></li>
+                                    <li><a href='#examples' class='text-muted-foreground hover:text-primary transition-colors'>Examples</a></li>
                                 </ul>
                             </div>
                             
                             <div>
-                                <h3 class='font-semibold mb-4'>Resources</h3>
+                                <h3 class='font-pixel text-[8px] mb-4 text-foreground'>RESOURCES</h3>
                                 <ul class='space-y-3'>
-                                    <li><a href='https://jsr.io/@lockness/core' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Documentation</a></li>
-                                    <li><a href='https://jsr.io/@lockness' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>JSR Packages</a></li>
-                                    <li><a href='https://github.com/locknessjs/lockness' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>GitHub</a></li>
+                                    <li><a href='https://jsr.io/@lockness/core' class='text-muted-foreground hover:text-primary transition-colors'>Documentation</a></li>
+                                    <li><a href='https://jsr.io/@lockness' class='text-muted-foreground hover:text-primary transition-colors'>JSR Packages</a></li>
+                                    <li><a href='https://github.com/locknessjs/lockness' class='text-muted-foreground hover:text-primary transition-colors'>GitHub</a></li>
                                 </ul>
                             </div>
                             
                             <div>
-                                <h3 class='font-semibold mb-4'>Community</h3>
+                                <h3 class='font-pixel text-[8px] mb-4 text-foreground'>COMMUNITY</h3>
                                 <ul class='space-y-3'>
-                                    <li><a href='https://github.com/locknessjs/lockness/discussions' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Discussions</a></li>
-                                    <li><a href='https://github.com/locknessjs/lockness/issues' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Issues</a></li>
-                                    <li><a href='https://github.com/locknessjs/lockness/blob/main/CONTRIBUTING.md' class='text-sm text-muted-foreground hover:text-foreground transition-colors link-underline'>Contributing</a></li>
+                                    <li><a href='https://github.com/locknessjs/lockness/discussions' class='text-muted-foreground hover:text-primary transition-colors'>Discussions</a></li>
+                                    <li><a href='https://github.com/locknessjs/lockness/issues' class='text-muted-foreground hover:text-primary transition-colors'>Issues</a></li>
+                                    <li><a href='https://github.com/locknessjs/lockness/blob/main/CONTRIBUTING.md' class='text-muted-foreground hover:text-primary transition-colors'>Contributing</a></li>
                                 </ul>
                             </div>
                         </div>
                         
-                        <div class='mt-12 pt-8 border-t border-border text-center text-sm text-muted-foreground'>
-                            <p>© 2025 Lockness JS. Built with <span class='inline-block hover:scale-125 transition-transform cursor-default'>❤️</span> for the Deno community. Licensed under MIT.</p>
+                        <div class='mt-12 pt-8 border-t-2 border-border text-center'>
+                            <p class='font-pixel text-[8px] text-primary mb-2'>LOCKNESS JS</p>
+                            <p class='text-muted-foreground'>MIT License © 2025</p>
                         </div>
                     </div>
                 </footer>
