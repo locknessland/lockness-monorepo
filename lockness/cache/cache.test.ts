@@ -2,7 +2,7 @@
  * Tests for Cache System
  */
 
-import { assertEquals, assertExists } from '@std/assert'
+import { assertEquals, type assertExists } from '@std/assert'
 import {
     add,
     cache,

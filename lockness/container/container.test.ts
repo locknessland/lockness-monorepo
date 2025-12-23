@@ -5,7 +5,7 @@
 import { assertEquals, assertExists } from '@std/assert'
 import {
     bind,
-    Container,
+    type Container,
     container,
     createContainer,
     Inject,
