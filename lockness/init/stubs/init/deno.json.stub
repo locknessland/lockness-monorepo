@@ -5,7 +5,7 @@
         "dev": "VITE=true deno run -A --env npm:vite dev",
         "build": "deno run -A npm:vite build && deno run -A npm:vite build --ssr",
         "preview": "deno run -A npm:vite preview",
-        "start": "deno run --allow-net --allow-read --allow-env --allow-sys --allow-run --env dist/server.js",
+        "start": "cd dist && deno run --allow-net --allow-read --allow-env --allow-sys --allow-run --env server.js",
         "ace": "deno run -A --env ace.ts",
         "test": "deno test -A --env"
     },
