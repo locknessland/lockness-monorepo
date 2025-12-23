@@ -59,8 +59,8 @@
 
 ## 🎯 Developer Experience (DX)
 
-- [ ] **CLI & Debug Tools**
-  - [ ] `router:list` command to display all routes with methods, paths,
+- [x] **CLI & Debug Tools**
+  - [x] `router:list` command to display all routes with methods, paths,
         controller actions, and middlewares.
   - [ ] `make:crud <name>` command to scaffold model, controller, repository,
         service, views, and routes in one command.

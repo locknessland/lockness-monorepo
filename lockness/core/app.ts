@@ -18,12 +18,28 @@ import type {
 import { serveStatic } from 'hono/deno'
 import pkg from './deno.json' with { type: 'json' }
 
+export interface RouteInfo {
+    method: string
+    path: string
+    controller: string
+    action: string
+    middlewares: string[]
+}
+
 export class App {
     private hono = new Hono({ strict: false })
     private middlewareRegistry: MiddlewareRegistry = {}
+    private routes: RouteInfo[] = []
 
     constructor() {
         this.hono.use('*', jsxRenderer(({ children }) => children as any))
+    }
+
+    /**
+     * Get all registered routes
+     */
+    public getRoutes(): RouteInfo[] {
+        return this.routes
     }
 
     public static(pathPattern: string, root: string = 'public') {
@@ -116,6 +132,7 @@ export class App {
             const routes = Controller._routes || []
             const middlewares = Controller._middlewares || {}
             const validators = Controller._validators || {}
+            const controllerName = Controller.name
 
             // Check for class-level @Auth or @Guest decorators
             const classAuthRequired = Controller._authRequired === true
@@ -171,6 +188,31 @@ export class App {
                     )
                 }
 
+                // Collect middleware names for display
+                const middlewareNames: string[] = []
+
+                // Auth/Guest middlewares
+                if (methodAuth?.required || classAuthRequired) {
+                    middlewareNames.push('@Auth')
+                } else if (methodGuest?.required || classGuestRequired) {
+                    middlewareNames.push('@Guest')
+                }
+
+                // Validator middlewares
+                if (validators[route.methodName]?.length > 0) {
+                    middlewareNames.push('@Validate')
+                }
+
+                // Regular middlewares
+                const routeMiddlewareList = middlewares[route.methodName] || []
+                for (const m of routeMiddlewareList) {
+                    if (typeof m === 'string') {
+                        middlewareNames.push(m)
+                    } else if (typeof m === 'function') {
+                        middlewareNames.push(m.name)
+                    }
+                }
+
                 allRoutes.push({
                     fullPath,
                     method: route.method.toLowerCase(),
@@ -181,6 +223,15 @@ export class App {
                         ...routeValidators,
                         ...routeMiddlewares,
                     ],
+                })
+
+                // Store route info for router:list command
+                this.routes.push({
+                    method: route.method.toUpperCase(),
+                    path: fullPath,
+                    controller: controllerName,
+                    action: route.methodName,
+                    middlewares: middlewareNames,
                 })
             }
         }
@@ -195,7 +246,7 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ;(this.hono as any)[route.method](
+            ; (this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
@@ -248,8 +299,7 @@ export class App {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${
-                    (error as Error).message
+                `❌ Error during controller discovery: ${(error as Error).message
                 }`,
             )
         }
@@ -317,8 +367,7 @@ export class App {
                             }
                         } catch (e) {
                             console.error(
-                                `  ⚠️  Failed to force release port ${port}: ${
-                                    (e as Error).message
+                                `  ⚠️  Failed to force release port ${port}: ${(e as Error).message
                                 }`,
                             )
                         }
