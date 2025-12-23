@@ -120,6 +120,17 @@ export const DocsLayout = (
                 <style
                     dangerouslySetInnerHTML={{
                         __html: `
+                    /* Text selection colors */
+                    ::selection {
+                        background-color: rgba(34, 211, 238, 0.3);
+                        color: #ffffff;
+                    }
+                    
+                    ::-moz-selection {
+                        background-color: rgba(34, 211, 238, 0.3);
+                        color: #ffffff;
+                    }
+                    
                     /* Monokai theme colors for Prism */
                     .token.comment,
                     .token.prolog,
