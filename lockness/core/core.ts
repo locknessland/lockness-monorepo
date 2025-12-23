@@ -16,3 +16,16 @@ export * from '@lockness/mail'
 export * from '@lockness/queue'
 export * from '@lockness/socialite'
 export * from '@lockness/validator'
+
+// Storage: export main exports only, not helpers (to avoid conflict with cache)
+export {
+    configureStorage,
+    type FileMetadata,
+    LocalStorageDriver,
+    R2StorageDriver,
+    S3StorageDriver,
+    Storage,
+    storage,
+    type StorageConfig,
+    type StorageDriver,
+} from '@lockness/storage'
