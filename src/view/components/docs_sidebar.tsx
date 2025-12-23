@@ -43,7 +43,7 @@ export const DocsSidebar = (props: { currentPath: string }) => {
                 id="mobile-sidebar"
                 class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto md:min-h-screen transition-all duration-500 ease-in-out'
             >
-                <nav class='p-6 space-y-2'>
+                <nav class='md:fixed p-6 space-y-2'>
                     {navLinks.map((link) => {
                         const isActive = props.currentPath === link.href
                         return (
