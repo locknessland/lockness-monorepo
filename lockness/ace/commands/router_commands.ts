@@ -77,11 +77,11 @@ export function registerRouterCommands(ace: Ace) {
                 const controllerName = Controller.name
 
                 // Check for class-level decorators
-                // deno-lint-ignore no-explicit-any
                 const classAuthRequired =
+                    // deno-lint-ignore no-explicit-any
                     (Controller as any)._authRequired === true
-                // deno-lint-ignore no-explicit-any
                 const classGuestRequired =
+                    // deno-lint-ignore no-explicit-any
                     (Controller as any)._guestRequired === true
 
                 for (const route of controllerRoutes) {
