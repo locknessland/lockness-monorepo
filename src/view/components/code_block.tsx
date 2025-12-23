@@ -99,42 +99,64 @@ export const CommandBlock = ({ children, lang = 'bash' }: { children: string; la
                     </button>
                 </div>
                 <pre class='p-4 overflow-x-auto'>
-                    <code id={id} class='text-foreground font-pixel-body text-sm leading-relaxed whitespace-pre'>{children}</code>
+                    <code id={id} class={`language-${lang} text-foreground font-pixel-body text-sm leading-relaxed whitespace-pre`}>{children}</code>
                 </pre>
             </div>
             
             <script dangerouslySetInnerHTML={{__html: `
-                document.getElementById('${copyBtnId}').addEventListener('click', async function() {
-                    const text = document.getElementById('${id}').textContent;
-                    try {
-                        await navigator.clipboard.writeText(text);
-                        document.getElementById('${copyIconId}').classList.add('hidden');
-                        document.getElementById('${checkIconId}').classList.remove('hidden');
-                        setTimeout(() => {
-                            document.getElementById('${copyIconId}').classList.remove('hidden');
-                            document.getElementById('${checkIconId}').classList.add('hidden');
-                        }, 2000);
-                    } catch (err) {
-                        console.error('Failed to copy:', err);
+                (function() {
+                    const codeEl = document.getElementById('${id}');
+                    if (window.Prism) {
+                        Prism.highlightElement(codeEl);
                     }
-                });
+                    
+                    document.getElementById('${copyBtnId}').addEventListener('click', async function() {
+                        const text = codeEl.textContent;
+                        try {
+                            await navigator.clipboard.writeText(text);
+                            document.getElementById('${copyIconId}').classList.add('hidden');
+                            document.getElementById('${checkIconId}').classList.remove('hidden');
+                            setTimeout(() => {
+                                document.getElementById('${copyIconId}').classList.remove('hidden');
+                                document.getElementById('${checkIconId}').classList.add('hidden');
+                            }, 2000);
+                        } catch (err) {
+                            console.error('Failed to copy:', err);
+                        }
+                    });
+                })();
             `}} />
         </>
     )
 }
 
-export const CodeBlock = ({ children, lang = 'typescript' }: { children: string; lang?: string }) => (
-    <div class='my-6 pixel-code overflow-hidden'>
-        <div class='flex items-center gap-2 px-4 py-2 bg-card/50 border-b-3 border-border'>
-            <div class='flex gap-2'>
-                <div class='w-3 h-3 bg-red-500/80'></div>
-                <div class='w-3 h-3 bg-yellow-500/80'></div>
-                <div class='w-3 h-3 bg-green-500/80'></div>
+export const CodeBlock = ({ children, lang = 'typescript' }: { children: string; lang?: string }) => {
+    const id = `code-${copyId++}`
+    
+    return (
+        <>
+            <div class='my-6 pixel-code overflow-hidden'>
+                <div class='flex items-center gap-2 px-4 py-2 bg-card/50 border-b-3 border-border'>
+                    <div class='flex gap-2'>
+                        <div class='w-3 h-3 bg-red-500/80'></div>
+                        <div class='w-3 h-3 bg-yellow-500/80'></div>
+                        <div class='w-3 h-3 bg-green-500/80'></div>
+                    </div>
+                    <span class='ml-2 text-sm text-primary font-pixel-body'>{lang}</span>
+                </div>
+                <pre class='p-4 overflow-x-auto'>
+                    <code id={id} class={`language-${lang} text-foreground font-pixel-body text-sm leading-relaxed whitespace-pre`}>{children}</code>
+                </pre>
             </div>
-            <span class='ml-2 text-sm text-primary font-pixel-body'>{lang}</span>
-        </div>
-        <pre class='p-4 overflow-x-auto'>
-            <code class='text-foreground font-pixel-body text-sm leading-relaxed whitespace-pre'>{children}</code>
-        </pre>
-    </div>
-)
+            
+            <script dangerouslySetInnerHTML={{__html: `
+                (function() {
+                    const codeEl = document.getElementById('${id}');
+                    if (window.Prism) {
+                        Prism.highlightElement(codeEl);
+                    }
+                })();
+            `}} />
+        </>
+    )
+}

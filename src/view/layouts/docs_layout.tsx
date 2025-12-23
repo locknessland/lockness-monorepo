@@ -41,6 +41,71 @@ export const DocsLayout = (props: { title: string; children: any; currentPath: s
                     href='https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap'
                     rel='stylesheet'
                 />
+
+                {/* Prism.js for syntax highlighting */}
+                <link href='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css' rel='stylesheet' />
+                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js' data-manual></script>
+                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js'></script>
+                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js'></script>
+                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js'></script>
+                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js'></script>
+                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js'></script>
+
+                <style dangerouslySetInnerHTML={{__html: `
+                    /* Override Prism colors to match our theme */
+                    .token.comment,
+                    .token.prolog,
+                    .token.doctype,
+                    .token.cdata { color: #6b7280; }
+                    
+                    .token.punctuation { color: #9ca3af; }
+                    
+                    .token.property,
+                    .token.tag,
+                    .token.boolean,
+                    .token.number,
+                    .token.constant,
+                    .token.symbol,
+                    .token.deleted { color: #ef4444; }
+                    
+                    .token.selector,
+                    .token.attr-name,
+                    .token.string,
+                    .token.char,
+                    .token.builtin,
+                    .token.inserted { color: #10b981; }
+                    
+                    .token.operator,
+                    .token.entity,
+                    .token.url,
+                    .language-css .token.string,
+                    .style .token.string { color: #8b5cf6; }
+                    
+                    .token.atrule,
+                    .token.attr-value,
+                    .token.keyword { color: #06b6d4; }
+                    
+                    .token.function,
+                    .token.class-name { color: #f59e0b; }
+                    
+                    .token.regex,
+                    .token.important,
+                    .token.variable { color: #ec4899; }
+                    
+                    pre[class*="language-"] {
+                        background: transparent !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                    }
+                    
+                    code[class*="language-"] {
+                        background: transparent !important;
+                        color: inherit;
+                        font-family: 'VT323', monospace !important;
+                        font-size: 0.875rem;
+                        line-height: 1.7;
+                    }
+                `}} />
             </head>
             <body class='bg-background text-foreground min-h-screen antialiased overflow-x-hidden'>
                 {/* Header */}
