@@ -6,29 +6,28 @@ const STUBS_PATH = join(currentDir, 'stubs')
 
 // Helper function to detect if running in compiled binary
 function isCompiledBinary(): boolean {
-    // When compiled, Deno.mainModule points to a temp directory like:
-    // file:///var/folders/.../deno-compile-nessy/...
     return Deno.mainModule.includes('/deno-compile-')
 }
 
-// Helper function to show compiled binary warning
-function showCompiledBinaryWarning(command: string) {
-    console.log('')
-    console.log(`⚠️  ${command} is not available when using the Nessy binary`)
-    console.log('')
-    console.log('   This command requires access to stub template files,')
-    console.log('   which are not included in the compiled binary.')
-    console.log('')
-    console.log(`   Please use: deno task ace ${command}`)
-    console.log('')
+// Helper function to get stubs path (supports both normal and compiled binary)
+async function getStubsPath(): Promise<string> {
+    if (isCompiledBinary()) {
+        // When using Nessy binary, stubs are copied to .nessy/stubs/
+        const nessyStubsPath = join(Deno.cwd(), '.nessy', 'stubs')
+        try {
+            await Deno.stat(nessyStubsPath)
+            return nessyStubsPath
+        } catch {
+            throw new Error(
+                'Nessy stubs not found. Please run: ./nessy nessy:install'
+            )
+        }
+    }
+    return STUBS_PATH
 }
 
 export function registerCoreCommands(ace: Ace) {
     ace.register('make:controller', async (args) => {
-        if (isCompiledBinary()) {
-            showCompiledBinaryWarning('make:controller')
-            return
-        }
 
         const name = args[0]
         if (!name) {
@@ -42,8 +41,9 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}`
 
         try {
+            const stubsPath = await getStubsPath()
             const content = await Stub.renderFrom(
-                STUBS_PATH,
+                stubsPath,
                 'make',
                 'controller',
                 {
@@ -63,10 +63,6 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new controller class')
 
     ace.register('make:middleware', async (args) => {
-        if (isCompiledBinary()) {
-            showCompiledBinaryWarning('make:middleware')
-            return
-        }
 
         const name = args[0]
         if (!name) {
@@ -102,11 +98,6 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new middleware class')
 
     ace.register('make:service', async (args) => {
-        if (isCompiledBinary()) {
-            showCompiledBinaryWarning('make:service')
-            return
-        }
-
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a service name (e.g., Auth)')
@@ -119,8 +110,9 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}`
 
         try {
+            const stubsPath = await getStubsPath()
             const content = await Stub.renderFrom(
-                STUBS_PATH,
+                stubsPath,
                 'make',
                 'service',
                 {
@@ -139,11 +131,6 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new service class')
 
     ace.register('make:view', async (args) => {
-        if (isCompiledBinary()) {
-            showCompiledBinaryWarning('make:view')
-            return
-        }
-
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a view name (e.g., Post)')
@@ -156,7 +143,8 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}.tsx`
 
         try {
-            const content = await Stub.renderFrom(STUBS_PATH, 'make', 'view', {
+            const stubsPath = await getStubsPath()
+            const content = await Stub.renderFrom(stubsPath, 'make', 'view', {
                 className,
                 fileName,
             })
@@ -172,11 +160,6 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new view page')
 
     ace.register('make:component', async (args) => {
-        if (isCompiledBinary()) {
-            showCompiledBinaryWarning('make:component')
-            return
-        }
-
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a component name (e.g., Button)')
@@ -192,8 +175,9 @@ export function registerCoreCommands(ace: Ace) {
         const propsInterface = `{ children?: any }`
 
         try {
+            const stubsPath = await getStubsPath()
             const content = await Stub.renderFrom(
-                STUBS_PATH,
+                stubsPath,
                 'make',
                 'component',
                 {
@@ -213,11 +197,6 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new JSX component')
 
     ace.register('make:command', async (args) => {
-        if (isCompiledBinary()) {
-            showCompiledBinaryWarning('make:command')
-            return
-        }
-
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a command name (e.g., Greet)')
@@ -231,8 +210,9 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}`
 
         try {
+            const stubsPath = await getStubsPath()
             const content = await Stub.renderFrom(
-                STUBS_PATH,
+                stubsPath,
                 'make',
                 'command',
                 {
@@ -254,7 +234,12 @@ export function registerCoreCommands(ace: Ace) {
 
     ace.register('router:list', async () => {
         if (isCompiledBinary()) {
-            showCompiledBinaryWarning('router:list')
+            console.log('')
+            console.log('⚠️  router:list is not available with Nessy')
+            console.log('')
+            console.log('   This command requires dynamic imports of TypeScript files.')
+            console.log('   Please use: deno task ace router:list')
+            console.log('')
             return
         }
 
@@ -472,9 +457,49 @@ export function registerCoreCommands(ace: Ace) {
                 console.log(output)
             }
 
+            console.log('✅ Binary compiled successfully!')
+            console.log('')
+
+            // Copy stubs to .nessy/stubs/
+            console.log('📁 Copying stub templates...')
+            const nessyDir = join(Deno.cwd(), '.nessy')
+            const nessyStubsDir = join(nessyDir, 'stubs')
+
+            // Remove existing .nessy directory if it exists
+            try {
+                await Deno.remove(nessyDir, { recursive: true })
+            } catch {
+                // Directory doesn't exist, that's fine
+            }
+
+            // Create .nessy/stubs directory
+            await Deno.mkdir(nessyStubsDir, { recursive: true })
+
+            // Copy all stubs from lockness/ace/stubs to .nessy/stubs
+            const sourceStubsPath = STUBS_PATH
+
+            async function copyDirectory(src: string, dest: string) {
+                await Deno.mkdir(dest, { recursive: true })
+
+                for await (const entry of Deno.readDir(src)) {
+                    const srcPath = join(src, entry.name)
+                    const destPath = join(dest, entry.name)
+
+                    if (entry.isDirectory) {
+                        await copyDirectory(srcPath, destPath)
+                    } else if (entry.isFile) {
+                        await Deno.copyFile(srcPath, destPath)
+                    }
+                }
+            }
+
+            await copyDirectory(sourceStubsPath, nessyStubsDir)
+            console.log(`   ✓ Stubs copied to .nessy/stubs/`)
+            console.log('')
+
             console.log('✅ Nessy has been successfully installed!')
             console.log('')
-            console.log('🎉 You can now use Nessy instead of "deno task ace":')
+            console.log('🎉 You can now use Nessy for ALL commands:')
             console.log('')
 
             if (isWindows) {
@@ -496,8 +521,8 @@ export function registerCoreCommands(ace: Ace) {
                 const gitignorePath = join(Deno.cwd(), '.gitignore')
                 const gitignoreContent = await Deno.readTextFile(gitignorePath)
 
-                if (!gitignoreContent.includes('nessy')) {
-                    console.log('⚠️  Remember to add "nessy" to your .gitignore file')
+                if (!gitignoreContent.includes('nessy') || !gitignoreContent.includes('.nessy')) {
+                    console.log('⚠️  Remember to add "nessy" and ".nessy/" to your .gitignore file')
                     console.log('')
                 }
             } catch {
@@ -510,11 +535,6 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Install Nessy CLI binary for faster commands')
 
     ace.register('make:job', async (args) => {
-        if (isCompiledBinary()) {
-            showCompiledBinaryWarning('make:job')
-            return
-        }
-
         const name = args[0]
         if (!name) {
             console.error(
@@ -533,8 +553,9 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}`
 
         try {
+            const stubsPath = await getStubsPath()
             const content = await Stub.renderFrom(
-                STUBS_PATH,
+                stubsPath,
                 'make',
                 'job',
                 {

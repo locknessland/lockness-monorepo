@@ -21,3 +21,4 @@ coverage
 # Nessy CLI binary
 nessy
 nessy.exe
+.nessy/
