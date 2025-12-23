@@ -5,7 +5,6 @@
 import { assertEquals, assertExists } from '@std/assert'
 import {
     bind,
-    type Container,
     container,
     createContainer,
     Inject,
@@ -125,6 +124,7 @@ Deno.test('Container - Decorators', async (t) => {
 
         // Manually inject for testing purposes
         if (!instance.decorated) {
+            // deno-lint-ignore no-explicit-any
             (instance as any).decorated = container.get(DecoratedService)
         }
 

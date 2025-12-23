@@ -35,6 +35,7 @@ interface ListenerEntry<T = unknown> {
  * Event map type for type-safe events
  * Can be a Record or an interface with string index signature
  */
+// deno-lint-ignore no-explicit-any
 export type EventMap = Record<string, any>
 
 /**
@@ -276,6 +277,8 @@ export class EventEmitter<Events extends EventMap = EventMap> {
 
 // =============================================================================
 // Helper Functions
+// Note: Type casts to 'any' are necessary for generic type compatibility
+// deno-lint-ignore-file no-explicit-any
 // =============================================================================
 
 /**
@@ -327,7 +330,7 @@ export function once<T = unknown>(
  * Quick event emission
  */
 export async function emit<T = unknown>(event: string, data: T): Promise<void> {
-    return events().emit(event as any, data as any)
+    return await events().emit(event as any, data as any)
 }
 
 /**
@@ -415,23 +418,23 @@ export function eventStream<T = unknown>(
     return {
         [Symbol.asyncIterator]() {
             return {
-                async next(): Promise<IteratorResult<T>> {
+                next(): Promise<IteratorResult<T>> {
                     if (queue.length > 0) {
-                        return { value: queue.shift()!, done: false }
+                        return Promise.resolve({ value: queue.shift()!, done: false })
                     }
 
                     if (done) {
-                        return { value: undefined as unknown as T, done: true }
+                        return Promise.resolve({ value: undefined as unknown as T, done: true })
                     }
 
                     return new Promise<IteratorResult<T>>((resolve) => {
                         waiting.push(resolve)
                     })
                 },
-                async return(): Promise<IteratorResult<T>> {
+                return(): Promise<IteratorResult<T>> {
                     done = true
                     emitter.off(event as any, listener as EventListener<any>)
-                    return { value: undefined as unknown as T, done: true }
+                    return Promise.resolve({ value: undefined as unknown as T, done: true })
                 },
             }
         },

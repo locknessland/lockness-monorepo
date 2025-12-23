@@ -363,7 +363,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.name, 'John')
     })
 
-    await t.step('lowercase and uppercase', async () => {
+    await t.step('lowercase and uppercase', () => {
         const v = validator()
         v.sanitize('email', [lowercase()])
         v.sanitize('code', [uppercase()])
@@ -376,7 +376,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.code, 'ABC123')
     })
 
-    await t.step('escapeHtml', async () => {
+    await t.step('escapeHtml', () => {
         const v = validator()
         v.sanitize('content', [escapeHtml()])
 
@@ -399,7 +399,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.text, 'Hello World')
     })
 
-    await t.step('toNumber and toBoolean', async () => {
+    await t.step('toNumber and toBoolean', () => {
         const v = validator()
         v.sanitize('age', [toNumber()])
         v.sanitize('active', [toBoolean()])
@@ -412,7 +412,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         assertEquals(sanitized.active, true)
     })
 
-    await t.step('defaultValue', async () => {
+    await t.step('defaultValue', () => {
         const v = validator()
         v.sanitize('status', [defaultValue('pending')])
 
