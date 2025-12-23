@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
+import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
 
 export const ComponentsPage = () => {
     return (
@@ -12,11 +12,11 @@ export const ComponentsPage = () => {
 
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Creating Components</h2>
-                    <p class="mb-4">Use the <code class="bg-gray-100 px-2 py-1 rounded">make:component</code> command to scaffold new JSX components:</p>
+                    <p class="mb-4">Use the <InlineCode>make:component</InlineCode> command to scaffold new JSX components:</p>
                     <CommandBlock lang='terminal'>
 {`deno task ace make:component Button`}
                     </CommandBlock>
-                    <p class="mb-4">This creates <code class="bg-gray-100 px-2 py-1 rounded">src/view/components/button.tsx</code> with:</p>
+                    <p class="mb-4">This creates <InlineCode>src/view/components/button.tsx</InlineCode> with:</p>
                     <CodeBlock lang='typescript'>
 {`export const Button = (props: ButtonProps) => {
     return (
@@ -34,9 +34,9 @@ export const ComponentsPage = () => {
                     <p class="mb-4">Lockness follows these naming conventions for components:</p>
                     <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
                         <ul class="list-disc list-inside space-y-2">
-                            <li><strong>Component class name:</strong> PascalCase (e.g., <code class="bg-gray-100 px-2 py-1 rounded">Button</code>, <code class="bg-gray-100 px-2 py-1 rounded">UserCard</code>)</li>
-                            <li><strong>File name:</strong> snake_case (e.g., <code class="bg-gray-100 px-2 py-1 rounded">button.tsx</code>, <code class="bg-gray-100 px-2 py-1 rounded">user_card.tsx</code>)</li>
-                            <li><strong>Props interface:</strong> <code class="bg-gray-100 px-2 py-1 rounded">{"<ComponentName>Props"}</code></li>
+                            <li><strong>Component class name:</strong> PascalCase (e.g., <InlineCode>Button</InlineCode>, <InlineCode>UserCard</InlineCode>)</li>
+                            <li><strong>File name:</strong> snake_case (e.g., <InlineCode>button.tsx</InlineCode>, <InlineCode>user_card.tsx</InlineCode>)</li>
+                            <li><strong>Props interface:</strong> <InlineCode>{"<ComponentName>Props"}</InlineCode></li>
                         </ul>
                     </div>
                 </section>
@@ -50,8 +50,8 @@ deno task ace make:component forms/Input`}
                     </CommandBlock>
                     <p class="mb-4">This creates:</p>
                     <ul class="list-disc list-inside mb-6 ml-4 space-y-2">
-                        <li><code class="bg-gray-100 px-2 py-1 rounded">src/view/components/ui/card.tsx</code></li>
-                        <li><code class="bg-gray-100 px-2 py-1 rounded">src/view/components/forms/input.tsx</code></li>
+                        <li><InlineCode>src/view/components/ui/card.tsx</InlineCode></li>
+                        <li><InlineCode>src/view/components/forms/input.tsx</InlineCode></li>
                     </ul>
                 </section>
 

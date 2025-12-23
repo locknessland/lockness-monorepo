@@ -13,6 +13,15 @@ const CheckIcon = () => (
 
 let copyId = 0
 
+// Inline code snippet (without copy button, for inline text)
+export const InlineCode = ({ children }: { children: string }) => {
+    return (
+        <code class="px-2 py-1 bg-primary/20 text-primary font-pixel-body text-sm border border-primary/30">
+            {children}
+        </code>
+    )
+}
+
 // Inline command with copy button (for single line commands)
 export const Command = ({ children }: { children: string }) => {
     const id = `cmd-${copyId++}`

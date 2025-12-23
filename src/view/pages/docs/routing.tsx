@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CodeBlock } from '@view/components/code_block.tsx'
+import { CodeBlock, InlineCode } from '@view/components/code_block.tsx'
 
 export const RoutingPage = () => (
     <DocsLayout title='Routing & Controllers' currentPath='/docs/routing'>
@@ -70,7 +70,7 @@ export class PostController {
 }`}</CodeBlock>
 
             <div class='pixel-card p-6 mt-8 bg-primary/10 border-primary'>
-                <p class='mb-0'><strong>Pro Tip:</strong> Use <code class='px-2 py-1 bg-primary/30'>deno task ace make:controller Name</code> to generate boilerplate</p>
+                <p class='mb-0'><strong>Pro Tip:</strong> Use <InlineCode>deno task ace make:controller Name</InlineCode> to generate boilerplate</p>
             </div>
         </div>
     </DocsLayout>

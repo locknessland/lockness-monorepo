@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
+import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
 
 export const InstallationPage = () => {
     return (
@@ -55,7 +55,7 @@ deno task dev`}
                 </CommandBlock>
 
                 <p class='text-lg leading-relaxed mb-8'>
-                    Your app will be available at <code class='px-2 py-1 bg-primary/20 text-primary border-2 border-primary/50 font-pixel-body text-sm'>http://localhost:5173</code>
+                    Your app will be available at <InlineCode>http://localhost:5173</InlineCode>
                 </p>
 
                 <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>🔧 Available Commands</h2>

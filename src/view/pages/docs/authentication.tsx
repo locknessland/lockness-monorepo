@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
+import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
 
 export const AuthenticationPage = () => {
     return (
@@ -18,14 +18,14 @@ export const AuthenticationPage = () => {
                     </CommandBlock>
                     <p class="mb-4">This creates:</p>
                     <ul class="list-disc list-inside space-y-2 mb-6">
-                        <li><code>src/controller/auth_controller.ts</code> - Login, logout, register routes</li>
-                        <li><code>src/provider/user_provider.ts</code> - User authentication provider</li>
+                        <li><InlineCode>src/controller/auth_controller.ts</InlineCode> - Login, logout, register routes</li>
+                        <li><InlineCode>src/provider/user_provider.ts</InlineCode> - User authentication provider</li>
                     </ul>
                 </section>
 
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Configuration</h2>
-                    <p class="mb-4">Configure authentication in <code>src/kernel.ts</code>:</p>
+                    <p class="mb-4">Configure authentication in <InlineCode>src/kernel.ts</InlineCode>:</p>
                     <CodeBlock lang='typescript'>
 {`import { configureAuth, container } from 'lockness'
 import { UserProvider } from '@provider/user_provider.ts'

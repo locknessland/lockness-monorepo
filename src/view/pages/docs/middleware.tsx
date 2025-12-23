@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
+import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
 
 export const MiddlewarePage = () => {
     return (
@@ -16,7 +16,7 @@ export const MiddlewarePage = () => {
                     <CommandBlock lang='terminal'>
 {`deno task ace make:middleware Auth`}
                     </CommandBlock>
-                    <p class="mb-4">This creates <code>src/middleware/auth_middleware.ts</code>:</p>
+                    <p class="mb-4">This creates <InlineCode>src/middleware/auth_middleware.ts</InlineCode>:</p>
                     <CodeBlock lang='typescript'>
 {`import { Context, IMiddleware, MiddlewareHandler } from 'lockness'
 
@@ -36,7 +36,7 @@ export class AuthMiddleware implements IMiddleware {
 
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Global Middleware</h2>
-                    <p class="mb-4">Apply middleware to all routes in <code>src/kernel.ts</code>:</p>
+                    <p class="mb-4">Apply middleware to all routes in <InlineCode>src/kernel.ts</InlineCode>:</p>
                     <CodeBlock lang='typescript'>
 {`import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { CorsMiddleware } from '@middleware/cors_middleware.ts'

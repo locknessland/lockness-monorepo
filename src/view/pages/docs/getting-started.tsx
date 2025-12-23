@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
+import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
 
 export const GettingStartedPage = () => {
     return (
@@ -21,7 +21,7 @@ export const GettingStartedPage = () => {
                 </CommandBlock>
 
                 <p class='text-lg leading-relaxed mb-4'>
-                    This creates <code class='px-2 py-1 bg-primary/20 text-primary'>src/controller/hello_controller.ts</code>. Edit it:
+                    This creates <InlineCode>src/controller/hello_controller.ts</InlineCode>. Edit it:
                 </p>
 
                 <CodeBlock lang='typescript'>
@@ -46,7 +46,7 @@ export class HelloController {
                 </CodeBlock>
 
                 <p class='text-lg leading-relaxed mb-8'>
-                    Test it: <code class='px-2 py-1 bg-primary/20 text-primary'>http://localhost:5173/api/hello</code>
+                    Test it: <InlineCode>http://localhost:5173/api/hello</InlineCode>
                 </p>
 
                 <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>🗄️ Adding a Database Model</h2>
@@ -59,24 +59,24 @@ export class HelloController {
                 </CommandBlock>
 
                 <p class='text-lg leading-relaxed mb-4'>
-                    The <code class='px-2 py-1 bg-primary/20 text-primary'>-a</code> flag generates:
+                    The <InlineCode>-a</InlineCode> flag generates:
                 </p>
                 <ul class='space-y-2 mb-8 text-lg'>
                     <li class='flex items-start gap-3'>
                         <span class='text-primary mt-1'>▸</span>
-                        <span><code class='px-2 py-1 bg-primary/20 text-primary'>src/model/post.ts</code> - Drizzle schema + Zod validation</span>
+                        <span><InlineCode>src/model/post.ts</InlineCode> - Drizzle schema + Zod validation</span>
                     </li>
                     <li class='flex items-start gap-3'>
                         <span class='text-primary mt-1'>▸</span>
-                        <span><code class='px-2 py-1 bg-primary/20 text-primary'>src/repository/post_repository.ts</code> - Data access layer</span>
+                        <span><InlineCode>src/repository/post_repository.ts</InlineCode> - Data access layer</span>
                     </li>
                     <li class='flex items-start gap-3'>
                         <span class='text-primary mt-1'>▸</span>
-                        <span><code class='px-2 py-1 bg-primary/20 text-primary'>src/controller/post_controller.ts</code> - CRUD API</span>
+                        <span><InlineCode>src/controller/post_controller.ts</InlineCode> - CRUD API</span>
                     </li>
                     <li class='flex items-start gap-3'>
                         <span class='text-primary mt-1'>▸</span>
-                        <span><code class='px-2 py-1 bg-primary/20 text-primary'>src/seeder/post_seeder.ts</code> - Test data</span>
+                        <span><InlineCode>src/seeder/post_seeder.ts</InlineCode> - Test data</span>
                     </li>
                 </ul>
 

@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
+import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
 
 export const CliPage = () => {
     return (
@@ -192,9 +192,9 @@ deno task ace queue:work --once             # Process once and exit`}
                     </CommandBlock>
                     <p class="mb-4">The REPL automatically loads:</p>
                     <ul class="list-disc list-inside space-y-2 mb-6">
-                        <li>All models from <code>src/model/</code></li>
-                        <li>All services from <code>src/service/</code></li>
-                        <li>All repositories from <code>src/repository/</code></li>
+                        <li>All models from <InlineCode>src/model/</InlineCode></li>
+                        <li>All services from <InlineCode>src/service/</InlineCode></li>
+                        <li>All repositories from <InlineCode>src/repository/</InlineCode></li>
                     </ul>
                     <CodeBlock lang='typescript'>
 {`🔮 Lockness Tinker - Interactive REPL
@@ -215,7 +215,7 @@ deno task ace queue:work --once             # Process once and exit`}
                     <CommandBlock lang='terminal'>
 {`deno task ace make:command Greet`}
                     </CommandBlock>
-                    <p class="mb-4">This creates <code>src/command/greet_command.ts</code>:</p>
+                    <p class="mb-4">This creates <InlineCode>src/command/greet_command.ts</InlineCode>:</p>
                     <CodeBlock lang='typescript'>
 {`import { Command, type CommandContext, type ICommand } from '@lockness/ace'
 
