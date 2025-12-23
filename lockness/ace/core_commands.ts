@@ -4,28 +4,6 @@ import { dirname, fromFileUrl, join } from '@std/path'
 const currentDir = dirname(fromFileUrl(import.meta.url))
 const STUBS_PATH = join(currentDir, 'stubs')
 
-// Helper function to detect if running in compiled binary
-function isCompiledBinary(): boolean {
-    return Deno.mainModule.includes('/deno-compile-')
-}
-
-// Helper function to get stubs path (supports both normal and compiled binary)
-async function getStubsPath(): Promise<string> {
-    if (isCompiledBinary()) {
-        // When using Nessy binary, stubs are copied to .nessy/stubs/
-        const nessyStubsPath = join(Deno.cwd(), '.nessy', 'stubs')
-        try {
-            await Deno.stat(nessyStubsPath)
-            return nessyStubsPath
-        } catch {
-            throw new Error(
-                'Nessy stubs not found. Please run: ./nessy nessy:install'
-            )
-        }
-    }
-    return STUBS_PATH
-}
-
 export function registerCoreCommands(ace: Ace) {
     ace.register('make:controller', async (args) => {
 
@@ -41,9 +19,9 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}`
 
         try {
-            const stubsPath = await getStubsPath()
+            // Stubs path
             const content = await Stub.renderFrom(
-                stubsPath,
+                STUBS_PATH,
                 'make',
                 'controller',
                 {
@@ -110,9 +88,8 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}`
 
         try {
-            const stubsPath = await getStubsPath()
             const content = await Stub.renderFrom(
-                stubsPath,
+                STUBS_PATH,
                 'make',
                 'service',
                 {
@@ -143,8 +120,7 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}.tsx`
 
         try {
-            const stubsPath = await getStubsPath()
-            const content = await Stub.renderFrom(stubsPath, 'make', 'view', {
+            const content = await Stub.renderFrom(STUBS_PATH, 'make', 'view', {
                 className,
                 fileName,
             })
@@ -175,9 +151,8 @@ export function registerCoreCommands(ace: Ace) {
         const propsInterface = `{ children?: any }`
 
         try {
-            const stubsPath = await getStubsPath()
             const content = await Stub.renderFrom(
-                stubsPath,
+                STUBS_PATH,
                 'make',
                 'component',
                 {
@@ -210,9 +185,9 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}`
 
         try {
-            const stubsPath = await getStubsPath()
+            // Stubs path
             const content = await Stub.renderFrom(
-                stubsPath,
+                STUBS_PATH,
                 'make',
                 'command',
                 {
@@ -233,16 +208,6 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new CLI command')
 
     ace.register('router:list', async () => {
-        if (isCompiledBinary()) {
-            console.log('')
-            console.log('⚠️  router:list is not available with Nessy')
-            console.log('')
-            console.log('   This command requires dynamic imports of TypeScript files.')
-            console.log('   Please use: deno task ace router:list')
-            console.log('')
-            return
-        }
-
         try {
             // Load controllers from src/controller directory
             const controllerDir = join(Deno.cwd(), 'src', 'controller')
@@ -404,19 +369,6 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Display all registered routes')
 
     ace.register('nessy:install', async () => {
-        // nessy:install must be run with deno task ace, not from the binary
-        if (isCompiledBinary()) {
-            console.log('')
-            console.log('⚠️  nessy:install cannot be run from the Nessy binary')
-            console.log('')
-            console.log('   This command needs access to the source stub files.')
-            console.log('   Please use: deno task ace nessy:install')
-            console.log('')
-            console.log('💡 Tip: Use deno task ace nessy:update to update stubs after installation')
-            console.log('')
-            return
-        }
-
         console.log('')
         console.log('🦕 Installing Nessy - Your Lockness CLI companion!')
         console.log('')
@@ -432,85 +384,32 @@ export function registerCoreCommands(ace: Ace) {
                 return
             }
 
-            // Determine the output filename based on OS
+            // Determine the OS to create appropriate wrapper
             const isWindows = Deno.build.os === 'windows'
-            const binaryName = isWindows ? 'nessy.exe' : 'nessy'
-            const binaryPath = join(Deno.cwd(), binaryName)
+            const scriptName = isWindows ? 'nessy.cmd' : 'nessy'
+            const scriptPath = join(Deno.cwd(), scriptName)
 
-            console.log(`📦 Compiling ${binaryName}...`)
+            console.log(`📝 Creating ${scriptName} wrapper...`)
             console.log('')
 
-            // Compile ace.ts to nessy binary
-            const compileCommand = new Deno.Command('deno', {
-                args: [
-                    'compile',
-                    '--allow-all',
-                    '--no-check',
-                    '--output',
-                    binaryPath,
-                    '--env',
-                    acePath,
-                ],
-                stdout: 'piped',
-                stderr: 'piped',
-            })
-
-            const { success, stdout, stderr } = await compileCommand.output()
-
-            if (!success) {
-                const errorOutput = new TextDecoder().decode(stderr)
-                console.error('❌ Failed to compile Nessy')
-                console.error(errorOutput)
-                return
+            // Create wrapper script
+            let scriptContent: string
+            if (isWindows) {
+                // Windows batch script
+                scriptContent = '@deno run -A --env ace.ts %*'
+            } else {
+                // Unix shell script
+                scriptContent = '#!/bin/sh\ndeno run -A --env ace.ts "$@"'
             }
 
-            // Display compilation output if any
-            const output = new TextDecoder().decode(stdout)
-            if (output.trim()) {
-                console.log(output)
+            await Deno.writeTextFile(scriptPath, scriptContent)
+
+            // Make executable on Unix systems
+            if (!isWindows) {
+                await Deno.chmod(scriptPath, 0o755)
             }
 
-            console.log('✅ Binary compiled successfully!')
-            console.log('')
-
-            // Copy stubs to .nessy/stubs/
-            console.log('📁 Copying stub templates...')
-            const nessyDir = join(Deno.cwd(), '.nessy')
-            const nessyStubsDir = join(nessyDir, 'stubs')
-
-            // Remove existing .nessy directory if it exists
-            try {
-                await Deno.remove(nessyDir, { recursive: true })
-            } catch {
-                // Directory doesn't exist, that's fine
-            }
-
-            // Create .nessy/stubs directory
-            await Deno.mkdir(nessyStubsDir, { recursive: true })
-
-            // Copy all stubs from lockness/ace/stubs to .nessy/stubs
-            const sourceStubsPath = STUBS_PATH
-
-            async function copyDirectory(src: string, dest: string) {
-                await Deno.mkdir(dest, { recursive: true })
-
-                for await (const entry of Deno.readDir(src)) {
-                    const srcPath = join(src, entry.name)
-                    const destPath = join(dest, entry.name)
-
-                    if (entry.isDirectory) {
-                        await copyDirectory(srcPath, destPath)
-                    } else if (entry.isFile) {
-                        await Deno.copyFile(srcPath, destPath)
-                    }
-                }
-            }
-
-            await copyDirectory(sourceStubsPath, nessyStubsDir)
-            console.log(`   ✓ Stubs copied to .nessy/stubs/`)
-            console.log('')
-
-            console.log('✅ Nessy has been successfully installed!')
+            console.log('✅ Nessy wrapper created successfully!')
             console.log('')
             console.log('🎉 You can now use Nessy for ALL commands:')
             console.log('')
@@ -519,17 +418,16 @@ export function registerCoreCommands(ace: Ace) {
                 console.log('   .\\nessy list')
                 console.log('   .\\nessy make:controller User')
                 console.log('   .\\nessy db:migrate')
+                console.log('   .\\nessy router:list')
             } else {
                 console.log('   ./nessy list')
                 console.log('   ./nessy make:controller User')
                 console.log('   ./nessy db:migrate')
+                console.log('   ./nessy router:list')
             }
 
             console.log('')
-            console.log('💡 Tips:')
-            console.log('   • Add nessy to your PATH for easier access')
-            console.log('   • Update stubs: deno task ace nessy:update')
-            console.log('   • router:list requires: deno task ace router:list')
+            console.log('💡 Tip: Add nessy to your PATH for even easier access!')
             console.log('')
 
             // Check if .gitignore exists and warn if nessy is not ignored
@@ -537,8 +435,8 @@ export function registerCoreCommands(ace: Ace) {
                 const gitignorePath = join(Deno.cwd(), '.gitignore')
                 const gitignoreContent = await Deno.readTextFile(gitignorePath)
 
-                if (!gitignoreContent.includes('nessy') || !gitignoreContent.includes('.nessy')) {
-                    console.log('⚠️  Remember to add "nessy" and ".nessy/" to your .gitignore file')
+                if (!gitignoreContent.includes('nessy')) {
+                    console.log('⚠️  Remember to add "nessy" to your .gitignore file')
                     console.log('')
                 }
             } catch {
@@ -548,77 +446,7 @@ export function registerCoreCommands(ace: Ace) {
         } catch (error) {
             console.error(`❌ Error installing Nessy: ${(error as Error).message}`)
         }
-    }, 'Install Nessy CLI binary for faster commands')
-
-    ace.register('nessy:update', async () => {
-        // nessy:update must be run with deno task ace, not from the binary
-        if (isCompiledBinary()) {
-            console.log('')
-            console.log('⚠️  nessy:update cannot be run from the Nessy binary')
-            console.log('')
-            console.log('   This command needs access to the source stub files.')
-            console.log('   Please use: deno task ace nessy:update')
-            console.log('')
-            return
-        }
-
-        console.log('')
-        console.log('🔄 Updating Nessy stubs...')
-        console.log('')
-
-        try {
-            const nessyDir = join(Deno.cwd(), '.nessy')
-            const nessyStubsDir = join(nessyDir, 'stubs')
-
-            // Check if .nessy directory exists
-            try {
-                await Deno.stat(nessyDir)
-            } catch {
-                console.error('❌ Nessy is not installed yet')
-                console.error('   Please run: deno task ace nessy:install')
-                return
-            }
-
-            // Remove existing stubs
-            try {
-                await Deno.remove(nessyStubsDir, { recursive: true })
-            } catch {
-                // Directory doesn't exist, that's fine
-            }
-
-            // Create .nessy/stubs directory
-            await Deno.mkdir(nessyStubsDir, { recursive: true })
-
-            // Copy all stubs from lockness/ace/stubs to .nessy/stubs
-            const sourceStubsPath = STUBS_PATH
-
-            async function copyDirectory(src: string, dest: string) {
-                await Deno.mkdir(dest, { recursive: true })
-
-                for await (const entry of Deno.readDir(src)) {
-                    const srcPath = join(src, entry.name)
-                    const destPath = join(dest, entry.name)
-
-                    if (entry.isDirectory) {
-                        await copyDirectory(srcPath, destPath)
-                    } else if (entry.isFile) {
-                        await Deno.copyFile(srcPath, destPath)
-                    }
-                }
-            }
-
-            await copyDirectory(sourceStubsPath, nessyStubsDir)
-
-            console.log('✅ Stubs updated successfully!')
-            console.log('')
-            console.log('   All stub templates have been synced to .nessy/stubs/')
-            console.log('   Your Nessy binary can now use the latest templates.')
-            console.log('')
-
-        } catch (error) {
-            console.error(`❌ Error updating stubs: ${(error as Error).message}`)
-        }
-    }, 'Update Nessy stub templates without recompiling')
+    }, 'Install Nessy CLI wrapper for faster commands')
 
     ace.register('make:job', async (args) => {
         const name = args[0]
@@ -639,9 +467,8 @@ export function registerCoreCommands(ace: Ace) {
         const filePath = `${dirPath}/${fileName}`
 
         try {
-            const stubsPath = await getStubsPath()
             const content = await Stub.renderFrom(
-                stubsPath,
+                STUBS_PATH,
                 'make',
                 'job',
                 {

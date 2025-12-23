@@ -18,7 +18,6 @@ dist
 # Test coverage
 coverage
 
-# Nessy CLI binary
+# Nessy CLI wrapper
 nessy
-nessy.exe
-.nessy/
+nessy.cmd
