@@ -4,8 +4,31 @@ import { dirname, fromFileUrl, join } from '@std/path'
 const currentDir = dirname(fromFileUrl(import.meta.url))
 const STUBS_PATH = join(currentDir, 'stubs')
 
+// Helper function to detect if running in compiled binary
+function isCompiledBinary(): boolean {
+    return Deno.mainModule.startsWith('file:///') && 
+           !Deno.mainModule.includes('/lockness.land/')
+}
+
+// Helper function to show compiled binary warning
+function showCompiledBinaryWarning(command: string) {
+    console.log('')
+    console.log(`⚠️  ${command} is not available when using the Nessy binary`)
+    console.log('')
+    console.log('   This command requires access to stub template files,')
+    console.log('   which are not included in the compiled binary.')
+    console.log('')
+    console.log(`   Please use: deno task ace ${command}`)
+    console.log('')
+}
+
 export function registerCoreCommands(ace: Ace) {
     ace.register('make:controller', async (args) => {
+        if (isCompiledBinary()) {
+            showCompiledBinaryWarning('make:controller')
+            return
+        }
+
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a controller name (e.g., User)')
@@ -39,6 +62,11 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new controller class')
 
     ace.register('make:middleware', async (args) => {
+        if (isCompiledBinary()) {
+            showCompiledBinaryWarning('make:middleware')
+            return
+        }
+
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a middleware name (e.g., Auth)')
@@ -73,6 +101,11 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new middleware class')
 
     ace.register('make:service', async (args) => {
+        if (isCompiledBinary()) {
+            showCompiledBinaryWarning('make:service')
+            return
+        }
+
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a service name (e.g., Auth)')
@@ -105,6 +138,11 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new service class')
 
     ace.register('make:view', async (args) => {
+        if (isCompiledBinary()) {
+            showCompiledBinaryWarning('make:view')
+            return
+        }
+
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a view name (e.g., Post)')
@@ -133,6 +171,11 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new view page')
 
     ace.register('make:component', async (args) => {
+        if (isCompiledBinary()) {
+            showCompiledBinaryWarning('make:component')
+            return
+        }
+
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a component name (e.g., Button)')
@@ -169,6 +212,11 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new JSX component')
 
     ace.register('make:command', async (args) => {
+        if (isCompiledBinary()) {
+            showCompiledBinaryWarning('make:command')
+            return
+        }
+
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a command name (e.g., Greet)')
@@ -204,6 +252,11 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Create a new CLI command')
 
     ace.register('router:list', async () => {
+        if (isCompiledBinary()) {
+            showCompiledBinaryWarning('router:list')
+            return
+        }
+
         try {
             // Load controllers from src/controller directory
             const controllerDir = join(Deno.cwd(), 'src', 'controller')
@@ -456,6 +509,11 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Install Nessy CLI binary for faster commands')
 
     ace.register('make:job', async (args) => {
+        if (isCompiledBinary()) {
+            showCompiledBinaryWarning('make:job')
+            return
+        }
+
         const name = args[0]
         if (!name) {
             console.error(
