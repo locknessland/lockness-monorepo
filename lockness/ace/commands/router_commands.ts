@@ -1,4 +1,4 @@
-import { type Ace } from '../cli.ts'
+import type { Ace } from '../cli.ts'
 import { join } from '@std/path'
 
 export function registerRouterCommands(ace: Ace) {

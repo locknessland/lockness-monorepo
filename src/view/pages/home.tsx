@@ -522,7 +522,20 @@ export const HomeView = () => {
                                             </span>
                                         </div>
                                         <div class='p-5 overflow-x-auto font-pixel-body text-lg leading-relaxed'>
-                                            <pre><code class='whitespace-pre-wrap'><Decorator>@Controller</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>{"\n"}<Keyword>export class</Keyword> <Type>HomeController</Type> <Punctuation>{'{'}</Punctuation>{"\n"}{"\n"}{'    '}<Decorator>@Get</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>{"\n"}{'    '}<Decorator>@Use</Decorator><Punctuation>(</Punctuation><Type>AuthMiddleware</Type><Punctuation>)</Punctuation>{"\n"}{'    '}<Keyword>async</Keyword> <Func>index</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>:</Punctuation> <Type>Context</Type><Punctuation>)</Punctuation> <Punctuation>{'{'}</Punctuation>{"\n"}{'        '}<Keyword>const</Keyword> <Variable>user</Variable> <Symbol>=</Symbol> <Keyword>await</Keyword> <Func>auth</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>)</Punctuation>.<Func>user</Func><Punctuation>()</Punctuation>{"\n"}{"\n"}{'        '}<Keyword>return</Keyword> <Variable>c</Variable>.<Func>json</Func><Punctuation>(</Punctuation><Punctuation>{'{'}</Punctuation>{"\n"}{'            '}monster<Punctuation>:</Punctuation> <Type>true</Type><Punctuation>,</Punctuation>{"\n"}{'            '}message<Punctuation>:</Punctuation> <String>"Hello from the Deep"</String>{"\n"}{'        '}<Punctuation>{'}'}</Punctuation><Punctuation>)</Punctuation>{"\n"}{'    '}<Punctuation>{'}'}</Punctuation>{"\n"}<Punctuation>{'}'}</Punctuation></code></pre>
+                                            <pre><code class='whitespace-pre-wrap'><Decorator>@Controller</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>
+<Keyword>export class</Keyword> <Type>HomeController</Type> <Punctuation>{'{'}</Punctuation>
+
+    <Decorator>@Get</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>
+    <Decorator>@Use</Decorator><Punctuation>(</Punctuation><Type>AuthMiddleware</Type><Punctuation>)</Punctuation>
+    <Keyword>async</Keyword> <Func>index</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>:</Punctuation> <Type>Context</Type><Punctuation>)</Punctuation> <Punctuation>{'{'}</Punctuation>
+        <Keyword>const</Keyword> <Variable>user</Variable> <Symbol>=</Symbol> <Keyword>await</Keyword> <Func>auth</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>)</Punctuation>.<Func>user</Func><Punctuation>()</Punctuation>
+
+        <Keyword>return</Keyword> <Variable>c</Variable>.<Func>json</Func><Punctuation>(</Punctuation><Punctuation>{'{'}</Punctuation>
+            monster<Punctuation>:</Punctuation> <Type>true</Type><Punctuation>,</Punctuation>
+            message<Punctuation>:</Punctuation> <String>"Hello from the Deep"</String>
+        <Punctuation>{'}'}</Punctuation><Punctuation>)</Punctuation>
+    <Punctuation>{'}'}</Punctuation>
+<Punctuation>{'}'}</Punctuation></code></pre>
                                         </div>
                                     </div>
                                 </div>
@@ -833,7 +846,8 @@ export const HomeView = () => {
                                 <Keyword>export class</Keyword>{' '}
                                 <Type>UserController</Type>{' '}
                                 <Punctuation>{'{'}</Punctuation>
-                                {'\n'}{'    '}<Keyword>constructor</Keyword>
+                                
+    <Keyword>constructor</Keyword>
                                 <Punctuation>(</Punctuation>
                                 <Keyword>private</Keyword>{' '}
                                 <Variable>userService</Variable>
@@ -842,11 +856,13 @@ export const HomeView = () => {
                                 <Punctuation>)</Punctuation>{' '}
                                 <Punctuation>{'{}'}</Punctuation>
                                 {'\n'}
-                                {'\n'}{'    '}<Decorator>@Get</Decorator>
+                                
+    <Decorator>@Get</Decorator>
                                 <Punctuation>(</Punctuation>
                                 <String>'/'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Keyword>async</Keyword>{' '}
+                                
+    <Keyword>async</Keyword>{' '}
                                 <Func>index</Func>
                                 <Punctuation>(</Punctuation>
                                 <Variable>c</Variable>
@@ -854,7 +870,8 @@ export const HomeView = () => {
                                 <Type>Context</Type>
                                 <Punctuation>)</Punctuation>{' '}
                                 <Punctuation>{'{'}</Punctuation>
-                                {'\n'}{'        '}<Keyword>const</Keyword>{' '}
+                                
+        <Keyword>const</Keyword>{' '}
                                 <Variable>users</Variable> <Symbol>=</Symbol>
                                 {' '}
                                 <Keyword>await</Keyword>{' '}
@@ -862,26 +879,31 @@ export const HomeView = () => {
                                     userService
                                 </Variable>.<Func>findAll</Func>
                                 <Punctuation>()</Punctuation>
-                                {'\n'}{'        '}<Keyword>return</Keyword>{' '}
+                                
+        <Keyword>return</Keyword>{' '}
                                 <Variable>c</Variable>.<Func>json</Func>
                                 <Punctuation>(</Punctuation>
                                 <Punctuation>{'{'}</Punctuation>{' '}
                                 <Variable>users</Variable>{' '}
                                 <Punctuation>{'}'}</Punctuation>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Punctuation>{'}'}</Punctuation>
+                                
+    <Punctuation>{'}'}</Punctuation>
                                 {'\n'}
-                                {'\n'}{'    '}<Decorator>@Post</Decorator>
+                                
+    <Decorator>@Post</Decorator>
                                 <Punctuation>(</Punctuation>
                                 <String>'/'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Decorator>@Validate</Decorator>
+                                
+    <Decorator>@Validate</Decorator>
                                 <Punctuation>(</Punctuation>
                                 <String>'json'</String>
                                 <Punctuation>,</Punctuation>{' '}
                                 <Variable>insertUserSchema</Variable>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Keyword>async</Keyword>{' '}
+                                
+    <Keyword>async</Keyword>{' '}
                                 <Func>store</Func>
                                 <Punctuation>(</Punctuation>
                                 <Variable>c</Variable>
@@ -889,7 +911,8 @@ export const HomeView = () => {
                                 <Type>Context</Type>
                                 <Punctuation>)</Punctuation>{' '}
                                 <Punctuation>{'{'}</Punctuation>
-                                {'\n'}{'        '}<Keyword>const</Keyword>{' '}
+                                
+        <Keyword>const</Keyword>{' '}
                                 <Variable>data</Variable> <Symbol>=</Symbol>
                                 {' '}
                                 <Variable>c</Variable>.<Variable>
@@ -898,7 +921,8 @@ export const HomeView = () => {
                                 <Punctuation>(</Punctuation>
                                 <String>'json'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'        '}<Keyword>const</Keyword>{' '}
+                                
+        <Keyword>const</Keyword>{' '}
                                 <Variable>user</Variable> <Symbol>=</Symbol>
                                 {' '}
                                 <Keyword>await</Keyword>{' '}
@@ -908,7 +932,8 @@ export const HomeView = () => {
                                 <Punctuation>(</Punctuation>
                                 <Variable>data</Variable>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'        '}<Keyword>return</Keyword>{' '}
+                                
+        <Keyword>return</Keyword>{' '}
                                 <Variable>c</Variable>.<Func>json</Func>
                                 <Punctuation>(</Punctuation>
                                 <Punctuation>{'{'}</Punctuation>{' '}
@@ -916,7 +941,8 @@ export const HomeView = () => {
                                 <Punctuation>{'}'}</Punctuation>
                                 <Punctuation>,</Punctuation> <Type>201</Type>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Punctuation>{'}'}</Punctuation>
+                                
+    <Punctuation>{'}'}</Punctuation>
                                 {'\n'}
                                 <Punctuation>{'}'}</Punctuation>
                             </CodeBlock>
@@ -953,34 +979,41 @@ export const HomeView = () => {
                                 <Keyword>export class</Keyword>{' '}
                                 <Type>AuthController</Type>{' '}
                                 <Punctuation>{'{'}</Punctuation>
-                                {'\n'}{'    '}<Decorator>@Guest</Decorator>
+                                
+    <Decorator>@Guest</Decorator>
                                 <Punctuation>(</Punctuation>
                                 <String>'/dashboard'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Decorator>@Get</Decorator>
+                                
+    <Decorator>@Get</Decorator>
                                 <Punctuation>(</Punctuation>
                                 <String>'/login'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Func>showLogin</Func>
+                                
+    <Func>showLogin</Func>
                                 <Punctuation>(</Punctuation>
                                 <Variable>c</Variable>
                                 <Punctuation>:</Punctuation>{' '}
                                 <Type>Context</Type>
                                 <Punctuation>)</Punctuation>{' '}
                                 <Punctuation>{'{'}</Punctuation>
-                                {'\n'}{'        '}<Keyword>return</Keyword>{' '}
+                                
+        <Keyword>return</Keyword>{' '}
                                 <Variable>c</Variable>.<Func>render</Func>
                                 <Punctuation>(</Punctuation>
                                 <Symbol>{'<'}</Symbol>
                                 <Type>LoginPage</Type> <Symbol>{'/>'}</Symbol>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Punctuation>{'}'}</Punctuation>
+                                
+    <Punctuation>{'}'}</Punctuation>
                                 {'\n'}
-                                {'\n'}{'    '}<Decorator>@Post</Decorator>
+                                
+    <Decorator>@Post</Decorator>
                                 <Punctuation>(</Punctuation>
                                 <String>'/login'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Keyword>async</Keyword>{' '}
+                                
+    <Keyword>async</Keyword>{' '}
                                 <Func>login</Func>
                                 <Punctuation>(</Punctuation>
                                 <Variable>c</Variable>
@@ -988,7 +1021,8 @@ export const HomeView = () => {
                                 <Type>Context</Type>
                                 <Punctuation>)</Punctuation>{' '}
                                 <Punctuation>{'{'}</Punctuation>
-                                {'\n'}{'        '}<Keyword>const</Keyword>{' '}
+                                
+        <Keyword>const</Keyword>{' '}
                                 <Punctuation>{'{'}</Punctuation>{' '}
                                 <Variable>email</Variable>
                                 <Punctuation>,</Punctuation>{' '}
@@ -1000,7 +1034,8 @@ export const HomeView = () => {
                                 </Variable>.<Func>parseBody</Func>
                                 <Punctuation>()</Punctuation>
                                 {'\n'}
-                                {'\n'}{'        '}<Keyword>if</Keyword>{' '}
+                                
+        <Keyword>if</Keyword>{' '}
                                 <Punctuation>(</Punctuation>
                                 <Keyword>await</Keyword> <Func>auth</Func>
                                 <Punctuation>(</Punctuation>
@@ -1015,16 +1050,19 @@ export const HomeView = () => {
                                 <Punctuation>)</Punctuation>
                                 <Punctuation>)</Punctuation>{' '}
                                 <Punctuation>{'{'}</Punctuation>
-                                {'\n'}{'            '}<Keyword>return</Keyword>
+                                
+            <Keyword>return</Keyword>
                                 {' '}
                                 <Variable>c</Variable>.<Func>redirect</Func>
                                 <Punctuation>(</Punctuation>
                                 <String>'/dashboard'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'        '}
+                                
+{'        '}
                                 <Punctuation>{'}'}</Punctuation>
                                 {'\n'}
-                                {'\n'}{'        '}<Func>session</Func>
+                                
+        <Func>session</Func>
                                 <Punctuation>(</Punctuation>
                                 <Variable>c</Variable>
                                 <Punctuation>)</Punctuation>.<Func>flash</Func>
@@ -1033,20 +1071,25 @@ export const HomeView = () => {
                                 <Punctuation>,</Punctuation>{' '}
                                 <String>'Invalid credentials'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'        '}<Keyword>return</Keyword>{' '}
+                                
+        <Keyword>return</Keyword>{' '}
                                 <Variable>c</Variable>.<Func>redirect</Func>
                                 <Punctuation>(</Punctuation>
                                 <String>'/auth/login'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Punctuation>{'}'}</Punctuation>
+                                
+    <Punctuation>{'}'}</Punctuation>
                                 {'\n'}
-                                {'\n'}{'    '}<Decorator>@Auth</Decorator>
+                                
+    <Decorator>@Auth</Decorator>
                                 <Punctuation>()</Punctuation>
-                                {'\n'}{'    '}<Decorator>@Post</Decorator>
+                                
+    <Decorator>@Post</Decorator>
                                 <Punctuation>(</Punctuation>
                                 <String>'/logout'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Keyword>async</Keyword>{' '}
+                                
+    <Keyword>async</Keyword>{' '}
                                 <Func>logout</Func>
                                 <Punctuation>(</Punctuation>
                                 <Variable>c</Variable>
@@ -1054,18 +1097,21 @@ export const HomeView = () => {
                                 <Type>Context</Type>
                                 <Punctuation>)</Punctuation>{' '}
                                 <Punctuation>{'{'}</Punctuation>
-                                {'\n'}{'        '}<Keyword>await</Keyword>{' '}
+                                
+        <Keyword>await</Keyword>{' '}
                                 <Func>auth</Func>
                                 <Punctuation>(</Punctuation>
                                 <Variable>c</Variable>
                                 <Punctuation>)</Punctuation>.<Func>logout</Func>
                                 <Punctuation>()</Punctuation>
-                                {'\n'}{'        '}<Keyword>return</Keyword>{' '}
+                                
+        <Keyword>return</Keyword>{' '}
                                 <Variable>c</Variable>.<Func>redirect</Func>
                                 <Punctuation>(</Punctuation>
                                 <String>'/auth/login'</String>
                                 <Punctuation>)</Punctuation>
-                                {'\n'}{'    '}<Punctuation>{'}'}</Punctuation>
+                                
+    <Punctuation>{'}'}</Punctuation>
                                 {'\n'}
                                 <Punctuation>{'}'}</Punctuation>
                             </CodeBlock>

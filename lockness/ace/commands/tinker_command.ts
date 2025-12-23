@@ -1,4 +1,4 @@
-import { type Ace } from '../cli.ts'
+import type { Ace } from '../cli.ts'
 
 export function registerTinkerCommand(ace: Ace) {
     ace.register('tinker', async () => {
