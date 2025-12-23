@@ -167,7 +167,7 @@ export const HomeView = () => {
                             <a href='#features' class='text-muted-foreground hover:text-primary transition-colors'>Features</a>
                             <a href='#getting-started' class='text-muted-foreground hover:text-primary transition-colors'>Getting Started</a>
                             <a href='#examples' class='text-muted-foreground hover:text-primary transition-colors'>Examples</a>
-                            <span class='font-pixel text-[8px] px-3 py-1 border-2 border-primary/50 bg-background text-primary'>v1.0.0</span>
+                            <span class='font-pixel text-[8px] px-3 py-1 border-2 border-primary/50 bg-background text-primary'>v{pkg.version}</span>
                         </nav>
 
                         <div class='flex items-center gap-3'>
