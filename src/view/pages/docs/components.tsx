@@ -8,7 +8,7 @@ import { PageTitle } from '@view/components/page_title.tsx'
 
 export const ComponentsPage = () => {
     return (
-        <DocsLayout title='Components - Lockness JS'>
+        <DocsLayout title='Components - Lockness JS' currentPath='/docs/components'>
             <div class='max-w-4xl mx-auto'>
                 <PageTitle>Components</PageTitle>
                 <p class='text-xl text-gray-600 mb-8'>

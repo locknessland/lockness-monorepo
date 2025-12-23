@@ -8,7 +8,7 @@ import { PageTitle } from '@view/components/page_title.tsx'
 
 export const AuthenticationPage = () => {
     return (
-        <DocsLayout title='Authentication - Lockness JS'>
+        <DocsLayout title='Authentication - Lockness JS' currentPath='/docs/authentication'>
             <div class='max-w-4xl mx-auto'>
                 <PageTitle>Authentication</PageTitle>
                 <p class='text-xl text-gray-600 mb-8'>

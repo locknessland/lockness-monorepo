@@ -8,7 +8,7 @@ import { PageTitle } from '@view/components/page_title.tsx'
 
 export const CliPage = () => {
     return (
-        <DocsLayout title='CLI (Ace) - Lockness JS'>
+        <DocsLayout title='CLI (Ace) - Lockness JS' currentPath='/docs/cli'>
             <div class='max-w-4xl mx-auto'>
                 <PageTitle>CLI (Ace)</PageTitle>
                 <p class='text-xl text-gray-600 mb-8'>

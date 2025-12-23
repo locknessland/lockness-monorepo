@@ -8,7 +8,7 @@ import { PageTitle } from '@view/components/page_title.tsx'
 
 export const MiddlewarePage = () => {
     return (
-        <DocsLayout title='Middleware - Lockness JS'>
+        <DocsLayout title='Middleware - Lockness JS' currentPath='/docs/middleware'>
             <div class='max-w-4xl mx-auto'>
                 <PageTitle>Middleware</PageTitle>
                 <p class='text-xl text-gray-600 mb-8'>
