@@ -5,6 +5,7 @@
         "./lockness/mail",
         "./lockness/queue",
         "./lockness/socialite",
+        "./lockness/validator",
         "./lockness/ace",
         "./lockness/drizzle",
         "./lockness/init"
@@ -43,6 +44,7 @@
         "@lockness/mail": "./lockness/mail/mail.ts",
         "@lockness/queue": "./lockness/queue/queue.ts",
         "@lockness/socialite": "./lockness/socialite/socialite.ts",
+        "@lockness/validator": "./lockness/validator/validator.ts",
         "@lockness/ace": "./lockness/ace/cli.ts",
         "@lockness/drizzle": "./lockness/drizzle/database.ts",
         "hono": "npm:hono@^4.11.1",

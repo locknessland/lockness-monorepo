@@ -1289,6 +1289,11 @@
           "jsr:@std/testing@1",
           "npm:hono@^4.11.1"
         ]
+      },
+      "lockness/validator": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ]
       }
     }
   }
