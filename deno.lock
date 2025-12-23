@@ -2303,6 +2303,11 @@
           "npm:postgres@^3.4.4"
         ]
       },
+      "lockness/events": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ]
+      },
       "lockness/init": {
         "dependencies": [
           "jsr:@std/expect@1",

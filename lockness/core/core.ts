@@ -12,6 +12,7 @@ export { z } from 'zod'
 // Re-export from separate libs
 export * from '@lockness/cache'
 export * from '@lockness/container'
+export * from '@lockness/events'
 export * from '@lockness/mail'
 export * from '@lockness/queue'
 export * from '@lockness/socialite'

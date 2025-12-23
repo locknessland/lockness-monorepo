@@ -1,0 +1,11 @@
+{
+    "name": "@lockness/events",
+    "version": "1.0.0",
+    "exports": "./events.ts",
+    "tasks": {
+        "test": "deno test --allow-all --no-check"
+    },
+    "imports": {
+        "@std/assert": "jsr:@std/assert@1"
+    }
+}
