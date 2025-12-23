@@ -25,7 +25,6 @@
         "@service/": "./src/service/",
         "@middleware/": "./src/middleware/",
         "@model/": "./src/model/",
-        "@router": "./src/router.ts",
         "@repository/": "./src/repository/",
         "@view/": "./src/view/",
         "@kernel": "./src/kernel.ts",
