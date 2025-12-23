@@ -1,11 +1,15 @@
 /**
- * Lockness Session Management
- *
- * Provides session handling with multiple driver support.
- * Inspired by Laravel's session system.
+ * Lockness Session - Session Management System
+ * 
+ * Multi-driver session handling with Cookie, Memory, DenoKV, and Redis support.
+ * Provides encrypted sessions, flash data, and automatic garbage collection.
+ * 
+ * Note: Some methods are async for driver consistency
  */
 
-import type { Context, MiddlewareHandler } from 'hono'
+// deno-lint-ignore-file require-await
+
+import type { Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 
 // =============================================================================
@@ -17,8 +21,8 @@ export interface SessionData {
 }
 
 export interface SessionConfig {
-    /** Session driver: 'cookie' | 'deno-kv' | 'memory' */
-    driver: 'cookie' | 'deno-kv' | 'memory'
+    /** Session driver: 'cookie' | 'deno-kv' | 'memory' | 'redis' */
+    driver: 'cookie' | 'deno-kv' | 'memory' | 'redis'
     /** Cookie name for session ID or data */
     cookieName: string
     /** Session lifetime in seconds (default: 7200 = 2 hours) */
@@ -37,6 +41,13 @@ export interface SessionConfig {
     sameSite: 'Strict' | 'Lax' | 'None'
     /** Deno KV path (for deno-kv driver) */
     kvPath?: string
+    /** Redis configuration (for redis driver) */
+    redis?: {
+        hostname: string
+        port?: number
+        password?: string
+        db?: number
+    }
 }
 
 export interface SessionDriver {
@@ -50,6 +61,8 @@ export interface SessionDriver {
     regenerate(oldId: string, newId: string): Promise<void>
     /** Garbage collection (optional) */
     gc?(): Promise<void>
+    /** Close connection (optional) */
+    close?(): Promise<void>
 }
 
 export interface Session {
@@ -111,9 +124,7 @@ export function getSessionConfig(): SessionConfig {
 function generateSessionId(): string {
     const array = new Uint8Array(32)
     crypto.getRandomValues(array)
-    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join(
-        '',
-    )
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 // =============================================================================
@@ -157,18 +168,16 @@ export class CookieSessionDriver implements SessionDriver {
         })
     }
 
-    destroy(_sessionId: string): Promise<void> {
+    async destroy(_sessionId: string): Promise<void> {
         deleteCookie(this.context, this.config.cookieName, {
             path: this.config.path,
             domain: this.config.domain,
         })
-        return Promise.resolve()
     }
 
-    regenerate(_oldId: string, _newId: string): Promise<void> {
+    async regenerate(_oldId: string, _newId: string): Promise<void> {
         // For cookie driver, regeneration is handled at session level
         // No action needed here
-        return Promise.resolve()
     }
 
     // Simple encryption using Web Crypto API
@@ -245,6 +254,64 @@ export class CookieSessionDriver implements SessionDriver {
 }
 
 // =============================================================================
+// Memory Session Driver (for development/testing)
+// =============================================================================
+
+export class MemorySessionDriver implements SessionDriver {
+    private sessions = new Map<string, { data: SessionData; expires: number }>()
+
+    async read(sessionId: string): Promise<SessionData | null> {
+        const session = this.sessions.get(sessionId)
+        if (!session) return null
+
+        // Check expiration
+        if (Date.now() > session.expires) {
+            this.sessions.delete(sessionId)
+            return null
+        }
+
+        return session.data
+    }
+
+    async write(
+        sessionId: string,
+        data: SessionData,
+        lifetime: number,
+    ): Promise<void> {
+        this.sessions.set(sessionId, {
+            data,
+            expires: Date.now() + lifetime * 1000,
+        })
+    }
+
+    async destroy(sessionId: string): Promise<void> {
+        this.sessions.delete(sessionId)
+    }
+
+    async regenerate(oldId: string, newId: string): Promise<void> {
+        const session = this.sessions.get(oldId)
+        if (session) {
+            this.sessions.set(newId, session)
+            this.sessions.delete(oldId)
+        }
+    }
+
+    async gc(): Promise<void> {
+        const now = Date.now()
+        for (const [id, session] of this.sessions.entries()) {
+            if (now > session.expires) {
+                this.sessions.delete(id)
+            }
+        }
+    }
+
+    // Testing helper
+    clear(): void {
+        this.sessions.clear()
+    }
+}
+
+// =============================================================================
 // Deno KV Session Driver
 // =============================================================================
 
@@ -293,107 +360,193 @@ export class DenoKvSessionDriver implements SessionDriver {
             await kv.delete(['sessions', oldId])
         }
     }
+
+    async close(): Promise<void> {
+        if (this.kv) {
+            this.kv.close()
+            this.kv = null
+        }
+    }
 }
 
 // =============================================================================
-// Memory Session Driver (for development/testing only)
+// Redis Session Driver
 // =============================================================================
 
-const memoryStore = new Map<string, { data: SessionData; expires: number }>()
-
-export class MemorySessionDriver implements SessionDriver {
-    read(sessionId: string): Promise<SessionData | null> {
-        const entry = memoryStore.get(sessionId)
-        if (!entry) return Promise.resolve(null)
-        if (Date.now() > entry.expires) {
-            memoryStore.delete(sessionId)
-            return Promise.resolve(null)
-        }
-        return Promise.resolve(entry.data)
+export class RedisSessionDriver implements SessionDriver {
+    private connection: Deno.Conn | null = null
+    private config: {
+        hostname: string
+        port: number
+        password?: string
+        db?: number
     }
 
-    write(
+    constructor(config: {
+        hostname: string
+        port?: number
+        password?: string
+        db?: number
+    }) {
+        this.config = {
+            hostname: config.hostname,
+            port: config.port ?? 6379,
+            password: config.password,
+            db: config.db ?? 0,
+        }
+    }
+
+    private async connect(): Promise<Deno.Conn> {
+        if (!this.connection) {
+            this.connection = await Deno.connect({
+                hostname: this.config.hostname,
+                port: this.config.port,
+            })
+
+            // Authenticate if password provided
+            if (this.config.password) {
+                await this.sendCommand(['AUTH', this.config.password])
+            }
+
+            // Select database if specified
+            if (this.config.db !== 0) {
+                await this.sendCommand(['SELECT', String(this.config.db)])
+            }
+        }
+        return this.connection
+    }
+
+    private async sendCommand(args: string[]): Promise<string> {
+        const conn = await this.connect()
+        const encoder = new TextEncoder()
+        const decoder = new TextDecoder()
+
+        // Build RESP protocol command
+        let command = `*${args.length}\r\n`
+        for (const arg of args) {
+            command += `$${arg.length}\r\n${arg}\r\n`
+        }
+
+        await conn.write(encoder.encode(command))
+
+        // Read response
+        const buffer = new Uint8Array(4096)
+        const n = await conn.read(buffer)
+        if (!n) throw new Error('Redis connection closed')
+
+        const response = decoder.decode(buffer.subarray(0, n))
+        return this.parseResponse(response)
+    }
+
+    private parseResponse(response: string): string {
+        const type = response[0]
+
+        if (type === '+') {
+            // Simple string
+            return response.substring(1, response.indexOf('\r\n'))
+        } else if (type === '$') {
+            // Bulk string
+            const lines = response.split('\r\n')
+            const length = parseInt(lines[0].substring(1))
+            if (length === -1) return '' // NULL
+            return lines[1] || ''
+        } else if (type === '-') {
+            // Error
+            throw new Error(response.substring(1, response.indexOf('\r\n')))
+        } else if (type === ':') {
+            // Integer
+            return response.substring(1, response.indexOf('\r\n'))
+        }
+
+        return ''
+    }
+
+    async read(sessionId: string): Promise<SessionData | null> {
+        try {
+            const data = await this.sendCommand(['GET', `session:${sessionId}`])
+            if (!data) return null
+            return JSON.parse(data) as SessionData
+        } catch {
+            return null
+        }
+    }
+
+    async write(
         sessionId: string,
         data: SessionData,
         lifetime: number,
     ): Promise<void> {
-        memoryStore.set(sessionId, {
-            data,
-            expires: Date.now() + lifetime * 1000,
-        })
-        return Promise.resolve()
+        await this.sendCommand([
+            'SETEX',
+            `session:${sessionId}`,
+            String(lifetime),
+            JSON.stringify(data),
+        ])
     }
 
-    destroy(sessionId: string): Promise<void> {
-        memoryStore.delete(sessionId)
-        return Promise.resolve()
+    async destroy(sessionId: string): Promise<void> {
+        await this.sendCommand(['DEL', `session:${sessionId}`])
     }
 
-    regenerate(oldId: string, newId: string): Promise<void> {
-        const entry = memoryStore.get(oldId)
-        if (entry) {
-            memoryStore.set(newId, entry)
-            memoryStore.delete(oldId)
+    async regenerate(oldId: string, newId: string): Promise<void> {
+        const data = await this.read(oldId)
+        if (data) {
+            await this.write(newId, data, this.config.db ?? 7200)
+            await this.destroy(oldId)
         }
-        return Promise.resolve()
     }
 
-    gc(): Promise<void> {
-        const now = Date.now()
-        for (const [key, entry] of memoryStore.entries()) {
-            if (now > entry.expires) {
-                memoryStore.delete(key)
-            }
+    async close(): Promise<void> {
+        if (this.connection) {
+            await this.sendCommand(['QUIT'])
+            this.connection.close()
+            this.connection = null
         }
-        return Promise.resolve()
     }
 }
 
 // =============================================================================
-// Session Store Implementation
+// SessionStore Class
 // =============================================================================
 
 export class SessionStore implements Session {
-    private id: string
-    private data: SessionData
-    private originalData: string
+    private sessionId: string
     private driver: SessionDriver
-    private config: SessionConfig
+    private data: SessionData
     private flashData: SessionData = {}
-    private previousFlashData: SessionData = {}
+    private dirty = false
+    private config: SessionConfig
 
     constructor(
-        id: string,
-        data: SessionData,
+        sessionId: string,
         driver: SessionDriver,
+        data: SessionData,
         config: SessionConfig,
     ) {
-        this.id = id
-        this.data = data
-        this.originalData = JSON.stringify(data)
+        this.sessionId = sessionId
         this.driver = driver
+        this.data = { ...data }
         this.config = config
 
         // Extract flash data from previous request
-        if (data._flash) {
-            this.previousFlashData = data._flash as SessionData
+        if (this.data._flash) {
+            this.flashData = this.data._flash as SessionData
             delete this.data._flash
         }
     }
 
     getId(): string {
-        return this.id
+        return this.sessionId
     }
 
     get<T = unknown>(key: string, defaultValue?: T): T | undefined {
-        if (key in this.data) {
-            return this.data[key] as T
-        }
-        return defaultValue
+        const value = this.data[key] as T
+        return value !== undefined ? value : defaultValue
     }
 
     set(key: string, value: unknown): void {
         this.data[key] = value
+        this.dirty = true
     }
 
     has(key: string): boolean {
@@ -402,6 +555,7 @@ export class SessionStore implements Session {
 
     forget(key: string): void {
         delete this.data[key]
+        this.dirty = true
     }
 
     all(): SessionData {
@@ -410,46 +564,43 @@ export class SessionStore implements Session {
 
     flush(): void {
         this.data = {}
+        this.dirty = true
     }
 
     async regenerate(): Promise<void> {
         const newId = generateSessionId()
-        await this.driver.regenerate(this.id, newId)
-        this.id = newId
+        await this.driver.regenerate(this.sessionId, newId)
+        this.sessionId = newId
+        this.dirty = true
     }
 
     async destroy(): Promise<void> {
-        await this.driver.destroy(this.id)
+        await this.driver.destroy(this.sessionId)
         this.data = {}
-        this.flashData = {}
+        this.dirty = true
     }
 
     flash(key: string, value: unknown): void {
-        this.flashData[key] = value
+        if (!this.data._flash) {
+            this.data._flash = {}
+        }
+        (this.data._flash as SessionData)[key] = value
+        this.dirty = true
     }
 
     getFlash<T = unknown>(key: string): T | undefined {
-        return this.previousFlashData[key] as T | undefined
+        return this.flashData[key] as T
     }
 
     isDirty(): boolean {
-        return JSON.stringify(this.data) !== this.originalData
+        return this.dirty
     }
 
-    /** @internal Save session (called by middleware) */
     async save(): Promise<void> {
-        // Include flash data for next request
-        const dataToSave = { ...this.data }
-        if (Object.keys(this.flashData).length > 0) {
-            dataToSave._flash = this.flashData
+        if (this.dirty) {
+            await this.driver.write(this.sessionId, this.data, this.config.lifetime)
+            this.dirty = false
         }
-
-        await this.driver.write(this.id, dataToSave, this.config.lifetime)
-    }
-
-    /** @internal Get flash data to save */
-    getFlashDataToSave(): SessionData {
-        return this.flashData
     }
 }
 
@@ -457,96 +608,75 @@ export class SessionStore implements Session {
 // Session Middleware
 // =============================================================================
 
-const SESSION_KEY = 'lockness:session'
-const SESSION_ID_COOKIE = 'lockness_session_id'
+export function sessionMiddleware(config?: Partial<SessionConfig>): (c: Context, next: () => Promise<void>) => Promise<void> {
+    const sessionConfig = { ...getSessionConfig(), ...config }
 
-export function createSessionMiddleware(
-    config?: Partial<SessionConfig>,
-): MiddlewareHandler {
-    const mergedConfig = { ...globalConfig, ...config }
-
-    return async (c, next) => {
-        // Create appropriate driver
+    return async (c: Context, next: () => Promise<void>) => {
+        // Create driver based on config
         let driver: SessionDriver
 
-        switch (mergedConfig.driver) {
-            case 'deno-kv':
-                driver = new DenoKvSessionDriver(mergedConfig.kvPath)
+        switch (sessionConfig.driver) {
+            case 'cookie':
+                driver = new CookieSessionDriver(c, sessionConfig)
                 break
             case 'memory':
                 driver = new MemorySessionDriver()
                 break
-            case 'cookie':
-            default:
-                driver = new CookieSessionDriver(c, mergedConfig)
+            case 'deno-kv':
+                driver = new DenoKvSessionDriver(sessionConfig.kvPath)
                 break
+            case 'redis':
+                if (!sessionConfig.redis) {
+                    throw new Error('Redis configuration required for redis driver')
+                }
+                driver = new RedisSessionDriver(sessionConfig.redis)
+                break
+            default:
+                driver = new CookieSessionDriver(c, sessionConfig)
         }
 
         // Get or create session ID
-        let sessionId = getCookie(c, SESSION_ID_COOKIE)
-        let sessionData: SessionData = {}
-
-        if (sessionId) {
-            // For cookie driver, data is in the cookie
-            if (mergedConfig.driver === 'cookie') {
-                sessionData = (await driver.read(sessionId)) || {}
-            } else {
-                sessionData = (await driver.read(sessionId)) || {}
-            }
-        }
-
+        let sessionId = getCookie(c, sessionConfig.cookieName)
         if (!sessionId) {
             sessionId = generateSessionId()
-            // Set session ID cookie (separate from data for non-cookie drivers)
-            if (mergedConfig.driver !== 'cookie') {
-                setCookie(c, SESSION_ID_COOKIE, sessionId, {
-                    path: mergedConfig.path,
-                    domain: mergedConfig.domain,
-                    secure: mergedConfig.secure,
-                    httpOnly: mergedConfig.httpOnly,
-                    sameSite: mergedConfig.sameSite,
-                    maxAge: mergedConfig.lifetime,
-                })
-            }
         }
 
-        // Create session store
-        const session = new SessionStore(
-            sessionId,
-            sessionData,
-            driver,
-            mergedConfig,
-        )
+        // Load session data
+        const data = (await driver.read(sessionId)) || {}
 
-        // Store session in context
-        c.set(SESSION_KEY, session)
+        // Create session store
+        const session = new SessionStore(sessionId, driver, data, sessionConfig)
+
+        // Attach to context
+        c.set('session', session)
 
         // Process request
         await next()
 
-        // Save session after response
-        if (
-            session.isDirty() ||
-            Object.keys(session.getFlashDataToSave()).length > 0
-        ) {
-            await session.save()
+        // Save session if modified
+        await session.save()
+
+        // Set session cookie (for non-cookie drivers)
+        if (sessionConfig.driver !== 'cookie') {
+            setCookie(c, sessionConfig.cookieName, session.getId(), {
+                path: sessionConfig.path,
+                domain: sessionConfig.domain,
+                secure: sessionConfig.secure,
+                httpOnly: sessionConfig.httpOnly,
+                sameSite: sessionConfig.sameSite,
+                maxAge: sessionConfig.lifetime,
+            })
         }
     }
 }
 
-// =============================================================================
-// Session Helper for Context
-// =============================================================================
-
 /**
  * Get session from context
  */
-export function session(c: Context): Session {
-    const sess = c.get(SESSION_KEY) as Session | undefined
-    if (!sess) {
-        throw new Error(
-            'Session not available. Did you forget to add the session middleware?',
-        )
+export function getSession(c: Context): Session {
+    const session = c.get('session') as Session | undefined
+    if (!session) {
+        throw new Error('Session not initialized. Use sessionMiddleware.')
     }
-    return sess
+    return session
 }

@@ -6,7 +6,7 @@
  */
 
 import type { Context, MiddlewareHandler } from 'hono'
-import { type Session, session } from './session.ts'
+import { type Session, getSession } from '@lockness/session'
 
 // =============================================================================
 // Types & Interfaces
@@ -173,7 +173,7 @@ export class AuthGuard<T extends Authenticatable = Authenticatable> {
 
     constructor(context: Context, config?: Partial<AuthConfig>) {
         this.context = context
-        this.sess = session(context)
+        this.sess = getSession(context)
         this.config = { ...globalAuthConfig, ...config }
     }
 

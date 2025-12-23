@@ -1,7 +1,7 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@hono/hono@*": "4.7.2",
+    "jsr:@std/assert@*": "1.0.16",
     "jsr:@std/assert@1": "1.0.11",
     "jsr:@std/assert@^1.0.14": "1.0.16",
     "jsr:@std/assert@^1.0.15": "1.0.16",
@@ -34,9 +34,6 @@
     "npm:zod@^3.23.8": "3.25.76"
   },
   "jsr": {
-    "@hono/hono@4.7.2": {
-      "integrity": "73466a24bd6eb3b527cde18e59ca5543890ddacb4312fc0bc7504d28a7e57a38"
-    },
     "@std/assert@1.0.11": {
       "integrity": "2461ef3c368fe88bc60e186e7744a93112f16fd110022e113a0849e94d1c83c1",
       "dependencies": [
@@ -2329,6 +2326,12 @@
       "lockness/queue": {
         "dependencies": [
           "jsr:@std/assert@1"
+        ]
+      },
+      "lockness/session": {
+        "dependencies": [
+          "jsr:@std/assert@1",
+          "npm:hono@^4.11.1"
         ]
       },
       "lockness/socialite": {

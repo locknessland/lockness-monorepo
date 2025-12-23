@@ -1,0 +1,13 @@
+{
+  "name": "@lockness/session",
+  "version": "0.1.0",
+  "exports": "./session.ts",
+  "tasks": {
+    "test": "deno test --allow-net --allow-write --allow-read --allow-env"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "hono": "npm:hono@^4.11.1",
+    "hono/cookie": "npm:/hono@^4.11.1/cookie"
+  }
+}
