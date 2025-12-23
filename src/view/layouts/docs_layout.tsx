@@ -116,7 +116,7 @@ export const DocsLayout = (props: { title: string; children: any; currentPath: s
                     </aside>
 
                     {/* Content */}
-                    <main class='ml-64 flex-1 p-12 max-w-4xl'>
+                    <main class='flex-1 p-12 max-w-4xl'>
                         {props.children}
                     </main>
                 </div>
