@@ -17,7 +17,10 @@ import {
 // =============================================================================
 
 Deno.test('LocalStorageDriver - put and get text file', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     await driver.put('test.txt', 'Hello, World!')
     const content = await driver.get('test.txt')
@@ -29,7 +32,10 @@ Deno.test('LocalStorageDriver - put and get text file', async () => {
 })
 
 Deno.test('LocalStorageDriver - put and get binary file', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     const data = new Uint8Array([1, 2, 3, 4, 5])
     await driver.put('test.bin', data)
@@ -42,7 +48,10 @@ Deno.test('LocalStorageDriver - put and get binary file', async () => {
 })
 
 Deno.test('LocalStorageDriver - put and get stream', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     const data = 'Stream content'
     const stream = new ReadableStream({
@@ -62,7 +71,10 @@ Deno.test('LocalStorageDriver - put and get stream', async () => {
 })
 
 Deno.test('LocalStorageDriver - exists', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     assertEquals(await driver.exists('nonexistent.txt'), false)
 
@@ -74,7 +86,10 @@ Deno.test('LocalStorageDriver - exists', async () => {
 })
 
 Deno.test('LocalStorageDriver - metadata', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     const content = 'Hello, metadata!'
     await driver.put('metadata.txt', content)
@@ -90,7 +105,10 @@ Deno.test('LocalStorageDriver - metadata', async () => {
 })
 
 Deno.test('LocalStorageDriver - list files', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     await driver.put('list/file1.txt', 'File 1')
     await driver.put('list/file2.txt', 'File 2')
@@ -112,7 +130,10 @@ Deno.test('LocalStorageDriver - list files', async () => {
 })
 
 Deno.test('LocalStorageDriver - copy file', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     await driver.put('source.txt', 'Copy me')
     await driver.copy('source.txt', 'destination.txt')
@@ -129,7 +150,10 @@ Deno.test('LocalStorageDriver - copy file', async () => {
 })
 
 Deno.test('LocalStorageDriver - move file', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     await driver.put('old-location.txt', 'Move me')
     await driver.move('old-location.txt', 'new-location.txt')
@@ -156,7 +180,10 @@ Deno.test('LocalStorageDriver - publicUrl', () => {
 })
 
 Deno.test('LocalStorageDriver - signedUrl throws error', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     await assertRejects(
         async () => await driver.signedUrl('test.txt'),
@@ -166,7 +193,10 @@ Deno.test('LocalStorageDriver - signedUrl throws error', async () => {
 })
 
 Deno.test('LocalStorageDriver - nested directories', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     await driver.put('deep/nested/structure/file.txt', 'Deep content')
     const content = await driver.get('deep/nested/structure/file.txt')
@@ -202,7 +232,10 @@ Deno.test({
         })
 
         const url = driver.publicUrl('test.txt')
-        assertEquals(url, 'https://s3.us-west-2.amazonaws.com/my-bucket/test.txt')
+        assertEquals(
+            url,
+            'https://s3.us-west-2.amazonaws.com/my-bucket/test.txt',
+        )
     },
 })
 
@@ -373,7 +406,10 @@ Deno.test('storage - throws error if not configured', () => {
 })
 
 Deno.test('LocalStorageDriver - getStream integration', async () => {
-    const driver = new LocalStorageDriver({ driver: 'local', root: './tmp/test-storage' })
+    const driver = new LocalStorageDriver({
+        driver: 'local',
+        root: './tmp/test-storage',
+    })
 
     const content = 'Stream test content'
     await driver.put('stream-read.txt', content)
@@ -388,7 +424,9 @@ Deno.test('LocalStorageDriver - getStream integration', async () => {
         chunks.push(value)
     }
 
-    const combined = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0))
+    const combined = new Uint8Array(
+        chunks.reduce((acc, chunk) => acc + chunk.length, 0),
+    )
     let offset = 0
     for (const chunk of chunks) {
         combined.set(chunk, offset)

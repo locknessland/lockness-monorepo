@@ -1,11 +1,11 @@
 {
-  "name": "@lockness/logger",
-  "version": "1.0.0",
-  "exports": "./logger.ts",
-  "tasks": {
-    "test": "deno test --allow-all"
-  },
-  "imports": {
-    "@std/assert": "jsr:@std/assert@1"
-  }
+    "name": "@lockness/logger",
+    "version": "1.0.0",
+    "exports": "./logger.ts",
+    "tasks": {
+        "test": "deno test --allow-all"
+    },
+    "imports": {
+        "@std/assert": "jsr:@std/assert@1"
+    }
 }

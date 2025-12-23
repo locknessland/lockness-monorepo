@@ -54,12 +54,12 @@ Deno.test('EventEmitter - async listeners', async () => {
     const results: string[] = []
 
     emitter.on('test', async (data) => {
-        await new Promise(resolve => setTimeout(resolve, 10))
+        await new Promise((resolve) => setTimeout(resolve, 10))
         results.push(`async1: ${data}`)
     })
 
     emitter.on('test', async (data) => {
-        await new Promise(resolve => setTimeout(resolve, 5))
+        await new Promise((resolve) => setTimeout(resolve, 5))
         results.push(`async2: ${data}`)
     })
 
@@ -72,9 +72,15 @@ Deno.test('EventEmitter - listener priorities', async () => {
     const emitter = new EventEmitter()
     const results: string[] = []
 
-    emitter.on('test', () => { results.push('low') }, { priority: 0 })
-    emitter.on('test', () => { results.push('high') }, { priority: 10 })
-    emitter.on('test', () => { results.push('medium') }, { priority: 5 })
+    emitter.on('test', () => {
+        results.push('low')
+    }, { priority: 0 })
+    emitter.on('test', () => {
+        results.push('high')
+    }, { priority: 10 })
+    emitter.on('test', () => {
+        results.push('medium')
+    }, { priority: 5 })
 
     await emitter.emit('test', null)
 
@@ -117,9 +123,15 @@ Deno.test('EventEmitter - removeAllListeners', async () => {
     const emitter = new EventEmitter()
     let count = 0
 
-    emitter.on('test1', () => { count++ })
-    emitter.on('test1', () => { count++ })
-    emitter.on('test2', () => { count++ })
+    emitter.on('test1', () => {
+        count++
+    })
+    emitter.on('test1', () => {
+        count++
+    })
+    emitter.on('test2', () => {
+        count++
+    })
 
     emitter.removeAllListeners('test1')
     await emitter.emit('test1', null)
@@ -132,8 +144,12 @@ Deno.test('EventEmitter - removeAllListeners without event', async () => {
     const emitter = new EventEmitter()
     let count = 0
 
-    emitter.on('test1', () => { count++ })
-    emitter.on('test2', () => { count++ })
+    emitter.on('test1', () => {
+        count++
+    })
+    emitter.on('test2', () => {
+        count++
+    })
 
     emitter.removeAllListeners()
     await emitter.emit('test1', null)
@@ -145,9 +161,9 @@ Deno.test('EventEmitter - removeAllListeners without event', async () => {
 Deno.test('EventEmitter - listenerCount', () => {
     const emitter = new EventEmitter()
 
-    emitter.on('test', () => { })
-    emitter.on('test', () => { })
-    emitter.on('other', () => { })
+    emitter.on('test', () => {})
+    emitter.on('test', () => {})
+    emitter.on('other', () => {})
 
     assertEquals(emitter.listenerCount('test'), 2)
     assertEquals(emitter.listenerCount('other'), 1)
@@ -157,9 +173,9 @@ Deno.test('EventEmitter - listenerCount', () => {
 Deno.test('EventEmitter - eventNames', () => {
     const emitter = new EventEmitter()
 
-    emitter.on('test1', () => { })
-    emitter.on('test2', () => { })
-    emitter.on('test3', () => { })
+    emitter.on('test1', () => {})
+    emitter.on('test2', () => {})
+    emitter.on('test3', () => {})
 
     const names = emitter.eventNames()
     assertEquals(names.length, 3)
@@ -171,8 +187,8 @@ Deno.test('EventEmitter - eventNames', () => {
 Deno.test('EventEmitter - listeners', () => {
     const emitter = new EventEmitter()
 
-    const listener1 = () => { }
-    const listener2 = () => { }
+    const listener1 = () => {}
+    const listener2 = () => {}
 
     emitter.on('test', listener1)
     emitter.on('test', listener2)
@@ -194,7 +210,7 @@ Deno.test('EventEmitter - emitSync', async () => {
     emitter.emitSync('test', 'hello')
 
     // Wait for async to complete
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await new Promise((resolve) => setTimeout(resolve, 20))
     assertEquals(received, 'hello')
 })
 
@@ -341,7 +357,7 @@ Deno.test('emitSync - global helper', async () => {
     emitSync('sync-test', 'hello')
 
     // Wait for async to complete
-    await new Promise(resolve => setTimeout(resolve, 20))
+    await new Promise((resolve) => setTimeout(resolve, 20))
     assertEquals(received, 'hello')
 })
 
@@ -356,8 +372,12 @@ Deno.test('createEventBus - isolated bus', async () => {
     let count1 = 0
     let count2 = 0
 
-    bus1.on('test', () => { count1++ })
-    bus2.on('test', () => { count2++ })
+    bus1.on('test', () => {
+        count1++
+    })
+    bus2.on('test', () => {
+        count2++
+    })
 
     await bus1.emit('test', null)
 
@@ -371,7 +391,7 @@ Deno.test('waitForEvent - waits for event', async () => {
     const promise = waitForEvent<string>(emitter, 'delayed')
 
     // Emit after starting wait
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await new Promise((resolve) => setTimeout(resolve, 10))
     emitter.emit('delayed', 'result')
 
     const result = await promise
@@ -444,7 +464,10 @@ Deno.test('EventEmitter - domain events pattern', async () => {
     })
 
     await emitter.emit('order:placed', { orderId: 'ORD-123', total: 99.99 })
-    await emitter.emit('order:shipped', { orderId: 'ORD-123', trackingNumber: 'TRACK-456' })
+    await emitter.emit('order:shipped', {
+        orderId: 'ORD-123',
+        trackingNumber: 'TRACK-456',
+    })
     await emitter.emit('order:delivered', { orderId: 'ORD-123' })
 
     assertEquals(orderLog.length, 3)

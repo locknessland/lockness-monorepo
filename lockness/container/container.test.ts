@@ -32,7 +32,7 @@ class AnotherService {
 }
 
 class ConfigService {
-    constructor(public apiKey = 'default-key') { }
+    constructor(public apiKey = 'default-key') {}
 }
 
 @Service()
@@ -81,11 +81,11 @@ Deno.test('Container - Basic operations', async (t) => {
 
     await t.step('container.has checks service existence', () => {
         assertEquals(container.has(TestService), true)
-        assertEquals(container.has(class NotRegistered { }), false)
+        assertEquals(container.has(class NotRegistered {}), false)
     })
 
     await t.step('container.delete removes a service', () => {
-        const TestClass = class { }
+        const TestClass = class {}
         container.set(TestClass, new TestClass())
 
         assertEquals(container.has(TestClass), true)
@@ -97,7 +97,7 @@ Deno.test('Container - Basic operations', async (t) => {
 
     await t.step('container.size returns service count', () => {
         const initialSize = container.size
-        const TestClass = class { }
+        const TestClass = class {}
         container.set(TestClass, new TestClass())
 
         assertEquals(container.size, initialSize + 1)
@@ -115,23 +115,26 @@ Deno.test('Container - Decorators', async (t) => {
         assertEquals(instance.getName(), 'decorated')
     })
 
-    await t.step('@Inject decorator injects dependencies (note: decorators may not work in test context)', () => {
-        // Note: Property decorators in test files may not execute properly
-        // due to TypeScript/Deno evaluation order. This is a known limitation.
-        // In real application code (not test files), decorators work correctly.
+    await t.step(
+        '@Inject decorator injects dependencies (note: decorators may not work in test context)',
+        () => {
+            // Note: Property decorators in test files may not execute properly
+            // due to TypeScript/Deno evaluation order. This is a known limitation.
+            // In real application code (not test files), decorators work correctly.
 
-        const instance = container.get<DependentService>(DependentService)
+            const instance = container.get<DependentService>(DependentService)
 
-        // Manually inject for testing purposes
-        if (!instance.decorated) {
-            // deno-lint-ignore no-explicit-any
-            (instance as any).decorated = container.get(DecoratedService)
-        }
+            // Manually inject for testing purposes
+            if (!instance.decorated) {
+                // deno-lint-ignore no-explicit-any
+                ;(instance as any).decorated = container.get(DecoratedService)
+            }
 
-        assertExists(instance.decorated)
-        assertEquals(instance.decorated instanceof DecoratedService, true)
-        assertEquals(instance.getMessage(), 'Hello from decorated')
-    })
+            assertExists(instance.decorated)
+            assertEquals(instance.decorated instanceof DecoratedService, true)
+            assertEquals(instance.getMessage(), 'Hello from decorated')
+        },
+    )
 
     await t.step('@Inject creates lazy singleton', () => {
         container.delete(DependentService)
@@ -162,7 +165,9 @@ Deno.test('Container - Helper functions', async (t) => {
         }
         bind(TestClass)
 
-        const instance = container.get<InstanceType<typeof TestClass>>(TestClass)
+        const instance = container.get<InstanceType<typeof TestClass>>(
+            TestClass,
+        )
         assertEquals(instance.value, 42)
     })
 
@@ -221,28 +226,31 @@ Deno.test('Container - Isolation', async (t) => {
 })
 
 Deno.test('Container - Constructor injection pattern', async (t) => {
-    await t.step('services can depend on other services via constructor', () => {
-        class DatabaseService {
-            query(): string {
-                return 'SELECT * FROM users'
+    await t.step(
+        'services can depend on other services via constructor',
+        () => {
+            class DatabaseService {
+                query(): string {
+                    return 'SELECT * FROM users'
+                }
             }
-        }
 
-        class UserRepository {
-            constructor(private db: DatabaseService) { }
+            class UserRepository {
+                constructor(private db: DatabaseService) {}
 
-            getUsers(): string {
-                return this.db.query()
+                getUsers(): string {
+                    return this.db.query()
+                }
             }
-        }
 
-        // Manual dependency injection in constructor
-        const db = container.get<DatabaseService>(DatabaseService)
-        container.set(UserRepository, new UserRepository(db))
+            // Manual dependency injection in constructor
+            const db = container.get<DatabaseService>(DatabaseService)
+            container.set(UserRepository, new UserRepository(db))
 
-        const repo = container.get<UserRepository>(UserRepository)
-        assertEquals(repo.getUsers(), 'SELECT * FROM users')
-    })
+            const repo = container.get<UserRepository>(UserRepository)
+            assertEquals(repo.getUsers(), 'SELECT * FROM users')
+        },
+    )
 })
 
 Deno.test('Container - Real-world usage patterns', async (t) => {

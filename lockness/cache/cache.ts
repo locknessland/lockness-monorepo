@@ -3,7 +3,7 @@
  *
  * High-performance caching with multiple driver support.
  * Inspired by Laravel's cache system.
- * 
+ *
  * Note: Some methods are async for interface consistency even if they don't await
  */
 
@@ -605,7 +605,7 @@ export function flushByTag(tag: string): Promise<void> {
 // =============================================================================
 
 export class CacheStore {
-    constructor(private tags: string[] = []) { }
+    constructor(private tags: string[] = []) {}
 
     /**
      * Tag the cache entries
@@ -636,7 +636,12 @@ export class CacheStore {
         callback: () => T | Promise<T>,
         ttl?: number,
     ): Promise<T> {
-        return remember(key, callback, ttl, this.tags.length ? this.tags : undefined)
+        return remember(
+            key,
+            callback,
+            ttl,
+            this.tags.length ? this.tags : undefined,
+        )
     }
 
     /**
@@ -648,7 +653,9 @@ export class CacheStore {
         }
 
         // Flush by each tag
-        return Promise.all(this.tags.map((tag) => flushByTag(tag))).then(() => { })
+        return Promise.all(this.tags.map((tag) => flushByTag(tag))).then(
+            () => {},
+        )
     }
 }
 

@@ -208,7 +208,9 @@ Deno.test('Validator - Relational validators', async (t) => {
 
     await t.step('requiredIf', async () => {
         const v = validator()
-        v.field('card_number', [requiredIf('payment_method', 'card')], { optional: true })
+        v.field('card_number', [requiredIf('payment_method', 'card')], {
+            optional: true,
+        })
 
         const result = await v.validate(
             { payment_method: 'card', card_number: '1234' },
@@ -228,7 +230,9 @@ Deno.test('Validator - Relational validators', async (t) => {
 
     await t.step('requiredUnless', async () => {
         const v = validator()
-        v.field('reason', [requiredUnless('status', 'approved')], { optional: true })
+        v.field('reason', [requiredUnless('status', 'approved')], {
+            optional: true,
+        })
 
         const result = await v.validate(
             { status: 'pending', reason: 'Waiting approval' },

@@ -1,9 +1,9 @@
 /**
  * Lockness Logger - Structured Logging System
- * 
+ *
  * Provides flexible logging with multiple levels, transports, and formatters.
  * Supports console, file, and custom transports with metadata.
- * 
+ *
  * Note: Some methods are async for transport consistency
  */
 
@@ -135,7 +135,7 @@ export class PrettyFormatter implements LogFormatter {
  * Console transport - writes to stdout/stderr
  */
 export class ConsoleTransport implements LogTransport {
-    constructor(private useStderr = true) { }
+    constructor(private useStderr = true) {}
 
     async log(entry: LogEntry): Promise<void> {
         const output = entry.level >= LogLevel.ERROR && this.useStderr
@@ -175,7 +175,7 @@ export class FileTransport implements LogTransport {
     constructor(
         private filepath: string,
         private formatter: LogFormatter = new TextFormatter(),
-    ) { }
+    ) {}
 
     async log(entry: LogEntry): Promise<void> {
         if (!this.file) {
@@ -243,7 +243,9 @@ export class Logger {
      * Create child logger with additional context
      */
     child(context: string): Logger {
-        const childContext = this.context ? `${this.context}:${context}` : context
+        const childContext = this.context
+            ? `${this.context}:${context}`
+            : context
         return new Logger({
             level: this.level,
             transports: this.transports,
@@ -285,21 +287,30 @@ export class Logger {
     /**
      * Debug level logging
      */
-    async debug(message: string, metadata?: Record<string, unknown>): Promise<void> {
+    async debug(
+        message: string,
+        metadata?: Record<string, unknown>,
+    ): Promise<void> {
         return this.log(LogLevel.DEBUG, message, metadata)
     }
 
     /**
      * Info level logging
      */
-    async info(message: string, metadata?: Record<string, unknown>): Promise<void> {
+    async info(
+        message: string,
+        metadata?: Record<string, unknown>,
+    ): Promise<void> {
         return this.log(LogLevel.INFO, message, metadata)
     }
 
     /**
      * Warning level logging
      */
-    async warn(message: string, metadata?: Record<string, unknown>): Promise<void> {
+    async warn(
+        message: string,
+        metadata?: Record<string, unknown>,
+    ): Promise<void> {
         return this.log(LogLevel.WARN, message, metadata)
     }
 

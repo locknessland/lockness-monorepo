@@ -1,6 +1,6 @@
 /**
  * Lockness Container - Lightweight Dependency Injection
- * 
+ *
  * A simple yet powerful DI container for TypeScript/Deno applications.
  * Provides singleton management, constructor injection, and property injection decorators.
  */
@@ -9,7 +9,7 @@
 
 /**
  * Dependency Injection Container
- * 
+ *
  * Manages service instances with automatic singleton creation.
  * Services are lazily instantiated on first access.
  */
@@ -18,13 +18,13 @@ export class Container {
 
     /**
      * Get or create an instance of a service
-     * 
+     *
      * If the service doesn't exist, it will be automatically instantiated
      * and cached for future requests (singleton pattern).
-     * 
+     *
      * @param ServiceClass - The class to instantiate
      * @returns The singleton instance of the service
-     * 
+     *
      * @example
      * ```typescript
      * const userService = container.get(UserService)
@@ -39,13 +39,13 @@ export class Container {
 
     /**
      * Manually register a service instance
-     * 
+     *
      * Use this to register pre-configured instances or to override
      * the default instantiation behavior.
-     * 
+     *
      * @param token - The token (usually a class) to register
      * @param instance - The instance to register
-     * 
+     *
      * @example
      * ```typescript
      * const config = new Config({ apiKey: 'secret' })
@@ -58,10 +58,10 @@ export class Container {
 
     /**
      * Check if a service is registered
-     * 
+     *
      * @param token - The token to check
      * @returns True if the service exists
-     * 
+     *
      * @example
      * ```typescript
      * if (container.has(UserService)) {
@@ -75,10 +75,10 @@ export class Container {
 
     /**
      * Remove a service from the container
-     * 
+     *
      * @param token - The token to remove
      * @returns True if the service was removed
-     * 
+     *
      * @example
      * ```typescript
      * container.delete(UserService)
@@ -90,9 +90,9 @@ export class Container {
 
     /**
      * Clear all services from the container
-     * 
+     *
      * Useful for testing or resetting application state.
-     * 
+     *
      * @example
      * ```typescript
      * container.clear()
@@ -104,7 +104,7 @@ export class Container {
 
     /**
      * Get the number of registered services
-     * 
+     *
      * @returns The number of services
      */
     get size(): number {
@@ -114,14 +114,14 @@ export class Container {
 
 /**
  * Global singleton container instance
- * 
+ *
  * This is the default container used by the @Service and @Inject decorators.
  * You can create your own Container instances if you need isolated contexts.
- * 
+ *
  * @example
  * ```typescript
  * import { container } from '@lockness/container'
- * 
+ *
  * const userService = container.get(UserService)
  * ```
  */
@@ -129,10 +129,10 @@ export const container: Container = new Container()
 
 /**
  * Decorator to mark a class as a Service
- * 
+ *
  * This is a marker decorator for documentation purposes.
  * The actual singleton behavior is handled by the Container.
- * 
+ *
  * @example
  * ```typescript
  * @Service()
@@ -153,20 +153,20 @@ export function Service(): <T extends new (...args: any[]) => any>(
 
 /**
  * Decorator to inject a service into a property
- * 
+ *
  * Uses the global container to resolve and inject the service.
  * The service is lazily instantiated on first property access.
- * 
+ *
  * @param ServiceClass - The service class to inject
  * @returns PropertyDecorator
- * 
+ *
  * @example
  * ```typescript
  * @Service()
  * export class UserController {
  *     @Inject(UserService)
  *     userService!: UserService
- * 
+ *
  *     getUsers() {
  *         return this.userService.getUsers()
  *     }
@@ -195,11 +195,11 @@ export function Inject(ServiceClass: unknown): PropertyDecorator {
 
 /**
  * Create a new isolated container instance
- * 
+ *
  * Useful for testing or when you need multiple container contexts.
- * 
+ *
  * @returns A new Container instance
- * 
+ *
  * @example
  * ```typescript
  * const testContainer = createContainer()
@@ -212,12 +212,12 @@ export function createContainer(): Container {
 
 /**
  * Bind a service to the global container
- * 
+ *
  * Helper function for registering services.
- * 
+ *
  * @param ServiceClass - The service class
  * @param instance - Optional pre-created instance
- * 
+ *
  * @example
  * ```typescript
  * bind(UserService)
@@ -238,12 +238,12 @@ export function bind<T>(
 
 /**
  * Resolve a service from the global container
- * 
+ *
  * Alias for container.get() for a more fluent API.
- * 
+ *
  * @param ServiceClass - The service class to resolve
  * @returns The service instance
- * 
+ *
  * @example
  * ```typescript
  * const userService = resolve(UserService)

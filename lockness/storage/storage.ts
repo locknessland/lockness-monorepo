@@ -1,9 +1,9 @@
 /**
  * Lockness Storage - File Storage Abstraction
- * 
+ *
  * Multi-driver file storage system supporting Local, S3, and Cloudflare R2.
  * Provides unified API for file operations with streaming support.
- * 
+ *
  * Note: Some methods are async for interface consistency even if they don't await
  */
 
@@ -58,7 +58,10 @@ export interface StorageDriver {
     /**
      * Write a file
      */
-    put(path: string, content: string | Uint8Array | ReadableStream): Promise<void>
+    put(
+        path: string,
+        content: string | Uint8Array | ReadableStream,
+    ): Promise<void>
 
     /**
      * Read a file as text
@@ -131,12 +134,19 @@ export class LocalStorageDriver implements StorageDriver {
         return join(this.config.root!, path)
     }
 
-    async put(path: string, content: string | Uint8Array | ReadableStream): Promise<void> {
+    async put(
+        path: string,
+        content: string | Uint8Array | ReadableStream,
+    ): Promise<void> {
         const fullPath = this.resolvePath(path)
         await ensureDir(join(fullPath, '..'))
 
         if (content instanceof ReadableStream) {
-            const file = await Deno.open(fullPath, { write: true, create: true, truncate: true })
+            const file = await Deno.open(fullPath, {
+                write: true,
+                create: true,
+                truncate: true,
+            })
             await content.pipeTo(file.writable)
         } else if (typeof content === 'string') {
             await Deno.writeTextFile(fullPath, content)
@@ -196,7 +206,9 @@ export class LocalStorageDriver implements StorageDriver {
                 if (entry.isFile) {
                     const fullPath = join(searchPath, entry.name)
                     const stat = await Deno.stat(fullPath)
-                    const relativePath = prefix ? join(prefix, entry.name) : entry.name
+                    const relativePath = prefix
+                        ? join(prefix, entry.name)
+                        : entry.name
 
                     results.push({
                         path: relativePath,
@@ -265,7 +277,10 @@ export class S3StorageDriver implements StorageDriver {
         })
     }
 
-    async put(path: string, content: string | Uint8Array | ReadableStream): Promise<void> {
+    async put(
+        path: string,
+        content: string | Uint8Array | ReadableStream,
+    ): Promise<void> {
         let body: Uint8Array | ReadableStream
 
         if (typeof content === 'string') {
@@ -400,7 +415,8 @@ export class S3StorageDriver implements StorageDriver {
             return `${this.config.publicUrl}/${path}`
         }
 
-        const endpoint = this.config.endpoint || `https://s3.${this.config.region}.amazonaws.com`
+        const endpoint = this.config.endpoint ||
+            `https://s3.${this.config.region}.amazonaws.com`
         return `${endpoint}/${this.config.bucket}/${path}`
     }
 
@@ -425,7 +441,8 @@ export class R2StorageDriver extends S3StorageDriver {
         // R2 uses S3-compatible API
         super({
             ...config,
-            endpoint: config.endpoint || `https://${config.accountId}.r2.cloudflarestorage.com`,
+            endpoint: config.endpoint ||
+                `https://${config.accountId}.r2.cloudflarestorage.com`,
             region: 'auto', // R2 uses 'auto' as region
         })
     }
@@ -466,7 +483,10 @@ export class Storage {
     /**
      * Write a file
      */
-    async put(path: string, content: string | Uint8Array | ReadableStream): Promise<void> {
+    async put(
+        path: string,
+        content: string | Uint8Array | ReadableStream,
+    ): Promise<void> {
         return this.driver.put(path, content)
     }
 
@@ -585,7 +605,9 @@ export function configureStorage(config: StorageConfig): Storage {
  */
 export function storage(): Storage {
     if (!globalStorage) {
-        throw new Error('Storage not configured. Call configureStorage() first.')
+        throw new Error(
+            'Storage not configured. Call configureStorage() first.',
+        )
     }
     return globalStorage
 }
@@ -593,7 +615,10 @@ export function storage(): Storage {
 /**
  * Quick file put
  */
-export async function put(path: string, content: string | Uint8Array | ReadableStream): Promise<void> {
+export async function put(
+    path: string,
+    content: string | Uint8Array | ReadableStream,
+): Promise<void> {
     return storage().put(path, content)
 }
 

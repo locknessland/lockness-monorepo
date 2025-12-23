@@ -1,9 +1,9 @@
 /**
  * Lockness Events - Type-safe Event Emitter
- * 
+ *
  * Provides a powerful event system with TypeScript generics, async support,
  * listener priorities, wildcards, and more.
- * 
+ *
  * Note: Type casts to 'any' are necessary for generic type compatibility across helper functions
  */
 
@@ -96,8 +96,10 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         // Warn about too many listeners
         if (entries.length > this.maxListeners) {
             console.warn(
-                `Warning: Possible EventEmitter memory leak detected. ${entries.length} ${String(event)} listeners added. ` +
-                `Use emitter.setMaxListeners() to increase limit.`
+                `Warning: Possible EventEmitter memory leak detected. ${entries.length} ${
+                    String(event)
+                } listeners added. ` +
+                    `Use emitter.setMaxListeners() to increase limit.`,
             )
         }
 
@@ -125,7 +127,7 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         const entries = this.listenerMap.get(event as string)
         if (!entries) return this
 
-        const index = entries.findIndex(entry => entry.listener === listener)
+        const index = entries.findIndex((entry) => entry.listener === listener)
         if (index !== -1) {
             entries.splice(index, 1)
         }
@@ -173,7 +175,10 @@ export class EventEmitter<Events extends EventMap = EventMap> {
             try {
                 await entry.listener(data)
             } catch (error) {
-                console.error(`Error in event listener for "${String(event)}":`, error)
+                console.error(
+                    `Error in event listener for "${String(event)}":`,
+                    error,
+                )
             }
 
             if (entry.once) {
@@ -202,7 +207,7 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         event: K,
         data: EventData<Events, K>,
     ): void {
-        this.emit(event, data).catch(error => {
+        this.emit(event, data).catch((error) => {
             console.error(`Unhandled error in async event listener:`, error)
         })
     }
@@ -230,7 +235,9 @@ export class EventEmitter<Events extends EventMap = EventMap> {
      * Remove a wildcard listener
      */
     offAny(listener: EventListener<{ event: string; data: unknown }>): this {
-        const index = this.wildcardListeners.findIndex(entry => entry.listener === listener)
+        const index = this.wildcardListeners.findIndex((entry) =>
+            entry.listener === listener
+        )
         if (index !== -1) {
             this.wildcardListeners.splice(index, 1)
         }
@@ -259,7 +266,9 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         event: K,
     ): EventListener<EventData<Events, K>>[] {
         const entries = this.listenerMap.get(event as string) || []
-        return entries.map(entry => entry.listener) as EventListener<EventData<Events, K>>[]
+        return entries.map((entry) => entry.listener) as EventListener<
+            EventData<Events, K>
+        >[]
     }
 
     /**
@@ -290,7 +299,9 @@ let globalEmitter: EventEmitter<any> | null = null
 /**
  * Configure global event emitter
  */
-export function configureEvents<T extends EventMap = EventMap>(): EventEmitter<T> {
+export function configureEvents<T extends EventMap = EventMap>(): EventEmitter<
+    T
+> {
     globalEmitter = new EventEmitter<T>()
     return globalEmitter as EventEmitter<T>
 }
@@ -344,7 +355,10 @@ export function emitSync<T = unknown>(event: string, data: T): void {
 /**
  * Remove a listener
  */
-export function off<T = unknown>(event: string, listener: EventListener<T>): EventEmitter {
+export function off<T = unknown>(
+    event: string,
+    listener: EventListener<T>,
+): EventEmitter {
     return events().off(event as any, listener as EventListener<any>)
 }
 
@@ -355,7 +369,9 @@ export function off<T = unknown>(event: string, listener: EventListener<T>): Eve
 /**
  * Create an isolated event bus
  */
-export function createEventBus<T extends EventMap = EventMap>(): EventEmitter<T> {
+export function createEventBus<T extends EventMap = EventMap>(): EventEmitter<
+    T
+> {
     return new EventEmitter<T>()
 }
 
@@ -421,11 +437,17 @@ export function eventStream<T = unknown>(
             return {
                 next(): Promise<IteratorResult<T>> {
                     if (queue.length > 0) {
-                        return Promise.resolve({ value: queue.shift()!, done: false })
+                        return Promise.resolve({
+                            value: queue.shift()!,
+                            done: false,
+                        })
                     }
 
                     if (done) {
-                        return Promise.resolve({ value: undefined as unknown as T, done: true })
+                        return Promise.resolve({
+                            value: undefined as unknown as T,
+                            done: true,
+                        })
                     }
 
                     return new Promise<IteratorResult<T>>((resolve) => {
@@ -435,7 +457,10 @@ export function eventStream<T = unknown>(
                 return(): Promise<IteratorResult<T>> {
                     done = true
                     emitter.off(event as any, listener as EventListener<any>)
-                    return Promise.resolve({ value: undefined as unknown as T, done: true })
+                    return Promise.resolve({
+                        value: undefined as unknown as T,
+                        done: true,
+                    })
                 },
             }
         },

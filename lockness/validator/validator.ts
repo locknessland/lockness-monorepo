@@ -427,14 +427,16 @@ export function trim(): SanitizerFn {
  * Lowercase
  */
 export function lowercase(): SanitizerFn {
-    return (value: unknown) => typeof value === 'string' ? value.toLowerCase() : value
+    return (value: unknown) =>
+        typeof value === 'string' ? value.toLowerCase() : value
 }
 
 /**
  * Uppercase
  */
 export function uppercase(): SanitizerFn {
-    return (value: unknown) => typeof value === 'string' ? value.toUpperCase() : value
+    return (value: unknown) =>
+        typeof value === 'string' ? value.toUpperCase() : value
 }
 
 /**
@@ -457,7 +459,8 @@ export function escapeHtml(): SanitizerFn {
  * Strip tags
  */
 export function stripTags(): SanitizerFn {
-    return (value: unknown) => typeof value === 'string' ? value.replace(/<[^>]*>/g, '') : value
+    return (value: unknown) =>
+        typeof value === 'string' ? value.replace(/<[^>]*>/g, '') : value
 }
 
 /**
@@ -482,7 +485,9 @@ export function toBoolean(): SanitizerFn {
         if (typeof value === 'boolean') return value
         if (typeof value === 'string') {
             const lower = value.toLowerCase()
-            if (lower === 'true' || lower === '1' || lower === 'yes') return true
+            if (lower === 'true' || lower === '1' || lower === 'yes') {
+                return true
+            }
             if (lower === 'false' || lower === '0' || lower === 'no') {
                 return false
             }
@@ -576,7 +581,8 @@ export class Validator {
             const value = sanitized[fieldName]
 
             // Check if field is empty
-            const isEmpty = value === undefined || value === null || value === ''
+            const isEmpty = value === undefined || value === null ||
+                value === ''
 
             // Check if we have conditional required rules
             const hasConditionalRules = fieldRules.rules.some((rule) =>
@@ -609,7 +615,9 @@ export class Validator {
                 } catch (error) {
                     if (!errors[fieldName]) errors[fieldName] = []
                     errors[fieldName].push(
-                        `${fieldName} validation error: ${(error as Error).message}`,
+                        `${fieldName} validation error: ${
+                            (error as Error).message
+                        }`,
                     )
                 }
             }
