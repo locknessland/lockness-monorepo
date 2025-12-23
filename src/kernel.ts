@@ -40,7 +40,7 @@ export const bootstrap = async () => {
             if (
                 typeof Exported === 'function' &&
                 (Exported as unknown as Record<string, unknown>)._basePath !==
-                undefined
+                    undefined
             ) {
                 controllers.push(Exported as ControllerClass)
             }

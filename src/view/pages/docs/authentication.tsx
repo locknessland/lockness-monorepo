@@ -1,34 +1,55 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import {
+    CodeBlock,
+    CommandBlock,
+    InlineCode,
+} from '@view/components/code_block.tsx'
 import { PageTitle } from '@view/components/page_title.tsx'
 
 export const AuthenticationPage = () => {
     return (
-        <DocsLayout title="Authentication - Lockness JS">
-            <div class="max-w-4xl mx-auto">
+        <DocsLayout title='Authentication - Lockness JS'>
+            <div class='max-w-4xl mx-auto'>
                 <PageTitle>Authentication</PageTitle>
-                <p class="text-xl text-gray-600 mb-8">
-                    Complete authentication system with session-based auth, password hashing, and OAuth2 social login.
+                <p class='text-xl text-gray-600 mb-8'>
+                    Complete authentication system with session-based auth,
+                    password hashing, and OAuth2 social login.
                 </p>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Quick Setup</h2>
-                    <p class="mb-4">Scaffold a complete authentication system with one command:</p>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Quick Setup</h2>
+                    <p class='mb-4'>
+                        Scaffold a complete authentication system with one
+                        command:
+                    </p>
                     <CommandBlock lang='terminal'>
-{`deno task ace make:auth`}
+                        {`deno task ace make:auth`}
                     </CommandBlock>
-                    <p class="mb-4">This creates:</p>
-                    <ul class="list-disc list-inside space-y-2 mb-6">
-                        <li><InlineCode>src/controller/auth_controller.ts</InlineCode> - Login, logout, register routes</li>
-                        <li><InlineCode>src/provider/user_provider.ts</InlineCode> - User authentication provider</li>
+                    <p class='mb-4'>This creates:</p>
+                    <ul class='list-disc list-inside space-y-2 mb-6'>
+                        <li>
+                            <InlineCode>
+                                src/controller/auth_controller.ts
+                            </InlineCode>{' '}
+                            - Login, logout, register routes
+                        </li>
+                        <li>
+                            <InlineCode>
+                                src/provider/user_provider.ts
+                            </InlineCode>{' '}
+                            - User authentication provider
+                        </li>
                     </ul>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Configuration</h2>
-                    <p class="mb-4">Configure authentication in <InlineCode>src/kernel.ts</InlineCode>:</p>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Configuration</h2>
+                    <p class='mb-4'>
+                        Configure authentication in{' '}
+                        <InlineCode>src/kernel.ts</InlineCode>:
+                    </p>
                     <CodeBlock lang='typescript'>
-{`import { configureAuth, container } from 'lockness'
+                        {`import { configureAuth, container } from 'lockness'
 import { UserProvider } from '@provider/user_provider.ts'
 
 configureAuth({
@@ -38,11 +59,13 @@ configureAuth({
                     </CodeBlock>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Guards & Decorators</h2>
-                    <p class="mb-4">Protect routes with authentication guards:</p>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Guards & Decorators</h2>
+                    <p class='mb-4'>
+                        Protect routes with authentication guards:
+                    </p>
                     <CodeBlock lang='typescript'>
-{`import { Controller, Get, Auth, Guest, auth } from 'lockness'
+                        {`import { Controller, Get, Auth, Guest, auth } from 'lockness'
 
 @Controller('/dashboard')
 @Auth()  // Require authentication for entire controller
@@ -65,29 +88,35 @@ export class AuthController {
                     </CodeBlock>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Auth API</h2>
-                    <div class="space-y-6">
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Auth API</h2>
+                    <div class='space-y-6'>
                         <div>
-                            <h3 class="text-2xl font-bold mb-2">Login with credentials</h3>
+                            <h3 class='text-2xl font-bold mb-2'>
+                                Login with credentials
+                            </h3>
                             <CodeBlock lang='typescript'>
-{`const success = await auth(c).attempt(email, password)
+                                {`const success = await auth(c).attempt(email, password)
 if (success) {
     return c.redirect('/dashboard')
 }`}
                             </CodeBlock>
                         </div>
                         <div>
-                            <h3 class="text-2xl font-bold mb-2">Get authenticated user</h3>
+                            <h3 class='text-2xl font-bold mb-2'>
+                                Get authenticated user
+                            </h3>
                             <CodeBlock lang='typescript'>
-{`const user = await auth(c).user()
+                                {`const user = await auth(c).user()
 const userId = await auth(c).id()`}
                             </CodeBlock>
                         </div>
                         <div>
-                            <h3 class="text-2xl font-bold mb-2">Check authentication status</h3>
+                            <h3 class='text-2xl font-bold mb-2'>
+                                Check authentication status
+                            </h3>
                             <CodeBlock lang='typescript'>
-{`if (await auth(c).check()) {
+                                {`if (await auth(c).check()) {
     // User is authenticated
 }
 if (await auth(c).guest()) {
@@ -96,25 +125,31 @@ if (await auth(c).guest()) {
                             </CodeBlock>
                         </div>
                         <div>
-                            <h3 class="text-2xl font-bold mb-2">Logout</h3>
+                            <h3 class='text-2xl font-bold mb-2'>Logout</h3>
                             <CodeBlock lang='typescript'>
-{`await auth(c).logout()
+                                {`await auth(c).logout()
 return c.redirect('/auth/login')`}
                             </CodeBlock>
                         </div>
                     </div>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Social Authentication (OAuth2)</h2>
-                    <p class="mb-4">Add social login with Google, GitHub, or Discord:</p>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>
+                        Social Authentication (OAuth2)
+                    </h2>
+                    <p class='mb-4'>
+                        Add social login with Google, GitHub, or Discord:
+                    </p>
                     <CommandBlock lang='terminal'>
-{`deno task ace make:auth --social`}
+                        {`deno task ace make:auth --social`}
                     </CommandBlock>
-                    
-                    <h3 class="text-2xl font-bold mb-4 mt-6">Configure providers</h3>
+
+                    <h3 class='text-2xl font-bold mb-4 mt-6'>
+                        Configure providers
+                    </h3>
                     <CodeBlock lang='typescript'>
-{`import { configureSocialite } from 'lockness'
+                        {`import { configureSocialite } from 'lockness'
 
 configureSocialite({
     google: {
@@ -130,9 +165,11 @@ configureSocialite({
 })`}
                     </CodeBlock>
 
-                    <h3 class="text-2xl font-bold mb-4 mt-6">Use in controllers</h3>
+                    <h3 class='text-2xl font-bold mb-4 mt-6'>
+                        Use in controllers
+                    </h3>
                     <CodeBlock lang='typescript'>
-{`import { socialite, generateState, session } from 'lockness'
+                        {`import { socialite, generateState, session } from 'lockness'
 
 @Get('/auth/google')
 google(c: Context) {
@@ -153,10 +190,10 @@ async googleCallback(c: Context) {
                     </CodeBlock>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Password Hashing</h2>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Password Hashing</h2>
                     <CodeBlock lang='typescript'>
-{`import { hashPassword, verifyPassword } from 'lockness'
+                        {`import { hashPassword, verifyPassword } from 'lockness'
 
 // Hash a password (for registration)
 const hash = await hashPassword('secret123')
@@ -166,9 +203,19 @@ const valid = await verifyPassword('secret123', hash)`}
                     </CodeBlock>
                 </section>
 
-                <div class="flex justify-between mt-12 pt-8 border-t">
-                    <a href="/docs/validation" class="text-blue-600 hover:underline">← Validation</a>
-                    <a href="/docs/middleware" class="text-blue-600 hover:underline">Middleware →</a>
+                <div class='flex justify-between mt-12 pt-8 border-t'>
+                    <a
+                        href='/docs/validation'
+                        class='text-blue-600 hover:underline'
+                    >
+                        ← Validation
+                    </a>
+                    <a
+                        href='/docs/middleware'
+                        class='text-blue-600 hover:underline'
+                    >
+                        Middleware →
+                    </a>
                 </div>
             </div>
         </DocsLayout>

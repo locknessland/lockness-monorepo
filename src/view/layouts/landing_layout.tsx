@@ -11,14 +11,21 @@ export const LandingLayout = (props: { title: string; children: any }) => {
                     content='width=device-width, initial-scale=1.0'
                 />
                 <title>{props.title}</title>
-                <meta name='description' content='Lockness JS is a high-performance, fullstack MVC web framework built natively for Deno. Inspired by Laravel and AdonisJS, powered by Hono.' />
+                <meta
+                    name='description'
+                    content='Lockness JS is a high-performance, fullstack MVC web framework built natively for Deno. Inspired by Laravel and AdonisJS, powered by Hono.'
+                />
 
                 {/* Automatic asset resolution & dependency injection */}
                 <ViteScripts entry='src/view/app.ts' />
 
                 {/* Fonts */}
                 <link rel='preconnect' href='https://fonts.googleapis.com' />
-                <link rel='preconnect' href='https://fonts.gstatic.com' crossorigin='anonymous' />
+                <link
+                    rel='preconnect'
+                    href='https://fonts.gstatic.com'
+                    crossorigin='anonymous'
+                />
                 <link
                     href='https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap'
                     rel='stylesheet'

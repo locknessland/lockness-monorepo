@@ -19,28 +19,38 @@ export const DocsSidebar = (props: { currentPath: string }) => {
     return (
         <>
             {/* Mobile hamburger button (visible only on mobile) */}
-            <button 
-                id="mobile-menu-btn"
-                class="md:hidden fixed bottom-6 right-6 z-[60] w-14 h-14 bg-primary border-4 border-border flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-all"
-                style="box-shadow: 4px 4px 0 0 rgba(0,0,0,0.5);"
-                aria-label="Toggle menu"
+            <button
+                id='mobile-menu-btn'
+                class='md:hidden fixed bottom-6 right-6 z-[60] w-14 h-14 bg-primary border-4 border-border flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-all'
+                style='box-shadow: 4px 4px 0 0 rgba(0,0,0,0.5);'
+                aria-label='Toggle menu'
             >
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round">
-                    <line x1="3" y1="12" x2="21" y2="12"></line>
-                    <line x1="3" y1="6" x2="21" y2="6"></line>
-                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                <svg
+                    xmlns='http://www.w3.org/2000/svg'
+                    width='28'
+                    height='28'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='white'
+                    stroke-width='2.5'
+                    stroke-linecap='round'
+                >
+                    <line x1='3' y1='12' x2='21' y2='12'></line>
+                    <line x1='3' y1='6' x2='21' y2='6'></line>
+                    <line x1='3' y1='18' x2='21' y2='18'></line>
                 </svg>
             </button>
 
             {/* Backdrop (visible only when menu is open on mobile) */}
-            <div 
-                id="mobile-menu-backdrop"
-                class="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[40] hidden transition-opacity duration-500"
-            ></div>
+            <div
+                id='mobile-menu-backdrop'
+                class='md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[40] hidden transition-opacity duration-500'
+            >
+            </div>
 
             {/* Sidebar */}
-            <aside 
-                id="mobile-sidebar"
+            <aside
+                id='mobile-sidebar'
                 class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto md:min-h-screen transition-all duration-500 ease-in-out'
             >
                 <nav class='md:fixed p-6 space-y-2'>
@@ -54,7 +64,9 @@ export const DocsSidebar = (props: { currentPath: string }) => {
                                         ? 'border-primary bg-primary/20 text-primary font-pixel text-[10px]'
                                         : 'border-border bg-background hover:border-primary hover:text-primary text-muted-foreground'
                                 } transition-all duration-200`}
-                                style={isActive ? 'box-shadow: 2px 2px 0 0 rgba(var(--primary-rgb), 0.3);' : ''}
+                                style={isActive
+                                    ? 'box-shadow: 2px 2px 0 0 rgba(var(--primary-rgb), 0.3);'
+                                    : ''}
                             >
                                 {link.title}
                             </a>
@@ -64,8 +76,9 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             </aside>
 
             {/* JavaScript for mobile menu toggle */}
-            <script dangerouslySetInnerHTML={{
-                __html: `
+            <script
+                dangerouslySetInnerHTML={{
+                    __html: `
                     document.addEventListener('DOMContentLoaded', function() {
                         const btn = document.getElementById('mobile-menu-btn');
                         const sidebar = document.getElementById('mobile-sidebar');
@@ -113,8 +126,9 @@ export const DocsSidebar = (props: { currentPath: string }) => {
                         btn.addEventListener('click', toggleMenu);
                         backdrop.addEventListener('click', toggleMenu);
                     });
-                `
-            }} />
+                `,
+                }}
+            />
         </>
     )
 }

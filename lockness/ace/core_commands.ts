@@ -148,10 +148,15 @@ export function registerCoreCommands(ace: Ace) {
         const propsInterface = `{ children?: any }`
 
         try {
-            const content = await Stub.renderFrom(STUBS_PATH, 'make', 'component', {
-                className,
-                propsInterface,
-            })
+            const content = await Stub.renderFrom(
+                STUBS_PATH,
+                'make',
+                'component',
+                {
+                    className,
+                    propsInterface,
+                },
+            )
 
             await Deno.mkdir(dirPath, { recursive: true })
             await Deno.writeTextFile(filePath, content)
@@ -288,7 +293,8 @@ export function registerCoreCommands(ace: Ace) {
                     console.log(`✅ ${file.name} created at ${file.output}`)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create ${file.name}: ${(error as Error).message
+                        `❌ Failed to create ${file.name}: ${
+                            (error as Error).message
                         }`,
                     )
                 }
@@ -577,7 +583,7 @@ async function startRepl(context: Record<string, unknown>) {
 
             if (line === '.context') {
                 if (context.help && typeof context.help === 'function') {
-                    ; (context.help as () => void)()
+                    ;(context.help as () => void)()
                 }
                 prompt()
                 continue

@@ -1,25 +1,35 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import {
+    CodeBlock,
+    CommandBlock,
+    InlineCode,
+} from '@view/components/code_block.tsx'
 import { PageTitle } from '@view/components/page_title.tsx'
 
 export const MiddlewarePage = () => {
     return (
-        <DocsLayout title="Middleware - Lockness JS">
-            <div class="max-w-4xl mx-auto">
+        <DocsLayout title='Middleware - Lockness JS'>
+            <div class='max-w-4xl mx-auto'>
                 <PageTitle>Middleware</PageTitle>
-                <p class="text-xl text-gray-600 mb-8">
-                    Middleware allows you to filter and modify HTTP requests before they reach your controllers.
+                <p class='text-xl text-gray-600 mb-8'>
+                    Middleware allows you to filter and modify HTTP requests
+                    before they reach your controllers.
                 </p>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Creating Middleware</h2>
-                    <p class="mb-4">Generate a new middleware class:</p>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Creating Middleware</h2>
+                    <p class='mb-4'>Generate a new middleware class:</p>
                     <CommandBlock lang='terminal'>
-{`deno task ace make:middleware Auth`}
+                        {`deno task ace make:middleware Auth`}
                     </CommandBlock>
-                    <p class="mb-4">This creates <InlineCode>src/middleware/auth_middleware.ts</InlineCode>:</p>
+                    <p class='mb-4'>
+                        This creates{' '}
+                        <InlineCode>
+                            src/middleware/auth_middleware.ts
+                        </InlineCode>:
+                    </p>
                     <CodeBlock lang='typescript'>
-{`import { Context, IMiddleware, MiddlewareHandler } from 'lockness'
+                        {`import { Context, IMiddleware, MiddlewareHandler } from 'lockness'
 
 export class AuthMiddleware implements IMiddleware {
     handle: MiddlewareHandler = async (c: Context, next) => {
@@ -35,11 +45,14 @@ export class AuthMiddleware implements IMiddleware {
                     </CodeBlock>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Global Middleware</h2>
-                    <p class="mb-4">Apply middleware to all routes in <InlineCode>src/kernel.ts</InlineCode>:</p>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Global Middleware</h2>
+                    <p class='mb-4'>
+                        Apply middleware to all routes in{' '}
+                        <InlineCode>src/kernel.ts</InlineCode>:
+                    </p>
                     <CodeBlock lang='typescript'>
-{`import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
+                        {`import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { CorsMiddleware } from '@middleware/cors_middleware.ts'
 
 await app.init({
@@ -52,11 +65,14 @@ await app.init({
                     </CodeBlock>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Named Middleware</h2>
-                    <p class="mb-4">Register middleware by name for use with <code>@Use()</code> decorator:</p>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Named Middleware</h2>
+                    <p class='mb-4'>
+                        Register middleware by name for use with{' '}
+                        <code>@Use()</code> decorator:
+                    </p>
                     <CodeBlock lang='typescript'>
-{`import { AuthMiddleware } from '@middleware/auth_middleware.ts'
+                        {`import { AuthMiddleware } from '@middleware/auth_middleware.ts'
 import { AdminMiddleware } from '@middleware/admin_middleware.ts'
 
 await app.init({
@@ -69,12 +85,16 @@ await app.init({
                     </CodeBlock>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Using Middleware in Controllers</h2>
-                    
-                    <h3 class="text-2xl font-bold mb-4 mt-6">With class reference</h3>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>
+                        Using Middleware in Controllers
+                    </h2>
+
+                    <h3 class='text-2xl font-bold mb-4 mt-6'>
+                        With class reference
+                    </h3>
                     <CodeBlock lang='typescript'>
-{`import { Controller, Get, Use } from 'lockness'
+                        {`import { Controller, Get, Use } from 'lockness'
 import { AuthMiddleware } from '@middleware/auth_middleware.ts'
 
 @Controller('/dashboard')
@@ -87,9 +107,11 @@ export class DashboardController {
 }`}
                     </CodeBlock>
 
-                    <h3 class="text-2xl font-bold mb-4 mt-6">With named middleware</h3>
+                    <h3 class='text-2xl font-bold mb-4 mt-6'>
+                        With named middleware
+                    </h3>
                     <CodeBlock lang='typescript'>
-{`@Controller('/admin')
+                        {`@Controller('/admin')
 export class AdminController {
     @Get('/')
     @Use('auth')
@@ -100,9 +122,11 @@ export class AdminController {
 }`}
                     </CodeBlock>
 
-                    <h3 class="text-2xl font-bold mb-4 mt-6">On entire controller</h3>
+                    <h3 class='text-2xl font-bold mb-4 mt-6'>
+                        On entire controller
+                    </h3>
                     <CodeBlock lang='typescript'>
-{`@Controller('/api')
+                        {`@Controller('/api')
 @Use(AuthMiddleware)
 export class ApiController {
     // All routes in this controller use AuthMiddleware
@@ -116,12 +140,14 @@ export class ApiController {
                     </CodeBlock>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Middleware Examples</h2>
-                    
-                    <h3 class="text-2xl font-bold mb-4 mt-6">Logger Middleware</h3>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Middleware Examples</h2>
+
+                    <h3 class='text-2xl font-bold mb-4 mt-6'>
+                        Logger Middleware
+                    </h3>
                     <CodeBlock lang='typescript'>
-{`export class LoggerMiddleware implements IMiddleware {
+                        {`export class LoggerMiddleware implements IMiddleware {
     handle: MiddlewareHandler = async (c, next) => {
         const start = Date.now()
         await next()
@@ -131,9 +157,11 @@ export class ApiController {
 }`}
                     </CodeBlock>
 
-                    <h3 class="text-2xl font-bold mb-4 mt-6">CORS Middleware</h3>
+                    <h3 class='text-2xl font-bold mb-4 mt-6'>
+                        CORS Middleware
+                    </h3>
                     <CodeBlock lang='typescript'>
-{`export class CorsMiddleware implements IMiddleware {
+                        {`export class CorsMiddleware implements IMiddleware {
     handle: MiddlewareHandler = async (c, next) => {
         c.header('Access-Control-Allow-Origin', '*')
         c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE')
@@ -148,9 +176,11 @@ export class ApiController {
 }`}
                     </CodeBlock>
 
-                    <h3 class="text-2xl font-bold mb-4 mt-6">API Key Middleware</h3>
+                    <h3 class='text-2xl font-bold mb-4 mt-6'>
+                        API Key Middleware
+                    </h3>
                     <CodeBlock lang='typescript'>
-{`export class ApiKeyMiddleware implements IMiddleware {
+                        {`export class ApiKeyMiddleware implements IMiddleware {
     handle: MiddlewareHandler = async (c, next) => {
         const apiKey = c.req.header('X-API-Key')
         
@@ -164,16 +194,25 @@ export class ApiController {
                     </CodeBlock>
                 </section>
 
-                <section class="mb-12">
-                    <h2 class="text-3xl font-bold mb-4">Middleware Order</h2>
-                    <p class="mb-4">Middleware execution order:</p>
-                    <ol class="list-decimal list-inside space-y-2 mb-6">
-                        <li><strong>Global middlewares</strong> - Applied to all routes</li>
-                        <li><strong>Controller-level middlewares</strong> - Applied to all routes in controller</li>
-                        <li><strong>Route-level middlewares</strong> - Applied to specific route method</li>
+                <section class='mb-12'>
+                    <h2 class='text-3xl font-bold mb-4'>Middleware Order</h2>
+                    <p class='mb-4'>Middleware execution order:</p>
+                    <ol class='list-decimal list-inside space-y-2 mb-6'>
+                        <li>
+                            <strong>Global middlewares</strong>{' '}
+                            - Applied to all routes
+                        </li>
+                        <li>
+                            <strong>Controller-level middlewares</strong>{' '}
+                            - Applied to all routes in controller
+                        </li>
+                        <li>
+                            <strong>Route-level middlewares</strong>{' '}
+                            - Applied to specific route method
+                        </li>
                     </ol>
                     <CodeBlock lang='typescript'>
-{`// Execution order: Global → Controller → Route
+                        {`// Execution order: Global → Controller → Route
 globalMiddlewares: [LoggerMiddleware]
 
 @Controller('/api')
@@ -188,9 +227,16 @@ export class ApiController {
                     </CodeBlock>
                 </section>
 
-                <div class="flex justify-between mt-12 pt-8 border-t">
-                    <a href="/docs/authentication" class="text-blue-600 hover:underline">← Authentication</a>
-                    <a href="/docs/cli" class="text-blue-600 hover:underline">CLI (Ace) →</a>
+                <div class='flex justify-between mt-12 pt-8 border-t'>
+                    <a
+                        href='/docs/authentication'
+                        class='text-blue-600 hover:underline'
+                    >
+                        ← Authentication
+                    </a>
+                    <a href='/docs/cli' class='text-blue-600 hover:underline'>
+                        CLI (Ace) →
+                    </a>
                 </div>
             </div>
         </DocsLayout>
