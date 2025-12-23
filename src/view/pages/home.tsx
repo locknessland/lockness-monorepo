@@ -136,17 +136,17 @@ const CodeBlock = ({ filename, children }: { filename: string; children: any }) 
 )
 
 // Syntax highlighting helper components - Monokai theme
-const Keyword = ({ children }: { children: string }) => <span class="text-[#F92672]">{children}</span>
-const String = ({ children }: { children: string }) => <span class="text-[#E6DB74]">{children}</span>
-const Comment = ({ children }: { children: string }) => <span class="text-[#75715E] italic">{children}</span>
-const Decorator = ({ children }: { children: string }) => <span class="text-[#A6E22E]">{children}</span>
-const Func = ({ children }: { children: string }) => <span class="text-[#A6E22E]">{children}</span>
-const Type = ({ children }: { children: string }) => <span class="text-[#66D9EF] italic">{children}</span>
-const Variable = ({ children }: { children: string }) => <span class="text-[#FD971F]">{children}</span>
-const Punctuation = ({ children }: { children: string }) => <span class="text-[#F8F8F2]">{children}</span>
-const Symbol = ({ children }: { children: string }) => <span class="text-[#F92672]">{children}</span>
-const Success = ({ children }: { children: string }) => <span class="text-[#A6E22E]">{children}</span>
-const Prompt = ({ children }: { children: string }) => <span class="text-[#A6E22E] font-bold">{children}</span>
+const Keyword = ({ children }: { children: string }) => <span class="text-[#F92672]/70">{children}</span>
+const String = ({ children }: { children: string }) => <span class="text-[#E6DB74]/70">{children}</span>
+const Comment = ({ children }: { children: string }) => <span class="text-[#75715E]/70 italic">{children}</span>
+const Decorator = ({ children }: { children: string }) => <span class="text-[#A6E22E]/70">{children}</span>
+const Func = ({ children }: { children: string }) => <span class="text-[#A6E22E]/70">{children}</span>
+const Type = ({ children }: { children: string }) => <span class="text-[#66D9EF]/70 italic">{children}</span>
+const Variable = ({ children }: { children: string }) => <span class="text-[#FD971F]/70">{children}</span>
+const Punctuation = ({ children }: { children: string }) => <span class="text-[#F8F8F2]/70">{children}</span>
+const Symbol = ({ children }: { children: string }) => <span class="text-[#F92672]/70">{children}</span>
+const Success = ({ children }: { children: string }) => <span class="text-[#A6E22E]/70">{children}</span>
+const Prompt = ({ children }: { children: string }) => <span class="text-[#A6E22E]/70 font-bold">{children}</span>
 
 export const HomeView = () => {
     return (
