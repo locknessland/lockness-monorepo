@@ -1,6 +1,7 @@
 # Request Validation
 
-Lockness uses **drizzle-zod** to generate Zod validation schemas directly from your Drizzle models.
+Lockness uses **drizzle-zod** to generate Zod validation schemas directly from
+your Drizzle models.
 
 ## Basic Validation
 
@@ -155,4 +156,7 @@ const userSchema = z.object({
 
 ## Why drizzle-zod?
 
-drizzle-zod generates Zod schemas from your Drizzle table definitions, so you define your data structure once in the model. You can add custom refinements (like email format, min length) while the base schema stays in sync with your database.
+drizzle-zod generates Zod schemas from your Drizzle table definitions, so you
+define your data structure once in the model. You can add custom refinements
+(like email format, min length) while the base schema stays in sync with your
+database.

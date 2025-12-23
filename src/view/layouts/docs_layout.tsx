@@ -36,6 +36,7 @@ const HomeIcon = () => (
 )
 
 export const DocsLayout = (
+    // deno-lint-ignore no-explicit-any
     props: { title: string; children: any; currentPath: string },
 ) => {
     return (

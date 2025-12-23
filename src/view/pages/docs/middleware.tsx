@@ -4,9 +4,12 @@ import { loadMarkdownContent } from '@view/helpers/markdown.ts'
 
 export const MiddlewarePage = () => {
     const content = loadMarkdownContent('middleware')
-    
+
     return (
-        <DocsLayout title='Middleware - Lockness JS' currentPath='/docs/middleware'>
+        <DocsLayout
+            title='Middleware - Lockness JS'
+            currentPath='/docs/middleware'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

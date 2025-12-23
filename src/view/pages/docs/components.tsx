@@ -4,9 +4,12 @@ import { loadMarkdownContent } from '@view/helpers/markdown.ts'
 
 export const ComponentsPage = () => {
     const content = loadMarkdownContent('components')
-    
+
     return (
-        <DocsLayout title='Components - Lockness JS' currentPath='/docs/components'>
+        <DocsLayout
+            title='Components - Lockness JS'
+            currentPath='/docs/components'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

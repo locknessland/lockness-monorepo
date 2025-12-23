@@ -6,29 +6,40 @@ export function registerRouterCommands(ace: Ace) {
         try {
             // Load controllers from src/controller directory
             const controllerDir = join(Deno.cwd(), 'src', 'controller')
+            // deno-lint-ignore no-explicit-any
             const controllers: any[] = []
 
             try {
                 for await (const entry of Deno.readDir(controllerDir)) {
                     if (
                         entry.isFile &&
-                        (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))
+                        (entry.name.endsWith('.ts') ||
+                            entry.name.endsWith('.tsx'))
                     ) {
-                        const filePath = `file://${join(controllerDir, entry.name)}`
+                        const filePath = `file://${
+                            join(controllerDir, entry.name)
+                        }`
                         try {
-                            const module = await import(/* @vite-ignore */ filePath)
+                            const module = await import(
+                                /* @vite-ignore */ filePath
+                            )
 
                             for (const key in module) {
                                 const Exported = module[key]
                                 if (
                                     typeof Exported === 'function' &&
+                                    // deno-lint-ignore no-explicit-any
                                     (Exported as any)._basePath !== undefined
                                 ) {
                                     controllers.push(Exported)
                                 }
                             }
                         } catch (importError) {
-                            console.warn(`⚠️  Could not import ${entry.name}: ${(importError as Error).message}`)
+                            console.warn(
+                                `⚠️  Could not import ${entry.name}: ${
+                                    (importError as Error).message
+                                }`,
+                            )
                         }
                     }
                 }
@@ -55,18 +66,29 @@ export function registerRouterCommands(ace: Ace) {
             const routes: RouteInfo[] = []
 
             for (const Controller of controllers) {
+                // deno-lint-ignore no-explicit-any
                 const basePath = (Controller as any)._basePath || ''
+                // deno-lint-ignore no-explicit-any
                 const controllerRoutes = (Controller as any)._routes || []
+                // deno-lint-ignore no-explicit-any
                 const middlewares = (Controller as any)._middlewares || {}
+                // deno-lint-ignore no-explicit-any
                 const validators = (Controller as any)._validators || {}
                 const controllerName = Controller.name
 
                 // Check for class-level decorators
-                const classAuthRequired = (Controller as any)._authRequired === true
-                const classGuestRequired = (Controller as any)._guestRequired === true
+                // deno-lint-ignore no-explicit-any
+                const classAuthRequired =
+                    (Controller as any)._authRequired === true
+                // deno-lint-ignore no-explicit-any
+                const classGuestRequired =
+                    (Controller as any)._guestRequired === true
 
                 for (const route of controllerRoutes) {
-                    let fullPath = `/${basePath}/${route.path}`.replace(/\/+/g, '/')
+                    let fullPath = `/${basePath}/${route.path}`.replace(
+                        /\/+/g,
+                        '/',
+                    )
                     if (fullPath.length > 1 && fullPath.endsWith('/')) {
                         fullPath = fullPath.slice(0, -1)
                     }
@@ -76,6 +98,7 @@ export function registerRouterCommands(ace: Ace) {
 
                     // Check method-level auth decorators
                     const instance = new Controller()
+                    // deno-lint-ignore no-explicit-any
                     const methodRef = (instance as any)[route.methodName]
                     const methodAuth = methodRef?._auth
                     const methodGuest = methodRef?._guest
@@ -117,14 +140,26 @@ export function registerRouterCommands(ace: Ace) {
             console.log(`\n📋 Registered Routes (${routes.length} total)\n`)
 
             // Calculate column widths
-            const methodWidth = Math.max(6, ...routes.map((r) => r.method.length))
+            const methodWidth = Math.max(
+                6,
+                ...routes.map((r) => r.method.length),
+            )
             const pathWidth = Math.max(20, ...routes.map((r) => r.path.length))
-            const controllerWidth = Math.max(15, ...routes.map((r) => r.controller.length))
-            const actionWidth = Math.max(10, ...routes.map((r) => r.action.length))
+            const controllerWidth = Math.max(
+                15,
+                ...routes.map((r) => r.controller.length),
+            )
+            const actionWidth = Math.max(
+                10,
+                ...routes.map((r) => r.action.length),
+            )
 
             // Print header
-            const header =
-                `┃ ${'METHOD'.padEnd(methodWidth)} ┃ ${'PATH'.padEnd(pathWidth)} ┃ ${'CONTROLLER'.padEnd(controllerWidth)} ┃ ${'ACTION'.padEnd(actionWidth)} ┃ MIDDLEWARES`
+            const header = `┃ ${'METHOD'.padEnd(methodWidth)} ┃ ${
+                'PATH'.padEnd(pathWidth)
+            } ┃ ${'CONTROLLER'.padEnd(controllerWidth)} ┃ ${
+                'ACTION'.padEnd(actionWidth)
+            } ┃ MIDDLEWARES`
             const separator = '━'.repeat(header.length)
 
             console.log(separator)
@@ -157,7 +192,9 @@ export function registerRouterCommands(ace: Ace) {
             console.log(separator)
             console.log()
         } catch (error) {
-            console.error(`❌ Error listing routes: ${(error as Error).message}`)
+            console.error(
+                `❌ Error listing routes: ${(error as Error).message}`,
+            )
         }
     }, 'Display all registered routes')
 }

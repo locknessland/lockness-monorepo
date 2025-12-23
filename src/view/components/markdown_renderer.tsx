@@ -18,7 +18,9 @@ export const MarkdownRenderer = ({ blocks }: MarkdownRendererProps) => {
                                     key={index}
                                     class='font-pixel text-xl text-primary mb-8 crt-glow'
                                     dangerouslySetInnerHTML={{
-                                        __html: processInlineMarkdown(block.content),
+                                        __html: processInlineMarkdown(
+                                            block.content,
+                                        ),
                                     }}
                                 />
                             )
@@ -28,7 +30,9 @@ export const MarkdownRenderer = ({ blocks }: MarkdownRendererProps) => {
                                     key={index}
                                     class='font-pixel text-base text-foreground mt-12 mb-6'
                                     dangerouslySetInnerHTML={{
-                                        __html: processInlineMarkdown(block.content),
+                                        __html: processInlineMarkdown(
+                                            block.content,
+                                        ),
                                     }}
                                 />
                             )
@@ -38,7 +42,9 @@ export const MarkdownRenderer = ({ blocks }: MarkdownRendererProps) => {
                                     key={index}
                                     class='text-lg font-semibold text-foreground mt-8 mb-4'
                                     dangerouslySetInnerHTML={{
-                                        __html: processInlineMarkdown(block.content),
+                                        __html: processInlineMarkdown(
+                                            block.content,
+                                        ),
                                     }}
                                 />
                             )
@@ -50,20 +56,36 @@ export const MarkdownRenderer = ({ blocks }: MarkdownRendererProps) => {
                                 key={index}
                                 class='text-lg leading-relaxed mb-4'
                                 dangerouslySetInnerHTML={{
-                                    __html: processInlineMarkdown(block.content),
+                                    __html: processInlineMarkdown(
+                                        block.content,
+                                    ),
                                 }}
                             />
                         )
 
                     case 'code':
-                        if (block.language === 'bash' || block.language === 'terminal') {
-                            return <CommandBlock key={index} lang={block.language}>{block.content}</CommandBlock>
+                        if (
+                            block.language === 'bash' ||
+                            block.language === 'terminal'
+                        ) {
+                            return (
+                                <CommandBlock key={index} lang={block.language}>
+                                    {block.content}
+                                </CommandBlock>
+                            )
                         }
-                        return <CodeBlock key={index} lang={block.language}>{block.content}</CodeBlock>
+                        return (
+                            <CodeBlock key={index} lang={block.language}>
+                                {block.content}
+                            </CodeBlock>
+                        )
 
                     case 'list':
                         return (
-                            <ul key={index} class='list-disc list-inside space-y-2 mb-6 text-lg'>
+                            <ul
+                                key={index}
+                                class='list-disc list-inside space-y-2 mb-6 text-lg'
+                            >
                                 {block.items?.map((item, i) => (
                                     <li
                                         key={i}
@@ -77,11 +99,16 @@ export const MarkdownRenderer = ({ blocks }: MarkdownRendererProps) => {
 
                     case 'blockquote':
                         return (
-                            <div key={index} class='pixel-card p-6 mt-8 bg-primary/10 border-primary'>
+                            <div
+                                key={index}
+                                class='pixel-card p-6 mt-8 bg-primary/10 border-primary'
+                            >
                                 <p
                                     class='mb-0'
                                     dangerouslySetInnerHTML={{
-                                        __html: processInlineMarkdown(block.content),
+                                        __html: processInlineMarkdown(
+                                            block.content,
+                                        ),
                                     }}
                                 />
                             </div>

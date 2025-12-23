@@ -4,7 +4,7 @@ import { loadMarkdownContent } from '@view/helpers/markdown.ts'
 
 export const CliPage = () => {
     const content = loadMarkdownContent('cli')
-    
+
     return (
         <DocsLayout title='CLI (Ace) - Lockness JS' currentPath='/docs/cli'>
             <MarkdownRenderer blocks={content} />

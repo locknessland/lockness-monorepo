@@ -4,9 +4,12 @@ import { loadMarkdownContent } from '@view/helpers/markdown.ts'
 
 export const AuthenticationPage = () => {
     const content = loadMarkdownContent('authentication')
-    
+
     return (
-        <DocsLayout title='Authentication - Lockness JS' currentPath='/docs/authentication'>
+        <DocsLayout
+            title='Authentication - Lockness JS'
+            currentPath='/docs/authentication'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

@@ -4,7 +4,7 @@ import { loadMarkdownContent } from '@view/helpers/markdown.ts'
 
 export const ValidationPage = () => {
     const content = loadMarkdownContent('validation')
-    
+
     return (
         <DocsLayout title='Validation' currentPath='/docs/validation'>
             <MarkdownRenderer blocks={content} />

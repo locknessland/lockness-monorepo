@@ -4,7 +4,7 @@ import { loadMarkdownContent } from '@view/helpers/markdown.ts'
 
 export const RoutingPage = () => {
     const content = loadMarkdownContent('routing')
-    
+
     return (
         <DocsLayout title='Routing & Controllers' currentPath='/docs/routing'>
             <MarkdownRenderer blocks={content} />

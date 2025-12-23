@@ -4,7 +4,7 @@ import { loadMarkdownContent } from '@view/helpers/markdown.ts'
 
 export const ModelsPage = () => {
     const content = loadMarkdownContent('models')
-    
+
     return (
         <DocsLayout title='Models' currentPath='/docs/models'>
             <MarkdownRenderer blocks={content} />

@@ -30,7 +30,9 @@ export function registerQueueCommands(ace: Ace) {
                     const module = await import(modulePath)
                     for (const key in module) {
                         const Exported = module[key]
-                        if (typeof Exported === 'function' && Exported.prototype) {
+                        if (
+                            typeof Exported === 'function' && Exported.prototype
+                        ) {
                             registerJob(Exported)
                         }
                     }

@@ -1,6 +1,7 @@
 # CLI (Ace)
 
-Ace is Lockness's powerful command-line interface for scaffolding, database management, and custom commands.
+Ace is Lockness's powerful command-line interface for scaffolding, database
+management, and custom commands.
 
 ## Using Ace
 
@@ -127,13 +128,13 @@ import { Command, type CommandContext, type ICommand } from '@lockness/ace'
 export class GreetCommand implements ICommand {
     async handle(ctx: CommandContext) {
         const name = ctx.arg(0) || 'World'
-        
+
         if (ctx.hasFlag('verbose')) {
             console.log('Running in verbose mode...')
         }
-        
+
         console.log(`Hello, ${name}!`)
-        
+
         const format = ctx.getFlag('format')
         if (format) {
             console.log(`Format: ${format}`)

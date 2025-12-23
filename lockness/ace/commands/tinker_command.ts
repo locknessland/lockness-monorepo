@@ -28,7 +28,9 @@ async function loadTinkerContext(context: Record<string, unknown>) {
             for await (const entry of Deno.readDir(path)) {
                 if (entry.isFile && entry.name.endsWith('.ts')) {
                     try {
-                        const modulePath = `${Deno.cwd()}${path.slice(1)}/${entry.name}`
+                        const modulePath = `${Deno.cwd()}${
+                            path.slice(1)
+                        }/${entry.name}`
                         const module = await import(modulePath)
 
                         // Import all named exports
@@ -146,7 +148,7 @@ async function startRepl(context: Record<string, unknown>) {
 
             if (line === '.context') {
                 if (context.help && typeof context.help === 'function') {
-                    ; (context.help as () => void)()
+                    ;(context.help as () => void)()
                 }
                 prompt()
                 continue

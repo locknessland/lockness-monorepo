@@ -6,37 +6,37 @@ Lockness uses class-based controllers with decorators for clean, expressive
 routing:
 
 ```typescript
-    import { Context, Controller, Delete, Get, Post, Put } from 'lockness'
+import { Context, Controller, Delete, Get, Post, Put } from 'lockness'
 
-    @Controller('/api/users')
-    export class UserController {
-        @Get('/')
-        async index(c: Context) {
-            return c.json({ users: [] })
-        }
-
-        @Get('/:id')
-        async show(c: Context) {
-            const id = c.req.param('id')
-            return c.json({ id })
-        }
-
-        @Post('/')
-        async store(c: Context) {
-            const body = await c.req.json()
-            return c.json(body, 201)
-        }
-
-        @Put('/:id')
-        async update(c: Context) {
-            return c.json({ updated: true })
-        }
-
-        @Delete('/:id')
-        async destroy(c: Context) {
-            return c.json({ deleted: true })
-        }
+@Controller('/api/users')
+export class UserController {
+    @Get('/')
+    async index(c: Context) {
+        return c.json({ users: [] })
     }
+
+    @Get('/:id')
+    async show(c: Context) {
+        const id = c.req.param('id')
+        return c.json({ id })
+    }
+
+    @Post('/')
+    async store(c: Context) {
+        const body = await c.req.json()
+        return c.json(body, 201)
+    }
+
+    @Put('/:id')
+    async update(c: Context) {
+        return c.json({ updated: true })
+    }
+
+    @Delete('/:id')
+    async destroy(c: Context) {
+        return c.json({ deleted: true })
+    }
+}
 ```
 
 ## Available HTTP Methods

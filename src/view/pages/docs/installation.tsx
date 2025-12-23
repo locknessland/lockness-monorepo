@@ -4,7 +4,7 @@ import { loadMarkdownContent } from '@view/helpers/markdown.ts'
 
 export const InstallationPage = () => {
     const content = loadMarkdownContent('installation')
-    
+
     return (
         <DocsLayout title='Installation' currentPath='/docs/installation'>
             <MarkdownRenderer blocks={content} />

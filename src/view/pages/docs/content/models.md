@@ -23,7 +23,7 @@ Create a Drizzle table schema:
 
 ```typescript
 // src/model/post.ts
-import { pgTable, serial, text, timestamp, boolean } from 'drizzle-orm/pg-core'
+import { boolean, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'
 
@@ -55,9 +55,9 @@ Repositories provide a clean data access layer:
 
 ```typescript
 // src/repository/post_repository.ts
-import { Service, Inject } from 'lockness'
+import { Inject, Service } from 'lockness'
 import { Database } from '@lockness/drizzle'
-import { posts, type Post, type NewPost } from '../model/post.ts'
+import { type NewPost, type Post, posts } from '../model/post.ts'
 import { eq } from 'drizzle-orm'
 
 @Service()
@@ -166,7 +166,7 @@ deno task ace db:seed
 Define relationships between models:
 
 ```typescript
-import { pgTable, serial, text, integer } from 'drizzle-orm/pg-core'
+import { integer, pgTable, serial, text } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
 export const users = pgTable('users', {
@@ -208,7 +208,7 @@ const postsWithAuthors = await db.instance.query.posts.findMany({
 Use Drizzle's query builder for complex queries:
 
 ```typescript
-import { and, eq, like, desc } from 'drizzle-orm'
+import { and, desc, eq, like } from 'drizzle-orm'
 
 // Find published posts by author
 const publishedPosts = await db.instance
@@ -216,7 +216,7 @@ const publishedPosts = await db.instance
     .from(posts)
     .where(and(
         eq(posts.published, true),
-        eq(posts.authorId, userId)
+        eq(posts.authorId, userId),
     ))
     .orderBy(desc(posts.createdAt))
 

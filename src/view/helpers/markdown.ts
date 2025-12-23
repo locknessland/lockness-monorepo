@@ -118,7 +118,10 @@ export function loadMarkdownContent(filename: string): MarkdownBlock[] {
  */
 export function processInlineMarkdown(text: string): string {
     return text
-        .replace(/`([^`]+)`/g, '<code class="px-2 py-1 bg-primary/20 text-primary font-pixel-body text-sm border border-primary/30 rounded">$1</code>')
+        .replace(
+            /`([^`]+)`/g,
+            '<code class="px-2 py-1 bg-primary/20 text-primary font-pixel-body text-sm border border-primary/30 rounded">$1</code>',
+        )
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         .replace(/\*([^*]+)\*/g, '<em>$1</em>')
 }

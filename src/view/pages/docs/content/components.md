@@ -1,6 +1,7 @@
 # Components
 
-Lockness uses JSX for building UI components. Generate reusable components with the Ace CLI.
+Lockness uses JSX for building UI components. Generate reusable components with
+the Ace CLI.
 
 ## Creating Components
 
@@ -58,7 +59,7 @@ interface ButtonProps {
 export const Button = (props: ButtonProps) => {
     const variant = props.variant || 'primary'
     const size = props.size || 'md'
-    
+
     return (
         <button
             class={`btn btn-${variant} btn-${size}`}
@@ -84,7 +85,7 @@ export const HomePage = () => {
         <div>
             <Card>
                 <h1>Welcome</h1>
-                <Button variant="primary" size="lg">
+                <Button variant='primary' size='lg'>
                     Get Started
                 </Button>
             </Card>
@@ -97,7 +98,8 @@ export const HomePage = () => {
 
 **✓ TypeScript support** - Full type checking for props and JSX
 
-**✓ Server-side rendering** - Components render on the server for fast initial load
+**✓ Server-side rendering** - Components render on the server for fast initial
+load
 
 **✓ Children support** - Pass children to components like React
 
@@ -124,9 +126,11 @@ src/view/components/
 
 ## Best Practices
 
-**✓ Keep components small and focused** - Each component should do one thing well
+**✓ Keep components small and focused** - Each component should do one thing
+well
 
-**✓ Use TypeScript interfaces for props** - Define clear contracts for component APIs
+**✓ Use TypeScript interfaces for props** - Define clear contracts for component
+APIs
 
 **✓ Export const arrow functions** - Consistent with Lockness conventions
 
@@ -134,7 +138,8 @@ src/view/components/
 
 ## Next Steps
 
-Now that you know how to create components, learn how to use them in pages and layouts:
+Now that you know how to create components, learn how to use them in pages and
+layouts:
 
 - [Routing & Controllers](/docs/routing)
 - [Getting Started Guide](/docs/getting-started)

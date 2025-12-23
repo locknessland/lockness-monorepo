@@ -17,7 +17,9 @@ export function registerNessyCommands(ace: Ace) {
                 await Deno.stat(acePath)
             } catch {
                 console.error('❌ ace.ts not found in the current directory')
-                console.error('   Make sure you run this command from your project root')
+                console.error(
+                    '   Make sure you run this command from your project root',
+                )
                 return
             }
 
@@ -63,7 +65,9 @@ export function registerNessyCommands(ace: Ace) {
             }
 
             console.log('')
-            console.log('💡 Tip: Add nessy to your PATH for even easier access!')
+            console.log(
+                '💡 Tip: Add nessy to your PATH for even easier access!',
+            )
             console.log('')
 
             // Check if .gitignore exists and warn if nessy is not ignored
@@ -72,15 +76,18 @@ export function registerNessyCommands(ace: Ace) {
                 const gitignoreContent = await Deno.readTextFile(gitignorePath)
 
                 if (!gitignoreContent.includes('nessy')) {
-                    console.log('⚠️  Remember to add "nessy" to your .gitignore file')
+                    console.log(
+                        '⚠️  Remember to add "nessy" to your .gitignore file',
+                    )
                     console.log('')
                 }
             } catch {
                 // .gitignore doesn't exist, no problem
             }
-
         } catch (error) {
-            console.error(`❌ Error installing Nessy: ${(error as Error).message}`)
+            console.error(
+                `❌ Error installing Nessy: ${(error as Error).message}`,
+            )
         }
     }, 'Install Nessy CLI wrapper for faster commands')
 }

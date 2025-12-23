@@ -20,6 +20,7 @@ export const DocsSidebar = (props: { currentPath: string }) => {
         <>
             {/* Mobile hamburger button (visible only on mobile) */}
             <button
+                type='button'
                 id='mobile-menu-btn'
                 class='md:hidden fixed bottom-6 right-6 z-[60] w-14 h-14 bg-primary border-4 border-border flex items-center justify-center cursor-pointer hover:bg-primary/90'
                 style='box-shadow: 4px 4px 0 0 rgba(0,0,0,0.5);'

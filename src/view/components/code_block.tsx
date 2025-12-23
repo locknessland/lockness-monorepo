@@ -55,6 +55,7 @@ export const Command = ({ children }: { children: string }) => {
             <div class='relative inline-flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-lg my-4 group'>
                 <code id={id} class='flex-1 font-mono text-sm'>{children}</code>
                 <button
+                    type='button'
                     id={copyBtnId}
                     class='flex items-center gap-1 px-2 py-1 text-xs opacity-0 group-hover:opacity-100 text-gray-400 hover:text-white transition-all cursor-pointer bg-transparent border border-gray-700 hover:border-gray-500 rounded'
                     title='Copy to clipboard'
@@ -115,6 +116,7 @@ export const CommandBlock = (
                         </span>
                     </div>
                     <button
+                        type='button'
                         id={copyBtnId}
                         class='flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer bg-transparent border-2 border-border hover:border-primary'
                         title='Copy to clipboard'
