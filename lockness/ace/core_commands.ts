@@ -6,8 +6,8 @@ const STUBS_PATH = join(currentDir, 'stubs')
 
 // Helper function to detect if running in compiled binary
 function isCompiledBinary(): boolean {
-    return Deno.mainModule.startsWith('file:///') && 
-           !Deno.mainModule.includes('/lockness.land/')
+    return Deno.mainModule.startsWith('file:///') &&
+        !Deno.mainModule.includes('/lockness.land/')
 }
 
 // Helper function to show compiled binary warning
