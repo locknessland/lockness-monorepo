@@ -132,6 +132,37 @@ export function registerCoreCommands(ace: Ace) {
         }
     }, 'Create a new view page')
 
+    ace.register('make:component', async (args) => {
+        const name = args[0]
+        if (!name) {
+            console.error('❌ Please provide a component name (e.g., Button)')
+            return
+        }
+
+        const className = name.charAt(0).toUpperCase() + name.slice(1)
+        const fileName = name.toLowerCase()
+        const dirPath = `./src/view/components`
+        const filePath = `${dirPath}/${fileName}.tsx`
+
+        // Generate props interface name
+        const propsInterface = `{ children?: any }`
+
+        try {
+            const content = await Stub.renderFrom(STUBS_PATH, 'make', 'component', {
+                className,
+                propsInterface,
+            })
+
+            await Deno.mkdir(dirPath, { recursive: true })
+            await Deno.writeTextFile(filePath, content)
+            console.log(`✅ Component created at ${filePath}`)
+        } catch (error) {
+            console.error(
+                `❌ Failed to create component: ${(error as Error).message}`,
+            )
+        }
+    }, 'Create a new JSX component')
+
     ace.register('make:command', async (args) => {
         const name = args[0]
         if (!name) {
@@ -257,8 +288,7 @@ export function registerCoreCommands(ace: Ace) {
                     console.log(`✅ ${file.name} created at ${file.output}`)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create ${file.name}: ${
-                            (error as Error).message
+                        `❌ Failed to create ${file.name}: ${(error as Error).message
                         }`,
                     )
                 }
@@ -547,7 +577,7 @@ async function startRepl(context: Record<string, unknown>) {
 
             if (line === '.context') {
                 if (context.help && typeof context.help === 'function') {
-                    ;(context.help as () => void)()
+                    ; (context.help as () => void)()
                 }
                 prompt()
                 continue
