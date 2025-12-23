@@ -11,7 +11,7 @@ export default defineConfig(({ isSsrBuild }) => ({
             '@service': resolve(Deno.cwd(), './src/service'),
             '@middleware': resolve(Deno.cwd(), './src/middleware'),
             '@model': resolve(Deno.cwd(), './src/model'),
-            '@router': resolve(Deno.cwd(), './src/router.ts'),
+            '@view': resolve(Deno.cwd(), './src/view'),
             '@repository': resolve(Deno.cwd(), './src/repository'),
             '@kernel': resolve(Deno.cwd(), './src/kernel.ts'),
             'lockness': resolve(Deno.cwd(), './lockness/core/core.ts'),
