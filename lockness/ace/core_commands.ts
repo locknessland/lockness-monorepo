@@ -363,6 +363,98 @@ export function registerCoreCommands(ace: Ace) {
             console.error(`❌ Error listing routes: ${(error as Error).message}`)
         }
     }, 'Display all registered routes')
+
+    ace.register('nessy:install', async () => {
+        console.log('')
+        console.log('🦕 Installing Nessy - Your Lockness CLI companion!')
+        console.log('')
+
+        try {
+            // Check if ace.ts exists
+            const acePath = join(Deno.cwd(), 'ace.ts')
+            try {
+                await Deno.stat(acePath)
+            } catch {
+                console.error('❌ ace.ts not found in the current directory')
+                console.error('   Make sure you run this command from your project root')
+                return
+            }
+
+            // Determine the output filename based on OS
+            const isWindows = Deno.build.os === 'windows'
+            const binaryName = isWindows ? 'nessy.exe' : 'nessy'
+            const binaryPath = join(Deno.cwd(), binaryName)
+
+            console.log(`📦 Compiling ${binaryName}...`)
+            console.log('')
+
+            // Compile ace.ts to nessy binary
+            const compileCommand = new Deno.Command('deno', {
+                args: [
+                    'compile',
+                    '--allow-all',
+                    '--no-check',
+                    '--output',
+                    binaryPath,
+                    '--env',
+                    acePath,
+                ],
+                stdout: 'piped',
+                stderr: 'piped',
+            })
+
+            const { success, stdout, stderr } = await compileCommand.output()
+
+            if (!success) {
+                const errorOutput = new TextDecoder().decode(stderr)
+                console.error('❌ Failed to compile Nessy')
+                console.error(errorOutput)
+                return
+            }
+
+            // Display compilation output if any
+            const output = new TextDecoder().decode(stdout)
+            if (output.trim()) {
+                console.log(output)
+            }
+
+            console.log('✅ Nessy has been successfully installed!')
+            console.log('')
+            console.log('🎉 You can now use Nessy instead of "deno task ace":')
+            console.log('')
+
+            if (isWindows) {
+                console.log('   .\\nessy list')
+                console.log('   .\\nessy make:controller User')
+                console.log('   .\\nessy db:migrate')
+            } else {
+                console.log('   ./nessy list')
+                console.log('   ./nessy make:controller User')
+                console.log('   ./nessy db:migrate')
+            }
+
+            console.log('')
+            console.log('💡 Pro tip: Add nessy to your PATH for even easier access!')
+            console.log('')
+
+            // Check if .gitignore exists and warn if nessy is not ignored
+            try {
+                const gitignorePath = join(Deno.cwd(), '.gitignore')
+                const gitignoreContent = await Deno.readTextFile(gitignorePath)
+
+                if (!gitignoreContent.includes('nessy')) {
+                    console.log('⚠️  Remember to add "nessy" to your .gitignore file')
+                    console.log('')
+                }
+            } catch {
+                // .gitignore doesn't exist, no problem
+            }
+
+        } catch (error) {
+            console.error(`❌ Error installing Nessy: ${(error as Error).message}`)
+        }
+    }, 'Install Nessy CLI binary for faster commands')
+
     ace.register('make:job', async (args) => {
         const name = args[0]
         if (!name) {
