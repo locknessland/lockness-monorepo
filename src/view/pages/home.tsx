@@ -181,9 +181,8 @@ export const HomeView = () => {
 
                             {/* Title */}
                             <h1 class='text-4xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight'>
-                                The Full Stack MVC Framework
-                                <br />
-                                <span class='text-primary'>for Deno</span>
+                                Create and ship TypeScript fast with
+                                <span class='text-primary'> Deno</span>
                             </h1>
 
                             {/* Description */}
