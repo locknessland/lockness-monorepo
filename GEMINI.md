@@ -294,6 +294,86 @@ export class UserRepository {
 }
 ```
 
+### Nessy CLI Wrapper
+
+**Nessy** is a convenient CLI wrapper that simplifies your development workflow
+by providing shortcuts for common commands. Instead of typing `deno task ace`
+every time, just use `./nessy`.
+
+#### Installation
+
+Generate the Nessy wrapper in your project:
+
+```bash
+deno task ace nessy:install
+```
+
+This creates a `nessy` script (or `nessy.cmd` on Windows) in your project root.
+The script is automatically added to `.gitignore`.
+
+#### Basic Usage
+
+```bash
+# Instead of: deno task ace make:controller User
+./nessy make:controller User
+
+# All ACE commands work the same way
+./nessy db:migrate
+./nessy router:list
+./nessy tinker
+```
+
+#### Developer Experience Commands
+
+Nessy includes several built-in commands to improve your workflow:
+
+| Command                  | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| `./nessy dev`            | Start development server                    |
+| `./nessy test [pattern]` | Run tests (optionally filtered)             |
+| `./nessy check`          | Type-check all TypeScript files             |
+| `./nessy fresh`          | Clean everything and reinstall dependencies |
+| `./nessy clean`          | Remove build artifacts only                 |
+| `./nessy watch`          | Dev server in watch mode                    |
+| `./nessy status`         | Show project health information             |
+| `./nessy install <pkg>`  | Add a dependency                            |
+| `./nessy --version`      | Show version information                    |
+| `./nessy --help`         | Display comprehensive help                  |
+
+#### Examples
+
+```bash
+# Scaffolding
+./nessy make:controller Post
+./nessy make:model Comment -a
+./nessy make:auth --social
+
+# Database operations
+./nessy db:generate
+./nessy db:migrate
+./nessy db:studio
+
+# Development workflow
+./nessy dev           # Start server
+./nessy test User     # Run user tests
+./nessy check         # Verify types
+./nessy router:list   # Show all routes
+
+# Maintenance
+./nessy clean         # Clean build
+./nessy fresh         # Full reset
+./nessy status        # Check health
+```
+
+#### Why Nessy?
+
+1. **Faster to type**: `./nessy` vs `deno task ace`
+2. **Consistent interface**: One command for all operations
+3. **Enhanced DX**: Built-in shortcuts for common tasks
+4. **Project-specific**: Generated per-project, not global
+5. **Always up-to-date**: Calls `ace.ts` directly, no compilation needed
+6. **Platform support**: Works on Unix/Linux/macOS/Windows
+
 ### Session Management
 
 Lockness provides a flexible session management system with multiple driver

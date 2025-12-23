@@ -13,6 +13,7 @@ const navLinks: NavLink[] = [
     { title: 'Middleware', href: '/docs/middleware' },
     { title: 'Components', href: '/docs/components' },
     { title: 'CLI (Ace)', href: '/docs/cli' },
+    { title: 'Nessy CLI', href: '/docs/nessy' },
 ]
 
 export const DocsSidebar = (props: { currentPath: string }) => {

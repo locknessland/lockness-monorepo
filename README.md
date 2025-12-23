@@ -79,6 +79,53 @@ deno task test:watch
 Test files are located in the `tests/` directory. Coverage reports are generated
 in `coverage/html/`.
 
+### Nessy CLI Wrapper
+
+**Nessy** is a convenient CLI wrapper that simplifies common commands. Install
+it once:
+
+```bash
+deno task ace nessy:install
+```
+
+Then use `./nessy` instead of `deno task ace`:
+
+```bash
+# Scaffolding
+./nessy make:controller User
+./nessy make:model Post -a
+
+# Database
+./nessy db:migrate
+./nessy db:studio
+
+# Development
+./nessy dev          # Start dev server
+./nessy test User    # Run tests
+./nessy check        # Type-check files
+./nessy router:list  # Show routes
+
+# Maintenance
+./nessy clean        # Remove build artifacts
+./nessy fresh        # Clean all + reinstall
+./nessy status       # Project health check
+```
+
+**Built-in DX commands:**
+
+- `dev` - Start development server
+- `test [pattern]` - Run tests (optionally filtered)
+- `check` - Type-check all files
+- `fresh` - Clean everything and reinstall
+- `clean` - Remove build artifacts only
+- `watch` - Dev server in watch mode
+- `status` - Show project health info
+- `install <pkg>` - Add a dependency
+- `--version` - Show version
+- `--help` - Display help
+
+Nessy works on all platforms (Unix/Linux/macOS/Windows) and is project-specific.
+
 ### Database Management (Drizzle ORM)
 
 Lockness uses **Drizzle ORM** for type-safe database operations.

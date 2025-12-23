@@ -52,6 +52,39 @@ Run tests with coverage:
 deno task test:coverage
 ```
 
+### Nessy CLI Wrapper
+
+**Nessy** is a convenient CLI wrapper for faster development. Install it:
+
+```bash
+deno task ace nessy:install
+```
+
+Then use `./nessy` instead of `deno task ace`:
+
+```bash
+# Scaffolding
+./nessy make:controller User
+./nessy make:model Post -a
+
+# Database
+./nessy db:migrate
+./nessy db:studio
+
+# Development
+./nessy dev          # Start dev server
+./nessy test User    # Run tests
+./nessy check        # Type-check files
+./nessy router:list  # Show all routes
+
+# Maintenance
+./nessy clean        # Remove build artifacts
+./nessy fresh        # Clean all + reinstall
+./nessy status       # Project health
+```
+
+**DX Commands:** `dev`, `test`, `check`, `fresh`, `clean`, `watch`, `status`, `install`, `--version`, `--help`
+
 ### Database Management (Drizzle ORM)
 
 Lockness uses **Drizzle ORM** for type-safe database operations.
