@@ -1,7 +1,6 @@
 export * from './types.ts'
 export * from './app.ts'
 export * from './decorators.ts'
-export * from './container.ts'
 export * from './validation.ts'
 export * from './helpers.ts'
 export * from './components.tsx'
@@ -12,6 +11,7 @@ export { z } from 'zod'
 
 // Re-export from separate libs
 export * from '@lockness/cache'
+export * from '@lockness/container'
 export * from '@lockness/mail'
 export * from '@lockness/queue'
 export * from '@lockness/socialite'

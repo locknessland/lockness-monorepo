@@ -1,0 +1,11 @@
+{
+    "name": "@lockness/container",
+    "version": "1.0.0",
+    "exports": "./container.ts",
+    "tasks": {
+        "test": "deno test --allow-all"
+    },
+    "imports": {
+        "@std/assert": "jsr:@std/assert@1"
+    }
+}

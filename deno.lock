@@ -1247,6 +1247,11 @@
           "jsr:@std/assert@1"
         ]
       },
+      "lockness/container": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ]
+      },
       "lockness/core": {
         "dependencies": [
           "jsr:@std/assert@1",
