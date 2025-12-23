@@ -33,9 +33,9 @@ interface ListenerEntry<T = unknown> {
 
 /**
  * Event map type for type-safe events
+ * Can be a Record or an interface with string index signature
  */
-export type EventMap = Record<string, unknown>
-
+export type EventMap = Record<string, any>
 
 /**
  * Extract event names from event map
@@ -281,7 +281,7 @@ export class EventEmitter<Events extends EventMap = EventMap> {
 /**
  * Global event emitter instance
  */
-let globalEmitter: EventEmitter | null = null
+let globalEmitter: EventEmitter<any> | null = null
 
 /**
  * Configure global event emitter
@@ -309,7 +309,7 @@ export function on<T = unknown>(
     listener: EventListener<T>,
     config?: ListenerConfig,
 ): EventEmitter {
-    return events().on(event as never, listener as EventListener<never>, config)
+    return events().on(event as any, listener as EventListener<any>, config)
 }
 
 /**
@@ -320,28 +320,28 @@ export function once<T = unknown>(
     listener: EventListener<T>,
     config?: Omit<ListenerConfig, 'once'>,
 ): EventEmitter {
-    return events().once(event as never, listener as EventListener<never>, config)
+    return events().once(event as any, listener as EventListener<any>, config)
 }
 
 /**
  * Quick event emission
  */
 export async function emit<T = unknown>(event: string, data: T): Promise<void> {
-    return events().emit(event as never, data as never)
+    return events().emit(event as any, data as any)
 }
 
 /**
  * Quick synchronous event emission
  */
 export function emitSync<T = unknown>(event: string, data: T): void {
-    events().emitSync(event as never, data as never)
+    events().emitSync(event as any, data as any)
 }
 
 /**
  * Remove a listener
  */
 export function off<T = unknown>(event: string, listener: EventListener<T>): EventEmitter {
-    return events().off(event as never, listener as EventListener<never>)
+    return events().off(event as any, listener as EventListener<any>)
 }
 
 // =============================================================================
@@ -375,11 +375,11 @@ export function waitForEvent<T = unknown>(
             resolve(data)
         }
 
-        emitter.once(event as never, listener as EventListener<never>)
+        emitter.once(event as any, listener as EventListener<any>)
 
         if (timeout) {
             timer = setTimeout(() => {
-                emitter.off(event as never, listener as EventListener<never>)
+                emitter.off(event as any, listener as EventListener<any>)
                 reject(new Error(`Timeout waiting for event: ${event}`))
             }, timeout)
         }
@@ -410,7 +410,7 @@ export function eventStream<T = unknown>(
         }
     }
 
-    emitter.on(event as never, listener as EventListener<never>)
+    emitter.on(event as any, listener as EventListener<any>)
 
     return {
         [Symbol.asyncIterator]() {
@@ -430,7 +430,7 @@ export function eventStream<T = unknown>(
                 },
                 async return(): Promise<IteratorResult<T>> {
                     done = true
-                    emitter.off(event as never, listener as EventListener<never>)
+                    emitter.off(event as any, listener as EventListener<any>)
                     return { value: undefined as unknown as T, done: true }
                 },
             }
