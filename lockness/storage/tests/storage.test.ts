@@ -224,6 +224,7 @@ Deno.test('S3StorageDriver - initialization requires bucket', () => {
 Deno.test({
     name: 'S3StorageDriver - publicUrl default format',
     sanitizeResources: false,
+    sanitizeOps: false,
     fn: () => {
         const driver = new S3StorageDriver({
             driver: 's3',
@@ -242,6 +243,7 @@ Deno.test({
 Deno.test({
     name: 'S3StorageDriver - publicUrl with custom endpoint',
     sanitizeResources: false,
+    sanitizeOps: false,
     fn: () => {
         const driver = new S3StorageDriver({
             driver: 's3',
