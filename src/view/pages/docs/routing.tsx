@@ -2,8 +2,9 @@ import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 import { CodeBlock, InlineCode } from '@view/components/code_block.tsx'
 import { PageTitle } from '@view/components/page_title.tsx'
 
-export const RoutingPage = () => (
-    <DocsLayout title='Routing & Controllers' currentPath='/docs/routing'>
+export const RoutingPage = () => {
+    return (
+        <DocsLayout title='Routing & Controllers' currentPath='/docs/routing'>
         <div class='prose prose-invert max-w-none'>
             <PageTitle>Routing & Controllers</PageTitle>
 
@@ -108,4 +109,5 @@ export const RoutingPage = () => (
             </div>
         </div>
     </DocsLayout>
-)
+    )
+}
