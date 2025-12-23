@@ -82,7 +82,7 @@ export const DocsLayout = (props: { title: string; children: any; currentPath: s
                     <DocsSidebar currentPath={props.currentPath} />
 
                     {/* Content */}
-                    <main class='flex-1 p-12 max-w-4xl'>
+                    <main class='flex-1 p-6 max-w-4xl'>
                         {props.children}
                     </main>
                 </div>
