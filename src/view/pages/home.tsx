@@ -181,85 +181,105 @@ export const HomeView = () => {
                 </header>
 
                 {/* Hero Section */}
-                <section class='pt-32 pb-24 px-6 relative overflow-hidden'>
+                <section class='pt-28 pb-20 px-6 relative overflow-hidden'>
                     {/* Background Pattern */}
-                    <div class='absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]'></div>
+                    <div class='absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-40'></div>
                     
                     {/* Animated glow orbs */}
                     <div class='absolute top-20 left-1/4 w-72 h-72 bg-primary/20 rounded-full blur-[120px] animate-pulse-glow'></div>
                     <div class='absolute bottom-20 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-[150px] animate-pulse-glow' style='animation-delay: 1s;'></div>
                     
-                    <div class='max-w-5xl mx-auto relative z-10'>
-                        <div class='text-center space-y-8'>
-                            {/* Badge */}
-                            <div class='inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-sm animate-slide-up hover:border-primary/50 hover:scale-105 transition-all cursor-default'>
-                                <span class='relative flex h-2 w-2'>
-                                    <span class='animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75'></span>
-                                    <span class='relative inline-flex rounded-full h-2 w-2 bg-primary'></span>
-                                </span>
-                                <span class='text-muted-foreground'>v{pkg.version} now available on JSR</span>
-                            </div>
+                    <div class='max-w-7xl mx-auto relative z-10'>
+                        <div class='flex flex-col lg:flex-row items-center gap-12 lg:gap-16'>
+                            
+                            {/* Left side - Text content */}
+                            <div class='flex-1 text-center lg:text-left space-y-6'>
+                                {/* Badge */}
+                                <div class='inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30 text-sm animate-slide-up cursor-default'>
+                                    <span class='relative flex h-2 w-2'>
+                                        <span class='animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75'></span>
+                                        <span class='relative inline-flex rounded-full h-2 w-2 bg-primary'></span>
+                                    </span>
+                                    <span class='text-primary font-medium'>v{pkg.version} on JSR</span>
+                                </div>
 
-                            {/* Title */}
-                            <h1 class='text-4xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight animate-slide-up' style='animation-delay: 100ms; animation-fill-mode: backwards;'>
-                                Create and ship TypeScript fast with
-                                <span class='text-primary gradient-text'> Deno</span>
-                            </h1>
+                                {/* Title */}
+                                <h1 class='text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight animate-slide-up' style='animation-delay: 100ms; animation-fill-mode: backwards;'>
+                                    Build fullstack apps<br/>
+                                    <span class='text-transparent bg-clip-text bg-gradient-to-r from-primary via-cyan-400 to-blue-500'>at monster speed.</span>
+                                </h1>
 
-                            {/* Description */}
-                            <p class='text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed animate-slide-up' style='animation-delay: 200ms; animation-fill-mode: backwards;'>
-                                A high-performance, fullstack MVC web framework inspired by Laravel and AdonisJS. 
-                                Built natively for Deno, powered by the speed of Hono.
-                            </p>
+                                {/* Description */}
+                                <p class='text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed animate-slide-up' style='animation-delay: 200ms; animation-fill-mode: backwards;'>
+                                    The MVC framework that combines <strong class='text-foreground'>Laravel's</strong> elegance with <strong class='text-foreground'>HonoJS</strong> speed. Native to Deno.
+                                </p>
 
-                            {/* CTA Buttons */}
-                            <div class='flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 animate-slide-up' style='animation-delay: 300ms; animation-fill-mode: backwards;'>
-                                <a href='#getting-started' class='inline-flex items-center gap-2 px-6 py-3 text-base font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all group btn-interactive hover:scale-105 hover:shadow-lg glow-primary'>
-                                    Get Started
-                                    <span class='group-hover:translate-x-1 transition-transform'><ArrowRightIcon /></span>
-                                </a>
-                                <a href='https://github.com/locknessjs/lockness' class='inline-flex items-center gap-2 px-6 py-3 text-base font-medium rounded-lg border border-border bg-card hover:bg-muted transition-all hover:scale-105 hover:border-primary/50'>
-                                    <GithubIcon />
-                                    View on GitHub
-                                </a>
-                            </div>
-
-                            {/* Install Command */}
-                            <div class='pt-4 animate-slide-up' style='animation-delay: 400ms; animation-fill-mode: backwards;'>
-                                <div class='inline-flex items-center gap-3 px-5 py-3 rounded-lg bg-card border border-border font-mono text-sm hover:border-primary/50 transition-all group' id='install-command'>
-                                    <span class='text-primary group-hover:animate-pulse'>$</span>
-                                    <span class='text-foreground' id='install-text'>deno run -Ar jsr:@lockness/init</span>
-                                    <button 
-                                        type='button' 
-                                        id='copy-btn'
-                                        class='ml-2 p-1.5 rounded hover:bg-muted transition-all text-muted-foreground hover:text-foreground hover:scale-110 active:scale-95 cursor-pointer'
-                                        title='Copy to clipboard'
-                                    >
-                                        <span id='copy-icon'><CopyIcon /></span>
-                                        <span id='check-icon' class='hidden text-emerald-400'><CheckIcon /></span>
-                                    </button>
+                                {/* CTA Buttons */}
+                                <div class='flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start pt-2 animate-slide-up' style='animation-delay: 300ms; animation-fill-mode: backwards;'>
+                                    <a href='#getting-started' class='inline-flex items-center gap-2 px-6 py-3 text-base font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all group btn-interactive hover:scale-105 shadow-lg shadow-primary/25'>
+                                        Get Started
+                                        <span class='group-hover:translate-x-1 transition-transform'><ArrowRightIcon /></span>
+                                    </a>
+                                    
+                                    {/* Install Command */}
+                                    <div class='flex items-center gap-2 px-4 py-3 rounded-lg bg-card border border-border font-mono text-sm hover:border-primary/50 transition-all group cursor-pointer' id='install-command'>
+                                        <span class='text-primary'>$</span>
+                                        <span class='text-foreground' id='install-text'>deno run -Ar jsr:@lockness/init</span>
+                                        <button 
+                                            type='button' 
+                                            id='copy-btn'
+                                            class='p-1 rounded hover:bg-muted transition-all text-muted-foreground hover:text-foreground cursor-pointer'
+                                            title='Copy to clipboard'
+                                        >
+                                            <span id='copy-icon'><CopyIcon /></span>
+                                            <span id='check-icon' class='hidden text-primary'><CheckIcon /></span>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                            
-                            {/* Copy to clipboard script */}
-                            <script dangerouslySetInnerHTML={{__html: `
-                                document.getElementById('copy-btn').addEventListener('click', async function() {
-                                    const text = document.getElementById('install-text').textContent;
-                                    try {
-                                        await navigator.clipboard.writeText(text);
-                                        document.getElementById('copy-icon').classList.add('hidden');
-                                        document.getElementById('check-icon').classList.remove('hidden');
-                                        setTimeout(() => {
-                                            document.getElementById('copy-icon').classList.remove('hidden');
-                                            document.getElementById('check-icon').classList.add('hidden');
-                                        }, 2000);
-                                    } catch (err) {
-                                        console.error('Failed to copy:', err);
-                                    }
-                                });
-                            `}} />
+
+                            {/* Right side - Code Preview */}
+                            <div class='flex-1 w-full max-w-lg lg:max-w-xl animate-slide-up' style='animation-delay: 400ms; animation-fill-mode: backwards;'>
+                                <div class='relative'>
+                                    {/* Glow effect behind the card */}
+                                    <div class='absolute -inset-4 bg-gradient-to-r from-primary/20 to-cyan-500/20 rounded-2xl blur-2xl opacity-50'></div>
+                                    
+                                    {/* Code block */}
+                                    <div class='relative rounded-xl border border-border bg-card/95 backdrop-blur overflow-hidden shadow-2xl transform hover:rotate-0 rotate-1 transition-transform duration-500'>
+                                        <div class='flex items-center px-4 py-3 bg-muted/50 border-b border-border gap-2'>
+                                            <div class='flex gap-1.5'>
+                                                <div class='w-3 h-3 rounded-full bg-red-500/40'></div>
+                                                <div class='w-3 h-3 rounded-full bg-yellow-500/40'></div>
+                                                <div class='w-3 h-3 rounded-full bg-green-500/40'></div>
+                                            </div>
+                                            <span class='ml-auto text-xs text-muted-foreground font-mono'>src/controller/home_controller.ts</span>
+                                        </div>
+                                        <div class='p-5 overflow-x-auto text-sm font-mono leading-relaxed'>
+                                            <pre><code class='whitespace-pre-wrap'><Decorator>@Controller</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>{'\n'}<Keyword>export class</Keyword> <Type>HomeController</Type> <Punctuation>{'{'}</Punctuation>{'\n'}{'\n'}{'    '}<Decorator>@Get</Decorator><Punctuation>(</Punctuation><String>'/'</String><Punctuation>)</Punctuation>{'\n'}{'    '}<Decorator>@Use</Decorator><Punctuation>(</Punctuation><Type>AuthMiddleware</Type><Punctuation>)</Punctuation>{'\n'}{'    '}<Keyword>async</Keyword> <Func>index</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>:</Punctuation> <Type>Context</Type><Punctuation>)</Punctuation> <Punctuation>{'{'}</Punctuation>{'\n'}{'        '}<Keyword>const</Keyword> <Variable>user</Variable> <Symbol>=</Symbol> <Keyword>await</Keyword> <Func>auth</Func><Punctuation>(</Punctuation><Variable>c</Variable><Punctuation>)</Punctuation>.<Func>user</Func><Punctuation>()</Punctuation>{'\n'}{'\n'}{'        '}<Keyword>return</Keyword> <Variable>c</Variable>.<Func>json</Func><Punctuation>(</Punctuation><Punctuation>{'{'}</Punctuation>{'\n'}{'            '}monster<Punctuation>:</Punctuation> <Type>true</Type><Punctuation>,</Punctuation>{'\n'}{'            '}message<Punctuation>:</Punctuation> <String>"Hello from the Deep"</String>{'\n'}{'        '}<Punctuation>{'}'}</Punctuation><Punctuation>)</Punctuation>{'\n'}{'    '}<Punctuation>{'}'}</Punctuation>{'\n'}<Punctuation>{'}'}</Punctuation></code></pre>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                    
+                    {/* Copy to clipboard script */}
+                    <script dangerouslySetInnerHTML={{__html: `
+                        document.getElementById('copy-btn').addEventListener('click', async function() {
+                            const text = document.getElementById('install-text').textContent;
+                            try {
+                                await navigator.clipboard.writeText(text);
+                                document.getElementById('copy-icon').classList.add('hidden');
+                                document.getElementById('check-icon').classList.remove('hidden');
+                                setTimeout(() => {
+                                    document.getElementById('copy-icon').classList.remove('hidden');
+                                    document.getElementById('check-icon').classList.add('hidden');
+                                }, 2000);
+                            } catch (err) {
+                                console.error('Failed to copy:', err);
+                            }
+                        });
+                    `}} />
                 </section>
 
                 {/* Stats Section */}
