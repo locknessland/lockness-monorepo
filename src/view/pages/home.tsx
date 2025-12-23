@@ -310,7 +310,7 @@ export const HomeView = () => {
                 <section id='features' class='py-24 px-6'>
                     <div class='max-w-5xl mx-auto'>
                         <div class='text-center mb-16'>
-                            <h2 class='font-pixel text-lg md:text-xl text-foreground mb-6'>L'ARSENAL COMPLET</h2>
+                            <h2 class='font-pixel text-lg md:text-xl text-foreground mb-6'>THE COMPLETE ARSENAL</h2>
                             <p class='text-xl text-muted-foreground max-w-2xl mx-auto'>
                                 Lockness provides a complete toolkit with batteries included for rapid development
                             </p>
@@ -379,7 +379,7 @@ export const HomeView = () => {
                 <section id='getting-started' class='py-24 px-6 bg-muted/20'>
                     <div class='max-w-5xl mx-auto'>
                         <div class='text-center mb-16'>
-                            <h2 class='font-pixel text-lg md:text-xl text-foreground mb-6'>PRODUCTIVITE ACE</h2>
+                            <h2 class='font-pixel text-lg md:text-xl text-foreground mb-6'>ACE PRODUCTIVITY</h2>
                             <p class='text-xl text-muted-foreground max-w-2xl mx-auto'>
                                 Initialize your project and start building immediately
                             </p>
