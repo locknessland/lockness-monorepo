@@ -5,18 +5,18 @@ import { PageTitle } from '@view/components/page_title.tsx'
 export const RoutingPage = () => {
     return (
         <DocsLayout title='Routing & Controllers' currentPath='/docs/routing'>
-        <div class='prose prose-invert max-w-none'>
-            <PageTitle>Routing & Controllers</PageTitle>
+            <div class='prose prose-invert max-w-none'>
+                <PageTitle>Routing & Controllers</PageTitle>
 
-            <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>
-                Controllers with Decorators
-            </h2>
-            <p class='text-lg leading-relaxed mb-4'>
-                Lockness uses class-based controllers with decorators for clean,
-                expressive routing:
-            </p>
+                <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>
+                    Controllers with Decorators
+                </h2>
+                <p class='text-lg leading-relaxed mb-4'>
+                    Lockness uses class-based controllers with decorators for clean,
+                    expressive routing:
+                </p>
 
-            <CodeBlock>
+                <CodeBlock>
                 {`
     import { Controller, Get, Post, Put, Delete, Context } from 'lockness'
 
@@ -50,37 +50,37 @@ export const RoutingPage = () => {
             }
         }
         `}
-            </CodeBlock>
+                </CodeBlock>
 
-            <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>
-                Available HTTP Methods
-            </h2>
-            <div class='grid grid-cols-2 gap-4 mb-8'>
-                {[
-                    '@Get',
-                    '@Post',
-                    '@Put',
-                    '@Delete',
-                    '@Patch',
-                    '@Options',
-                    '@Head',
-                ].map((method) => (
-                    <div class='pixel-card p-3'>
-                        <code class='text-primary font-pixel-body'>
-                            {method}
-                        </code>
-                    </div>
-                ))}
-            </div>
+                <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>
+                    Available HTTP Methods
+                </h2>
+                <div class='grid grid-cols-2 gap-4 mb-8'>
+                    {[
+                        '@Get',
+                        '@Post',
+                        '@Put',
+                        '@Delete',
+                        '@Patch',
+                        '@Options',
+                        '@Head',
+                    ].map((method) => (
+                        <div class='pixel-card p-3'>
+                            <code class='text-primary font-pixel-body'>
+                                {method}
+                            </code>
+                        </div>
+                    ))}
+                </div>
 
-            <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>
-                Dependency Injection
-            </h2>
-            <p class='text-lg leading-relaxed mb-4'>
-                Controllers support automatic dependency injection:
-            </p>
+                <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>
+                    Dependency Injection
+                </h2>
+                <p class='text-lg leading-relaxed mb-4'>
+                    Controllers support automatic dependency injection:
+                </p>
 
-            <CodeBlock>
+                <CodeBlock>
                 {`
     @Controller('/api/posts')
     export class PostController {
@@ -97,17 +97,17 @@ export const RoutingPage = () => {
     }
         
 `}
-            </CodeBlock>
+                </CodeBlock>
 
-            <div class='pixel-card p-6 mt-8 bg-primary/10 border-primary'>
-                <p class='mb-0'>
-                    <strong>Pro Tip:</strong> Use{' '}
-                    <InlineCode>deno task ace make:controller Name</InlineCode>
-                    {' '}
-                    to generate boilerplate
-                </p>
+                <div class='pixel-card p-6 mt-8 bg-primary/10 border-primary'>
+                    <p class='mb-0'>
+                        <strong>Pro Tip:</strong> Use{' '}
+                        <InlineCode>deno task ace make:controller Name</InlineCode>
+                        {' '}
+                        to generate boilerplate
+                    </p>
+                </div>
             </div>
-        </div>
-    </DocsLayout>
+        </DocsLayout>
     )
 }
