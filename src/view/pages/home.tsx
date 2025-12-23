@@ -1,290 +1,514 @@
 import { LandingLayout } from '../layouts/landing_layout.tsx'
-import { Card } from '../components/ui.tsx'
 import pkg from '../../../lockness/core/deno.json' with { type: 'json' }
+
+// Icons as components
+const CodeIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 18 22 12 16 6"></polyline>
+        <polyline points="8 6 2 12 8 18"></polyline>
+    </svg>
+)
+
+const TerminalIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="4 17 10 11 4 5"></polyline>
+        <line x1="12" x2="20" y1="19" y2="19"></line>
+    </svg>
+)
+
+const ZapIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
+    </svg>
+)
+
+const ShieldIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path>
+        <path d="m9 12 2 2 4-4"></path>
+    </svg>
+)
+
+const DatabaseIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+        <path d="M3 5V19A9 3 0 0 0 21 19V5"></path>
+        <path d="M3 12A9 3 0 0 0 21 12"></path>
+    </svg>
+)
+
+const LayersIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path>
+        <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"></path>
+        <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"></path>
+    </svg>
+)
+
+const BoxIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"></path>
+        <path d="m3.3 7 8.7 5 8.7-5"></path>
+        <path d="M12 22V12"></path>
+    </svg>
+)
+
+const MailIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="20" height="16" x="2" y="4" rx="2"></rect>
+        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+    </svg>
+)
+
+const UsersIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+    </svg>
+)
+
+const ClockIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+    </svg>
+)
+
+const ArrowRightIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14"></path>
+        <path d="m12 5 7 7-7 7"></path>
+    </svg>
+)
+
+const GithubIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path>
+        <path d="M9 18c-4.51 2-5-2-7-2"></path>
+    </svg>
+)
+
+const CheckIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 6 9 17l-5-5"></path>
+    </svg>
+)
+
+const CopyIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+    </svg>
+)
+
+// Feature Card Component
+const FeatureCard = ({ icon, title, description }: { icon: any; title: string; description: string }) => (
+    <div class="group relative p-6 rounded-xl border border-border bg-card/50 backdrop-blur-sm hover:bg-card hover:border-primary/20 transition-all duration-300">
+        <div class="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:bg-primary/20 transition-colors">
+            {icon}
+        </div>
+        <h3 class="text-lg font-semibold text-foreground mb-2">{title}</h3>
+        <p class="text-sm text-muted-foreground leading-relaxed">{description}</p>
+    </div>
+)
+
+// Code Block Component
+const CodeBlock = ({ filename, children }: { filename: string; children: any }) => (
+    <div class="rounded-xl border border-border bg-card overflow-hidden">
+        <div class="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b border-border">
+            <div class="flex gap-1.5">
+                <div class="w-3 h-3 rounded-full bg-red-500/60"></div>
+                <div class="w-3 h-3 rounded-full bg-yellow-500/60"></div>
+                <div class="w-3 h-3 rounded-full bg-green-500/60"></div>
+            </div>
+            <span class="ml-2 text-xs text-muted-foreground font-mono">{filename}</span>
+        </div>
+        <pre class="p-4 overflow-x-auto text-sm">
+            <code class="text-foreground font-mono leading-relaxed">{children}</code>
+        </pre>
+    </div>
+)
 
 export const HomeView = () => {
     return (
         <LandingLayout title='Lockness JS - The Fullstack MVC Framework for Deno'>
-            <div class='w-full'>
-                {/* Navbar */}
-                <header class='fixed w-full top-0 left-0 z-50 bg-background/40 backdrop-blur-xl border-b border-border/50'>
-                    <div class='max-w-6xl mx-auto px-6 h-20 flex items-center justify-between'>
+            <div class='min-h-screen'>
+                {/* Header */}
+                <header class='fixed top-0 left-0 right-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl'>
+                    <div class='max-w-6xl mx-auto px-6 h-16 flex items-center justify-between'>
                         <div class='flex items-center gap-2'>
-                            <span class='text-2xl font-black tracking-tighter text-foreground'>
+                            <span class='text-xl font-bold text-foreground'>
                                 Lockness<span class='text-primary'>JS</span>
                             </span>
                         </div>
-                        <nav class='hidden md:flex items-center gap-10 font-medium text-sm text-muted-foreground'>
-                            <a
-                                href='#features'
-                                class='hover:text-primary transition-colors uppercase tracking-widest text-[10px]'
-                            >
-                                Features
-                            </a>
-                            <a
-                                href='#architecture'
-                                class='hover:text-primary transition-colors uppercase tracking-widest text-[10px]'
-                            >
-                                Architecture
-                            </a>
-                            <a
-                                href='https://jsr.io/@lockness/core'
-                                class='hover:text-primary transition-colors uppercase tracking-widest text-[10px]'
-                            >
-                                JSR
-                            </a>
-                            <a
-                                href='https://github.com/locknessjs/lockness'
-                                class='hover:text-primary transition-colors uppercase tracking-widest text-[10px]'
-                            >
-                                GitHub
-                            </a>
+                        
+                        <nav class='hidden md:flex items-center gap-8'>
+                            <a href='#features' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Features</a>
+                            <a href='#getting-started' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Getting Started</a>
+                            <a href='#examples' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Examples</a>
+                            <a href='https://jsr.io/@lockness/core' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>JSR</a>
                         </nav>
-                        <button
-                            type='button'
-                            class='bg-primary text-primary-foreground px-6 py-2.5 rounded-full font-bold text-sm hover:opacity-90 transition-all duration-300 shadow-sm shadow-primary/20'
-                        >
-                            Get Started
-                        </button>
+
+                        <div class='flex items-center gap-3'>
+                            <a href='https://github.com/locknessjs/lockness' class='hidden md:inline-flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors'>
+                                <GithubIcon />
+                                <span>GitHub</span>
+                            </a>
+                            <a href='#getting-started' class='inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors'>
+                                Get Started
+                            </a>
+                        </div>
                     </div>
                 </header>
 
                 {/* Hero Section */}
-                <section class='relative pt-48 pb-32 px-6 overflow-hidden'>
-                    {/* Background glow */}
-                    <div class='absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-full bg-primary/20 blur-[120px] rounded-full -z-10 pointer-events-none'>
-                    </div>
-
-                    <div class='max-w-6xl mx-auto text-center'>
-                        <div class='inline-flex items-center gap-2 px-4 py-2 mb-10 rounded-full bg-accent text-accent-foreground text-sm font-semibold tracking-wide border border-border/10'>
-                            <span class='relative flex h-2 w-2'>
-                                <span class='animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75'>
+                <section class='pt-32 pb-24 px-6 relative overflow-hidden'>
+                    {/* Background Pattern */}
+                    <div class='absolute inset-0 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]'></div>
+                    
+                    <div class='max-w-5xl mx-auto relative z-10'>
+                        <div class='text-center space-y-8'>
+                            {/* Badge */}
+                            <div class='inline-flex items-center gap-2 px-4 py-2 rounded-full bg-card border border-border text-sm'>
+                                <span class='relative flex h-2 w-2'>
+                                    <span class='animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75'></span>
+                                    <span class='relative inline-flex rounded-full h-2 w-2 bg-primary'></span>
                                 </span>
-                                <span class='relative inline-flex rounded-full h-2 w-2 bg-primary'>
-                                </span>
-                            </span>
-                            v${pkg.version} is now available on JSR
-                        </div>
-
-                        <h1 class='text-6xl md:text-8xl font-black mb-8 tracking-tighter leading-[0.9] text-foreground'>
-                            MVC Elegance Meets <br />
-                            <span class='text-transparent bg-clip-text bg-gradient-to-r from-primary to-blue-400'>
-                                Deno Performance
-                            </span>
-                        </h1>
-
-                        <p class='text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-12 leading-relaxed'>
-                            A high-performance, fullstack MVC web framework
-                            inspired by Laravel and AdonisJS. Built natively for
-                            Deno, powered by the speed of Hono
-                        </p>
-
-                        <div class='flex flex-wrap justify-center gap-6 mb-20'>
-                            <button
-                                type='button'
-                                class='bg-primary text-primary-foreground px-10 py-5 rounded-2xl font-black text-xl shadow-2xl shadow-primary/40 transition-all hover:scale-105 active:scale-95'
-                            >
-                                Start Building
-                            </button>
-                            <button
-                                type='button'
-                                class='bg-secondary text-secondary-foreground border border-border px-10 py-5 rounded-2xl font-black text-xl transition-all hover:scale-105 active:scale-95'
-                            >
-                                View Documentation
-                            </button>
-                        </div>
-
-                        {/* Terminal Sample */}
-                        <div class='max-w-2xl mx-auto text-left relative group'>
-                            <div class='absolute -inset-1 bg-gradient-to-r from-primary to-blue-500 rounded-3xl blur opacity-20 group-hover:opacity-40 transition duration-1000'>
+                                <span class='text-muted-foreground'>v{pkg.version} now available on JSR</span>
                             </div>
-                            <div class='relative bg-card border border-border rounded-xl p-4 font-mono text-sm leading-relaxed overflow-hidden shadow-2xl'>
-                                <div class='flex gap-2 mb-4 border-b border-border/50 pb-3'>
-                                    <div class='w-3 h-3 rounded-full bg-red-500/50'>
-                                    </div>
-                                    <div class='w-3 h-3 rounded-full bg-amber-500/50'>
-                                    </div>
-                                    <div class='w-3 h-3 rounded-full bg-green-500/50'>
-                                    </div>
-                                    <span class='ml-4 text-muted-foreground text-xs'>
-                                        zsh — 80x24
-                                    </span>
-                                </div>
-                                <div class='space-y-1'>
-                                    <div class='flex gap-3'>
-                                        <span class='text-primary'>$</span>
-                                        <span class='text-foreground'>
-                                            deno run -Ar jsr:@lockness/init
-                                        </span>
-                                    </div>
-                                    <div class='text-muted-foreground'>
-                                        Add @lockness/core@${pkg.version} (jsr)
-                                    </div>
-                                    <div class='flex gap-3 pt-2'>
-                                        <span class='text-primary'>$</span>
-                                        <span class='text-foreground'>
-                                            deno task ace make:controller User
-                                        </span>
-                                    </div>
-                                    <div class='text-primary font-bold'>
-                                        ✅ Controller created at
-                                        ./src/controller/user_controller.ts
-                                    </div>
-                                    <div class='flex gap-3 pt-2'>
-                                        <span class='text-primary'>$</span>
-                                        <span class='text-foreground'>
-                                            deno task dev
-                                        </span>
-                                    </div>
-                                    <div class='text-muted-foreground pt-1'>
-                                        🚀 Server is flying at{' '}
-                                        <span class='text-primary underline italic'>
-                                            http://localhost:8888
-                                        </span>
-                                    </div>
+
+                            {/* Title */}
+                            <h1 class='text-4xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight'>
+                                The Full Stack MVC Framework
+                                <br />
+                                <span class='text-primary'>for Deno</span>
+                            </h1>
+
+                            {/* Description */}
+                            <p class='text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed'>
+                                A high-performance, fullstack MVC web framework inspired by Laravel and AdonisJS. 
+                                Built natively for Deno, powered by the speed of Hono.
+                            </p>
+
+                            {/* CTA Buttons */}
+                            <div class='flex flex-col sm:flex-row items-center justify-center gap-4 pt-4'>
+                                <a href='#getting-started' class='inline-flex items-center gap-2 px-6 py-3 text-base font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all group'>
+                                    Get Started
+                                    <span class='group-hover:translate-x-0.5 transition-transform'><ArrowRightIcon /></span>
+                                </a>
+                                <a href='https://github.com/locknessjs/lockness' class='inline-flex items-center gap-2 px-6 py-3 text-base font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors'>
+                                    <GithubIcon />
+                                    View on GitHub
+                                </a>
+                            </div>
+
+                            {/* Install Command */}
+                            <div class='pt-4'>
+                                <div class='inline-flex items-center gap-3 px-5 py-3 rounded-lg bg-card border border-border font-mono text-sm'>
+                                    <span class='text-primary'>$</span>
+                                    <span class='text-foreground'>deno run -Ar jsr:@lockness/init</span>
+                                    <button type='button' class='ml-2 p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground'>
+                                        <CopyIcon />
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                {/* Features Grid */}
-                <section id='features' class='py-32 px-6 bg-accent/5'>
-                    <div class='max-w-6xl mx-auto'>
-                        <div class='grid md:grid-cols-3 gap-8'>
-                            <Card
-                                title='MVC Foundation'
-                                description='A clear structure separating logic, data, and display. Inspired by the elegance of Laravel.'
-                            >
-                                <div class='w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors text-2xl'>
-                                    🏗️
-                                </div>
-                            </Card>
-                            <Card
+                {/* Stats Section */}
+                <section class='py-12 px-6 border-y border-border bg-muted/30'>
+                    <div class='max-w-5xl mx-auto'>
+                        <div class='grid grid-cols-2 md:grid-cols-4 gap-8'>
+                            <div class='text-center'>
+                                <div class='text-3xl font-bold text-foreground'>MVC</div>
+                                <div class='text-sm text-muted-foreground mt-1'>Architecture</div>
+                            </div>
+                            <div class='text-center'>
+                                <div class='text-3xl font-bold text-foreground'>TypeScript</div>
+                                <div class='text-sm text-muted-foreground mt-1'>First Class</div>
+                            </div>
+                            <div class='text-center'>
+                                <div class='text-3xl font-bold text-foreground'>Deno 2.0</div>
+                                <div class='text-sm text-muted-foreground mt-1'>Native Support</div>
+                            </div>
+                            <div class='text-center'>
+                                <div class='text-3xl font-bold text-foreground'>Hono</div>
+                                <div class='text-sm text-muted-foreground mt-1'>Powered</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Features Section */}
+                <section id='features' class='py-24 px-6'>
+                    <div class='max-w-5xl mx-auto'>
+                        <div class='text-center mb-16'>
+                            <h2 class='text-3xl md:text-4xl font-bold text-foreground mb-4'>Everything you need to build modern apps</h2>
+                            <p class='text-lg text-muted-foreground max-w-2xl mx-auto'>
+                                Lockness provides a complete toolkit with batteries included for rapid development
+                            </p>
+                        </div>
+
+                        <div class='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+                            <FeatureCard 
+                                icon={<LayersIcon />}
+                                title='MVC Architecture'
+                                description='Clear separation of concerns with Models, Views, and Controllers. Inspired by Laravel and AdonisJS.'
+                            />
+                            <FeatureCard 
+                                icon={<BoxIcon />}
                                 title='Dependency Injection'
                                 description='Built-in IoC container for clean, testable code. Just use the @Inject decorator.'
-                            >
-                                <div class='w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors text-2xl'>
-                                    💉
-                                </div>
-                            </Card>
-                            <Card
-                                title='Deno First'
-                                description='Native TypeScript, no node_modules, and top-tier security out of the box.'
-                            >
-                                <div class='w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors text-2xl'>
-                                    ⚡
-                                </div>
-                            </Card>
+                            />
+                            <FeatureCard 
+                                icon={<ZapIcon />}
+                                title='Blazing Fast'
+                                description='Built on Hono, one of the fastest web frameworks. Sub-millisecond response times.'
+                            />
+                            <FeatureCard 
+                                icon={<ShieldIcon />}
+                                title='Secure by Default'
+                                description="Leverage Deno's security model with explicit permissions. Session, Auth, and CSRF protection built-in."
+                            />
+                            <FeatureCard 
+                                icon={<DatabaseIcon />}
+                                title='Drizzle ORM'
+                                description='Type-safe database operations with migrations, seeders, and Drizzle Studio integration.'
+                            />
+                            <FeatureCard 
+                                icon={<TerminalIcon />}
+                                title='Powerful CLI (Ace)'
+                                description='Scaffold controllers, models, middleware, jobs and more with the Ace CLI engine.'
+                            />
+                            <FeatureCard 
+                                icon={<UsersIcon />}
+                                title='Authentication'
+                                description='Complete auth system with sessions, password hashing, and social OAuth providers.'
+                            />
+                            <FeatureCard 
+                                icon={<MailIcon />}
+                                title='Mail System'
+                                description='Expressive fluent API for sending emails. Supports SMTP, Resend, and more drivers.'
+                            />
+                            <FeatureCard 
+                                icon={<ClockIcon />}
+                                title='Background Jobs'
+                                description='Queue and process long-running tasks in the background with memory or Deno KV drivers.'
+                            />
                         </div>
                     </div>
                 </section>
 
-                {/* Architecture Section */}
-                <section id='architecture' class='py-32 px-6'>
-                    <div class='max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-20'>
-                        <div class='md:w-1/2'>
-                            <h2 class='text-4xl md:text-5xl font-black mb-8 text-foreground tracking-tighter'>
-                                Solid foundation, <br />
-                                <span class='text-primary'>modular design</span>
-                            </h2>
-                            <p class='text-xl text-muted-foreground mb-8 leading-relaxed'>
-                                Lockness abstracts the high-performance HonoJS
-                                engine to provide a complete MVC architecture.
-                                Its modular design lets you use exactly what you
-                                need.
+                {/* Getting Started Section */}
+                <section id='getting-started' class='py-24 px-6 bg-muted/20'>
+                    <div class='max-w-5xl mx-auto'>
+                        <div class='text-center mb-16'>
+                            <h2 class='text-3xl md:text-4xl font-bold text-foreground mb-4'>Get started in seconds</h2>
+                            <p class='text-lg text-muted-foreground max-w-2xl mx-auto'>
+                                Initialize your project and start building immediately
                             </p>
-                            <ul class='space-y-4'>
-                                <li class='flex items-center gap-3 text-muted-foreground'>
-                                    <div class='w-2 h-2 rounded-full bg-primary'>
-                                    </div>{' '}
-                                    Native JSX powered by Hono runtime
-                                </li>
-                                <li class='flex items-center gap-3 text-muted-foreground'>
-                                    <div class='w-2 h-2 rounded-full bg-primary'>
-                                    </div>{' '}
-                                    Agile CLI engine (Ace)
-                                </li>
-                                <li class='flex items-center gap-3 text-muted-foreground'>
-                                    <div class='w-2 h-2 rounded-full bg-primary'>
-                                    </div>{' '}
-                                    Official Drizzle ORM extension
-                                </li>
-                            </ul>
                         </div>
-                        <div class='md:w-1/2 grid grid-cols-2 gap-4'>
-                            <div class='p-6 rounded-2xl bg-primary/10 border border-primary/20 text-center'>
-                                <div class='text-3xl font-black text-foreground mb-1'>
-                                    Core
+
+                        <div class='grid grid-cols-1 lg:grid-cols-2 gap-8'>
+                            {/* Terminal Preview */}
+                            <div class='space-y-4'>
+                                <CodeBlock filename='terminal'>
+{`$ deno run -Ar jsr:@lockness/init
+✨ Creating new Lockness project...
+
+$ deno task ace make:controller User
+✅ Controller created at ./src/controller/user_controller.ts
+
+$ deno task ace make:model Post -a
+✅ Model created at ./src/model/post.ts
+✅ Repository created at ./src/repository/post_repository.ts  
+✅ Seeder created at ./src/seeder/post_seeder.ts
+✅ Controller created at ./src/controller/post_controller.ts
+
+$ deno task dev
+🚀 Server is flying at http://localhost:8888`}
+                                </CodeBlock>
+                            </div>
+
+                            {/* Commands List */}
+                            <div class='space-y-4'>
+                                <div class='p-4 rounded-lg border border-border bg-card'>
+                                    <div class='flex items-center gap-3 mb-2'>
+                                        <span class='text-primary'><CheckIcon /></span>
+                                        <span class='font-medium text-foreground'>Development</span>
+                                    </div>
+                                    <code class='text-sm text-muted-foreground font-mono'>deno task dev</code>
                                 </div>
-                                <div class='text-xs text-primary uppercase tracking-widest font-bold'>
-                                    Base Library
+                                <div class='p-4 rounded-lg border border-border bg-card'>
+                                    <div class='flex items-center gap-3 mb-2'>
+                                        <span class='text-primary'><CheckIcon /></span>
+                                        <span class='font-medium text-foreground'>Production Build</span>
+                                    </div>
+                                    <code class='text-sm text-muted-foreground font-mono'>deno task build && deno task start</code>
+                                </div>
+                                <div class='p-4 rounded-lg border border-border bg-card'>
+                                    <div class='flex items-center gap-3 mb-2'>
+                                        <span class='text-primary'><CheckIcon /></span>
+                                        <span class='font-medium text-foreground'>Database Migrations</span>
+                                    </div>
+                                    <code class='text-sm text-muted-foreground font-mono'>deno task ace db:generate && deno task ace db:migrate</code>
+                                </div>
+                                <div class='p-4 rounded-lg border border-border bg-card'>
+                                    <div class='flex items-center gap-3 mb-2'>
+                                        <span class='text-primary'><CheckIcon /></span>
+                                        <span class='font-medium text-foreground'>Testing</span>
+                                    </div>
+                                    <code class='text-sm text-muted-foreground font-mono'>deno task test</code>
                                 </div>
                             </div>
-                            <div class='p-6 rounded-2xl bg-card border border-border text-center opacity-80 shadow-sm'>
-                                <div class='text-3xl font-black text-foreground mb-1'>
-                                    Ace
-                                </div>
-                                <div class='text-xs text-muted-foreground uppercase tracking-widest font-bold'>
-                                    CLI Engine
-                                </div>
-                            </div>
-                            <div class='p-6 rounded-2xl bg-card border border-border text-center opacity-80 shadow-sm'>
-                                <div class='text-3xl font-black text-white mb-1'>
-                                    ORM
-                                </div>
-                                <div class='text-xs text-muted-foreground uppercase tracking-widest font-bold'>
-                                    Drizzle
-                                </div>
-                            </div>
-                            <div class='p-6 rounded-2xl bg-primary/10 border border-primary/20 text-center shadow-sm shadow-primary/20'>
-                                <div class='text-3xl font-black text-foreground mb-1'>
-                                    JSX
-                                </div>
-                                <div class='text-xs text-primary uppercase tracking-widest font-bold'>
-                                    View Engine
-                                </div>
-                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Code Examples Section */}
+                <section id='examples' class='py-24 px-6'>
+                    <div class='max-w-5xl mx-auto'>
+                        <div class='text-center mb-16'>
+                            <h2 class='text-3xl md:text-4xl font-bold text-foreground mb-4'>Clean, expressive code</h2>
+                            <p class='text-lg text-muted-foreground max-w-2xl mx-auto'>
+                                Write elegant code with decorators, dependency injection, and type-safe validation
+                            </p>
+                        </div>
+
+                        <div class='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+                            {/* Controller Example */}
+                            <CodeBlock filename='src/controller/user_controller.ts'>
+{`import { Controller, Get, Post, Validate } from 'lockness'
+import { UserService } from '@service/user_service.ts'
+import { insertUserSchema } from '@model/user.ts'
+
+@Controller('/api/users')
+export class UserController {
+    constructor(private userService: UserService) {}
+
+    @Get('/')
+    async index(c: Context) {
+        const users = await this.userService.findAll()
+        return c.json({ users })
+    }
+
+    @Post('/')
+    @Validate('json', insertUserSchema)
+    async store(c: Context) {
+        const data = c.req.valid('json')
+        const user = await this.userService.create(data)
+        return c.json({ user }, 201)
+    }
+}`}
+                            </CodeBlock>
+
+                            {/* Auth Example */}
+                            <CodeBlock filename='src/controller/auth_controller.ts'>
+{`import { Controller, Get, Post, Auth, Guest } from 'lockness'
+import { auth, session } from 'lockness'
+
+@Controller('/auth')
+export class AuthController {
+    @Guest('/dashboard')
+    @Get('/login')
+    showLogin(c: Context) {
+        return c.render(<LoginPage />)
+    }
+
+    @Post('/login')
+    async login(c: Context) {
+        const { email, password } = await c.req.parseBody()
+        
+        if (await auth(c).attempt(email, password)) {
+            return c.redirect('/dashboard')
+        }
+        
+        session(c).flash('error', 'Invalid credentials')
+        return c.redirect('/auth/login')
+    }
+
+    @Auth()
+    @Post('/logout')
+    async logout(c: Context) {
+        await auth(c).logout()
+        return c.redirect('/auth/login')
+    }
+}`}
+                            </CodeBlock>
+                        </div>
+                    </div>
+                </section>
+
+                {/* CTA Section */}
+                <section class='py-24 px-6 relative overflow-hidden'>
+                    <div class='absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent'></div>
+                    <div class='max-w-3xl mx-auto relative z-10 text-center space-y-8'>
+                        <h2 class='text-3xl md:text-5xl font-bold text-foreground'>
+                            Ready to build something amazing?
+                        </h2>
+                        <p class='text-lg text-muted-foreground'>
+                            Start building your next project with Lockness JS today
+                        </p>
+                        <div class='flex flex-col sm:flex-row items-center justify-center gap-4'>
+                            <a href='https://jsr.io/@lockness/core' class='inline-flex items-center gap-2 px-6 py-3 text-base font-medium rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-all group'>
+                                Get Started Now
+                                <span class='group-hover:translate-x-0.5 transition-transform'><ArrowRightIcon /></span>
+                            </a>
+                            <a href='https://github.com/locknessjs/lockness' class='inline-flex items-center gap-2 px-6 py-3 text-base font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors'>
+                                <GithubIcon />
+                                Star on GitHub
+                            </a>
                         </div>
                     </div>
                 </section>
 
                 {/* Footer */}
-                <footer class='py-20 px-6 border-t border-border bg-background'>
-                    <div class='max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-10'>
-                        <div class='text-center md:text-left'>
-                            <span class='text-2xl font-black text-foreground mb-4 block'>
-                                🌊 Lockness<span class='text-primary'>JS</span>
-                            </span>
-                            <p class='text-muted-foreground max-w-sm'>
-                                The high-performance fullstack framework for the
-                                modern Deno ecosystem. Built with love for
-                                developers.
-                            </p>
+                <footer class='border-t border-border py-16 px-6'>
+                    <div class='max-w-5xl mx-auto'>
+                        <div class='grid grid-cols-1 md:grid-cols-4 gap-12'>
+                            <div class='space-y-4'>
+                                <div class='text-lg font-bold'>
+                                    Lockness<span class='text-primary'>JS</span>
+                                </div>
+                                <p class='text-sm text-muted-foreground leading-relaxed'>
+                                    The modern full-stack MVC framework for Deno 2.0
+                                </p>
+                            </div>
+                            
+                            <div>
+                                <h3 class='font-semibold mb-4'>Product</h3>
+                                <ul class='space-y-3'>
+                                    <li><a href='#features' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Features</a></li>
+                                    <li><a href='#getting-started' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Getting Started</a></li>
+                                    <li><a href='#examples' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Examples</a></li>
+                                </ul>
+                            </div>
+                            
+                            <div>
+                                <h3 class='font-semibold mb-4'>Resources</h3>
+                                <ul class='space-y-3'>
+                                    <li><a href='https://jsr.io/@lockness/core' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Documentation</a></li>
+                                    <li><a href='https://jsr.io/@lockness' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>JSR Packages</a></li>
+                                    <li><a href='https://github.com/locknessjs/lockness' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>GitHub</a></li>
+                                </ul>
+                            </div>
+                            
+                            <div>
+                                <h3 class='font-semibold mb-4'>Community</h3>
+                                <ul class='space-y-3'>
+                                    <li><a href='https://github.com/locknessjs/lockness/discussions' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Discussions</a></li>
+                                    <li><a href='https://github.com/locknessjs/lockness/issues' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Issues</a></li>
+                                    <li><a href='https://github.com/locknessjs/lockness/blob/main/CONTRIBUTING.md' class='text-sm text-muted-foreground hover:text-foreground transition-colors'>Contributing</a></li>
+                                </ul>
+                            </div>
                         </div>
-                        <div class='flex gap-10 text-xs font-bold uppercase tracking-widest text-muted-foreground'>
-                            <a
-                                href='https://jsr.io/@lockness'
-                                class='hover:text-primary transition-colors'
-                            >
-                                JSR
-                            </a>
-                            <a
-                                href='https://github.com/locknessjs'
-                                class='hover:text-primary transition-colors'
-                            >
-                                GitHub
-                            </a>
-                            <a
-                                href='#'
-                                class='hover:text-primary transition-colors'
-                            >
-                                Docs
-                            </a>
+                        
+                        <div class='mt-12 pt-8 border-t border-border text-center text-sm text-muted-foreground'>
+                            <p>© 2025 Lockness JS. Built with ❤️ for the Deno community. Licensed under MIT.</p>
                         </div>
-                    </div>
-                    <div class='max-w-6xl mx-auto mt-20 pt-10 border-t border-border text-center text-muted-foreground text-xs'>
-                        © 2025 Lockness JS Framework. Licensed under MIT.
                     </div>
                 </footer>
             </div>
