@@ -42,7 +42,7 @@ export const DocsLayout = (props: { title: string; children: any; currentPath: s
                     rel='stylesheet'
                 />
             </head>
-            <body class='bg-background text-foreground min-h-screen antialiased'>
+            <body class='bg-background text-foreground min-h-screen antialiased overflow-x-hidden'>
                 {/* Header */}
                 <header class='fixed top-0 left-0 right-0 z-50 border-b-4 border-border bg-background/95'>
                     <div class='max-w-7xl mx-auto px-6 h-16 flex items-center justify-between'>

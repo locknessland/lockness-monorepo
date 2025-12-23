@@ -21,7 +21,7 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             {/* Mobile hamburger button (visible only on mobile) */}
             <button 
                 id="mobile-menu-btn"
-                class="md:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-primary border-4 border-border flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-all"
+                class="md:hidden fixed bottom-6 right-6 z-[60] w-14 h-14 bg-primary border-4 border-border flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-all"
                 style="box-shadow: 4px 4px 0 0 rgba(0,0,0,0.5);"
                 aria-label="Toggle menu"
             >
@@ -35,13 +35,13 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             {/* Backdrop (visible only when menu is open on mobile) */}
             <div 
                 id="mobile-menu-backdrop"
-                class="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40 hidden"
+                class="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[40] hidden"
             ></div>
 
             {/* Sidebar */}
             <aside 
                 id="mobile-sidebar"
-                class='hidden md:block fixed md:static left-0 top-0 bottom-0 md:bottom-auto w-[90%] md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines z-40 md:z-auto md:min-h-screen'
+                class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto md:min-h-screen'
             >
                 <nav class='p-6 space-y-2'>
                     {navLinks.map((link) => {
@@ -66,26 +66,35 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             {/* JavaScript for mobile menu toggle */}
             <script dangerouslySetInnerHTML={{
                 __html: `
-                    (function() {
+                    document.addEventListener('DOMContentLoaded', function() {
                         const btn = document.getElementById('mobile-menu-btn');
                         const sidebar = document.getElementById('mobile-sidebar');
                         const backdrop = document.getElementById('mobile-menu-backdrop');
                         
+                        if (!btn || !sidebar || !backdrop) {
+                            console.error('Menu elements not found');
+                            return;
+                        }
+                        
                         function toggleMenu() {
-                            const isOpen = !sidebar.classList.contains('hidden');
+                            const isHidden = sidebar.classList.contains('hidden');
                             
-                            if (isOpen) {
-                                sidebar.classList.add('hidden');
-                                backdrop.classList.add('hidden');
-                            } else {
+                            if (isHidden) {
+                                // Show menu
                                 sidebar.classList.remove('hidden');
+                                sidebar.classList.add('block', 'fixed', 'left-0', 'top-0', 'w-[90%]', 'h-screen', 'z-[50]');
                                 backdrop.classList.remove('hidden');
+                            } else {
+                                // Hide menu
+                                sidebar.classList.add('hidden');
+                                sidebar.classList.remove('block', 'fixed', 'left-0', 'top-0', 'w-[90%]', 'h-screen', 'z-[50]');
+                                backdrop.classList.add('hidden');
                             }
                         }
                         
-                        if (btn) btn.addEventListener('click', toggleMenu);
-                        if (backdrop) backdrop.addEventListener('click', toggleMenu);
-                    })();
+                        btn.addEventListener('click', toggleMenu);
+                        backdrop.addEventListener('click', toggleMenu);
+                    });
                 `
             }} />
         </>
