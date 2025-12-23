@@ -412,7 +412,7 @@ export function registerCoreCommands(ace: Ace) {
             console.log('   This command needs access to the source stub files.')
             console.log('   Please use: deno task ace nessy:install')
             console.log('')
-            console.log('💡 Tip: Use ./nessy nessy:update to update stubs after installation')
+            console.log('💡 Tip: Use deno task ace nessy:update to update stubs after installation')
             console.log('')
             return
         }
