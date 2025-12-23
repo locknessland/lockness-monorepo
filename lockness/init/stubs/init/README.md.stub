@@ -249,3 +249,14 @@ deno task ace queue:work
 ```bash
 deno task ace tinker
 ```
+
+### Display All Routes
+
+List all registered routes with their details:
+
+```bash
+deno task ace router:list
+```
+
+Shows a formatted table with HTTP methods (color-coded), paths, controllers,
+actions, and middlewares for easy debugging and API overview.

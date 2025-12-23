@@ -343,6 +343,38 @@ deno task ace greet John
 Commands are auto-discovered from `src/command/`. Use `ctx.args` for arguments,
 `ctx.hasFlag('verbose')` for flags, and `ctx.getFlag('name')` for flag values.
 
+### Display All Routes
+
+List all registered routes with their details:
+
+```bash
+deno task ace router:list
+```
+
+This displays a formatted table showing:
+
+- **METHOD**: HTTP method (color-coded: GET=green, POST=yellow, PUT=blue,
+  DELETE=red)
+- **PATH**: Route path with parameters
+- **CONTROLLER**: Controller class name
+- **ACTION**: Method name
+- **MIDDLEWARES**: Applied middlewares (@Auth, @Guest, @Validate, or named
+  middlewares)
+
+Example output:
+
+```
+📋 Registered Routes (11 total)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ METHOD ┃ PATH           ┃ CONTROLLER     ┃ ACTION ┃ MIDDLEWARES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ GET    ┃ /              ┃ AppController  ┃ index  ┃ -
+┃ POST   ┃ /api/users     ┃ UserController ┃ create ┃ @Auth, @Validate
+┃ GET    ┃ /api/users/:id ┃ UserController ┃ show   ┃ auth
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
 ### Interactive REPL (Tinker)
 
 Explore your application interactively with `ace tinker`:

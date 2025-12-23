@@ -1,5 +1,9 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import {
+    CodeBlock,
+    CommandBlock,
+    InlineCode,
+} from '@view/components/code_block.tsx'
 import { PageTitle } from '@view/components/page_title.tsx'
 
 export const RoutingPage = () => {
@@ -105,6 +109,61 @@ export const RoutingPage = () => {
                         <InlineCode>deno task ace make:controller Name</InlineCode>
                         {' '}
                         to generate boilerplate
+                    </p>
+                </div>
+
+                <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>
+                    Display All Routes
+                </h2>
+                <p class='text-lg leading-relaxed mb-4'>
+                    Use the <InlineCode>router:list</InlineCode> command to see
+                    all registered routes in your application:
+                </p>
+
+                <CommandBlock lang='terminal'>
+                    {`deno task ace router:list`}
+                </CommandBlock>
+
+                <p class='text-lg leading-relaxed mb-4 mt-6'>
+                    This displays a formatted table with:
+                </p>
+
+                <ul class='list-disc list-inside space-y-2 mb-6 text-lg'>
+                    <li>
+                        <strong>METHOD</strong>: HTTP method (color-coded by type)
+                    </li>
+                    <li>
+                        <strong>PATH</strong>: Route path with parameters
+                    </li>
+                    <li>
+                        <strong>CONTROLLER</strong>: Controller class name
+                    </li>
+                    <li>
+                        <strong>ACTION</strong>: Method name
+                    </li>
+                    <li>
+                        <strong>MIDDLEWARES</strong>: Applied middlewares
+                        (decorators and named)
+                    </li>
+                </ul>
+
+                <CodeBlock lang='bash'>
+                    {`📋 Registered Routes (11 total)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ METHOD ┃ PATH           ┃ CONTROLLER     ┃ ACTION ┃ MIDDLEWARES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ GET    ┃ /              ┃ AppController  ┃ index  ┃ -
+┃ POST   ┃ /api/users     ┃ UserController ┃ create ┃ @Auth, @Validate
+┃ GET    ┃ /api/users/:id ┃ UserController ┃ show   ┃ auth
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`}
+                </CodeBlock>
+
+                <div class='pixel-card p-6 mt-8 bg-primary/10 border-primary'>
+                    <p class='mb-0'>
+                        <strong>💡 Tip:</strong> HTTP methods are color-coded
+                        in the terminal (GET=green, POST=yellow, PUT=blue,
+                        DELETE=red) for easy visual scanning.
                     </p>
                 </div>
             </div>

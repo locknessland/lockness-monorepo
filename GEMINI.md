@@ -851,10 +851,43 @@ experience:
   - `deno task ace db:studio`: Launches Drizzle Studio.
   - `deno task ace make:seeder`: Creates a new seeder class.
   - `deno task ace db:seed`: Runs database seeders.
+  - `deno task ace router:list`: Displays all registered routes.
   - `deno task ace tinker`: Starts an interactive REPL session.
   - `deno task test`: Runs the test suite.
   - `deno task test:coverage`: Runs tests with coverage report.
   - `deno task test:watch`: Runs tests in watch mode.
+
+### Display All Routes
+
+List all registered routes with their details:
+
+```bash
+deno task ace router:list
+```
+
+This displays a formatted table showing:
+
+- **METHOD**: HTTP method (color-coded: GET=green, POST=yellow, PUT=blue,
+  DELETE=red)
+- **PATH**: Route path with parameters
+- **CONTROLLER**: Controller class name
+- **ACTION**: Method name
+- **MIDDLEWARES**: Applied middlewares (@Auth, @Guest, @Validate, or named
+  middlewares)
+
+Example output:
+
+```
+📋 Registered Routes (11 total)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ METHOD ┃ PATH           ┃ CONTROLLER     ┃ ACTION ┃ MIDDLEWARES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ GET    ┃ /              ┃ AppController  ┃ index  ┃ -
+┃ POST   ┃ /api/users     ┃ UserController ┃ create ┃ @Auth, @Validate
+┃ GET    ┃ /api/users/:id ┃ UserController ┃ show   ┃ auth
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
 
 ### ACE Tinker (REPL)
 
