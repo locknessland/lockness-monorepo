@@ -35,13 +35,13 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             {/* Backdrop (visible only when menu is open on mobile) */}
             <div 
                 id="mobile-menu-backdrop"
-                class="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[40] hidden transition-opacity duration-300"
+                class="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[40] hidden transition-opacity duration-500"
             ></div>
 
             {/* Sidebar */}
             <aside 
                 id="mobile-sidebar"
-                class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto md:min-h-screen transition-all duration-300 ease-in-out'
+                class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto md:min-h-screen transition-all duration-500 ease-in-out'
             >
                 <nav class='p-6 space-y-2'>
                     {navLinks.map((link) => {
@@ -82,13 +82,18 @@ export const DocsSidebar = (props: { currentPath: string }) => {
                             if (isHidden) {
                                 // Show menu
                                 sidebar.classList.remove('hidden');
-                                sidebar.classList.add('block', 'fixed', 'left-0', 'top-0', 'w-[90%]', 'h-screen', 'z-[50]');
-                                // Trigger reflow for transition
-                                sidebar.offsetHeight;
-                                sidebar.classList.remove('opacity-0', '-translate-x-full');
-                                sidebar.classList.add('opacity-100', 'translate-x-0');
-                                backdrop.classList.remove('hidden', 'opacity-0');
-                                backdrop.classList.add('opacity-100');
+                                sidebar.classList.add('block', 'fixed', 'left-0', 'top-0', 'w-[90%]', 'h-screen', 'z-[50]', 'opacity-0', '-translate-x-full');
+                                backdrop.classList.remove('hidden');
+                                backdrop.classList.add('opacity-0');
+                                // Wait for next frame to trigger transition
+                                requestAnimationFrame(() => {
+                                    requestAnimationFrame(() => {
+                                        sidebar.classList.remove('opacity-0', '-translate-x-full');
+                                        sidebar.classList.add('opacity-100', 'translate-x-0');
+                                        backdrop.classList.remove('opacity-0');
+                                        backdrop.classList.add('opacity-100');
+                                    });
+                                });
                             } else {
                                 // Hide menu with animation
                                 sidebar.classList.remove('opacity-100', 'translate-x-0');
@@ -101,7 +106,7 @@ export const DocsSidebar = (props: { currentPath: string }) => {
                                     sidebar.classList.remove('block', 'fixed', 'left-0', 'top-0', 'w-[90%]', 'h-screen', 'z-[50]', 'opacity-0', '-translate-x-full');
                                     backdrop.classList.add('hidden');
                                     backdrop.classList.remove('opacity-0');
-                                }, 300);
+                                }, 500);
                             }
                         }
                         
