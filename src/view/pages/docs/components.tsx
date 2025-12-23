@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock } from '@view/components/code_block.tsx'
+import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
 
 export const ComponentsPage = () => {
     return (
@@ -17,14 +17,16 @@ export const ComponentsPage = () => {
 {`deno task ace make:component Button`}
                     </CommandBlock>
                     <p class="mb-4">This creates <code class="bg-gray-100 px-2 py-1 rounded">src/view/components/button.tsx</code> with:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`export const Button = (props: ButtonProps) => {
+                    <CodeBlock lang='typescript'>
+{`export const Button = (props: ButtonProps) => {
     return (
         <div>
             {/* Button component */}
             {props.children}
         </div>
     )
-}`}</code></pre>
+}`}
+                    </CodeBlock>
                 </section>
 
                 <section class="mb-12">
@@ -56,7 +58,8 @@ deno task ace make:component forms/Input`}
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Component Props</h2>
                     <p class="mb-4">Define typed props for your components:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`interface ButtonProps {
+                    <CodeBlock lang='typescript'>
+{`interface ButtonProps {
     variant?: 'primary' | 'secondary' | 'danger'
     size?: 'sm' | 'md' | 'lg'
     disabled?: boolean
@@ -77,13 +80,15 @@ export const Button = (props: ButtonProps) => {
             {props.children}
         </button>
     )
-}`}</code></pre>
+}`}
+                    </CodeBlock>
                 </section>
 
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Using Components</h2>
                     <p class="mb-4">Import and use components in your pages:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { Button } from '@view/components/button.tsx'
+                    <CodeBlock lang='typescript'>
+{`import { Button } from '@view/components/button.tsx'
 import { Card } from '@view/components/ui/card.tsx'
 
 export const HomePage = () => {
@@ -97,7 +102,8 @@ export const HomePage = () => {
             </Card>
         </div>
     )
-}`}</code></pre>
+}`}
+                    </CodeBlock>
                 </section>
 
                 <section class="mb-12">
@@ -128,7 +134,8 @@ export const HomePage = () => {
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Component Structure</h2>
                     <p class="mb-4">Organize your components by feature or type:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`src/view/components/
+                    <CodeBlock lang='plaintext'>
+{`src/view/components/
 ├── ui/
 │   ├── button.tsx
 │   ├── card.tsx
@@ -141,7 +148,8 @@ export const HomePage = () => {
 │   ├── header.tsx
 │   ├── footer.tsx
 │   └── sidebar.tsx
-└── docs_sidebar.tsx`}</code></pre>
+└── docs_sidebar.tsx`}
+                    </CodeBlock>
                 </section>
 
                 <section class="mb-12">

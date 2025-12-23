@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock } from '@view/components/code_block.tsx'
+import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
 
 export const CliPage = () => {
     return (
@@ -196,7 +196,8 @@ deno task ace queue:work --once             # Process once and exit`}
                         <li>All services from <code>src/service/</code></li>
                         <li>All repositories from <code>src/repository/</code></li>
                     </ul>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`🔮 Lockness Tinker - Interactive REPL
+                    <CodeBlock lang='typescript'>
+{`🔮 Lockness Tinker - Interactive REPL
 📦 Loaded: users, UserService, UserRepository
 
 >>> 2 + 2
@@ -204,7 +205,8 @@ deno task ace queue:work --once             # Process once and exit`}
 >>> await UserRepository.findAll()
 [{ id: 1, email: "..." }]
 >>> .exit
-👋 Bye!`}</code></pre>
+👋 Bye!`}
+                    </CodeBlock>
                 </section>
 
                 <section class="mb-12">
@@ -214,7 +216,8 @@ deno task ace queue:work --once             # Process once and exit`}
 {`deno task ace make:command Greet`}
                     </CommandBlock>
                     <p class="mb-4">This creates <code>src/command/greet_command.ts</code>:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { Command, type CommandContext, type ICommand } from '@lockness/ace'
+                    <CodeBlock lang='typescript'>
+{`import { Command, type CommandContext, type ICommand } from '@lockness/ace'
 
 @Command('greet', 'Say hello to someone')
 export class GreetCommand implements ICommand {
@@ -225,7 +228,8 @@ export class GreetCommand implements ICommand {
         const message = \`Hello, \${name}!\`
         console.log(loud ? message.toUpperCase() : message)
     }
-}`}</code></pre>
+}`}
+                    </CodeBlock>
                     <p class="mb-4">Run your custom command:</p>
                     <CommandBlock lang='terminal'>
 {`deno task ace greet John
@@ -238,11 +242,13 @@ deno task ace greet John --loud
 
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Command Context API</h2>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`ctx.arg(0)              // Get first argument
+                    <CodeBlock lang='typescript'>
+{`ctx.arg(0)              // Get first argument
 ctx.arg(1, 'default')   // Get second argument with default
 ctx.args                // Get all arguments
 ctx.hasFlag('verbose')  // Check if flag exists
-ctx.getFlag('name')     // Get flag value`}</code></pre>
+ctx.getFlag('name')     // Get flag value`}
+                    </CodeBlock>
                 </section>
 
                 <div class="flex justify-between mt-12 pt-8 border-t">
