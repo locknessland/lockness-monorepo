@@ -44,7 +44,7 @@ export const DocsLayout = (props: { title: string; children: any; currentPath: s
 
                 {/* Prism.js for syntax highlighting */}
                 <link href='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css' rel='stylesheet' />
-                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js' data-manual></script>
+                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js'></script>
                 <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js'></script>
                 <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js'></script>
                 <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js'></script>

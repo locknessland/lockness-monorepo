@@ -98,9 +98,12 @@ export const CommandBlock = ({ children, lang = 'bash' }: { children: string; la
                         </span>
                     </button>
                 </div>
-                <pre class='p-6 overflow-x-auto'>
-                    <code id={id} class={`language-${lang} p-6 text-foreground font-pixel-body text-sm leading-relaxed whitespace-pre`}>{children}</code>
+                <div class='p-6'>
+                <pre class='overflow-x-auto'>
+                    <code id={id} class={`language-${lang}`}>{children}</code>
                 </pre>
+                </div>
+                
             </div>
             
             <script dangerouslySetInnerHTML={{__html: `
@@ -145,7 +148,7 @@ export const CodeBlock = ({ children, lang = 'typescript' }: { children: string;
                     <span class='ml-2 text-sm text-primary font-pixel-body'>{lang}</span>
                 </div>
                 <pre class='p-6 overflow-x-auto'>
-                    <code id={id} class={`language-${lang} text-foreground font-pixel-body text-sm leading-relaxed whitespace-pre`}>{children}</code>
+                    <code id={id} class={`language-${lang}`}>{children}</code>
                 </pre>
             </div>
             
