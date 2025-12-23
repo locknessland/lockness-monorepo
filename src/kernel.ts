@@ -40,7 +40,7 @@ export const bootstrap = async () => {
             if (
                 typeof Exported === 'function' &&
                 (Exported as unknown as Record<string, unknown>)._basePath !==
-                    undefined
+                undefined
             ) {
                 controllers.push(Exported as ControllerClass)
             }
@@ -50,7 +50,7 @@ export const bootstrap = async () => {
 
     await app.init({
         controllers,
-        staticDir: Deno.env.get('VITE') ? 'public' : 'dist/static',
+        staticDir: 'static',
 
         // Global middlewares (applied to all routes)
         globalMiddlewares: [
