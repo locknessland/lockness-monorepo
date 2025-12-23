@@ -16,37 +16,39 @@ export const RoutingPage = () => (
             </p>
 
             <CodeBlock>
-                {`import { Controller, Get, Post, Put, Delete, Context } from 'lockness'
+                {`
+    import { Controller, Get, Post, Put, Delete, Context } from 'lockness'
 
-@Controller('/api/users')
-export class UserController {
-    @Get('/')
-    async index(c: Context) {
-        return c.json({ users: [] })
-    }
+        @Controller('/api/users')
+        export class UserController {
+            @Get('/')
+            async index(c: Context) {
+                return c.json({ users: [] })
+            }
 
-    @Get('/:id')
-    async show(c: Context) {
-        const id = c.req.param('id')
-        return c.json({ id })
-    }
+            @Get('/:id')
+            async show(c: Context) {
+                const id = c.req.param('id')
+                return c.json({ id })
+            }
 
-    @Post('/')
-    async store(c: Context) {
-        const body = await c.req.json()
-        return c.json(body, 201)
-    }
+            @Post('/')
+            async store(c: Context) {
+                const body = await c.req.json()
+                return c.json(body, 201)
+            }
 
-    @Put('/:id')
-    async update(c: Context) {
-        return c.json({ updated: true })
-    }
+            @Put('/:id')
+            async update(c: Context) {
+                return c.json({ updated: true })
+            }
 
-    @Delete('/:id')
-    async destroy(c: Context) {
-        return c.json({ deleted: true })
-    }
-}`}
+            @Delete('/:id')
+            async destroy(c: Context) {
+                return c.json({ deleted: true })
+            }
+        }
+        `}
             </CodeBlock>
 
             <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>
@@ -78,19 +80,22 @@ export class UserController {
             </p>
 
             <CodeBlock>
-                {`@Controller('/api/posts')
-export class PostController {
-    constructor(
-        private postService: PostService,
-        private postRepository: PostRepository
-    ) {}
+                {`
+    @Controller('/api/posts')
+    export class PostController {
+        constructor(
+            private postService: PostService,
+            private postRepository: PostRepository
+        ) {}
 
-    @Get('/')
-    async index(c: Context) {
-        const posts = await this.postRepository.findAll()
-        return c.json({ posts })
+        @Get('/')
+        async index(c: Context) {
+            const posts = await this.postRepository.findAll()
+            return c.json({ posts })
+        }
     }
-}`}
+        
+`}
             </CodeBlock>
 
             <div class='pixel-card p-6 mt-8 bg-primary/10 border-primary'>
