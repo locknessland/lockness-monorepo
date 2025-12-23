@@ -52,45 +52,47 @@ export const DocsLayout = (props: { title: string; children: any; currentPath: s
                 <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js'></script>
 
                 <style dangerouslySetInnerHTML={{__html: `
-                    /* Override Prism colors to match our theme */
+                    /* Monokai theme colors for Prism */
                     .token.comment,
                     .token.prolog,
                     .token.doctype,
-                    .token.cdata { color: #6b7280; }
+                    .token.cdata { color: #75715e; font-style: italic; }
                     
-                    .token.punctuation { color: #9ca3af; }
+                    .token.punctuation { color: #f8f8f2; }
                     
                     .token.property,
                     .token.tag,
-                    .token.boolean,
-                    .token.number,
                     .token.constant,
                     .token.symbol,
-                    .token.deleted { color: #ef4444; }
+                    .token.deleted { color: #f92672; }
+                    
+                    .token.boolean,
+                    .token.number { color: #ae81ff; }
                     
                     .token.selector,
                     .token.attr-name,
                     .token.string,
                     .token.char,
                     .token.builtin,
-                    .token.inserted { color: #10b981; }
+                    .token.inserted { color: #e6db74; }
                     
                     .token.operator,
                     .token.entity,
                     .token.url,
                     .language-css .token.string,
-                    .style .token.string { color: #8b5cf6; }
+                    .style .token.string { color: #f92672; }
                     
                     .token.atrule,
                     .token.attr-value,
-                    .token.keyword { color: #06b6d4; }
+                    .token.keyword { color: #f92672; font-style: italic; }
                     
-                    .token.function,
-                    .token.class-name { color: #f59e0b; }
+                    .token.function { color: #66d9ef; }
+                    
+                    .token.class-name { color: #a6e22e; }
                     
                     .token.regex,
                     .token.important,
-                    .token.variable { color: #ec4899; }
+                    .token.variable { color: #f8f8f2; }
                     
                     pre[class*="language-"] {
                         background: transparent !important;
@@ -100,10 +102,10 @@ export const DocsLayout = (props: { title: string; children: any; currentPath: s
                     
                     code[class*="language-"] {
                         background: transparent !important;
-                        color: inherit;
+                        color: #f8f8f2;
                         font-family: 'VT323', monospace !important;
-                        font-size: 0.875rem;
-                        line-height: 1.7;
+                        font-size: 1.125rem;
+                        line-height: 1.8;
                     }
                 `}} />
             </head>
