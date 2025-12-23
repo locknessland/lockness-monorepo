@@ -1,4 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
+import { CommandBlock } from '@view/components/code_block.tsx'
 
 export const CliPage = () => {
     return (
@@ -12,9 +13,13 @@ export const CliPage = () => {
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Using Ace</h2>
                     <p class="mb-4">Run any Ace command:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>deno task ace [command] [arguments] [--flags]</code></pre>
+                    <CommandBlock lang='terminal'>
+{`deno task ace [command] [arguments] [--flags]`}
+                    </CommandBlock>
                     <p class="mb-4">List all available commands:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>deno task ace</code></pre>
+                    <CommandBlock lang='terminal'>
+{`deno task ace`}
+                    </CommandBlock>
                 </section>
 
                 <section class="mb-12">
@@ -24,48 +29,78 @@ export const CliPage = () => {
                         <div>
                             <h3 class="text-2xl font-bold mb-2">make:controller</h3>
                             <p class="mb-2">Create a new controller:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace make:controller User</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:controller User`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">make:model</h3>
                             <p class="mb-2">Create a model with optional related files:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>{`deno task ace make:model Post        # Just the model
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:model Post        # Just the model
 deno task ace make:model Post -r    # + Repository
 deno task ace make:model Post -s    # + Seeder
 deno task ace make:model Post -c    # + Controller
-deno task ace make:model Post -a    # All of the above`}</code></pre>
+deno task ace make:model Post -a    # All of the above`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">make:middleware</h3>
                             <p class="mb-2">Create a new middleware:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace make:middleware Auth</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:middleware Auth`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">make:service</h3>
                             <p class="mb-2">Create a new service:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace make:service User</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:service User`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">make:job</h3>
                             <p class="mb-2">Create a background job:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace make:job SendWelcomeEmail</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:job SendWelcomeEmail`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">make:command</h3>
                             <p class="mb-2">Create a custom CLI command:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace make:command Greet</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:command Greet`}
+                            </CommandBlock>
+                        </div>
+
+                        <div>
+                            <h3 class="text-2xl font-bold mb-2">make:component</h3>
+                            <p class="mb-2">Create a JSX component:</p>
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:component Button`}
+                            </CommandBlock>
+                        </div>
+
+                        <div>
+                            <h3 class="text-2xl font-bold mb-2">make:view</h3>
+                            <p class="mb-2">Create a new view/page:</p>
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:view home`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">make:auth</h3>
                             <p class="mb-2">Scaffold authentication system:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>{`deno task ace make:auth            # Basic auth
-deno task ace make:auth --social   # With OAuth2 providers`}</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:auth            # Basic auth
+deno task ace make:auth --social   # With OAuth2 providers`}
+                            </CommandBlock>
                         </div>
                     </div>
                 </section>
@@ -77,38 +112,50 @@ deno task ace make:auth --social   # With OAuth2 providers`}</code></pre>
                         <div>
                             <h3 class="text-2xl font-bold mb-2">db:generate</h3>
                             <p class="mb-2">Generate migrations from schema:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace db:generate</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace db:generate`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">db:migrate</h3>
                             <p class="mb-2">Run pending migrations:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace db:migrate</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace db:migrate`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">db:push</h3>
                             <p class="mb-2">Push schema directly to database (dev):</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace db:push</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace db:push`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">db:studio</h3>
                             <p class="mb-2">Launch Drizzle Studio:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace db:studio</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace db:studio`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">make:seeder</h3>
                             <p class="mb-2">Create a database seeder:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace make:seeder User</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace make:seeder User`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">db:seed</h3>
                             <p class="mb-2">Run database seeders:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>{`deno task ace db:seed        # Run all seeders
-deno task ace db:seed User   # Run specific seeder`}</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace db:seed        # Run all seeders
+deno task ace db:seed User   # Run specific seeder`}
+                            </CommandBlock>
                         </div>
                     </div>
                 </section>
@@ -120,15 +167,19 @@ deno task ace db:seed User   # Run specific seeder`}</code></pre>
                         <div>
                             <h3 class="text-2xl font-bold mb-2">queue:work</h3>
                             <p class="mb-2">Process jobs from queue:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>{`deno task ace queue:work                    # Default queue
+                            <CommandBlock lang='terminal'>
+{`deno task ace queue:work                    # Default queue
 deno task ace queue:work --queue=emails     # Specific queue
-deno task ace queue:work --once             # Process once and exit`}</code></pre>
+deno task ace queue:work --once             # Process once and exit`}
+                            </CommandBlock>
                         </div>
 
                         <div>
                             <h3 class="text-2xl font-bold mb-2">queue:clear</h3>
                             <p class="mb-2">Clear all jobs from a queue:</p>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>deno task ace queue:clear emails</code></pre>
+                            <CommandBlock lang='terminal'>
+{`deno task ace queue:clear emails`}
+                            </CommandBlock>
                         </div>
                     </div>
                 </section>
@@ -136,7 +187,9 @@ deno task ace queue:work --once             # Process once and exit`}</code></pr
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Interactive REPL</h2>
                     <p class="mb-4">Explore your application interactively:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>deno task ace tinker</code></pre>
+                    <CommandBlock lang='terminal'>
+{`deno task ace tinker`}
+                    </CommandBlock>
                     <p class="mb-4">The REPL automatically loads:</p>
                     <ul class="list-disc list-inside space-y-2 mb-6">
                         <li>All models from <code>src/model/</code></li>
@@ -157,7 +210,9 @@ deno task ace queue:work --once             # Process once and exit`}</code></pr
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Creating Custom Commands</h2>
                     <p class="mb-4">Create your own CLI commands:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>deno task ace make:command Greet</code></pre>
+                    <CommandBlock lang='terminal'>
+{`deno task ace make:command Greet`}
+                    </CommandBlock>
                     <p class="mb-4">This creates <code>src/command/greet_command.ts</code>:</p>
                     <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { Command, type CommandContext, type ICommand } from '@lockness/ace'
 
@@ -172,11 +227,13 @@ export class GreetCommand implements ICommand {
     }
 }`}</code></pre>
                     <p class="mb-4">Run your custom command:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`deno task ace greet John
+                    <CommandBlock lang='terminal'>
+{`deno task ace greet John
 # Hello, John!
 
 deno task ace greet John --loud
-# HELLO, JOHN!`}</code></pre>
+# HELLO, JOHN!`}
+                    </CommandBlock>
                 </section>
 
                 <section class="mb-12">

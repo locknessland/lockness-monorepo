@@ -1,13 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-
-const CodeBlock = ({ children, lang = 'typescript' }: { children: string; lang?: string }) => (
-    <div class='my-6 pixel-code overflow-hidden'>
-        <div class='flex items-center gap-2 px-4 py-2 bg-card/50 border-b-3 border-border'>
-            <span class='ml-2 text-sm text-primary font-pixel-body'>{lang}</span>
-        </div>
-        <pre class='p-4 overflow-x-auto'><code class='text-foreground font-pixel-body text-sm leading-relaxed whitespace-pre'>{children}</code></pre>
-    </div>
-)
+import { CodeBlock } from '@view/components/code_block.tsx'
 
 export const RoutingPage = () => (
     <DocsLayout title='Routing & Controllers' currentPath='/docs/routing'>

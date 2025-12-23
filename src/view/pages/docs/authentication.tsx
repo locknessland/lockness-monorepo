@@ -1,4 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
+import { CommandBlock } from '@view/components/code_block.tsx'
 
 export const AuthenticationPage = () => {
     return (
@@ -12,7 +13,9 @@ export const AuthenticationPage = () => {
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Quick Setup</h2>
                     <p class="mb-4">Scaffold a complete authentication system with one command:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>deno task ace make:auth</code></pre>
+                    <CommandBlock lang='terminal'>
+{`deno task ace make:auth`}
+                    </CommandBlock>
                     <p class="mb-4">This creates:</p>
                     <ul class="list-disc list-inside space-y-2 mb-6">
                         <li><code>src/controller/auth_controller.ts</code> - Login, logout, register routes</li>
@@ -92,7 +95,9 @@ return c.redirect('/auth/login')`}</code></pre>
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Social Authentication (OAuth2)</h2>
                     <p class="mb-4">Add social login with Google, GitHub, or Discord:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>deno task ace make:auth --social</code></pre>
+                    <CommandBlock lang='terminal'>
+{`deno task ace make:auth --social`}
+                    </CommandBlock>
                     
                     <h3 class="text-2xl font-bold mb-4 mt-6">Configure providers</h3>
                     <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { configureSocialite } from 'lockness'

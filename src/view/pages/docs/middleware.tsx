@@ -1,4 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
+import { CommandBlock } from '@view/components/code_block.tsx'
 
 export const MiddlewarePage = () => {
     return (
@@ -12,7 +13,9 @@ export const MiddlewarePage = () => {
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Creating Middleware</h2>
                     <p class="mb-4">Generate a new middleware class:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>deno task ace make:middleware Auth</code></pre>
+                    <CommandBlock lang='terminal'>
+{`deno task ace make:middleware Auth`}
+                    </CommandBlock>
                     <p class="mb-4">This creates <code>src/middleware/auth_middleware.ts</code>:</p>
                     <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { Context, IMiddleware, MiddlewareHandler } from 'lockness'
 

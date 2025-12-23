@@ -1,20 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-
-const CodeBlock = ({ children, lang = 'bash' }: { children: string; lang?: string }) => (
-    <div class='my-6 pixel-code overflow-hidden'>
-        <div class='flex items-center gap-2 px-4 py-2 bg-card/50 border-b-3 border-border'>
-            <div class='flex gap-2'>
-                <div class='w-3 h-3 bg-red-500/80'></div>
-                <div class='w-3 h-3 bg-yellow-500/80'></div>
-                <div class='w-3 h-3 bg-green-500/80'></div>
-            </div>
-            <span class='ml-2 text-sm text-primary font-pixel-body'>{lang}</span>
-        </div>
-        <pre class='p-4 overflow-x-auto'>
-            <code class='text-foreground font-pixel-body text-sm leading-relaxed whitespace-pre'>{children}</code>
-        </pre>
-    </div>
-)
+import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
 
 export const GettingStartedPage = () => {
     return (
@@ -31,9 +16,9 @@ export const GettingStartedPage = () => {
                     Let's create a simple API endpoint. Use the ACE CLI to scaffold a controller:
                 </p>
 
-                <CodeBlock lang='terminal'>
+                <CommandBlock lang='terminal'>
 {`deno task ace make:controller Hello`}
-                </CodeBlock>
+                </CommandBlock>
 
                 <p class='text-lg leading-relaxed mb-4'>
                     This creates <code class='px-2 py-1 bg-primary/20 text-primary'>src/controller/hello_controller.ts</code>. Edit it:
@@ -69,9 +54,9 @@ export class HelloController {
                     Create a model with repository, controller, and seeder in one command:
                 </p>
 
-                <CodeBlock lang='terminal'>
+                <CommandBlock lang='terminal'>
 {`deno task ace make:model Post -a`}
-                </CodeBlock>
+                </CommandBlock>
 
                 <p class='text-lg leading-relaxed mb-4'>
                     The <code class='px-2 py-1 bg-primary/20 text-primary'>-a</code> flag generates:
@@ -97,7 +82,7 @@ export class HelloController {
 
                 <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>🚀 Database Workflow</h2>
                 
-                <CodeBlock lang='terminal'>
+                <CommandBlock lang='terminal'>
 {`# Generate migration from your model
 deno task ace db:generate
 
@@ -106,7 +91,7 @@ deno task ace db:migrate
 
 # Seed database with test data
 deno task ace db:seed`}
-                </CodeBlock>
+                </CommandBlock>
 
                 <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>✅ Testing Your API</h2>
                 <p class='text-lg leading-relaxed mb-4'>

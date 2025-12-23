@@ -1,20 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-
-const CodeBlock = ({ children, lang = 'bash' }: { children: string; lang?: string }) => (
-    <div class='my-6 pixel-code overflow-hidden'>
-        <div class='flex items-center gap-2 px-4 py-2 bg-card/50 border-b-3 border-border'>
-            <div class='flex gap-2'>
-                <div class='w-3 h-3 bg-red-500/80'></div>
-                <div class='w-3 h-3 bg-yellow-500/80'></div>
-                <div class='w-3 h-3 bg-green-500/80'></div>
-            </div>
-            <span class='ml-2 text-sm text-primary font-pixel-body'>{lang}</span>
-        </div>
-        <pre class='p-4 overflow-x-auto'>
-            <code class='text-foreground font-pixel-body text-sm leading-relaxed whitespace-pre'>{children}</code>
-        </pre>
-    </div>
-)
+import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
 
 export const InstallationPage = () => {
     return (
@@ -33,9 +18,9 @@ export const InstallationPage = () => {
                     The fastest way to create a new Lockness project is using the official init command:
                 </p>
 
-                <CodeBlock lang='terminal'>
+                <CommandBlock lang='terminal'>
 {`deno run -Ar jsr:@lockness/init`}
-                </CodeBlock>
+                </CommandBlock>
 
                 <p class='text-lg leading-relaxed mb-4'>
                     This command will:
@@ -64,10 +49,10 @@ export const InstallationPage = () => {
                     Once the project is created, navigate to the directory and start the development server:
                 </p>
 
-                <CodeBlock lang='terminal'>
+                <CommandBlock lang='terminal'>
 {`cd my-lockness-app
 deno task dev`}
-                </CodeBlock>
+                </CommandBlock>
 
                 <p class='text-lg leading-relaxed mb-8'>
                     Your app will be available at <code class='px-2 py-1 bg-primary/20 text-primary border-2 border-primary/50 font-pixel-body text-sm'>http://localhost:5173</code>

@@ -1,4 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
+import { CommandBlock } from '@view/components/code_block.tsx'
 
 export const ComponentsPage = () => {
     return (
@@ -12,7 +13,9 @@ export const ComponentsPage = () => {
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Creating Components</h2>
                     <p class="mb-4">Use the <code class="bg-gray-100 px-2 py-1 rounded">make:component</code> command to scaffold new JSX components:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>deno task ace make:component Button</code></pre>
+                    <CommandBlock lang='terminal'>
+{`deno task ace make:component Button`}
+                    </CommandBlock>
                     <p class="mb-4">This creates <code class="bg-gray-100 px-2 py-1 rounded">src/view/components/button.tsx</code> with:</p>
                     <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`export const Button = (props: ButtonProps) => {
     return (
@@ -39,8 +42,10 @@ export const ComponentsPage = () => {
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Nested Components</h2>
                     <p class="mb-4">Create components in subdirectories for better organization:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`deno task ace make:component ui/Card
-deno task ace make:component forms/Input`}</code></pre>
+                    <CommandBlock lang='terminal'>
+{`deno task ace make:component ui/Card
+deno task ace make:component forms/Input`}
+                    </CommandBlock>
                     <p class="mb-4">This creates:</p>
                     <ul class="list-disc list-inside mb-6 ml-4 space-y-2">
                         <li><code class="bg-gray-100 px-2 py-1 rounded">src/view/components/ui/card.tsx</code></li>
