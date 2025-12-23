@@ -2,7 +2,7 @@ import {
     App,
     configureSession,
     container,
-    createSessionMiddleware,
+    sessionMiddleware,
     type ControllerClass,
 } from 'lockness'
 import { Database } from '@lockness/drizzle'
@@ -52,7 +52,7 @@ export const bootstrap = async () => {
 
         // Global middlewares (applied to all routes)
         globalMiddlewares: [
-            createSessionMiddleware(), // Session middleware
+            sessionMiddleware(), // Session middleware
             // LoggerMiddleware,
         ],
 

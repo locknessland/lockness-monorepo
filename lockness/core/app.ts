@@ -79,7 +79,7 @@ export class App {
                     new (middleware as MiddlewareClass)() as IMiddleware
                 return instance.handle.bind(instance)
             } else {
-                // Plain function middleware (like createSessionMiddleware())
+                // Plain function middleware (like sessionMiddleware())
                 return middleware as MiddlewareHandler
             }
         }
