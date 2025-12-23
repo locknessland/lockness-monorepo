@@ -44,7 +44,7 @@ export default defineConfig(({ isSsrBuild }) => ({
         ssr: isSsrBuild ? './main.ts' : false,
         outDir: isSsrBuild ? 'dist' : 'dist/static',
         emptyOutDir: !isSsrBuild,
-        manifest: true,
+        manifest: !isSsrBuild, // Only generate manifest for client build
         rollupOptions: {
             input: isSsrBuild ? './main.ts' : './src/view/app.ts',
             output: isSsrBuild
