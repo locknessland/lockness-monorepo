@@ -191,49 +191,37 @@ Deno.test('S3StorageDriver - initialization requires bucket', () => {
     }
 })
 
-Deno.test('S3StorageDriver - publicUrl default format', async () => {
+Deno.test('S3StorageDriver - publicUrl default format', () => {
     const driver = new S3StorageDriver({
         driver: 's3',
         bucket: 'my-bucket',
         region: 'us-west-2',
     })
 
-    try {
-        const url = driver.publicUrl('test.txt')
-        assertEquals(url, 'https://s3.us-west-2.amazonaws.com/my-bucket/test.txt')
-    } finally {
-        await driver.destroy()
-    }
+    const url = driver.publicUrl('test.txt')
+    assertEquals(url, 'https://s3.us-west-2.amazonaws.com/my-bucket/test.txt')
 })
 
-Deno.test('S3StorageDriver - publicUrl with custom endpoint', async () => {
+Deno.test('S3StorageDriver - publicUrl with custom endpoint', () => {
     const driver = new S3StorageDriver({
         driver: 's3',
         bucket: 'my-bucket',
         endpoint: 'https://custom-s3.example.com',
     })
 
-    try {
-        const url = driver.publicUrl('test.txt')
-        assertEquals(url, 'https://custom-s3.example.com/my-bucket/test.txt')
-    } finally {
-        await driver.destroy()
-    }
+    const url = driver.publicUrl('test.txt')
+    assertEquals(url, 'https://custom-s3.example.com/my-bucket/test.txt')
 })
 
-Deno.test('S3StorageDriver - publicUrl with custom publicUrl', async () => {
+Deno.test('S3StorageDriver - publicUrl with custom publicUrl', () => {
     const driver = new S3StorageDriver({
         driver: 's3',
         bucket: 'my-bucket',
         publicUrl: 'https://cdn.example.com',
     })
 
-    try {
-        const url = driver.publicUrl('test.txt')
-        assertEquals(url, 'https://cdn.example.com/test.txt')
-    } finally {
-        await driver.destroy()
-    }
+    const url = driver.publicUrl('test.txt')
+    assertEquals(url, 'https://cdn.example.com/test.txt')
 })
 
 // =============================================================================
