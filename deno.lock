@@ -2316,6 +2316,11 @@
           "jsr:@std/testing@1"
         ]
       },
+      "lockness/logger": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ]
+      },
       "lockness/mail": {
         "dependencies": [
           "jsr:@std/assert@1"

@@ -191,37 +191,49 @@ Deno.test('S3StorageDriver - initialization requires bucket', () => {
     }
 })
 
-Deno.test('S3StorageDriver - publicUrl default format', () => {
-    const driver = new S3StorageDriver({
-        driver: 's3',
-        bucket: 'my-bucket',
-        region: 'us-west-2',
-    })
+Deno.test({
+    name: 'S3StorageDriver - publicUrl default format',
+    sanitizeResources: false,
+    fn: () => {
+        const driver = new S3StorageDriver({
+            driver: 's3',
+            bucket: 'my-bucket',
+            region: 'us-west-2',
+        })
 
-    const url = driver.publicUrl('test.txt')
-    assertEquals(url, 'https://s3.us-west-2.amazonaws.com/my-bucket/test.txt')
+        const url = driver.publicUrl('test.txt')
+        assertEquals(url, 'https://s3.us-west-2.amazonaws.com/my-bucket/test.txt')
+    },
 })
 
-Deno.test('S3StorageDriver - publicUrl with custom endpoint', () => {
-    const driver = new S3StorageDriver({
-        driver: 's3',
-        bucket: 'my-bucket',
-        endpoint: 'https://custom-s3.example.com',
-    })
+Deno.test({
+    name: 'S3StorageDriver - publicUrl with custom endpoint',
+    sanitizeResources: false,
+    fn: () => {
+        const driver = new S3StorageDriver({
+            driver: 's3',
+            bucket: 'my-bucket',
+            endpoint: 'https://custom-s3.example.com',
+        })
 
-    const url = driver.publicUrl('test.txt')
-    assertEquals(url, 'https://custom-s3.example.com/my-bucket/test.txt')
+        const url = driver.publicUrl('test.txt')
+        assertEquals(url, 'https://custom-s3.example.com/my-bucket/test.txt')
+    },
 })
 
-Deno.test('S3StorageDriver - publicUrl with custom publicUrl', () => {
-    const driver = new S3StorageDriver({
-        driver: 's3',
-        bucket: 'my-bucket',
-        publicUrl: 'https://cdn.example.com',
-    })
+Deno.test({
+    name: 'S3StorageDriver - publicUrl with custom publicUrl',
+    sanitizeResources: false,
+    fn: () => {
+        const driver = new S3StorageDriver({
+            driver: 's3',
+            bucket: 'my-bucket',
+            publicUrl: 'https://cdn.example.com',
+        })
 
-    const url = driver.publicUrl('test.txt')
-    assertEquals(url, 'https://cdn.example.com/test.txt')
+        const url = driver.publicUrl('test.txt')
+        assertEquals(url, 'https://cdn.example.com/test.txt')
+    },
 })
 
 // =============================================================================
