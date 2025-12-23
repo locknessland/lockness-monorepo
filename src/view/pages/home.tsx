@@ -226,14 +226,38 @@ export const HomeView = () => {
 
                             {/* Install Command */}
                             <div class='pt-4 animate-slide-up' style='animation-delay: 400ms; animation-fill-mode: backwards;'>
-                                <div class='inline-flex items-center gap-3 px-5 py-3 rounded-lg bg-card border border-border font-mono text-sm hover:border-primary/50 transition-all group'>
+                                <div class='inline-flex items-center gap-3 px-5 py-3 rounded-lg bg-card border border-border font-mono text-sm hover:border-primary/50 transition-all group' id='install-command'>
                                     <span class='text-primary group-hover:animate-pulse'>$</span>
-                                    <span class='text-foreground'>deno run -Ar jsr:@lockness/init</span>
-                                    <button type='button' class='ml-2 p-1.5 rounded hover:bg-muted transition-all text-muted-foreground hover:text-foreground hover:scale-110 active:scale-95'>
-                                        <CopyIcon />
+                                    <span class='text-foreground' id='install-text'>deno run -Ar jsr:@lockness/init</span>
+                                    <button 
+                                        type='button' 
+                                        id='copy-btn'
+                                        class='ml-2 p-1.5 rounded hover:bg-muted transition-all text-muted-foreground hover:text-foreground hover:scale-110 active:scale-95 cursor-pointer'
+                                        title='Copy to clipboard'
+                                    >
+                                        <span id='copy-icon'><CopyIcon /></span>
+                                        <span id='check-icon' class='hidden text-emerald-400'><CheckIcon /></span>
                                     </button>
                                 </div>
                             </div>
+                            
+                            {/* Copy to clipboard script */}
+                            <script dangerouslySetInnerHTML={{__html: `
+                                document.getElementById('copy-btn').addEventListener('click', async function() {
+                                    const text = document.getElementById('install-text').textContent;
+                                    try {
+                                        await navigator.clipboard.writeText(text);
+                                        document.getElementById('copy-icon').classList.add('hidden');
+                                        document.getElementById('check-icon').classList.remove('hidden');
+                                        setTimeout(() => {
+                                            document.getElementById('copy-icon').classList.remove('hidden');
+                                            document.getElementById('check-icon').classList.add('hidden');
+                                        }, 2000);
+                                    } catch (err) {
+                                        console.error('Failed to copy:', err);
+                                    }
+                                });
+                            `}} />
                         </div>
                     </div>
                 </section>
