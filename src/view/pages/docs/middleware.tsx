@@ -1,11 +1,12 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import { PageTitle } from '@view/components/page_title.tsx'
 
 export const MiddlewarePage = () => {
     return (
         <DocsLayout title="Middleware - Lockness JS">
             <div class="max-w-4xl mx-auto">
-                <h1 class="text-4xl font-bold mb-4">Middleware</h1>
+                <PageTitle>Middleware</PageTitle>
                 <p class="text-xl text-gray-600 mb-8">
                     Middleware allows you to filter and modify HTTP requests before they reach your controllers.
                 </p>

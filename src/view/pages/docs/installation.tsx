@@ -1,11 +1,12 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import { PageTitle } from '@view/components/page_title.tsx'
 
 export const InstallationPage = () => {
     return (
         <DocsLayout title='Installation' currentPath='/docs/installation'>
             <div class='prose prose-invert max-w-none'>
-                <h1 class='font-pixel text-xl text-primary mb-8 crt-glow'>Installation</h1>
+                <PageTitle>Installation</PageTitle>
 
                 <div class='pixel-card p-6 mb-8 bg-primary/10 border-primary'>
                     <p class='text-lg mb-0'>

@@ -1,11 +1,12 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import { PageTitle } from '@view/components/page_title.tsx'
 
 export const AuthenticationPage = () => {
     return (
         <DocsLayout title="Authentication - Lockness JS">
             <div class="max-w-4xl mx-auto">
-                <h1 class="text-4xl font-bold mb-4">Authentication</h1>
+                <PageTitle>Authentication</PageTitle>
                 <p class="text-xl text-gray-600 mb-8">
                     Complete authentication system with session-based auth, password hashing, and OAuth2 social login.
                 </p>

@@ -1,11 +1,12 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import { PageTitle } from '@view/components/page_title.tsx'
 
 export const ComponentsPage = () => {
     return (
         <DocsLayout title="Components - Lockness JS">
             <div class="max-w-4xl mx-auto">
-                <h1 class="text-4xl font-bold mb-4">Components</h1>
+                <PageTitle>Components</PageTitle>
                 <p class="text-xl text-gray-600 mb-8">
                     Lockness uses JSX for building UI components. Generate reusable components with the Ace CLI.
                 </p>

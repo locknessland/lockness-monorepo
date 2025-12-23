@@ -1,11 +1,12 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import { PageTitle } from '@view/components/page_title.tsx'
 
 export const GettingStartedPage = () => {
     return (
         <DocsLayout title='Getting Started' currentPath='/docs/getting-started'>
             <div class='prose prose-invert max-w-none'>
-                <h1 class='font-pixel text-xl text-primary mb-8 crt-glow'>Getting Started</h1>
+                <PageTitle>Getting Started</PageTitle>
 
                 <p class='text-lg leading-relaxed mb-8'>
                     This guide will walk you through creating your first Lockness application, from setup to deployment.

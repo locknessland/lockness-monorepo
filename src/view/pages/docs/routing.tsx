@@ -1,10 +1,11 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 import { CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import { PageTitle } from '@view/components/page_title.tsx'
 
 export const RoutingPage = () => (
     <DocsLayout title='Routing & Controllers' currentPath='/docs/routing'>
         <div class='prose prose-invert max-w-none'>
-            <h1 class='font-pixel text-xl text-primary mb-8 crt-glow'>Routing & Controllers</h1>
+            <PageTitle>Routing & Controllers</PageTitle>
             
             <h2 class='font-pixel text-base text-foreground mt-12 mb-6'>Controllers with Decorators</h2>
             <p class='text-lg leading-relaxed mb-4'>

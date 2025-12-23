@@ -1,11 +1,12 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 import { CommandBlock, CodeBlock, InlineCode } from '@view/components/code_block.tsx'
+import { PageTitle } from '@view/components/page_title.tsx'
 
 export const CliPage = () => {
     return (
         <DocsLayout title="CLI (Ace) - Lockness JS">
             <div class="max-w-4xl mx-auto">
-                <h1 class="text-4xl font-bold mb-4">CLI (Ace)</h1>
+                <PageTitle>CLI (Ace)</PageTitle>
                 <p class="text-xl text-gray-600 mb-8">
                     Ace is Lockness's powerful command-line interface for scaffolding, database management, and custom commands.
                 </p>
