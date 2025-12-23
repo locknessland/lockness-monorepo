@@ -25,9 +25,7 @@
         "ace": "deno run -A --env ace.ts",
         "test": "deno test -A --env lockness/",
         "test:coverage": "rm -rf coverage && deno test -A --env --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
-        "test:watch": "deno test -A --env --watch lockness/",
-        "test:ace": "cd lockness/ace && deno task test",
-        "test:core": "cd lockness/core && deno task test"
+        "test:watch": "deno test -A --env --watch lockness/"
     },
     "imports": {
         "@/": "./",
