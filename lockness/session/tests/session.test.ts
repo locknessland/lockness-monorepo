@@ -2,14 +2,14 @@ import { assertEquals, assertExists, assertNotEquals } from '@std/assert'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import {
+    configureSession,
     CookieSessionDriver,
     DenoKvSessionDriver,
+    getSession,
     MemorySessionDriver,
     RedisSessionDriver,
-    SessionStore,
-    configureSession,
-    getSession,
     sessionMiddleware,
+    SessionStore,
 } from '../session.ts'
 
 // =============================================================================
@@ -27,7 +27,11 @@ function createMockContext(): Context {
                 headers: new Headers(),
             },
         },
-        header: (name: string, value: string, options?: { append?: boolean }) => {
+        header: (
+            name: string,
+            value: string,
+            options?: { append?: boolean },
+        ) => {
             if (options?.append) {
                 if (!headers[name]) headers[name] = []
                 headers[name].push(value)
@@ -78,9 +82,8 @@ Deno.test('CookieSessionDriver - write and read session', async () => {
         const cookieValue = setCookieHeader.split(';')[0].split('=')[1]
         // Simulate browser sending cookie back
         const headers = new Headers()
-        headers.set('Cookie', `${config.cookieName}=${cookieValue}`)
-            // deno-lint-ignore no-explicit-any
-            ; (ctx.req as any).raw.headers = headers
+        headers.set('Cookie', `${config.cookieName}=${cookieValue}`) // deno-lint-ignore no-explicit-any
+        ;(ctx.req as any).raw.headers = headers
     }
 
     const retrieved = await driver.read('session-id-1')
@@ -265,7 +268,12 @@ Deno.test('SessionStore - has and forget', () => {
         sameSite: 'Lax' as const,
     }
 
-    const store = new SessionStore('test-session-2', driver, { foo: 'bar' }, config)
+    const store = new SessionStore(
+        'test-session-2',
+        driver,
+        { foo: 'bar' },
+        config,
+    )
 
     assertEquals(store.has('foo'), true)
     store.forget('foo')
@@ -285,7 +293,12 @@ Deno.test('SessionStore - flush all data', () => {
         sameSite: 'Lax' as const,
     }
 
-    const store = new SessionStore('test-session-3', driver, { a: 1, b: 2 }, config)
+    const store = new SessionStore(
+        'test-session-3',
+        driver,
+        { a: 1, b: 2 },
+        config,
+    )
 
     store.flush()
     assertEquals(store.all(), {})

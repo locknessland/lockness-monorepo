@@ -6,7 +6,7 @@
  */
 
 import type { Context, MiddlewareHandler } from 'hono'
-import { type Session, getSession } from '@lockness/session'
+import { getSession, type Session } from '@lockness/session'
 
 // =============================================================================
 // Types & Interfaces

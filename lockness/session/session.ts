@@ -1,9 +1,9 @@
 /**
  * Lockness Session - Session Management System
- * 
+ *
  * Multi-driver session handling with Cookie, Memory, DenoKV, and Redis support.
  * Provides encrypted sessions, flash data, and automatic garbage collection.
- * 
+ *
  * Note: Some methods are async for driver consistency
  */
 
@@ -124,7 +124,9 @@ export function getSessionConfig(): SessionConfig {
 function generateSessionId(): string {
     const array = new Uint8Array(32)
     crypto.getRandomValues(array)
-    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join(
+        '',
+    )
 }
 
 // =============================================================================
@@ -584,7 +586,7 @@ export class SessionStore implements Session {
         if (!this.data._flash) {
             this.data._flash = {}
         }
-        (this.data._flash as SessionData)[key] = value
+        ;(this.data._flash as SessionData)[key] = value
         this.dirty = true
     }
 
@@ -598,7 +600,11 @@ export class SessionStore implements Session {
 
     async save(): Promise<void> {
         if (this.dirty) {
-            await this.driver.write(this.sessionId, this.data, this.config.lifetime)
+            await this.driver.write(
+                this.sessionId,
+                this.data,
+                this.config.lifetime,
+            )
             this.dirty = false
         }
     }
@@ -608,7 +614,9 @@ export class SessionStore implements Session {
 // Session Middleware
 // =============================================================================
 
-export function sessionMiddleware(config?: Partial<SessionConfig>): (c: Context, next: () => Promise<void>) => Promise<void> {
+export function sessionMiddleware(
+    config?: Partial<SessionConfig>,
+): (c: Context, next: () => Promise<void>) => Promise<void> {
     const sessionConfig = { ...getSessionConfig(), ...config }
 
     return async (c: Context, next: () => Promise<void>) => {
@@ -627,7 +635,9 @@ export function sessionMiddleware(config?: Partial<SessionConfig>): (c: Context,
                 break
             case 'redis':
                 if (!sessionConfig.redis) {
-                    throw new Error('Redis configuration required for redis driver')
+                    throw new Error(
+                        'Redis configuration required for redis driver',
+                    )
                 }
                 driver = new RedisSessionDriver(sessionConfig.redis)
                 break

@@ -1,10 +1,12 @@
 # @lockness/session
 
-Multi-driver session management system with support for Cookie, Memory, Deno KV, and **Redis** storage.
+Multi-driver session management system with support for Cookie, Memory, Deno KV,
+and **Redis** storage.
 
 ## Features
 
-- 🔐 **Encrypted Cookie Sessions** - AES-GCM encryption for secure client-side storage
+- 🔐 **Encrypted Cookie Sessions** - AES-GCM encryption for secure client-side
+  storage
 - 🗄️ **Multiple Drivers** - Cookie, Memory, Deno KV, and **Redis** support
 - ⚡ **Flash Messages** - One-time messages for next request
 - 🔄 **Session Regeneration** - Security feature for authentication
@@ -17,8 +19,8 @@ Multi-driver session management system with support for Cookie, Memory, Deno KV,
 ```typescript
 import {
     configureSession,
-    sessionMiddleware,
     getSession,
+    sessionMiddleware,
 } from '@lockness/session'
 ```
 
@@ -44,7 +46,7 @@ configureSession({
 
 ```typescript
 import { Hono } from 'hono'
-import { sessionMiddleware, getSession } from '@lockness/session'
+import { getSession, sessionMiddleware } from '@lockness/session'
 
 const app = new Hono()
 
@@ -53,23 +55,23 @@ app.use('*', sessionMiddleware())
 app.get('/profile', (c) => {
     const session = getSession(c)
     const userId = session.get<number>('userId')
-    
+
     if (!userId) {
         return c.redirect('/login')
     }
-    
+
     return c.text(`User ID: ${userId}`)
 })
 
 app.post('/login', async (c) => {
     const session = getSession(c)
-    
+
     // Authenticate user...
     session.set('userId', 123)
-    
+
     // Regenerate ID for security
     await session.regenerate()
-    
+
     session.flash('message', 'Login successful!')
     return c.redirect('/dashboard')
 })
@@ -77,7 +79,7 @@ app.post('/login', async (c) => {
 app.get('/dashboard', (c) => {
     const session = getSession(c)
     const message = session.getFlash<string>('message')
-    
+
     return c.html(`<h1>${message}</h1>`)
 })
 ```
@@ -89,11 +91,13 @@ app.get('/dashboard', (c) => {
 Stores encrypted session data in a client-side cookie using AES-GCM encryption.
 
 **Pros:**
+
 - No server-side storage required
 - Scales horizontally without shared state
 - Works with any deployment model
 
 **Cons:**
+
 - Limited to ~4KB of data
 - Cookie size affects every request
 - Not suitable for large session data
@@ -112,10 +116,12 @@ configureSession({
 Stores sessions in server memory. **For development/testing only.**
 
 **Pros:**
+
 - Fast, no I/O
 - Simple for testing
 
 **Cons:**
+
 - Data lost on server restart
 - Doesn't work with multiple instances
 - Memory usage grows over time
@@ -133,12 +139,14 @@ configureSession({
 Stores sessions in Deno's built-in key-value database.
 
 **Pros:**
+
 - Persistent storage
 - Built into Deno
 - Automatic expiration (TTL)
 - Works on Deno Deploy
 
 **Cons:**
+
 - Deno-specific
 - Not suitable for very high traffic
 
@@ -157,6 +165,7 @@ configureSession({
 Stores sessions in Redis for production scalability.
 
 **Pros:**
+
 - Production-ready
 - Scales horizontally
 - Shared state across multiple servers
@@ -164,6 +173,7 @@ Stores sessions in Redis for production scalability.
 - Fast in-memory performance
 
 **Cons:**
+
 - Requires Redis server
 - Additional infrastructure
 
@@ -185,6 +195,7 @@ configureSession({
 #### Redis Setup
 
 **Local Development:**
+
 ```bash
 # macOS
 brew install redis
@@ -195,12 +206,14 @@ docker run -d -p 6379:6379 redis:7-alpine
 ```
 
 **Production (Fly.io example):**
+
 ```bash
 fly redis create my-redis
 fly redis connect my-redis # Get connection details
 ```
 
 **Environment Variables:**
+
 ```typescript
 configureSession({
     driver: 'redis',
@@ -246,15 +259,15 @@ session.isDirty(): boolean
 ```typescript
 interface SessionConfig {
     driver: 'cookie' | 'memory' | 'deno-kv' | 'redis'
-    cookieName: string         // Cookie name
-    lifetime: number           // Seconds (default: 7200)
-    secret: string             // Min 32 characters for encryption
-    path: string               // Cookie path (default: '/')
-    domain?: string            // Cookie domain
-    secure: boolean            // HTTPS only (default: false)
-    httpOnly: boolean          // No JS access (default: true)
+    cookieName: string // Cookie name
+    lifetime: number // Seconds (default: 7200)
+    secret: string // Min 32 characters for encryption
+    path: string // Cookie path (default: '/')
+    domain?: string // Cookie domain
+    secure: boolean // HTTPS only (default: false)
+    httpOnly: boolean // No JS access (default: true)
     sameSite: 'Strict' | 'Lax' | 'None' // Default: 'Lax'
-    kvPath?: string            // Deno KV path
+    kvPath?: string // Deno KV path
     redis?: {
         hostname: string
         port?: number
@@ -266,7 +279,8 @@ interface SessionConfig {
 
 ## Flash Messages
 
-Flash data is available only for the **next request**, then automatically deleted.
+Flash data is available only for the **next request**, then automatically
+deleted.
 
 ```typescript
 // Request 1: Set flash
@@ -295,6 +309,7 @@ app.get('/profile', (c) => {
 ## Security Best Practices
 
 ### 1. **Use Strong Secrets**
+
 ```typescript
 // ❌ Bad
 secret: 'secret'
@@ -304,58 +319,62 @@ secret: crypto.randomUUID() + crypto.randomUUID()
 ```
 
 ### 2. **Regenerate After Login**
+
 ```typescript
 app.post('/login', async (c) => {
     const session = getSession(c)
-    
+
     // Authenticate user...
     session.set('userId', user.id)
-    
+
     // Prevent session fixation attacks
     await session.regenerate()
-    
+
     return c.redirect('/dashboard')
 })
 ```
 
 ### 3. **Enable Secure Cookies in Production**
+
 ```typescript
 configureSession({
-    secure: true,      // HTTPS only
-    httpOnly: true,    // No JavaScript access
-    sameSite: 'Strict' // CSRF protection
+    secure: true, // HTTPS only
+    httpOnly: true, // No JavaScript access
+    sameSite: 'Strict', // CSRF protection
 })
 ```
 
 ### 4. **Use Redis in Production**
+
 ```typescript
 // Don't use 'memory' driver in production
 // Use 'redis' for scalability and persistence
 configureSession({
     driver: 'redis',
-    redis: { hostname: 'redis.internal', port: 6379 }
+    redis: { hostname: 'redis.internal', port: 6379 },
 })
 ```
 
 ### 5. **Set Appropriate Lifetime**
+
 ```typescript
 configureSession({
-    lifetime: 1800  // 30 minutes for sensitive apps
+    lifetime: 1800, // 30 minutes for sensitive apps
     // lifetime: 86400  // 24 hours for general apps
 })
 ```
 
 ## Driver Comparison
 
-| Feature | Cookie | Memory | Deno KV | Redis |
-|---------|--------|--------|---------|-------|
-| **Persistent** | ✅ | ❌ | ✅ | ✅ |
-| **Multi-instance** | ✅ | ❌ | ❌ | ✅ |
-| **Size limit** | ~4KB | ∞ | Large | Large |
-| **Production** | ✅ | ❌ | ⚠️ | ✅ |
-| **Auto-expire** | Browser | Manual | ✅ | ✅ |
-| **Setup** | None | None | None | Redis |
-| **Best for** | Small data | Testing | Deno Deploy | Production |
+| Feature            | Cookie     | Memory  | Deno KV     | Redis      |
+| ------------------ | ---------- | ------- | ----------- | ---------- |
+| **Persistent**     | ✅         | ❌      | ✅          | ✅         |
+| **Multi-instance** | ✅         | ❌      | ❌          | ✅         |
+| **Size limit**     | ~4KB       | ∞       | Large       | Large      |
+| **Production**     | ✅         | ❌      | ⚠️          | ✅         |
+| **Auto-expire**    | Browser    | Manual  | ✅          | ✅         |
+| **Setup**          | None       | None    | None        | Redis      |
+| **Best for**       | Small data | Testing | Deno Deploy | Production |
 
 ## Migration from Core
 
@@ -363,10 +382,10 @@ If you were using `lockness/core/session.ts`:
 
 ```typescript
 // Old
-import { sessionMiddleware, getSession } from '@lockness/core'
+import { getSession, sessionMiddleware } from '@lockness/core'
 
 // New
-import { sessionMiddleware, getSession } from '@lockness/session'
+import { getSession, sessionMiddleware } from '@lockness/session'
 ```
 
 Configuration and API remain the same.
@@ -378,7 +397,8 @@ cd lockness/session
 deno task test
 ```
 
-**Note:** Redis driver tests require a running Redis instance on `localhost:6379`. Use mock or Memory driver for CI/CD.
+**Note:** Redis driver tests require a running Redis instance on
+`localhost:6379`. Use mock or Memory driver for CI/CD.
 
 ## License
 
