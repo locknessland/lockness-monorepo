@@ -7,6 +7,7 @@ import { ValidationPage } from '@view/pages/docs/validation.tsx'
 import { AuthenticationPage } from '@view/pages/docs/authentication.tsx'
 import { MiddlewarePage } from '@view/pages/docs/middleware.tsx'
 import { CliPage } from '@view/pages/docs/cli.tsx'
+import { ComponentsPage } from '@view/pages/docs/components.tsx'
 
 @Controller('/docs')
 export class DocsController {
@@ -53,5 +54,10 @@ export class DocsController {
     @Get('/cli')
     cli(c: Context) {
         return c.html(<CliPage />)
+    }
+
+    @Get('/components')
+    components(c: Context) {
+        return c.html(<ComponentsPage />)
     }
 }

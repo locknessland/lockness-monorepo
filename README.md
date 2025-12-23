@@ -173,6 +173,37 @@ The `-a` flag generates:
 - `src/seeder/post_seeder.ts` - Seeder template
 - `src/controller/post_controller.ts` - REST API with validation
 
+### Scaffolding Components
+
+Generate JSX components with the `make:component` command:
+
+```bash
+# Create a new component
+deno task ace make:component Button
+
+# Create a nested component
+deno task ace make:component ui/Card
+```
+
+This creates `src/view/components/button.tsx` with:
+
+```tsx
+export const Button = (props: ButtonProps) => {
+    return (
+        <div>
+            {/* Button component */}
+            {props.children}
+        </div>
+    )
+}
+```
+
+**Naming conventions:**
+
+- Component class name: PascalCase (e.g., `Button`, `UserCard`)
+- File name: snake_case (e.g., `button.tsx`, `user_card.tsx`)
+- Props interface: `<ComponentName>Props`
+
 ### Request Validation with drizzle-zod
 
 Lockness uses **drizzle-zod** to generate Zod validation schemas directly from

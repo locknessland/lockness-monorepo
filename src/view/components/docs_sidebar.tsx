@@ -11,6 +11,7 @@ const navLinks: NavLink[] = [
     { title: 'Validation', href: '/docs/validation' },
     { title: 'Authentication', href: '/docs/authentication' },
     { title: 'Middleware', href: '/docs/middleware' },
+    { title: 'Components', href: '/docs/components' },
     { title: 'CLI (Ace)', href: '/docs/cli' },
 ]
 

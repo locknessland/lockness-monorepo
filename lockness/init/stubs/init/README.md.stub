@@ -85,6 +85,13 @@ The `make:model` command supports flags:
 - `-c` controller (CRUD)
 - `-a` all of the above
 
+### Scaffolding Components
+
+```bash
+deno task ace make:component Button
+deno task ace make:component ui/Card
+```
+
 ### Request Validation
 
 Use **drizzle-zod** to generate validation schemas from your models:
