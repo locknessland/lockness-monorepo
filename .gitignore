@@ -18,6 +18,6 @@ dist
 # Test coverage
 coverage
 
-# Nessy CLI wrapper
-nessy
-nessy.cmd
+# Nessy CLI wrapper (root only)
+/nessy
+/nessy.cmd

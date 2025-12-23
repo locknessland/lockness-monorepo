@@ -392,15 +392,14 @@ export function registerCoreCommands(ace: Ace) {
             console.log(`📝 Creating ${scriptName} wrapper...`)
             console.log('')
 
-            // Create wrapper script
-            let scriptContent: string
-            if (isWindows) {
-                // Windows batch script
-                scriptContent = '@deno run -A --env ace.ts %*'
-            } else {
-                // Unix shell script
-                scriptContent = '#!/bin/sh\ndeno run -A --env ace.ts "$@"'
-            }
+            // Load wrapper script from stub
+            const stubName = isWindows ? 'nessy.cmd' : 'nessy'
+            const scriptContent = await Stub.renderFrom(
+                STUBS_PATH,
+                'nessy',
+                stubName,
+                {},
+            )
 
             await Deno.writeTextFile(scriptPath, scriptContent)
 

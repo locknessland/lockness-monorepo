@@ -1,0 +1,154 @@
+@echo off
+REM Nessy - Lockness CLI wrapper with DX enhancements
+
+SET COMMAND=%1
+
+REM Handle special commands
+IF "%COMMAND%"=="dev" (
+    echo 🚀 Starting development server...
+    deno task dev
+    EXIT /B
+)
+
+IF "%COMMAND%"=="test" (
+    SHIFT
+    IF "%1"=="" (
+        echo 🧪 Running all tests...
+        deno test --allow-all --env
+    ) ELSE (
+        echo 🧪 Running tests matching: %1
+        deno test --allow-all --env --filter="%1"
+    )
+    EXIT /B
+)
+
+IF "%COMMAND%"=="check" (
+    echo 🔍 Type-checking project...
+    deno check **/*.ts **/*.tsx
+    EXIT /B
+)
+
+IF "%COMMAND%"=="fresh" (
+    echo 🧹 Deep cleaning project...
+    rmdir /S /Q .vite dist coverage .compiled node_modules 2>NUL
+    echo    ✓ Removed temporary files and dependencies
+    echo.
+    echo 📦 Clearing Deno cache...
+    deno cache --reload ace.ts
+    echo    ✓ Cache cleared
+    echo.
+    echo ✅ Project is fresh! Run 'npm install' if you use Node packages.
+    EXIT /B
+)
+
+IF "%COMMAND%"=="clean" (
+    echo 🧹 Cleaning temporary files...
+    rmdir /S /Q .vite dist coverage .compiled 2>NUL
+    echo ✅ Cleaned: .vite, dist, coverage, .compiled
+    EXIT /B
+)
+
+IF "%COMMAND%"=="watch" (
+    echo 👀 Starting file watcher...
+    deno task dev --watch
+    EXIT /B
+)
+
+IF "%COMMAND%"=="status" (
+    echo 📊 Project Status
+    echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    echo.
+    echo 📁 Git Status:
+    git status -s 2>NUL || echo    Not a git repository
+    echo.
+    echo 📦 Deno Version:
+    deno --version | findstr /R "^deno"
+    echo.
+    echo 🗄️  Database:
+    IF EXIST drizzle.config.ts (
+        echo    ✓ Drizzle configured
+    ) ELSE (
+        echo    ✗ No database config
+    )
+    echo.
+    echo 🦕 Nessy: Ready!
+    EXIT /B
+)
+
+IF "%COMMAND%"=="install" (
+    SHIFT
+    IF "%1"=="" (
+        echo ❌ Please specify a package to install
+        echo    Usage: nessy install ^<package^>
+    ) ELSE (
+        echo 📦 Installing %1...
+        deno add %*
+    )
+    EXIT /B
+)
+
+IF "%COMMAND%"=="-v" GOTO version
+IF "%COMMAND%"=="--version" GOTO version
+IF "%COMMAND%"=="version" GOTO version
+GOTO skip_version
+:version
+    echo 🦕 Nessy - Lockness CLI
+    echo Version: 1.0.0
+    deno --version
+    EXIT /B
+:skip_version
+
+IF "%COMMAND%"=="-h" GOTO help
+IF "%COMMAND%"=="--help" GOTO help
+IF "%COMMAND%"=="help" GOTO help
+GOTO skip_help
+:help
+    echo 🦕 Nessy - Your Lockness CLI companion
+    echo.
+    echo Usage: nessy [command] [args]
+    echo.
+    echo 📦 Quick Commands:
+    echo   dev                  Start development server
+    echo   test [pattern]       Run tests (optionally filtered)
+    echo   check                Type-check the project
+    echo   fresh                Clean cache and temporary files
+    echo   clean                Remove temporary files only
+    echo   watch                Start dev server with file watcher
+    echo   status               Show project status
+    echo   install ^<pkg^>        Add a dependency
+    echo   -v, --version        Show version
+    echo   -h, --help           Show this help
+    echo.
+    echo 🔨 Ace Commands:
+    echo   list                 List all available commands
+    echo   make:controller      Create a new controller
+    echo   make:service         Create a new service
+    echo   make:middleware      Create a new middleware
+    echo   make:view            Create a new view
+    echo   make:component       Create a new component
+    echo   make:command         Create a new CLI command
+    echo   make:job             Create a new background job
+    echo   router:list          Display all registered routes
+    echo.
+    echo 🗄️  Database Commands:
+    echo   db:generate          Generate migration files
+    echo   db:migrate           Run pending migrations
+    echo   db:push              Push schema changes
+    echo   db:seed              Seed the database
+    echo   db:studio            Open Drizzle Studio
+    echo.
+    echo ⚡ Queue Commands:
+    echo   queue:work           Process jobs from queue
+    echo   queue:clear          Clear all jobs
+    echo.
+    echo Examples:
+    echo   nessy dev                        # Start dev server
+    echo   nessy test auth                  # Run auth tests
+    echo   nessy make:controller User       # Create controller
+    echo   nessy db:migrate                 # Run migrations
+    echo   nessy install @std/path          # Install package
+    EXIT /B
+:skip_help
+
+REM Pass all other commands to ace.ts
+deno run -A --env ace.ts %*
