@@ -526,7 +526,10 @@ export function registerCoreCommands(ace: Ace) {
             }
 
             console.log('')
-            console.log('💡 Pro tip: Add nessy to your PATH for even easier access!')
+            console.log('💡 Tips:')
+            console.log('   • Add nessy to your PATH for easier access')
+            console.log('   • Update stubs: deno task ace nessy:update')
+            console.log('   • router:list requires: deno task ace router:list')
             console.log('')
 
             // Check if .gitignore exists and warn if nessy is not ignored
@@ -548,6 +551,17 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Install Nessy CLI binary for faster commands')
 
     ace.register('nessy:update', async () => {
+        // nessy:update must be run with deno task ace, not from the binary
+        if (isCompiledBinary()) {
+            console.log('')
+            console.log('⚠️  nessy:update cannot be run from the Nessy binary')
+            console.log('')
+            console.log('   This command needs access to the source stub files.')
+            console.log('   Please use: deno task ace nessy:update')
+            console.log('')
+            return
+        }
+
         console.log('')
         console.log('🔄 Updating Nessy stubs...')
         console.log('')
