@@ -51,7 +51,7 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             {/* Sidebar */}
             <aside
                 id='mobile-sidebar'
-                class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto min-h-screen min-w-[290px]'
+                class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto min-h-screen min-w-[290px] md:min-w-[290px]'
             >
                 <nav class='md:fixed p-6 space-y-2'>
                     {navLinks.map((link) => {
@@ -59,9 +59,9 @@ export const DocsSidebar = (props: { currentPath: string }) => {
                         return (
                             <a
                                 href={link.href}
-                                class={`block w-full px-4 py-2 border-2 ${
+                                class={`block font-pixel text-[10px] w-full px-4 py-2 border-2 ${
                                     isActive
-                                        ? 'border-primary bg-primary/20 text-primary font-pixel text-[10px]'
+                                        ? 'border-primary bg-primary/20 text-primary '
                                         : 'border-border bg-background hover:border-primary hover:text-primary text-muted-foreground'
                                 }`}
                                 style={isActive
