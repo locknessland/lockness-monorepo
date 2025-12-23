@@ -404,6 +404,19 @@ export function registerCoreCommands(ace: Ace) {
     }, 'Display all registered routes')
 
     ace.register('nessy:install', async () => {
+        // nessy:install must be run with deno task ace, not from the binary
+        if (isCompiledBinary()) {
+            console.log('')
+            console.log('⚠️  nessy:install cannot be run from the Nessy binary')
+            console.log('')
+            console.log('   This command needs access to the source stub files.')
+            console.log('   Please use: deno task ace nessy:install')
+            console.log('')
+            console.log('💡 Tip: Use ./nessy nessy:update to update stubs after installation')
+            console.log('')
+            return
+        }
+
         console.log('')
         console.log('🦕 Installing Nessy - Your Lockness CLI companion!')
         console.log('')
@@ -533,6 +546,65 @@ export function registerCoreCommands(ace: Ace) {
             console.error(`❌ Error installing Nessy: ${(error as Error).message}`)
         }
     }, 'Install Nessy CLI binary for faster commands')
+
+    ace.register('nessy:update', async () => {
+        console.log('')
+        console.log('🔄 Updating Nessy stubs...')
+        console.log('')
+
+        try {
+            const nessyDir = join(Deno.cwd(), '.nessy')
+            const nessyStubsDir = join(nessyDir, 'stubs')
+
+            // Check if .nessy directory exists
+            try {
+                await Deno.stat(nessyDir)
+            } catch {
+                console.error('❌ Nessy is not installed yet')
+                console.error('   Please run: deno task ace nessy:install')
+                return
+            }
+
+            // Remove existing stubs
+            try {
+                await Deno.remove(nessyStubsDir, { recursive: true })
+            } catch {
+                // Directory doesn't exist, that's fine
+            }
+
+            // Create .nessy/stubs directory
+            await Deno.mkdir(nessyStubsDir, { recursive: true })
+
+            // Copy all stubs from lockness/ace/stubs to .nessy/stubs
+            const sourceStubsPath = STUBS_PATH
+
+            async function copyDirectory(src: string, dest: string) {
+                await Deno.mkdir(dest, { recursive: true })
+
+                for await (const entry of Deno.readDir(src)) {
+                    const srcPath = join(src, entry.name)
+                    const destPath = join(dest, entry.name)
+
+                    if (entry.isDirectory) {
+                        await copyDirectory(srcPath, destPath)
+                    } else if (entry.isFile) {
+                        await Deno.copyFile(srcPath, destPath)
+                    }
+                }
+            }
+
+            await copyDirectory(sourceStubsPath, nessyStubsDir)
+
+            console.log('✅ Stubs updated successfully!')
+            console.log('')
+            console.log('   All stub templates have been synced to .nessy/stubs/')
+            console.log('   Your Nessy binary can now use the latest templates.')
+            console.log('')
+
+        } catch (error) {
+            console.error(`❌ Error updating stubs: ${(error as Error).message}`)
+        }
+    }, 'Update Nessy stub templates without recompiling')
 
     ace.register('make:job', async (args) => {
         const name = args[0]
