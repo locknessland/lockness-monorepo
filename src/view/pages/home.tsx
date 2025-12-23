@@ -206,7 +206,7 @@ export const HomeView = () => {
                                 {/* Title */}
                                 <h1 class='text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight animate-slide-up' style='animation-delay: 100ms; animation-fill-mode: backwards;'>
                                     Build fullstack apps<br/>
-                                    <span class='text-transparent bg-clip-text bg-gradient-to-r from-primary via-cyan-400 to-blue-500'>at monster speed.</span>
+                                    <span class='text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/60'>at monster speed.</span>
                                 </h1>
 
                                 {/* Description */}
