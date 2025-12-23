@@ -27,6 +27,7 @@
         "@model/": "./src/model/",
         "@router": "./src/router.ts",
         "@repository/": "./src/repository/",
+        "@view/": "./src/view/",
         "@kernel": "./src/kernel.ts",
         "@std/assert": "jsr:@std/assert@1",
         "@std/cli": "jsr:@std/cli@1",

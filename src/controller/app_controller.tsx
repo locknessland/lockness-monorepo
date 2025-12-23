@@ -1,5 +1,5 @@
 import { Context, Controller, Get } from 'lockness'
-import { HomeView } from '../view/pages/home.tsx'
+import { HomeView } from '@view/pages/home.tsx'
 
 @Controller('/')
 export class AppController {
