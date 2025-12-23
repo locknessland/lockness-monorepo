@@ -217,7 +217,7 @@ export const HomeView = () => {
 
                                 {/* CTA Buttons */}
                                 <div class='flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start pt-2 animate-slide-up' style='animation-delay: 300ms; animation-fill-mode: backwards;'>
-                                    <a href='#getting-started' class='pixel-btn bg-primary text-primary-foreground'>
+                                    <a href='/docs/installation' class='pixel-btn bg-primary text-primary-foreground'>
                                         GET STARTED
                                     </a>
                                     
@@ -529,7 +529,7 @@ export const HomeView = () => {
                             Start building your next project with Lockness JS today
                         </p>
                         <div class='flex flex-col sm:flex-row items-center justify-center gap-4'>
-                            <a href='https://jsr.io/@lockness/core' class='pixel-btn bg-primary text-primary-foreground'>
+                            <a href='/docs/installation' class='pixel-btn bg-primary text-primary-foreground'>
                                 GET STARTED NOW
                             </a>
                             <a href='https://github.com/locknessjs/lockness' class='pixel-btn bg-card text-foreground border-2 border-border'>
