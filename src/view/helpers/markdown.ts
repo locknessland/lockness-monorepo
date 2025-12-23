@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-interface MarkdownBlock {
+export interface MarkdownBlock {
     type: 'heading' | 'paragraph' | 'code' | 'list' | 'blockquote'
     content: string
     level?: number
@@ -68,7 +68,7 @@ export function parseMarkdown(content: string): MarkdownBlock[] {
                 items.push(lines[i].replace(/^[\-\*]\s/, ''))
                 i++
             }
-            blocks.push({ type: 'list', items })
+            blocks.push({ type: 'list', content: '', items })
             continue
         }
 

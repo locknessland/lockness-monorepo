@@ -7,7 +7,7 @@ export const NessyPage = () => {
 
     return (
         <DocsLayout title='Nessy CLI - Lockness' currentPath='/docs/nessy'>
-            <MarkdownRenderer content={content} />
+            <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )
 }

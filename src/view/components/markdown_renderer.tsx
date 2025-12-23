@@ -86,7 +86,7 @@ export const MarkdownRenderer = ({ blocks }: MarkdownRendererProps) => {
                                 key={index}
                                 class='list-disc list-inside space-y-2 mb-6 text-lg'
                             >
-                                {block.items?.map((item, i) => (
+                                {block.items?.map((item: string, i: number) => (
                                     <li
                                         key={i}
                                         dangerouslySetInnerHTML={{
