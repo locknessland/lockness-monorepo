@@ -100,15 +100,32 @@ export function parseMarkdown(content: string): MarkdownBlock[] {
  * Load markdown content from a file
  */
 export function loadMarkdownContent(filename: string): MarkdownBlock[] {
-    const contentPath = join(
-        Deno.cwd(),
-        'src',
-        'view',
-        'pages',
-        'docs',
-        'content',
-        `${filename}.md`,
-    )
+    // In production, the server runs from dist/ directory
+    // Check if we're in the dist folder by looking at the current working directory
+    const cwd = Deno.cwd()
+    const isInDist = cwd.endsWith('/dist') || cwd.endsWith('\\dist')
+
+    const contentPath = isInDist
+        ? join(
+            cwd,
+            '..',
+            'src',
+            'view',
+            'pages',
+            'docs',
+            'content',
+            `${filename}.md`,
+        )
+        : join(
+            cwd,
+            'src',
+            'view',
+            'pages',
+            'docs',
+            'content',
+            `${filename}.md`,
+        )
+
     const content = readFileSync(contentPath, 'utf-8')
     return parseMarkdown(content)
 }
