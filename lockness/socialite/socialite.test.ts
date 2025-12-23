@@ -19,7 +19,7 @@ import {
     registerSocialiteDriver,
     socialite,
     type SocialUser,
-} from '../socialite.ts'
+} from './socialite.ts'
 
 describe('socialite system', () => {
     const mockConfig: ProviderConfig = {

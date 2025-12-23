@@ -12,7 +12,7 @@ import {
     MemoryQueueDriver,
     QueueWorker,
     registerJob,
-} from '../core.ts'
+} from './queue.ts'
 
 interface TestPayload extends JobPayload {
     message: string

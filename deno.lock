@@ -1266,6 +1266,24 @@
           "jsr:@std/path@1",
           "jsr:@std/testing@1"
         ]
+      },
+      "lockness/mail": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ]
+      },
+      "lockness/queue": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ]
+      },
+      "lockness/socialite": {
+        "dependencies": [
+          "jsr:@std/assert@1",
+          "jsr:@std/expect@1",
+          "jsr:@std/testing@1",
+          "npm:hono@^4.11.1"
+        ]
       }
     }
   }

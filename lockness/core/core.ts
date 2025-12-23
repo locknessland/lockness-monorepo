@@ -7,8 +7,10 @@ export * from './helpers.ts'
 export * from './components.tsx'
 export * from './session.ts'
 export * from './auth.ts'
-export * from './mail.ts'
-export * from './queue.ts'
-export * from './socialite.ts'
 export { html } from 'hono/html'
 export { z } from 'zod'
+
+// Re-export from separate libs
+export * from '@lockness/mail'
+export * from '@lockness/queue'
+export * from '@lockness/socialite'
