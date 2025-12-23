@@ -11,6 +11,16 @@ case "$COMMAND" in
         deno task dev
         ;;
     
+    build)
+        echo "📦 Building production bundle..."
+        deno task build
+        ;;
+    
+    start)
+        echo "🚀 Starting production server..."
+        deno task start
+        ;;
+    
     test)
         shift
         if [ -n "$1" ]; then
@@ -94,6 +104,8 @@ case "$COMMAND" in
         echo ""
         echo "📦 Quick Commands:"
         echo "  dev                  Start development server"
+        echo "  build                Build production bundle"
+        echo "  start                Start production server"
         echo "  test [pattern]       Run tests (optionally filtered)"
         echo "  check                Type-check the project"
         echo "  fresh                Clean cache and temporary files"
@@ -128,6 +140,8 @@ case "$COMMAND" in
         echo ""
         echo "Examples:"
         echo "  ./nessy dev                        # Start dev server"
+        echo "  ./nessy build                      # Build for production"
+        echo "  ./nessy start                      # Start production server"
         echo "  ./nessy test auth                  # Run auth tests"
         echo "  ./nessy make:controller User       # Create controller"
         echo "  ./nessy db:migrate                 # Run migrations"

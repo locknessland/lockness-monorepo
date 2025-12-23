@@ -114,6 +114,8 @@ Then use `./nessy` instead of `deno task ace`:
 **Built-in DX commands:**
 
 - `dev` - Start development server
+- `build` - Build production bundle
+- `start` - Start production server
 - `test [pattern]` - Run tests (optionally filtered)
 - `check` - Type-check all files
 - `fresh` - Clean everything and reinstall

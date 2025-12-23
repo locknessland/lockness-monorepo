@@ -184,6 +184,8 @@ Displays comprehensive help including:
 | ------------------------ | ------------------------------- |
 | `./nessy <ace-command>`  | Run any ACE CLI command         |
 | `./nessy dev`            | Start development server        |
+| `./nessy build`          | Build production bundle         |
+| `./nessy start`          | Start production server         |
 | `./nessy test [pattern]` | Run tests (optionally filtered) |
 | `./nessy check`          | Type-check all files            |
 | `./nessy fresh`          | Clean everything and reinstall  |

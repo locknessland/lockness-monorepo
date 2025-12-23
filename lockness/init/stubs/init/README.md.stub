@@ -83,7 +83,7 @@ Then use `./nessy` instead of `deno task ace`:
 ./nessy status       # Project health
 ```
 
-**DX Commands:** `dev`, `test`, `check`, `fresh`, `clean`, `watch`, `status`, `install`, `--version`, `--help`
+**DX Commands:** `dev`, `build`, `start`, `test`, `check`, `fresh`, `clean`, `watch`, `status`, `install`, `--version`, `--help`
 
 ### Database Management (Drizzle ORM)
 

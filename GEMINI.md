@@ -330,6 +330,8 @@ Nessy includes several built-in commands to improve your workflow:
 | Command                  | Description                                 |
 | ------------------------ | ------------------------------------------- |
 | `./nessy dev`            | Start development server                    |
+| `./nessy build`          | Build production bundle                     |
+| `./nessy start`          | Start production server                     |
 | `./nessy test [pattern]` | Run tests (optionally filtered)             |
 | `./nessy check`          | Type-check all TypeScript files             |
 | `./nessy fresh`          | Clean everything and reinstall dependencies |
