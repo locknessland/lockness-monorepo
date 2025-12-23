@@ -3,7 +3,11 @@
  * 
  * Multi-driver file storage system supporting Local, S3, and Cloudflare R2.
  * Provides unified API for file operations with streaming support.
+ * 
+ * Note: Some methods are async for interface consistency even if they don't await
  */
+
+// deno-lint-ignore-file require-await
 
 import { join } from '@std/path'
 import { ensureDir } from '@std/fs'

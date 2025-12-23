@@ -389,7 +389,7 @@ Deno.test('Validator - Sanitizers', async (t) => {
         )
     })
 
-    await t.step('stripTags', async () => {
+    await t.step('stripTags', () => {
         const v = validator()
         v.sanitize('text', [stripTags()])
 

@@ -3,7 +3,11 @@
  *
  * High-performance caching with multiple driver support.
  * Inspired by Laravel's cache system.
+ * 
+ * Note: Some methods are async for interface consistency even if they don't await
  */
+
+// deno-lint-ignore-file require-await
 
 // =============================================================================
 // Types & Interfaces

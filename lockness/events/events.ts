@@ -3,7 +3,11 @@
  * 
  * Provides a powerful event system with TypeScript generics, async support,
  * listener priorities, wildcards, and more.
+ * 
+ * Note: Type casts to 'any' are necessary for generic type compatibility across helper functions
  */
+
+// deno-lint-ignore-file no-explicit-any
 
 // =============================================================================
 // Types & Interfaces
@@ -35,7 +39,6 @@ interface ListenerEntry<T = unknown> {
  * Event map type for type-safe events
  * Can be a Record or an interface with string index signature
  */
-// deno-lint-ignore no-explicit-any
 export type EventMap = Record<string, any>
 
 /**
@@ -277,8 +280,6 @@ export class EventEmitter<Events extends EventMap = EventMap> {
 
 // =============================================================================
 // Helper Functions
-// Note: Type casts to 'any' are necessary for generic type compatibility
-// deno-lint-ignore-file no-explicit-any
 // =============================================================================
 
 /**
