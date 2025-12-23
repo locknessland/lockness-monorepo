@@ -21,7 +21,7 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             {/* Mobile hamburger button (visible only on mobile) */}
             <button
                 id='mobile-menu-btn'
-                class='md:hidden fixed bottom-6 right-6 z-[60] w-14 h-14 bg-primary border-4 border-border flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-all'
+                class='md:hidden fixed bottom-6 right-6 z-[60] w-14 h-14 bg-primary border-4 border-border flex items-center justify-center cursor-pointer hover:bg-primary/90'
                 style='box-shadow: 4px 4px 0 0 rgba(0,0,0,0.5);'
                 aria-label='Toggle menu'
             >
@@ -44,14 +44,14 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             {/* Backdrop (visible only when menu is open on mobile) */}
             <div
                 id='mobile-menu-backdrop'
-                class='md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[40] hidden transition-opacity duration-500'
+                class='md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[40] hidden'
             >
             </div>
 
             {/* Sidebar */}
             <aside
                 id='mobile-sidebar'
-                class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto md:min-h-screen transition-all duration-500 ease-in-out'
+                class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto md:min-h-screen'
             >
                 <nav class='md:fixed p-6 space-y-2'>
                     {navLinks.map((link) => {
@@ -63,7 +63,7 @@ export const DocsSidebar = (props: { currentPath: string }) => {
                                     isActive
                                         ? 'border-primary bg-primary/20 text-primary font-pixel text-[10px]'
                                         : 'border-border bg-background hover:border-primary hover:text-primary text-muted-foreground'
-                                } transition-all duration-200`}
+                                }`}
                                 style={isActive
                                     ? 'box-shadow: 2px 2px 0 0 rgba(var(--primary-rgb), 0.3);'
                                     : ''}
