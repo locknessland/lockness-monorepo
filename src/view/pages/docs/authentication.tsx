@@ -1,5 +1,5 @@
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { CommandBlock } from '@view/components/code_block.tsx'
+import { CommandBlock, CodeBlock } from '@view/components/code_block.tsx'
 
 export const AuthenticationPage = () => {
     return (
@@ -26,19 +26,22 @@ export const AuthenticationPage = () => {
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Configuration</h2>
                     <p class="mb-4">Configure authentication in <code>src/kernel.ts</code>:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { configureAuth, container } from 'lockness'
+                    <CodeBlock lang='typescript'>
+{`import { configureAuth, container } from 'lockness'
 import { UserProvider } from '@provider/user_provider.ts'
 
 configureAuth({
     userProvider: container.get(UserProvider),
     redirectTo: '/auth/login',
-})`}</code></pre>
+})`}
+                    </CodeBlock>
                 </section>
 
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Guards & Decorators</h2>
                     <p class="mb-4">Protect routes with authentication guards:</p>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { Controller, Get, Auth, Guest, auth } from 'lockness'
+                    <CodeBlock lang='typescript'>
+{`import { Controller, Get, Auth, Guest, auth } from 'lockness'
 
 @Controller('/dashboard')
 @Auth()  // Require authentication for entire controller
@@ -57,7 +60,8 @@ export class AuthController {
     showLogin(c: Context) {
         return c.html(<LoginPage />)
     }
-}`}</code></pre>
+}`}
+                    </CodeBlock>
                 </section>
 
                 <section class="mb-12">
@@ -65,29 +69,37 @@ export class AuthController {
                     <div class="space-y-6">
                         <div>
                             <h3 class="text-2xl font-bold mb-2">Login with credentials</h3>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>{`const success = await auth(c).attempt(email, password)
+                            <CodeBlock lang='typescript'>
+{`const success = await auth(c).attempt(email, password)
 if (success) {
     return c.redirect('/dashboard')
-}`}</code></pre>
+}`}
+                            </CodeBlock>
                         </div>
                         <div>
                             <h3 class="text-2xl font-bold mb-2">Get authenticated user</h3>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>{`const user = await auth(c).user()
-const userId = await auth(c).id()`}</code></pre>
+                            <CodeBlock lang='typescript'>
+{`const user = await auth(c).user()
+const userId = await auth(c).id()`}
+                            </CodeBlock>
                         </div>
                         <div>
                             <h3 class="text-2xl font-bold mb-2">Check authentication status</h3>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>{`if (await auth(c).check()) {
+                            <CodeBlock lang='typescript'>
+{`if (await auth(c).check()) {
     // User is authenticated
 }
 if (await auth(c).guest()) {
     // User is NOT authenticated
-}`}</code></pre>
+}`}
+                            </CodeBlock>
                         </div>
                         <div>
                             <h3 class="text-2xl font-bold mb-2">Logout</h3>
-                            <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto"><code>{`await auth(c).logout()
-return c.redirect('/auth/login')`}</code></pre>
+                            <CodeBlock lang='typescript'>
+{`await auth(c).logout()
+return c.redirect('/auth/login')`}
+                            </CodeBlock>
                         </div>
                     </div>
                 </section>
@@ -100,7 +112,8 @@ return c.redirect('/auth/login')`}</code></pre>
                     </CommandBlock>
                     
                     <h3 class="text-2xl font-bold mb-4 mt-6">Configure providers</h3>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { configureSocialite } from 'lockness'
+                    <CodeBlock lang='typescript'>
+{`import { configureSocialite } from 'lockness'
 
 configureSocialite({
     google: {
@@ -113,10 +126,12 @@ configureSocialite({
         clientSecret: Deno.env.get('GITHUB_CLIENT_SECRET')!,
         redirectUri: Deno.env.get('APP_URL') + '/auth/github/callback',
     },
-})`}</code></pre>
+})`}
+                    </CodeBlock>
 
                     <h3 class="text-2xl font-bold mb-4 mt-6">Use in controllers</h3>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { socialite, generateState, session } from 'lockness'
+                    <CodeBlock lang='typescript'>
+{`import { socialite, generateState, session } from 'lockness'
 
 @Get('/auth/google')
 google(c: Context) {
@@ -133,18 +148,21 @@ async googleCallback(c: Context) {
     // Find or create user, then log them in
     session(c).set('user_id', user.id)
     return c.redirect('/dashboard')
-}`}</code></pre>
+}`}
+                    </CodeBlock>
                 </section>
 
                 <section class="mb-12">
                     <h2 class="text-3xl font-bold mb-4">Password Hashing</h2>
-                    <pre class="bg-gray-900 text-white p-4 rounded-lg overflow-x-auto mb-6"><code>{`import { hashPassword, verifyPassword } from 'lockness'
+                    <CodeBlock lang='typescript'>
+{`import { hashPassword, verifyPassword } from 'lockness'
 
 // Hash a password (for registration)
 const hash = await hashPassword('secret123')
 
 // Verify password (for login)
-const valid = await verifyPassword('secret123', hash)`}</code></pre>
+const valid = await verifyPassword('secret123', hash)`}
+                    </CodeBlock>
                 </section>
 
                 <div class="flex justify-between mt-12 pt-8 border-t">
