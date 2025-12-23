@@ -5,17 +5,15 @@
 .env.development.local
 .env.test.local 
 
-# Build & compile output 
-_build
-_compiled
-_output
-
 # Node modules
 node_modules
-.vite
 
 # Vite output
+.vite
 dist
+
+# Compile output 
+.compiled
 
 # Test coverage
 coverage

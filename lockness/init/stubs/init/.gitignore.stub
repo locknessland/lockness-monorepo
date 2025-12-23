@@ -1,13 +1,19 @@
 # ENV files
 .env
 .env.local
-.env.local.production
-.env.local.development
-.env.local.test 
-
-# Build & compile output 
-dist
-.vite
+.env.production.local
+.env.development.local
+.env.test.local 
 
 # Node modules
 node_modules
+
+# Vite output
+.vite
+dist
+
+# Compile output 
+.compiled
+
+# Test coverage
+coverage

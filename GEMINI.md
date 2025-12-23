@@ -82,6 +82,125 @@ And Hono must be mapped in the imports:
 }
 ```
 
+### Vite Integration
+
+Lockness uses **Vite** for both development and production builds, providing Hot
+Module Replacement (HMR) and optimized SSR bundling.
+
+#### Development Mode
+
+In development (`deno task dev`), Vite serves files directly with:
+
+- **Hot Module Replacement (HMR)**: Changes reflect instantly without full
+  reload
+- **On-demand compilation**: Only compiles requested modules
+- **Source maps**: Full debugging support
+- **Dev server**: Runs on port 5173 (configurable)
+
+The development workflow:
+
+```typescript
+// ViteScripts component in dev mode
+<ViteScripts entry='src/view/app.ts' />
+// Outputs: <script src="/src/view/app.ts" type="module"></script>
+```
+
+Vite dev server transforms TypeScript/JSX on-the-fly and injects HMR runtime.
+
+#### Production Build
+
+Production builds (`deno task build`) create two separate outputs:
+
+**1. Client Build** (`vite build`):
+
+- Input: `src/view/app.ts`
+- Output: `dist/static/`
+  - `assets/app-[hash].js` - Minified client bundle
+  - `assets/app-[hash].css` - Extracted and minified CSS
+  - `.vite/manifest.json` - Asset mapping manifest
+
+**2. SSR Build** (`vite build --ssr`):
+
+- Input: `main.ts`
+- Output: `dist/server.js` - Complete server bundle with all controllers,
+  services, and views
+
+#### Asset Resolution with Manifest
+
+The manifest (`dist/static/.vite/manifest.json`) maps source files to hashed
+output files:
+
+```json
+{
+    "src/view/app.ts": {
+        "file": "assets/app-BCOR88Yt.js",
+        "css": ["assets/app-CahpJAUs.css"],
+        "isEntry": true
+    }
+}
+```
+
+At runtime, the SSR server reads this manifest to generate correct asset paths:
+
+```typescript
+// ViteScripts component in production
+<ViteScripts entry='src/view/app.ts' />
+// Outputs:
+// <link rel="stylesheet" href="/assets/app-CahpJAUs.css">
+// <script src="/assets/app-BCOR88Yt.js" type="module"></script>
+```
+
+The `ViteScripts` component automatically:
+
+1. Detects environment (dev vs production) via `VITE` env var
+2. In production, reads the manifest from `dist/static/.vite/manifest.json`
+3. Injects CSS dependencies before the JS bundle
+4. Generates proper cache-busting URLs with content hashes
+
+#### Configuration
+
+Vite is configured in `vite.config.ts` with:
+
+- **Path aliases**: `@controller`, `@service`, `@model`, `@view`, etc.
+- **SSR externals**: Node modules and Deno imports are not bundled
+- **Dual builds**: Client and SSR builds share config via `isSsrBuild` flag
+- **Manifest**: Generated only for client build (`manifest: !isSsrBuild`)
+
+Example from `vite.config.ts`:
+
+```typescript
+export default defineConfig(({ isSsrBuild }) => ({
+    resolve: {
+        alias: {
+            '@view': resolve(Deno.cwd(), './src/view'),
+            '@controller': resolve(Deno.cwd(), './src/controller'),
+            // ...
+        },
+    },
+    build: {
+        outDir: isSsrBuild ? 'dist' : 'dist/static',
+        manifest: !isSsrBuild, // Only for client
+    },
+}))
+```
+
+#### Static Assets
+
+Static files in the `static/` directory (favicons, images, etc.) are served
+directly:
+
+- **Dev mode**: Vite middleware serves from `/static/`
+- **Production**: Hono serves from `dist/static/` via `serveStatic()` middleware
+
+Path resolution helper:
+
+```typescript
+import { asset } from 'lockness'
+
+// Resolves to /assets/logo-[hash].png in production
+const logoUrl = asset('src/assets/logo.png')
+```
+
 ### Drizzle ORM Integration
 
 Lockness uses **Drizzle ORM** for database operations, providing excellent
