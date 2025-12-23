@@ -1242,6 +1242,11 @@
           "jsr:@std/path@1"
         ]
       },
+      "lockness/cache": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ]
+      },
       "lockness/core": {
         "dependencies": [
           "jsr:@std/assert@1",

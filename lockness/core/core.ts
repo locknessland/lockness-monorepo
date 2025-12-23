@@ -11,6 +11,7 @@ export { html } from 'hono/html'
 export { z } from 'zod'
 
 // Re-export from separate libs
+export * from '@lockness/cache'
 export * from '@lockness/mail'
 export * from '@lockness/queue'
 export * from '@lockness/socialite'

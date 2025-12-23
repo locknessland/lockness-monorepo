@@ -1,6 +1,7 @@
 {
     "workspace": [
         "./lockness/core",
+        "./lockness/cache",
         "./lockness/mail",
         "./lockness/queue",
         "./lockness/socialite",
@@ -38,6 +39,7 @@
         "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.18",
         "lockness": "./lockness/core/core.ts",
         "@lockness/core": "./lockness/core/core.ts",
+        "@lockness/cache": "./lockness/cache/cache.ts",
         "@lockness/mail": "./lockness/mail/mail.ts",
         "@lockness/queue": "./lockness/queue/queue.ts",
         "@lockness/socialite": "./lockness/socialite/socialite.ts",

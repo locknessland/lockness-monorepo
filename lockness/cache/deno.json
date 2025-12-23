@@ -1,0 +1,11 @@
+{
+    "name": "@lockness/cache",
+    "version": "1.0.0",
+    "exports": "./cache.ts",
+    "tasks": {
+        "test": "deno test --allow-all"
+    },
+    "imports": {
+        "@std/assert": "jsr:@std/assert@1"
+    }
+}
