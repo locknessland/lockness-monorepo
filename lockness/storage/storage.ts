@@ -403,8 +403,8 @@ export class S3StorageDriver implements StorageDriver {
     /**
      * Destroy the S3 client and free resources
      */
-    destroy(): void {
-        this.client.destroy()
+    async destroy(): Promise<void> {
+        await this.client.destroy()
     }
 }
 
