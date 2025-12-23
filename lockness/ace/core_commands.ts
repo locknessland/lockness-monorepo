@@ -6,8 +6,9 @@ const STUBS_PATH = join(currentDir, 'stubs')
 
 // Helper function to detect if running in compiled binary
 function isCompiledBinary(): boolean {
-    return Deno.mainModule.startsWith('file:///') &&
-        !Deno.mainModule.includes('/lockness.land/')
+    // When compiled, Deno.mainModule points to a temp directory like:
+    // file:///var/folders/.../deno-compile-nessy/...
+    return Deno.mainModule.includes('/deno-compile-')
 }
 
 // Helper function to show compiled binary warning
