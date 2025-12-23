@@ -26,8 +26,8 @@ export const container: Container = new Container()
 /**
  * Decorator to mark a class as a Service (legacy TypeScript decorators)
  */
-export function Service(): (target: unknown) => unknown {
-    return function (target: unknown): unknown {
+export function Service(): <T extends new (...args: any[]) => any>(target: T) => T {
+    return function <T extends new (...args: any[]) => any>(target: T): T {
         return target
     }
 }
