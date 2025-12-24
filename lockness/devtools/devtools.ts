@@ -39,7 +39,7 @@ const DEFAULT_CONFIG: DevtoolsConfig = {
  * Enable Lockness Devtools on your application
  * This adds the devtools middleware and registers the dashboard route
  *
- * @param app - Your Hono application instance
+ * @param app - Your Hono or Lockness App instance
  * @param config - Optional configuration
  *
  * @example
@@ -47,14 +47,13 @@ const DEFAULT_CONFIG: DevtoolsConfig = {
  * import { enableDevtools } from '@lockness/devtools'
  *
  * if (Deno.env.get('APP_ENV') === 'development') {
- *     enableDevtools(app, {
- *         basePath: '/__devtools',
- *         maxLogs: 2000,
- *     })
+ *     enableDevtools(app.getHono())  // Before app.init()
+ *     await app.init({ ... })
+ *     collectAppRoutes(app)  // After app.init()
  * }
  * ```
  */
-export function enableDevtools(app: Hono, config: DevtoolsConfig = {}) {
+export function enableDevtools(app: Hono | { getHono: () => Hono }, config: DevtoolsConfig = {}) {
     const cfg = { ...DEFAULT_CONFIG, ...config }
 
     if (!cfg.enabled) {
@@ -63,26 +62,52 @@ export function enableDevtools(app: Hono, config: DevtoolsConfig = {}) {
 
     console.log(`[Devtools] Registering routes on basePath: ${cfg.basePath}`)
 
+    // Extract Hono instance
+    const honoApp = 'getHono' in app ? app.getHono() : app
+
     // Add middleware to collect data and inject toolbar
-    app.use('*', devtoolsMiddleware(cfg.showDebugBar))
+    honoApp.use('*', devtoolsMiddleware(cfg.showDebugBar))
 
     // Dashboard route
-    app.get(cfg.basePath!, (c) => {
+    honoApp.get(cfg.basePath!, (c) => {
         console.log(`[Devtools] Dashboard route hit!`)
         return renderDashboard(c)
     })
 
     // API endpoints
-    app.get(`${cfg.basePath}/api/data`, (c) => {
+    honoApp.get(`${cfg.basePath}/api/data`, (c) => {
         return c.json(collector.getAllData())
     })
 
-    app.post(`${cfg.basePath}/clear`, (c) => {
+    honoApp.post(`${cfg.basePath}/clear`, (c) => {
         collector.clear()
         return c.json({ success: true })
     })
 
     console.log(`🔧 Devtools enabled at: ${cfg.basePath}`)
+}
+
+/**
+ * Collect routes from your Lockness App instance
+ * Call this AFTER app.init() to populate the Routes panel
+ *
+ * @param app - Your Lockness App instance
+ *
+ * @example
+ * ```typescript
+ * import { enableDevtools, collectAppRoutes } from '@lockness/devtools'
+ *
+ * enableDevtools(app.getHono())  // Before app.init()
+ * await app.init({ ... })
+ * collectAppRoutes(app)  // After app.init()
+ * ```
+ */
+export function collectAppRoutes(app: { getRoutes: () => RouteInfo[] }) {
+    const routes = app.getRoutes()
+    if (routes.length > 0) {
+        collector.setRoutes(routes)
+        console.log(`[Devtools] Collected ${routes.length} routes`)
+    }
 }
 
 /**
