@@ -1,7 +1,6 @@
 import type { Ace } from '../ace/ace.ts'
 import { generateOpenAPISpec } from './generator.ts'
-import type { ControllerClass } from './types.ts'
-import { container } from '@lockness/core'
+import type { ControllerClass } from '@lockness/core'
 import { join } from '@std/path'
 
 export function registerOpenAPICommands(ace: Ace) {

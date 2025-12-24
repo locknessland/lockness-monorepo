@@ -1,5 +1,7 @@
 import { Stub } from './stubs.ts'
 
+export { registerCoreCommands } from './core_commands.ts'
+
 /**
  * Command context passed to command handlers
  */
@@ -153,8 +155,7 @@ export class Ace {
                         }
                     } catch (e) {
                         console.warn(
-                            `⚠️ Failed to load command ${entry.name}: ${
-                                (e as Error).message
+                            `⚠️ Failed to load command ${entry.name}: ${(e as Error).message
                             }`,
                         )
                     }

@@ -1,8 +1,8 @@
 import { Ace } from '@lockness/ace'
-import { registerCoreCommands } from './lockness/ace/core_commands.ts'
-import { registerDrizzleCommands } from './lockness/drizzle/ace_commands.ts'
-import { registerInitCommand } from './lockness/init/init.ts'
-import { registerOpenAPICommands } from './lockness/openapi/ace_commands.ts'
+import { registerCoreCommands } from '@lockness/ace'
+import { registerDrizzleCommands } from '@lockness/drizzle'
+import { registerInitCommand } from '@lockness/init'
+import { registerOpenAPICommands } from '@lockness/openapi'
 
 const ace = new Ace()
 

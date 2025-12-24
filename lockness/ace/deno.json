@@ -2,7 +2,7 @@
     "name": "@lockness/ace",
     "version": "0.0.1",
     "exports": {
-        ".": "./cli.ts",
+        ".": "./ace.ts",
         "./commands": "./core_commands.ts"
     },
     "tasks": {

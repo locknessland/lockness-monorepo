@@ -2,6 +2,8 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { Service } from '@lockness/core'
 
+export { registerDrizzleCommands } from './ace_commands.ts'
+
 @Service()
 export class Database {
     public db!: PostgresJsDatabase<Record<string, unknown>>
