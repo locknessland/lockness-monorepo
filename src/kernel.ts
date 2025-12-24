@@ -36,12 +36,9 @@ export const bootstrap = async () => {
     // Create Lockness application
     const app = new App()
 
-    // Register controllers explicitly
-    const controllers = [AppController, AuthController, DocsController]
-    console.log(`🔌 Loaded ${controllers.length} controllers`)
-
+    // Auto-discover and register controllers
     await app.init({
-        controllers,
+        controllersDir: './src/controller',
         staticDir: 'public',
 
         // Global middlewares (applied to all routes)

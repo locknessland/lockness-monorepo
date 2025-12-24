@@ -8,9 +8,6 @@ import { Database } from '@lockness/drizzle'
 // import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 // import { AuthMiddleware } from '@middleware/auth_middleware.ts'
 
-// Import controllers explicitly (add your controllers here)
-// import { AppController } from '@controller/app_controller.tsx'
-
 export const bootstrap = async () => {
     // Initialize Database (Optional)
     const db = container.get<Database>(Database)
@@ -29,15 +26,9 @@ export const bootstrap = async () => {
     // Create Lockness application
     const app = new App()
 
-    // Register controllers explicitly
-    // Add your controllers to this array as you create them
-    const controllers = [
-        // AppController,
-    ]
-    console.log(`🔌 Loaded ${controllers.length} controllers`)
-
+    // Auto-discover and register controllers from ./src/controller
     await app.init({
-        controllers,
+        controllersDir: './src/controller',
         staticDir: 'public',
 
         // Global middlewares (applied to all routes)
