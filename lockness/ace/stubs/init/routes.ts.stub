@@ -1,0 +1,20 @@
+/**
+ * Controllers Registry
+ * 
+ * Import all controllers here for production/compile mode.
+ * In development mode (APP_ENV=development), controllers are auto-discovered.
+ * 
+ * This file will be auto-generated when you run:
+ * - deno task routes:generate
+ * - deno task ace make:controller
+ * - During development (routes watcher)
+ */
+
+// Example:
+// import { AppController } from '@controller/app_controller.tsx'
+// import { UserController } from '@controller/user_controller.tsx'
+
+export const controllers = [
+    // AppController,
+    // UserController,
+]

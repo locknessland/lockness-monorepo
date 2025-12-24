@@ -153,8 +153,7 @@ export class Ace {
                         }
                     } catch (e) {
                         console.warn(
-                            `⚠️ Failed to load command ${entry.name}: ${
-                                (e as Error).message
+                            `⚠️ Failed to load command ${entry.name}: ${(e as Error).message
                             }`,
                         )
                     }
@@ -185,3 +184,4 @@ export class Ace {
 
 export const ace: Ace = new Ace()
 export { Stub }
+export * from './routes_generator.ts'

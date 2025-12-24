@@ -1,5 +1,6 @@
 import { type Ace, Stub } from '../cli.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
+import { generateRoutesFile } from '../routes_generator.ts'
 
 const currentDir = dirname(fromFileUrl(import.meta.url))
 const STUBS_PATH = join(currentDir, '..', 'stubs')
@@ -31,6 +32,16 @@ export function registerMakeCommands(ace: Ace) {
             await Deno.mkdir(dirPath, { recursive: true })
             await Deno.writeTextFile(filePath, content)
             console.log(`✅ Controller created at ${filePath}`)
+
+            // Auto-regenerate routes.ts for production builds
+            try {
+                await generateRoutesFile('./src/controller', './src/routes.ts')
+                console.log('✅ Routes registry updated')
+            } catch {
+                console.log(
+                    'ℹ️  Run "deno task routes:generate" to update routes registry',
+                )
+            }
         } catch (error) {
             console.error(
                 `❌ Failed to create controller: ${(error as Error).message}`,

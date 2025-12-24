@@ -1,0 +1,22 @@
+/**
+ * Auto-generate src/routes.ts by scanning src/controller/ directory
+ * 
+ * Usage: deno run -A scripts/generate_routes.ts
+ */
+
+import { generateRoutesFile } from '@lockness/ace'
+
+const CONTROLLER_DIR = './src/controller'
+const OUTPUT_FILE = './src/routes.ts'
+
+async function main() {
+    const result = await generateRoutesFile(CONTROLLER_DIR, OUTPUT_FILE)
+
+    console.log(`✅ Generated ${OUTPUT_FILE}`)
+    console.log(`   Found ${result.count} controller(s):`)
+    result.controllers.forEach((name) => console.log(`   - ${name}`))
+}
+
+if (import.meta.main) {
+    await main()
+}
