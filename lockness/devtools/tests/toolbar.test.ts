@@ -2,7 +2,7 @@
  * Tests for toolbar HTML generation
  */
 
-import { assertEquals, assertStringIncludes } from '@std/assert'
+import { assertStringIncludes } from '@std/assert'
 import { generateToolbarHtml } from '../toolbar_html.ts'
 import { collector } from '../collector.ts'
 
@@ -52,7 +52,11 @@ Deno.test('generateToolbarHtml - shows request duration', () => {
 Deno.test('generateToolbarHtml - shows error badge', () => {
     collector.clear()
 
-    collector.addLog({ timestamp: Date.now(), level: 'error', message: 'Error!' })
+    collector.addLog({
+        timestamp: Date.now(),
+        level: 'error',
+        message: 'Error!',
+    })
 
     const html = generateToolbarHtml()
 

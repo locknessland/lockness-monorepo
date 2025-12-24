@@ -2,8 +2,8 @@ import {
     App,
     configureSession,
     container,
-    sessionMiddleware,
     type Context,
+    sessionMiddleware,
 } from 'lockness'
 import { Database } from '@lockness/drizzle'
 import {
@@ -27,7 +27,7 @@ const errorHandler = (error: Error, c: Context) => {
     console.error('Error:', error)
 
     // Check for status property (from custom errors like UnauthorizedAccessError)
-    const status = (error as any).status || 500
+    const status = (error as unknown as { status?: number }).status || 500
 
     // Return appropriate error page based on status
     switch (status) {
@@ -37,10 +37,14 @@ const errorHandler = (error: Error, c: Context) => {
             return c.html(<UnauthorizedPage />, 401)
         case 403:
             return c.html(<ForbiddenPage />, 403)
-        default:
+        default: {
             // Show error details only in development
             const showDetails = Deno.env.get('APP_ENV') === 'development'
-            return c.html(<ServerErrorPage error={ error } showDetails = { showDetails } />, 500)
+            return c.html(
+                <ServerErrorPage error={error} showDetails={showDetails} />,
+                500,
+            )
+        }
     }
 }
 

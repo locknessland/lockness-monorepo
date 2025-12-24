@@ -2,7 +2,7 @@
 /** @jsxImportSource hono/jsx */
 
 interface BadgeProps {
-    children: any
+    children: unknown
     color?: 'gray' | 'red' | 'yellow' | 'green' | 'blue' | 'purple'
 }
 
@@ -17,7 +17,11 @@ export function Badge({ children, color = 'gray' }: BadgeProps) {
     }
 
     return (
-        <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[color]}`}>
+        <span
+            class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                colors[color]
+            }`}
+        >
             {children}
         </span>
     )

@@ -1,6 +1,6 @@
 /**
  * Auto-generate src/routes.ts by scanning src/controller/ directory
- * 
+ *
  * Usage: deno run -A scripts/generate_routes.ts
  */
 

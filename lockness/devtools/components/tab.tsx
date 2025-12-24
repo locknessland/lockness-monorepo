@@ -19,7 +19,7 @@ export function Tab({ name, active, count }: TabProps) {
         >
             {name}
             {count !== undefined && (
-                <span class="ml-2 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+                <span class='ml-2 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full'>
                     {count}
                 </span>
             )}

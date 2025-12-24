@@ -47,7 +47,10 @@ export interface AppConfig {
 /**
  * Error handler function type
  */
-export type ErrorHandler = (error: Error, c: Context) => Response | Promise<Response>
+export type ErrorHandler = (
+    error: Error,
+    c: Context,
+) => Response | Promise<Response>
 
 export interface IMiddleware {
     handle: MiddlewareHandler

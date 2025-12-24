@@ -3,10 +3,9 @@
  * Compiled via PostCSS to static/css/app.css
  */
 
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Your custom styles here */
-
 
 @custom-variant dark (&:is(.dark *));
 
@@ -621,4 +620,3 @@
 .glow-primary {
     box-shadow: 0 0 20px color-mix(in oklch, var(--primary) 30%, transparent);
 }
-

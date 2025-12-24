@@ -22,10 +22,17 @@ const badge = (text: string, color: string = 'gray') => {
         yellow: 'bg-yellow-500 text-white',
         red: 'bg-red-500 text-white',
     }
-    return `<span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${colors[color] || colors.gray}">${text}</span>`
+    return `<span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+        colors[color] || colors.gray
+    }">${text}</span>`
 }
 
-const card = (title: string, value: number, subtitle: string, color: string = 'blue') => `
+const card = (
+    title: string,
+    value: number,
+    subtitle: string,
+    color: string = 'blue',
+) => `
     <div class="bg-white rounded-lg shadow p-6">
         <div class="flex items-center justify-between mb-2">
             <h3 class="text-sm font-medium text-gray-600">${title}</h3>
@@ -36,18 +43,20 @@ const card = (title: string, value: number, subtitle: string, color: string = 'b
 `
 
 const tab = (name: string, active: boolean, count?: number) => {
-    const countBadge = count !== undefined 
-        ? `<span class="ml-2 px-2 py-1 text-xs rounded-full ${active ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'}">${count}</span>`
+    const countBadge = count !== undefined
+        ? `<span class="ml-2 px-2 py-1 text-xs rounded-full ${
+            active ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
+        }">${count}</span>`
         : ''
-    
+
     return `
         <button
             onclick="showPanel('${name.toLowerCase()}')"
             class="px-4 py-3 text-sm font-medium border-b-2 transition ${
-                active
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
-            }"
+        active
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+    }"
         >
             ${name}${countBadge}
         </button>
@@ -116,12 +125,20 @@ export function renderDashboard(c: Context) {
             <nav class="flex space-x-2 overflow-x-auto">
                 ${tab('Overview', activePanel === 'overview')}
                 ${tab('Routes', activePanel === 'routes', data.routes.length)}
-                ${tab('Requests', activePanel === 'requests', data.requests.length)}
+                ${
+        tab('Requests', activePanel === 'requests', data.requests.length)
+    }
                 ${tab('Logs', activePanel === 'logs', data.logs.length)}
                 ${tab('SQL', activePanel === 'sql', data.queries.length)}
                 ${tab('Queue', activePanel === 'queue', data.queue.length)}
                 ${tab('Mail', activePanel === 'mail', data.mails.length)}
-                ${tab('Performance', activePanel === 'performance', data.performance.length)}
+                ${
+        tab(
+            'Performance',
+            activePanel === 'performance',
+            data.performance.length,
+        )
+    }
             </nav>
         </div>
     </div>
@@ -129,9 +146,13 @@ export function renderDashboard(c: Context) {
     <!-- Content -->
     <main class="max-w-7xl mx-auto px-6 py-6">
         <!-- Overview Panel -->
-        <div data-panel="overview" class="${activePanel !== 'overview' ? 'hidden' : ''}">
+        <div data-panel="overview" class="${
+        activePanel !== 'overview' ? 'hidden' : ''
+    }">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                ${card('Total Routes', data.routes.length, 'Registered', 'blue')}
+                ${
+        card('Total Routes', data.routes.length, 'Registered', 'blue')
+    }
                 ${card('Requests', data.requests.length, 'Captured', 'green')}
                 ${card('SQL Queries', data.queries.length, 'Logged', 'yellow')}
                 ${card('Log Entries', data.logs.length, 'Stored', 'red')}
@@ -142,15 +163,21 @@ export function renderDashboard(c: Context) {
                 <div class="bg-white rounded-lg shadow p-6">
                     <h2 class="text-lg font-semibold mb-4">Recent Requests</h2>
                     <div class="space-y-2">
-                        ${data.requests.slice(0, 5).map((req: any) => `
+                        ${
+        data.requests.slice(0, 5).map((req: RequestInfo) => `
                             <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                 <div class="flex items-center gap-3">
-                                    ${badge(req.method, req.method === 'GET' ? 'blue' : 'green')}
+                                    ${
+            badge(req.method, req.method === 'GET' ? 'blue' : 'green')
+        }
                                     <span class="text-sm font-medium">${req.path}</span>
                                 </div>
-                                <span class="text-xs text-gray-500">${req.duration?.toFixed(2) || '-'}ms</span>
+                                <span class="text-xs text-gray-500">${
+            req.duration?.toFixed(2) || '-'
+        }ms</span>
                             </div>
-                        `).join('')}
+                        `).join('')
+    }
                     </div>
                 </div>
 
@@ -158,7 +185,8 @@ export function renderDashboard(c: Context) {
                 <div class="bg-white rounded-lg shadow p-6">
                     <h2 class="text-lg font-semibold mb-4">Recent Logs</h2>
                     <div class="space-y-2">
-                        ${data.logs.slice(0, 5).map((log: any) => {
+                        ${
+        data.logs.slice(0, 5).map((log: LogEntry) => {
             const colors: Record<string, string> = {
                 info: 'blue',
                 warn: 'yellow',
@@ -167,18 +195,23 @@ export function renderDashboard(c: Context) {
             }
             return `
                             <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                                ${badge(log.level.toUpperCase(), colors[log.level])}
+                                ${
+                badge(log.level.toUpperCase(), colors[log.level])
+            }
                                 <p class="text-sm text-gray-700 flex-1">${log.message}</p>
                             </div>
                         `
-        }).join('')}
+        }).join('')
+    }
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Routes Panel -->
-        <div data-panel="routes" class="${activePanel !== 'routes' ? 'hidden' : ''}">
+        <div data-panel="routes" class="${
+        activePanel !== 'routes' ? 'hidden' : ''
+    }">
             <div class="bg-white rounded-lg shadow overflow-hidden">
                 <table class="w-full">
                     <thead class="bg-gray-50 border-b border-gray-200">
@@ -190,32 +223,44 @@ export function renderDashboard(c: Context) {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
-                        ${data.routes.map((route: any) => `
+                        ${
+        data.routes.map((route: RouteInfo) => `
                             <tr class="hover:bg-gray-50">
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    ${badge(route.method, route.method === 'GET' ? 'blue' : 'green')}
+                                    ${
+            badge(route.method, route.method === 'GET' ? 'blue' : 'green')
+        }
                                 </td>
                                 <td class="px-6 py-4 font-mono text-sm">${route.path}</td>
-                                <td class="px-6 py-4 text-sm text-gray-600">${route.controller || '-'}</td>
+                                <td class="px-6 py-4 text-sm text-gray-600">${
+            route.controller || '-'
+        }</td>
                                 <td class="px-6 py-4 text-sm">
-                                    ${route.middlewares.map((m: string) => badge(m, 'gray')).join(' ')}
+                                    ${
+            route.middlewares.map((m: string) => badge(m, 'gray')).join(' ')
+        }
                                 </td>
                             </tr>
-                        `).join('')}
+                        `).join('')
+    }
                     </tbody>
                 </table>
             </div>
         </div>
 
         <!-- Other panels... -->
-        <div data-panel="requests" class="${activePanel !== 'requests' ? 'hidden' : ''}">
+        <div data-panel="requests" class="${
+        activePanel !== 'requests' ? 'hidden' : ''
+    }">
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4">Request History</h2>
                 <p class="text-gray-600">Captured ${data.requests.length} requests</p>
             </div>
         </div>
 
-        <div data-panel="logs" class="${activePanel !== 'logs' ? 'hidden' : ''}">
+        <div data-panel="logs" class="${
+        activePanel !== 'logs' ? 'hidden' : ''
+    }">
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4">Application Logs</h2>
                 <p class="text-gray-600">${data.logs.length} log entries</p>
@@ -229,21 +274,27 @@ export function renderDashboard(c: Context) {
             </div>
         </div>
 
-        <div data-panel="queue" class="${activePanel !== 'queue' ? 'hidden' : ''}">
+        <div data-panel="queue" class="${
+        activePanel !== 'queue' ? 'hidden' : ''
+    }">
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4">Background Queue</h2>
                 <p class="text-gray-600">${data.queue.length} jobs</p>
             </div>
         </div>
 
-        <div data-panel="mail" class="${activePanel !== 'mail' ? 'hidden' : ''}">
+        <div data-panel="mail" class="${
+        activePanel !== 'mail' ? 'hidden' : ''
+    }">
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4">Mail Log</h2>
                 <p class="text-gray-600">${data.mails.length} emails sent</p>
             </div>
         </div>
 
-        <div data-panel="performance" class="${activePanel !== 'performance' ? 'hidden' : ''}">
+        <div data-panel="performance" class="${
+        activePanel !== 'performance' ? 'hidden' : ''
+    }">
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4">Performance Metrics</h2>
                 <p class="text-gray-600">${data.performance.length} metrics collected</p>

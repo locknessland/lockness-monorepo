@@ -14,14 +14,14 @@ export interface LogEntry {
     timestamp: number
     level: 'info' | 'warn' | 'error' | 'debug'
     message: string
-    context?: Record<string, any>
+    context?: Record<string, unknown>
 }
 
 export interface SQLQuery {
     query: string
     duration: number
     timestamp: number
-    bindings?: any[]
+    bindings?: unknown[]
 }
 
 export interface RequestInfo {
@@ -33,12 +33,12 @@ export interface RequestInfo {
     statusCode?: number
     headers: Record<string, string>
     query: Record<string, string>
-    body?: any
+    body?: unknown
 }
 
 export interface SessionData {
     id: string
-    data: Record<string, any>
+    data: Record<string, unknown>
     createdAt: number
     updatedAt: number
 }

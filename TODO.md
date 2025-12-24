@@ -82,9 +82,13 @@
 
 - [x] **Debug Toolbar** (`@lockness/devtools`)
   - [x] Separate library, enabled in dev mode only.
-  - [x] Web dashboard accessible at `/__devtools`.
+  - [x] Web dashboard accessible at `/_devtools`.
   - [x] Panels: Routes, Logs, SQL Queries, Sessions, Queue, Mail, Performance.
   - [x] Request inspector with timing breakdown.
+  - [x] Symfony-style debug toolbar injected in HTML responses.
+  - [x] Configurable with `DEBUG_BAR` environment variable.
+  - [x] Full JSX components with Hono JSX.
+  - [x] Comprehensive tests and documentation.
 
 ## ⚛️ Inertia.js Integration
 

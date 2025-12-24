@@ -3,7 +3,13 @@
  */
 
 import { assertEquals } from '@std/assert'
-import { log, trackQuery, trackJob, trackMail, trackSession } from '../devtools.ts'
+import {
+    log,
+    trackJob,
+    trackMail,
+    trackQuery,
+    trackSession,
+} from '../devtools.ts'
 import { collector } from '../collector.ts'
 
 Deno.test('log helper - adds log entry', () => {

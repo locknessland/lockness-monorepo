@@ -11,7 +11,7 @@ export function Controller(path: string): any {
         _context: ClassDecoratorContext,
     ) {
         // With TC39 decorators, we modify the constructor directly
-        (target as any)._basePath = path
+        ;(target as any)._basePath = path
         // Initialize arrays if they don't exist
         if (!(target as any)._routes) (target as any)._routes = []
         if (!(target as any)._middlewares) (target as any)._middlewares = {}

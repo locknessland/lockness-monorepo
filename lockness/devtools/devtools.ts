@@ -1,17 +1,17 @@
 /**
  * @lockness/devtools
  * Development debugging toolbar and dashboard
- * 
+ *
  * @module
  * @example
  * ```typescript
  * import { enableDevtools } from '@lockness/devtools'
- * 
+ *
  * // In your kernel.ts (dev mode only)
  * if (Deno.env.get('APP_ENV') === 'development') {
  *     enableDevtools(app)
  * }
- * 
+ *
  * // Access dashboard at: http://localhost:8888/_devtools
  * ```
  */
@@ -38,14 +38,14 @@ const DEFAULT_CONFIG: DevtoolsConfig = {
 /**
  * Enable Lockness Devtools on your application
  * This adds the devtools middleware and registers the dashboard route
- * 
+ *
  * @param app - Your Hono application instance
  * @param config - Optional configuration
- * 
+ *
  * @example
  * ```typescript
  * import { enableDevtools } from '@lockness/devtools'
- * 
+ *
  * if (Deno.env.get('APP_ENV') === 'development') {
  *     enableDevtools(app, {
  *         basePath: '/__devtools',
@@ -88,34 +88,34 @@ export function enableDevtools(app: Hono, config: DevtoolsConfig = {}) {
 /**
  * Manually collect routes from your application
  * This is useful to populate the Routes panel
- * 
+ *
  * @param routes - Array of route information
- * 
+ *
  * @example
  * ```typescript
  * import { collectRoutes } from '@lockness/devtools'
- * 
+ *
  * collectRoutes([
  *     { method: 'GET', path: '/users', controller: 'UserController', action: 'index', middlewares: ['auth'] },
  *     { method: 'POST', path: '/users', controller: 'UserController', action: 'create', middlewares: [] },
  * ])
  * ```
  */
-export function collectRoutes(routes: any[]) {
+export function collectRoutes(routes: RouteInfo[]) {
     collector.setRoutes(routes)
 }
 
 /**
  * Manually log a message to devtools
- * 
+ *
  * @param level - Log level (info, warn, error, debug)
  * @param message - Log message
  * @param context - Optional context data
- * 
+ *
  * @example
  * ```typescript
  * import { log } from '@lockness/devtools'
- * 
+ *
  * log('info', 'User logged in', { userId: 123 })
  * log('error', 'Database connection failed', { error: err.message })
  * ```
@@ -123,7 +123,7 @@ export function collectRoutes(routes: any[]) {
 export function log(
     level: 'info' | 'warn' | 'error' | 'debug',
     message: string,
-    context?: Record<string, any>,
+    context?: Record<string, unknown>,
 ) {
     collector.addLog({
         timestamp: Date.now(),
@@ -135,21 +135,25 @@ export function log(
 
 /**
  * Track a SQL query in devtools
- * 
+ *
  * @param query - SQL query string
  * @param duration - Execution time in milliseconds
  * @param bindings - Optional query bindings
- * 
+ *
  * @example
  * ```typescript
  * import { trackQuery } from '@lockness/devtools'
- * 
+ *
  * const start = performance.now()
  * const result = await db.query('SELECT * FROM users WHERE id = ?', [123])
  * trackQuery('SELECT * FROM users WHERE id = ?', performance.now() - start, [123])
  * ```
  */
-export function trackQuery(query: string, duration: number, bindings?: any[]) {
+export function trackQuery(
+    query: string,
+    duration: number,
+    bindings?: unknown[],
+) {
     collector.addQuery({
         query,
         duration: Math.round(duration * 100) / 100,
@@ -160,13 +164,13 @@ export function trackQuery(query: string, duration: number, bindings?: any[]) {
 
 /**
  * Track a background job in devtools
- * 
+ *
  * @param job - Job information
- * 
+ *
  * @example
  * ```typescript
  * import { trackJob } from '@lockness/devtools'
- * 
+ *
  * trackJob({
  *     id: crypto.randomUUID(),
  *     name: 'SendWelcomeEmail',
@@ -176,19 +180,19 @@ export function trackQuery(query: string, duration: number, bindings?: any[]) {
  * })
  * ```
  */
-export function trackJob(job: any) {
+export function trackJob(job: QueueJob) {
     collector.addQueueJob(job)
 }
 
 /**
  * Track a sent email in devtools
- * 
+ *
  * @param mail - Mail information
- * 
+ *
  * @example
  * ```typescript
  * import { trackMail } from '@lockness/devtools'
- * 
+ *
  * trackMail({
  *     to: 'user@example.com',
  *     subject: 'Welcome!',
@@ -198,6 +202,6 @@ export function trackJob(job: any) {
  * })
  * ```
  */
-export function trackMail(mail: any) {
+export function trackMail(mail: MailInfo) {
     collector.addMail(mail)
 }

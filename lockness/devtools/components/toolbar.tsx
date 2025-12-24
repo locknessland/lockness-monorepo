@@ -9,11 +9,13 @@ interface DebugToolbarProps {
 
 export function DebugToolbar({ requestId }: DebugToolbarProps) {
     const data = collector.getAllData()
-    const currentRequest = requestId ? data.requests.find((r) => r.id === requestId) : data.requests[data.requests.length - 1]
+    const currentRequest = requestId
+        ? data.requests.find((r) => r.id === requestId)
+        : data.requests[data.requests.length - 1]
 
     return (
         <div
-            id="lockness-debug-toolbar"
+            id='lockness-debug-toolbar'
             style={{
                 position: 'fixed',
                 bottom: '0',
@@ -34,7 +36,7 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
         >
             {/* Logo */}
             <a
-                href="/_devtools"
+                href='/_devtools'
                 style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -49,64 +51,73 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
             </a>
 
             {/* Divider */}
-            <div style={{ width: '1px', height: '24px', backgroundColor: '#4b5563' }}></div>
+            <div
+                style={{
+                    width: '1px',
+                    height: '24px',
+                    backgroundColor: '#4b5563',
+                }}
+            >
+            </div>
 
             {/* Stats */}
             <ToolbarItem
-                icon="🌐"
-                label="Routes"
+                icon='🌐'
+                label='Routes'
                 value={data.routes.length}
-                href="/_devtools?panel=routes"
+                href='/_devtools?panel=routes'
             />
-            
+
             <ToolbarItem
-                icon="📊"
-                label="Requests"
+                icon='📊'
+                label='Requests'
                 value={data.requests.length}
-                href="/_devtools?panel=requests"
+                href='/_devtools?panel=requests'
             />
 
             {currentRequest && (
                 <ToolbarItem
-                    icon="⚡"
-                    label="Duration"
+                    icon='⚡'
+                    label='Duration'
                     value={`${currentRequest.duration?.toFixed(2) || '0'}ms`}
-                    color={
-                        !currentRequest.duration ? '#9ca3af' :
-                        currentRequest.duration < 100 ? '#10b981' :
-                        currentRequest.duration < 500 ? '#f59e0b' : '#ef4444'
-                    }
+                    color={!currentRequest.duration
+                        ? '#9ca3af'
+                        : currentRequest.duration < 100
+                        ? '#10b981'
+                        : currentRequest.duration < 500
+                        ? '#f59e0b'
+                        : '#ef4444'}
                 />
             )}
 
             <ToolbarItem
-                icon="📝"
-                label="Logs"
+                icon='📝'
+                label='Logs'
                 value={data.logs.length}
-                href="/_devtools?panel=logs"
+                href='/_devtools?panel=logs'
                 badge={data.logs.filter((l) => l.level === 'error').length > 0}
-                badgeColor="#ef4444"
+                badgeColor='#ef4444'
             />
 
             <ToolbarItem
-                icon="🗄️"
-                label="SQL"
+                icon='🗄️'
+                label='SQL'
                 value={data.queries.length}
-                href="/_devtools?panel=sql"
+                href='/_devtools?panel=sql'
             />
 
             <ToolbarItem
-                icon="📬"
-                label="Queue"
+                icon='📬'
+                label='Queue'
                 value={data.queue.length}
-                href="/_devtools?panel=queue"
+                href='/_devtools?panel=queue'
             />
 
             <ToolbarItem
-                icon="✉️"
-                label="Mail"
+                icon='✉️'
+                label='Mail'
                 value={data.mails.length}
-                href="/_devtools?panel=mail"
+                href='/_devtools?panel=mail'
             />
 
             {/* Spacer */}
@@ -114,6 +125,7 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
 
             {/* Actions */}
             <button
+                type='button'
                 onclick="document.getElementById('lockness-debug-toolbar').style.display='none'"
                 style={{
                     backgroundColor: 'transparent',
@@ -124,7 +136,7 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                     borderRadius: '4px',
                     fontSize: '18px',
                 }}
-                title="Hide toolbar"
+                title='Hide toolbar'
             >
                 ✕
             </button>
@@ -142,7 +154,10 @@ interface ToolbarItemProps {
     badgeColor?: string
 }
 
-function ToolbarItem({ icon, label, value, href, color = '#9ca3af', badge, badgeColor }: ToolbarItemProps) {
+function ToolbarItem(
+    { icon, label, value, href, color = '#9ca3af', badge, badgeColor }:
+        ToolbarItemProps,
+) {
     const content = (
         <div
             style={{
@@ -153,8 +168,17 @@ function ToolbarItem({ icon, label, value, href, color = '#9ca3af', badge, badge
             }}
         >
             <span style={{ fontSize: '16px' }}>{icon}</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <span style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div
+                style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
+            >
+                <span
+                    style={{
+                        fontSize: '10px',
+                        color: '#9ca3af',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                    }}
+                >
                     {label}
                 </span>
                 <span style={{ fontWeight: '600', color }}>{value}</span>
@@ -171,7 +195,8 @@ function ToolbarItem({ icon, label, value, href, color = '#9ca3af', badge, badge
                         borderRadius: '50%',
                         border: '2px solid #1f2937',
                     }}
-                ></span>
+                >
+                </span>
             )}
         </div>
     )

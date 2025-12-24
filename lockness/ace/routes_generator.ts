@@ -1,6 +1,6 @@
 /**
  * Routes Registry Generator
- * 
+ *
  * Utilities for auto-generating routes registry from controller files
  */
 
@@ -23,7 +23,10 @@ export async function scanControllers(
         for await (const entry of walk(controllerDir, { exts: extensions })) {
             if (entry.isFile) {
                 const fileName = basename(entry.path)
-                const fileNameWithoutExt = fileName.replace(/\.(tsx?|jsx?)$/, '')
+                const fileNameWithoutExt = fileName.replace(
+                    /\.(tsx?|jsx?)$/,
+                    '',
+                )
 
                 // Convert file name to class name (snake_case to PascalCase)
                 const className = fileNameWithoutExt
@@ -41,7 +44,9 @@ export async function scanControllers(
             }
         }
     } catch (error) {
-        throw new Error(`Failed to scan controllers: ${(error as Error).message}`)
+        throw new Error(
+            `Failed to scan controllers: ${(error as Error).message}`,
+        )
     }
 
     // Sort by class name for consistency

@@ -256,10 +256,26 @@ export function registerMakeCommands(ace: Ace) {
 
     ace.register('make:error-pages', async () => {
         const errorPages = [
-            { name: 'not_found', fileName: 'not_found.tsx', stub: 'error_not_found' },
-            { name: 'unauthorized', fileName: 'unauthorized.tsx', stub: 'error_unauthorized' },
-            { name: 'forbidden', fileName: 'forbidden.tsx', stub: 'error_forbidden' },
-            { name: 'server_error', fileName: 'server_error.tsx', stub: 'error_server' },
+            {
+                name: 'not_found',
+                fileName: 'not_found.tsx',
+                stub: 'error_not_found',
+            },
+            {
+                name: 'unauthorized',
+                fileName: 'unauthorized.tsx',
+                stub: 'error_unauthorized',
+            },
+            {
+                name: 'forbidden',
+                fileName: 'forbidden.tsx',
+                stub: 'error_forbidden',
+            },
+            {
+                name: 'server_error',
+                fileName: 'server_error.tsx',
+                stub: 'error_server',
+            },
         ]
 
         const dirPath = './src/view/pages/errors'

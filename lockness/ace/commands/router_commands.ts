@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import type { Ace } from '../ace.ts'
 import { join } from '@std/path'
 
@@ -6,7 +7,6 @@ export function registerRouterCommands(ace: Ace) {
         try {
             // Load controllers from src/controller directory
             const controllerDir = join(Deno.cwd(), 'src', 'controller')
-            // deno-lint-ignore no-explicit-any
             const controllers: any[] = []
 
             try {
@@ -27,13 +27,14 @@ export function registerRouterCommands(ace: Ace) {
                                 const Exported = module[key]
                                 if (
                                     typeof Exported === 'function' &&
-                                    // deno-lint-ignore no-explicit-any
                                     (Exported as any)._basePath !== undefined
                                 ) {
                                     // TC39 decorators: addInitializer only runs on instance creation
                                     // Create temporary instance to trigger metadata initialization
-                                    // deno-lint-ignore no-explicit-any
-                                    if (!(Exported as any)._routes || (Exported as any)._routes.length === 0) {
+                                    if (
+                                        !(Exported as any)._routes ||
+                                        (Exported as any)._routes.length === 0
+                                    ) {
                                         try {
                                             new Exported()
                                         } catch (_e) {
@@ -74,26 +75,18 @@ export function registerRouterCommands(ace: Ace) {
             const routes: RouteInfo[] = []
 
             for (const Controller of controllers) {
-                // deno-lint-ignore no-explicit-any
                 const basePath = (Controller as any)._basePath || ''
-                // deno-lint-ignore no-explicit-any
                 const controllerRoutes = (Controller as any)._routes || []
-                // deno-lint-ignore no-explicit-any
                 const middlewares = (Controller as any)._middlewares || {}
-                // deno-lint-ignore no-explicit-any
                 const validators = (Controller as any)._validators || {}
-                // deno-lint-ignore no-explicit-any
-                const authMethods = (Controller as any)._authMethods || {}  // TC39: Read from constructor
-                // deno-lint-ignore no-explicit-any
-                const guestMethods = (Controller as any)._guestMethods || {}  // TC39: Read from constructor
+                const authMethods = (Controller as any)._authMethods || {} // TC39: Read from constructor
+                const guestMethods = (Controller as any)._guestMethods || {} // TC39: Read from constructor
                 const controllerName = Controller.name
 
                 // Check for class-level decorators
                 const classAuthRequired =
-                    // deno-lint-ignore no-explicit-any
                     (Controller as any)._authRequired === true
                 const classGuestRequired =
-                    // deno-lint-ignore no-explicit-any
                     (Controller as any)._guestRequired === true
 
                 for (const route of controllerRoutes) {

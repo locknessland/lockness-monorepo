@@ -6,13 +6,13 @@
 import type {
     DevtoolsData,
     LogEntry,
-    SQLQuery,
-    RequestInfo,
-    RouteInfo,
+    MailInfo,
     PerformanceMetric,
     QueueJob,
-    MailInfo,
+    RequestInfo,
+    RouteInfo,
     SessionData,
+    SQLQuery,
 } from './types.ts'
 
 export class DevtoolsCollector {
@@ -170,4 +170,4 @@ export class DevtoolsCollector {
     }
 }
 
-export const collector = DevtoolsCollector.getInstance()
+export const collector: DevtoolsCollector = DevtoolsCollector.getInstance()

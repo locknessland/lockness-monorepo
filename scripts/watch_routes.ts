@@ -1,6 +1,6 @@
 /**
  * Watch src/controller/ directory and auto-regenerate routes.ts
- * 
+ *
  * Usage: deno run -A scripts/watch_routes.ts
  */
 
@@ -15,7 +15,9 @@ async function regenerate() {
         const result = await generateRoutesFile(CONTROLLER_DIR, OUTPUT_FILE)
         const timestamp = new Date().toLocaleTimeString()
         console.log(
-            `[${timestamp}] ✅ Routes updated (${result.count} controller${result.count !== 1 ? 's' : ''})`,
+            `[${timestamp}] ✅ Routes updated (${result.count} controller${
+                result.count !== 1 ? 's' : ''
+            })`,
         )
     } catch (error) {
         console.error(`❌ Error generating routes: ${(error as Error).message}`)

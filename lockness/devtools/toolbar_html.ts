@@ -14,9 +14,13 @@ export function generateToolbarHtml(requestId?: string): string {
 
     const hasErrors = data.logs.filter((l) => l.level === 'error').length > 0
 
-    const durationColor = !currentRequest?.duration ? '#9ca3af' :
-        currentRequest.duration < 100 ? '#10b981' :
-            currentRequest.duration < 500 ? '#f59e0b' : '#ef4444'
+    const durationColor = !currentRequest?.duration
+        ? '#9ca3af'
+        : currentRequest.duration < 100
+        ? '#10b981'
+        : currentRequest.duration < 500
+        ? '#f59e0b'
+        : '#ef4444'
 
     return `
 <div
@@ -64,15 +68,21 @@ export function generateToolbarHtml(requestId?: string): string {
     </a>
 
     <!-- Duration -->
-    ${currentRequest ? `
+    ${
+        currentRequest
+            ? `
     <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px;">
         <span style="font-size: 16px;">⚡</span>
         <div style="display: flex; flex-direction: column; gap: 2px;">
             <span style="font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px;">DURATION</span>
-            <span style="font-weight: 600; color: ${durationColor};">${currentRequest.duration?.toFixed(2) || '0'}ms</span>
+            <span style="font-weight: 600; color: ${durationColor};">${
+                currentRequest.duration?.toFixed(2) || '0'
+            }ms</span>
         </div>
     </div>
-    ` : ''}
+    `
+            : ''
+    }
 
     <!-- Logs -->
     <a
@@ -86,11 +96,15 @@ export function generateToolbarHtml(requestId?: string): string {
             <span style="font-size: 10px; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px;">LOGS</span>
             <span style="font-weight: 600; color: #9ca3af;">${data.logs.length}</span>
         </div>
-        ${hasErrors ? `
+        ${
+        hasErrors
+            ? `
         <span
             style="position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; background-color: #ef4444; border-radius: 50%; border: 2px solid #1f2937;"
         ></span>
-        ` : ''}
+        `
+            : ''
+    }
     </a>
 
     <!-- SQL -->

@@ -146,8 +146,8 @@ export class App {
             const routes = Controller._routes || []
             const middlewares = Controller._middlewares || {}
             const validators = Controller._validators || {}
-            const authMethods = Controller._authMethods || {}  // TC39: Read from constructor
-            const guestMethods = Controller._guestMethods || {}  // TC39: Read from constructor
+            const authMethods = Controller._authMethods || {} // TC39: Read from constructor
+            const guestMethods = Controller._guestMethods || {} // TC39: Read from constructor
             const controllerName = Controller.name
 
             // Check for class-level @Auth or @Guest decorators
@@ -259,7 +259,7 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ; (this.hono as any)[route.method](
+            ;(this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
@@ -307,7 +307,10 @@ export class App {
                         ) {
                             // TC39 decorators: addInitializer only runs on instance creation
                             // Create temporary instance to trigger metadata initialization
-                            if (!Exported._routes || Exported._routes.length === 0) {
+                            if (
+                                !Exported._routes ||
+                                Exported._routes.length === 0
+                            ) {
                                 try {
                                     new Exported()
                                 } catch (_e) {
@@ -321,7 +324,8 @@ export class App {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${(error as Error).message
+                `❌ Error during controller discovery: ${
+                    (error as Error).message
                 }`,
             )
         }
@@ -389,7 +393,8 @@ export class App {
                             }
                         } catch (e) {
                             console.error(
-                                `  ⚠️  Failed to force release port ${port}: ${(e as Error).message
+                                `  ⚠️  Failed to force release port ${port}: ${
+                                    (e as Error).message
                                 }`,
                             )
                         }

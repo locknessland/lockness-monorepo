@@ -19,11 +19,15 @@ export function Card({ title, value, subtitle, color = 'blue' }: CardProps) {
     }
 
     return (
-        <div class={`bg-white border-l-4 ${colors[color]} rounded-lg shadow-sm p-6`}>
-            <div class="text-sm font-medium text-gray-600">{title}</div>
-            <div class="mt-2 flex items-baseline">
-                <div class="text-3xl font-semibold text-gray-900">{value}</div>
-                <div class="ml-2 text-sm text-gray-500">{subtitle}</div>
+        <div
+            class={`bg-white border-l-4 ${
+                colors[color]
+            } rounded-lg shadow-sm p-6`}
+        >
+            <div class='text-sm font-medium text-gray-600'>{title}</div>
+            <div class='mt-2 flex items-baseline'>
+                <div class='text-3xl font-semibold text-gray-900'>{value}</div>
+                <div class='ml-2 text-sm text-gray-500'>{subtitle}</div>
             </div>
         </div>
     )
