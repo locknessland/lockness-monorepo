@@ -80,7 +80,7 @@ Clean all caches and reinstall dependencies:
 
 This command:
 
-- Removes `.vite`, `dist`, `coverage`, `.compiled` directories
+- Removes `dist`, `coverage`, `.compiled` directories
 - Clears the Deno cache
 - Rebuilds `deno.lock` with fresh dependencies
 
@@ -94,8 +94,8 @@ Remove build artifacts without touching dependencies:
 ./nessy clean
 ```
 
-Only removes `.vite`, `dist`, `coverage`, and `.compiled` directories. Faster
-than `fresh` when you just need to clean build outputs.
+Only removes `dist`, `coverage`, and `.compiled` directories. Faster than
+`fresh` when you just need to clean build outputs.
 
 ### Watch Mode
 

@@ -17,7 +17,6 @@ This command will:
 - Scaffold a complete project structure
 - Install all dependencies
 - Set up database configuration (PostgreSQL + Drizzle ORM)
-- Configure Vite for HMR and SSR builds
 
 ## 🚀 Start Development Server
 
@@ -62,8 +61,7 @@ my-lockness-app/
 ├── static/             # Static Assets
 ├── main.ts             # Server Entry Point
 ├── ace.ts              # CLI Entry Point
-├── deno.json           # Deno Configuration
-└── vite.config.ts      # Vite Configuration
+└── deno.json           # Deno Configuration
 ```
 
 ## Next Steps
