@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 @Service()
 export class UserRepository {
     @Inject(Database)
-    private database!: Database
+    accessor database!: Database
 
     /**
      * Find all User

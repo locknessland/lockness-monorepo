@@ -64,7 +64,7 @@ export class AuthController {
 
         try {
             await guard.login(email, password, remember)
-            return c.redirect('/profile')
+            return c.redirect('/auth/profile')
         } catch (error) {
             return c.html(
                 `
@@ -140,7 +140,7 @@ export class AuthController {
             >
             await guard.loginById(user.id)
 
-            return c.redirect('/profile')
+            return c.redirect('/auth/profile')
         } catch (error) {
             return c.html(
                 `

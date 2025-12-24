@@ -175,26 +175,44 @@ export function Service(): <T extends new (...args: any[]) => any>(
  */
 // deno-lint-ignore no-explicit-any
 export function Inject(ServiceClass: unknown): any {
-    return function (_target: any, context: ClassFieldDecoratorContext | ClassAccessorDecoratorContext) {
-        const propertyKey = String(context.name)
-
-        return function (this: any, initialValue: any) {
-            // Cache key for this property
-            const cacheKey = `_${propertyKey}_instance`
-
-            // Define getter/setter for the property
-            Object.defineProperty(this, propertyKey, {
-                get() {
+    return function (value: any, context: ClassFieldDecoratorContext | ClassAccessorDecoratorContext) {
+        if (context.kind === 'accessor') {
+            // Accessor decorator
+            return {
+                get(this: any) {
+                    const cacheKey = `_${String(context.name)}_injected`
                     if (!this[cacheKey]) {
                         this[cacheKey] = container.get(ServiceClass)
                     }
                     return this[cacheKey]
                 },
-                enumerable: true,
-                configurable: true,
-            })
+                set(this: any, newValue: any) {
+                    this[`_${String(context.name)}_injected`] = newValue
+                },
+            }
+        } else {
+            // Field decorator
+            return function (this: any, initialValue: any) {
+                const propertyKey = String(context.name)
+                const cacheKey = `_${propertyKey}_injected`
 
-            return initialValue
+                // Set up a getter on the instance
+                Object.defineProperty(this, propertyKey, {
+                    get() {
+                        if (!this[cacheKey]) {
+                            this[cacheKey] = container.get(ServiceClass)
+                        }
+                        return this[cacheKey]
+                    },
+                    set(newValue: any) {
+                        this[cacheKey] = newValue
+                    },
+                    enumerable: true,
+                    configurable: true,
+                })
+
+                return initialValue
+            }
         }
     }
 }
