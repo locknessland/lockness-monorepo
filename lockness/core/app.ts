@@ -42,6 +42,13 @@ export class App {
         return this.routes
     }
 
+    /**
+     * Get the underlying Hono instance
+     */
+    public getHono(): Hono {
+        return this.hono
+    }
+
     public static(pathPattern: string, root: string = 'public') {
         this.hono.use(pathPattern, serveStatic({ root }))
     }

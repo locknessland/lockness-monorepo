@@ -11,6 +11,7 @@ import {
     initializeAuthMiddleware,
     SessionGuard,
 } from '@lockness/auth'
+import { enableDevtools } from '@lockness/devtools'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { UserProvider } from '../src/auth/user_provider.ts'
 import { controllers } from './routes.ts'
@@ -63,6 +64,11 @@ export const bootstrap = async () => {
 
     // Use auto-discovery in development, explicit imports in production
     const isDevelopment = Deno.env.get('APP_ENV') === 'development'
+
+    // Enable devtools BEFORE app.init (in development)
+    if (isDevelopment) {
+        enableDevtools(app.getHono())
+    }
 
     if (isDevelopment) {
         // Auto-discover controllers (dev mode)

@@ -80,11 +80,11 @@
 
 ## 🧰 Devtools
 
-- [ ] **Debug Toolbar** (`@lockness/devtools`)
-  - [ ] Separate library, enabled in dev mode only.
-  - [ ] Web dashboard accessible at `/__devtools`.
-  - [ ] Panels: Routes, Logs, SQL Queries, Sessions, Queue, Mail, Performance.
-  - [ ] Request inspector with timing breakdown.
+- [x] **Debug Toolbar** (`@lockness/devtools`)
+  - [x] Separate library, enabled in dev mode only.
+  - [x] Web dashboard accessible at `/__devtools`.
+  - [x] Panels: Routes, Logs, SQL Queries, Sessions, Queue, Mail, Performance.
+  - [x] Request inspector with timing breakdown.
 
 ## ⚛️ Inertia.js Integration
 

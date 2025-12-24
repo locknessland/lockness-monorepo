@@ -1,0 +1,9 @@
+{
+    "name": "@lockness/devtools",
+    "version": "0.0.1",
+    "exports": "./devtools.ts",
+    "compilerOptions": {
+        "jsx": "precompile",
+        "jsxImportSource": "hono/jsx"
+    }
+}
