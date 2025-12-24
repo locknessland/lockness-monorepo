@@ -3,6 +3,10 @@
 Complete authentication system with session-based auth, password hashing, and
 OAuth2 social login.
 
+**Note:** Lockness uses TC39 standard decorators natively supported by Deno 2+.
+When using `@Inject` for dependency injection, always use the `accessor`
+keyword.
+
 ## Quick Setup
 
 Scaffold a complete authentication system with one command:

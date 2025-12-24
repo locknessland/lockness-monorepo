@@ -128,6 +128,26 @@ Then use `./nessy` instead of `deno task ace`:
 
 Nessy works on all platforms (Unix/Linux/macOS/Windows) and is project-specific.
 
+### Modern Decorators
+
+Lockness uses **TC39 Stage 3 standard decorators** natively supported by Deno
+2+. No `experimentalDecorators` flag is required in your `deno.json`.
+
+**Important:** When using `@Inject` for dependency injection, use the `accessor`
+keyword:
+
+```typescript
+@Service()
+export class UserRepository {
+    @Inject(Database)
+    accessor database!: Database // Use 'accessor', not 'private'
+
+    async findAll() {
+        return await this.database.db.select().from(users)
+    }
+}
+```
+
 ### Database Management (Drizzle ORM)
 
 Lockness uses **Drizzle ORM** for type-safe database operations.

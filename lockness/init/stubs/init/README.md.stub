@@ -151,6 +151,22 @@ create(c: Context) {
 }
 ```
 
+### Dependency Injection
+
+Lockness uses **TC39 standard decorators** (no `experimentalDecorators` needed). When using `@Inject`, use the `accessor` keyword:
+
+```typescript
+@Service()
+export class UserRepository {
+    @Inject(Database)
+    accessor database!: Database  // Use 'accessor'
+
+    async findAll() {
+        return await this.database.db.select().from(users)
+    }
+}
+```
+
 ### Middleware
 
 Create and use middlewares:

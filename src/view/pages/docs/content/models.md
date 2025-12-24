@@ -63,7 +63,7 @@ import { eq } from 'drizzle-orm'
 @Service()
 export class PostRepository {
     @Inject(Database)
-    private db!: Database
+    accessor db!: Database
 
     async findAll(): Promise<Post[]> {
         return await this.db.instance.select().from(posts)

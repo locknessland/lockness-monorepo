@@ -56,7 +56,7 @@ export class UserService {
 @Controller('/users')
 export class UserController {
     @Inject(UserService)
-    private userService!: UserService
+    accessor userService!: UserService
 }
 ```
 
@@ -68,10 +68,12 @@ The framework uses Hono's JSX runtime. To ensure correct resolution, the root
 ```json
 "compilerOptions": {
     "jsx": "precompile",
-    "jsxImportSource": "hono/jsx",
-    "experimentalDecorators": true
+    "jsxImportSource": "hono/jsx"
 }
 ```
+
+**Note:** Lockness uses TC39 Stage 3 standard decorators natively supported by
+Deno 2+. No `experimentalDecorators` flag is needed.
 
 And Hono must be mapped in the imports:
 
