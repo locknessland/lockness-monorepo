@@ -105,7 +105,11 @@ Deno.test('DevtoolsCollector - Respect max limits', () => {
     }
 
     const data = collector.getAllData()
-    assertEquals(data.logs.length, 5, 'Should keep all 5 logs (under max limit)')
+    assertEquals(
+        data.logs.length,
+        5,
+        'Should keep all 5 logs (under max limit)',
+    )
 })
 
 Deno.test('DevtoolsCollector - Add queue jobs', () => {
@@ -183,7 +187,11 @@ Deno.test('DevtoolsCollector - Clear all data', () => {
 
     data = collector.getAllData()
     assertEquals(data.logs.length, 0)
-    assertEquals(data.routes.length, 1, 'Routes should be preserved after clear')
+    assertEquals(
+        data.routes.length,
+        1,
+        'Routes should be preserved after clear',
+    )
     assertEquals(data.queries.length, 0)
     assertEquals(data.requests.length, 0)
 })

@@ -32,7 +32,7 @@ export class DevtoolsCollector {
     private maxQueries = 500
     private maxRequests = 100
 
-    private constructor() { }
+    private constructor() {}
 
     static getInstance(): DevtoolsCollector {
         if (!DevtoolsCollector.instance) {

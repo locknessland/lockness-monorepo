@@ -2,7 +2,7 @@
 /** @jsxImportSource hono/jsx */
 
 import { collector } from '../collector.ts'
-import type { RequestInfo, LogEntry } from '../types.ts'
+import type { LogEntry, RequestInfo } from '../types.ts'
 
 interface DebugToolbarProps {
     requestId?: string
@@ -96,7 +96,8 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                 label='Logs'
                 value={data.logs.length}
                 href='/_devtools?panel=logs'
-                badge={data.logs.filter((l: LogEntry) => l.level === 'error').length > 0}
+                badge={data.logs.filter((l: LogEntry) => l.level === 'error')
+                    .length > 0}
                 badgeColor='#ef4444'
             />
 
