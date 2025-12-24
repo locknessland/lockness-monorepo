@@ -1,6 +1,6 @@
 /**
  * @lockness/auth - Initialize Auth Middleware
- * 
+ *
  * Middleware to initialize the authenticator and attach it to the context.
  * This middleware should be registered globally in your application.
  */
@@ -12,10 +12,10 @@ import { Authenticator } from '../authenticator.ts'
 /**
  * Initialize auth middleware factory.
  * Creates a middleware that initializes the authenticator for each request.
- * 
+ *
  * @example
  * const app = new App()
- * 
+ *
  * app.use('*', initializeAuthMiddleware({
  *   default: 'web',
  *   guards: {
@@ -24,9 +24,11 @@ import { Authenticator } from '../authenticator.ts'
  *   }
  * }))
  */
-export function initializeAuthMiddleware<Guards extends Record<string, GuardFactory>>(
+export function initializeAuthMiddleware<
+    Guards extends Record<string, GuardFactory>,
+>(
     config: AuthConfig<Guards>,
-) {
+): import('hono').MiddlewareHandler {
     return async (c: Context, next: () => Promise<void>) => {
         // Create authenticator instance
         const auth = new Authenticator(c, config)
@@ -40,14 +42,16 @@ export function initializeAuthMiddleware<Guards extends Record<string, GuardFact
 
 /**
  * Get the authenticator from the context
- * 
+ *
  * @throws {Error} When auth middleware is not initialized
- * 
+ *
  * @example
  * const auth = getAuth(c)
  * await auth.authenticate()
  */
-export function getAuth<Guards extends Record<string, GuardFactory> = Record<string, GuardFactory>>(
+export function getAuth<
+    Guards extends Record<string, GuardFactory> = Record<string, GuardFactory>,
+>(
     c: Context,
 ): Authenticator<Guards> {
     const auth = c.get('auth') as Authenticator<Guards> | undefined

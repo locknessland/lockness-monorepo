@@ -1,9 +1,9 @@
 /**
  * @lockness/auth
- * 
+ *
  * Robust authentication system with multiple guards and providers.
  * Inspired by AdonisJS authentication architecture.
- * 
+ *
  * @module
  */
 
@@ -28,8 +28,11 @@ export type { DrizzleBasicAuthProviderOptions } from './providers/drizzle_basic_
 
 // Middleware
 export {
-    initializeAuthMiddleware,
     getAuth,
+    initializeAuthMiddleware,
 } from './middleware/initialize_auth_middleware.ts'
-export { authMiddleware, guestMiddleware } from './middleware/auth_middleware.ts'
+export {
+    authMiddleware,
+    guestMiddleware,
+} from './middleware/auth_middleware.ts'
 export type { AuthMiddlewareOptions } from './middleware/auth_middleware.ts'

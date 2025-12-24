@@ -1,6 +1,6 @@
 /**
  * @lockness/auth - Authentication Errors
- * 
+ *
  * Custom error classes for authentication failures.
  */
 
@@ -29,7 +29,7 @@ export class InvalidCredentialsError extends AuthenticationError {
     /**
      * Create a structured response for the error
      */
-    toJSON() {
+    toJSON(): { code: string; message: string; status: number } {
         return {
             code: this.code,
             message: this.message,
@@ -53,7 +53,7 @@ export class UnauthorizedAccessError extends AuthenticationError {
     /**
      * Create a structured response for the error
      */
-    toJSON() {
+    toJSON(): { code: string; message: string; status: number } {
         return {
             code: this.code,
             message: this.message,
@@ -74,7 +74,7 @@ export class SessionExpiredError extends AuthenticationError {
         this.name = 'SessionExpiredError'
     }
 
-    toJSON() {
+    toJSON(): { code: string; message: string; status: number } {
         return {
             code: this.code,
             message: this.message,
@@ -95,7 +95,7 @@ export class InvalidTokenError extends AuthenticationError {
         this.name = 'InvalidTokenError'
     }
 
-    toJSON() {
+    toJSON(): { code: string; message: string; status: number } {
         return {
             code: this.code,
             message: this.message,
@@ -112,14 +112,15 @@ export class AuthenticationRequiredError extends AuthenticationError {
     code = 'E_AUTHENTICATION_REQUIRED'
 
     constructor(
-        message = 'Authentication is required. Please call authenticate() first.',
+        message =
+            'Authentication is required. Please call authenticate() first.',
         options?: ErrorOptions,
     ) {
         super(message, options)
         this.name = 'AuthenticationRequiredError'
     }
 
-    toJSON() {
+    toJSON(): { code: string; message: string; status: number } {
         return {
             code: this.code,
             message: this.message,

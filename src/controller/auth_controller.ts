@@ -1,12 +1,11 @@
 /**
  * Authentication Controller
- * 
+ *
  * Handles login, logout, and registration
  */
 
-import { Controller, Get, Post, Use, type Context } from 'lockness'
+import { type Context, Controller, Get, Post, Use } from 'lockness'
 import { getAuth } from '@lockness/auth'
-import type { UserProvider } from '../auth/user_provider.ts'
 import { hashPassword } from 'lockness'
 import { UserRepository } from '@repository/user_repository.ts'
 
@@ -16,7 +15,7 @@ export class AuthController {
      * Show login page
      */
     @Get('/login')
-    async showLogin(c: Context) {
+    showLogin(c: Context) {
         return c.html(`
             <!DOCTYPE html>
             <html>
@@ -58,17 +57,23 @@ export class AuthController {
         const remember = body.remember === '1'
 
         const auth = getAuth(c)
-        const guard = auth.use('web') as import('@lockness/auth').SessionGuard<any, any>
+        const guard = auth.use('web') as import('@lockness/auth').SessionGuard<
+            true,
+            import('../auth/user_provider.ts').UserProvider
+        >
 
         try {
             await guard.login(email, password, remember)
             return c.redirect('/profile')
         } catch (error) {
-            return c.html(`
+            return c.html(
+                `
                 <h1>Login Failed</h1>
                 <p>${(error as Error).message}</p>
                 <a href="/auth/login">Try again</a>
-            `, 401)
+            `,
+                401,
+            )
         }
     }
 
@@ -76,7 +81,7 @@ export class AuthController {
      * Show registration page
      */
     @Get('/register')
-    async showRegister(c: Context) {
+    showRegister(c: Context) {
         return c.html(`
             <!DOCTYPE html>
             <html>
@@ -127,16 +132,24 @@ export class AuthController {
 
             // Auto-login after registration
             const auth = getAuth(c)
-            const guard = auth.use('web') as import('@lockness/auth').SessionGuard<any, any>
+            const guard = auth.use(
+                'web',
+            ) as import('@lockness/auth').SessionGuard<
+                true,
+                import('../auth/user_provider.ts').UserProvider
+            >
             await guard.loginById(user.id)
 
             return c.redirect('/profile')
         } catch (error) {
-            return c.html(`
+            return c.html(
+                `
                 <h1>Registration Failed</h1>
                 <p>${(error as Error).message}</p>
                 <a href="/auth/register">Try again</a>
-            `, 400)
+            `,
+                400,
+            )
         }
     }
 
@@ -145,7 +158,7 @@ export class AuthController {
      */
     @Get('/profile')
     @Use('auth')
-    async profile(c: Context) {
+    profile(c: Context) {
         const auth = getAuth(c)
         const user = auth.user
 
@@ -182,7 +195,10 @@ export class AuthController {
     @Use('auth')
     async logout(c: Context) {
         const auth = getAuth(c)
-        const guard = auth.use('web') as import('@lockness/auth').SessionGuard<any, any>
+        const guard = auth.use('web') as import('@lockness/auth').SessionGuard<
+            true,
+            import('../auth/user_provider.ts').UserProvider
+        >
 
         await guard.logout()
 

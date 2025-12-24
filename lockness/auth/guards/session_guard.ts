@@ -1,36 +1,35 @@
 /**
  * @lockness/auth - Session Guard
- * 
+ *
  * Session-based authentication using cookies and session storage.
  * Supports "Remember Me" functionality for persistent login.
  */
 
 import type { Context } from 'hono'
-import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
 import { getSession, type Session } from '@lockness/session'
 import type { EventEmitter } from '@lockness/events'
 import type {
-    Authenticatable,
     AuthClientResponse,
-    GuardContract,
+    Authenticatable,
     GUARD_KNOWN_EVENTS,
+    GuardContract,
     PROVIDER_REAL_USER,
-    RememberMeToken,
     SessionGuardEvents,
     SessionGuardOptions,
     SessionUserProviderContract,
     SessionWithRememberMeProviderContract,
 } from '../types.ts'
 import {
+    AuthenticationRequiredError,
     InvalidCredentialsError,
     UnauthorizedAccessError,
-    AuthenticationRequiredError,
 } from '../errors.ts'
 
 /**
  * Session Guard uses cookies and session storage to track
  * logged-in user information across requests.
- * 
+ *
  * @example
  * const guard = new SessionGuard(
  *   'web',
@@ -39,20 +38,22 @@ import {
  *   { useRememberMeTokens: true },
  *   emitter
  * )
- * 
+ *
  * await guard.login('user@example.com', 'password')
  * const user = await guard.authenticate()
  */
 export class SessionGuard<
     UseRememberTokens extends boolean,
     UserProvider extends UseRememberTokens extends true
-    ? SessionWithRememberMeProviderContract<Authenticatable>
-    : SessionUserProviderContract<Authenticatable>,
+        ? SessionWithRememberMeProviderContract<Authenticatable>
+        : SessionUserProviderContract<Authenticatable>,
 > implements GuardContract<UserProvider[typeof PROVIDER_REAL_USER]> {
     /**
      * Type signature for events
      */
-    declare [GUARD_KNOWN_EVENTS]: SessionGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>
+    declare [GUARD_KNOWN_EVENTS]: SessionGuardEvents<
+        UserProvider[typeof PROVIDER_REAL_USER]
+    >
 
     /**
      * Guard driver name
@@ -87,7 +88,9 @@ export class SessionGuard<
     /**
      * Event emitter
      */
-    #emitter?: EventEmitter<SessionGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>>
+    #emitter?: EventEmitter<
+        SessionGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>
+    >
 
     /**
      * Currently authenticated user
@@ -138,7 +141,9 @@ export class SessionGuard<
         ctx: Context,
         userProvider: UserProvider,
         options?: SessionGuardOptions,
-        emitter?: EventEmitter<SessionGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>>,
+        emitter?: EventEmitter<
+            SessionGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>
+        >,
     ) {
         this.#name = name
         this.#ctx = ctx
@@ -164,7 +169,7 @@ export class SessionGuard<
 
     /**
      * Authenticate the current request
-     * 
+     *
      * @throws {UnauthorizedAccessError} When authentication fails
      */
     async authenticate(): Promise<UserProvider[typeof PROVIDER_REAL_USER]> {
@@ -218,9 +223,10 @@ export class SessionGuard<
     async #authenticateViaRememberToken(): Promise<
         UserProvider[typeof PROVIDER_REAL_USER] | null
     > {
-        const provider = this.#userProvider as SessionWithRememberMeProviderContract<
-            UserProvider[typeof PROVIDER_REAL_USER]
-        >
+        const provider = this
+            .#userProvider as SessionWithRememberMeProviderContract<
+                UserProvider[typeof PROVIDER_REAL_USER]
+            >
 
         if (!provider.verifyRememberToken) {
             return null
@@ -273,9 +279,9 @@ export class SessionGuard<
 
     /**
      * Login a user with credentials
-     * 
+     *
      * @param remember - Whether to create a remember me token
-     * 
+     *
      * @example
      * await guard.login('user@example.com', 'password', true)
      */
@@ -307,7 +313,7 @@ export class SessionGuard<
 
     /**
      * Login a user by their ID (useful after registration)
-     * 
+     *
      * @example
      * await guard.loginById(userId)
      */
@@ -337,16 +343,22 @@ export class SessionGuard<
     /**
      * Create a remember me token
      */
-    async #createRememberToken(user: UserProvider[typeof PROVIDER_REAL_USER]): Promise<void> {
-        const provider = this.#userProvider as SessionWithRememberMeProviderContract<
-            UserProvider[typeof PROVIDER_REAL_USER]
-        >
+    async #createRememberToken(
+        user: UserProvider[typeof PROVIDER_REAL_USER],
+    ): Promise<void> {
+        const provider = this
+            .#userProvider as SessionWithRememberMeProviderContract<
+                UserProvider[typeof PROVIDER_REAL_USER]
+            >
 
         if (!provider.createRememberToken) {
             return
         }
 
-        const token = await provider.createRememberToken(user, this.#options.rememberMeTokensAge)
+        const token = await provider.createRememberToken(
+            user,
+            this.#options.rememberMeTokensAge,
+        )
         this.#setRememberMeCookie(token.value)
         this.#emitter?.emit('session:remember_token_created', { user, token })
     }
@@ -366,7 +378,7 @@ export class SessionGuard<
 
     /**
      * Logout the current user
-     * 
+     *
      * @example
      * await guard.logout()
      */
@@ -380,12 +392,16 @@ export class SessionGuard<
         if (this.#options.useRememberMeTokens && this.viaRemember && user) {
             const tokenValue = getCookie(this.#ctx, this.rememberMeKeyName)
             if (tokenValue) {
-                const provider = this.#userProvider as SessionWithRememberMeProviderContract<
-                    UserProvider[typeof PROVIDER_REAL_USER]
-                >
+                const provider = this
+                    .#userProvider as SessionWithRememberMeProviderContract<
+                        UserProvider[typeof PROVIDER_REAL_USER]
+                    >
                 const result = await provider.verifyRememberToken(tokenValue)
                 if (result) {
-                    await provider.deleteRememberToken(user, result.token.identifier)
+                    await provider.deleteRememberToken(
+                        user,
+                        result.token.identifier,
+                    )
                 }
             }
         }
@@ -417,10 +433,14 @@ export class SessionGuard<
         }
 
         if (remember && this.#options.useRememberMeTokens) {
-            const provider = this.#userProvider as SessionWithRememberMeProviderContract<
-                UserProvider[typeof PROVIDER_REAL_USER]
-            >
-            const token = await provider.createRememberToken(user, this.#options.rememberMeTokensAge)
+            const provider = this
+                .#userProvider as SessionWithRememberMeProviderContract<
+                    UserProvider[typeof PROVIDER_REAL_USER]
+                >
+            const token = await provider.createRememberToken(
+                user,
+                this.#options.rememberMeTokensAge,
+            )
             response.cookies = {
                 [this.rememberMeKeyName]: token.value,
             }

@@ -1,13 +1,11 @@
 /**
  * @lockness/auth - Types & Interfaces
- * 
+ *
  * Core type definitions for the authentication system.
  * Inspired by AdonisJS auth architecture.
  */
 
 import type { Context } from 'hono'
-import type { Session } from '@lockness/session'
-import type { EventEmitter } from '@lockness/events'
 
 // =============================================================================
 // Core Authentication Types
@@ -92,7 +90,10 @@ export interface GuardContract<User extends Authenticatable> {
     /**
      * Authenticate a user as a client (for testing)
      */
-    authenticateAsClient(user: User, ...args: unknown[]): Promise<AuthClientResponse>
+    authenticateAsClient(
+        user: User,
+        ...args: unknown[]
+    ): Promise<AuthClientResponse>
 
     /**
      * Symbol for inferring guard events
@@ -114,7 +115,9 @@ export type GuardFactory<User extends Authenticatable = Authenticatable> = (
 /**
  * Configuration for multiple guards
  */
-export interface AuthConfig<Guards extends Record<string, GuardFactory> = Record<string, GuardFactory>> {
+export interface AuthConfig<
+    Guards extends Record<string, GuardFactory> = Record<string, GuardFactory>,
+> {
     /**
      * Default guard name
      */
@@ -134,7 +137,9 @@ export interface AuthConfig<Guards extends Record<string, GuardFactory> = Record
  * Base user provider for authentication guards.
  * Responsible for finding users and verifying credentials.
  */
-export interface UserProviderContract<User extends Authenticatable = Authenticatable> {
+export interface UserProviderContract<
+    User extends Authenticatable = Authenticatable,
+> {
     /**
      * Symbol to access the real user type
      */
@@ -149,8 +154,9 @@ export interface UserProviderContract<User extends Authenticatable = Authenticat
 /**
  * User provider for session-based authentication
  */
-export interface SessionUserProviderContract<User extends Authenticatable = Authenticatable>
-    extends UserProviderContract<User> {
+export interface SessionUserProviderContract<
+    User extends Authenticatable = Authenticatable,
+> extends UserProviderContract<User> {
     /**
      * Find user by credentials (email/password)
      */
@@ -165,8 +171,9 @@ export interface SessionUserProviderContract<User extends Authenticatable = Auth
 /**
  * User provider with remember me token support
  */
-export interface SessionWithRememberMeProviderContract<User extends Authenticatable = Authenticatable>
-    extends SessionUserProviderContract<User> {
+export interface SessionWithRememberMeProviderContract<
+    User extends Authenticatable = Authenticatable,
+> extends SessionUserProviderContract<User> {
     /**
      * Create a remember me token for a user
      */
@@ -175,7 +182,9 @@ export interface SessionWithRememberMeProviderContract<User extends Authenticata
     /**
      * Verify a remember me token and return the user
      */
-    verifyRememberToken(tokenValue: string): Promise<{ user: User; token: RememberMeToken } | null>
+    verifyRememberToken(
+        tokenValue: string,
+    ): Promise<{ user: User; token: RememberMeToken } | null>
 
     /**
      * Delete a remember me token
@@ -195,8 +204,9 @@ export interface SessionWithRememberMeProviderContract<User extends Authenticata
 /**
  * User provider for token-based authentication (API)
  */
-export interface TokenUserProviderContract<User extends Authenticatable = Authenticatable>
-    extends UserProviderContract<User> {
+export interface TokenUserProviderContract<
+    User extends Authenticatable = Authenticatable,
+> extends UserProviderContract<User> {
     /**
      * Find user by credentials for token generation
      */
@@ -205,12 +215,18 @@ export interface TokenUserProviderContract<User extends Authenticatable = Authen
     /**
      * Create an access token for a user
      */
-    createToken(user: User, name: string, expiresIn?: number): Promise<AccessToken>
+    createToken(
+        user: User,
+        name: string,
+        expiresIn?: number,
+    ): Promise<AccessToken>
 
     /**
      * Verify an access token and return the user
      */
-    verifyToken(tokenValue: string): Promise<{ user: User; token: AccessToken } | null>
+    verifyToken(
+        tokenValue: string,
+    ): Promise<{ user: User; token: AccessToken } | null>
 
     /**
      * Delete a token
@@ -226,8 +242,9 @@ export interface TokenUserProviderContract<User extends Authenticatable = Authen
 /**
  * User provider for basic authentication
  */
-export interface BasicAuthUserProviderContract<User extends Authenticatable = Authenticatable>
-    extends UserProviderContract<User> {
+export interface BasicAuthUserProviderContract<
+    User extends Authenticatable = Authenticatable,
+> extends UserProviderContract<User> {
     /**
      * Find user by credentials (email/password)
      */
@@ -340,20 +357,28 @@ export interface AccessToken {
 /**
  * Events emitted by the session guard
  */
-export interface SessionGuardEvents<User extends Authenticatable = Authenticatable> {
+export interface SessionGuardEvents<
+    User extends Authenticatable = Authenticatable,
+> {
     'session:login': { user: User }
     'session:logout': { user: User }
     'session:authenticate': { user: User }
     'session:authentication_failed': { error: Error }
     'session:remember_token_created': { user: User; token: RememberMeToken }
     'session:remember_token_verified': { user: User; token: RememberMeToken }
-    'session:remember_token_recycled': { user: User; oldToken: RememberMeToken; newToken: RememberMeToken }
+    'session:remember_token_recycled': {
+        user: User
+        oldToken: RememberMeToken
+        newToken: RememberMeToken
+    }
 }
 
 /**
  * Events emitted by the token guard
  */
-export interface TokenGuardEvents<User extends Authenticatable = Authenticatable> {
+export interface TokenGuardEvents<
+    User extends Authenticatable = Authenticatable,
+> {
     'token:authenticate': { user: User; token: AccessToken }
     'token:authentication_failed': { error: Error }
     'token:created': { user: User; token: AccessToken }
@@ -363,7 +388,9 @@ export interface TokenGuardEvents<User extends Authenticatable = Authenticatable
 /**
  * Events emitted by the basic auth guard
  */
-export interface BasicAuthGuardEvents<User extends Authenticatable = Authenticatable> {
+export interface BasicAuthGuardEvents<
+    User extends Authenticatable = Authenticatable,
+> {
     'basic_auth:authenticate': { user: User }
     'basic_auth:authentication_failed': { error: Error }
 }
@@ -424,9 +451,13 @@ export interface BasicAuthGuardOptions {
 /**
  * Infer the user type from a guard
  */
-export type InferGuardUser<T extends GuardContract<any>> = T extends GuardContract<infer U> ? U : never
+// deno-lint-ignore no-explicit-any
+export type InferGuardUser<T extends GuardContract<any>> = T extends
+    GuardContract<infer U> ? U : never
 
 /**
- * Infer the user type from a provider
+ * Infer the user type from a provider contract
  */
-export type InferProviderUser<T extends UserProviderContract<any>> = T[typeof PROVIDER_REAL_USER]
+// deno-lint-ignore no-explicit-any
+export type InferProviderUser<T extends UserProviderContract<any>> =
+    T[typeof PROVIDER_REAL_USER]

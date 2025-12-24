@@ -1,6 +1,6 @@
 /**
  * @lockness/auth - Token Guard
- * 
+ *
  * Token-based authentication for API requests using Bearer tokens.
  * Suitable for mobile apps, SPAs on different domains, or third-party integrations.
  */
@@ -9,25 +9,25 @@ import type { Context } from 'hono'
 import type { EventEmitter } from '@lockness/events'
 import type {
     AccessToken,
-    Authenticatable,
     AuthClientResponse,
-    GuardContract,
+    Authenticatable,
     GUARD_KNOWN_EVENTS,
+    GuardContract,
     PROVIDER_REAL_USER,
     TokenGuardEvents,
     TokenGuardOptions,
     TokenUserProviderContract,
 } from '../types.ts'
 import {
+    AuthenticationRequiredError,
     InvalidTokenError,
     UnauthorizedAccessError,
-    AuthenticationRequiredError,
 } from '../errors.ts'
 
 /**
  * Token Guard authenticates requests using Bearer tokens from
  * the Authorization header.
- * 
+ *
  * @example
  * const guard = new TokenGuard(
  *   'api',
@@ -36,16 +36,19 @@ import {
  *   { prefix: 'Bearer' },
  *   emitter
  * )
- * 
+ *
  * const user = await guard.authenticate()
  * console.log('API user:', user.email)
  */
-export class TokenGuard<UserProvider extends TokenUserProviderContract<Authenticatable>>
-    implements GuardContract<UserProvider[typeof PROVIDER_REAL_USER]> {
+export class TokenGuard<
+    UserProvider extends TokenUserProviderContract<Authenticatable>,
+> implements GuardContract<UserProvider[typeof PROVIDER_REAL_USER]> {
     /**
      * Type signature for events
      */
-    declare [GUARD_KNOWN_EVENTS]: TokenGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>
+    declare [GUARD_KNOWN_EVENTS]: TokenGuardEvents<
+        UserProvider[typeof PROVIDER_REAL_USER]
+    >
 
     /**
      * Guard driver name
@@ -75,7 +78,9 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
     /**
      * Event emitter
      */
-    #emitter?: EventEmitter<TokenGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>>
+    #emitter?: EventEmitter<
+        TokenGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>
+    >
 
     /**
      * Currently authenticated user
@@ -102,7 +107,9 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
         ctx: Context,
         userProvider: UserProvider,
         options?: TokenGuardOptions,
-        emitter?: EventEmitter<TokenGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>>,
+        emitter?: EventEmitter<
+            TokenGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>
+        >,
     ) {
         this.#name = name
         this.#ctx = ctx
@@ -143,7 +150,7 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
 
     /**
      * Authenticate the current request
-     * 
+     *
      * @throws {UnauthorizedAccessError} When authentication fails
      */
     async authenticate(): Promise<UserProvider[typeof PROVIDER_REAL_USER]> {
@@ -155,7 +162,9 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
 
         const tokenValue = this.#extractToken()
         if (!tokenValue) {
-            const error = new UnauthorizedAccessError('Missing or invalid authorization token')
+            const error = new UnauthorizedAccessError(
+                'Missing or invalid authorization token',
+            )
             this.#emitter?.emit('token:authentication_failed', { error })
             throw error
         }
@@ -192,7 +201,7 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
 
     /**
      * Generate a new token for a user (typically after login)
-     * 
+     *
      * @example
      * const token = await guard.generate('user@example.com', 'password', 'mobile-app')
      * console.log('Token:', token.value)
@@ -208,7 +217,11 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
             throw new InvalidTokenError('Invalid credentials')
         }
 
-        const token = await this.#userProvider.createToken(user, tokenName, expiresIn)
+        const token = await this.#userProvider.createToken(
+            user,
+            tokenName,
+            expiresIn,
+        )
 
         this.#emitter?.emit('token:created', { user, token })
 
@@ -217,7 +230,7 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
 
     /**
      * Generate a token for a user by ID (useful after registration)
-     * 
+     *
      * @example
      * const token = await guard.generateForUser(userId, 'web-app')
      */
@@ -231,7 +244,11 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
             throw new InvalidTokenError('User not found')
         }
 
-        const token = await this.#userProvider.createToken(user, tokenName, expiresIn)
+        const token = await this.#userProvider.createToken(
+            user,
+            tokenName,
+            expiresIn,
+        )
 
         this.#emitter?.emit('token:created', { user, token })
 
@@ -240,18 +257,23 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
 
     /**
      * Revoke the current token
-     * 
+     *
      * @example
      * await guard.revoke()
      */
     async revoke(): Promise<void> {
         if (!this.user || !this.token) {
-            throw new AuthenticationRequiredError('No authenticated token to revoke')
+            throw new AuthenticationRequiredError(
+                'No authenticated token to revoke',
+            )
         }
 
         await this.#userProvider.deleteToken(this.user, this.token.identifier)
 
-        this.#emitter?.emit('token:deleted', { user: this.user, tokenId: this.token.identifier })
+        this.#emitter?.emit('token:deleted', {
+            user: this.user,
+            tokenId: this.token.identifier,
+        })
 
         this.user = undefined
         this.token = undefined
@@ -260,7 +282,7 @@ export class TokenGuard<UserProvider extends TokenUserProviderContract<Authentic
 
     /**
      * Revoke all tokens for the current user
-     * 
+     *
      * @example
      * await guard.revokeAll() // Logout from all devices
      */

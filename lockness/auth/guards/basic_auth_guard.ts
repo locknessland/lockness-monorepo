@@ -1,6 +1,6 @@
 /**
  * @lockness/auth - Basic Auth Guard
- * 
+ *
  * HTTP Basic Authentication guard using the Authorization header.
  * Suitable for temporary authentication during development or simple API endpoints.
  */
@@ -8,27 +8,27 @@
 import type { Context } from 'hono'
 import type { EventEmitter } from '@lockness/events'
 import type {
-    Authenticatable,
     AuthClientResponse,
+    Authenticatable,
+    BasicAuthGuardEvents,
     BasicAuthGuardOptions,
     BasicAuthUserProviderContract,
-    GuardContract,
     GUARD_KNOWN_EVENTS,
+    GuardContract,
     PROVIDER_REAL_USER,
-    BasicAuthGuardEvents,
 } from '../types.ts'
 import {
+    AuthenticationRequiredError,
     InvalidCredentialsError,
     UnauthorizedAccessError,
-    AuthenticationRequiredError,
 } from '../errors.ts'
 
 /**
  * Basic Auth Guard implements HTTP Basic Authentication.
  * Credentials are sent as base64-encoded in the Authorization header.
- * 
+ *
  * @warning Not suitable for production. Use for development only.
- * 
+ *
  * @example
  * const guard = new BasicAuthGuard(
  *   'basic',
@@ -37,15 +37,18 @@ import {
  *   { realm: 'Protected Area' },
  *   emitter
  * )
- * 
+ *
  * const user = await guard.authenticate()
  */
-export class BasicAuthGuard<UserProvider extends BasicAuthUserProviderContract<Authenticatable>>
-    implements GuardContract<UserProvider[typeof PROVIDER_REAL_USER]> {
+export class BasicAuthGuard<
+    UserProvider extends BasicAuthUserProviderContract<Authenticatable>,
+> implements GuardContract<UserProvider[typeof PROVIDER_REAL_USER]> {
     /**
      * Type signature for events
      */
-    declare [GUARD_KNOWN_EVENTS]: BasicAuthGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>
+    declare [GUARD_KNOWN_EVENTS]: BasicAuthGuardEvents<
+        UserProvider[typeof PROVIDER_REAL_USER]
+    >
 
     /**
      * Guard driver name
@@ -75,7 +78,9 @@ export class BasicAuthGuard<UserProvider extends BasicAuthUserProviderContract<A
     /**
      * Event emitter
      */
-    #emitter?: EventEmitter<BasicAuthGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>>
+    #emitter?: EventEmitter<
+        BasicAuthGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>
+    >
 
     /**
      * Currently authenticated user
@@ -97,7 +102,9 @@ export class BasicAuthGuard<UserProvider extends BasicAuthUserProviderContract<A
         ctx: Context,
         userProvider: UserProvider,
         options?: BasicAuthGuardOptions,
-        emitter?: EventEmitter<BasicAuthGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>>,
+        emitter?: EventEmitter<
+            BasicAuthGuardEvents<UserProvider[typeof PROVIDER_REAL_USER]>
+        >,
     ) {
         this.#name = name
         this.#ctx = ctx
@@ -150,13 +157,16 @@ export class BasicAuthGuard<UserProvider extends BasicAuthUserProviderContract<A
      * Send WWW-Authenticate challenge header
      */
     #sendChallenge(): never {
-        this.#ctx.header('WWW-Authenticate', `Basic realm="${this.#options.realm}"`)
+        this.#ctx.header(
+            'WWW-Authenticate',
+            `Basic realm="${this.#options.realm}"`,
+        )
         throw new UnauthorizedAccessError('Authentication required')
     }
 
     /**
      * Authenticate the current request
-     * 
+     *
      * @throws {UnauthorizedAccessError} When authentication fails
      */
     async authenticate(): Promise<UserProvider[typeof PROVIDER_REAL_USER]> {
@@ -168,7 +178,9 @@ export class BasicAuthGuard<UserProvider extends BasicAuthUserProviderContract<A
 
         const credentials = this.#extractCredentials()
         if (!credentials) {
-            const error = new UnauthorizedAccessError('Missing or invalid Authorization header')
+            const error = new UnauthorizedAccessError(
+                'Missing or invalid Authorization header',
+            )
             this.#emitter?.emit('basic_auth:authentication_failed', { error })
             this.#sendChallenge()
         }
@@ -207,16 +219,16 @@ export class BasicAuthGuard<UserProvider extends BasicAuthUserProviderContract<A
     /**
      * Authenticate as a client (for testing)
      */
-    async authenticateAsClient(
+    authenticateAsClient(
         user: UserProvider[typeof PROVIDER_REAL_USER],
         password = 'password',
     ): Promise<AuthClientResponse> {
         const credentials = btoa(`${user.email}:${password}`)
 
-        return {
+        return Promise.resolve({
             headers: {
                 Authorization: `Basic ${credentials}`,
             },
-        }
+        })
     }
 }

@@ -1,24 +1,27 @@
 /**
  * @lockness/auth - Authenticator
- * 
+ *
  * Main authenticator class that manages multiple authentication guards.
  * Inspired by AdonisJS authenticator architecture.
  */
 
 import type { Context } from 'hono'
 import type {
-    Authenticatable,
     AuthClientResponse,
     AuthConfig,
+    Authenticatable,
     GuardContract,
     GuardFactory,
 } from './types.ts'
-import { AuthenticationRequiredError, UnauthorizedAccessError } from './errors.ts'
+import {
+    AuthenticationRequiredError,
+    UnauthorizedAccessError,
+} from './errors.ts'
 
 /**
  * Authenticator manages multiple authentication guards and provides
  * a unified interface for authentication across different methods.
- * 
+ *
  * @example
  * const auth = new Authenticator(ctx, {
  *   default: 'web',
@@ -27,7 +30,7 @@ import { AuthenticationRequiredError, UnauthorizedAccessError } from './errors.t
  *     api: tokenGuardFactory
  *   }
  * })
- * 
+ *
  * await auth.authenticate()
  * console.log(auth.user)
  */
@@ -45,6 +48,7 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
     /**
      * Cache of instantiated guards for the current request
      */
+    // deno-lint-ignore no-explicit-any
     #guardsCache: Partial<Record<keyof Guards, GuardContract<any>>> = {}
 
     /**
@@ -102,7 +106,8 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
         if (!this.#authenticationAttemptedViaGuard) {
             return false
         }
-        return this.use(this.#authenticationAttemptedViaGuard).authenticationAttempted
+        return this.use(this.#authenticationAttemptedViaGuard)
+            .authenticationAttempted
     }
 
     constructor(ctx: Context, config: AuthConfig<Guards>) {
@@ -112,7 +117,7 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
 
     /**
      * Get an instance of a specific guard
-     * 
+     *
      * @example
      * const sessionGuard = auth.use('web')
      * await sessionGuard.authenticate()
@@ -132,9 +137,9 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
 
     /**
      * Get the authenticated user or throw an exception
-     * 
+     *
      * @throws {AuthenticationRequiredError} When authentication hasn't been attempted
-     * 
+     *
      * @example
      * const user = auth.getUserOrFail()
      * console.log(user.email)
@@ -148,21 +153,26 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
             )
         }
 
-        return this.use(this.#authenticationAttemptedViaGuard).getUserOrFail() as ReturnType<ReturnType<Guards[keyof Guards]>['getUserOrFail']>
+        return this.use(this.#authenticationAttemptedViaGuard)
+            .getUserOrFail() as ReturnType<
+                ReturnType<Guards[keyof Guards]>['getUserOrFail']
+            >
     }
 
     /**
      * Authenticate the request using the default guard
-     * 
+     *
      * @throws {UnauthorizedAccessError} When authentication fails
-     * 
+     *
      * @example
      * const user = await auth.authenticate()
      * console.log('Authenticated as:', user.email)
      */
-    async authenticate(): Promise<
+    authenticate(): Promise<
         {
-            [K in keyof Guards]: ReturnType<ReturnType<Guards[K]>['authenticate']>
+            [K in keyof Guards]: ReturnType<
+                ReturnType<Guards[K]>['authenticate']
+            >
         }[keyof Guards]
     > {
         return this.authenticateUsing(this.#config.default)
@@ -170,9 +180,9 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
 
     /**
      * Authenticate using a specific guard
-     * 
+     *
      * @throws {UnauthorizedAccessError} When authentication fails
-     * 
+     *
      * @example
      * const user = await auth.authenticateUsing('api')
      * console.log('Authenticated via API token')
@@ -190,14 +200,16 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
             this.#authenticatedViaGuard = guardName
         }
 
-        return user as Awaited<ReturnType<ReturnType<Guards[K]>['authenticate']>>
+        return user as Awaited<
+            ReturnType<ReturnType<Guards[K]>['authenticate']>
+        >
     }
 
     /**
      * Authenticate using multiple guards (tries each until one succeeds)
-     * 
+     *
      * @throws {UnauthorizedAccessError} When all guards fail
-     * 
+     *
      * @example
      * const user = await auth.authenticateUsing(['web', 'api'])
      * console.log('Authenticated via:', auth.authenticatedViaGuard)
@@ -216,25 +228,27 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
         }
 
         throw new UnauthorizedAccessError(
-            `Authentication failed using guards: ${guardNames.map(String).join(', ')}`,
+            `Authentication failed using guards: ${
+                guardNames.map(String).join(', ')
+            }`,
         )
     }
 
     /**
      * Check if the request is authenticated using the default guard
-     * 
+     *
      * @example
      * if (await auth.check()) {
      *   console.log('User is authenticated')
      * }
      */
-    async check(): Promise<boolean> {
+    check(): Promise<boolean> {
         return this.checkUsing(this.#config.default)
     }
 
     /**
      * Check if request is authenticated using a specific guard
-     * 
+     *
      * @example
      * if (await auth.checkUsing('api')) {
      *   console.log('Valid API token provided')
@@ -256,13 +270,15 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
 
     /**
      * Check if authenticated using any of the specified guards
-     * 
+     *
      * @example
      * if (await auth.checkUsingAny(['web', 'api'])) {
      *   console.log('User authenticated via web or api')
      * }
      */
-    async checkUsingAny<K extends keyof Guards>(guardNames: K[]): Promise<boolean> {
+    async checkUsingAny<K extends keyof Guards>(
+        guardNames: K[],
+    ): Promise<boolean> {
         for (const guardName of guardNames) {
             if (await this.checkUsing(guardName)) {
                 return true
@@ -273,12 +289,12 @@ export class Authenticator<Guards extends Record<string, GuardFactory>> {
 
     /**
      * Authenticate a user as a client (for testing)
-     * 
+     *
      * @example
      * const response = await auth.authenticateAsClient(user)
      * // Use response.cookies, response.headers in tests
      */
-    async authenticateAsClient(
+    authenticateAsClient(
         user: Authenticatable,
         guardName?: keyof Guards,
         ...args: unknown[]

@@ -1,6 +1,6 @@
 /**
  * @lockness/auth - Drizzle User Provider for Session Guard
- * 
+ *
  * User provider that uses Drizzle ORM to find users and manage remember me tokens.
  */
 
@@ -8,10 +8,10 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '@lockness/drizzle'
 import type {
     Authenticatable,
+    PROVIDER_REAL_USER,
     RememberMeToken,
     SessionUserProviderContract,
     SessionWithRememberMeProviderContract,
-    PROVIDER_REAL_USER,
 } from '../types.ts'
 
 /**
@@ -55,7 +55,7 @@ export interface DrizzleSessionProviderOptions<User extends Authenticatable> {
 
 /**
  * Drizzle-based user provider for session authentication
- * 
+ *
  * @example
  * const provider = new DrizzleSessionProvider({
  *   db,
@@ -78,8 +78,8 @@ export interface DrizzleSessionProviderOptions<User extends Authenticatable> {
  */
 export class DrizzleSessionProvider<User extends Authenticatable>
     implements
-    SessionUserProviderContract<User>,
-    SessionWithRememberMeProviderContract<User> {
+        SessionUserProviderContract<User>,
+        SessionWithRememberMeProviderContract<User> {
     /**
      * Symbol to access real user type
      */
@@ -90,17 +90,19 @@ export class DrizzleSessionProvider<User extends Authenticatable>
     constructor(options: DrizzleSessionProviderOptions<User>) {
         this.#options = {
             ...options,
-            verifyPassword: options.verifyPassword ?? this.#defaultVerifyPassword,
+            verifyPassword: options.verifyPassword ??
+                this.#defaultVerifyPassword,
             enableRememberTokens: options.enableRememberTokens ?? false,
-            rememberTokensTable: options.rememberTokensTable ?? 'remember_me_tokens',
+            rememberTokensTable: options.rememberTokensTable ??
+                'remember_me_tokens',
         }
     }
 
     /**
      * Default password verification (direct comparison - not secure for production)
      */
-    async #defaultVerifyPassword(plain: string, hash: string): Promise<boolean> {
-        return plain === hash
+    #defaultVerifyPassword(plain: string, hash: string): Promise<boolean> {
+        return Promise.resolve(plain === hash)
     }
 
     /**
@@ -113,8 +115,15 @@ export class DrizzleSessionProvider<User extends Authenticatable>
     /**
      * Find user by credentials
      */
-    async findByCredentials(email: string, password: string): Promise<User | null> {
-        return await this.#options.findUserByCredentials(this.#options.db, email, password)
+    async findByCredentials(
+        email: string,
+        password: string,
+    ): Promise<User | null> {
+        return await this.#options.findUserByCredentials(
+            this.#options.db,
+            email,
+            password,
+        )
     }
 
     /**
@@ -127,7 +136,10 @@ export class DrizzleSessionProvider<User extends Authenticatable>
     /**
      * Create a remember me token
      */
-    async createRememberToken(user: User, expiresIn: number): Promise<RememberMeToken> {
+    async createRememberToken(
+        user: User,
+        expiresIn: number,
+    ): Promise<RememberMeToken> {
         if (!this.#options.enableRememberTokens) {
             throw new Error('Remember me tokens are not enabled')
         }
@@ -142,21 +154,25 @@ export class DrizzleSessionProvider<User extends Authenticatable>
 
         // Insert token into database
         const result = await db.db.execute(sql`
-            INSERT INTO ${sql.identifier(table)} (user_id, token_hash, expires_at, created_at, updated_at)
+            INSERT INTO ${
+            sql.identifier(table)
+        } (user_id, token_hash, expires_at, created_at, updated_at)
             VALUES (${user.id}, ${tokenHash}, ${expiresAt}, NOW(), NOW())
             RETURNING id, user_id, token_hash, expires_at, created_at, updated_at
         `)
 
-        const row = result[0] as any
+        const row = result[0] as Record<string, unknown>
 
         return {
-            identifier: row.id,
+            identifier: row.id as string | number,
             value: tokenValue,
             hash: tokenHash,
             userId: user.id,
-            expiresAt: new Date(row.expires_at),
-            createdAt: new Date(row.created_at),
-            updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+            expiresAt: new Date(row.expires_at as string | number | Date),
+            createdAt: new Date(row.created_at as string | number | Date),
+            updatedAt: row.updated_at
+                ? new Date(row.updated_at as string | number | Date)
+                : undefined,
         }
     }
 
@@ -185,22 +201,24 @@ export class DrizzleSessionProvider<User extends Authenticatable>
             return null
         }
 
-        const row = result[0] as any
+        const row = result[0] as Record<string, unknown>
 
         // Find user
-        const user = await this.findById(row.user_id)
+        const user = await this.findById(row.user_id as string | number)
         if (!user) {
             return null
         }
 
         const token: RememberMeToken = {
-            identifier: row.id,
+            identifier: row.id as string | number,
             value: tokenValue,
-            hash: row.token_hash,
-            userId: row.user_id,
-            expiresAt: new Date(row.expires_at),
-            createdAt: new Date(row.created_at),
-            updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+            hash: row.token_hash as string,
+            userId: row.user_id as string | number,
+            expiresAt: new Date(row.expires_at as string | number | Date),
+            createdAt: new Date(row.created_at as string | number | Date),
+            updatedAt: row.updated_at
+                ? new Date(row.updated_at as string | number | Date)
+                : undefined,
         }
 
         return { user, token }
@@ -209,7 +227,10 @@ export class DrizzleSessionProvider<User extends Authenticatable>
     /**
      * Delete a remember me token
      */
-    async deleteRememberToken(user: User, tokenId: string | number): Promise<void> {
+    async deleteRememberToken(
+        user: User,
+        tokenId: string | number,
+    ): Promise<void> {
         if (!this.#options.enableRememberTokens) {
             return
         }
@@ -248,7 +269,8 @@ export class DrizzleSessionProvider<User extends Authenticatable>
     #generateToken(): string {
         const array = new Uint8Array(40) // 40 bytes = 80 hex characters
         crypto.getRandomValues(array)
-        return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
+        return Array.from(array, (byte) => byte.toString(16).padStart(2, '0'))
+            .join('')
     }
 
     /**
@@ -259,6 +281,8 @@ export class DrizzleSessionProvider<User extends Authenticatable>
         const data = encoder.encode(token)
         const hashBuffer = await crypto.subtle.digest('SHA-256', data)
         const hashArray = Array.from(new Uint8Array(hashBuffer))
-        return hashArray.map((byte) => byte.toString(16).padStart(2, '0')).join('')
+        return hashArray.map((byte) => byte.toString(16).padStart(2, '0')).join(
+            '',
+        )
     }
 }

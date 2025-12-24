@@ -31,9 +31,9 @@ for any database/ORM:
 
 ```typescript
 interface SessionUserProviderContract<User> {
-    findById(id: string | number): Promise<User | null>;
-    findByCredentials(email: string, password: string): Promise<User | null>;
-    verifyPassword(plain: string, hash: string): Promise<boolean>;
+    findById(id: string | number): Promise<User | null>
+    findByCredentials(email: string, password: string): Promise<User | null>
+    verifyPassword(plain: string, hash: string): Promise<boolean>
 }
 ```
 
@@ -45,22 +45,22 @@ interface SessionUserProviderContract<User> {
 import type {
     PROVIDER_REAL_USER,
     SessionUserProviderContract,
-} from "@lockness/auth";
+} from '@lockness/auth'
 
 interface User {
-    id: number;
-    email: string;
-    password: string;
+    id: number
+    email: string
+    password: string
 }
 
 class MyUserProvider implements SessionUserProviderContract<User> {
-    declare [PROVIDER_REAL_USER]: User;
+    declare [PROVIDER_REAL_USER]: User
 
     async findById(id: string | number): Promise<User | null> {
         // Query your database
         return await db.query.users.findFirst({
             where: eq(users.id, id),
-        });
+        })
     }
 
     async findByCredentials(
@@ -69,16 +69,16 @@ class MyUserProvider implements SessionUserProviderContract<User> {
     ): Promise<User | null> {
         const user = await db.query.users.findFirst({
             where: eq(users.email, email),
-        });
+        })
 
         if (user && await bcrypt.compare(password, user.password)) {
-            return user;
+            return user
         }
-        return null;
+        return null
     }
 
     async verifyPassword(plain: string, hash: string): Promise<boolean> {
-        return await bcrypt.compare(plain, hash);
+        return await bcrypt.compare(plain, hash)
     }
 }
 ```
@@ -86,70 +86,70 @@ class MyUserProvider implements SessionUserProviderContract<User> {
 ### 2. Configure Authentication
 
 ```typescript
-import { Hono } from "hono";
+import { Hono } from 'hono'
 import {
     authMiddleware,
     getAuth,
     initializeAuthMiddleware,
     SessionGuard,
-} from "@lockness/auth";
-import { sessionMiddleware } from "@lockness/session";
+} from '@lockness/auth'
+import { sessionMiddleware } from '@lockness/session'
 
-const app = new Hono();
-const userProvider = new MyUserProvider();
+const app = new Hono()
+const userProvider = new MyUserProvider()
 
 // 1. Initialize session (required for SessionGuard)
 app.use(
-    "*",
+    '*',
     sessionMiddleware({
-        driver: "cookie",
-        secret: Deno.env.get("APP_KEY")!,
+        driver: 'cookie',
+        secret: Deno.env.get('APP_KEY')!,
         lifetime: 7200,
     }),
-);
+)
 
 // 2. Initialize auth
 app.use(
-    "*",
+    '*',
     initializeAuthMiddleware({
-        default: "web",
+        default: 'web',
         guards: {
-            web: (ctx) => new SessionGuard("web", ctx, userProvider),
+            web: (ctx) => new SessionGuard('web', ctx, userProvider),
         },
     }),
-);
+)
 
 // 3. Protect routes
-app.get("/profile", authMiddleware(), (c) => {
-    const auth = getAuth(c);
-    return c.json({ user: auth.user });
-});
+app.get('/profile', authMiddleware(), (c) => {
+    const auth = getAuth(c)
+    return c.json({ user: auth.user })
+})
 ```
 
 ### 3. Login/Logout
 
 ```typescript
-app.post("/login", async (c) => {
-    const { email, password, remember } = await c.req.json();
+app.post('/login', async (c) => {
+    const { email, password, remember } = await c.req.json()
 
-    const auth = getAuth(c);
-    const guard = auth.use("web");
+    const auth = getAuth(c)
+    const guard = auth.use('web')
 
     try {
-        await guard.login(email, password, remember);
-        return c.json({ message: "Logged in successfully" });
+        await guard.login(email, password, remember)
+        return c.json({ message: 'Logged in successfully' })
     } catch (error) {
-        return c.json({ error: "Invalid credentials" }, 401);
+        return c.json({ error: 'Invalid credentials' }, 401)
     }
-});
+})
 
-app.post("/logout", authMiddleware(), async (c) => {
-    const auth = getAuth(c);
-    const guard = auth.use("web");
+app.post('/logout', authMiddleware(), async (c) => {
+    const auth = getAuth(c)
+    const guard = auth.use('web')
 
-    await guard.logout();
-    return c.json({ message: "Logged out" });
-});
+    await guard.logout()
+    return c.json({ message: 'Logged out' })
+})
 ```
 
 ## Guards
@@ -160,32 +160,32 @@ Cookie/session-based authentication for web applications.
 
 ```typescript
 const guard = new SessionGuard(
-    "web",
+    'web',
     ctx,
     userProvider,
     {
         useRememberMeTokens: true,
         rememberMeTokensAge: 2592000, // 30 days
-        sessionKeyName: "auth_user_id",
+        sessionKeyName: 'auth_user_id',
     },
-);
+)
 
 // Login
-await guard.login("user@example.com", "password", true); // remember = true
+await guard.login('user@example.com', 'password', true) // remember = true
 
 // Login by ID (after registration)
-await guard.loginById(userId, false);
+await guard.loginById(userId, false)
 
 // Authenticate request
-const user = await guard.authenticate();
+const user = await guard.authenticate()
 
 // Check without throwing
 if (await guard.check()) {
-    console.log("User is authenticated");
+    console.log('User is authenticated')
 }
 
 // Logout
-await guard.logout();
+await guard.logout()
 ```
 
 **Remember Me Security:**
@@ -200,31 +200,31 @@ Bearer token authentication for APIs and mobile apps.
 
 ```typescript
 const guard = new TokenGuard(
-    "api",
+    'api',
     ctx,
     tokenUserProvider,
     {
-        prefix: "Bearer",
-        tokenType: "Bearer",
+        prefix: 'Bearer',
+        tokenType: 'Bearer',
     },
-);
+)
 
 // Generate token (after login)
 const token = await guard.generate(
-    "user@example.com",
-    "password",
-    "mobile-app",
-);
-console.log("Token:", token.value); // Send to client
+    'user@example.com',
+    'password',
+    'mobile-app',
+)
+console.log('Token:', token.value) // Send to client
 
 // Authenticate API request
-const user = await guard.authenticate(); // Reads Authorization: Bearer <token>
+const user = await guard.authenticate() // Reads Authorization: Bearer <token>
 
 // Revoke current token
-await guard.revoke();
+await guard.revoke()
 
 // Revoke all tokens (logout all devices)
-await guard.revokeAll();
+await guard.revokeAll()
 ```
 
 ### Basic Auth Guard
@@ -233,13 +233,13 @@ HTTP Basic Authentication (development/temporary use).
 
 ```typescript
 const guard = new BasicAuthGuard(
-    "basic",
+    'basic',
     ctx,
     basicAuthProvider,
-    { realm: "Protected Area" },
-);
+    { realm: 'Protected Area' },
+)
 
-const user = await guard.authenticate();
+const user = await guard.authenticate()
 // Sends WWW-Authenticate challenge if credentials missing/invalid
 ```
 
@@ -249,12 +249,12 @@ const user = await guard.authenticate();
 
 ```typescript
 class InMemoryProvider implements SessionUserProviderContract<User> {
-    declare [PROVIDER_REAL_USER]: User;
+    declare [PROVIDER_REAL_USER]: User
 
-    private users = new Map<number, User>();
+    private users = new Map<number, User>()
 
     async findById(id: number): Promise<User | null> {
-        return this.users.get(id) || null;
+        return this.users.get(id) || null
     }
 
     async findByCredentials(
@@ -263,14 +263,14 @@ class InMemoryProvider implements SessionUserProviderContract<User> {
     ): Promise<User | null> {
         for (const user of this.users.values()) {
             if (user.email === email && user.password === password) {
-                return user;
+                return user
             }
         }
-        return null;
+        return null
     }
 
     async verifyPassword(plain: string, hash: string): Promise<boolean> {
-        return plain === hash; // Use bcrypt in production!
+        return plain === hash // Use bcrypt in production!
     }
 }
 ```
@@ -280,27 +280,27 @@ class InMemoryProvider implements SessionUserProviderContract<User> {
 We provide optional Drizzle helpers:
 
 ```typescript
-import { DrizzleSessionProvider } from "@lockness/auth";
+import { DrizzleSessionProvider } from '@lockness/auth'
 
 const provider = new DrizzleSessionProvider({
     db,
     findUserById: async (db, id) => {
         return await db.query.users.findFirst({
             where: (users, { eq }) => eq(users.id, id),
-        });
+        })
     },
     findUserByCredentials: async (db, email, password) => {
         const user = await db.query.users.findFirst({
             where: (users, { eq }) => eq(users.email, email),
-        });
+        })
         if (user && await bcrypt.compare(password, user.password)) {
-            return user;
+            return user
         }
-        return null;
+        return null
     },
     enableRememberTokens: true,
-    rememberTokensTable: "remember_me_tokens",
-});
+    rememberTokensTable: 'remember_me_tokens',
+})
 ```
 
 **Database Schema for Remember Me:**
@@ -343,29 +343,29 @@ Authenticate using multiple methods:
 ```typescript
 // Initialize with multiple guards
 app.use(
-    "*",
+    '*',
     initializeAuthMiddleware({
-        default: "web",
+        default: 'web',
         guards: {
-            web: (ctx) => new SessionGuard("web", ctx, sessionProvider),
-            api: (ctx) => new TokenGuard("api", ctx, tokenProvider),
+            web: (ctx) => new SessionGuard('web', ctx, sessionProvider),
+            api: (ctx) => new TokenGuard('api', ctx, tokenProvider),
         },
     }),
-);
+)
 
 // Try web OR api authentication
-app.get("/data", authMiddleware({ guards: ["web", "api"] }), (c) => {
-    const auth = getAuth(c);
-    console.log("Authenticated via:", auth.authenticatedViaGuard); // 'web' or 'api'
-    return c.json({ data: [] });
-});
+app.get('/data', authMiddleware({ guards: ['web', 'api'] }), (c) => {
+    const auth = getAuth(c)
+    console.log('Authenticated via:', auth.authenticatedViaGuard) // 'web' or 'api'
+    return c.json({ data: [] })
+})
 
 // Manual multi-guard authentication
-const auth = getAuth(c);
+const auth = getAuth(c)
 try {
-    await auth.authenticateUsingAny(["web", "api"]);
+    await auth.authenticateUsingAny(['web', 'api'])
 } catch {
-    return c.json({ error: "Not authenticated" }, 401);
+    return c.json({ error: 'Not authenticated' }, 401)
 }
 ```
 
@@ -377,12 +377,12 @@ Initialize authenticator (required globally):
 
 ```typescript
 app.use(
-    "*",
+    '*',
     initializeAuthMiddleware({
-        default: "web",
+        default: 'web',
         guards: { web: sessionGuardFactory },
     }),
-);
+)
 ```
 
 ### `authMiddleware(options?)`
@@ -391,13 +391,13 @@ Protect routes (throws on failure):
 
 ```typescript
 // Use default guard
-app.get("/profile", authMiddleware(), handler);
+app.get('/profile', authMiddleware(), handler)
 
 // Use specific guard
-app.get("/api/users", authMiddleware({ guards: "api" }), handler);
+app.get('/api/users', authMiddleware({ guards: 'api' }), handler)
 
 // Try multiple guards
-app.get("/data", authMiddleware({ guards: ["web", "api"] }), handler);
+app.get('/data', authMiddleware({ guards: ['web', 'api'] }), handler)
 ```
 
 ### `guestMiddleware(options?)`
@@ -405,7 +405,7 @@ app.get("/data", authMiddleware({ guards: ["web", "api"] }), handler);
 Only allow unauthenticated (redirects if authenticated):
 
 ```typescript
-app.get("/login", guestMiddleware({ redirectTo: "/dashboard" }), handler);
+app.get('/login', guestMiddleware({ redirectTo: '/dashboard' }), handler)
 ```
 
 ## Events
@@ -413,28 +413,28 @@ app.get("/login", guestMiddleware({ redirectTo: "/dashboard" }), handler);
 Listen to authentication events:
 
 ```typescript
-import { EventEmitter } from "@lockness/events";
+import { EventEmitter } from '@lockness/events'
 
-const emitter = new EventEmitter();
+const emitter = new EventEmitter()
 
-emitter.on("session:login", ({ user }) => {
-    console.log("User logged in:", user.email);
-});
+emitter.on('session:login', ({ user }) => {
+    console.log('User logged in:', user.email)
+})
 
-emitter.on("session:logout", ({ user }) => {
-    console.log("User logged out:", user.email);
-});
+emitter.on('session:logout', ({ user }) => {
+    console.log('User logged out:', user.email)
+})
 
-emitter.on("session:authentication_failed", ({ error }) => {
-    console.log("Auth failed:", error.message);
-});
+emitter.on('session:authentication_failed', ({ error }) => {
+    console.log('Auth failed:', error.message)
+})
 
-emitter.on("token:created", ({ user, token }) => {
-    console.log("Token created for:", user.email);
-});
+emitter.on('token:created', ({ user, token }) => {
+    console.log('Token created for:', user.email)
+})
 
 // Pass emitter to guard
-const guard = new SessionGuard("web", ctx, provider, options, emitter);
+const guard = new SessionGuard('web', ctx, provider, options, emitter)
 ```
 
 ## Testing
@@ -442,26 +442,26 @@ const guard = new SessionGuard("web", ctx, provider, options, emitter);
 Use `authenticateAsClient()` for testing:
 
 ```typescript
-Deno.test("protected route requires authentication", async () => {
-    const app = setupApp();
+Deno.test('protected route requires authentication', async () => {
+    const app = setupApp()
 
-    const user = { id: 1, email: "test@example.com" };
-    const guard = auth.use("web");
+    const user = { id: 1, email: 'test@example.com' }
+    const guard = auth.use('web')
 
     // Get client authentication data
-    const { session, cookies } = await guard.authenticateAsClient(user);
+    const { session, cookies } = await guard.authenticateAsClient(user)
 
     // Make authenticated request
-    const res = await app.request("/profile", {
+    const res = await app.request('/profile', {
         headers: {
             Cookie: Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join(
-                "; ",
+                '; ',
             ),
         },
-    });
+    })
 
-    assertEquals(res.status, 200);
-});
+    assertEquals(res.status, 200)
+})
 ```
 
 ## Security Best Practices
@@ -484,13 +484,13 @@ Old auth system was monolithic. New system is modular:
 
 ```typescript
 // Old
-import { Auth } from "@lockness/core";
-const auth = new Auth(ctx);
+import { Auth } from '@lockness/core'
+const auth = new Auth(ctx)
 
 // New
-import { getAuth } from "@lockness/auth";
-const auth = getAuth(ctx);
-const guard = auth.use("web");
+import { getAuth } from '@lockness/auth'
+const auth = getAuth(ctx)
+const guard = auth.use('web')
 ```
 
 ## API Reference

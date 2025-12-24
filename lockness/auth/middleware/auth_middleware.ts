@@ -1,12 +1,12 @@
 /**
  * @lockness/auth - Auth Middleware
- * 
+ *
  * Middleware to protect routes by requiring authentication.
  * Use this middleware on routes that need authentication.
  */
 
 import type { Context } from 'hono'
-import type { GuardFactory } from '../types.ts'
+import type { MiddlewareHandler } from 'hono'
 import { getAuth } from './initialize_auth_middleware.ts'
 
 /**
@@ -24,27 +24,29 @@ export interface AuthMiddlewareOptions {
 /**
  * Auth middleware factory.
  * Protects routes by requiring authentication using specified guard(s).
- * 
+ *
  * @example
  * // Use default guard
  * app.get('/profile', authMiddleware(), (c) => {
  *   const user = getAuth(c).user
  *   return c.json({ user })
  * })
- * 
+ *
  * @example
  * // Use specific guard
  * app.get('/api/users', authMiddleware({ guards: 'api' }), (c) => {
  *   return c.json({ users: [] })
  * })
- * 
+ *
  * @example
  * // Try multiple guards (web OR api)
  * app.get('/data', authMiddleware({ guards: ['web', 'api'] }), (c) => {
  *   return c.json({ data: [] })
  * })
  */
-export function authMiddleware(options?: AuthMiddlewareOptions) {
+export function authMiddleware(
+    options?: AuthMiddlewareOptions,
+): MiddlewareHandler {
     return async (c: Context, next: () => Promise<void>) => {
         const auth = getAuth(c)
 
@@ -68,13 +70,15 @@ export function authMiddleware(options?: AuthMiddlewareOptions) {
 /**
  * Guest middleware - only allow unauthenticated requests.
  * Redirects to a specified path if user is authenticated.
- * 
+ *
  * @example
  * app.get('/login', guestMiddleware({ redirectTo: '/dashboard' }), (c) => {
  *   return c.html('<form>Login Form</form>')
  * })
  */
-export function guestMiddleware(options?: { redirectTo?: string }) {
+export function guestMiddleware(
+    options?: { redirectTo?: string },
+): MiddlewareHandler {
     return async (c: Context, next: () => Promise<void>) => {
         const auth = getAuth(c)
 

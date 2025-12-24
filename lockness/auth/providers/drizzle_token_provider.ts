@@ -1,16 +1,16 @@
 /**
  * @lockness/auth - Drizzle User Provider for Token Guard
- * 
+ *
  * User provider for API token authentication using Drizzle ORM.
  */
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '@lockness/drizzle'
 import type {
-    Authenticatable,
     AccessToken,
-    TokenUserProviderContract,
+    Authenticatable,
     PROVIDER_REAL_USER,
+    TokenUserProviderContract,
 } from '../types.ts'
 
 /**
@@ -49,7 +49,7 @@ export interface DrizzleTokenProviderOptions<User extends Authenticatable> {
 
 /**
  * Drizzle-based user provider for token authentication
- * 
+ *
  * @example
  * const provider = new DrizzleTokenProvider({
  *   db,
@@ -96,8 +96,15 @@ export class DrizzleTokenProvider<User extends Authenticatable>
     /**
      * Find user by credentials
      */
-    async findByCredentials(email: string, password: string): Promise<User | null> {
-        return await this.#options.findUserByCredentials(this.#options.db, email, password)
+    async findByCredentials(
+        email: string,
+        password: string,
+    ): Promise<User | null> {
+        return await this.#options.findUserByCredentials(
+            this.#options.db,
+            email,
+            password,
+        )
     }
 
     /**
@@ -114,26 +121,34 @@ export class DrizzleTokenProvider<User extends Authenticatable>
         // Generate secure random token
         const tokenValue = this.#generateToken()
         const tokenHash = await this.#hashToken(tokenValue)
-        const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null
+        const expiresAt = expiresIn
+            ? new Date(Date.now() + expiresIn * 1000)
+            : null
 
         // Insert token into database
         const result = await db.db.execute(sql`
-            INSERT INTO ${sql.identifier(table)} (user_id, name, token_hash, expires_at, created_at, last_used_at)
+            INSERT INTO ${
+            sql.identifier(table)
+        } (user_id, name, token_hash, expires_at, created_at, last_used_at)
             VALUES (${user.id}, ${name}, ${tokenHash}, ${expiresAt}, NOW(), NOW())
             RETURNING id, user_id, name, token_hash, expires_at, created_at, last_used_at
         `)
 
-        const row = result[0] as any
+        const row = result[0] as Record<string, unknown>
 
         return {
-            identifier: row.id,
-            name: row.name,
+            identifier: row.id as string | number,
+            name: row.name as string,
             value: tokenValue,
-            hash: row.token_hash,
-            userId: row.user_id,
-            expiresAt: row.expires_at ? new Date(row.expires_at) : undefined,
-            createdAt: new Date(row.created_at),
-            lastUsedAt: row.last_used_at ? new Date(row.last_used_at) : undefined,
+            hash: row.token_hash as string,
+            userId: row.user_id as string | number,
+            expiresAt: row.expires_at
+                ? new Date(row.expires_at as string | number | Date)
+                : undefined,
+            createdAt: new Date(row.created_at as string | number | Date),
+            lastUsedAt: row.last_used_at
+                ? new Date(row.last_used_at as string | number | Date)
+                : undefined,
         }
     }
 
@@ -158,29 +173,31 @@ export class DrizzleTokenProvider<User extends Authenticatable>
             return null
         }
 
-        const row = result[0] as any
+        const row = result[0] as Record<string, unknown>
 
         // Update last used timestamp
         await db.db.execute(sql`
             UPDATE ${sql.identifier(table)}
             SET last_used_at = NOW()
-            WHERE id = ${row.id}
+            WHERE id = ${row.id as string | number}
         `)
 
         // Find user
-        const user = await this.findById(row.user_id)
+        const user = await this.findById(row.user_id as string | number)
         if (!user) {
             return null
         }
 
         const token: AccessToken = {
-            identifier: row.id,
-            name: row.name,
+            identifier: row.id as string | number,
+            name: row.name as string,
             value: tokenValue,
-            hash: row.token_hash,
-            userId: row.user_id,
-            expiresAt: row.expires_at ? new Date(row.expires_at) : undefined,
-            createdAt: new Date(row.created_at),
+            hash: row.token_hash as string,
+            userId: row.user_id as string | number,
+            expiresAt: row.expires_at
+                ? new Date(row.expires_at as string | number | Date)
+                : undefined,
+            createdAt: new Date(row.created_at as string | number | Date),
             lastUsedAt: new Date(), // Just updated
         }
 
@@ -219,7 +236,8 @@ export class DrizzleTokenProvider<User extends Authenticatable>
     #generateToken(): string {
         const array = new Uint8Array(this.#options.tokenLength)
         crypto.getRandomValues(array)
-        return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
+        return Array.from(array, (byte) => byte.toString(16).padStart(2, '0'))
+            .join('')
     }
 
     /**
@@ -230,6 +248,8 @@ export class DrizzleTokenProvider<User extends Authenticatable>
         const data = encoder.encode(token)
         const hashBuffer = await crypto.subtle.digest('SHA-256', data)
         const hashArray = Array.from(new Uint8Array(hashBuffer))
-        return hashArray.map((byte) => byte.toString(16).padStart(2, '0')).join('')
+        return hashArray.map((byte) => byte.toString(16).padStart(2, '0')).join(
+            '',
+        )
     }
 }

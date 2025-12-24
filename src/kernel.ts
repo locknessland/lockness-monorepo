@@ -7,9 +7,9 @@ import {
 } from 'lockness'
 import { Database } from '@lockness/drizzle'
 import {
-    SessionGuard,
-    initializeAuthMiddleware,
     authMiddleware,
+    initializeAuthMiddleware,
+    SessionGuard,
 } from '@lockness/auth'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { UserProvider } from '../src/auth/user_provider.ts'
@@ -45,7 +45,7 @@ export const bootstrap = async () => {
             if (
                 typeof Exported === 'function' &&
                 (Exported as unknown as Record<string, unknown>)._basePath !==
-                undefined
+                    undefined
             ) {
                 controllers.push(Exported as ControllerClass)
             }
@@ -64,7 +64,8 @@ export const bootstrap = async () => {
             initializeAuthMiddleware({
                 default: 'web',
                 guards: {
-                    web: (ctx) => new SessionGuard('web', ctx, new UserProvider(db)),
+                    web: (ctx) =>
+                        new SessionGuard('web', ctx, new UserProvider(db)),
                 },
             }),
             LoggerMiddleware,
@@ -73,7 +74,10 @@ export const bootstrap = async () => {
         // Named middlewares (use with @Use('auth'))
         middlewares: {
             auth: class AuthMiddleware {
-                async handle(c: any, next: any) {
+                async handle(
+                    c: import('hono').Context,
+                    next: import('hono').Next,
+                ) {
                     return await authMiddleware()(c, next)
                 }
             },

@@ -1,6 +1,6 @@
 /**
  * User Provider for Lockness Auth
- * 
+ *
  * Implements SessionUserProviderContract using Drizzle ORM
  */
 
@@ -9,12 +9,11 @@ import { eq } from 'drizzle-orm'
 import { users } from '@model/user.ts'
 import type {
     Authenticatable,
-    SessionUserProviderContract,
-    SessionWithRememberMeProviderContract,
-    RememberMeToken,
     PROVIDER_REAL_USER,
+    RememberMeToken,
+    SessionWithRememberMeProviderContract,
 } from '@lockness/auth'
-import { hashPassword, verifyPassword } from 'lockness'
+import { verifyPassword } from 'lockness'
 
 /**
  * User type matching our database schema
@@ -31,10 +30,11 @@ export interface User extends Authenticatable {
 /**
  * User provider for session-based authentication
  */
-export class UserProvider implements SessionWithRememberMeProviderContract<User> {
+export class UserProvider
+    implements SessionWithRememberMeProviderContract<User> {
     declare [PROVIDER_REAL_USER]: User
 
-    constructor(private db: Database) { }
+    constructor(private db: Database) {}
 
     async findById(id: string | number): Promise<User | null> {
         const result = await this.db.db
@@ -46,7 +46,10 @@ export class UserProvider implements SessionWithRememberMeProviderContract<User>
         return result[0] as User || null
     }
 
-    async findByCredentials(email: string, password: string): Promise<User | null> {
+    async findByCredentials(
+        email: string,
+        password: string,
+    ): Promise<User | null> {
         const result = await this.db.db
             .select()
             .from(users)
@@ -72,7 +75,10 @@ export class UserProvider implements SessionWithRememberMeProviderContract<User>
     }
 
     // Remember Me Token Methods
-    async createRememberToken(user: User, expiresIn: number): Promise<RememberMeToken> {
+    async createRememberToken(
+        user: User,
+        expiresIn: number,
+    ): Promise<RememberMeToken> {
         // Use DrizzleSessionProvider helper or implement custom logic
         const token = crypto.randomUUID()
         const tokenHash = await this.hashToken(token)
@@ -91,13 +97,21 @@ export class UserProvider implements SessionWithRememberMeProviderContract<User>
         }
     }
 
-    async verifyRememberToken(tokenValue: string) {
+    verifyRememberToken(
+        _tokenValue: string,
+    ): Promise<
+        { user: User; token: import('@lockness/auth').RememberMeToken } | null
+    > {
         // Verify token from database
         // TODO: Implement with remember_me_tokens table
-        return null
+        return Promise.resolve(null)
     }
 
-    async recycleRememberToken(user: User, tokenId: string | number, expiresIn: number): Promise<RememberMeToken> {
+    async recycleRememberToken(
+        user: User,
+        _tokenId: string | number,
+        expiresIn: number,
+    ): Promise<RememberMeToken> {
         // Recycle (delete old, create new) for security
         // TODO: Implement
         const token = crypto.randomUUID()
@@ -114,7 +128,7 @@ export class UserProvider implements SessionWithRememberMeProviderContract<User>
         }
     }
 
-    async deleteRememberToken(user: User, tokenId: string | number) {
+    async deleteRememberToken(_user: User, _tokenId: string | number) {
         // Delete token from database
         // TODO: Implement
     }

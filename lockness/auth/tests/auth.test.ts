@@ -13,7 +13,6 @@ import {
     TokenGuard,
     BasicAuthGuard,
     InvalidCredentialsError,
-    UnauthorizedAccessError,
     initializeAuthMiddleware,
     authMiddleware,
     getAuth,
@@ -23,7 +22,6 @@ import type {
     SessionUserProviderContract,
     TokenUserProviderContract,
     BasicAuthUserProviderContract,
-    RememberMeToken,
     AccessToken,
     PROVIDER_REAL_USER,
 } from '../types.ts'
@@ -75,21 +73,21 @@ class MockSessionProvider implements SessionUserProviderContract<TestUser> {
         })
     }
 
-    async findById(id: string | number): Promise<TestUser | null> {
-        return this.users.get(Number(id)) || null
+    findById(id: string | number): Promise<TestUser | null> {
+        return Promise.resolve(this.users.get(Number(id)) || null)
     }
 
-    async findByCredentials(email: string, password: string): Promise<TestUser | null> {
+    findByCredentials(email: string, password: string): Promise<TestUser | null> {
         for (const user of this.users.values()) {
             if (user.email === email && user.password === password) {
-                return user
+                return Promise.resolve(user)
             }
         }
-        return null
+        return Promise.resolve(null)
     }
 
-    async verifyPassword(plain: string, hash: string): Promise<boolean> {
-        return plain === hash
+    verifyPassword(plain: string, hash: string): Promise<boolean> {
+        return Promise.resolve(plain === hash)
     }
 }
 
@@ -112,20 +110,20 @@ class MockTokenProvider implements TokenUserProviderContract<TestUser> {
         })
     }
 
-    async findById(id: string | number): Promise<TestUser | null> {
-        return this.users.get(Number(id)) || null
+    findById(id: string | number): Promise<TestUser | null> {
+        return Promise.resolve(this.users.get(Number(id)) || null)
     }
 
-    async findByCredentials(email: string, password: string): Promise<TestUser | null> {
+    findByCredentials(email: string, password: string): Promise<TestUser | null> {
         for (const user of this.users.values()) {
             if (user.email === email && user.password === password) {
-                return user
+                return Promise.resolve(user)
             }
         }
-        return null
+        return Promise.resolve(null)
     }
 
-    async createToken(
+    createToken(
         user: TestUser,
         name: string,
         expiresIn?: number,
@@ -141,7 +139,7 @@ class MockTokenProvider implements TokenUserProviderContract<TestUser> {
             createdAt: new Date(),
         }
         this.tokens.set(tokenValue, token)
-        return token
+        return Promise.resolve(token)
     }
 
     async verifyToken(tokenValue: string): Promise<{ user: TestUser; token: AccessToken } | null> {
@@ -158,21 +156,23 @@ class MockTokenProvider implements TokenUserProviderContract<TestUser> {
         return { user, token }
     }
 
-    async deleteToken(user: TestUser, tokenId: string | number): Promise<void> {
+    deleteToken(user: TestUser, tokenId: string | number): Promise<void> {
         for (const [key, token] of this.tokens.entries()) {
             if (token.identifier === tokenId && token.userId === user.id) {
                 this.tokens.delete(key)
                 break
             }
         }
+        return Promise.resolve()
     }
 
-    async deleteAllTokens(user: TestUser): Promise<void> {
-        for (const [key, token] of this.tokens.entries()) {
+    deleteAllTokens(user: TestUser): Promise<void> {
+        for (const [tokenId, token] of this.tokens.entries()) {
             if (token.userId === user.id) {
-                this.tokens.delete(key)
+                this.tokens.delete(tokenId)
             }
         }
+        return Promise.resolve()
     }
 }
 
@@ -194,21 +194,21 @@ class MockBasicAuthProvider implements BasicAuthUserProviderContract<TestUser> {
         })
     }
 
-    async findById(id: string | number): Promise<TestUser | null> {
-        return this.users.get(Number(id)) || null
+    findById(id: string | number): Promise<TestUser | null> {
+        return Promise.resolve(this.users.get(Number(id)) || null)
     }
 
-    async findByCredentials(email: string, password: string): Promise<TestUser | null> {
+    findByCredentials(email: string, password: string): Promise<TestUser | null> {
         for (const user of this.users.values()) {
             if (user.email === email && user.password === password) {
-                return user
+                return Promise.resolve(user)
             }
         }
-        return null
+        return Promise.resolve(null)
     }
 
-    async verifyPassword(plain: string, hash: string): Promise<boolean> {
-        return plain === hash
+    verifyPassword(plain: string, hash: string): Promise<boolean> {
+        return Promise.resolve(plain === hash)
     }
 }
 
@@ -226,7 +226,7 @@ async function createMockContext(): Promise<Context> {
             _data: dataMap,
             get: function (key: string) { return dataMap.get(key) },
             set: function (key: string, value: unknown) { dataMap.set(key, value) },
-            regenerate: async () => { dataMap.clear() },
+            regenerate: () => { dataMap.clear(); return Promise.resolve() },
         }
         c.set('session', mockSession)
         await next()

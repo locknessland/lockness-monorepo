@@ -1,6 +1,6 @@
 /**
  * @lockness/auth - Drizzle User Provider for Basic Auth Guard
- * 
+ *
  * Simple user provider for HTTP Basic Authentication using Drizzle ORM.
  */
 
@@ -42,7 +42,7 @@ export interface DrizzleBasicAuthProviderOptions<User extends Authenticatable> {
 
 /**
  * Drizzle-based user provider for basic authentication
- * 
+ *
  * @example
  * const provider = new DrizzleBasicAuthProvider({
  *   db,
@@ -74,15 +74,16 @@ export class DrizzleBasicAuthProvider<User extends Authenticatable>
     constructor(options: DrizzleBasicAuthProviderOptions<User>) {
         this.#options = {
             ...options,
-            verifyPassword: options.verifyPassword ?? this.#defaultVerifyPassword,
+            verifyPassword: options.verifyPassword ??
+                this.#defaultVerifyPassword,
         }
     }
 
     /**
      * Default password verification (direct comparison - not secure for production)
      */
-    async #defaultVerifyPassword(plain: string, hash: string): Promise<boolean> {
-        return plain === hash
+    #defaultVerifyPassword(plain: string, hash: string): Promise<boolean> {
+        return Promise.resolve(plain === hash)
     }
 
     /**
@@ -95,8 +96,15 @@ export class DrizzleBasicAuthProvider<User extends Authenticatable>
     /**
      * Find user by credentials
      */
-    async findByCredentials(email: string, password: string): Promise<User | null> {
-        return await this.#options.findUserByCredentials(this.#options.db, email, password)
+    async findByCredentials(
+        email: string,
+        password: string,
+    ): Promise<User | null> {
+        return await this.#options.findUserByCredentials(
+            this.#options.db,
+            email,
+            password,
+        )
     }
 
     /**
