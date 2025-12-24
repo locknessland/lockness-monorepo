@@ -527,13 +527,13 @@ Packages are declared in the `lockness` section of your `deno.json`:
 
 ```json
 {
-  "lockness": {
-    "packages": [
-      "drizzle",
-      "openapi",
-      "cache"
-    ]
-  }
+    "lockness": {
+        "packages": [
+            "drizzle",
+            "openapi",
+            "cache"
+        ]
+    }
 }
 ```
 
@@ -554,6 +554,7 @@ deno task ace package:install openapi
 ```
 
 This command:
+
 - Adds the package to `deno.json`
 - Runs the package's install script
 - Creates necessary files and configurations
@@ -609,8 +610,10 @@ The `loadPackageCommands()` function:
 
 #### Official Packages
 
-- **@lockness/drizzle**: Drizzle ORM integration with migrations, seeders, and CLI commands
-- **@lockness/openapi**: OpenAPI/Swagger documentation with automatic spec generation
+- **@lockness/drizzle**: Drizzle ORM integration with migrations, seeders, and
+  CLI commands
+- **@lockness/openapi**: OpenAPI/Swagger documentation with automatic spec
+  generation
 - **@lockness/cache**: Multi-driver caching system (Memory, Deno KV, Redis)
 - **@lockness/socialite**: OAuth2 authentication (Google, GitHub, Discord)
 
@@ -651,10 +654,10 @@ Export both in your `deno.json`:
 
 ```json
 {
-  "exports": {
-    ".": "./index.ts",
-    "./install": "./install.ts"
-  }
+    "exports": {
+        ".": "./index.ts",
+        "./install": "./install.ts"
+    }
 }
 ```
 

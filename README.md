@@ -583,14 +583,14 @@ Packages are declared in the `lockness` section of your `deno.json`:
 
 ```json
 {
-  "lockness": {
-    "packages": [
-      "drizzle",
-      "openapi",
-      "cache",
-      "socialite"
-    ]
-  }
+    "lockness": {
+        "packages": [
+            "drizzle",
+            "openapi",
+            "cache",
+            "socialite"
+        ]
+    }
 }
 ```
 
