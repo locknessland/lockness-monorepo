@@ -13,10 +13,11 @@ import {
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { UserProvider } from '../src/auth/user_provider.ts'
 
-// Import controllers explicitly
+// Import controllers explicitly (add your controllers here)
 import { AppController } from '@controller/app_controller.tsx'
 import { AuthController } from '@controller/auth_controller.ts'
 import { DocsController } from '@controller/docs_controller.tsx'
+import { TestController } from '@controller/test_controller.tsx'
 
 export const bootstrap = async () => {
     // Initialize Database (Optional)
@@ -36,13 +37,13 @@ export const bootstrap = async () => {
     // Create Lockness application
     const app = new App()
 
-    // Register controllers explicitly (no more Vite glob)
-    const controllers = [AppController, AuthController, DocsController]
+    // Register controllers explicitly
+    const controllers = [AppController, AuthController, DocsController, TestController]
     console.log(`🔌 Loaded ${controllers.length} controllers`)
 
     await app.init({
         controllers,
-        staticDir: 'static',
+        staticDir: 'public',
 
         // Global middlewares (applied to all routes)
         globalMiddlewares: [
