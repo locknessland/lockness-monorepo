@@ -2,7 +2,6 @@ import {
     App,
     configureSession,
     container,
-    type ControllerClass,
     sessionMiddleware,
 } from 'lockness'
 import { Database } from '@lockness/drizzle'
@@ -13,6 +12,11 @@ import {
 } from '@lockness/auth'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { UserProvider } from '../src/auth/user_provider.ts'
+
+// Import controllers explicitly (no Vite glob)
+import { AppController } from '@controller/app_controller.tsx'
+import { AuthController } from '@controller/auth_controller.ts'
+import { DocsController } from '@controller/docs_controller.tsx'
 
 export const bootstrap = async () => {
     // Initialize Database (Optional)
@@ -32,25 +36,8 @@ export const bootstrap = async () => {
     // Create Lockness application
     const app = new App()
 
-    // Initialize the application with auto-discovery via Vite glob import
-    // This MUST be a literal string for Vite to transform it correctly
-    // @ts-ignore: Vite glob import is not recognized by Deno
-    const modules = import.meta.glob('./controller/*.{ts,tsx}', { eager: true })
-    const controllers: ControllerClass[] = []
-
-    for (const path in modules) {
-        const mod = modules[path] as Record<string, unknown>
-        for (const key in mod) {
-            const Exported = mod[key]
-            if (
-                typeof Exported === 'function' &&
-                (Exported as unknown as Record<string, unknown>)._basePath !==
-                    undefined
-            ) {
-                controllers.push(Exported as ControllerClass)
-            }
-        }
-    }
+    // Register controllers explicitly (no more Vite glob)
+    const controllers = [AppController, AuthController, DocsController]
     console.log(`🔌 Loaded ${controllers.length} controllers`)
 
     await app.init({
