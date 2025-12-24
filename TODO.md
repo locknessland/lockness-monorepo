@@ -62,12 +62,12 @@
 - [x] **CLI & Debug Tools**
   - [x] `router:list` command to display all routes with methods, paths,
         controller actions, and middlewares.
-  - [ ] `make:crud <name>` command to scaffold model, controller, repository,
+  - [x] `make:crud <name>` command to scaffold model, controller, repository,
         service, views, and routes in one command.
-- [ ] **Error Pages**
-  - [ ] Styled error pages for 404, 500, and other HTTP errors.
-  - [ ] Dev mode: detailed stack trace, request context, and suggestions.
-  - [ ] Prod mode: clean user-friendly error pages.
+- [x] **Error Pages**
+  - [x] Styled error pages for 404, 500, and other HTTP errors.
+  - [x] Dev mode: detailed stack trace, request context, and suggestions.
+  - [x] Prod mode: clean user-friendly error pages.
 - [ ] **Smart Stub Generation**
   - [ ] Auto-import common dependencies in generated files (Container, Context,
         decorators).

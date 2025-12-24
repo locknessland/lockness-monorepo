@@ -287,6 +287,23 @@ The `-a` flag generates:
 - `src/seeder/post_seeder.ts` - Seeder template
 - `src/controller/post_controller.ts` - REST API with validation
 
+### Complete CRUD Scaffolding
+
+For a full-stack CRUD with views:
+
+```bash
+deno task ace make:crud Post
+```
+
+Generates:
+
+- `src/model/post.ts` - Drizzle schema
+- `src/repository/post_repository.ts` - Data access layer
+- `src/service/post_service.ts` - Business logic
+- `src/controller/post_controller.tsx` - HTTP handler
+- `src/view/pages/post/index.tsx` - List view
+- `src/view/pages/post/show.tsx` - Detail view
+
 ### Scaffolding Components
 
 Generate JSX components with the `make:component` command:

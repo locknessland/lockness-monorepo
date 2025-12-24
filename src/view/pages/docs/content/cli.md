@@ -86,6 +86,25 @@ deno task ace make:error-pages
 Creates error pages in `src/view/pages/errors/` with minimal HTML (no styling).
 After generation, configure the error handler in `src/kernel.tsx`.
 
+**make:crud** - Scaffold complete CRUD (model, repository, service, controller,
+views):
+
+```bash
+deno task ace make:crud Post
+```
+
+Generates:
+
+- `src/model/post.ts` - Drizzle schema
+- `src/repository/post_repository.ts` - Data access layer
+- `src/service/post_service.ts` - Business logic
+- `src/controller/post_controller.tsx` - HTTP handler
+- `src/view/pages/post/index.tsx` - List view
+- `src/view/pages/post/show.tsx` - Detail view
+
+After generation, define your schema in the model and run
+`deno task db:generate` to create migrations.
+
 **make:auth** - Scaffold authentication system:
 
 ```bash
