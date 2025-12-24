@@ -26,9 +26,9 @@
         "ace": "deno run -A --env ace.ts",
         "css:build": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css",
         "css:watch": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css --watch",
-        "test": "deno test -A --env lockness/",
-        "test:coverage": "rm -rf coverage && deno test -A --env --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
-        "test:watch": "deno test -A --env --watch lockness/",
+        "test": "deno test -A lockness/",
+        "test:watch": "deno test -A --watch lockness/",
+        "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
         "routes:generate": "deno run -A scripts/generate_routes.ts",
         "routes:watch": "deno run -A scripts/watch_routes.ts"
     },
