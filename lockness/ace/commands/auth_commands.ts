@@ -16,7 +16,7 @@ export function registerAuthCommands(ace: Ace) {
             const files = [
                 {
                     stub: 'auth_controller',
-                    output: './src/controller/auth_controller.ts',
+                    output: './src/controller/auth_controller.tsx',
                     name: 'AuthController',
                 },
                 {
@@ -29,7 +29,7 @@ export function registerAuthCommands(ace: Ace) {
             if (includeSocial) {
                 files.push({
                     stub: 'social_auth_controller',
-                    output: './src/controller/social_auth_controller.ts',
+                    output: './src/controller/social_auth_controller.tsx',
                     name: 'SocialAuthController',
                 })
             }
@@ -54,8 +54,7 @@ export function registerAuthCommands(ace: Ace) {
                     console.log(`✅ ${file.name} created at ${file.output}`)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create ${file.name}: ${
-                            (error as Error).message
+                        `❌ Failed to create ${file.name}: ${(error as Error).message
                         }`,
                     )
                 }

@@ -13,7 +13,7 @@ export function registerMakeCommands(ace: Ace) {
         }
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
-        const fileName = `${name.toLowerCase()}_controller.ts`
+        const fileName = `${name.toLowerCase()}_controller.tsx`
         const dirPath = `./src/controller`
         const filePath = `${dirPath}/${fileName}`
 
