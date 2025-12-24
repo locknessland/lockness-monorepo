@@ -304,6 +304,33 @@ Generates:
 - `src/view/pages/post/index.tsx` - List view
 - `src/view/pages/post/show.tsx` - Detail view
 
+### Development Debugging Tools
+
+Lockness includes **@lockness/devtools** - a Symfony-style debug toolbar and
+dashboard:
+
+```typescript
+// In src/kernel.tsx
+if (Deno.env.get('APP_ENV') === 'development') {
+    enableDevtools(app.getHono())
+}
+```
+
+**Features:**
+
+- 🔧 **Debug Toolbar**: Fixed bottom bar on every page with real-time stats
+- 📊 **Dashboard**: Full web interface at `/_devtools` with 8 panels
+- 🔍 **Request Inspector**: Track all HTTP requests with timing
+- 📝 **Logs**: Centralized log viewer
+- 🗄️ **SQL Queries**: Monitor database queries and performance
+- 📬 **Mail**: Track sent emails
+- ⚙️ **Queue**: Monitor background jobs
+
+Disable toolbar: `DEBUG_BAR=false`
+
+See [lockness/devtools/README.md](lockness/devtools/README.md) for full
+documentation.
+
 ### Scaffolding Components
 
 Generate JSX components with the `make:component` command:
