@@ -48,22 +48,38 @@ export function authMiddleware(
     options?: AuthMiddlewareOptions,
 ): MiddlewareHandler {
     return async (c: Context, next: () => Promise<void>) => {
-        const auth = getAuth(c)
+        try {
+            const auth = getAuth(c)
 
-        const guards = options?.guards
+            const guards = options?.guards
 
-        if (!guards) {
-            // Use default guard
-            await auth.authenticate()
-        } else if (typeof guards === 'string') {
-            // Use specific guard
-            await auth.authenticateUsing(guards as keyof typeof auth)
-        } else {
-            // Try multiple guards
-            await auth.authenticateUsingAny(guards as Array<keyof typeof auth>)
+            if (!guards) {
+                // Use default guard
+                await auth.authenticate()
+            } else if (typeof guards === 'string') {
+                // Use specific guard
+                await auth.authenticateUsing(guards as keyof typeof auth)
+            } else {
+                // Try multiple guards
+                await auth.authenticateUsingAny(guards as Array<keyof typeof auth>)
+            }
+
+            await next()
+        } catch (error) {
+            // If it's an authentication error with a status code, return appropriate response
+            if (error && typeof error === 'object' && 'status' in error) {
+                const authError = error as { status: number; message: string; code?: string }
+                return c.json(
+                    {
+                        error: authError.message,
+                        code: authError.code || 'AUTHENTICATION_ERROR',
+                    },
+                    authError.status as any,
+                )
+            }
+            // Re-throw other errors
+            throw error
         }
-
-        await next()
     }
 }
 
