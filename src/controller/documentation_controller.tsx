@@ -10,11 +10,11 @@ import { CliPage } from '@view/pages/docs/cli.tsx'
 import { ComponentsPage } from '@view/pages/docs/components.tsx'
 import { NessyPage } from '@view/pages/docs/nessy.tsx'
 
-@Controller('/docs')
-export class DocsController {
+@Controller('/documentation')
+export class DocumentationController {
     @Get('/')
     index(c: Context) {
-        return c.redirect('/docs/installation')
+        return c.redirect('/documentation/installation')
     }
 
     @Get('/installation')
