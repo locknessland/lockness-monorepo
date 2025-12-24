@@ -5,7 +5,7 @@
     "tasks": {
         "test": "deno test --allow-net --allow-read --allow-write --allow-env tests/"
     },
-    "exclude": ["adonisjs-auth/", "tests/"],
+    "exclude": ["tests/"],
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
         "@lockness/drizzle": "../drizzle/database.ts",
