@@ -19,8 +19,8 @@
     "nodeModulesDir": "auto",
     "tasks": {
         "dev": "bash scripts/dev.sh",
-        "bundle": "deno bundle --minify main.ts --output _dist/main.ts",
-        "build": "deno task css:build && deno task bundle",
+        "bundle": "deno task css:build && deno bundle --minify main.ts --output _dist/main.ts",
+        "build": "deno task bundle",
         "compile": "deno task routes:generate && deno task css:build && APP_ENV=production deno compile --output=_dist/lockness -A main.ts",
         "start": "deno serve -A --env-file=.env.production.local _dist/main.ts",
         "ace": "deno run -A --env ace.ts",
