@@ -21,7 +21,7 @@
         "dev": "bash scripts/dev.sh",
         "build": "deno task css:build",
         "compile": "deno task routes:generate && deno task css:build && APP_ENV=production deno compile --output=_dist/lockness -A main.ts",
-        "start": "deno serve -A --env-file=.env.production.local main.ts",
+        "start": "deno run -A --env-file=.env.production.local main.ts",
         "ace": "deno run -A --env ace.ts",
         "css:build": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css",
         "css:watch": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css --watch",
