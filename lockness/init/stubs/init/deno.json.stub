@@ -2,11 +2,16 @@
     "workspace": [],
     "nodeModulesDir": "auto",
     "tasks": {
-        "dev": "VITE=true deno run -A --env npm:vite dev",
-        "build": "deno run -A npm:vite build && deno run -A npm:vite build --ssr",
-        "preview": "deno run -A npm:vite preview",
-        "start": "cd dist && deno run --allow-net --allow-read --allow-env --allow-sys --allow-run --env server.js",
+        "dev": "bash scripts/dev.sh",
+        "bundle": "deno bundle --minify main.ts --output _dist/main.ts",
+        "build": "deno task css:build && deno task bundle",
+        "compile": "deno task routes:generate && deno task css:build && APP_ENV=production deno compile --output=_dist/lockness -A main.ts",
+        "start": "deno serve -A --env-file=.env.production.local _dist/main.ts",
         "ace": "deno run -A --env ace.ts",
+        "css:build": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css",
+        "css:watch": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css --watch",
+        "routes:generate": "deno run -A scripts/generate_routes.ts",
+        "routes:watch": "deno run -A scripts/watch_routes.ts",
         "test": "deno test -A --env"
     },
     "imports": {
@@ -15,28 +20,43 @@
         "@service/": "./src/service/",
         "@middleware/": "./src/middleware/",
         "@model/": "./src/model/",
-        "@router": "./src/router.ts",
         "@repository/": "./src/repository/",
         "@view/": "./src/view/",
         "@kernel": "./src/kernel.ts",
+        "@std/assert": "jsr:@std/assert@1",
+        "@std/cli": "jsr:@std/cli@1",
+        "@std/fs": "jsr:@std/fs@1",
+        "@std/path": "jsr:@std/path@1",
         "lockness": "jsr:@lockness/core@^0.1.3",
         "@lockness/core": "jsr:@lockness/core@^0.1.3",
         "@lockness/ace": "jsr:@lockness/ace@^0.1.3",
-        "@lockness/ace/commands": "jsr:@lockness/ace@^0.1.3/commands",
         "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.3",
-        "@lockness/drizzle/commands": "jsr:@lockness/drizzle@^0.1.3/commands",
+        "hono": "npm:hono@^4.11.1",
+        "hono/": "npm:/hono@^4.11.1/",
+        "postgres": "npm:postgres@^3.4.4",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "drizzle-zod": "npm:drizzle-zod@^0.5.1",
         "drizzle-kit": "npm:drizzle-kit@^0.27.2",
-        "postgres": "npm:postgres@^3.4.4",
-        "hono": "npm:hono@^4.6.14",
-        "hono/": "npm:hono@^4.6.14/",
-        "vite": "npm:vite@^5.4.11",
-        "@hono/vite-dev-server": "npm:@hono/vite-dev-server@^0.12.0"
+        "@hono/zod-validator": "npm:@hono/zod-validator@^0.4.1",
+        "zod": "npm:zod@^3.23.8",
+        "tailwindcss": "npm:tailwindcss@^4.0.0",
+        "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.0.0",
+        "postcss": "npm:postcss@^8.4.49",
+        "postcss-cli": "npm:postcss-cli@^11.0.0"
+    },
+    "unstable": [
+        "kv"
+    ],
+    "fmt": {
+        "indentWidth": 4,
+        "useTabs": false,
+        "singleQuote": true,
+        "proseWrap": "always",
+        "lineWidth": 80,
+        "semiColons": false
     },
     "compilerOptions": {
         "jsx": "precompile",
-        "jsxImportSource": "hono/jsx",
-        "experimentalDecorators": true
+        "jsxImportSource": "hono/jsx"
     }
 }
