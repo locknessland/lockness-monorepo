@@ -72,11 +72,11 @@
   - [ ] Auto-import common dependencies in generated files (Container, Context,
         decorators).
   - [ ] Detect related files and suggest imports (e.g., model for repository).
-- [ ] **API Documentation (Swagger/OpenAPI)**
-  - [ ] `@ApiDoc` decorator for documenting routes.
-  - [ ] Auto-generate OpenAPI spec from controllers.
-  - [ ] `ace docs:generate` command to output `openapi.json`.
-  - [ ] Built-in Swagger UI route (`/docs`).
+- [x] **API Documentation (Swagger/OpenAPI)**
+  - [x] `@ApiDoc` decorator for documenting routes.
+  - [x] Auto-generate OpenAPI spec from controllers.
+  - [x] `ace docs:generate` command to output `openapi.json`.
+  - [x] Built-in Swagger UI route (`/docs`).
 
 ## 🧰 Devtools
 

@@ -1,0 +1,9 @@
+{
+    "name": "@lockness/openapi",
+    "version": "0.1.0",
+    "exports": "./openapi.ts",
+    "compilerOptions": {
+        "jsx": "precompile",
+        "jsxImportSource": "hono/jsx"
+    }
+}
