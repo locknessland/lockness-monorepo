@@ -8,7 +8,7 @@
 
 import type { Context, MiddlewareHandler } from 'hono'
 import { collector } from './collector.ts'
-import { generateToolbarHtml } from './toolbar_html.ts'
+import { DebugToolbar } from './components/toolbar.tsx'
 import type { RequestInfo } from './types.ts'
 
 export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
@@ -79,7 +79,7 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
 
                 // Skip if already has toolbar
                 if (!originalBody.includes('lockness-debug-toolbar')) {
-                    const toolbarHtml = generateToolbarHtml(requestId)
+                    const toolbarHtml = DebugToolbar({ requestId }).toString()
                     const modifiedBody = originalBody.replace(
                         '</body>',
                         `${toolbarHtml}</body>`,

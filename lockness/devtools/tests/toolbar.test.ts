@@ -3,33 +3,32 @@
  */
 
 import { assertStringIncludes } from '@std/assert'
-import { generateToolbarHtml } from '../toolbar_html.ts'
+import { DebugToolbar } from '../components/toolbar.tsx'
 import { collector } from '../collector.ts'
 
-Deno.test('generateToolbarHtml - generates valid HTML', () => {
+Deno.test('DebugToolbar - generates valid HTML', () => {
     collector.clear()
 
-    const html = generateToolbarHtml()
+    const html = DebugToolbar({}).toString()
 
     assertStringIncludes(html, 'lockness-debug-toolbar')
-    assertStringIncludes(html, '🔧')
     assertStringIncludes(html, 'Lockness')
 })
 
-Deno.test('generateToolbarHtml - includes stats', () => {
+Deno.test('DebugToolbar - includes stats', () => {
     collector.clear()
 
     collector.setRoutes([{ method: 'GET', path: '/test', middlewares: [] }])
     collector.addLog({ timestamp: Date.now(), level: 'info', message: 'Test' })
 
-    const html = generateToolbarHtml()
+    const html = DebugToolbar({}).toString()
 
-    assertStringIncludes(html, 'ROUTES')
-    assertStringIncludes(html, 'LOGS')
-    assertStringIncludes(html, '>1<') // Count of routes/logs
+    assertStringIncludes(html, 'Routes')
+    assertStringIncludes(html, 'Logs')
+    assertStringIncludes(html.toLowerCase(), '>1<') // Count of routes/logs
 })
 
-Deno.test('generateToolbarHtml - shows request duration', () => {
+Deno.test('DebugToolbar - shows request duration', () => {
     collector.clear()
 
     const requestId = crypto.randomUUID()
@@ -43,13 +42,13 @@ Deno.test('generateToolbarHtml - shows request duration', () => {
     })
     collector.updateRequest(requestId, { duration: 123.45 })
 
-    const html = generateToolbarHtml(requestId)
+    const html = DebugToolbar({ requestId }).toString()
 
-    assertStringIncludes(html, 'DURATION')
+    assertStringIncludes(html, 'Duration')
     assertStringIncludes(html, '123.45ms')
 })
 
-Deno.test('generateToolbarHtml - shows error badge', () => {
+Deno.test('DebugToolbar - shows error badge', () => {
     collector.clear()
 
     collector.addLog({
@@ -58,16 +57,16 @@ Deno.test('generateToolbarHtml - shows error badge', () => {
         message: 'Error!',
     })
 
-    const html = generateToolbarHtml()
+    const html = DebugToolbar({}).toString()
 
     // Should have red badge for errors
     assertStringIncludes(html, '#ef4444')
 })
 
-Deno.test('generateToolbarHtml - includes links to dashboard', () => {
+Deno.test('DebugToolbar - includes links to dashboard', () => {
     collector.clear()
 
-    const html = generateToolbarHtml()
+    const html = DebugToolbar({}).toString()
 
     assertStringIncludes(html, '/_devtools')
     assertStringIncludes(html, '/_devtools?panel=routes')

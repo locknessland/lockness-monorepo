@@ -1,6 +1,3 @@
-/** @jsx jsx */
-/** @jsxImportSource hono/jsx */
-
 import { collector } from '../collector.ts'
 import type { LogEntry, RequestInfo } from '../types.ts'
 
