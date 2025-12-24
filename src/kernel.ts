@@ -6,8 +6,13 @@ import {
     sessionMiddleware,
 } from 'lockness'
 import { Database } from '@lockness/drizzle'
+import {
+    SessionGuard,
+    initializeAuthMiddleware,
+    authMiddleware,
+} from '@lockness/auth'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
-import { AuthMiddleware } from '@middleware/auth_middleware.ts'
+import { UserProvider } from '../src/auth/user_provider.ts'
 
 export const bootstrap = async () => {
     // Initialize Database (Optional)
@@ -40,7 +45,7 @@ export const bootstrap = async () => {
             if (
                 typeof Exported === 'function' &&
                 (Exported as unknown as Record<string, unknown>)._basePath !==
-                    undefined
+                undefined
             ) {
                 controllers.push(Exported as ControllerClass)
             }
@@ -54,13 +59,24 @@ export const bootstrap = async () => {
 
         // Global middlewares (applied to all routes)
         globalMiddlewares: [
-            sessionMiddleware(), // Session middleware
+            sessionMiddleware(), // Session middleware (required for auth)
+            // Initialize auth (attaches authenticator to context)
+            initializeAuthMiddleware({
+                default: 'web',
+                guards: {
+                    web: (ctx) => new SessionGuard('web', ctx, new UserProvider(db)),
+                },
+            }),
             LoggerMiddleware,
         ],
 
         // Named middlewares (use with @Use('auth'))
         middlewares: {
-            auth: AuthMiddleware,
+            auth: class AuthMiddleware {
+                async handle(c: any, next: any) {
+                    return await authMiddleware()(c, next)
+                }
+            },
         },
     })
 
