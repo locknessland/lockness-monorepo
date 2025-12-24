@@ -13,15 +13,6 @@ Start the development server with hot-reload and environment variables:
 deno task dev
 ```
 
-### Production Build
-
-Bundle your application into an optimized SSR bundle in the `dist` directory
-using Vite:
-
-```bash
-deno task build
-```
-
 ### Running in Production
 
 Run the optimized production server (on port 8888):
@@ -113,14 +104,12 @@ Then use `./nessy` instead of `deno task ace`:
 
 **Built-in DX commands:**
 
-- `dev` - Start development server
-- `build` - Build production bundle
+- `dev` - Start development server (with CSS and routes watchers)
 - `start` - Start production server
 - `test [pattern]` - Run tests (optionally filtered)
 - `check` - Type-check all files
 - `fresh` - Clean everything and reinstall
 - `clean` - Remove build artifacts only
-- `watch` - Dev server in watch mode
 - `status` - Show project health info
 - `install <pkg>` - Add a dependency
 - `--version` - Show version
@@ -147,6 +136,37 @@ export class UserRepository {
     }
 }
 ```
+
+### Automatic Routes System
+
+Lockness automatically discovers and registers controllers in development mode,
+and generates a static routes registry for production compilation.
+
+**Development Mode** (auto-discovery):
+
+- Controllers in `src/controller/` are automatically discovered at runtime
+- Changes are detected by a file watcher and reflected immediately
+- No manual route registration needed
+
+**Production Mode** (compilation):
+
+- Routes are generated in `src/routes.ts` before compilation
+- Use `deno task compile` to create a standalone binary
+- The binary uses static imports for optimal performance
+
+**Manual Route Generation:**
+
+```bash
+# Regenerate routes.ts manually
+deno task routes:generate
+
+# Watch for controller changes (auto-regenerate)
+deno task routes:watch
+```
+
+When you create a controller with `deno task ace make:controller`, the routes
+are automatically updated. The development server (`deno task dev`) runs with
+watchers for both CSS and routes, providing a zero-configuration experience.
 
 ### Database Management (Drizzle ORM)
 

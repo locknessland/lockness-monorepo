@@ -521,14 +521,16 @@ Deno.test('test 2', () => {
 
 ## TypeScript Configuration
 
-For decorators to work, ensure your `deno.json` or `tsconfig.json` has:
+Lockness uses **TC39 Stage 3 standard decorators** natively supported by Deno
+2+. No special configuration is needed in your `deno.json`.
 
-```json
-{
-    "compilerOptions": {
-        "experimentalDecorators": true,
-        "emitDecoratorMetadata": false
-    }
+**Important:** When using `@Inject`, use the `accessor` keyword:
+
+```typescript
+@Service()
+export class MyService {
+    @Inject(Database)
+    accessor database!: Database // Use 'accessor', not 'private'
 }
 ```
 
