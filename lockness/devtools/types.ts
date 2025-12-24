@@ -36,6 +36,7 @@ export interface RequestInfo {
     body?: unknown
     controller?: string
     action?: string
+    component?: string
 }
 
 export interface SessionData {

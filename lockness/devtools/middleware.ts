@@ -33,6 +33,25 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
         const requestId = crypto.randomUUID()
         const startTime = performance.now()
 
+        // Intercept c.html() to capture component name
+        const originalHtml = c.html.bind(c)
+        let capturedComponent: string | undefined
+
+        c.html = function (content: any, init?: any) {
+            // Try to extract component name from the JSX element
+            if (content && typeof content === 'object') {
+                // Check if it's a JSX element with a type property
+                if (content.type) {
+                    if (typeof content.type === 'function') {
+                        capturedComponent = content.type.name
+                    } else if (typeof content.type === 'string') {
+                        capturedComponent = content.type
+                    }
+                }
+            }
+            return originalHtml(content, init)
+        } as typeof c.html
+
         // Collect request info
         const requestInfo: RequestInfo = {
             id: requestId,
@@ -88,6 +107,7 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
             collector.updateRequest(requestId, {
                 duration: Math.round(duration * 100) / 100,
                 statusCode: c.res.status,
+                component: capturedComponent,
             })
 
             // Performance metric

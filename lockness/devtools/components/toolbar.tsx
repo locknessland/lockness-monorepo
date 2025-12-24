@@ -157,6 +157,14 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                                         </span>
                                     </>
                                 )}
+                                {currentRequest.component && (
+                                    <>
+                                        <span style={{ fontSize: '13px', color: '#6366f1' }}>→</span>
+                                        <span style={{ fontSize: '13px', color: '#c4b5fd', fontWeight: '600', fontStyle: 'italic' }}>
+                                            {currentRequest.component}
+                                        </span>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
