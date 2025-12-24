@@ -1,0 +1,40 @@
+/**
+ * 500 - Server Error Page
+ */
+
+interface ServerErrorPageProps {
+    error?: Error
+    showDetails?: boolean
+}
+
+export function ServerErrorPage({ error, showDetails = false }: ServerErrorPageProps) {
+    return (
+        <html lang="en">
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>500 - Server Error</title>
+                <link rel="stylesheet" href="/css/app.css" />
+            </head>
+            <body>
+                <div>
+                    <h1>500</h1>
+                    <h2>Something Went Wrong</h2>
+                    <p>An unexpected error occurred. Please try again later.</p>
+                    
+                    {showDetails && error && (
+                        <div>
+                            <h3>Error Details:</h3>
+                            <pre>
+                                {error.message}
+                                {error.stack && '\n\n' + error.stack}
+                            </pre>
+                        </div>
+                    )}
+                    
+                    <a href="/">Go Back Home</a>
+                </div>
+            </body>
+        </html>
+    )
+}

@@ -1,0 +1,27 @@
+/**
+ * 401 - Unauthorized Error Page
+ */
+
+export function UnauthorizedPage() {
+    return (
+        <html lang="en">
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>401 - Unauthorized</title>
+                <link rel="stylesheet" href="/css/app.css" />
+            </head>
+            <body>
+                <div>
+                    <h1>401</h1>
+                    <h2>Unauthorized</h2>
+                    <p>You need to be authenticated to access this resource.</p>
+                    <div>
+                        <a href="/auth/login">Login</a>
+                        <a href="/">Go Home</a>
+                    </div>
+                </div>
+            </body>
+        </html>
+    )
+}

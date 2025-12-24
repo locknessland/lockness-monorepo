@@ -42,15 +42,16 @@ files.
 
 ### Core ACE Stubs (`lockness/ace/stubs/make/`)
 
-| Command           | Stub File         | Generates                             |
-| ----------------- | ----------------- | ------------------------------------- |
-| `make:controller` | `controller.stub` | `src/controller/{name}_controller.ts` |
-| `make:middleware` | `middleware.stub` | `src/middleware/{name}_middleware.ts` |
-| `make:service`    | `service.stub`    | `src/service/{name}_service.ts`       |
-| `make:view`       | `view.stub`       | `src/view/pages/{name}.tsx`           |
-| `make:command`    | `command.stub`    | `src/command/{name}_command.ts`       |
-| `make:job`        | `job.stub`        | `src/job/{name}_job.ts`               |
-| `make:component`  | `component.stub`  | `src/view/components/{name}.tsx`      |
+| Command            | Stub File                | Generates                                   |
+| ------------------ | ------------------------ | ------------------------------------------- |
+| `make:controller`  | `controller.stub`        | `src/controller/{name}_controller.ts`       |
+| `make:middleware`  | `middleware.stub`        | `src/middleware/{name}_middleware.ts`       |
+| `make:service`     | `service.stub`           | `src/service/{name}_service.ts`             |
+| `make:view`        | `view.stub`              | `src/view/pages/{name}.tsx`                 |
+| `make:command`     | `command.stub`           | `src/command/{name}_command.ts`             |
+| `make:job`         | `job.stub`               | `src/job/{name}_job.ts`                     |
+| `make:component`   | `component.stub`         | `src/view/components/{name}.tsx`            |
+| `make:error-pages` | `error_*.stub` (4 files) | All error pages in `src/view/pages/errors/` |
 
 ### Auth Stubs (`lockness/ace/stubs/auth/`)
 

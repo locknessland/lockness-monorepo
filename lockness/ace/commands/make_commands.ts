@@ -252,4 +252,57 @@ export function registerMakeCommands(ace: Ace) {
             )
         }
     }, 'Create a new background job')
+
+    ace.register('make:error-pages', async () => {
+        const errorPages = [
+            { name: 'not_found', fileName: 'not_found.tsx', stub: 'error_not_found' },
+            { name: 'unauthorized', fileName: 'unauthorized.tsx', stub: 'error_unauthorized' },
+            { name: 'forbidden', fileName: 'forbidden.tsx', stub: 'error_forbidden' },
+            { name: 'server_error', fileName: 'server_error.tsx', stub: 'error_server' },
+        ]
+
+        const dirPath = './src/view/pages/errors'
+
+        try {
+            await Deno.mkdir(dirPath, { recursive: true })
+
+            for (const page of errorPages) {
+                const filePath = `${dirPath}/${page.fileName}`
+                const content = await Stub.renderFrom(
+                    STUBS_PATH,
+                    'make',
+                    page.stub,
+                    {},
+                )
+
+                await Deno.writeTextFile(filePath, content)
+                console.log(`✅ Created ${filePath}`)
+            }
+
+            console.log('\n🎉 All error pages created successfully!')
+            console.log('\n💡 Configure error handler in src/kernel.tsx:')
+            console.log(`
+import { NotFoundPage } from '@view/pages/errors/not_found.tsx'
+import { UnauthorizedPage } from '@view/pages/errors/unauthorized.tsx'
+import { ForbiddenPage } from '@view/pages/errors/forbidden.tsx'
+import { ServerErrorPage } from '@view/pages/errors/server_error.tsx'
+
+const errorHandler = (error: Error, c: Context) => {
+    const status = (error as any).status || 500
+    switch (status) {
+        case 404: return c.html(<NotFoundPage />, 404)
+        case 401: return c.html(<UnauthorizedPage />, 401)
+        case 403: return c.html(<ForbiddenPage />, 403)
+        default: return c.html(<ServerErrorPage error={error} />, 500)
+    }
+}
+
+// Then add errorHandler to app.init() config
+`)
+        } catch (error) {
+            console.error(
+                `❌ Failed to create error pages: ${(error as Error).message}`,
+            )
+        }
+    }, 'Generate all error pages (404, 401, 403, 500)')
 }
