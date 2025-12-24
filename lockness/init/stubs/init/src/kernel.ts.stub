@@ -31,37 +31,77 @@ export const bootstrap = async () => {
     // Create Lockness application
     const app = new App()
 
-    // Auto-discover and register controllers from ./src/controller
-    await app.init({
-        controllersDir: './src/controller',
-        staticDir: 'public',
+    // Use auto-discovery in development, explicit imports in production
+    const isDevelopment = Deno.env.get('APP_ENV') === 'development'
 
-        // Global middlewares (applied to all routes)
-        globalMiddlewares: [
-            sessionMiddleware(), // Session middleware (required for auth)
-            // Initialize auth (attaches authenticator to context)
-            // Uncomment when you have a UserProvider set up
-            // initializeAuthMiddleware({
-            //     default: 'web',
-            //     guards: {
-            //         web: (ctx) => new SessionGuard('web', ctx, new UserProvider(db)),
-            //     },
-            // }),
-            // LoggerMiddleware,
-        ],
+    if (isDevelopment) {
+        // Auto-discover controllers (dev mode)
+        await app.init({
+            controllersDir: './src/controller',
+            staticDir: 'public',
 
-        // Named middlewares (use with @Use('auth'))
-        middlewares: {
-            auth: class AuthMiddleware {
-                async handle(
-                    c: import('hono').Context,
-                    next: import('hono').Next,
-                ) {
-                    return await authMiddleware()(c, next)
-                }
+            // Global middlewares (applied to all routes)
+            globalMiddlewares: [
+                sessionMiddleware(), // Session middleware (required for auth)
+                // Initialize auth (attaches authenticator to context)
+                // Uncomment when you have a UserProvider set up
+                // initializeAuthMiddleware({
+                //     default: 'web',
+                //     guards: {
+                //         web: (ctx) => new SessionGuard('web', ctx, new UserProvider(db)),
+                //     },
+                // }),
+                // LoggerMiddleware,
+            ],
+
+            // Named middlewares (use with @Use('auth'))
+            middlewares: {
+                auth: class AuthMiddleware {
+                    async handle(
+                        c: import('hono').Context,
+                        next: import('hono').Next,
+                    ) {
+                        return await authMiddleware()(c, next)
+                    }
+                },
             },
-        },
-    })
+        })
+    } else {
+        // Explicit imports (compile/production mode)
+        // Import controllers from auto-generated routes.ts
+        const { controllers } = await import('./routes.ts')
+        
+        await app.init({
+            controllers,
+            staticDir: 'public',
+
+            // Global middlewares (applied to all routes)
+            globalMiddlewares: [
+                sessionMiddleware(), // Session middleware (required for auth)
+                // Initialize auth (attaches authenticator to context)
+                // Uncomment when you have a UserProvider set up
+                // initializeAuthMiddleware({
+                //     default: 'web',
+                //     guards: {
+                //         web: (ctx) => new SessionGuard('web', ctx, new UserProvider(db)),
+                //     },
+                // }),
+                // LoggerMiddleware,
+            ],
+
+            // Named middlewares (use with @Use('auth'))
+            middlewares: {
+                auth: class AuthMiddleware {
+                    async handle(
+                        c: import('hono').Context,
+                        next: import('hono').Next,
+                    ) {
+                        return await authMiddleware()(c, next)
+                    }
+                },
+            },
+        })
+    }
 
     return app
 }

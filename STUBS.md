@@ -19,7 +19,6 @@ project.
 | `ace.ts`                         | `lockness/init/stubs/init/ace.ts.stub`                 | ✅    |
 | `main.ts`                        | `lockness/init/stubs/init/main.ts.stub`                | ✅    |
 | `deno.json`                      | `lockness/init/stubs/init/deno.json.stub`              | ✅    |
-| `vite.config.ts`                 | `lockness/init/stubs/init/vite.config.ts.stub`         | ✅    |
 | `README.md`                      | `lockness/init/stubs/init/README.md.stub`              | ✅    |
 | `drizzle.config.ts`              | `lockness/drizzle/stubs/drizzle.config.ts.stub`        | ✅    |
 | `.env.exemple`                   | `lockness/init/stubs/init/.env.exemple.stub`           | ✅    |
@@ -87,7 +86,7 @@ When modifying core framework files, check this list:
 
 - [ ] Modified `ace.ts`? → Update `ace.ts.stub`
 - [ ] Modified `src/kernel.ts`? → Update `kernel.ts.stub`
-- [ ] Modified `deno.json` imports? → Update `deno.json.stub`
+- [ ] Modified `deno.json` tasks? → Update `deno.json.stub`
 - [ ] Added new decorator/feature? → Update relevant `make:*` stubs
 - [ ] Changed validation pattern? → Update `controller.stub` in drizzle
 - [ ] Changed middleware pattern? → Update `middleware.stub`
