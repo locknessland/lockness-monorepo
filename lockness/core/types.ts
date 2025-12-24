@@ -44,6 +44,11 @@ export interface AppConfig {
     staticDir?: string
 }
 
+/**
+ * Error handler function type
+ */
+export type ErrorHandler = (error: Error, c: Context) => Response | Promise<Response>
+
 export interface IMiddleware {
     handle: MiddlewareHandler
 }
@@ -69,4 +74,6 @@ export type MiddlewareRegistry = Record<string, MiddlewareClass>
 export interface ModuleWithMiddleware extends Module {
     globalMiddlewares?: MiddlewareInput[]
     middlewares?: MiddlewareRegistry
+    errorHandler?: ErrorHandler
+    staticDir?: string
 }

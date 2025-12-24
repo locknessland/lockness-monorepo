@@ -3,6 +3,7 @@ import {
     configureSession,
     container,
     sessionMiddleware,
+    type Context,
 } from 'lockness'
 import { Database } from '@lockness/drizzle'
 import {
@@ -13,6 +14,34 @@ import {
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { UserProvider } from '../src/auth/user_provider.ts'
 import { controllers } from './routes.ts'
+import { NotFoundPage } from '@view/pages/errors/not_found.tsx'
+import { UnauthorizedPage } from '@view/pages/errors/unauthorized.tsx'
+import { ForbiddenPage } from '@view/pages/errors/forbidden.tsx'
+import { ServerErrorPage } from '@view/pages/errors/server_error.tsx'
+
+/**
+ * Default error handler
+ */
+const errorHandler = (error: Error, c: Context) => {
+    console.error('Error:', error)
+
+    // Check for status property (from custom errors like UnauthorizedAccessError)
+    const status = (error as any).status || 500
+
+    // Return appropriate error page based on status
+    switch (status) {
+        case 404:
+            return c.html(<NotFoundPage />, 404)
+        case 401:
+            return c.html(<UnauthorizedPage />, 401)
+        case 403:
+            return c.html(<ForbiddenPage />, 403)
+        default:
+            // Show error details only in development
+            const showDetails = Deno.env.get('APP_ENV') === 'development'
+            return c.html(<ServerErrorPage error={ error } showDetails = { showDetails } />, 500)
+    }
+}
 
 export const bootstrap = async () => {
     // Initialize Database (Optional)
@@ -40,6 +69,9 @@ export const bootstrap = async () => {
         await app.init({
             controllersDir: './src/controller',
             staticDir: 'public',
+
+            // Error handler
+            errorHandler,
 
             // Global middlewares (applied to all routes)
             globalMiddlewares: [
@@ -72,6 +104,9 @@ export const bootstrap = async () => {
         await app.init({
             controllers,
             staticDir: 'public',
+
+            // Error handler
+            errorHandler,
 
             // Global middlewares (applied to all routes)
             globalMiddlewares: [

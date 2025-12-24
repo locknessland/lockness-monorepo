@@ -95,6 +95,13 @@ export class App {
             this.middlewareRegistry = config.middlewares
         }
 
+        // Register custom error handler if provided
+        if ('errorHandler' in config && config.errorHandler) {
+            this.hono.onError((error, c) => {
+                return config.errorHandler!(error, c as any)
+            })
+        }
+
         // Get global middlewares
         if ('globalMiddlewares' in config && config.globalMiddlewares) {
             globalMiddlewares = config.globalMiddlewares

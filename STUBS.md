@@ -24,7 +24,7 @@ project.
 | `.env.exemple`                   | `lockness/init/stubs/init/.env.exemple.stub`           | ✅    |
 | `.gitignore`                     | `lockness/init/stubs/init/.gitignore.stub`             | ✅    |
 | `data/todo.json`                 | `lockness/init/stubs/init/data/todo.json.stub`         | ✅    |
-| `src/kernel.ts`                  | `lockness/init/stubs/init/src/kernel.ts.stub`          | ✅    |
+| `src/kernel.tsx`                 | `lockness/init/stubs/init/src/kernel.tsx.stub`         | ✅    |
 | `src/controller/todo_controller` | `lockness/init/stubs/init/src/controller/todo_...stub` | ✅    |
 | `src/view/app.ts`                | `lockness/init/stubs/init/src/view/app.ts.stub`        | ✅    |
 | `src/view/assets/style.css`      | `lockness/init/stubs/init/src/view/assets/style...`    | ✅    |
@@ -85,7 +85,7 @@ files.
 When modifying core framework files, check this list:
 
 - [ ] Modified `ace.ts`? → Update `ace.ts.stub`
-- [ ] Modified `src/kernel.ts`? → Update `kernel.ts.stub`
+- [ ] Modified `src/kernel.tsx`? → Update `kernel.tsx.stub`
 - [ ] Modified `deno.json` tasks? → Update `deno.json.stub`
 - [ ] Added new decorator/feature? → Update relevant `make:*` stubs
 - [ ] Changed validation pattern? → Update `controller.stub` in drizzle
