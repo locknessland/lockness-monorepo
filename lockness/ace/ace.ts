@@ -2,6 +2,28 @@ import { Stub } from './stubs.ts'
 
 export { registerCoreCommands } from './core_commands.ts'
 export { autoRegisterCommands } from './auto_register.ts'
+export { loadPackageCommands, addPackage, removePackage } from './package_loader.ts'
+
+/**
+ * Register multiple command registration functions at once
+ * 
+ * @example
+ * ```ts
+ * import { Ace, registerAll, registerCoreCommands } from '@lockness/ace'
+ * import { registerDrizzleCommands } from '@lockness/drizzle'
+ * 
+ * const ace = new Ace()
+ * registerAll(ace, [registerCoreCommands, registerDrizzleCommands])
+ * ```
+ */
+export function registerAll(
+    ace: Ace,
+    registerFunctions: Array<(ace: Ace) => void | Promise<void>>
+): void {
+    for (const registerFn of registerFunctions) {
+        registerFn(ace)
+    }
+}
 
 /**
  * Command context passed to command handlers

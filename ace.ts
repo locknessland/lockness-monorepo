@@ -1,9 +1,12 @@
-import { Ace, autoRegisterCommands } from '@lockness/ace'
+import { Ace, loadPackageCommands, registerCoreCommands } from '@lockness/ace'
 
 const ace = new Ace()
 
-// Auto-register commands from all Lockness packages
-await autoRegisterCommands(ace)
+// Register core commands (make, auth, queue, etc.)
+registerCoreCommands(ace)
+
+// Load commands from packages listed in deno.json "lockness.packages"
+await loadPackageCommands(ace)
 
 // Discover user-defined commands in src/command/
 await ace.discoverCommands('./src/command')
