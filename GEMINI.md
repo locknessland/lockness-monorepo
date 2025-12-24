@@ -186,12 +186,33 @@ Your `src/view/assets/app.css` imports Tailwind:
 Compiled output goes to `public/css/app.css` and is served by Hono's
 `serveStatic()` middleware.
 
-#### Production Compilation
+#### Production Deployment
 
-Create a standalone binary with `deno compile`:
+**Option 1: Deno Deploy (Recommended)**
+
+Deploy directly to Deno Deploy cloud platform:
+
+- **Entry point**: `main.ts`
+- **Build command**: `deno task routes:generate && deno task css:build`
+- **Environment**: Native TypeScript execution with TC39 decorators
+- **Zero compilation**: Deno Deploy runs TypeScript directly
+
+Configuration example:
 
 ```bash
-# Regenerates routes.ts then compiles
+# In Deno Deploy dashboard:
+Entry Point: main.ts
+Build Command: deno task routes:generate && deno task css:build
+Environment Variables:
+  APP_ENV=production
+  DATABASE_URL=postgresql://...
+```
+
+**Option 2: Standalone Binary (VPS/Self-hosted)**
+
+Create a self-contained executable for traditional hosting:
+
+```bash
 deno task compile
 ```
 
@@ -201,7 +222,17 @@ The compilation process:
 2. Compiles to binary (includes all controllers, services, views)
 3. Binary uses static imports (no runtime discovery)
 
-Output: `lockness-app` (~83MB) - fully self-contained executable.
+Output: `_dist/lockness` (~83MB) - fully self-contained executable including the
+Deno runtime and all dependencies.
+
+**Option 3: Direct Execution**
+
+Run `main.ts` directly in production:
+
+```bash
+deno task start
+# Or: deno run -A --env-file=.env.production.local main.ts
+```
 
 #### Static Assets
 

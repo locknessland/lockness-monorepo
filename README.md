@@ -13,24 +13,47 @@ Start the development server with hot-reload and environment variables:
 deno task dev
 ```
 
+### Build for Production
+
+Build production assets (CSS):
+
+```bash
+deno task build
+```
+
 ### Running in Production
 
-Run the optimized production server (on port 8888):
+Run the production server directly from source:
 
 ```bash
 deno task start
 ```
 
-_Note: Use `deno task start -- --force` to automatically kill any process
-already using the port._
+This runs `main.ts` directly with production environment variables. For Deno
+Deploy, simply point to `main.ts` as the entry point.
 
 ### Compile to Binary
 
-Create a standalone executable for your target platform:
+Create a standalone executable for VPS or self-hosted environments:
 
 ```bash
 deno task compile
 ```
+
+This generates `_dist/lockness` (~83MB) - a fully self-contained binary that
+includes the Deno runtime and all dependencies. Not needed for Deno Deploy.
+
+### Deno Deploy
+
+Deploy to Deno Deploy cloud platform:
+
+1. Connect your GitHub repository
+2. Set entry point to `main.ts`
+3. Add build command: `deno task routes:generate && deno task css:build`
+4. Configure environment variables (`APP_ENV=production`, `DATABASE_URL`, etc.)
+
+Deno Deploy runs TypeScript directly with native TC39 decorators support - no
+compilation or bundling needed.
 
 ### Docker
 
@@ -105,7 +128,9 @@ Then use `./nessy` instead of `deno task ace`:
 **Built-in DX commands:**
 
 - `dev` - Start development server (with CSS and routes watchers)
-- `start` - Start production server
+- `build` - Build production assets (CSS)
+- `start` - Start production server from source
+- `compile` - Create standalone binary
 - `test [pattern]` - Run tests (optionally filtered)
 - `check` - Type-check all files
 - `fresh` - Clean everything and reinstall
