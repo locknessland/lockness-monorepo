@@ -19,10 +19,10 @@
     "nodeModulesDir": "auto",
     "tasks": {
         "dev": "deno run -A --watch --env main.ts",
-        "css:build": "deno run -A npm:postcss-cli src/view/assets/app.css -o static/css/app.css",
-        "css:watch": "deno run -A npm:postcss-cli src/view/assets/app.css -o static/css/app.css --watch",
+        "css:build": "deno run -A npm:postcss-cli src/view/assets/app.css -o static/css/app.css && deno run -A npm:postcss-cli src/view/assets/landing.css -o static/css/landing.css",
+        "css:watch": "deno run -A npm:postcss-cli 'src/view/assets/{app,landing}.css' -d static/css --watch",
         "bundle": "deno bundle --minify main.ts --output _dist/main.ts",
-        "build": "deno task bundle",
+        "build": "deno task css:build && deno task bundle",
         "start": "deno serve -A --env-file=.env.production.local _dist/main.ts",
         "compile": "deno compile --output=_dist/lockness -A --env-file=.env.production.local main.ts",
         "ace": "deno run -A --env ace.ts",
