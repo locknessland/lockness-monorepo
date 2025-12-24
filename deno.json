@@ -19,7 +19,10 @@
     "nodeModulesDir": "auto",
     "tasks": {
         "dev": "deno run -A --watch --env main.ts",
-        "start": "deno run -A --env-file=.env.production.local main.ts",
+        "bundle": "deno bundle --minify main.ts --output _dist/main.ts",
+        "build": "deno task bundle",
+        "start": "deno serve -A --env-file=.env.production.local _dist/main.ts",
+        "compile": "deno compile --output=_dist/lockness -A --env-file=.env.production.local main.ts",
         "ace": "deno run -A --env ace.ts",
         "test": "deno test -A --env lockness/",
         "test:coverage": "rm -rf coverage && deno test -A --env --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
