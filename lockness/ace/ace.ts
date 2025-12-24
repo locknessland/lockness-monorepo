@@ -1,6 +1,7 @@
 import { Stub } from './stubs.ts'
 
 export { registerCoreCommands } from './core_commands.ts'
+export { autoRegisterCommands } from './auto_register.ts'
 
 /**
  * Command context passed to command handlers
