@@ -149,5 +149,10 @@ export const bootstrap = async () => {
         })
     }
 
+    // Add 404 handler (AFTER init so it's registered last)
+    app.getHono().notFound((c) => {
+        return c.html(<NotFoundPage />, 404)
+    })
+
     return app
 }
