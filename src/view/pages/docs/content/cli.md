@@ -77,6 +77,15 @@ deno task ace make:component Button
 deno task ace make:view home
 ```
 
+**make:error-pages** - Generate all error pages (404, 401, 403, 500):
+
+```bash
+deno task ace make:error-pages
+```
+
+Creates error pages in `src/view/pages/errors/` with minimal HTML (no styling).
+After generation, configure the error handler in `src/kernel.tsx`.
+
 **make:auth** - Scaffold authentication system:
 
 ```bash

@@ -741,3 +741,50 @@ await dispatch(SendWelcomeEmailJob, { userId: 1 }, { delay: 5000 })
 ```
 
 Drivers: `memory` (dev) or `deno-kv` (production with persistence).
+
+### Error Pages
+
+Generate custom error pages with one command:
+
+```bash
+deno task ace make:error-pages
+```
+
+This creates 4 error page templates in `src/view/pages/errors/`:
+
+- `not_found.tsx` (404)
+- `unauthorized.tsx` (401)
+- `forbidden.tsx` (403)
+- `server_error.tsx` (500)
+
+Configure the error handler in `src/kernel.tsx`:
+
+```typescript
+import { NotFoundPage } from '@view/pages/errors/not_found.tsx'
+import { UnauthorizedPage } from '@view/pages/errors/unauthorized.tsx'
+import { ForbiddenPage } from '@view/pages/errors/forbidden.tsx'
+import { ServerErrorPage } from '@view/pages/errors/server_error.tsx'
+
+const errorHandler = (error: Error, c: Context) => {
+    const status = (error as any).status || 500
+    switch (status) {
+        case 404:
+            return c.html(<NotFoundPage />, 404)
+        case 401:
+            return c.html(<UnauthorizedPage />, 401)
+        case 403:
+            return c.html(<ForbiddenPage />, 403)
+        default:
+            return c.html(<ServerErrorPage error={error} />, 500)
+    }
+}
+
+// Add to app.init() config
+await app.init({
+    errorHandler,
+    // ... other config
+})
+```
+
+Pages are generated with minimal HTML (no styling) so you can customize them
+with your own CSS.
