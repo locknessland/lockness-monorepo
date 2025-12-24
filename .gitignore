@@ -17,6 +17,8 @@ coverage
 # Compiled CSS assets
 public/css/
 
+# Scripts should be versioned (remove any script-related ignores if present)
+
 # Nessy CLI wrapper (root only)
 /nessy
 /nessy.cmd
