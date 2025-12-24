@@ -4,5 +4,4 @@
  */
 
 // You can import your CSS here to let Vite process it
-import './assets/style.css'
-import './assets/landing.css'
+import './assets/app.css'

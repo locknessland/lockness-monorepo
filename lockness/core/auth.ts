@@ -424,8 +424,8 @@ export function Auth(options?: Partial<AuthConfig>): any {
             // Class decorator
             // deno-lint-ignore no-explicit-any
             (target as any)._authRequired = true;
-                // deno-lint-ignore no-explicit-any
-                (target as any)._authOptions = options
+            // deno-lint-ignore no-explicit-any
+            (target as any)._authOptions = options
             return target
         }
     }
@@ -454,8 +454,8 @@ export function Guest(redirectTo = '/'): any {
             // Class decorator
             // deno-lint-ignore no-explicit-any
             (target as any)._guestRequired = true;
-                // deno-lint-ignore no-explicit-any
-                (target as any)._guestRedirectTo = redirectTo
+            // deno-lint-ignore no-explicit-any
+            (target as any)._guestRedirectTo = redirectTo
             return target
         }
     }
