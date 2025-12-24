@@ -1,6 +1,6 @@
 {
     "name": "@lockness/session",
-    "version": "0.1.0",
+    "version": "0.0.1",
     "exports": "./session.ts",
     "tasks": {
         "test": "deno test --allow-net --allow-write --allow-read --allow-env"

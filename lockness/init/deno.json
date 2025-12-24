@@ -1,6 +1,6 @@
 {
     "name": "@lockness/init",
-    "version": "0.1.3",
+    "version": "0.0.1",
     "exports": {
         ".": "./init.ts"
     },

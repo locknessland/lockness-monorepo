@@ -1,6 +1,6 @@
 {
     "name": "@lockness/ace",
-    "version": "0.1.3",
+    "version": "0.0.1",
     "exports": {
         ".": "./cli.ts",
         "./commands": "./core_commands.ts"

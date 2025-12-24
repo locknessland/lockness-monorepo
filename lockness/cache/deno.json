@@ -1,6 +1,6 @@
 {
     "name": "@lockness/cache",
-    "version": "1.0.0",
+    "version": "0.0.1",
     "exports": "./cache.ts",
     "tasks": {
         "test": "deno test --allow-all"

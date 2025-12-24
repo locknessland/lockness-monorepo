@@ -1,6 +1,6 @@
 {
     "name": "@lockness/queue",
-    "version": "1.0.0",
+    "version": "0.0.1",
     "exports": "./queue.ts",
     "tasks": {
         "test": "deno test --allow-all"
