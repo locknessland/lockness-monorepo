@@ -13,11 +13,6 @@ import {
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { UserProvider } from '../src/auth/user_provider.ts'
 
-// Import controllers explicitly (add your controllers here)
-import { AppController } from '@controller/app_controller.tsx'
-import { AuthController } from '@controller/auth_controller.ts'
-import { DocsController } from '@controller/docs_controller.tsx'
-
 export const bootstrap = async () => {
     // Initialize Database (Optional)
     const db = container.get<Database>(Database)

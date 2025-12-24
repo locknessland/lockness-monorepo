@@ -90,18 +90,18 @@ export class App {
         let controllers: ControllerClass[] = []
         let globalMiddlewares: MiddlewareInput[] = []
 
+        // Register named middlewares first (before discovering controllers)
+        if ('middlewares' in config && config.middlewares) {
+            this.middlewareRegistry = config.middlewares
+        }
+
+        // Get global middlewares
+        if ('globalMiddlewares' in config && config.globalMiddlewares) {
+            globalMiddlewares = config.globalMiddlewares
+        }
+
         if ('controllers' in config) {
             controllers = config.controllers
-
-            // Register named middlewares
-            if ('middlewares' in config && config.middlewares) {
-                this.middlewareRegistry = config.middlewares
-            }
-
-            // Get global middlewares
-            if ('globalMiddlewares' in config && config.globalMiddlewares) {
-                globalMiddlewares = config.globalMiddlewares
-            }
         } else if (config.controllersDir) {
             controllers = await this.discoverControllers(config.controllersDir)
         }
@@ -246,7 +246,7 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ;(this.hono as any)[route.method](
+            ; (this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
@@ -299,8 +299,7 @@ export class App {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${
-                    (error as Error).message
+                `❌ Error during controller discovery: ${(error as Error).message
                 }`,
             )
         }
@@ -368,8 +367,7 @@ export class App {
                             }
                         } catch (e) {
                             console.error(
-                                `  ⚠️  Failed to force release port ${port}: ${
-                                    (e as Error).message
+                                `  ⚠️  Failed to force release port ${port}: ${(e as Error).message
                                 }`,
                             )
                         }
