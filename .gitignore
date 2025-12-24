@@ -8,12 +8,8 @@
 # Node modules
 node_modules
 
-# Vite output
-.vite
-dist
-
-# Compile output 
-.compiled
+# Compile and Build output 
+_dist
 
 # Test coverage
 coverage
