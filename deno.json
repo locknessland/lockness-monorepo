@@ -1,6 +1,7 @@
 {
     "workspace": [
         "./lockness/core",
+        "./lockness/auth",
         "./lockness/cache",
         "./lockness/container",
         "./lockness/events",
@@ -43,6 +44,7 @@
         "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.18",
         "lockness": "./lockness/core/core.ts",
         "@lockness/core": "./lockness/core/core.ts",
+        "@lockness/auth": "./lockness/auth/auth.ts",
         "@lockness/cache": "./lockness/cache/cache.ts",
         "@lockness/container": "./lockness/container/container.ts",
         "@lockness/events": "./lockness/events/events.ts",
