@@ -51,13 +51,22 @@ files.
 | `make:view`       | `view.stub`       | `src/view/pages/{name}.tsx`           |
 | `make:command`    | `command.stub`    | `src/command/{name}_command.ts`       |
 | `make:job`        | `job.stub`        | `src/job/{name}_job.ts`               |
+| `make:component`  | `component.stub`  | `src/view/components/{name}.tsx`      |
 
 ### Auth Stubs (`lockness/ace/stubs/auth/`)
 
-| Command     | Stub File              | Generates                           |
-| ----------- | ---------------------- | ----------------------------------- |
-| `make:auth` | `auth_controller.stub` | `src/controller/auth_controller.ts` |
-| `make:auth` | `user_provider.stub`   | `src/auth/user_provider.ts`         |
+| Command            | Stub File                     | Generates                                  |
+| ------------------ | ----------------------------- | ------------------------------------------ |
+| `make:auth`        | `auth_controller.stub`        | `src/controller/auth_controller.ts`        |
+| `make:auth`        | `user_provider.stub`          | `src/auth/user_provider.ts`                |
+| `make:social-auth` | `social_auth_controller.stub` | `src/controller/social_auth_controller.ts` |
+
+### Nessy Stubs (`lockness/ace/stubs/nessy/`)
+
+| Command | Stub File        | Generates                    |
+| ------- | ---------------- | ---------------------------- |
+| `nessy` | `nessy.stub`     | Nessy ASCII art template     |
+| `nessy` | `nessy.cmd.stub` | Nessy command line templates |
 
 ### Drizzle ACE Stubs (`lockness/drizzle/stubs/`)
 
