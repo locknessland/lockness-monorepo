@@ -11,6 +11,23 @@ import { collector } from './collector.ts'
 import { DebugToolbar } from './components/toolbar.tsx'
 import type { RequestInfo } from './types.ts'
 
+/**
+ * Simple route pattern matcher for dynamic routes
+ * Matches patterns like /users/:id with /users/123
+ */
+function matchRoutePattern(pattern: string, path: string): boolean {
+    const patternParts = pattern.split('/')
+    const pathParts = path.split('/')
+
+    if (patternParts.length !== pathParts.length) {
+        return false
+    }
+
+    return patternParts.every((part, i) => {
+        return part.startsWith(':') || part === pathParts[i]
+    })
+}
+
 export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
     return async (c: Context, next: () => Promise<void>) => {
         const requestId = crypto.randomUUID()
@@ -26,6 +43,19 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
             query: Object.fromEntries(
                 new URL(c.req.url).searchParams.entries(),
             ),
+        }
+
+        // Try to match route to get controller info
+        const routes = collector.getRoutes()
+        const matchedRoute = routes.find(
+            (route) =>
+                route.method === c.req.method &&
+                (route.path === c.req.path ||
+                    matchRoutePattern(route.path, c.req.path)),
+        )
+        if (matchedRoute) {
+            requestInfo.controller = matchedRoute.controller
+            requestInfo.action = matchedRoute.action
         }
 
         // Try to get body for POST/PUT/PATCH

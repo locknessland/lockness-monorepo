@@ -132,6 +132,33 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
                             }}
                         />
+
+                        {/* Controller Info */}
+                        {currentRequest?.controller && (
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    padding: '8px 16px',
+                                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                    borderRadius: '6px',
+                                    border: '1px solid rgba(99, 102, 241, 0.2)',
+                                }}
+                            >
+                                <span style={{ fontSize: '13px', color: '#a5b4fc', fontWeight: '500' }}>
+                                    {currentRequest.controller}
+                                </span>
+                                {currentRequest.action && (
+                                    <>
+                                        <span style={{ fontSize: '13px', color: '#6366f1' }}>@</span>
+                                        <span style={{ fontSize: '13px', color: '#818cf8', fontWeight: '600' }}>
+                                            {currentRequest.action}
+                                        </span>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Center section - Stats */}

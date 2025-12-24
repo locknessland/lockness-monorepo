@@ -34,6 +34,8 @@ export interface RequestInfo {
     headers: Record<string, string>
     query: Record<string, string>
     body?: unknown
+    controller?: string
+    action?: string
 }
 
 export interface SessionData {
