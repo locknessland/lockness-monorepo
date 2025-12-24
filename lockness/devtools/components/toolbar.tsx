@@ -1,7 +1,8 @@
 /** @jsx jsx */
 /** @jsxImportSource hono/jsx */
 
-import { collector } from './collector.ts'
+import { collector } from '../collector.ts'
+import type { RequestInfo, LogEntry } from '../types.ts'
 
 interface DebugToolbarProps {
     requestId?: string
@@ -10,7 +11,7 @@ interface DebugToolbarProps {
 export function DebugToolbar({ requestId }: DebugToolbarProps) {
     const data = collector.getAllData()
     const currentRequest = requestId
-        ? data.requests.find((r) => r.id === requestId)
+        ? data.requests.find((r: RequestInfo) => r.id === requestId)
         : data.requests[data.requests.length - 1]
 
     return (
@@ -95,7 +96,7 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                 label='Logs'
                 value={data.logs.length}
                 href='/_devtools?panel=logs'
-                badge={data.logs.filter((l) => l.level === 'error').length > 0}
+                badge={data.logs.filter((l: LogEntry) => l.level === 'error').length > 0}
                 badgeColor='#ef4444'
             />
 

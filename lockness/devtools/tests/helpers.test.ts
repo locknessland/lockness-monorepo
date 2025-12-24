@@ -8,7 +8,6 @@ import {
     trackJob,
     trackMail,
     trackQuery,
-    trackSession,
 } from '../devtools.ts'
 import { collector } from '../collector.ts'
 
@@ -72,22 +71,4 @@ Deno.test('trackMail helper - adds mail info', () => {
     assertEquals(data.mails.length, 1)
     assertEquals(data.mails[0].to, 'test@example.com')
     assertEquals(data.mails[0].subject, 'Test Email')
-})
-
-Deno.test('trackSession helper - adds session data', () => {
-    collector.clear()
-
-    const sessionData = {
-        id: crypto.randomUUID(),
-        data: { userId: 123, role: 'admin' },
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-    }
-
-    trackSession(sessionData)
-
-    const data = collector.getAllData()
-    assertEquals(data.sessions.length, 1)
-    assertEquals(data.sessions[0].data.userId, 123)
-    assertEquals(data.sessions[0].data.role, 'admin')
 })

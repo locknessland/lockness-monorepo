@@ -19,7 +19,7 @@ Deno.test('generateToolbarHtml - generates valid HTML', () => {
 Deno.test('generateToolbarHtml - includes stats', () => {
     collector.clear()
 
-    collector.addRoute({ method: 'GET', path: '/test', middlewares: [] })
+    collector.setRoutes([{ method: 'GET', path: '/test', middlewares: [] }])
     collector.addLog({ timestamp: Date.now(), level: 'info', message: 'Test' })
 
     const html = generateToolbarHtml()

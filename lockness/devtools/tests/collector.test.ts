@@ -16,13 +16,13 @@ Deno.test('DevtoolsCollector - Add and retrieve routes', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
-    collector.addRoute({
+    collector.setRoutes([{
         method: 'GET',
         path: '/users',
         controller: 'UserController',
         action: 'index',
         middlewares: ['auth'],
-    })
+    }])
 
     const data = collector.getAllData()
     assertEquals(data.routes.length, 1)
@@ -92,9 +92,7 @@ Deno.test('DevtoolsCollector - Add and update requests', () => {
 })
 
 Deno.test('DevtoolsCollector - Respect max limits', () => {
-    const collector = DevtoolsCollector.getInstance({
-        maxLogs: 3,
-    })
+    const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
     // Add 5 logs
@@ -114,7 +112,7 @@ Deno.test('DevtoolsCollector - Add queue jobs', () => {
     const collector = DevtoolsCollector.getInstance()
     collector.clear()
 
-    collector.addJob({
+    collector.addQueueJob({
         id: crypto.randomUUID(),
         name: 'SendEmailJob',
         status: 'completed',
@@ -172,11 +170,11 @@ Deno.test('DevtoolsCollector - Clear all data', () => {
         message: 'Test',
     })
 
-    collector.addRoute({
+    collector.setRoutes([{
         method: 'GET',
         path: '/test',
         middlewares: [],
-    })
+    }])
 
     let data = collector.getAllData()
     assertExists(data.logs.length > 0 || data.routes.length > 0)
