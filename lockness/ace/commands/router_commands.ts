@@ -16,9 +16,8 @@ export function registerRouterCommands(ace: Ace) {
                         (entry.name.endsWith('.ts') ||
                             entry.name.endsWith('.tsx'))
                     ) {
-                        const filePath = `file://${
-                            join(controllerDir, entry.name)
-                        }`
+                        const filePath = `file://${join(controllerDir, entry.name)
+                            }`
                         try {
                             const module = await import(
                                 /* @vite-ignore */ filePath
@@ -31,13 +30,22 @@ export function registerRouterCommands(ace: Ace) {
                                     // deno-lint-ignore no-explicit-any
                                     (Exported as any)._basePath !== undefined
                                 ) {
+                                    // TC39 decorators: addInitializer only runs on instance creation
+                                    // Create temporary instance to trigger metadata initialization
+                                    // deno-lint-ignore no-explicit-any
+                                    if (!(Exported as any)._routes || (Exported as any)._routes.length === 0) {
+                                        try {
+                                            new Exported()
+                                        } catch (_e) {
+                                            // Ignore errors during temporary instantiation
+                                        }
+                                    }
                                     controllers.push(Exported)
                                 }
                             }
                         } catch (importError) {
                             console.warn(
-                                `⚠️  Could not import ${entry.name}: ${
-                                    (importError as Error).message
+                                `⚠️  Could not import ${entry.name}: ${(importError as Error).message
                                 }`,
                             )
                         }
@@ -74,6 +82,10 @@ export function registerRouterCommands(ace: Ace) {
                 const middlewares = (Controller as any)._middlewares || {}
                 // deno-lint-ignore no-explicit-any
                 const validators = (Controller as any)._validators || {}
+                // deno-lint-ignore no-explicit-any
+                const authMethods = (Controller as any)._authMethods || {}  // TC39: Read from constructor
+                // deno-lint-ignore no-explicit-any
+                const guestMethods = (Controller as any)._guestMethods || {}  // TC39: Read from constructor
                 const controllerName = Controller.name
 
                 // Check for class-level decorators
@@ -96,12 +108,9 @@ export function registerRouterCommands(ace: Ace) {
                     // Collect middleware names
                     const middlewareNames: string[] = []
 
-                    // Check method-level auth decorators
-                    const instance = new Controller()
-                    // deno-lint-ignore no-explicit-any
-                    const methodRef = (instance as any)[route.methodName]
-                    const methodAuth = methodRef?._auth
-                    const methodGuest = methodRef?._guest
+                    // TC39: Check method-level auth decorators from constructor metadata
+                    const methodAuth = authMethods[route.methodName]
+                    const methodGuest = guestMethods[route.methodName]
 
                     if (methodAuth?.required || classAuthRequired) {
                         middlewareNames.push('@Auth')
@@ -155,11 +164,9 @@ export function registerRouterCommands(ace: Ace) {
             )
 
             // Print header
-            const header = `┃ ${'METHOD'.padEnd(methodWidth)} ┃ ${
-                'PATH'.padEnd(pathWidth)
-            } ┃ ${'CONTROLLER'.padEnd(controllerWidth)} ┃ ${
-                'ACTION'.padEnd(actionWidth)
-            } ┃ MIDDLEWARES`
+            const header = `┃ ${'METHOD'.padEnd(methodWidth)} ┃ ${'PATH'.padEnd(pathWidth)
+                } ┃ ${'CONTROLLER'.padEnd(controllerWidth)} ┃ ${'ACTION'.padEnd(actionWidth)
+                } ┃ MIDDLEWARES`
             const separator = '━'.repeat(header.length)
 
             console.log(separator)
