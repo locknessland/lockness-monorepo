@@ -1,4 +1,4 @@
-import type { Ace } from '../cli.ts'
+import type { Ace } from '../ace.ts'
 
 export function registerQueueCommands(ace: Ace) {
     ace.register('queue:work', async (args) => {

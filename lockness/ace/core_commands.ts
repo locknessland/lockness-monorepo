@@ -1,4 +1,4 @@
-import type { Ace } from './cli.ts'
+import type { Ace } from './ace.ts'
 import { registerMakeCommands } from './commands/make_commands.ts'
 import { registerAuthCommands } from './commands/auth_commands.ts'
 import { registerNessyCommands } from './commands/nessy_commands.ts'

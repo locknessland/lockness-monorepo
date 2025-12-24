@@ -1,4 +1,4 @@
-import { type Ace, Stub } from '../cli.ts'
+import { type Ace, Stub } from '../ace.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
 
 const currentDir = dirname(fromFileUrl(import.meta.url))

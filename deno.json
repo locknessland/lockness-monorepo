@@ -58,7 +58,7 @@
         "@lockness/socialite": "./lockness/socialite/socialite.ts",
         "@lockness/storage": "./lockness/storage/storage.ts",
         "@lockness/validator": "./lockness/validator/validator.ts",
-        "@lockness/ace": "./lockness/ace/cli.ts",
+        "@lockness/ace": "./lockness/ace/ace.ts",
         "@lockness/drizzle": "./lockness/drizzle/database.ts",
         "hono": "npm:hono@^4.11.1",
         "hono/": "npm:/hono@^4.11.1/",
