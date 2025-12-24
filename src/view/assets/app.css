@@ -1,0 +1,8 @@
+/**
+ * Main CSS file with Tailwind directives
+ * Compiled via PostCSS to static/css/app.css
+ */
+
+@import "tailwindcss";
+
+/* Your custom styles here */

@@ -1,5 +1,3 @@
-import { ViteScripts } from 'lockness'
-
 // deno-lint-ignore no-explicit-any
 export const LandingLayout = (props: { title: string; children: any }) => {
     return (
@@ -16,8 +14,10 @@ export const LandingLayout = (props: { title: string; children: any }) => {
                     content='Lockness JS is a high-performance, fullstack MVC web framework built natively for Deno. Inspired by Laravel and AdonisJS, powered by Hono.'
                 />
 
-                {/* Automatic asset resolution & dependency injection */}
-                <ViteScripts entry='src/view/app.ts' />
+                {/* Static CSS */}
+                <link rel='stylesheet' href='/css/app.css' />
+                <link rel='stylesheet' href='/css/landing.css' />
+                <link rel='stylesheet' href='/css/style.css' />
 
                 {/* Fonts */}
                 <link rel='preconnect' href='https://fonts.googleapis.com' />

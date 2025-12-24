@@ -17,6 +17,7 @@ import { UserProvider } from '../src/auth/user_provider.ts'
 import { AppController } from '@controller/app_controller.tsx'
 import { AuthController } from '@controller/auth_controller.ts'
 import { DocsController } from '@controller/docs_controller.tsx'
+import { TestController } from '@controller/test_controller.tsx'
 
 export const bootstrap = async () => {
     // Initialize Database (Optional)
@@ -37,7 +38,7 @@ export const bootstrap = async () => {
     const app = new App()
 
     // Register controllers explicitly (no more Vite glob)
-    const controllers = [AppController, AuthController, DocsController]
+    const controllers = [AppController, AuthController, DocsController, TestController]
     console.log(`🔌 Loaded ${controllers.length} controllers`)
 
     await app.init({

@@ -19,6 +19,8 @@
     "nodeModulesDir": "auto",
     "tasks": {
         "dev": "deno run -A --watch --env main.ts",
+        "css:build": "deno run -A npm:postcss-cli src/view/assets/app.css -o static/css/app.css",
+        "css:watch": "deno run -A npm:postcss-cli src/view/assets/app.css -o static/css/app.css --watch",
         "bundle": "deno bundle --minify main.ts --output _dist/main.ts",
         "build": "deno task bundle",
         "start": "deno serve -A --env-file=.env.production.local _dist/main.ts",
@@ -41,7 +43,6 @@
         "@std/cli": "jsr:@std/cli@1",
         "@std/fs": "jsr:@std/fs@1",
         "@std/path": "jsr:@std/path@1",
-        "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.18",
         "lockness": "./lockness/core/core.ts",
         "@lockness/core": "./lockness/core/core.ts",
         "@lockness/auth": "./lockness/auth/auth.ts",
@@ -64,7 +65,11 @@
         "drizzle-zod": "npm:drizzle-zod@^0.5.1",
         "drizzle-kit": "npm:drizzle-kit@^0.27.2",
         "@hono/zod-validator": "npm:@hono/zod-validator@^0.4.1",
-        "zod": "npm:zod@^3.23.8"
+        "zod": "npm:zod@^3.23.8",
+        "tailwindcss": "npm:tailwindcss@^4.0.0",
+        "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.0.0",
+        "postcss": "npm:postcss@^8.4.49",
+        "postcss-cli": "npm:postcss-cli@^11.0.0"
     },
 
     "unstable": [

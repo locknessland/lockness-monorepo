@@ -1,4 +1,3 @@
-import { ViteScripts } from 'lockness'
 import { DocsSidebar } from '@view/components/docs_sidebar.tsx'
 
 const BookIcon = () => (
@@ -86,7 +85,10 @@ export const DocsLayout = (
                 />
 
                 {/* Automatic asset resolution & dependency injection */}
-                <ViteScripts entry='src/view/app.ts' />
+                {/* Pure SSR - No client-side JS needed */}
+
+                {/* Static CSS */}
+                <link rel='stylesheet' href='/css/app.css' />
 
                 {/* Fonts */}
                 <link rel='preconnect' href='https://fonts.googleapis.com' />
