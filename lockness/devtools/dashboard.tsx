@@ -5,6 +5,7 @@
 
 import type { Context } from 'hono'
 import { collector } from './collector.ts'
+import type { RequestInfo, LogEntry, RouteInfo } from './types.ts'
 
 // Embedded Tailwind CSS (minimal production build)
 const TAILWIND_CSS = `

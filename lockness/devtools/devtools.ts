@@ -20,7 +20,7 @@ import type { Hono } from 'hono'
 import { devtoolsMiddleware } from './middleware.ts'
 import { renderDashboard } from './dashboard.tsx'
 import { collector } from './collector.ts'
-import type { DevtoolsConfig } from './types.ts'
+import type { DevtoolsConfig, RouteInfo, QueueJob, MailInfo } from './types.ts'
 
 export * from './types.ts'
 export { collector } from './collector.ts'
