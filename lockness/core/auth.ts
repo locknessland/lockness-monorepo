@@ -406,23 +406,26 @@ export function createGuestMiddleware(
  */
 // deno-lint-ignore no-explicit-any
 export function Auth(options?: Partial<AuthConfig>): any {
-    return function (target: any, context: ClassDecoratorContext | ClassMethodDecoratorContext) {
+    return function (target: unknown, context: ClassDecoratorContext | ClassMethodDecoratorContext) {
         if (context.kind === 'method') {
             // Store auth metadata on constructor instead of method reference
             const methodName = String(context.name)
             let initialized = false
-            context.addInitializer(function (this: any) {
+            context.addInitializer(function (this: unknown) {
                 if (!initialized) {
                     initialized = true
-                    const constructor = this.constructor
+                    // deno-lint-ignore no-explicit-any
+                    const constructor = (this as any).constructor
                     if (!constructor._authMethods) constructor._authMethods = {}
                     constructor._authMethods[methodName] = { required: true, options }
                 }
             })
         } else if (context.kind === 'class') {
             // Class decorator
-            target._authRequired = true
-            target._authOptions = options
+            // deno-lint-ignore no-explicit-any
+            (target as any)._authRequired = true
+            // deno-lint-ignore no-explicit-any
+            (target as any)._authOptions = options
             return target
         }
     }
@@ -433,23 +436,26 @@ export function Auth(options?: Partial<AuthConfig>): any {
  */
 // deno-lint-ignore no-explicit-any
 export function Guest(redirectTo = '/'): any {
-    return function (target: any, context: ClassDecoratorContext | ClassMethodDecoratorContext) {
+    return function (target: unknown, context: ClassDecoratorContext | ClassMethodDecoratorContext) {
         if (context.kind === 'method') {
             // Store guest metadata on constructor instead of method reference
             const methodName = String(context.name)
             let initialized = false
-            context.addInitializer(function (this: any) {
+            context.addInitializer(function (this: unknown) {
                 if (!initialized) {
                     initialized = true
-                    const constructor = this.constructor
+                    // deno-lint-ignore no-explicit-any
+                    const constructor = (this as any).constructor
                     if (!constructor._guestMethods) constructor._guestMethods = {}
                     constructor._guestMethods[methodName] = { required: true, redirectTo }
                 }
             })
         } else if (context.kind === 'class') {
             // Class decorator
-            target._guestRequired = true
-            target._guestRedirectTo = redirectTo
+            // deno-lint-ignore no-explicit-any
+            (target as any)._guestRequired = true
+            // deno-lint-ignore no-explicit-any
+            (target as any)._guestRedirectTo = redirectTo
             return target
         }
     }

@@ -173,9 +173,8 @@ export function Service(): <T extends new (...args: any[]) => any>(
  * }
  * ```
  */
-// deno-lint-ignore no-explicit-any
 export function Inject(ServiceClass: unknown): any {
-    return function (value: any, context: ClassFieldDecoratorContext | ClassAccessorDecoratorContext) {
+    return function (_value: any, context: ClassFieldDecoratorContext | ClassAccessorDecoratorContext) {
         if (context.kind === 'accessor') {
             // Accessor decorator
             return {

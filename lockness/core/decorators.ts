@@ -5,7 +5,8 @@ import type { IMiddleware } from './types.ts'
  * Controller decorator - marks a class as a controller and sets its base path
  * @param path Base path for all routes in this controller
  */
-export function Controller(path: string) {
+// deno-lint-ignore no-explicit-any
+export function Controller(path: string): any {
     return function <T extends new (...args: any[]) => any>(
         target: T,
         _context: ClassDecoratorContext,
@@ -56,7 +57,8 @@ export const Put: RouteDecorator = createRouteDecorator('put')
 export const Delete: RouteDecorator = createRouteDecorator('delete')
 export const Patch: RouteDecorator = createRouteDecorator('patch')
 
-export function Middleware() {
+// deno-lint-ignore no-explicit-any
+export function Middleware(): any {
     return function <T extends new (...args: any[]) => any>(
         target: T,
         _context: ClassDecoratorContext,
@@ -76,7 +78,8 @@ export function Middleware() {
  * // Using a named middleware (must be registered in kernel)
  * @Use('auth')
  */
-export function Use(middleware: (new () => IMiddleware) | string) {
+// deno-lint-ignore no-explicit-any
+export function Use(middleware: (new () => IMiddleware) | string): any {
     return function (
         _target: any,
         context: ClassMethodDecoratorContext,
