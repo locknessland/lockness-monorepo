@@ -344,3 +344,52 @@ deno task ace router:list
 
 Shows a formatted table with HTTP methods (color-coded), paths, controllers,
 actions, and middlewares for easy debugging and API overview.
+
+### Package Management
+
+Lockness provides a powerful package management system that automatically
+configures and integrates additional features into your application.
+
+#### Installing Packages
+
+Use the `package:install` command for fully automated setup:
+
+```bash
+deno task ace package:install openapi
+```
+
+This command will:
+
+- Add the package to `deno.json`
+- Run the package's install script (if available)
+- Create necessary files and configurations
+- Display next steps and documentation links
+
+#### Configuration
+
+Packages are declared in the `lockness` section of your `deno.json`:
+
+```json
+{
+  "lockness": {
+    "packages": [
+      "drizzle",
+      "openapi",
+      "cache"
+    ]
+  }
+}
+```
+
+#### Available Commands
+
+- `package:install <name>` - Install and configure a package with automated setup
+- `package:add <name>` - Add package to configuration only (no setup)
+- `package:remove <name>` - Remove package from configuration
+
+#### Official Packages
+
+- **@lockness/drizzle**: Drizzle ORM integration
+- **@lockness/openapi**: OpenAPI/Swagger documentation
+- **@lockness/cache**: Multi-driver caching system
+- **@lockness/socialite**: OAuth2 authentication

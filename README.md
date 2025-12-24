@@ -556,6 +556,78 @@ deno task ace tinker
 Commands: `.help`, `.context`, `.clear`, `.exit`. Supports async/await and
 multiline input.
 
+### Package Management
+
+Lockness provides a powerful package management system that automatically
+configures and integrates additional features into your application. Packages
+are registered in `deno.json` and loaded dynamically at runtime.
+
+#### Installing Packages
+
+Use the `package:install` command for fully automated setup:
+
+```bash
+deno task ace package:install openapi
+```
+
+This command will:
+
+- Add the package to `deno.json`
+- Run the package's install script (if available)
+- Create necessary files and configurations
+- Display next steps and documentation links
+
+#### Configuration
+
+Packages are declared in the `lockness` section of your `deno.json`:
+
+```json
+{
+  "lockness": {
+    "packages": [
+      "drizzle",
+      "openapi",
+      "cache",
+      "socialite"
+    ]
+  }
+}
+```
+
+When your application starts, Lockness automatically loads each package and
+registers their CLI commands.
+
+#### Available Commands
+
+- `package:install <name>` - Install and configure a package with automated
+  setup
+- `package:add <name>` - Add package to configuration only (no setup)
+- `package:remove <name>` - Remove package from configuration
+
+#### Official Packages
+
+- **@lockness/drizzle**: Drizzle ORM integration with migrations and seeders
+- **@lockness/openapi**: OpenAPI/Swagger documentation with automatic spec
+  generation
+- **@lockness/cache**: Multi-driver caching system (Memory, Deno KV, Redis)
+- **@lockness/socialite**: OAuth2 authentication (Google, GitHub, Discord)
+
+#### How It Works
+
+In your `ace.ts` file:
+
+```typescript
+import { Ace, loadPackageCommands, registerCoreCommands } from '@lockness/ace'
+
+const ace = new Ace()
+registerCoreCommands(ace)
+await loadPackageCommands(ace) // Loads from deno.json
+await ace.discoverCommands('./src/command')
+```
+
+The `loadPackageCommands()` function reads the `lockness.packages` array,
+dynamically imports each package, and registers their commands.
+
 ### Session Management
 
 Lockness provides session management with multiple drivers.

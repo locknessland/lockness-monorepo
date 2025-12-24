@@ -1,9 +1,8 @@
-import { Controller, Get, type Context } from 'lockness'
+import { Controller, Get, type Context, type ControllerClass } from 'lockness'
 import {
     ApiDoc,
     generateOpenAPISpec,
     serveSwaggerUI,
-    type ControllerClass,
 } from '@lockness/openapi'
 import { join } from '@std/path'
 

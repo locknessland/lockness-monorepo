@@ -119,10 +119,9 @@ export class UserController {
 Create a docs controller to serve the Swagger UI:
 
 ```typescript
-import { type Context, Controller, Get } from 'lockness'
+import { type Context, type ControllerClass, Controller, Get } from 'lockness'
 import {
     ApiDoc,
-    type ControllerClass,
     generateOpenAPISpec,
     serveSwaggerUI,
 } from '@lockness/openapi'

@@ -516,6 +516,148 @@ export class DashboardController {
 - **deno-kv**: Uses Deno KV for distributed session storage (with TTL support)
 - **memory**: In-memory storage (for development only)
 
+### Package Management
+
+Lockness provides a powerful package management system that automatically
+configures and integrates additional features into your application.
+
+#### Configuration-Based Loading
+
+Packages are declared in the `lockness` section of your `deno.json`:
+
+```json
+{
+  "lockness": {
+    "packages": [
+      "drizzle",
+      "openapi",
+      "cache"
+    ]
+  }
+}
+```
+
+When your application starts, Lockness automatically:
+
+1. Loads each package from the list
+2. Registers their CLI commands
+3. Makes their services available via dependency injection
+
+#### Installing Packages
+
+Lockness provides three ways to install packages:
+
+**Option 1: Automated Installation (Recommended)**
+
+```bash
+deno task ace package:install openapi
+```
+
+This command:
+- Adds the package to `deno.json`
+- Runs the package's install script
+- Creates necessary files and configurations
+- Displays next steps
+
+**Option 2: Manual Configuration**
+
+```bash
+deno task ace package:add openapi
+```
+
+This only adds the package to your configuration. You'll need to follow the
+package's documentation for manual setup.
+
+**Option 3: Direct Script Execution**
+
+```bash
+deno run -A jsr:@lockness/openapi/install
+```
+
+#### Removing Packages
+
+```bash
+deno task ace package:remove openapi
+```
+
+This removes the package from `deno.json`. You'll need to manually delete any
+generated files if desired.
+
+#### How It Works
+
+The package loader system works through convention:
+
+```typescript
+// ace.ts
+import { Ace, loadPackageCommands, registerCoreCommands } from '@lockness/ace'
+
+const ace = new Ace()
+registerCoreCommands(ace)
+
+// Loads commands from packages in deno.json
+await loadPackageCommands(ace)
+
+await ace.discoverCommands('./src/command')
+```
+
+The `loadPackageCommands()` function:
+
+1. Reads the `lockness.packages` array from `deno.json`
+2. Dynamically imports each package from `@lockness/{name}`
+3. Looks for a `register*Commands` function
+4. Calls the function to register CLI commands
+
+#### Official Packages
+
+- **@lockness/drizzle**: Drizzle ORM integration with migrations, seeders, and CLI commands
+- **@lockness/openapi**: OpenAPI/Swagger documentation with automatic spec generation
+- **@lockness/cache**: Multi-driver caching system (Memory, Deno KV, Redis)
+- **@lockness/socialite**: OAuth2 authentication (Google, GitHub, Discord)
+
+#### Creating Custom Packages
+
+Packages export a register function from their main entry point:
+
+```typescript
+// my-package/index.ts
+import type { Ace } from '@lockness/ace'
+
+export function registerMyPackageCommands(ace: Ace) {
+    ace.register('my:command', async () => {
+        console.log('Hello from my package!')
+    }, 'My custom command')
+}
+```
+
+Optionally, create an install script:
+
+```typescript
+// my-package/install.ts
+import { addPackage } from '@lockness/ace'
+
+async function main() {
+    console.log('🌊 Installing my-package...\n')
+    await addPackage('my-package')
+    // Create config files, controllers, etc.
+    console.log('✅ Installation complete!')
+}
+
+if (import.meta.main) {
+    await main()
+}
+```
+
+Export both in your `deno.json`:
+
+```json
+{
+  "exports": {
+    ".": "./index.ts",
+    "./install": "./install.ts"
+  }
+}
+```
+
 ### Authentication System
 
 Lockness provides a complete authentication system with session-based auth,

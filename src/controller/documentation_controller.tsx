@@ -9,6 +9,7 @@ import { MiddlewarePage } from '@view/pages/docs/middleware.tsx'
 import { CliPage } from '@view/pages/docs/cli.tsx'
 import { ComponentsPage } from '@view/pages/docs/components.tsx'
 import { NessyPage } from '@view/pages/docs/nessy.tsx'
+import { PackagesPage } from '@view/pages/docs/packages.tsx'
 
 @Controller('/documentation')
 export class DocumentationController {
@@ -65,5 +66,10 @@ export class DocumentationController {
     @Get('/nessy')
     nessy(c: Context) {
         return c.html(<NessyPage />)
+    }
+
+    @Get('/packages')
+    packages(c: Context) {
+        return c.html(<PackagesPage />)
     }
 }

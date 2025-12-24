@@ -13,12 +13,11 @@
 import { addPackage } from '../ace/package_loader.ts'
 import { join } from '@std/path'
 
-const DOCS_CONTROLLER_TEMPLATE = `import { Controller, Get, type Context } from 'lockness'
+const DOCS_CONTROLLER_TEMPLATE = `import { Controller, Get, type Context, type ControllerClass } from 'lockness'
 import {
     ApiDoc,
     generateOpenAPISpec,
     serveSwaggerUI,
-    type ControllerClass,
 } from '@lockness/openapi'
 import { join } from '@std/path'
 
