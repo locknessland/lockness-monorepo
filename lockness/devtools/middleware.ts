@@ -74,29 +74,23 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
                 c.res.headers.get('content-type')?.includes('text/html') &&
                 !c.req.path.startsWith('/_devtools')
             ) {
-                console.log('[Devtools] Attempting to inject toolbar...')
                 const clonedResponse = c.res.clone()
                 const originalBody = await clonedResponse.text()
 
                 // Skip if already has toolbar
                 if (!originalBody.includes('lockness-debug-toolbar')) {
-                    console.log('[Devtools] Injecting toolbar into response')
                     const toolbarHtml = generateToolbarHtml(requestId)
                     const modifiedBody = originalBody.replace(
                         '</body>',
                         `${toolbarHtml}</body>`,
                     )
 
-                    return c.html(modifiedBody)
-                } else {
-                    console.log('[Devtools] Toolbar already present, skipping')
+                    // Replace the response
+                    c.res = new Response(modifiedBody, {
+                        status: c.res.status,
+                        headers: c.res.headers,
+                    })
                 }
-            } else {
-                console.log('[Devtools] Skipping toolbar injection:', {
-                    showToolbar,
-                    contentType: c.res.headers.get('content-type'),
-                    path: c.req.path,
-                })
             }
         } catch (error) {
             const duration = performance.now() - startTime
