@@ -69,32 +69,37 @@ export function setValidationErrorHandler(
 export function Validate(
     target: keyof ValidationTargets,
     schema: ZodSchema,
-): MethodDecorator {
-    return (
-        classTarget: any,
-        propertyKey: string | symbol,
-        _descriptor: PropertyDescriptor,
-    ) => {
-        const constructor = classTarget.constructor
-        if (!constructor._validators) constructor._validators = {}
+) {
+    return function (
+        _classTarget: any,
+        context: ClassMethodDecoratorContext,
+    ) {
+        const methodName = String(context.name)
+        let initialized = false
+        context.addInitializer(function (this: any) {
+            if (!initialized) {
+                initialized = true
+                const constructor = this.constructor
+                if (!constructor._validators) constructor._validators = {}
 
-        const key = propertyKey as string
-        if (!constructor._validators[key]) {
-            constructor._validators[key] = []
-        }
-
-        // Store validation config
-        constructor._validators[key].push({
-            target,
-            schema,
-            middleware: zValidator(target, schema, (result, c) => {
-                if (!result.success) {
-                    return globalValidationErrorHandler(
-                        result.error.flatten().fieldErrors,
-                        c,
-                    )
+                if (!constructor._validators[methodName]) {
+                    constructor._validators[methodName] = []
                 }
-            }),
+
+                // Store validation config
+                constructor._validators[methodName].push({
+                    target,
+                    schema,
+                    middleware: zValidator(target, schema, (result, c) => {
+                        if (!result.success) {
+                            return globalValidationErrorHandler(
+                                result.error.flatten().fieldErrors,
+                                c,
+                            )
+                        }
+                    }),
+                })
+            }
         })
     }
 }

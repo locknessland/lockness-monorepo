@@ -132,6 +132,8 @@ export class App {
             const routes = Controller._routes || []
             const middlewares = Controller._middlewares || {}
             const validators = Controller._validators || {}
+            const authMethods = Controller._authMethods || {}  // TC39: Read from constructor
+            const guestMethods = Controller._guestMethods || {}  // TC39: Read from constructor
             const controllerName = Controller.name
 
             // Check for class-level @Auth or @Guest decorators
@@ -160,13 +162,10 @@ export class App {
                 // Build auth middlewares
                 const authMiddlewares: MiddlewareHandler[] = []
 
-                // Get method reference
-                const methodRef = (instance as any)[route.methodName]
-
-                // Check method-level @Auth decorator
-                const methodAuth = methodRef?._auth
-                // Check method-level @Guest decorator
-                const methodGuest = methodRef?._guest
+                // TC39: Check method-level @Auth decorator from constructor metadata
+                const methodAuth = authMethods[route.methodName]
+                // TC39: Check method-level @Guest decorator from constructor metadata
+                const methodGuest = guestMethods[route.methodName]
 
                 if (methodAuth?.required) {
                     // Method-level @Auth takes precedence
@@ -292,6 +291,15 @@ export class App {
                             typeof Exported === 'function' &&
                             Exported._basePath !== undefined
                         ) {
+                            // TC39 decorators: addInitializer only runs on instance creation
+                            // Create temporary instance to trigger metadata initialization
+                            if (!Exported._routes || Exported._routes.length === 0) {
+                                try {
+                                    new Exported()
+                                } catch (_e) {
+                                    // Ignore errors during temporary instantiation
+                                }
+                            }
                             controllers.push(Exported as ControllerClass)
                         }
                     }

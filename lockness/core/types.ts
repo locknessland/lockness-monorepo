@@ -27,6 +27,8 @@ export interface ControllerMetadata {
     _authOptions?: { redirectTo?: string }
     _guestRequired?: boolean
     _guestRedirectTo?: string
+    _authMethods?: Record<string, { required: boolean; options?: any }>
+    _guestMethods?: Record<string, { required: boolean; redirectTo?: string }>
 }
 
 export type ControllerClass =

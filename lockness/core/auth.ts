@@ -392,31 +392,34 @@ export function createGuestMiddleware(
  * // Protect single method
  * @Controller('/users')
  * class UserController {
- *     @Auth()
+/**
+ * Decorator to protect routes with authentication.
+ * Can be applied to a controller class (affects all methods) or a specific method.
+ *
+ * @example
+ * @Controller('/api')
+ * @Auth()
+ * export class ApiController {
  *     @Get('/profile')
  *     profile(c: Context) { ... }
  * }
  */
 // deno-lint-ignore no-explicit-any
 export function Auth(options?: Partial<AuthConfig>): any {
-    return function (
-        // deno-lint-ignore no-explicit-any
-        target: any,
-        propertyKey?: string,
-        descriptor?: PropertyDescriptor,
-        // deno-lint-ignore no-explicit-any
-    ): any {
-        if (propertyKey && descriptor) {
-            // Method decorator
-            const originalMethod = descriptor.value
-
-            // Store auth requirement
-            if (!originalMethod._auth) {
-                originalMethod._auth = { required: true, options }
-            }
-
-            return descriptor
-        } else {
+    return function (target: any, context: ClassDecoratorContext | ClassMethodDecoratorContext) {
+        if (context.kind === 'method') {
+            // Store auth metadata on constructor instead of method reference
+            const methodName = String(context.name)
+            let initialized = false
+            context.addInitializer(function (this: any) {
+                if (!initialized) {
+                    initialized = true
+                    const constructor = this.constructor
+                    if (!constructor._authMethods) constructor._authMethods = {}
+                    constructor._authMethods[methodName] = { required: true, options }
+                }
+            })
+        } else if (context.kind === 'class') {
             // Class decorator
             target._authRequired = true
             target._authOptions = options
@@ -430,19 +433,20 @@ export function Auth(options?: Partial<AuthConfig>): any {
  */
 // deno-lint-ignore no-explicit-any
 export function Guest(redirectTo = '/'): any {
-    return function (
-        // deno-lint-ignore no-explicit-any
-        target: any,
-        propertyKey?: string,
-        descriptor?: PropertyDescriptor,
-        // deno-lint-ignore no-explicit-any
-    ): any {
-        if (propertyKey && descriptor) {
-            // Method decorator
-            const originalMethod = descriptor.value
-            originalMethod._guest = { required: true, redirectTo }
-            return descriptor
-        } else {
+    return function (target: any, context: ClassDecoratorContext | ClassMethodDecoratorContext) {
+        if (context.kind === 'method') {
+            // Store guest metadata on constructor instead of method reference
+            const methodName = String(context.name)
+            let initialized = false
+            context.addInitializer(function (this: any) {
+                if (!initialized) {
+                    initialized = true
+                    const constructor = this.constructor
+                    if (!constructor._guestMethods) constructor._guestMethods = {}
+                    constructor._guestMethods[methodName] = { required: true, redirectTo }
+                }
+            })
+        } else if (context.kind === 'class') {
             // Class decorator
             target._guestRequired = true
             target._guestRedirectTo = redirectTo

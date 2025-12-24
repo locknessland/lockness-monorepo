@@ -173,19 +173,29 @@ export function Service(): <T extends new (...args: any[]) => any>(
  * }
  * ```
  */
-export function Inject(ServiceClass: unknown): PropertyDecorator {
-    return function (_target: object, _propertyKey: string | symbol): void {
-        Object.defineProperty(_target, _propertyKey, {
-            get() {
-                const key = `_${String(_propertyKey)}_instance`
-                if (!this[key]) {
-                    this[key] = container.get(ServiceClass)
-                }
-                return this[key]
-            },
-            enumerable: true,
-            configurable: true,
-        })
+// deno-lint-ignore no-explicit-any
+export function Inject(ServiceClass: unknown): any {
+    return function (_target: any, context: ClassFieldDecoratorContext | ClassAccessorDecoratorContext) {
+        const propertyKey = String(context.name)
+
+        return function (this: any, initialValue: any) {
+            // Cache key for this property
+            const cacheKey = `_${propertyKey}_instance`
+
+            // Define getter/setter for the property
+            Object.defineProperty(this, propertyKey, {
+                get() {
+                    if (!this[cacheKey]) {
+                        this[cacheKey] = container.get(ServiceClass)
+                    }
+                    return this[cacheKey]
+                },
+                enumerable: true,
+                configurable: true,
+            })
+
+            return initialValue
+        }
     }
 }
 
