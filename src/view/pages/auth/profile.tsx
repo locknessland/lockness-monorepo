@@ -11,7 +11,7 @@ export const ProfilePage = (props: { user: any }) => {
                             <h1 class='text-3xl font-bold'>
                                 Welcome, {props.user?.name}!
                             </h1>
-                            <form method='POST' action='/auth/logout'>
+                            <form method='post' action='/auth/logout'>
                                 <button
                                     type='submit'
                                     class='px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors'

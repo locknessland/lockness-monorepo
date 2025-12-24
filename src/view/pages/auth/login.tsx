@@ -10,7 +10,7 @@ export const LoginPage = () => {
                             Login
                         </h1>
 
-                        <form method='POST' action='/auth/login' class='space-y-4'>
+                        <form method='post' action='/auth/login' class='space-y-4'>
                             <div>
                                 <label
                                     for='email'

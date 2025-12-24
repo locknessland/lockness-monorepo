@@ -11,7 +11,7 @@ export const RegisterPage = () => {
                         </h1>
 
                         <form
-                            method='POST'
+                            method='post'
                             action='/auth/register'
                             class='space-y-4'
                         >

@@ -4,7 +4,7 @@
  * Handles login, logout, and registration
  */
 
-import { type Context, Controller, Get, Post, Use } from 'lockness'
+import { Context, Controller, Get, Post, Use } from 'lockness'
 import { getAuth } from '@lockness/auth'
 import { hashPassword } from 'lockness'
 import { UserRepository } from '@repository/user_repository.ts'
