@@ -66,7 +66,6 @@ export function setValidationErrorHandler(
  * }
  * ```
  */
-// deno-lint-ignore no-explicit-any
 export function Validate(
     target: keyof ValidationTargets,
     schema: ZodSchema,

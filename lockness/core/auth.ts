@@ -423,9 +423,9 @@ export function Auth(options?: Partial<AuthConfig>): any {
         } else if (context.kind === 'class') {
             // Class decorator
             // deno-lint-ignore no-explicit-any
-            (target as any)._authRequired = true
-            // deno-lint-ignore no-explicit-any
-            (target as any)._authOptions = options
+            (target as any)._authRequired = true;
+                // deno-lint-ignore no-explicit-any
+                (target as any)._authOptions = options
             return target
         }
     }
@@ -453,9 +453,9 @@ export function Guest(redirectTo = '/'): any {
         } else if (context.kind === 'class') {
             // Class decorator
             // deno-lint-ignore no-explicit-any
-            (target as any)._guestRequired = true
-            // deno-lint-ignore no-explicit-any
-            (target as any)._guestRedirectTo = redirectTo
+            (target as any)._guestRequired = true;
+                // deno-lint-ignore no-explicit-any
+                (target as any)._guestRedirectTo = redirectTo
             return target
         }
     }
