@@ -24,6 +24,48 @@ export function registerCoreCommands(ace: Ace) {
     )
 
     ace.register(
+        'package:install',
+        async (args: string[]) => {
+            const packageName = args[0]
+            if (!packageName) {
+                console.error('❌ Usage: ace package:install <package-name>')
+                console.log('Example: ace package:install openapi')
+                return
+            }
+
+            // Normalize package name
+            const fullPackageName = packageName.startsWith('@lockness/')
+                ? packageName
+                : `@lockness/${packageName}`
+
+            try {
+                // Try to import and run the install script
+                const module = await import(`${fullPackageName}/install`)
+                if (typeof module.default === 'function') {
+                    await module.default()
+                } else {
+                    // Fallback: just add to config
+                    await addPackage(packageName)
+                    console.log('\n✅ Package added to configuration')
+                    console.log('⚠️  This package does not have an automated installer')
+                    console.log('   Please refer to the package documentation for setup instructions')
+                }
+            } catch (error) {
+                if (error instanceof Error && error.message.includes('does not provide an export')) {
+                    // No install script, just add to config
+                    await addPackage(packageName)
+                    console.log('\n✅ Package added to configuration')
+                    console.log('ℹ️  This package does not have an automated installer')
+                } else {
+                    console.error('❌ Installation failed:', error)
+                    Deno.exit(1)
+                }
+            }
+        },
+        'Install and configure a Lockness package (runs setup automatically)'
+    )
+
+    ace.register(
         'package:remove',
         async (args: string[]) => {
             const packageName = args[0]
