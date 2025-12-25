@@ -4,16 +4,16 @@ interface NavLink {
 }
 
 const navLinks: NavLink[] = [
-    { title: 'Installation', href: '/documentation/installation' },
-    { title: 'Getting Started', href: '/documentation/getting-started' },
-    { title: 'Routing & Controllers', href: '/documentation/routing' },
-    { title: 'Models & Database', href: '/documentation/models' },
-    { title: 'Validation', href: '/documentation/validation' },
-    { title: 'Authentication', href: '/documentation/authentication' },
-    { title: 'Middleware', href: '/documentation/middleware' },
-    { title: 'Components', href: '/documentation/components' },
-    { title: 'CLI (Ace)', href: '/documentation/cli' },
-    { title: 'Nessy CLI', href: '/documentation/nessy' },
+    { title: 'Installation', href: '/docs/installation' },
+    { title: 'Getting Started', href: '/docs/getting-started' },
+    { title: 'Routing & Controllers', href: '/docs/routing' },
+    { title: 'Models & Database', href: '/docs/models' },
+    { title: 'Validation', href: '/docs/validation' },
+    { title: 'Authentication', href: '/docs/authentication' },
+    { title: 'Middleware', href: '/docs/middleware' },
+    { title: 'Components', href: '/docs/components' },
+    { title: 'CLI (Ace)', href: '/docs/cli' },
+    { title: 'Nessy CLI', href: '/docs/nessy' },
 ]
 
 export const DocsSidebar = (props: { currentPath: string }) => {

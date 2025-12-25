@@ -8,14 +8,14 @@
  * In production/compile mode, this registry is used.
  */
 
+import { ApiDocsController } from '@controller/api_docs_controller.ts'
 import { AppController } from '@controller/app_controller.tsx'
 import { AuthController } from '@controller/auth_controller.tsx'
-import { DocsController } from '@controller/docs_controller.ts'
-import { DocumentationController } from '@controller/documentation_controller.tsx'
+import { DocsController } from '@controller/docs_controller.tsx'
 
 export const controllers = [
+    ApiDocsController,
     AppController,
     AuthController,
     DocsController,
-    DocumentationController,
 ]

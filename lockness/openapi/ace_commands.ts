@@ -66,7 +66,7 @@ export function registerOpenAPICommands(ace: Ace) {
                 `   Found ${Object.keys(spec.paths).length} documented endpoints`,
             )
             console.log(`   ${spec.tags?.length || 0} tags`)
-            console.log(`\n💡 View docs at: http://localhost:8888/docs`)
+            console.log(`\n💡 View docs at: http://localhost:8888/api-docs`)
         },
         'Generate OpenAPI specification from controllers',
     )

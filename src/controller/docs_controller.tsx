@@ -11,11 +11,11 @@ import { ComponentsPage } from '@view/pages/docs/components.tsx'
 import { NessyPage } from '@view/pages/docs/nessy.tsx'
 import { PackagesPage } from '@view/pages/docs/packages.tsx'
 
-@Controller('/documentation')
-export class DocumentationController {
+@Controller('/docs')
+export class DocsController {
     @Get('/')
     index(c: Context) {
-        return c.redirect('/documentation/installation')
+        return c.redirect('/docs/installation')
     }
 
     @Get('/installation')

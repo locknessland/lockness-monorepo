@@ -126,8 +126,8 @@ async function loadControllers(): Promise<ControllerClass[]> {
     // Load your controllers...
 }
 
-@Controller('/docs')
-export class DocsController {
+@Controller('/api-docs')
+export class ApiDocsController {
     @Get('/')
     async index(c: Context) {
         const controllers = await loadControllers()

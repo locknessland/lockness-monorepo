@@ -16,7 +16,7 @@ async function loadControllers(): Promise<ControllerClass[]> {
                 entry.isFile &&
                 (entry.name.endsWith('_controller.ts') ||
                     entry.name.endsWith('_controller.tsx')) &&
-                entry.name !== 'docs_controller.ts' // Skip self
+                entry.name !== 'api_docs_controller.ts' // Skip self
             ) {
                 const modulePath = join(controllersDir, entry.name)
                 const module = await import(`file://${Deno.cwd()}/${modulePath}`)
@@ -40,8 +40,8 @@ async function loadControllers(): Promise<ControllerClass[]> {
     return controllers
 }
 
-@Controller('/docs')
-export class DocsController {
+@Controller('/api-docs')
+export class ApiDocsController {
     @Get('/')
     @ApiDoc({
         summary: 'Swagger UI Documentation',

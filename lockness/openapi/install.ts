@@ -11,7 +11,6 @@
  */
 
 import { addPackage } from '../ace/package_loader.ts'
-import { join } from '@std/path'
 
 const DOCS_CONTROLLER_TEMPLATE = `import { Controller, Get, type Context, type ControllerClass } from 'lockness'
 import {
@@ -31,7 +30,7 @@ async function loadControllers(): Promise<ControllerClass[]> {
                 entry.isFile &&
                 (entry.name.endsWith('_controller.ts') ||
                     entry.name.endsWith('_controller.tsx')) &&
-                entry.name !== 'docs_controller.ts' // Skip self
+                entry.name !== 'api_docs_controller.ts' // Skip self
             ) {
                 const modulePath = join(controllersDir, entry.name)
                 const module = await import(\`file://\${Deno.cwd()}/\${modulePath}\`)
@@ -55,8 +54,8 @@ async function loadControllers(): Promise<ControllerClass[]> {
     return controllers
 }
 
-@Controller('/docs')
-export class DocsController {
+@Controller('/api-docs')
+export class ApiDocsController {
     @Get('/')
     @ApiDoc({
         summary: 'Swagger UI Documentation',
@@ -108,16 +107,16 @@ export class DocsController {
 `
 
 async function createDocsController() {
-    const controllerPath = './src/controller/docs_controller.ts'
+    const controllerPath = './src/controller/api_docs_controller.ts'
 
     try {
         await Deno.stat(controllerPath)
-        console.log('ℹ️  DocsController already exists, skipping...')
+        console.log('ℹ️  ApiDocsController already exists, skipping...')
         return false
     } catch {
         // File doesn't exist, create it
         await Deno.writeTextFile(controllerPath, DOCS_CONTROLLER_TEMPLATE)
-        console.log('✓ Created src/controller/docs_controller.ts')
+        console.log('✓ Created src/controller/api_docs_controller.ts')
         return true
     }
 }
@@ -157,7 +156,7 @@ async function main() {
         console.error('❌ Failed to add package to deno.json:', error)
     }
 
-    // 2. Create DocsController
+    // 2. Create ApiDocsController
     const controllerCreated = await createDocsController()
     if (controllerCreated) {
         changesMade = true
@@ -174,7 +173,7 @@ async function main() {
         console.log('\n✅ @lockness/openapi installed successfully!\n')
         console.log('📖 Next steps:')
         console.log('   1. Start your dev server: deno task dev')
-        console.log('   2. Visit: http://localhost:8888/docs')
+        console.log('   2. Visit: http://localhost:8888/api-docs')
         console.log('   3. Document your routes with @ApiDoc decorator\n')
         console.log('📝 Generate static OpenAPI spec:')
         console.log('   deno task ace docs:generate\n')

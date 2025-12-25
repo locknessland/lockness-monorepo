@@ -36,7 +36,7 @@ export function serveSwaggerUI(spec: OpenAPISpec) {
     <script>
         window.onload = function() {
             window.ui = SwaggerUIBundle({
-                url: '/docs/openapi.json',
+                url: '/api-docs/openapi.json',
                 dom_id: '#swagger-ui',
                 deepLinking: true,
                 presets: [

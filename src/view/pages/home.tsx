@@ -459,7 +459,7 @@ export const HomeView = () => {
                                     style='animation-delay: 300ms; animation-fill-mode: backwards;'
                                 >
                                     <a
-                                        href='/documentation/installation'
+                                        href='/docs/installation'
                                         class='pixel-btn bg-primary text-primary-foreground'
                                     >
                                         GET STARTED
@@ -1135,7 +1135,7 @@ export const HomeView = () => {
                         </p>
                         <div class='flex flex-col sm:flex-row items-center justify-center gap-4'>
                             <a
-                                href='/documentation/installation'
+                                href='/docs/installation'
                                 class='pixel-btn bg-primary text-primary-foreground'
                             >
                                 GET STARTED NOW
