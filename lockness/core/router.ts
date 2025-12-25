@@ -13,8 +13,7 @@ export const namedRoutes: Map<string, string> = new Map<string, string>()
 export function route(name: string, params: Record<string, string | number> = {}): string {
     let path = namedRoutes.get(name)
     if (!path) {
-        console.warn(`⚠️ Route "${name}" not found in registered routes`)
-        return `#route-not-found-${name}`
+        throw new Error(`Route "${name}" not found in registered routes`)
     }
 
     // Replace parameters like :id or :slug
