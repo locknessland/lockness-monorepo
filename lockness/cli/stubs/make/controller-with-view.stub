@@ -1,0 +1,10 @@
+import { Controller, Get, Context } from 'lockness'
+import { {{ viewName }} } from '@view/pages/{{ route }}.tsx'
+
+@Controller('/{{ route }}')
+export class {{ className }}Controller {
+    @Get('/', { name: '{{ route }}.index' })
+    index(c: Context) {
+        return c.html(<{{ viewName }} />)
+    }
+}

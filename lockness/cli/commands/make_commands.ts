@@ -14,19 +14,50 @@ export function registerMakeCommands(cli: Cli) {
             return
         }
 
+        // Check for --view flag
+        const withView = args.includes('--view')
+
         const className = name.charAt(0).toUpperCase() + name.slice(1)
         const fileName = `${name.toLowerCase()}_controller.tsx`
         const dirPath = `./src/controller`
         const filePath = `${dirPath}/${fileName}`
 
         try {
+            // If --view flag is present, create the view first
+            let viewCreated = false
+            if (withView) {
+                const viewClassName = className
+                const viewFileName = name.toLowerCase()
+                const viewDirPath = `./src/view/pages`
+                const viewFilePath = `${viewDirPath}/${viewFileName}.tsx`
+
+                try {
+                    const viewContent = await Stub.renderFrom(STUBS_PATH, 'make', 'view', {
+                        className: viewClassName,
+                        fileName: viewFileName,
+                    })
+
+                    await Deno.mkdir(viewDirPath, { recursive: true })
+                    await Deno.writeTextFile(viewFilePath, viewContent)
+                    console.log(`✅ View created at ${viewFilePath}`)
+                    viewCreated = true
+                } catch (error) {
+                    console.error(
+                        `⚠️  Failed to create view: ${(error as Error).message}`,
+                    )
+                }
+            }
+
+            // Create controller with appropriate stub
+            const stubName = withView && viewCreated ? 'controller-with-view' : 'controller'
             const content = await Stub.renderFrom(
                 STUBS_PATH,
                 'make',
-                'controller',
+                stubName,
                 {
                     className,
                     route: name.toLowerCase(),
+                    viewName: className,
                 },
             )
 
