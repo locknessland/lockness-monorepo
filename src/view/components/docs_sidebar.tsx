@@ -17,6 +17,7 @@ const navLinks: NavLink[] = [
     { title: 'CLI (Ace)', name: 'docs.cli' },
     { title: 'Nessy CLI', name: 'docs.nessy' },
     { title: 'Packages', name: 'docs.packages' },
+    { title: 'Deprecation', name: 'docs.deprecation' },
 ]
 
 export const DocsSidebar = (props: { currentPath: string }) => {

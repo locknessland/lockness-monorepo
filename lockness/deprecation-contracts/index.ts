@@ -1,12 +1,7 @@
-/**
- * @lockness/deprecation-contracts
- * 
- * A generic function and convention to trigger deprecation notices.
- * Augmented for Lockness JS with Logger, Service Container and Devtools integration.
- */
-
 import { container } from '@lockness/container'
 import { Logger } from '@lockness/logger'
+
+export * from './decorators.ts'
 
 // Minimal interface for devtools collector to avoid 'any'
 interface Collector {

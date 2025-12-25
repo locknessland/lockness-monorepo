@@ -10,6 +10,7 @@ import { CliPage } from '@view/pages/docs/cli.tsx'
 import { ComponentsPage } from '@view/pages/docs/components.tsx'
 import { NessyPage } from '@view/pages/docs/nessy.tsx'
 import { PackagesPage } from '@view/pages/docs/packages.tsx'
+import { DeprecationPage } from '@view/pages/docs/deprecation.tsx'
 
 @Controller('/docs')
 export class DocsController {
@@ -71,5 +72,10 @@ export class DocsController {
     @Get('/packages', { name: 'docs.packages' })
     packages(c: Context) {
         return c.html(<PackagesPage />)
+    }
+
+    @Get('/deprecation', { name: 'docs.deprecation' })
+    deprecation(c: Context) {
+        return c.html(<DeprecationPage />)
     }
 }

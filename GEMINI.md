@@ -37,6 +37,8 @@ familiar MVC (Model-View-Controller) architecture.
 - **Modern CSS**: Tailwind CSS v4 with PostCSS for utility-first styling
 - **ORM / Query Builder**: Official integration with **Drizzle ORM** for
   type-safe database queries with PostgreSQL support.
+- **Deprecation Contracts**: Elegant system to manage code evolution with
+  logging and Devtools integration.
 - **Production Ready**: Compile to standalone binaries with `deno compile`
 
 ## 🛠 Architectural Highlights
@@ -421,6 +423,37 @@ Nessy includes several built-in commands to improve your workflow:
 4. **Project-specific**: Generated per-project, not global
 5. **Always up-to-date**: Calls `ace.ts` directly, no compilation needed
 6. **Platform support**: Works on Unix/Linux/macOS/Windows
+
+### Deprecation Contracts
+
+Lockness includes a powerful deprecation system to help you evolve your codebase without breaking changes.
+
+**Using the Decorator:**
+
+```typescript
+import { Deprecated } from 'lockness'
+
+@Deprecated('1.2.0', 'Use NewService instead')
+export class OldService {
+    @Deprecated('1.1.0', 'This property will be removed')
+    accessor oldConfig = {}
+
+    @Deprecated('1.0.0', 'Use executeAsync() instead')
+    execute() { ... }
+}
+```
+
+**Using the Function:**
+
+```typescript
+import { triggerDeprecation } from '@lockness/deprecation-contracts'
+
+triggerDeprecation('my-pkg', '1.0.0', 'Message with %s', 'placeholder')
+```
+
+**Devtools Integration:**
+
+All deprecations are automatically captured and displayed in the **Lockness Devtools**, providing a full stack trace for each notice.
 
 ### Named Routes
 

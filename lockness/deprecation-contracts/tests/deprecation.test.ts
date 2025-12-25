@@ -37,3 +37,51 @@ Deno.test('Deprecation - should be ignored if IGNORE_DEPRECATIONS is set', () =>
         Deno.env.delete('STRICT_DEPRECATIONS')
     }
 })
+
+import { Deprecated } from '../index.ts'
+
+Deno.test('Deprecated Decorator - should trigger on class instantiation', () => {
+    Deno.env.set('STRICT_DEPRECATIONS', 'true')
+
+    @Deprecated('1.0.0', 'Class is deprecated')
+    class TestClass { }
+
+    try {
+        assertThrows(() => new TestClass(), Error, '[DEPRECATION] Since app 1.0.0: Class is deprecated')
+    } finally {
+        Deno.env.delete('STRICT_DEPRECATIONS')
+    }
+})
+
+Deno.test('Deprecated Decorator - should trigger on method call', () => {
+    Deno.env.set('STRICT_DEPRECATIONS', 'true')
+
+    class TestClass {
+        @Deprecated('1.0.0', 'Method is deprecated')
+        test() { return 'ok' }
+    }
+
+    const instance = new TestClass()
+    try {
+        assertThrows(() => instance.test(), Error, '[DEPRECATION] Since app 1.0.0: test() is deprecated. Method is deprecated')
+    } finally {
+        Deno.env.delete('STRICT_DEPRECATIONS')
+    }
+})
+
+Deno.test('Deprecated Decorator - should trigger on accessor access', () => {
+    Deno.env.set('STRICT_DEPRECATIONS', 'true')
+
+    class TestClass {
+        @Deprecated('1.0.0', 'Property is deprecated')
+        accessor prop = 'value'
+    }
+
+    const instance = new TestClass()
+    try {
+        assertThrows(() => instance.prop, Error, 'Accessing deprecated property "prop"')
+        assertThrows(() => instance.prop = 'new', Error, 'Setting deprecated property "prop"')
+    } finally {
+        Deno.env.delete('STRICT_DEPRECATIONS')
+    }
+})
