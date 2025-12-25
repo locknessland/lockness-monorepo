@@ -1,0 +1,360 @@
+# Lockness Getting Started
+
+Build your first web application with Lockness.
+
+## Quick Start
+
+```bash
+# Initialize project
+deno run -A jsr:@lockness/cli init
+cd my-app
+
+# Start development
+deno task dev
+```
+
+Server runs at `http://localhost:8888`
+
+## Create Your First Controller
+
+```bash
+./nessy make:controller Welcome --view
+```
+
+Creates:
+- `src/controller/welcome_controller.tsx` - Controller
+- `src/view/pages/welcome/index.tsx` - View
+
+**Controller (`welcome_controller.tsx`):**
+```typescript
+import { Controller, Get, Context } from 'lockness'
+import { WelcomeIndexPage } from '@view/pages/welcome/index.tsx'
+
+@Controller('/welcome')
+export class WelcomeController {
+    @Get('/')
+    index(c: Context) {
+        return c.html(<WelcomeIndexPage />)
+    }
+}
+```
+
+**View (`view/pages/welcome/index.tsx`):**
+```typescript
+export const WelcomeIndexPage = () => {
+    return (
+        <html>
+            <head>
+                <title>Welcome to Lockness</title>
+            </head>
+            <body>
+                <h1>Hello from Lockness!</h1>
+            </body>
+        </html>
+    )
+}
+```
+
+Visit `http://localhost:8888/welcome`
+
+## Add Database Support
+
+### 1. Create Model
+
+```bash
+./nessy make:model Post
+```
+
+**Model (`src/model/post.ts`):**
+```typescript
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
+
+export const post = pgTable('posts', {
+    id: serial('id').primaryKey(),
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+})
+
+export const postInsertSchema = createInsertSchema(post)
+export const postSelectSchema = createSelectSchema(post)
+```
+
+### 2. Generate Migration
+
+```bash
+./nessy db:generate
+./nessy db:migrate
+```
+
+### 3. Create Repository
+
+```bash
+./nessy make:repository Post
+```
+
+**Repository (`src/repository/post_repository.ts`):**
+```typescript
+import { Service, Inject } from 'lockness'
+import { Database } from '@lockness/drizzle'
+import { post } from '@model/post.ts'
+import { eq } from 'drizzle-orm'
+
+@Service()
+export class PostRepository {
+    @Inject(Database)
+    accessor db!: Database
+
+    async findAll() {
+        return await this.db.select().from(post)
+    }
+
+    async findById(id: number) {
+        const [result] = await this.db.select().from(post).where(eq(post.id, id))
+        return result
+    }
+
+    async create(data: typeof post.$inferInsert) {
+        const [result] = await this.db.insert(post).values(data).returning()
+        return result
+    }
+
+    async update(id: number, data: Partial<typeof post.$inferInsert>) {
+        const [result] = await this.db
+            .update(post)
+            .set(data)
+            .where(eq(post.id, id))
+            .returning()
+        return result
+    }
+
+    async delete(id: number) {
+        await this.db.delete(post).where(eq(post.id, id))
+    }
+}
+```
+
+### 4. Create CRUD Controller
+
+```bash
+./nessy make:controller Post --view
+./nessy make:action Post show --view
+./nessy make:action Post store
+```
+
+**Controller (`src/controller/post_controller.tsx`):**
+```typescript
+import { Controller, Get, Post, Validate, Context, Inject } from 'lockness'
+import { PostRepository } from '@repository/post_repository.ts'
+import { postInsertSchema } from '@model/post.ts'
+import { PostIndexPage } from '@view/pages/post/index.tsx'
+
+@Controller('/posts')
+export class PostController {
+    @Inject(PostRepository)
+    accessor postRepository!: PostRepository
+
+    @Get('/')
+    async index(c: Context) {
+        const posts = await this.postRepository.findAll()
+        return c.html(<PostIndexPage posts={posts} />)
+    }
+
+    @Get('/:id')
+    async show(c: Context) {
+        const id = Number(c.req.param('id'))
+        const post = await this.postRepository.findById(id)
+        
+        if (!post) {
+            return c.notFound()
+        }
+        
+        return c.json({ post })
+    }
+
+    @Post('/')
+    @Validate(postInsertSchema)
+    async store(c: Context) {
+        const data = c.req.valid('json')
+        const post = await this.postRepository.create(data)
+        return c.json({ post }, 201)
+    }
+}
+```
+
+## Add Authentication
+
+```bash
+./nessy make:auth
+```
+
+Creates:
+- `AuthController` with login/register/logout
+- `UserProvider` for authentication
+- User model and repository
+- Auth views
+
+**Protected Route:**
+```typescript
+import { Controller, Get, Auth, Context, auth } from 'lockness'
+
+@Controller('/dashboard')
+@Auth()
+export class DashboardController {
+    @Get('/')
+    index(c: Context) {
+        const user = auth(c).user()
+        return c.html(<DashboardPage user={user} />)
+    }
+}
+```
+
+## Development Workflow
+
+### Three Terminals
+
+```bash
+# Terminal 1: CSS compilation
+npm run dev:css
+
+# Terminal 2: Route watching
+deno task dev:routes
+
+# Terminal 3: Dev server with hot reload
+deno task dev
+```
+
+### Database Workflow
+
+```bash
+# 1. Modify model
+# 2. Generate migration
+./nessy db:generate
+
+# 3. Review migration in database/migrations/
+
+# 4. Apply migration
+./nessy db:migrate
+
+# 5. Seed database
+./nessy db:seed
+```
+
+## Project Structure
+
+```
+my-app/
+├── src/
+│   ├── kernel.tsx              # App config
+│   ├── routes.ts               # Route registry
+│   ├── controller/
+│   │   ├── post_controller.tsx
+│   │   └── auth_controller.tsx
+│   ├── middleware/
+│   │   └── auth_middleware.ts
+│   ├── model/
+│   │   ├── post.ts
+│   │   └── user.ts
+│   ├── repository/
+│   │   ├── post_repository.ts
+│   │   └── user_repository.ts
+│   ├── service/
+│   │   └── email_service.ts
+│   └── view/
+│       ├── layouts/
+│       ├── pages/
+│       └── components/
+├── database/
+│   ├── migrations/
+│   └── seeders/
+└── public/
+    ├── css/
+    └── images/
+```
+
+## Common Patterns
+
+### RESTful API
+
+```typescript
+@Controller('/api/posts')
+export class PostApiController {
+    @Get('/')           // GET /api/posts
+    async index() {}
+    
+    @Get('/:id')        // GET /api/posts/:id
+    async show() {}
+    
+    @Post('/')          // POST /api/posts
+    async store() {}
+    
+    @Put('/:id')        // PUT /api/posts/:id
+    async update() {}
+    
+    @Delete('/:id')     // DELETE /api/posts/:id
+    async destroy() {}
+}
+```
+
+### Form Handling with Validation
+
+```typescript
+import { session } from 'lockness'
+
+@Post('/')
+@Validate(postInsertSchema)
+async store(c: Context) {
+    const data = c.req.valid('json')
+    
+    try {
+        const post = await this.postRepository.create(data)
+        session(c).flash('success', 'Post created!')
+        return c.redirect('/posts')
+    } catch (error) {
+        session(c).flash('error', error.message)
+        return c.redirect('/posts/create')
+    }
+}
+```
+
+### Dependency Injection
+
+```typescript
+import { Service, Inject } from 'lockness'
+
+@Service()
+export class PostService {
+    @Inject(PostRepository)
+    accessor postRepository!: PostRepository
+    
+    @Inject(EmailService)
+    accessor emailService!: EmailService
+    
+    async publishPost(id: number) {
+        const post = await this.postRepository.findById(id)
+        await this.emailService.send({
+            to: 'admin@example.com',
+            subject: `New post: ${post.title}`,
+        })
+        return post
+    }
+}
+```
+
+## Next Steps
+
+- Read [Routing & Controllers](/docs/routing)
+- Learn about [Models & Database](/docs/models)
+- Explore [Authentication](/docs/authentication)
+- Check [CLI commands](/docs/cli)
+- Browse [Packages](/docs/packages)
+
+## Tips
+
+- Use `./nessy list` to see all available commands
+- Controllers auto-register in development mode
+- Use `--view` flag to generate views with controllers
+- Database migrations are reversible
+- Sessions work out of the box with cookies
+- JSX templates render server-side (no client JS)

@@ -6,7 +6,7 @@ export const DevtoolsPage = () => {
     const content = loadMarkdownContent('devtools')
 
     return (
-        <DocsLayout title='Lockness Devtools' currentPath='/docs/devtools'>
+        <DocsLayout title='DevTools' currentPath='/docs/devtools' llmPath='devtools'>
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

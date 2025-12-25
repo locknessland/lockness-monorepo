@@ -6,7 +6,7 @@ export const GettingStartedPage = () => {
     const content = loadMarkdownContent('getting-started')
 
     return (
-        <DocsLayout title='Getting Started' currentPath='/docs/getting-started'>
+        <DocsLayout title='Getting Started' currentPath='/docs/getting-started' llmPath='getting-started'>
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

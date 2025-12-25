@@ -1,0 +1,394 @@
+# Lockness Dependency Injection
+
+Built-in dependency injection container with automatic service resolution.
+
+## Basic Usage
+
+### Define Service
+
+```typescript
+import { Service } from 'lockness'
+
+@Service()
+export class EmailService {
+    send(to: string, subject: string, body: string) {
+        console.log(`Sending email to ${to}`)
+        // Email logic here
+    }
+}
+```
+
+### Inject into Controller
+
+```typescript
+import { Controller, Get, Inject, Context } from 'lockness'
+import { EmailService } from '@service/email_service.ts'
+
+@Controller('/notifications')
+export class NotificationController {
+    @Inject(EmailService)
+    accessor emailService!: EmailService
+
+    @Get('/send')
+    send(c: Context) {
+        this.emailService.send('user@example.com', 'Hello', 'Test email')
+        return c.text('Email sent!')
+    }
+}
+```
+
+## Injection Types
+
+### Property Injection (Recommended)
+
+```typescript
+@Service()
+export class UserService {
+    @Inject(UserRepository)
+    accessor userRepository!: UserRepository
+
+    async getUser(id: number) {
+        return await this.userRepository.findById(id)
+    }
+}
+```
+
+### Constructor Injection
+
+```typescript
+@Service()
+export class UserService {
+    constructor(
+        @Inject(UserRepository) private userRepository: UserRepository
+    ) {}
+
+    async getUser(id: number) {
+        return await this.userRepository.findById(id)
+    }
+}
+```
+
+## Service Lifecycle
+
+### Singleton (Default)
+
+Services are created once and reused:
+
+```typescript
+@Service()
+export class CacheService {
+    private cache = new Map()
+
+    set(key: string, value: any) {
+        this.cache.set(key, value)
+    }
+
+    get(key: string) {
+        return this.cache.get(key)
+    }
+}
+```
+
+### Transient Services
+
+Create new instance on each injection:
+
+```typescript
+@Service({ transient: true })
+export class RequestLogger {
+    log(message: string) {
+        console.log(`[${new Date().toISOString()}] ${message}`)
+    }
+}
+```
+
+## Nested Dependencies
+
+Services can inject other services:
+
+```typescript
+@Service()
+export class PaymentService {
+    @Inject(EmailService)
+    accessor emailService!: EmailService
+
+    @Inject(LoggerService)
+    accessor logger!: LoggerService
+
+    async processPayment(userId: number, amount: number) {
+        this.logger.info(`Processing payment: $${amount}`)
+        
+        // Process payment logic
+        
+        this.emailService.send(
+            'user@example.com',
+            'Payment Confirmation',
+            `Payment of $${amount} processed`
+        )
+    }
+}
+```
+
+## Repository Pattern
+
+```typescript
+// Repository
+@Service()
+export class PostRepository {
+    @Inject(Database)
+    accessor db!: Database
+
+    async findAll() {
+        return await this.db.select().from(post)
+    }
+
+    async findById(id: number) {
+        const [result] = await this.db
+            .select()
+            .from(post)
+            .where(eq(post.id, id))
+        return result
+    }
+}
+
+// Service
+@Service()
+export class PostService {
+    @Inject(PostRepository)
+    accessor postRepository!: PostRepository
+
+    async getPublishedPosts() {
+        const posts = await this.postRepository.findAll()
+        return posts.filter(p => p.published)
+    }
+}
+
+// Controller
+@Controller('/posts')
+export class PostController {
+    @Inject(PostService)
+    accessor postService!: PostService
+
+    @Get('/')
+    async index(c: Context) {
+        const posts = await this.postService.getPublishedPosts()
+        return c.json({ posts })
+    }
+}
+```
+
+## Manual Container Usage
+
+```typescript
+import { container } from 'lockness'
+
+// Get service instance
+const emailService = container.get(EmailService)
+emailService.send('user@example.com', 'Test', 'Body')
+
+// Register custom service
+container.register(EmailService, new EmailService())
+
+// Check if service registered
+if (container.has(EmailService)) {
+    // ...
+}
+```
+
+## Testing with DI
+
+### Mock Services
+
+```typescript
+import { container } from 'lockness'
+
+// Create mock
+class MockEmailService {
+    send(to: string, subject: string, body: string) {
+        console.log('Mock email sent')
+    }
+}
+
+// Register mock
+container.register(EmailService, new MockEmailService())
+
+// Test controller
+const controller = new NotificationController()
+// controller.emailService will use MockEmailService
+```
+
+### Reset Container
+
+```typescript
+import { container } from 'lockness'
+
+// Clear all services (useful for testing)
+container.clear()
+
+// Re-register services
+container.register(EmailService, new EmailService())
+```
+
+## Common Patterns
+
+### Service with Configuration
+
+```typescript
+@Service()
+export class ApiService {
+    private baseUrl: string
+    private apiKey: string
+
+    constructor() {
+        this.baseUrl = Deno.env.get('API_URL')!
+        this.apiKey = Deno.env.get('API_KEY')!
+    }
+
+    async fetch(endpoint: string) {
+        const response = await fetch(`${this.baseUrl}${endpoint}`, {
+            headers: { 'Authorization': `Bearer ${this.apiKey}` }
+        })
+        return await response.json()
+    }
+}
+```
+
+### Factory Pattern
+
+```typescript
+@Service()
+export class LoggerFactory {
+    create(context: string) {
+        return {
+            info: (msg: string) => console.log(`[${context}] ${msg}`),
+            error: (msg: string) => console.error(`[${context}] ${msg}`),
+        }
+    }
+}
+
+@Service()
+export class UserService {
+    @Inject(LoggerFactory)
+    accessor loggerFactory!: LoggerFactory
+
+    private logger = this.loggerFactory.create('UserService')
+
+    async getUser(id: number) {
+        this.logger.info(`Fetching user ${id}`)
+        // ...
+    }
+}
+```
+
+### Event-Driven Services
+
+```typescript
+@Service()
+export class EventEmitter {
+    private listeners = new Map<string, Function[]>()
+
+    on(event: string, callback: Function) {
+        if (!this.listeners.has(event)) {
+            this.listeners.set(event, [])
+        }
+        this.listeners.get(event)!.push(callback)
+    }
+
+    emit(event: string, data: any) {
+        const callbacks = this.listeners.get(event) || []
+        callbacks.forEach(cb => cb(data))
+    }
+}
+
+@Service()
+export class UserCreatedListener {
+    @Inject(EventEmitter)
+    accessor events!: EventEmitter
+
+    @Inject(EmailService)
+    accessor emailService!: EmailService
+
+    constructor() {
+        this.events.on('user.created', (user: any) => {
+            this.emailService.send(
+                user.email,
+                'Welcome!',
+                'Welcome to our app'
+            )
+        })
+    }
+}
+```
+
+## Best Practices
+
+- **Use @Service() decorator** for all injectable classes
+- **Prefer property injection** with accessor keyword
+- **Keep services focused** - single responsibility
+- **Avoid circular dependencies** - refactor if needed
+- **Use repositories** for database access
+- **Use services** for business logic
+- **Keep controllers thin** - delegate to services
+- **Mock services in tests** for isolation
+
+## Built-in Services
+
+Lockness provides these services out of the box:
+
+- `Database` - Drizzle ORM instance
+- `Cache` - Multi-driver caching (requires @lockness/cache)
+- `Queue` - Job queue (requires @lockness/queue)
+- `Mail` - Email sending (requires @lockness/mail)
+
+```typescript
+import { Database } from '@lockness/drizzle'
+import { Cache } from '@lockness/cache'
+
+@Service()
+export class UserService {
+    @Inject(Database)
+    accessor db!: Database
+
+    @Inject(Cache)
+    accessor cache!: Cache
+
+    async getUser(id: number) {
+        const cached = await this.cache.get(`user:${id}`)
+        if (cached) return cached
+
+        const user = await this.db
+            .select()
+            .from(users)
+            .where(eq(users.id, id))
+
+        await this.cache.set(`user:${id}`, user, 3600)
+        return user
+    }
+}
+```
+
+## Advanced Usage
+
+### Custom Decorators
+
+```typescript
+function Inject(token: any) {
+    return (target: any, propertyKey: string) => {
+        Object.defineProperty(target, propertyKey, {
+            get() {
+                return container.get(token)
+            }
+        })
+    }
+}
+```
+
+### Conditional Registration
+
+```typescript
+if (Deno.env.get('USE_MOCK_EMAIL') === 'true') {
+    container.register(EmailService, new MockEmailService())
+} else {
+    container.register(EmailService, new RealEmailService())
+}
+```

@@ -2,7 +2,7 @@ import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 
 export const PackagesPage = () => {
     return (
-        <DocsLayout title="Package Management" currentPath="/docs/packages">
+        <DocsLayout title="Package Management" currentPath="/docs/packages" llmPath="packages">
             <h1 class="text-4xl font-bold mb-6">Package Management</h1>
 
             <p class="text-lg text-gray-600 mb-8">

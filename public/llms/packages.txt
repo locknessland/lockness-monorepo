@@ -1,0 +1,465 @@
+# Lockness Packages
+
+Official packages extending Lockness functionality.
+
+## Core Packages
+
+### @lockness/core
+Base framework with routing, DI, and controllers.
+
+```typescript
+import { createApp, Controller, Get } from 'lockness'
+
+const app = await createApp({
+    controllers: [HomeController],
+})
+```
+
+### @lockness/cli
+Command-line interface for scaffolding and development.
+
+```bash
+deno run -A jsr:@lockness/cli init
+./nessy make:controller User
+./nessy db:migrate
+```
+
+### @lockness/drizzle
+Database integration with Drizzle ORM.
+
+```typescript
+import { Database } from '@lockness/drizzle'
+
+@Service()
+export class UserRepository {
+    @Inject(Database)
+    accessor db!: Database
+
+    async findAll() {
+        return await this.db.select().from(users)
+    }
+}
+```
+
+## Official Packages
+
+### @lockness/cache
+Multi-driver caching (memory, Deno KV, Redis).
+
+```typescript
+import { Cache } from '@lockness/cache'
+
+@Service()
+export class UserService {
+    @Inject(Cache)
+    accessor cache!: Cache
+
+    async getUser(id: number) {
+        const cached = await this.cache.get(`user:${id}`)
+        if (cached) return cached
+
+        const user = await this.repository.findById(id)
+        await this.cache.set(`user:${id}`, user, 3600)
+        return user
+    }
+}
+```
+
+**Drivers:**
+- Memory (development)
+- Deno KV (production)
+- Redis (high-performance)
+
+### @lockness/queue
+Job queue for background processing.
+
+```typescript
+import { Queue } from '@lockness/queue'
+
+@Service()
+export class EmailQueue {
+    @Inject(Queue)
+    accessor queue!: Queue
+
+    async sendWelcomeEmail(userId: number) {
+        await this.queue.push('send-email', {
+            userId,
+            template: 'welcome',
+        })
+    }
+}
+
+// Worker
+queue.process('send-email', async (job) => {
+    const { userId, template } = job.data
+    await emailService.send(userId, template)
+})
+```
+
+### @lockness/mail
+Email sending with multiple drivers.
+
+```typescript
+import { Mail } from '@lockness/mail'
+
+@Service()
+export class NotificationService {
+    @Inject(Mail)
+    accessor mail!: Mail
+
+    async sendWelcome(user: User) {
+        await this.mail.send({
+            to: user.email,
+            subject: 'Welcome!',
+            template: 'welcome',
+            data: { name: user.name },
+        })
+    }
+}
+```
+
+**Drivers:**
+- SMTP
+- SendGrid
+- Mailgun
+- Amazon SES
+
+### @lockness/socialite
+OAuth authentication for social providers.
+
+```typescript
+import { Socialite } from '@lockness/socialite'
+
+@Controller('/auth')
+export class AuthController {
+    @Inject(Socialite)
+    accessor socialite!: Socialite
+
+    @Get('/github')
+    github(c: Context) {
+        return this.socialite.driver('github').redirect()
+    }
+
+    @Get('/github/callback')
+    async githubCallback(c: Context) {
+        const user = await this.socialite.driver('github').user()
+        // Login user
+    }
+}
+```
+
+**Providers:**
+- GitHub
+- Google
+- Facebook
+- Twitter/X
+- Discord
+
+### @lockness/openapi
+OpenAPI specification generation and Swagger UI.
+
+```typescript
+import { OpenApi } from '@lockness/openapi'
+
+@Controller('/api/users')
+export class UserApiController {
+    @Get('/')
+    @OpenApi({
+        summary: 'Get all users',
+        responses: {
+            200: {
+                description: 'List of users',
+                content: {
+                    'application/json': {
+                        schema: { type: 'array' }
+                    }
+                }
+            }
+        }
+    })
+    async index(c: Context) {
+        return c.json({ users: [] })
+    }
+}
+```
+
+Generate spec:
+```bash
+./nessy openapi:generate
+./nessy openapi:ui
+```
+
+### @lockness/storage
+File storage with multiple drivers.
+
+```typescript
+import { Storage } from '@lockness/storage'
+
+@Service()
+export class AvatarService {
+    @Inject(Storage)
+    accessor storage!: Storage
+
+    async upload(file: File, userId: number) {
+        const path = `avatars/${userId}.jpg`
+        await this.storage.put(path, file)
+        return this.storage.url(path)
+    }
+}
+```
+
+**Drivers:**
+- Local filesystem
+- Amazon S3
+- Google Cloud Storage
+- Azure Blob Storage
+
+### @lockness/devtools
+Development tools for debugging.
+
+```typescript
+import { DevToolsMiddleware } from '@lockness/devtools'
+
+if (Deno.env.get('APP_ENV') === 'development') {
+    kernel.use(DevToolsMiddleware)
+}
+
+// Access at http://localhost:8888/__devtools
+```
+
+**Features:**
+- Request inspector
+- Query profiler
+- Performance metrics
+- Error tracking
+
+### @lockness/deprecation-contracts
+Deprecation warnings and migration helpers.
+
+```typescript
+import { deprecated } from '@lockness/deprecation-contracts'
+
+@deprecated('Use NewClass instead', '2.0.0')
+export class OldClass {}
+```
+
+## Installation
+
+### Single Package
+
+```bash
+# Add to deno.json
+{
+  "imports": {
+    "@lockness/cache": "jsr:@lockness/cache@^1.0.0"
+  }
+}
+```
+
+### Multiple Packages
+
+```json
+{
+  "imports": {
+    "lockness": "jsr:@lockness/core@^1.0.0",
+    "@lockness/cli": "jsr:@lockness/cli@^1.0.0",
+    "@lockness/drizzle": "jsr:@lockness/drizzle@^1.0.0",
+    "@lockness/cache": "jsr:@lockness/cache@^1.0.0",
+    "@lockness/queue": "jsr:@lockness/queue@^1.0.0",
+    "@lockness/mail": "jsr:@lockness/mail@^1.0.0"
+  }
+}
+```
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# .env
+
+# Cache
+CACHE_DRIVER=deno-kv
+
+# Queue
+QUEUE_DRIVER=deno-kv
+
+# Mail
+MAIL_DRIVER=smtp
+SMTP_HOST=smtp.mailtrap.io
+SMTP_PORT=2525
+SMTP_USER=username
+SMTP_PASSWORD=password
+
+# Storage
+STORAGE_DRIVER=s3
+AWS_ACCESS_KEY_ID=your-key
+AWS_SECRET_ACCESS_KEY=your-secret
+AWS_BUCKET=your-bucket
+
+# OAuth
+GITHUB_CLIENT_ID=your-client-id
+GITHUB_CLIENT_SECRET=your-secret
+```
+
+### Kernel Configuration
+
+```typescript
+// src/kernel.tsx
+import { configureCache } from '@lockness/cache'
+import { configureQueue } from '@lockness/queue'
+import { configureMail } from '@lockness/mail'
+
+configureCache({
+    driver: Deno.env.get('CACHE_DRIVER') || 'memory',
+    ttl: 3600,
+})
+
+configureQueue({
+    driver: Deno.env.get('QUEUE_DRIVER') || 'memory',
+})
+
+configureMail({
+    driver: Deno.env.get('MAIL_DRIVER') || 'smtp',
+    from: 'noreply@example.com',
+})
+```
+
+## Package Combinations
+
+### Full-Stack App
+
+```json
+{
+  "imports": {
+    "lockness": "jsr:@lockness/core@^1.0.0",
+    "@lockness/cli": "jsr:@lockness/cli@^1.0.0",
+    "@lockness/drizzle": "jsr:@lockness/drizzle@^1.0.0",
+    "@lockness/cache": "jsr:@lockness/cache@^1.0.0",
+    "@lockness/mail": "jsr:@lockness/mail@^1.0.0"
+  }
+}
+```
+
+### API Server
+
+```json
+{
+  "imports": {
+    "lockness": "jsr:@lockness/core@^1.0.0",
+    "@lockness/drizzle": "jsr:@lockness/drizzle@^1.0.0",
+    "@lockness/openapi": "jsr:@lockness/openapi@^1.0.0",
+    "@lockness/cache": "jsr:@lockness/cache@^1.0.0"
+  }
+}
+```
+
+### Background Workers
+
+```json
+{
+  "imports": {
+    "lockness": "jsr:@lockness/core@^1.0.0",
+    "@lockness/drizzle": "jsr:@lockness/drizzle@^1.0.0",
+    "@lockness/queue": "jsr:@lockness/queue@^1.0.0",
+    "@lockness/mail": "jsr:@lockness/mail@^1.0.0"
+  }
+}
+```
+
+## Third-Party Packages
+
+### Community Packages
+
+While not officially maintained, these community packages extend Lockness:
+
+- `@community/lockness-stripe` - Stripe integration
+- `@community/lockness-pdf` - PDF generation
+- `@community/lockness-websocket` - WebSocket support
+
+Check JSR for more: https://jsr.io/@lockness
+
+## Creating Packages
+
+### Package Structure
+
+```
+my-lockness-package/
+├── mod.ts              # Main export
+├── deno.json          # Package config
+├── README.md
+└── src/
+    ├── service.ts
+    └── types.ts
+```
+
+### Example Package
+
+```typescript
+// mod.ts
+export { MyService } from './src/service.ts'
+export type { MyConfig } from './src/types.ts'
+
+// src/service.ts
+import { Service } from 'lockness'
+
+@Service()
+export class MyService {
+    doSomething() {
+        console.log('Package works!')
+    }
+}
+```
+
+### Publish to JSR
+
+```bash
+# deno.json
+{
+  "name": "@username/lockness-mypackage",
+  "version": "1.0.0",
+  "exports": "./mod.ts"
+}
+
+# Publish
+deno publish
+```
+
+## Package Guidelines
+
+**For package authors:**
+
+- Use `@Service()` for injectable classes
+- Export types and interfaces
+- Provide TypeScript definitions
+- Include README with examples
+- Follow semantic versioning
+- Test with Lockness core
+- Document configuration
+
+## Version Compatibility
+
+| Lockness Core | Compatible Packages |
+|---------------|-------------------|
+| ^1.0.0        | All @lockness/* ^1.0.0 |
+| ^2.0.0        | All @lockness/* ^2.0.0 |
+
+Check individual package docs for specific requirements.
+
+## Support
+
+- Documentation: https://lockness.dev/docs/packages
+- GitHub: https://github.com/locknessjs
+- Discord: https://discord.gg/lockness
+- JSR: https://jsr.io/@lockness
+
+## Roadmap
+
+Upcoming official packages:
+
+- `@lockness/auth` - Enhanced authentication
+- `@lockness/notification` - Push notifications
+- `@lockness/payment` - Payment processing
+- `@lockness/analytics` - Analytics integration
+- `@lockness/search` - Full-text search
+- `@lockness/realtime` - Real-time features

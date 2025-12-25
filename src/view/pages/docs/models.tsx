@@ -6,7 +6,7 @@ export const ModelsPage = () => {
     const content = loadMarkdownContent('models')
 
     return (
-        <DocsLayout title='Models' currentPath='/docs/models'>
+        <DocsLayout title='Models & Database' currentPath='/docs/models' llmPath='models'>
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

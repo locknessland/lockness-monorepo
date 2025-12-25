@@ -9,6 +9,7 @@ export const AuthenticationPage = () => {
         <DocsLayout
             title='Authentication - Lockness JS'
             currentPath='/docs/authentication'
+            llmPath='authentication'
         >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>

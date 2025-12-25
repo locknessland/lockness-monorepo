@@ -1,0 +1,361 @@
+# Lockness Nessy CLI
+
+The `nessy` wrapper provides enhanced developer experience for Lockness CLI commands.
+
+## What is Nessy?
+
+Nessy is a bash wrapper script that simplifies running Lockness CLI commands. Instead of typing long `deno run` commands, you can use `./nessy`.
+
+## Installation
+
+```bash
+# Created automatically with `lockness init`
+# Or create manually:
+echo '#!/bin/bash
+deno run -A cli.ts "$@"' > nessy
+
+chmod +x nessy
+```
+
+## Usage
+
+```bash
+# Instead of:
+deno run -A jsr:@lockness/cli make:controller User
+
+# Use:
+./nessy make:controller User
+```
+
+## Why Nessy?
+
+### Shorter Commands
+```bash
+# Without nessy (58 characters)
+deno run -A jsr:@lockness/cli make:controller User --view
+
+# With nessy (41 characters)
+./nessy make:controller User --view
+```
+
+### Project-Specific CLI
+
+Nessy runs your local CLI configuration (`cli.ts`) which:
+- Uses your project's dependencies
+- Respects your custom commands
+- Follows your project structure
+
+### Better DX
+
+```bash
+# Auto-completion friendly
+./nessy <tab>
+
+# Clear, concise commands
+./nessy list
+./nessy make:controller User
+./nessy db:migrate
+```
+
+## Core Commands
+
+### Scaffolding
+
+```bash
+# Controllers
+./nessy make:controller Post
+./nessy make:controller Post --view
+./nessy make:controller Admin/Post
+
+# Actions (add methods to existing controller)
+./nessy make:action Post show
+./nessy make:action Post approve --method=post
+
+# Models & Database
+./nessy make:model User
+./nessy make:repository User
+./nessy make:seeder User
+
+# Services & Middleware
+./nessy make:service Email
+./nessy make:middleware Auth
+
+# Authentication
+./nessy make:auth
+```
+
+### Database
+
+```bash
+# Migrations
+./nessy db:generate      # Generate migration from schema
+./nessy db:migrate       # Run migrations
+./nessy db:push          # Push schema (skip migrations)
+./nessy db:status        # Check migration status
+./nessy db:check         # Validate migrations
+./nessy db:fresh         # Drop all & re-migrate
+
+# Utilities
+./nessy db:studio        # Open Drizzle Studio
+./nessy db:seed          # Run seeders
+```
+
+### Other
+
+```bash
+./nessy list             # List all commands
+./nessy routes:generate  # Generate routes.ts
+./nessy openapi:generate # Generate OpenAPI spec
+./nessy openapi:ui       # Open Swagger UI
+```
+
+## Custom Commands
+
+Add custom commands in `cli.ts`:
+
+```typescript
+// cli.ts
+import { CLI } from '@lockness/cli'
+
+const cli = new CLI()
+
+// Register custom command
+cli.register(
+    'deploy',
+    'Deploy application to production',
+    async () => {
+        console.log('Deploying...')
+        // Deployment logic
+    }
+)
+
+await cli.run(Deno.args)
+Deno.exit(0)
+```
+
+**Usage:**
+```bash
+./nessy deploy
+```
+
+## Workflow Integration
+
+### Development
+
+```bash
+# Terminal 1
+npm run dev:css
+
+# Terminal 2
+deno task dev:routes
+
+# Terminal 3
+deno task dev
+
+# When making changes:
+./nessy make:controller New
+./nessy make:action Existing newMethod
+./nessy db:generate
+```
+
+### Database Workflow
+
+```bash
+# 1. Create/modify model
+./nessy make:model Post
+
+# 2. Generate migration
+./nessy db:generate
+
+# 3. Review migration file
+cat database/migrations/0001_*.sql
+
+# 4. Apply migration
+./nessy db:migrate
+
+# 5. Verify
+./nessy db:studio
+```
+
+### Project Initialization
+
+```bash
+# New project
+deno run -A jsr:@lockness/cli init
+cd my-app
+
+# Setup
+./nessy make:auth
+./nessy db:generate
+./nessy db:migrate
+./nessy db:seed
+
+# Start development
+deno task dev
+```
+
+## Tips & Tricks
+
+### Alias for Convenience
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+alias n='./nessy'
+
+# Now use:
+n make:controller User
+n db:migrate
+n list
+```
+
+### Tab Completion
+
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+complete -W "list make:controller make:action make:model make:repository make:service make:middleware make:seeder make:auth db:generate db:migrate db:push db:studio db:status db:check db:fresh db:seed routes:generate openapi:generate openapi:ui" nessy
+```
+
+### Run from Subdirectories
+
+Nessy works from any subdirectory:
+
+```bash
+cd src/controller
+../../nessy make:controller User  # Still works!
+```
+
+### Combine with Watch
+
+```bash
+# Watch and auto-regenerate routes
+while true; do
+  ./nessy routes:generate
+  sleep 2
+done
+```
+
+## Nessy vs Direct CLI
+
+| Command | Purpose |
+|---------|---------|
+| `./nessy` | Local project CLI (uses cli.ts) |
+| `deno run -A jsr:@lockness/cli` | Global Lockness CLI |
+
+**Use `./nessy`** when:
+- Working in a Lockness project
+- Need custom commands
+- Want shorter commands
+
+**Use global CLI** when:
+- Initializing new projects (`init`)
+- Running outside a project
+- No nessy script available
+
+## Configuration
+
+Nessy reads from `deno.json`:
+
+```json
+{
+  "imports": {
+    "@lockness/cli": "jsr:@lockness/cli@^1.0.0"
+  }
+}
+```
+
+And `cli.ts`:
+
+```typescript
+import { CLI } from '@lockness/cli'
+import { registerCoreCommands } from '@lockness/cli'
+import { registerDrizzleCommands } from '@lockness/drizzle'
+
+const cli = new CLI()
+
+registerCoreCommands(cli)
+registerDrizzleCommands(cli)
+
+await cli.run(Deno.args)
+Deno.exit(0)
+```
+
+## Troubleshooting
+
+### Permission Denied
+
+```bash
+chmod +x nessy
+```
+
+### Command Not Found
+
+```bash
+# Ensure you're in project root
+ls -la nessy
+
+# If missing, recreate:
+echo '#!/bin/bash
+deno run -A cli.ts "$@"' > nessy
+chmod +x nessy
+```
+
+### Deno Not Found
+
+```bash
+# Install Deno
+curl -fsSL https://deno.land/install.sh | sh
+```
+
+### Slow First Run
+
+First run downloads dependencies. Subsequent runs are fast.
+
+```bash
+# Pre-cache dependencies
+deno cache cli.ts
+```
+
+## Best Practices
+
+- **Keep nessy in git** - Commit the script
+- **Use relative path** - Always `./nessy`, not `nessy`
+- **Run from project root** - Ensures correct paths
+- **Combine with tasks** - Use in deno.json tasks
+- **Document custom commands** - Add comments in cli.ts
+- **Test commands** - Run `./nessy list` after changes
+
+## Examples
+
+### Quick CRUD Setup
+
+```bash
+./nessy make:model Post
+./nessy make:repository Post
+./nessy make:controller Post --view
+./nessy make:action Post show --view
+./nessy make:action Post store
+./nessy make:action Post update
+./nessy make:action Post destroy
+./nessy db:generate
+./nessy db:migrate
+```
+
+### API Development
+
+```bash
+./nessy make:controller Api/Post
+./nessy make:action Api/Post index
+./nessy make:action Api/Post show
+./nessy make:action Api/Post store --method=post
+./nessy make:action Api/Post update --method=put
+./nessy make:action Api/Post destroy --method=delete
+./nessy openapi:generate
+```
+
+### Fresh Database
+
+```bash
+./nessy db:fresh
+./nessy db:seed
+./nessy db:studio  # Verify data
+```

@@ -1,0 +1,236 @@
+# Lockness Installation
+
+Fast-track setup for Deno-based web applications.
+
+## Prerequisites
+
+- **Deno 2.x or higher** - [Install Deno](https://deno.com/)
+- **Node.js and npm** - Required for Tailwind CSS compilation
+
+## Quick Start
+
+```bash
+# Initialize new project
+deno run -A jsr:@lockness/cli init
+
+# Navigate to project
+cd my-lockness-app
+
+# Start development
+deno task dev
+```
+
+## Manual Installation
+
+### 1. Create Project Structure
+
+```bash
+mkdir my-app && cd my-app
+```
+
+### 2. Create deno.json
+
+```json
+{
+  "tasks": {
+    "dev": "deno run --allow-all --watch main.ts",
+    "start": "deno run --allow-all main.ts"
+  },
+  "imports": {
+    "lockness": "jsr:@lockness/core@^1.0.0",
+    "@lockness/cli": "jsr:@lockness/cli@^1.0.0",
+    "@lockness/drizzle": "jsr:@lockness/drizzle@^1.0.0",
+    "hono": "jsr:@hono/hono@^4.11.1",
+    "zod": "npm:zod@^3.24.1",
+    "drizzle-orm": "npm:drizzle-orm@^0.36.4",
+    "drizzle-zod": "npm:drizzle-zod@^0.5.1",
+    "postgres": "npm:postgres@^3.4.5"
+  },
+  "compilerOptions": {
+    "jsx": "precompile",
+    "jsxImportSource": "hono/jsx"
+  }
+}
+```
+
+### 3. Create Main Entry Point
+
+```typescript
+// main.ts
+import { createApp } from 'lockness'
+
+const app = await createApp({
+    controllers: [],
+})
+
+Deno.serve({ port: 8888 }, app.fetch)
+```
+
+### 4. Setup Tailwind CSS (Optional)
+
+```bash
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init
+```
+
+**tailwind.config.js:**
+```javascript
+export default {
+  content: ['./src/**/*.{ts,tsx}'],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+```
+
+**Create src/styles/app.css:**
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+**package.json scripts:**
+```json
+{
+  "scripts": {
+    "dev:css": "tailwindcss -i src/styles/app.css -o public/css/app.css --watch",
+    "build:css": "tailwindcss -i src/styles/app.css -o public/css/app.css --minify"
+  }
+}
+```
+
+### 5. Database Setup (Optional)
+
+```bash
+# Create drizzle.config.ts
+echo 'import { defineConfig } from "drizzle-kit"
+
+export default defineConfig({
+  schema: "./src/model/*.ts",
+  out: "./database/migrations",
+  dialect: "postgresql",
+  dbCredentials: {
+    url: Deno.env.get("DATABASE_URL")!,
+  },
+})' > drizzle.config.ts
+
+# Create .env
+echo 'DATABASE_URL=postgresql://user:password@localhost:5432/mydb' > .env
+```
+
+## Development Workflow
+
+### Three Terminal Setup
+
+```bash
+# Terminal 1: CSS compilation
+npm run dev:css
+
+# Terminal 2: Route generation (auto-watches)
+deno task dev:routes
+
+# Terminal 3: Dev server
+deno task dev
+```
+
+## Project Structure
+
+```
+my-app/
+├── main.ts                 # Entry point
+├── deno.json              # Deno config & dependencies
+├── .env                   # Environment variables
+├── drizzle.config.ts      # Database config
+├── src/
+│   ├── kernel.tsx         # App configuration
+│   ├── routes.ts          # Route registry
+│   ├── controller/        # HTTP controllers
+│   ├── middleware/        # Middleware classes
+│   ├── model/            # Database models
+│   ├── repository/       # Data access layer
+│   ├── service/          # Business logic
+│   └── view/             # JSX templates
+├── database/
+│   ├── migrations/       # SQL migrations
+│   └── seeders/         # Data seeders
+└── public/              # Static assets
+    ├── css/
+    └── images/
+```
+
+## Environment Variables
+
+```bash
+# .env
+APP_ENV=development
+APP_PORT=8888
+APP_URL=http://localhost:8888
+
+DATABASE_URL=postgresql://user:password@localhost:5432/mydb
+
+SESSION_SECRET=your-32-character-secret-key
+SESSION_DRIVER=cookie
+
+SMTP_HOST=smtp.mailtrap.io
+SMTP_PORT=2525
+SMTP_USER=your-username
+SMTP_PASSWORD=your-password
+```
+
+## Verify Installation
+
+```bash
+# Check Deno version
+deno --version
+
+# Run dev server
+deno task dev
+
+# Visit http://localhost:8888
+```
+
+## Next Steps
+
+- Create your first controller: `./nessy make:controller Welcome`
+- Setup database: `./nessy db:generate`
+- Read the [Getting Started](/docs/getting-started) guide
+- Explore [CLI commands](/docs/cli)
+
+## Troubleshooting
+
+### Port Already in Use
+```bash
+# Change port in main.ts or use environment variable
+Deno.serve({ port: 3000 }, app.fetch)
+```
+
+### Module Not Found
+```bash
+# Clear Deno cache
+deno cache --reload main.ts
+```
+
+### Permission Denied
+```bash
+# Ensure --allow-all flag or specific permissions:
+deno run --allow-net --allow-read --allow-env main.ts
+```
+
+## IDE Setup
+
+### VS Code Extensions
+- Deno extension (official)
+- Tailwind CSS IntelliSense
+
+**VS Code settings.json:**
+```json
+{
+  "deno.enable": true,
+  "deno.unstable": false,
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  }
+}
+```

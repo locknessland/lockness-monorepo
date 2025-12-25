@@ -6,7 +6,7 @@ export const CliPage = () => {
     const content = loadMarkdownContent('cli')
 
     return (
-        <DocsLayout title='CLI Engine - Lockness JS' currentPath='/docs/cli'>
+        <DocsLayout title='CLI' currentPath='/docs/cli' llmPath='cli'>
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

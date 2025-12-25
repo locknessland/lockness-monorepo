@@ -6,7 +6,7 @@ export const NessyPage = () => {
     const content = loadMarkdownContent('nessy')
 
     return (
-        <DocsLayout title='Nessy CLI - Lockness' currentPath='/docs/nessy'>
+        <DocsLayout title='Nessy CLI' currentPath='/docs/nessy' llmPath='nessy'>
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

@@ -1,0 +1,459 @@
+# Lockness DevTools
+
+Built-in development tools for debugging and monitoring.
+
+## Overview
+
+Lockness DevTools provides:
+- HTTP request/response inspection
+- Database query logging
+- Performance metrics
+- Error tracking
+- Event monitoring
+
+## Installation
+
+DevTools is built into Lockness and auto-enables in development.
+
+```typescript
+// src/kernel.tsx
+import { Kernel } from 'lockness'
+import { DevToolsMiddleware } from '@lockness/devtools'
+
+export const kernel = new Kernel()
+
+// Auto-enabled when APP_ENV=development
+if (Deno.env.get('APP_ENV') === 'development') {
+    kernel.use(DevToolsMiddleware)
+}
+```
+
+## Access DevTools
+
+Visit `http://localhost:8888/__devtools` in development mode.
+
+## Features
+
+### Request Inspector
+
+View all HTTP requests:
+- Method and path
+- Headers
+- Query parameters
+- Body content
+- Response status
+- Response time
+
+### Database Queries
+
+Monitor all SQL queries:
+- Query text
+- Execution time
+- Parameters
+- Results count
+- Stack trace
+
+### Performance Metrics
+
+Track performance:
+- Request duration
+- Memory usage
+- CPU time
+- Database query time
+- Cache hit/miss ratio
+
+### Error Tracking
+
+Catch and display errors:
+- Error message
+- Stack trace
+- Request context
+- Environment info
+
+### Event Log
+
+Monitor application events:
+- User authentication
+- Cache operations
+- Queue jobs
+- Custom events
+
+## Configuration
+
+```typescript
+// src/kernel.tsx
+import { configureDevTools } from '@lockness/devtools'
+
+configureDevTools({
+    enabled: Deno.env.get('APP_ENV') === 'development',
+    path: '/__devtools',
+    
+    // What to collect
+    collect: {
+        requests: true,
+        queries: true,
+        events: true,
+        errors: true,
+    },
+    
+    // Performance thresholds (ms)
+    thresholds: {
+        slow_request: 1000,
+        slow_query: 100,
+    },
+    
+    // Data retention
+    maxEntries: 1000,
+    ttl: 3600, // 1 hour
+})
+```
+
+## Custom Events
+
+Log custom events to DevTools:
+
+```typescript
+import { devtools } from '@lockness/devtools'
+
+@Service()
+export class PaymentService {
+    async processPayment(amount: number) {
+        devtools.event('payment.started', { amount })
+        
+        try {
+            // Process payment
+            devtools.event('payment.completed', { amount })
+        } catch (error) {
+            devtools.event('payment.failed', { amount, error })
+            throw error
+        }
+    }
+}
+```
+
+## Query Profiling
+
+DevTools automatically logs all Drizzle queries:
+
+```typescript
+// This query is automatically tracked
+const users = await db.select().from(users).where(eq(users.active, true))
+
+// View in DevTools:
+// - Query: SELECT * FROM users WHERE active = true
+// - Duration: 23ms
+// - Results: 156 rows
+```
+
+## Request Timeline
+
+View request lifecycle:
+
+```
+Request: GET /api/posts
+├─ Middleware: CORS (2ms)
+├─ Middleware: Auth (5ms)
+├─ Controller: PostController.index (45ms)
+│  ├─ Query: SELECT * FROM posts (18ms)
+│  └─ Cache: posts:all (miss)
+└─ Response: 200 (52ms total)
+```
+
+## Performance Warnings
+
+DevTools highlights slow operations:
+
+```
+⚠️ Slow Query (234ms)
+SELECT * FROM posts WHERE content LIKE '%keyword%'
+Suggestion: Add index on content column
+
+⚠️ Slow Request (1.2s)
+GET /api/dashboard
+Suggestion: Add caching or pagination
+```
+
+## Dashboard UI
+
+### Sidebar Navigation
+- 📊 Overview
+- 🌐 Requests
+- 💾 Queries
+- 📈 Performance
+- 🐛 Errors
+- 📡 Events
+
+### Request Details
+```
+GET /api/posts?page=2
+Status: 200 OK
+Duration: 45ms
+
+Headers:
+  Authorization: Bearer ***
+  Content-Type: application/json
+
+Response:
+  {
+    "posts": [...],
+    "total": 156
+  }
+```
+
+### Query Details
+```
+SELECT * FROM posts LIMIT 10 OFFSET 10
+Duration: 18ms
+Rows: 10
+
+Stack:
+  PostRepository.findAll (post_repository.ts:23)
+  PostService.getPosts (post_service.ts:15)
+  PostController.index (post_controller.tsx:12)
+```
+
+## API
+
+### Collector API
+
+```typescript
+import { devtools } from '@lockness/devtools'
+
+// Log request
+devtools.request({
+    method: 'GET',
+    path: '/api/posts',
+    status: 200,
+    duration: 45,
+})
+
+// Log query
+devtools.query({
+    sql: 'SELECT * FROM posts',
+    duration: 18,
+    rows: 156,
+})
+
+// Log event
+devtools.event('user.login', {
+    userId: 123,
+    ip: '192.168.1.1',
+})
+
+// Log error
+devtools.error(new Error('Something failed'), {
+    context: 'payment processing',
+})
+
+// Log metric
+devtools.metric('memory_usage', 45.2)
+```
+
+### Middleware Integration
+
+```typescript
+import { DevToolsMiddleware } from '@lockness/devtools'
+
+@Service()
+export class CustomMiddleware {
+    async handle(c: Context, next: Next) {
+        const start = Date.now()
+        
+        await next()
+        
+        const duration = Date.now() - start
+        devtools.metric('middleware.custom', duration)
+    }
+}
+```
+
+## Production Safety
+
+DevTools automatically disables in production:
+
+```typescript
+// Automatically disabled when APP_ENV=production
+if (Deno.env.get('APP_ENV') === 'production') {
+    // DevTools middleware does nothing
+    // No performance impact
+    // No memory overhead
+}
+```
+
+## Best Practices
+
+- **Development only** - Never enable in production
+- **Use events** for custom tracking
+- **Monitor slow queries** and add indexes
+- **Check memory usage** for leaks
+- **Review errors** before deploying
+- **Clear data** regularly (auto after 1 hour)
+
+## Keyboard Shortcuts
+
+- `Ctrl+K` - Search requests
+- `Ctrl+C` - Clear all data
+- `Ctrl+R` - Refresh current view
+- `Ctrl+D` - Toggle details panel
+- `Esc` - Close modals
+
+## Examples
+
+### Custom Profiler
+
+```typescript
+import { devtools } from '@lockness/devtools'
+
+export class Profiler {
+    static time(label: string) {
+        const start = Date.now()
+        
+        return () => {
+            const duration = Date.now() - start
+            devtools.metric(label, duration)
+        }
+    }
+}
+
+// Usage
+@Get('/heavy-operation')
+async heavyOperation(c: Context) {
+    const done = Profiler.time('heavy_operation')
+    
+    // Do work
+    await someHeavyTask()
+    
+    done() // Logs duration to DevTools
+}
+```
+
+### Database Profiler
+
+```typescript
+import { devtools } from '@lockness/devtools'
+
+@Service()
+export class ProfiledRepository {
+    @Inject(Database)
+    accessor db!: Database
+
+    async findAll() {
+        const start = Date.now()
+        const results = await this.db.select().from(posts)
+        const duration = Date.now() - start
+        
+        devtools.query({
+            sql: 'SELECT * FROM posts',
+            duration,
+            rows: results.length,
+        })
+        
+        return results
+    }
+}
+```
+
+### Event-Driven Logging
+
+```typescript
+import { devtools } from '@lockness/devtools'
+
+@Service()
+export class UserService {
+    async createUser(data: any) {
+        devtools.event('user.creating', { email: data.email })
+        
+        try {
+            const user = await this.repository.create(data)
+            devtools.event('user.created', { id: user.id, email: user.email })
+            return user
+        } catch (error) {
+            devtools.event('user.creation.failed', { email: data.email, error })
+            throw error
+        }
+    }
+}
+```
+
+## Troubleshooting
+
+### DevTools Not Loading
+
+```typescript
+// Check APP_ENV
+console.log(Deno.env.get('APP_ENV'))
+
+// Ensure middleware is registered
+kernel.use(DevToolsMiddleware)
+
+// Visit correct URL
+http://localhost:8888/__devtools
+```
+
+### No Queries Showing
+
+```typescript
+// Ensure DevTools collector is configured
+import { configureDevTools } from '@lockness/devtools'
+
+configureDevTools({
+    collect: {
+        queries: true, // Must be true
+    },
+})
+```
+
+### High Memory Usage
+
+```typescript
+// Reduce retention
+configureDevTools({
+    maxEntries: 100, // Default: 1000
+    ttl: 600, // 10 minutes instead of 1 hour
+})
+
+// Clear manually
+devtools.clear()
+```
+
+## Advanced Features
+
+### Custom Collectors
+
+```typescript
+import { DevToolsCollector } from '@lockness/devtools'
+
+class CustomCollector extends DevToolsCollector {
+    collect(data: any) {
+        // Custom collection logic
+        this.store.push({
+            type: 'custom',
+            data,
+            timestamp: Date.now(),
+        })
+    }
+}
+```
+
+### Export Data
+
+```typescript
+// Export collected data as JSON
+const data = devtools.export()
+await Deno.writeTextFile('devtools-data.json', JSON.stringify(data))
+```
+
+### Real-time Monitoring
+
+```typescript
+// Subscribe to events
+devtools.on('request', (req) => {
+    if (req.duration > 1000) {
+        console.warn(`Slow request: ${req.path}`)
+    }
+})
+
+devtools.on('error', (error) => {
+    console.error('Error occurred:', error)
+})
+```

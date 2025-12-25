@@ -34,9 +34,122 @@ const HomeIcon = () => (
     </svg>
 )
 
+const RobotIcon = () => (
+    <svg
+        xmlns='http://www.w3.org/2000/svg'
+        width='18'
+        height='18'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        stroke-width='2'
+        stroke-linecap='round'
+        stroke-linejoin='round'
+    >
+        <path d='M12 8V4H8'></path>
+        <rect width='16' height='12' x='4' y='8' rx='2'></rect>
+        <path d='M2 14h2'></path>
+        <path d='M20 14h2'></path>
+        <path d='M15 13v2'></path>
+        <path d='M9 13v2'></path>
+    </svg>
+)
+
+const CopyIcon = () => (
+    <svg
+        xmlns='http://www.w3.org/2000/svg'
+        width='16'
+        height='16'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        stroke-width='2'
+        stroke-linecap='round'
+        stroke-linejoin='round'
+    >
+        <rect width='14' height='14' x='8' y='8' rx='2' ry='2'></rect>
+        <path d='M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'></path>
+    </svg>
+)
+
+const CheckIcon = () => (
+    <svg
+        xmlns='http://www.w3.org/2000/svg'
+        width='16'
+        height='16'
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        stroke-width='2'
+        stroke-linecap='round'
+        stroke-linejoin='round'
+    >
+        <path d='M20 6 9 17l-5-5'></path>
+    </svg>
+)
+
+const LlmLinks = (props: { llmPath?: string }) => {
+    if (!props.llmPath) return null
+
+    return (
+        <div class='flex items-center gap-2 mb-6 pb-4 border-b-2 border-border/50'>
+            <span class='text-muted-foreground font-pixel text-[10px]'>LLM DOCS:</span>
+            <a
+                href={`/llms/${props.llmPath}.txt`}
+                target='_blank'
+                class='flex items-center gap-1.5 px-2 py-1 bg-primary/10 hover:bg-primary/20 border-2 border-primary/30 text-primary transition-colors'
+                title='View LLM-optimized documentation'
+                style='box-shadow: 2px 2px 0 0 rgba(34, 211, 238, 0.2);'
+            >
+                <RobotIcon />
+                <span class='font-pixel text-[9px] mt-0.5'>VIEW</span>
+            </a>
+            <button
+                onclick={`
+                    const url = window.location.origin + '/llms/${props.llmPath}.txt';
+                    navigator.clipboard.writeText(url).then(() => {
+                        const btn = event.currentTarget;
+                        const icon = btn.querySelector('.copy-icon');
+                        const check = btn.querySelector('.check-icon');
+                        const text = btn.querySelector('.copy-text');
+                        
+                        // Add scale animation
+                        btn.style.transform = 'scale(0.95)';
+                        setTimeout(() => { btn.style.transform = 'scale(1)'; }, 100);
+                        
+                        // Switch icons
+                        icon.style.display = 'none';
+                        check.style.display = 'block';
+                        text.textContent = 'COPIED!';
+                        btn.style.backgroundColor = 'rgba(34, 211, 238, 0.2)';
+                        btn.style.borderColor = 'rgba(34, 211, 238, 0.5)';
+                        btn.style.color = 'rgb(34, 211, 238)';
+                        
+                        setTimeout(() => {
+                            icon.style.display = 'block';
+                            check.style.display = 'none';
+                            text.textContent = 'COPY';
+                            btn.style.backgroundColor = '';
+                            btn.style.borderColor = '';
+                            btn.style.color = '';
+                        }, 2000);
+                    });
+                `}
+                class='flex items-center gap-1.5 px-2 py-1 bg-muted/30 hover:bg-muted/50 border-2 border-muted-foreground/30 text-muted-foreground hover:text-foreground transition-all cursor-pointer'
+                title='Copy link to clipboard'
+                style='box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.2); transition: all 0.1s ease;'
+            >
+                <span class='copy-icon'><CopyIcon /></span>
+                <span class='check-icon' style='display: none;'><CheckIcon /></span>
+                <span class='font-pixel text-[9px] mt-0.5 copy-text'>COPY</span>
+            </button>
+        </div>
+    )
+}
+
 export const DocsLayout = (
     // deno-lint-ignore no-explicit-any
-    props: { title: string; children: any; currentPath: string },
+    props: { title: string; children: any; currentPath: string; llmPath?: string },
 ) => {
     return (
         <html lang='en' class='dark'>
@@ -257,6 +370,7 @@ export const DocsLayout = (
 
                     {/* Content */}
                     <main class='flex-1 p-6 md:p-12 max-w-4xl'>
+                        <LlmLinks llmPath={props.llmPath} />
                         {props.children}
                     </main>
                 </div>

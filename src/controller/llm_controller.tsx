@@ -6,13 +6,21 @@ export class LlmController {
     async index(c: Context) {
         const sections = [
             { name: 'lockness', description: 'Complete Lockness framework documentation' },
+            { name: 'installation', description: 'Installation and setup guide' },
+            { name: 'getting-started', description: 'First steps with Lockness' },
             { name: 'routing', description: 'Controllers, decorators, and routing' },
             { name: 'models', description: 'Database models with Drizzle ORM' },
             { name: 'validation', description: 'Request validation with Zod' },
             { name: 'authentication', description: 'Session-based authentication system' },
             { name: 'middleware', description: 'Class-based middleware' },
             { name: 'sessions', description: 'Multi-driver session management' },
+            { name: 'dependency-injection', description: 'Dependency injection container' },
             { name: 'cli', description: 'CLI command reference' },
+            { name: 'nessy', description: 'Nessy CLI wrapper' },
+            { name: 'components', description: 'JSX components for views' },
+            { name: 'devtools', description: 'Development tools and debugging' },
+            { name: 'deprecation', description: 'Deprecation system and warnings' },
+            { name: 'packages', description: 'Official Lockness packages' },
         ]
 
         const text = [
@@ -35,6 +43,18 @@ export class LlmController {
     @Get('/lockness.txt')
     async lockness(c: Context) {
         const text = await Deno.readTextFile('public/llms/full.txt')
+        return c.text(text)
+    }
+
+    @Get('/installation.txt')
+    async installation(c: Context) {
+        const text = await Deno.readTextFile('public/llms/installation.txt')
+        return c.text(text)
+    }
+
+    @Get('/getting-started.txt')
+    async gettingStarted(c: Context) {
+        const text = await Deno.readTextFile('public/llms/getting-started.txt')
         return c.text(text)
     }
 
@@ -74,9 +94,45 @@ export class LlmController {
         return c.text(text)
     }
 
+    @Get('/dependency-injection.txt')
+    async dependencyInjection(c: Context) {
+        const text = await Deno.readTextFile('public/llms/dependency-injection.txt')
+        return c.text(text)
+    }
+
     @Get('/cli.txt')
     async cli(c: Context) {
         const text = await Deno.readTextFile('public/llms/cli.txt')
+        return c.text(text)
+    }
+
+    @Get('/nessy.txt')
+    async nessy(c: Context) {
+        const text = await Deno.readTextFile('public/llms/nessy.txt')
+        return c.text(text)
+    }
+
+    @Get('/components.txt')
+    async components(c: Context) {
+        const text = await Deno.readTextFile('public/llms/components.txt')
+        return c.text(text)
+    }
+
+    @Get('/devtools.txt')
+    async devtools(c: Context) {
+        const text = await Deno.readTextFile('public/llms/devtools.txt')
+        return c.text(text)
+    }
+
+    @Get('/deprecation.txt')
+    async deprecation(c: Context) {
+        const text = await Deno.readTextFile('public/llms/deprecation.txt')
+        return c.text(text)
+    }
+
+    @Get('/packages.txt')
+    async packages(c: Context) {
+        const text = await Deno.readTextFile('public/llms/packages.txt')
         return c.text(text)
     }
 }

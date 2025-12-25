@@ -9,6 +9,7 @@ export const ComponentsPage = () => {
         <DocsLayout
             title='Components - Lockness JS'
             currentPath='/docs/components'
+            llmPath='components'
         >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>

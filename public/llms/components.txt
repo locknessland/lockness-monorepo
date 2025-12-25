@@ -1,0 +1,468 @@
+# Lockness Components
+
+Reusable JSX components for server-side rendered views.
+
+## Basic Component
+
+```tsx
+// src/view/components/button.tsx
+export const Button = (props: { text: string; href: string }) => {
+    return (
+        <a 
+            href={props.href}
+            class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+            {props.text}
+        </a>
+    )
+}
+```
+
+**Usage:**
+```tsx
+import { Button } from '@view/components/button.tsx'
+
+export const HomePage = () => {
+    return (
+        <div>
+            <h1>Welcome</h1>
+            <Button text="Get Started" href="/docs" />
+        </div>
+    )
+}
+```
+
+## Props and Types
+
+```tsx
+type CardProps = {
+    title: string
+    description: string
+    imageUrl?: string
+    children?: any
+}
+
+export const Card = (props: CardProps) => {
+    return (
+        <div class="border rounded-lg p-6">
+            {props.imageUrl && <img src={props.imageUrl} alt={props.title} />}
+            <h2>{props.title}</h2>
+            <p>{props.description}</p>
+            {props.children}
+        </div>
+    )
+}
+```
+
+**Usage with children:**
+```tsx
+<Card title="Product" description="Great product">
+    <Button text="Buy Now" href="/checkout" />
+</Card>
+```
+
+## Layout Components
+
+```tsx
+// src/view/layouts/app_layout.tsx
+export const AppLayout = (props: { 
+    title: string
+    children: any 
+}) => {
+    return (
+        <html>
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>{props.title}</title>
+                <link rel="stylesheet" href="/css/app.css" />
+            </head>
+            <body>
+                <nav>
+                    <a href="/">Home</a>
+                    <a href="/about">About</a>
+                </nav>
+                
+                <main>
+                    {props.children}
+                </main>
+                
+                <footer>
+                    <p>&copy; 2024 My App</p>
+                </footer>
+            </body>
+        </html>
+    )
+}
+```
+
+**Usage:**
+```tsx
+import { AppLayout } from '@view/layouts/app_layout.tsx'
+
+export const AboutPage = () => {
+    return (
+        <AppLayout title="About Us">
+            <h1>About Us</h1>
+            <p>We are awesome!</p>
+        </AppLayout>
+    )
+}
+```
+
+## Conditional Rendering
+
+```tsx
+export const Alert = (props: { 
+    message?: string
+    type?: 'success' | 'error' | 'info'
+}) => {
+    if (!props.message) return null
+
+    const colors = {
+        success: 'bg-green-100 text-green-800 border-green-300',
+        error: 'bg-red-100 text-red-800 border-red-300',
+        info: 'bg-blue-100 text-blue-800 border-blue-300',
+    }
+
+    const colorClass = colors[props.type || 'info']
+
+    return (
+        <div class={`border rounded p-4 ${colorClass}`}>
+            {props.message}
+        </div>
+    )
+}
+```
+
+## List Rendering
+
+```tsx
+type Post = {
+    id: number
+    title: string
+    content: string
+}
+
+export const PostList = (props: { posts: Post[] }) => {
+    return (
+        <div>
+            {props.posts.length === 0 ? (
+                <p>No posts found</p>
+            ) : (
+                <ul>
+                    {props.posts.map(post => (
+                        <li key={post.id}>
+                            <h3>{post.title}</h3>
+                            <p>{post.content}</p>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    )
+}
+```
+
+## Form Components
+
+```tsx
+type InputProps = {
+    label: string
+    name: string
+    type?: string
+    value?: string
+    error?: string
+    required?: boolean
+}
+
+export const Input = (props: InputProps) => {
+    return (
+        <div class="mb-4">
+            <label class="block mb-2 font-semibold">
+                {props.label}
+                {props.required && <span class="text-red-500">*</span>}
+            </label>
+            <input
+                type={props.type || 'text'}
+                name={props.name}
+                value={props.value || ''}
+                class={`w-full px-4 py-2 border rounded ${
+                    props.error ? 'border-red-500' : 'border-gray-300'
+                }`}
+                required={props.required}
+            />
+            {props.error && (
+                <p class="text-red-500 text-sm mt-1">{props.error}</p>
+            )}
+        </div>
+    )
+}
+
+export const Form = (props: {
+    action: string
+    method?: string
+    children: any
+}) => {
+    return (
+        <form action={props.action} method={props.method || 'POST'}>
+            {props.children}
+            <button 
+                type="submit"
+                class="px-6 py-3 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+                Submit
+            </button>
+        </form>
+    )
+}
+```
+
+**Usage:**
+```tsx
+<Form action="/posts" method="POST">
+    <Input label="Title" name="title" required />
+    <Input label="Content" name="content" type="textarea" required />
+</Form>
+```
+
+## Dynamic Attributes
+
+```tsx
+export const Badge = (props: { 
+    text: string
+    variant?: 'primary' | 'secondary' | 'danger'
+}) => {
+    const variants = {
+        primary: 'bg-blue-500 text-white',
+        secondary: 'bg-gray-500 text-white',
+        danger: 'bg-red-500 text-white',
+    }
+
+    return (
+        <span class={`px-3 py-1 rounded text-sm ${variants[props.variant || 'primary']}`}>
+            {props.text}
+        </span>
+    )
+}
+```
+
+## Composition
+
+```tsx
+// Card component
+export const Card = (props: { children: any; className?: string }) => {
+    return (
+        <div class={`border rounded-lg p-6 ${props.className || ''}`}>
+            {props.children}
+        </div>
+    )
+}
+
+// CardHeader component
+export const CardHeader = (props: { children: any }) => {
+    return (
+        <div class="mb-4 border-b pb-4">
+            {props.children}
+        </div>
+    )
+}
+
+// CardBody component
+export const CardBody = (props: { children: any }) => {
+    return <div>{props.children}</div>
+}
+
+// CardFooter component
+export const CardFooter = (props: { children: any }) => {
+    return (
+        <div class="mt-4 pt-4 border-t">
+            {props.children}
+        </div>
+    )
+}
+```
+
+**Usage:**
+```tsx
+<Card>
+    <CardHeader>
+        <h2>Title</h2>
+    </CardHeader>
+    <CardBody>
+        <p>Content here</p>
+    </CardBody>
+    <CardFooter>
+        <Button text="Action" href="/action" />
+    </CardFooter>
+</Card>
+```
+
+## Icons as Components
+
+```tsx
+export const CheckIcon = () => (
+    <svg 
+        width="20" 
+        height="20" 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor"
+        stroke-width="2"
+    >
+        <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+)
+
+export const UserIcon = () => (
+    <svg 
+        width="20" 
+        height="20" 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor"
+        stroke-width="2"
+    >
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+        <circle cx="12" cy="7" r="4"></circle>
+    </svg>
+)
+```
+
+## Helper Components
+
+### Pagination
+
+```tsx
+type PaginationProps = {
+    currentPage: number
+    totalPages: number
+    baseUrl: string
+}
+
+export const Pagination = (props: PaginationProps) => {
+    const pages = Array.from({ length: props.totalPages }, (_, i) => i + 1)
+
+    return (
+        <nav class="flex gap-2">
+            {props.currentPage > 1 && (
+                <a href={`${props.baseUrl}?page=${props.currentPage - 1}`}>
+                    Previous
+                </a>
+            )}
+            
+            {pages.map(page => (
+                <a 
+                    href={`${props.baseUrl}?page=${page}`}
+                    class={page === props.currentPage ? 'font-bold' : ''}
+                >
+                    {page}
+                </a>
+            ))}
+            
+            {props.currentPage < props.totalPages && (
+                <a href={`${props.baseUrl}?page=${props.currentPage + 1}`}>
+                    Next
+                </a>
+            )}
+        </nav>
+    )
+}
+```
+
+### Loading Spinner
+
+```tsx
+export const Spinner = () => {
+    return (
+        <div class="animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent">
+        </div>
+    )
+}
+```
+
+### Avatar
+
+```tsx
+export const Avatar = (props: { 
+    src?: string
+    alt: string
+    size?: 'sm' | 'md' | 'lg'
+}) => {
+    const sizes = {
+        sm: 'w-8 h-8',
+        md: 'w-12 h-12',
+        lg: 'w-16 h-16',
+    }
+
+    return props.src ? (
+        <img 
+            src={props.src} 
+            alt={props.alt}
+            class={`rounded-full ${sizes[props.size || 'md']}`}
+        />
+    ) : (
+        <div class={`rounded-full bg-gray-300 flex items-center justify-center ${sizes[props.size || 'md']}`}>
+            <span class="text-gray-600 font-semibold">
+                {props.alt.charAt(0).toUpperCase()}
+            </span>
+        </div>
+    )
+}
+```
+
+## Best Practices
+
+- **Pure components** - No side effects, only render
+- **Type props** - Use TypeScript interfaces
+- **Default props** - Provide sensible defaults
+- **Composable** - Break into smaller components
+- **Reusable** - Keep generic, avoid business logic
+- **Server-side only** - No client-side JavaScript
+- **Use Tailwind** - Utility-first CSS classes
+- **Consistent naming** - PascalCase for components
+
+## Component Organization
+
+```
+src/view/
+├── components/
+│   ├── ui/               # Generic UI components
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── input.tsx
+│   │   └── avatar.tsx
+│   ├── forms/           # Form-specific components
+│   │   ├── login_form.tsx
+│   │   └── post_form.tsx
+│   ├── navigation/      # Nav components
+│   │   ├── navbar.tsx
+│   │   └── sidebar.tsx
+│   └── icons/          # Icon components
+│       ├── check_icon.tsx
+│       └── user_icon.tsx
+├── layouts/            # Layout components
+│   ├── app_layout.tsx
+│   └── auth_layout.tsx
+└── pages/             # Page components
+    ├── home/
+    └── about/
+```
+
+## SSR Considerations
+
+Lockness uses **server-side rendering only**:
+
+- No React hooks (useState, useEffect)
+- No client-side state management
+- No event handlers (onClick, onChange) - use forms
+- Pure HTML output
+- Excellent SEO
+- Fast initial load
+- Progressive enhancement
+
+For interactivity:
+- Use forms with server-side processing
+- Use HTML attributes (autofocus, required)
+- Use CSS for animations/transitions
+- Add client-side JS separately if needed

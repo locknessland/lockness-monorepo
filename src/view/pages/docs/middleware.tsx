@@ -9,6 +9,7 @@ export const MiddlewarePage = () => {
         <DocsLayout
             title='Middleware - Lockness JS'
             currentPath='/docs/middleware'
+            llmPath='middleware'
         >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
