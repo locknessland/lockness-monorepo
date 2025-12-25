@@ -2,7 +2,7 @@ import { Controller, Get, Context, Inject } from 'lockness'
 
 @Controller('/{{ route }}')
 export class {{ className }}Controller {
-    @Get('/')
+    @Get('/', { name: '{{ route }}.index' })
     index(c: Context) {
         return c.json({ message: 'Hello from {{ className }}Controller' })
     }

@@ -405,7 +405,7 @@ Nessy includes several built-in commands to improve your workflow:
 ./nessy dev           # Start server
 ./nessy test User     # Run user tests
 ./nessy check         # Verify types
-./nessy router:list   # Show all routes
+./nessy router:list   # Show all routes with names
 
 # Maintenance
 ./nessy clean         # Clean build
@@ -421,6 +421,47 @@ Nessy includes several built-in commands to improve your workflow:
 4. **Project-specific**: Generated per-project, not global
 5. **Always up-to-date**: Calls `ace.ts` directly, no compilation needed
 6. **Platform support**: Works on Unix/Linux/macOS/Windows
+
+### Named Routes
+
+Lockness allows you to assign names to your routes, making it easier to generate URLs without hardcoding paths. This is especially useful for navigation links and redirects.
+
+**Assigning Names:**
+
+Use the optional options object in route decorators:
+
+```typescript
+@Controller('/auth')
+export class AuthController {
+    @Get('/login', { name: 'auth.login' })
+    showLogin(c: Context) { ... }
+
+    @Post('/login', { name: 'auth.login.submit' })
+    async login(c: Context) { ... }
+}
+```
+
+**Generating URLs:**
+
+Use the `route(name, params?)` helper function:
+
+```typescript
+import { route } from 'lockness'
+
+// Simple URL
+const loginUrl = route('auth.login') // "/auth/login"
+
+// With parameters
+// Route: @Get('/users/:id', { name: 'users.show' })
+const userUrl = route('users.show', { id: 123 }) // "/users/123"
+
+// In a redirect
+return c.redirect(route('auth.login'))
+```
+
+**Listing Named Routes:**
+
+The `./nessy router:list` command displays all route names in a dedicated column.
 
 ### Session Management
 

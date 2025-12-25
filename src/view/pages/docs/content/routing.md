@@ -71,6 +71,42 @@ export class PostController {
 
 > **Pro Tip:** Use `deno task ace make:controller Name` to generate boilerplate
 
+## Named Routes
+
+Named routes allow you to generate URLs for specific routes using a unique name. This prevents hardcoding paths throughout your application and makes it easier to change URLs later.
+
+### Assigning Names
+
+You can assign a name to a route using the options object in the route decorator:
+
+```typescript
+@Controller('/users')
+export class UserController {
+    @Get('/:id', { name: 'users.show' })
+    async show(c: Context) { ... }
+}
+```
+
+### Generating URLs
+
+Use the `route()` helper to generate a URL from a route name:
+
+```typescript
+import { route } from 'lockness'
+
+// Simple route
+const url = route('users.index') // "/users"
+
+// With parameters
+const url = route('users.show', { id: 123 }) // "/users/123"
+```
+
+In a controller redirect:
+
+```typescript
+return c.redirect(route('auth.login'))
+```
+
 ## Display All Routes
 
 Use the `router:list` command to see all registered routes in your application:
@@ -92,13 +128,13 @@ Example output:
 ```bash
 📋 Registered Routes (11 total)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ METHOD ┃ PATH           ┃ CONTROLLER     ┃ ACTION ┃ MIDDLEWARES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ GET    ┃ /              ┃ AppController  ┃ index  ┃ -
-┃ POST   ┃ /api/users     ┃ UserController ┃ create ┃ @Auth, @Validate
-┃ GET    ┃ /api/users/:id ┃ UserController ┃ show   ┃ auth
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ METHOD ┃ PATH           ┃ NAME       ┃ CONTROLLER     ┃ ACTION ┃ MIDDLEWARES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ GET    ┃ /              ┃ home       ┃ AppController  ┃ index  ┃ -
+┃ POST   ┃ /api/users     ┃ users.store ┃ UserController ┃ create ┃ @Auth, @Validate
+┃ GET    ┃ /api/users/:id ┃ users.show  ┃ UserController ┃ show   ┃ auth
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 > **💡 Tip:** HTTP methods are color-coded in the terminal (GET=green,

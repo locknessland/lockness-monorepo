@@ -75,6 +75,7 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
         if (matchedRoute) {
             requestInfo.controller = matchedRoute.controller
             requestInfo.action = matchedRoute.action
+            requestInfo.routeName = matchedRoute.name
         }
 
         // Try to get body for POST/PUT/PATCH

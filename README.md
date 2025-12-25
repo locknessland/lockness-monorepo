@@ -117,7 +117,7 @@ Then use `./nessy` instead of `deno task ace`:
 ./nessy dev          # Start dev server
 ./nessy test User    # Run tests
 ./nessy check        # Type-check files
-./nessy router:list  # Show routes
+./nessy router:list  # Show all routes with names
 
 # Maintenance
 ./nessy clean        # Remove build artifacts
@@ -160,6 +160,22 @@ export class UserRepository {
         return await this.database.db.select().from(users)
     }
 }
+```
+
+#### Named Routes
+
+Lockness allows you to assign unique names to your routes for dynamic URL generation:
+
+```typescript
+@Controller('/auth')
+export class AuthController {
+    @Get('/login', { name: 'auth.login' })
+    show(c: Context) { ... }
+}
+
+// Generate URL anywhere
+import { route } from 'lockness'
+const url = route('auth.login') // "/auth/login"
 ```
 
 ### Automatic Routes System
@@ -524,13 +540,13 @@ Example output:
 ```
 📋 Registered Routes (11 total)
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ METHOD ┃ PATH           ┃ CONTROLLER     ┃ ACTION ┃ MIDDLEWARES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ GET    ┃ /              ┃ AppController  ┃ index  ┃ -
-┃ POST   ┃ /api/users     ┃ UserController ┃ create ┃ @Auth, @Validate
-┃ GET    ┃ /api/users/:id ┃ UserController ┃ show   ┃ auth
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ METHOD ┃ PATH           ┃ NAME       ┃ CONTROLLER     ┃ ACTION ┃ MIDDLEWARES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+┃ GET    ┃ /              ┃ home       ┃ AppController  ┃ index  ┃ -
+┃ POST   ┃ /api/users     ┃ users.store ┃ UserController ┃ create ┃ @Auth, @Validate
+┃ GET    ┃ /api/users/:id ┃ users.show  ┃ UserController ┃ show   ┃ auth
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ### Interactive REPL (Tinker)

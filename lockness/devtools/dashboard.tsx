@@ -172,6 +172,7 @@ export function renderDashboard(c: Context) {
             badge(req.method, req.method === 'GET' ? 'blue' : 'green')
         }
                                     <span class="text-sm font-medium">${req.path}</span>
+                                    ${req.routeName ? `<span class="text-xs text-blue-600 font-medium">(${req.routeName})</span>` : ''}
                                 </div>
                                 <span class="text-xs text-gray-500">${
             req.duration?.toFixed(2) || '-'
@@ -219,6 +220,7 @@ export function renderDashboard(c: Context) {
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Path</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Controller</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Middlewares</th>
                         </tr>
@@ -233,9 +235,8 @@ export function renderDashboard(c: Context) {
         }
                                 </td>
                                 <td class="px-6 py-4 font-mono text-sm">${route.path}</td>
-                                <td class="px-6 py-4 text-sm text-gray-600">${
-            route.controller || '-'
-        }</td>
+                                <td class="px-6 py-4 text-sm text-blue-600 font-medium">${route.name || '-'}</td>
+                                <td class="px-6 py-4 text-sm text-gray-600">${route.controller || '-'}</td>
                                 <td class="px-6 py-4 text-sm">
                                     ${
             route.middlewares.map((m: string) => badge(m, 'gray')).join(' ')

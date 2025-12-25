@@ -56,7 +56,7 @@ async function loadControllers(): Promise<ControllerClass[]> {
 
 @Controller('/api-docs')
 export class ApiDocsController {
-    @Get('/')
+    @Get('/', { name: 'api-docs.index' })
     @ApiDoc({
         summary: 'Swagger UI Documentation',
         description: 'Interactive API documentation interface',
@@ -74,7 +74,7 @@ export class ApiDocsController {
         return swagger.ui(c)
     }
 
-    @Get('/openapi.json')
+    @Get('/openapi.json', { name: 'api-docs.spec' })
     @ApiDoc({
         summary: 'OpenAPI Specification',
         description: 'Returns the OpenAPI 3.0 specification in JSON format',

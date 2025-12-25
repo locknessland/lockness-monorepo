@@ -1,4 +1,4 @@
-import { Controller, Get, Context, session, socialite, generateState, type SocialUser } from 'lockness'
+import { Controller, Get, Context, session, socialite, generateState, type SocialUser, route } from 'lockness'
 
 /**
  * Social Authentication Controller
@@ -32,14 +32,14 @@ export class SocialAuthController {
     // Google OAuth
     // ========================================================================
 
-    @Get('/google')
+    @Get('/google', { name: 'auth.google' })
     google(c: Context) {
         const state = generateState()
         session(c).set('oauth_state', state)
         return socialite('google').redirect(state)
     }
 
-    @Get('/google/callback')
+    @Get('/google/callback', { name: 'auth.google.callback' })
     async googleCallback(c: Context) {
         return this.handleCallback(c, 'google')
     }
@@ -48,14 +48,14 @@ export class SocialAuthController {
     // GitHub OAuth
     // ========================================================================
 
-    @Get('/github')
+    @Get('/github', { name: 'auth.github' })
     github(c: Context) {
         const state = generateState()
         session(c).set('oauth_state', state)
         return socialite('github').redirect(state)
     }
 
-    @Get('/github/callback')
+    @Get('/github/callback', { name: 'auth.github.callback' })
     async githubCallback(c: Context) {
         return this.handleCallback(c, 'github')
     }
@@ -64,14 +64,14 @@ export class SocialAuthController {
     // Discord OAuth
     // ========================================================================
 
-    @Get('/discord')
+    @Get('/discord', { name: 'auth.discord' })
     discord(c: Context) {
         const state = generateState()
         session(c).set('oauth_state', state)
         return socialite('discord').redirect(state)
     }
 
-    @Get('/discord/callback')
+    @Get('/discord/callback', { name: 'auth.discord.callback' })
     async discordCallback(c: Context) {
         return this.handleCallback(c, 'discord')
     }
@@ -88,7 +88,7 @@ export class SocialAuthController {
 
             if (!storedState || storedState !== returnedState) {
                 session(c).flash('error', 'Invalid OAuth state. Please try again.')
-                return c.redirect('/auth/login')
+                return c.redirect(route('auth.login'))
             }
 
             // Clear the state
@@ -108,7 +108,7 @@ export class SocialAuthController {
         } catch (error) {
             console.error(`OAuth ${provider} error:`, error)
             session(c).flash('error', `Failed to authenticate with ${provider}. Please try again.`)
-            return c.redirect('/auth/login')
+            return c.redirect(route('auth.login'))
         }
     }
 

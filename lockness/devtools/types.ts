@@ -5,6 +5,7 @@
 export interface RouteInfo {
     method: string
     path: string
+    name?: string
     controller?: string
     action?: string
     middlewares: string[]
@@ -36,6 +37,7 @@ export interface RequestInfo {
     body?: unknown
     controller?: string
     action?: string
+    routeName?: string
     component?: string
 }
 

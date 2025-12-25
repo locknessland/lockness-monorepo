@@ -10,7 +10,7 @@ export class {{ModelName}}Controller {
     /**
      * GET /{{route}} - List all
      */
-    @Get('/')
+    @Get('/', { name: '{{route}}.index' })
     async index(c: Context) {
         const items = await this.{{repositoryVar}}.findAll()
         return c.json({ data: items })
@@ -19,7 +19,7 @@ export class {{ModelName}}Controller {
     /**
      * GET /{{route}}/:id - Get one
      */
-    @Get('/:id')
+    @Get('/:id', { name: '{{route}}.show' })
     async show(c: Context) {
         const id = Number(c.req.param('id'))
         const item = await this.{{repositoryVar}}.findById(id)
@@ -34,7 +34,7 @@ export class {{ModelName}}Controller {
     /**
      * POST /{{route}} - Create
      */
-    @Post('/')
+    @Post('/', { name: '{{route}}.store' })
     @Validate('json', insert{{ModelName}}Schema)
     async store(c: Context) {
         const data = c.req.valid('json')
@@ -45,7 +45,7 @@ export class {{ModelName}}Controller {
     /**
      * PUT /{{route}}/:id - Update
      */
-    @Put('/:id')
+    @Put('/:id', { name: '{{route}}.update' })
     @Validate('json', insert{{ModelName}}Schema.partial())
     async update(c: Context) {
         const id = Number(c.req.param('id'))
@@ -62,7 +62,7 @@ export class {{ModelName}}Controller {
     /**
      * DELETE /{{route}}/:id - Delete
      */
-    @Delete('/:id')
+    @Delete('/:id', { name: '{{route}}.destroy' })
     async destroy(c: Context) {
         const id = Number(c.req.param('id'))
         const deleted = await this.{{repositoryVar}}.delete(id)

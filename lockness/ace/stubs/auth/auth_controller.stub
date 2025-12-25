@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Guest, Context, auth, session, Validate } from 'lockness'
+import { Controller, Get, Post, Guest, Context, auth, session, Validate, route } from 'lockness'
 import { z } from 'zod'
 
 const loginSchema = z.object({
@@ -18,7 +18,7 @@ const registerSchema = z.object({
 @Controller('/auth')
 export class AuthController {
     @Guest('/dashboard')
-    @Get('/login')
+    @Get('/login', { name: 'auth.login' })
     showLogin(c: Context) {
         const error = session(c).getFlash('error')
         return c.html(`
@@ -28,19 +28,19 @@ export class AuthController {
             <body>
                 <h1>Login</h1>
                 ${error ? `<p style="color: red">${error}</p>` : ''}
-                <form method="POST" action="/auth/login">
+                <form method="POST" action="${route('auth.login.submit')}">
                     <input type="email" name="email" placeholder="Email" required />
                     <input type="password" name="password" placeholder="Password" required />
                     <button type="submit">Login</button>
                 </form>
-                <p>Don't have an account? <a href="/auth/register">Register</a></p>
+                <p>Don't have an account? <a href="${route('auth.register')}">Register</a></p>
             </body>
             </html>
         `)
     }
 
     @Guest('/dashboard')
-    @Post('/login')
+    @Post('/login', { name: 'auth.login.submit' })
     @Validate('form', loginSchema)
     async login(c: Context) {
         const { email, password } = c.req.valid('form')
@@ -50,7 +50,7 @@ export class AuthController {
 
         if (!success) {
             session(c).flash('error', 'Invalid credentials')
-            return c.redirect('/auth/login')
+            return c.redirect(route('auth.login'))
         }
 
         session(c).flash('success', 'Welcome back!')
@@ -58,7 +58,7 @@ export class AuthController {
     }
 
     @Guest('/dashboard')
-    @Get('/register')
+    @Get('/register', { name: 'auth.register' })
     showRegister(c: Context) {
         const error = session(c).getFlash('error')
         return c.html(`
@@ -68,20 +68,20 @@ export class AuthController {
             <body>
                 <h1>Register</h1>
                 ${error ? `<p style="color: red">${error}</p>` : ''}
-                <form method="POST" action="/auth/register">
+                <form method="POST" action="${route('auth.register.submit')}">
                     <input type="email" name="email" placeholder="Email" required />
                     <input type="password" name="password" placeholder="Password" required />
                     <input type="password" name="password_confirmation" placeholder="Confirm Password" required />
                     <button type="submit">Register</button>
                 </form>
-                <p>Already have an account? <a href="/auth/login">Login</a></p>
+                <p>Already have an account? <a href="${route('auth.login')}">Login</a></p>
             </body>
             </html>
         `)
     }
 
     @Guest('/dashboard')
-    @Post('/register')
+    @Post('/register', { name: 'auth.register.submit' })
     @Validate('form', registerSchema)
     async register(c: Context) {
         // TODO: Implement registration logic
@@ -91,13 +91,13 @@ export class AuthController {
         // 4. Log in the user
 
         session(c).flash('success', 'Account created! Please log in.')
-        return c.redirect('/auth/login')
+        return c.redirect(route('auth.login'))
     }
 
-    @Post('/logout')
+    @Post('/logout', { name: 'auth.logout' })
     async logout(c: Context) {
         await auth(c).logout()
         session(c).flash('success', 'Logged out successfully')
-        return c.redirect('/auth/login')
+        return c.redirect(route('auth.login'))
     }
 }
