@@ -17,10 +17,6 @@ export interface GenerateSpecOptions {
     }>
 }
 
-// Symbol keys from core (we'll read them directly)
-const CONTROLLER_METADATA = Symbol('controller_metadata')
-const METHOD_METADATA = Symbol('method_metadata')
-
 export function generateOpenAPISpec(
     controllers: ControllerClass[],
     options: GenerateSpecOptions,

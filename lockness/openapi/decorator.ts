@@ -7,7 +7,10 @@ import type { ApiDocMetadata } from './types.ts'
 
 const API_DOC_METADATA = Symbol('api_doc_metadata')
 
-export function ApiDoc(metadata: ApiDocMetadata) {
+export function ApiDoc(metadata: ApiDocMetadata): (
+    target: unknown,
+    context: ClassMethodDecoratorContext
+) => void {
     return function (
         _target: unknown,
         context: ClassMethodDecoratorContext,

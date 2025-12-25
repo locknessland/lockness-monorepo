@@ -30,13 +30,13 @@ describe('init command', () => {
         const { registerInitCommand } = await import('../init.ts')
 
         let registeredName = ''
-        const aceMock = {
+        const cliMock = {
             register: (name: string, _handler: unknown) => {
                 registeredName = name
             },
         }
 
-        registerInitCommand(aceMock as never)
+        registerInitCommand(cliMock as never)
         expect(registeredName).toBe('init')
     })
 
@@ -44,7 +44,7 @@ describe('init command', () => {
         const { registerInitCommand } = await import('../init.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
-        const aceMock = {
+        const cliMock = {
             register: (
                 _name: string,
                 handler: (args: string[]) => Promise<void>,
@@ -53,7 +53,7 @@ describe('init command', () => {
             },
         }
 
-        registerInitCommand(aceMock as never)
+        registerInitCommand(cliMock as never)
 
         // Change to test dir before running
         const originalCwd = Deno.cwd()
@@ -79,7 +79,7 @@ describe('init command', () => {
         const { registerInitCommand } = await import('../init.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
-        const aceMock = {
+        const cliMock = {
             register: (
                 _name: string,
                 handler: (args: string[]) => Promise<void>,
@@ -88,7 +88,7 @@ describe('init command', () => {
             },
         }
 
-        registerInitCommand(aceMock as never)
+        registerInitCommand(cliMock as never)
 
         const originalCwd = Deno.cwd()
         Deno.chdir(TEST_DIR)
@@ -112,7 +112,7 @@ describe('init command', () => {
         const { registerInitCommand } = await import('../init.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
-        const aceMock = {
+        const cliMock = {
             register: (
                 _name: string,
                 handler: (args: string[]) => Promise<void>,
@@ -121,7 +121,7 @@ describe('init command', () => {
             },
         }
 
-        registerInitCommand(aceMock as never)
+        registerInitCommand(cliMock as never)
 
         const originalCwd = Deno.cwd()
         Deno.chdir(TEST_DIR)
@@ -139,7 +139,7 @@ describe('init command', () => {
         const { registerInitCommand } = await import('../init.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
-        const aceMock = {
+        const cliMock = {
             register: (
                 _name: string,
                 handler: (args: string[]) => Promise<void>,
@@ -148,7 +148,7 @@ describe('init command', () => {
             },
         }
 
-        registerInitCommand(aceMock as never)
+        registerInitCommand(cliMock as never)
 
         const originalCwd = Deno.cwd()
         Deno.chdir(TEST_DIR)
@@ -169,7 +169,7 @@ describe('init command', () => {
         const { registerInitCommand } = await import('../init.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
-        const aceMock = {
+        const cliMock = {
             register: (
                 _name: string,
                 handler: (args: string[]) => Promise<void>,
@@ -178,7 +178,7 @@ describe('init command', () => {
             },
         }
 
-        registerInitCommand(aceMock as never)
+        registerInitCommand(cliMock as never)
 
         const originalCwd = Deno.cwd()
         Deno.chdir(TEST_DIR)
@@ -217,7 +217,7 @@ describe('init command', () => {
         const { registerInitCommand } = await import('../init.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
-        const aceMock = {
+        const cliMock = {
             register: (
                 _name: string,
                 handler: (args: string[]) => Promise<void>,
@@ -226,7 +226,7 @@ describe('init command', () => {
             },
         }
 
-        registerInitCommand(aceMock as never)
+        registerInitCommand(cliMock as never)
 
         const originalCwd = Deno.cwd()
         Deno.chdir(TEST_DIR)

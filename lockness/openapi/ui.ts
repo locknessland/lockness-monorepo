@@ -6,7 +6,10 @@
 import type { Context } from 'hono'
 import type { OpenAPISpec } from './types.ts'
 
-export function serveSwaggerUI(spec: OpenAPISpec) {
+export function serveSwaggerUI(spec: OpenAPISpec): {
+    spec: (c: Context) => Response | Promise<Response>
+    ui: (c: Context) => Response | Promise<Response>
+} {
     return {
         // Serve the OpenAPI spec JSON
         spec: (c: Context) => {

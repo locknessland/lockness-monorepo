@@ -52,9 +52,9 @@ export function registerInitCommand(cli: Cli) {
 if (import.meta.main) {
     const args = parseArgs(Deno.args)
     const name = args._[0] || 'lockness-app'
-    const aceMock = {
+    const cliMock = {
         register: (_name: string, handler: (args: string[]) => Promise<void>) =>
             handler([String(name)]),
     }
-    registerInitCommand(aceMock as unknown as Cli)
+    registerInitCommand(cliMock as unknown as Cli)
 }

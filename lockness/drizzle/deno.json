@@ -3,7 +3,7 @@
     "version": "0.0.1",
     "exports": {
         ".": "./database.ts",
-        "./commands": "./ace_commands.ts"
+        "./commands": "./cli_commands.ts"
     },
     "imports": {
         "@lockness/core": "../core/core.ts",

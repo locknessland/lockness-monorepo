@@ -2,7 +2,7 @@
  * Router utility for named routes
  */
 
-export const namedRoutes = new Map<string, string>()
+export const namedRoutes: Map<string, string> = new Map<string, string>()
 
 /**
  * Generate a URL for a named route

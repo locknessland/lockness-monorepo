@@ -37,6 +37,7 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
         const originalHtml = c.html.bind(c)
         let capturedComponent: string | undefined
 
+        // deno-lint-ignore no-explicit-any
         c.html = function (content: any, init?: any) {
             // Try to extract component name from the JSX element
             if (content && typeof content === 'object') {

@@ -1,4 +1,4 @@
-# CLI (Cli)
+# CLI Engine
 
 Cli is Lockness's powerful command-line interface for scaffolding, database
 management, and custom commands.

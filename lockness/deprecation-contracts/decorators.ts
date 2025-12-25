@@ -25,8 +25,11 @@ export interface DeprecationOptions {
  * class OldService {}
  * ```
  */
+// deno-lint-ignore no-explicit-any
 export function Deprecated(version: string, message: string, pkg?: string): any
+// deno-lint-ignore no-explicit-any
 export function Deprecated(options: DeprecationOptions): any
+// deno-lint-ignore no-explicit-any
 export function Deprecated(arg1: string | DeprecationOptions, arg2?: string, arg3?: string): any {
     const options: DeprecationOptions = typeof arg1 === 'string'
         ? { version: arg1, message: arg2!, package: arg3 }
@@ -36,8 +39,10 @@ export function Deprecated(arg1: string | DeprecationOptions, arg2?: string, arg
         const name = String(context.name)
 
         if (context.kind === 'class') {
+            // deno-lint-ignore no-explicit-any
             const OriginalClass = target as any
             return class extends OriginalClass {
+                // deno-lint-ignore no-explicit-any
                 constructor(...args: any[]) {
                     triggerDeprecation(
                         options.package || 'app',
