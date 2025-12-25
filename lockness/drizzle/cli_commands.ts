@@ -158,7 +158,7 @@ export function registerDrizzleCommands(cli: Cli) {
         // Initialize database connection
         const db = await initDatabase()
 
-        const seederDir = './src/seeder'
+        const seederDir = './database/seeders'
         const specificSeeder = args[0]
 
         try {
@@ -239,7 +239,7 @@ export function registerDrizzleCommands(cli: Cli) {
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
         const fileName = `${name.toLowerCase()}_seeder.ts`
-        const dirPath = './src/seeder'
+        const dirPath = './database/seeders'
         const filePath = `${dirPath}/${fileName}`
 
         // Determine which stub to use
@@ -359,7 +359,7 @@ export function registerDrizzleCommands(cli: Cli) {
                     modelName,
                 )
 
-                const dirPath = './src/seeder'
+                const dirPath = './database/seeders'
                 const filePath = `${dirPath}/${fileName}_seeder.ts`
 
                 await Deno.mkdir(dirPath, { recursive: true })

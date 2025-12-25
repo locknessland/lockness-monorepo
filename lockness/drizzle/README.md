@@ -23,6 +23,7 @@ deno task cli package:install drizzle
 ```
 
 This will:
+
 - ✓ Create `drizzle.config.ts`
 - ✓ Set up directory structure (`migrations/`, `src/model/`, etc.)
 - ✓ Create `database_seeder.ts`
@@ -52,7 +53,7 @@ import { defineConfig } from 'drizzle-kit'
 
 export default defineConfig({
     schema: './src/model/*.ts',
-    out: './migrations',
+    out: './database/migrations',
     dialect: 'postgresql',
     dbCredentials: {
         url: Deno.env.get('DATABASE_URL')!,
@@ -96,6 +97,7 @@ deno task cli make:model Post
 ```
 
 Flags:
+
 - `-r` or `--repository` - Generate repository
 - `-s` or `--seeder` - Generate seeder
 - `-c` or `--controller` - Generate controller
@@ -104,26 +106,31 @@ Flags:
 ### Migration Commands
 
 **Generate migration:**
+
 ```bash
 deno task cli db:generate
 ```
 
 **Apply migrations:**
+
 ```bash
 deno task cli db:migrate
 ```
 
 **Check migration status:**
+
 ```bash
 deno task cli db:status
 ```
 
 **Drop all tables and re-migrate:**
+
 ```bash
 deno task cli db:fresh
 ```
 
 **Push schema (no migrations):**
+
 ```bash
 deno task cli db:push
 ```
@@ -131,11 +138,13 @@ deno task cli db:push
 ### Database Management
 
 **Test connection:**
+
 ```bash
 deno task cli db:check
 ```
 
 **Seed database:**
+
 ```bash
 deno task cli db:seed
 ```
@@ -242,9 +251,9 @@ export class UserRepository {
 Create seed data for development and testing:
 
 ```typescript
-// src/seeder/user_seeder.ts
+// database/seeders/user_seeder.ts
 import { Database } from '@lockness/drizzle'
-import { users } from '../model/user.ts'
+import { users } from '../../src/model/user.ts'
 
 export class UserSeeder {
     async run(db: Database) {
@@ -262,7 +271,7 @@ export class UserSeeder {
 }
 ```
 
-Register in `src/seeder/database_seeder.ts`:
+Register in `database/seeders/database_seeder.ts`:
 
 ```typescript
 import { UserSeeder } from './user_seeder.ts'

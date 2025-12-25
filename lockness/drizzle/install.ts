@@ -36,7 +36,7 @@ async function createDrizzleConfig() {
 async function createDirectories() {
     const directories = [
         './database/migrations',
-        './database/seeder',
+        './database/seeders',
         './src/model',
         './src/repository',
     ]
@@ -54,7 +54,7 @@ async function createDirectories() {
 }
 
 async function createDatabaseSeeder() {
-    const seederPath = './database/seeder/database_seeder.ts'
+    const seederPath = './database/seeders/database_seeder.ts'
 
     try {
         await Deno.stat(seederPath)
@@ -72,7 +72,7 @@ async function createDatabaseSeeder() {
         )
 
         await Deno.writeTextFile(seederPath, content)
-        console.log('✓ Created database/seeder/database_seeder.ts')
+        console.log('✓ Created database/seeders/database_seeder.ts')
         return true
     }
 }
