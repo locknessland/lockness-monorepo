@@ -384,7 +384,7 @@ export const HomeView = () => {
                                 <GithubIcon />
                             </a>
                             <a
-                                href='#getting-started'
+                                href={route('docs.installation')}
                                 class='pixel-btn bg-primary text-primary-foreground'
                             >
                                 START
