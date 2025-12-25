@@ -14,4 +14,5 @@ await cli.discoverCommands('./src/command')
 
 if (import.meta.main) {
     await cli.run(Deno.args)
+    Deno.exit(0)
 }
