@@ -67,7 +67,6 @@
     "@lockness/devtools": "./lockness/devtools/devtools.ts",
     "@lockness/deprecation-contracts": "./lockness/deprecation-contracts/index.ts",
     "hono": "npm:hono@^4.11.1",
-    "hono/": "npm:/hono@^4.11.1/",
     "postgres": "npm:postgres@^3.4.4",
     "drizzle-orm": "npm:drizzle-orm@^0.36.3",
     "drizzle-zod": "npm:drizzle-zod@^0.5.1",
