@@ -66,7 +66,7 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                     maxWidth: '1600px',
                     margin: '0 auto',
                     height: '100%',
-                    padding: '0 24px',
+                    padding: '0 15px',
                 }}
             >
                 <div
@@ -101,7 +101,6 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                                 style={{ width: '20px', height: '20px', color: '#6366f1' }}
                                 dangerouslySetInnerHTML={{ __html: icons.wrench }}
                             />
-                            <span>Lockness</span>
                         </a>
 
                         {/* HTTP Status Badge */}
