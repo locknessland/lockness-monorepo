@@ -1,0 +1,236 @@
+# Lockness Middleware
+
+Class-based middleware with dependency injection.
+
+## Create Middleware
+
+```bash
+./nessy make:middleware LogRequest
+```
+
+Creates: `src/middleware/log_request_middleware.ts`
+
+## Basic Middleware
+
+```typescript
+import { type Context, type Next } from 'lockness'
+
+export class LogRequestMiddleware {
+    async handle(c: Context, next: Next) {
+        console.log(`${c.req.method} ${c.req.path}`)
+        await next()
+    }
+}
+```
+
+## Middleware with DI
+
+```typescript
+import { Service, Inject, type Context, type Next } from 'lockness'
+import { Logger } from '@service/logger.ts'
+
+@Service()
+export class LogRequestMiddleware {
+    @Inject(Logger)
+    accessor logger!: Logger
+
+    async handle(c: Context, next: Next) {
+        this.logger.info(`${c.req.method} ${c.req.path}`)
+        await next()
+    }
+}
+```
+
+## Apply Middleware
+
+### Global Middleware (All Routes)
+
+```typescript
+// src/kernel.tsx
+import { Kernel } from 'lockness'
+import { LogRequestMiddleware } from '@middleware/log_request_middleware.ts'
+import { AuthMiddleware } from '@middleware/auth_middleware.ts'
+
+export const kernel = new Kernel()
+
+kernel.use(LogRequestMiddleware)
+kernel.use(AuthMiddleware)
+```
+
+### Controller Middleware (All Methods)
+
+```typescript
+import { Controller, Middleware, Get } from 'lockness'
+import { AuthMiddleware } from '@middleware/auth_middleware.ts'
+
+@Controller('/admin')
+@Middleware(AuthMiddleware)
+export class AdminController {
+    @Get('/dashboard')
+    dashboard(c: Context) {
+        return c.html(<Dashboard />)
+    }
+
+    @Get('/users')
+    users(c: Context) {
+        return c.html(<Users />)
+    }
+}
+```
+
+### Route Middleware (Single Method)
+
+```typescript
+import { Controller, Middleware, Get, Post } from 'lockness'
+import { RateLimitMiddleware } from '@middleware/rate_limit_middleware.ts'
+
+@Controller('/api')
+export class ApiController {
+    @Get('/data')
+    getData(c: Context) {
+        return c.json({ data: [] })
+    }
+
+    @Post('/submit')
+    @Middleware(RateLimitMiddleware)
+    submit(c: Context) {
+        return c.json({ success: true })
+    }
+}
+```
+
+## Response Modification
+
+```typescript
+export class AddHeaderMiddleware {
+    async handle(c: Context, next: Next) {
+        await next()
+        c.header('X-Custom-Header', 'value')
+    }
+}
+```
+
+## Request Termination
+
+```typescript
+export class CheckMaintenanceMiddleware {
+    async handle(c: Context, next: Next) {
+        if (Deno.env.get('MAINTENANCE_MODE') === 'true') {
+            return c.text('Under maintenance', 503)
+        }
+        await next()
+    }
+}
+```
+
+## Execution Order
+
+Middleware executes in the order it's registered:
+
+```typescript
+// src/kernel.tsx
+kernel.use(CorsMiddleware)      // 1st
+kernel.use(LogRequestMiddleware) // 2nd
+kernel.use(AuthMiddleware)      // 3rd
+
+@Controller('/api')
+@Middleware(RateLimitMiddleware)  // 4th
+export class ApiController {
+    @Post('/submit')
+    @Middleware(ValidationMiddleware) // 5th
+    submit(c: Context) {
+        // Handler runs last
+    }
+}
+```
+
+## Common Middleware Examples
+
+### CORS
+
+```typescript
+export class CorsMiddleware {
+    async handle(c: Context, next: Next) {
+        c.header('Access-Control-Allow-Origin', '*')
+        c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE')
+        c.header('Access-Control-Allow-Headers', 'Content-Type')
+        
+        if (c.req.method === 'OPTIONS') {
+            return c.text('', 204)
+        }
+        
+        await next()
+    }
+}
+```
+
+### Rate Limiting
+
+```typescript
+import { Service, Inject } from 'lockness'
+import { Cache } from '@lockness/cache'
+
+@Service()
+export class RateLimitMiddleware {
+    @Inject(Cache)
+    accessor cache!: Cache
+
+    async handle(c: Context, next: Next) {
+        const ip = c.req.header('x-forwarded-for') || 'unknown'
+        const key = `rate_limit:${ip}`
+        
+        const count = await this.cache.get<number>(key) || 0
+        
+        if (count >= 100) {
+            return c.text('Too many requests', 429)
+        }
+        
+        await this.cache.set(key, count + 1, 60) // 60 seconds
+        await next()
+    }
+}
+```
+
+### Authentication Check
+
+```typescript
+import { Service, type Context, type Next, auth, session } from 'lockness'
+
+@Service()
+export class AuthMiddleware {
+    async handle(c: Context, next: Next) {
+        if (!auth(c).check()) {
+            session(c).flash('error', 'Please log in')
+            return c.redirect('/auth/login')
+        }
+        await next()
+    }
+}
+```
+
+### Request Timing
+
+```typescript
+@Service()
+export class TimingMiddleware {
+    @Inject(Logger)
+    accessor logger!: Logger
+
+    async handle(c: Context, next: Next) {
+        const start = Date.now()
+        await next()
+        const duration = Date.now() - start
+        this.logger.info(`${c.req.method} ${c.req.path} - ${duration}ms`)
+    }
+}
+```
+
+## Best Practices
+
+- Keep middleware focused on single responsibility
+- Use DI for dependencies (services, repositories)
+- Apply middleware at appropriate scope (global/controller/route)
+- Order matters - place auth before rate limiting
+- Use early returns to terminate request flow
+- Modify response after `await next()` if needed
+- Use `@Service()` when middleware needs DI

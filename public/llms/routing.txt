@@ -1,0 +1,73 @@
+# Lockness Controllers & Routing
+
+Class-based controllers with decorators for routing.
+
+## Basic Controller
+
+```typescript
+import { Controller, Get, Post, Context } from 'lockness'
+
+@Controller('/api/users')
+export class UserController {
+    @Get('/', { name: 'users.index' })
+    async index(c: Context) {
+        return c.json({ users: [] })
+    }
+
+    @Get('/:id', { name: 'users.show' })
+    async show(c: Context) {
+        const id = c.req.param('id')
+        return c.json({ id })
+    }
+
+    @Post('/')
+    async store(c: Context) {
+        const body = await c.req.json()
+        return c.json(body, 201)
+    }
+}
+```
+
+## HTTP Method Decorators
+
+- @Get, @Post, @Put, @Delete, @Patch, @Options, @Head
+
+## Named Routes
+
+```typescript
+@Controller('/users')
+export class UserController {
+    @Get('/:id', { name: 'users.show' })
+    async show(c: Context) { ... }
+}
+
+// Generate URLs
+import { route } from 'lockness'
+const url = route('users.show', { id: 123 }) // "/users/123"
+return c.redirect(route('auth.login'))
+```
+
+## CLI Commands
+
+```bash
+# Create controller
+./nessy make:controller User                 # JSON API
+./nessy make:controller User --view          # With JSX view
+
+# Add action to existing controller
+./nessy make:action User show                # GET method
+./nessy make:action User store --method=post # POST method
+./nessy make:action User create --view       # With view
+```
+
+## RESTful Conventions
+
+| Action  | Method | Path      | Route Name     |
+|---------|--------|-----------|----------------|
+| index   | GET    | /         | resource.index |
+| show    | GET    | /:id      | resource.show  |
+| create  | GET    | /create   | resource.create|
+| store   | POST   | /         | resource.store |
+| edit    | GET    | /:id/edit | resource.edit  |
+| update  | PUT    | /:id      | resource.update|
+| destroy | DELETE | /:id      | resource.destroy|

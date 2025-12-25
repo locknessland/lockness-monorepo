@@ -1,0 +1,199 @@
+# Lockness Request Validation
+
+Request validation with Zod and drizzle-zod.
+
+## Setup
+
+Validation uses Zod schemas with the `@Validate` decorator.
+
+## Basic Usage
+
+```typescript
+import { Controller, Post, Validate, Context } from 'lockness'
+import { z } from 'zod'
+
+@Controller('/users')
+export class UserController {
+    @Post('/')
+    @Validate({
+        email: z.string().email(),
+        password: z.string().min(8),
+        age: z.number().min(18),
+    })
+    async store(c: Context) {
+        const validated = c.req.valid('json')
+        // validated data is type-safe and sanitized
+        return c.json({ user: validated })
+    }
+}
+```
+
+## Integration with Drizzle
+
+```typescript
+// src/model/user.ts
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
+
+export const user = pgTable('users', {
+    id: serial('id').primaryKey(),
+    email: text('email').notNull().unique(),
+    password: text('password').notNull(),
+    name: text('name').notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+})
+
+// Generate Zod schemas from table
+export const userInsertSchema = createInsertSchema(user)
+export const userSelectSchema = createSelectSchema(user)
+
+// Custom validation rules
+export const userStoreSchema = userInsertSchema.pick({
+    email: true,
+    password: true,
+    name: true,
+}).extend({
+    password: z.string().min(8).max(100),
+    passwordConfirmation: z.string(),
+}).refine((data) => data.password === data.passwordConfirmation, {
+    message: "Passwords don't match",
+    path: ["passwordConfirmation"],
+})
+
+export const userUpdateSchema = userInsertSchema.pick({
+    email: true,
+    name: true,
+}).partial()
+```
+
+## Controller with Model Schemas
+
+```typescript
+import { Controller, Post, Put, Validate, Context } from 'lockness'
+import { userStoreSchema, userUpdateSchema } from '@model/user.ts'
+
+@Controller('/users')
+export class UserController {
+    @Post('/')
+    @Validate(userStoreSchema)
+    async store(c: Context) {
+        const validated = c.req.valid('json')
+        // validated: { email, password, passwordConfirmation, name }
+        return c.json({ user: validated })
+    }
+
+    @Put('/:id')
+    @Validate(userUpdateSchema)
+    async update(c: Context) {
+        const validated = c.req.valid('json')
+        // validated: Partial<{ email, name }>
+        const id = c.req.param('id')
+        return c.json({ id, user: validated })
+    }
+}
+```
+
+## Validation Errors
+
+When validation fails, Lockness returns a 422 response:
+
+```json
+{
+    "success": false,
+    "error": {
+        "issues": [
+            {
+                "code": "invalid_type",
+                "expected": "string",
+                "received": "undefined",
+                "path": ["email"],
+                "message": "Required"
+            },
+            {
+                "code": "too_small",
+                "minimum": 8,
+                "type": "string",
+                "inclusive": true,
+                "exact": false,
+                "message": "String must contain at least 8 character(s)",
+                "path": ["password"]
+            }
+        ]
+    }
+}
+```
+
+## Validation Options
+
+```typescript
+@Validate(schema, {
+    target: 'json', // 'json' | 'form' | 'query' | 'param'
+    hook: (result, c) => {
+        if (!result.success) {
+            return c.json({ errors: result.error }, 422)
+        }
+    }
+})
+```
+
+## Common Patterns
+
+```typescript
+// Email validation
+z.string().email()
+
+// Password with complexity
+z.string()
+    .min(8)
+    .regex(/[A-Z]/, 'Must contain uppercase')
+    .regex(/[a-z]/, 'Must contain lowercase')
+    .regex(/[0-9]/, 'Must contain number')
+
+// Optional with default
+z.string().optional().default('draft')
+
+// Enum
+z.enum(['admin', 'user', 'guest'])
+
+// Date transformation
+z.string().datetime().transform((str) => new Date(str))
+
+// Custom validation
+z.string().refine((val) => val.length > 0, {
+    message: 'Cannot be empty',
+})
+
+// Nested objects
+z.object({
+    user: z.object({
+        name: z.string(),
+        email: z.string().email(),
+    }),
+    settings: z.object({
+        theme: z.enum(['light', 'dark']),
+    }),
+})
+
+// Arrays
+z.array(z.string()).min(1).max(10)
+```
+
+## Access Validated Data
+
+```typescript
+@Post('/')
+@Validate(schema)
+async store(c: Context) {
+    const data = c.req.valid('json')
+    // data is fully typed and validated
+}
+```
+
+## Best Practices
+
+- Use `createInsertSchema` for create endpoints
+- Use `.pick()` and `.extend()` for specific fields
+- Use `.partial()` for update endpoints (PATCH)
+- Add custom refinements for business logic
+- Keep validation schemas close to models
+- Reuse schemas across endpoints when possible

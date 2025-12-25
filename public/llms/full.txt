@@ -1,0 +1,661 @@
+# Lockness Framework Documentation for LLMs
+
+Lockness is a fullstack MVC Web framework for Deno, inspired by Laravel and AdonisJS, powered by HonoJS.
+
+## Quick Start
+
+```bash
+# Initialize new project
+deno run -A jsr:@lockness/init my-app
+cd my-app
+
+# Start development server
+deno task dev
+
+# Create a controller
+./nessy make:controller User
+./nessy make:controller User --view  # With JSX view
+
+# Create a model with repository, seeder, controller
+./nessy make:model Post -a
+```
+
+## Core Concepts
+
+### Controllers & Routing
+
+Class-based controllers with decorators:
+
+```typescript
+import { Controller, Get, Post, Put, Delete, Context } from 'lockness'
+
+@Controller('/api/users')
+export class UserController {
+    @Get('/', { name: 'users.index' })
+    async index(c: Context) {
+        return c.json({ users: [] })
+    }
+
+    @Get('/:id', { name: 'users.show' })
+    async show(c: Context) {
+        const id = c.req.param('id')
+        return c.json({ id })
+    }
+
+    @Post('/')
+    async store(c: Context) {
+        const body = await c.req.json()
+        return c.json(body, 201)
+    }
+
+    @Put('/:id')
+    async update(c: Context) {
+        const id = c.req.param('id')
+        const body = await c.req.json()
+        return c.json({ id, ...body })
+    }
+
+    @Delete('/:id')
+    async destroy(c: Context) {
+        const id = c.req.param('id')
+        return c.json({ deleted: true })
+    }
+}
+```
+
+Available decorators: @Get, @Post, @Put, @Delete, @Patch, @Options, @Head
+
+Generate URLs from named routes:
+```typescript
+import { route } from 'lockness'
+
+const url = route('users.show', { id: 123 }) // "/api/users/123"
+return c.redirect(route('auth.login'))
+```
+
+### CLI Commands
+
+```bash
+# Controllers
+./nessy make:controller User                 # JSON API controller
+./nessy make:controller User --view          # With JSX view
+./nessy make:action User show                # Add method to controller
+./nessy make:action User store --method=post # With HTTP method
+./nessy make:action User create --view       # Add method + view
+
+# Models & Database
+./nessy make:model Post           # Just model
+./nessy make:model Post -r        # + Repository
+./nessy make:model Post -s        # + Seeder
+./nessy make:model Post -c        # + Controller
+./nessy make:model Post -a        # All of above
+
+# Database operations
+./nessy db:generate               # Generate migrations
+./nessy db:migrate                # Run migrations
+./nessy db:push                   # Push schema changes
+./nessy db:seed                   # Run seeders
+./nessy db:studio                 # Open Drizzle Studio
+./nessy db:check                  # Test connection
+./nessy db:fresh                  # Drop all & remigrate
+
+# Other scaffolding
+./nessy make:middleware Auth
+./nessy make:service User
+./nessy make:view home
+./nessy make:component Button
+./nessy make:job SendEmail
+./nessy make:command Greet
+./nessy make:crud Post            # Full CRUD scaffold
+
+# Project commands
+./nessy dev                       # Start dev server
+./nessy build                     # Build for production
+./nessy test [pattern]            # Run tests
+./nessy check                     # Type-check project
+./nessy router:list               # List all routes
+```
+
+### Dependency Injection
+
+Built-in IoC container with TC39 decorators:
+
+```typescript
+import { Service, Inject } from 'lockness'
+
+@Service()
+export class UserService {
+    async findAll() {
+        return []
+    }
+}
+
+@Controller('/users')
+export class UserController {
+    @Inject(UserService)
+    accessor userService!: UserService
+
+    @Get('/')
+    async index(c: Context) {
+        const users = await this.userService.findAll()
+        return c.json({ users })
+    }
+}
+```
+
+### Database (Drizzle ORM)
+
+Type-safe PostgreSQL with Drizzle:
+
+```typescript
+// src/model/user.ts
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
+import { z } from 'zod'
+
+export const users = pgTable('users', {
+    id: serial('id').primaryKey(),
+    name: text('name').notNull(),
+    email: text('email').notNull().unique(),
+    password: text('password').notNull(),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+// Auto-generate Zod schemas
+export const insertUserSchema = createInsertSchema(users, {
+    email: z.string().email(),
+    password: z.string().min(8),
+})
+export const selectUserSchema = createSelectSchema(users)
+
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
+```
+
+Repository pattern:
+
+```typescript
+import { Service, Inject } from 'lockness'
+import { Database } from '@lockness/drizzle'
+import { users, type User } from '@model/user.ts'
+
+@Service()
+export class UserRepository {
+    @Inject(Database)
+    accessor db!: Database
+
+    async findAll(): Promise<User[]> {
+        return await this.db.db.select().from(users)
+    }
+
+    async findById(id: number): Promise<User | null> {
+        const result = await this.db.db
+            .select()
+            .from(users)
+            .where(eq(users.id, id))
+        return result[0] || null
+    }
+
+    async create(data: NewUser): Promise<User> {
+        const result = await this.db.db
+            .insert(users)
+            .values(data)
+            .returning()
+        return result[0]
+    }
+}
+```
+
+### Validation
+
+Request validation with Zod + drizzle-zod:
+
+```typescript
+import { Controller, Post, Validate, Context } from 'lockness'
+import { insertUserSchema } from '@model/user.ts'
+
+@Controller('/api/users')
+export class UserController {
+    @Post('/')
+    @Validate('json', insertUserSchema)
+    async store(c: Context) {
+        const validated = c.req.valid('json')
+        return c.json(validated, 201)
+    }
+}
+```
+
+Validation targets: 'json', 'query', 'param', 'header', 'cookie', 'form'
+
+Error response format:
+```json
+{
+    "success": false,
+    "errors": {
+        "email": ["Invalid email format"],
+        "password": ["Password must be at least 8 characters"]
+    }
+}
+```
+
+### Authentication
+
+Session-based authentication system:
+
+```typescript
+// Generate auth scaffolding
+./nessy make:auth
+
+// Configure in kernel.ts
+import { configureAuth, container } from 'lockness'
+import { UserProvider } from '@provider/user_provider.ts'
+
+configureAuth({
+    userProvider: container.get(UserProvider),
+    redirectTo: '/auth/login',
+})
+
+// Use in controllers
+import { Auth, Guest, auth, session } from 'lockness'
+
+@Controller('/dashboard')
+@Auth() // Protect entire controller
+export class DashboardController {
+    @Get('/')
+    async index(c: Context) {
+        const user = auth(c).user()
+        return c.json({ user })
+    }
+}
+
+@Controller('/auth')
+export class AuthController {
+    @Guest('/dashboard') // Redirect if authenticated
+    @Get('/login')
+    login(c: Context) {
+        return c.html(<LoginPage />)
+    }
+
+    @Post('/login')
+    async handleLogin(c: Context) {
+        const { email, password } = await c.req.json()
+        
+        if (await auth(c).attempt(email, password)) {
+            session(c).regenerate()
+            return c.redirect('/dashboard')
+        }
+        
+        return c.json({ error: 'Invalid credentials' }, 401)
+    }
+
+    @Post('/logout')
+    async logout(c: Context) {
+        await auth(c).logout()
+        return c.redirect('/auth/login')
+    }
+}
+```
+
+Auth API:
+- `auth(c).check()` - Is authenticated?
+- `auth(c).user()` - Get current user
+- `auth(c).id()` - Get user ID
+- `auth(c).attempt(email, pass)` - Try login
+- `auth(c).login(user)` - Log in user
+- `auth(c).logout()` - Log out
+
+Password hashing:
+```typescript
+import { hashPassword, verifyPassword } from 'lockness'
+
+const hash = await hashPassword('secret123')
+const valid = await verifyPassword('secret123', hash)
+```
+
+### Sessions
+
+Multi-driver session management:
+
+```typescript
+// Configure in kernel.ts
+import { configureSession, createSessionMiddleware } from 'lockness'
+
+configureSession({
+    driver: 'cookie', // or 'deno-kv' or 'memory'
+    cookieName: 'lockness_session',
+    secret: Deno.env.get('APP_KEY')!,
+    maxAge: 7 * 24 * 60 * 60,
+    secure: Deno.env.get('APP_ENV') === 'production',
+})
+
+await app.init({
+    globalMiddlewares: [createSessionMiddleware()],
+})
+
+// Use in controllers
+import { session } from 'lockness'
+
+@Controller('/cart')
+export class CartController {
+    @Post('/add')
+    async add(c: Context) {
+        const cart = session(c).get('cart', [])
+        cart.push({ id: 1, name: 'Product' })
+        session(c).set('cart', cart)
+        
+        // Flash message for next request
+        session(c).flash('success', 'Added to cart!')
+        
+        return c.redirect('/cart')
+    }
+
+    @Get('/')
+    async index(c: Context) {
+        const cart = session(c).get('cart', [])
+        const message = session(c).getFlash('success')
+        return c.json({ cart, message })
+    }
+}
+```
+
+Session API:
+- `get(key, default?)` - Get value
+- `set(key, value)` - Set value
+- `has(key)` - Check if exists
+- `forget(key)` - Remove key
+- `all()` - Get all data
+- `flush()` - Clear all
+- `regenerate()` - Regenerate ID
+- `destroy()` - Destroy session
+- `flash(key, value)` - Flash for next request
+- `getFlash(key)` - Get flash data
+
+### Middleware
+
+Class-based middleware with decorators:
+
+```typescript
+import { Middleware, Context, Next } from 'lockness'
+
+@Middleware()
+export class AuthMiddleware {
+    async handle(c: Context, next: Next) {
+        const token = c.req.header('Authorization')
+        
+        if (!token) {
+            return c.json({ error: 'Unauthorized' }, 401)
+        }
+        
+        // Verify token...
+        await next()
+    }
+}
+
+// Use on controller
+import { UseMiddleware } from 'lockness'
+
+@Controller('/api/admin')
+@UseMiddleware(AuthMiddleware) // Apply to all routes
+export class AdminController {
+    @Get('/users')
+    @UseMiddleware(LogMiddleware) // Apply to specific route
+    async users(c: Context) {
+        return c.json({ users: [] })
+    }
+}
+```
+
+### Views (JSX)
+
+Native JSX support with Hono runtime:
+
+```typescript
+// src/view/layouts/main_layout.tsx
+export const Layout = ({ title, children }: any) => {
+    return (
+        <html>
+            <head>
+                <title>{title}</title>
+                <link rel="stylesheet" href="/css/app.css" />
+            </head>
+            <body>
+                <nav>...</nav>
+                <main>{children}</main>
+            </body>
+        </html>
+    )
+}
+
+// src/view/pages/home.tsx
+import { Layout } from '../layouts/main_layout.tsx'
+
+export const Home = () => {
+    return (
+        <Layout title="Home">
+            <h1>Welcome to Lockness</h1>
+        </Layout>
+    )
+}
+
+// src/controller/app_controller.tsx
+import { Controller, Get, Context } from 'lockness'
+import { Home } from '@view/pages/home.tsx'
+
+@Controller('/')
+export class AppController {
+    @Get('/')
+    index(c: Context) {
+        return c.html(<Home />)
+    }
+}
+```
+
+### Packages
+
+Official packages (install with `./nessy package:install <name>`):
+
+- **@lockness/drizzle** - Drizzle ORM integration
+- **@lockness/openapi** - OpenAPI/Swagger docs
+- **@lockness/cache** - Multi-driver caching (Memory, Deno KV, Redis)
+- **@lockness/socialite** - OAuth2 (Google, GitHub, Discord)
+
+### Configuration
+
+Main configuration in `deno.json`:
+
+```json
+{
+    "compilerOptions": {
+        "jsx": "precompile",
+        "jsxImportSource": "hono/jsx"
+    },
+    "imports": {
+        "lockness": "jsr:@lockness/core",
+        "@lockness/drizzle": "jsr:@lockness/drizzle",
+        "hono": "npm:hono@^4.11.1",
+        "drizzle-orm": "npm:drizzle-orm@^0.36.3",
+        "postgres": "npm:postgres@^3.4.4"
+    },
+    "lockness": {
+        "packages": ["drizzle", "openapi"]
+    },
+    "tasks": {
+        "dev": "bash scripts/dev.sh",
+        "start": "deno run -A --env-file=.env.production.local main.ts",
+        "build": "deno task css:build",
+        "compile": "deno task routes:generate && deno task css:build && APP_ENV=production deno compile --output=_dist/lockness -A main.ts"
+    }
+}
+```
+
+Environment variables (.env):
+
+```env
+APP_ENV=development
+APP_KEY=your-secret-key-min-32-chars
+DATABASE_URL=postgresql://user:pass@localhost:5432/db
+```
+
+### Development Workflow
+
+Development mode runs 3 parallel processes:
+1. CSS watcher (Tailwind v4 + PostCSS)
+2. Routes watcher (auto-detects controllers)
+3. Deno server (hot-reload)
+
+```bash
+./nessy dev
+```
+
+Production deployment options:
+1. **Deno Deploy** (recommended) - Native TypeScript execution
+2. **Compiled binary** - `./nessy compile` creates standalone executable
+3. **Direct execution** - `./nessy start` runs main.ts
+
+### Project Structure
+
+```
+my-app/
+├── src/
+│   ├── kernel.tsx           # App bootstrap
+│   ├── routes.ts            # Auto-generated routes
+│   ├── controller/          # HTTP controllers
+│   ├── middleware/          # Custom middleware
+│   ├── service/             # Business logic
+│   ├── repository/          # Data access
+│   ├── model/               # Drizzle schemas
+│   ├── command/             # CLI commands
+│   └── view/
+│       ├── components/      # JSX components
+│       ├── layouts/         # Page layouts
+│       └── pages/           # Pages
+├── database/
+│   ├── migrations/          # SQL migrations
+│   └── seeders/            # Database seeders
+├── public/                  # Static files
+│   ├── css/
+│   └── images/
+├── main.ts                  # Entry point
+├── cli.ts                   # CLI entry point
+├── nessy                    # CLI wrapper script
+├── deno.json                # Deno config
+├── drizzle.config.ts        # Drizzle config
+└── .env                     # Environment vars
+```
+
+## Common Patterns
+
+### RESTful CRUD
+
+```typescript
+@Controller('/api/posts')
+export class PostController {
+    @Inject(PostService)
+    accessor postService!: PostService
+
+    @Get('/', { name: 'posts.index' })
+    async index(c: Context) {
+        const posts = await this.postService.findAll()
+        return c.json({ posts })
+    }
+
+    @Get('/:id', { name: 'posts.show' })
+    async show(c: Context) {
+        const id = Number(c.req.param('id'))
+        const post = await this.postService.findById(id)
+        return post ? c.json(post) : c.json({ error: 'Not found' }, 404)
+    }
+
+    @Post('/', { name: 'posts.store' })
+    @Validate('json', insertPostSchema)
+    async store(c: Context) {
+        const data = c.req.valid('json')
+        const post = await this.postService.create(data)
+        return c.json(post, 201)
+    }
+
+    @Put('/:id', { name: 'posts.update' })
+    @Validate('json', updatePostSchema)
+    async update(c: Context) {
+        const id = Number(c.req.param('id'))
+        const data = c.req.valid('json')
+        const post = await this.postService.update(id, data)
+        return c.json(post)
+    }
+
+    @Delete('/:id', { name: 'posts.destroy' })
+    async destroy(c: Context) {
+        const id = Number(c.req.param('id'))
+        await this.postService.delete(id)
+        return c.json({ deleted: true })
+    }
+}
+```
+
+### API with Auth
+
+```typescript
+@Controller('/api/profile')
+@Auth() // Require authentication
+export class ProfileController {
+    @Inject(UserService)
+    accessor userService!: UserService
+
+    @Get('/')
+    async show(c: Context) {
+        const user = auth(c).user()
+        return c.json(user)
+    }
+
+    @Put('/')
+    @Validate('json', updateProfileSchema)
+    async update(c: Context) {
+        const userId = auth(c).id()!
+        const data = c.req.valid('json')
+        const user = await this.userService.update(userId, data)
+        return c.json(user)
+    }
+}
+```
+
+### Form Handling
+
+```typescript
+@Controller('/posts')
+export class PostWebController {
+    @Get('/create', { name: 'posts.create' })
+    create(c: Context) {
+        return c.html(<CreatePostPage />)
+    }
+
+    @Post('/', { name: 'posts.store' })
+    async store(c: Context) {
+        const formData = await c.req.formData()
+        const title = formData.get('title')
+        const body = formData.get('body')
+        
+        // Validate and create...
+        
+        session(c).flash('success', 'Post created!')
+        return c.redirect(route('posts.index'))
+    }
+}
+```
+
+## Best Practices
+
+1. **Use Dependency Injection** - Inject services, don't instantiate
+2. **Repository Pattern** - Separate data access from business logic
+3. **Named Routes** - Use `route()` helper, avoid hardcoded URLs
+4. **Validation** - Always validate input with `@Validate`
+5. **Flash Messages** - Use `session().flash()` for user feedback
+6. **Environment Variables** - Never commit secrets, use .env
+7. **Migrations** - Always use migrations, never modify database manually
+8. **Type Safety** - Leverage TypeScript and Drizzle's type inference
+
+## Resources
+
+- Documentation: https://lockness.dev/docs
+- GitHub: https://github.com/locknessland/lockness.land
+- JSR: https://jsr.io/@lockness/core

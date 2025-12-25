@@ -1,0 +1,296 @@
+# Lockness Sessions
+
+Multi-driver session management with flash messages.
+
+## Configuration
+
+```typescript
+// src/kernel.tsx
+import { configureSession } from 'lockness'
+
+configureSession({
+    driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
+    secret: Deno.env.get('SESSION_SECRET')!,
+    cookieName: 'lockness_session',
+    maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
+})
+```
+
+## Environment Setup
+
+```bash
+# .env
+SESSION_SECRET=your-random-32-char-secret
+SESSION_DRIVER=cookie
+```
+
+## Session API
+
+```typescript
+import { session, type Context } from 'lockness'
+
+@Controller('/profile')
+export class ProfileController {
+    @Get('/')
+    show(c: Context) {
+        // Get session data
+        const userId = session(c).get('user_id')
+        const theme = session(c).get('theme', 'light') // with default
+        
+        // Set session data
+        session(c).set('last_visit', new Date().toISOString())
+        
+        // Check existence
+        if (session(c).has('user_id')) {
+            // ...
+        }
+        
+        // Remove data
+        session(c).delete('temporary_data')
+        
+        // Clear all session data
+        session(c).clear()
+        
+        return c.html(<Profile />)
+    }
+}
+```
+
+## Flash Messages
+
+Flash messages persist for ONE request (useful for redirects).
+
+```typescript
+import { session, type Context } from 'lockness'
+
+@Controller('/users')
+export class UserController {
+    @Post('/')
+    async store(c: Context) {
+        // ... create user
+        
+        session(c).flash('success', 'User created successfully')
+        session(c).flash('user_name', user.name)
+        
+        return c.redirect('/users')
+    }
+
+    @Get('/')
+    index(c: Context) {
+        // Flash data available ONCE after redirect
+        const success = session(c).flash('success')
+        const userName = session(c).flash('user_name')
+        
+        return c.html(<UserList success={success} userName={userName} />)
+    }
+}
+```
+
+## Authentication Integration
+
+```typescript
+import { auth, session, type Context } from 'lockness'
+
+@Controller('/auth')
+export class AuthController {
+    @Post('/login')
+    async login(c: Context) {
+        const { email, password } = await c.req.json()
+        
+        if (await auth(c).attempt(email, password)) {
+            // Regenerate session ID (security best practice)
+            session(c).regenerate()
+            
+            session(c).flash('success', 'Welcome back!')
+            return c.redirect('/dashboard')
+        }
+        
+        session(c).flash('error', 'Invalid credentials')
+        return c.redirect('/auth/login')
+    }
+
+    @Post('/logout')
+    async logout(c: Context) {
+        await auth(c).logout()
+        
+        // Invalidate session
+        session(c).clear()
+        session(c).regenerate()
+        
+        return c.redirect('/auth/login')
+    }
+}
+```
+
+## Session Drivers
+
+### Cookie Driver (Default)
+
+Stores session data in encrypted cookies.
+
+**Pros:**
+- No server-side storage required
+- Works in serverless environments
+- Scales horizontally automatically
+
+**Cons:**
+- Limited to 4KB data
+- Cookie sent with every request
+
+```typescript
+configureSession({
+    driver: 'cookie',
+    secret: Deno.env.get('SESSION_SECRET')!,
+})
+```
+
+### Deno KV Driver
+
+Stores session data in Deno KV (persistent key-value store).
+
+**Pros:**
+- Unlimited data size
+- Persistent across restarts
+- Shared across instances
+
+**Cons:**
+- Requires Deno KV access
+- Slight performance overhead
+
+```typescript
+configureSession({
+    driver: 'deno-kv',
+    secret: Deno.env.get('SESSION_SECRET')!,
+})
+```
+
+### Memory Driver
+
+Stores session data in memory (development only).
+
+**Pros:**
+- Fast
+- Simple
+
+**Cons:**
+- Lost on restart
+- Not shared across instances
+- Memory grows unbounded
+
+```typescript
+configureSession({
+    driver: 'memory',
+    secret: Deno.env.get('SESSION_SECRET')!,
+})
+```
+
+## Common Patterns
+
+### Form Validation Errors
+
+```typescript
+@Post('/profile/update')
+@Validate(profileSchema)
+async update(c: Context) {
+    const data = c.req.valid('json')
+    
+    try {
+        // ... update profile
+        session(c).flash('success', 'Profile updated')
+        return c.redirect('/profile')
+    } catch (error) {
+        session(c).flash('error', error.message)
+        session(c).flash('old', data) // Re-populate form
+        return c.redirect('/profile/edit')
+    }
+}
+
+@Get('/profile/edit')
+edit(c: Context) {
+    const error = session(c).flash('error')
+    const old = session(c).flash('old')
+    
+    return c.html(<EditProfile error={error} old={old} />)
+}
+```
+
+### Multi-Step Forms
+
+```typescript
+@Get('/checkout/step1')
+step1(c: Context) {
+    return c.html(<CheckoutStep1 />)
+}
+
+@Post('/checkout/step1')
+async submitStep1(c: Context) {
+    const data = await c.req.json()
+    
+    session(c).set('checkout.step1', data)
+    return c.redirect('/checkout/step2')
+}
+
+@Get('/checkout/step2')
+step2(c: Context) {
+    const step1Data = session(c).get('checkout.step1')
+    if (!step1Data) {
+        return c.redirect('/checkout/step1')
+    }
+    
+    return c.html(<CheckoutStep2 data={step1Data} />)
+}
+
+@Post('/checkout/complete')
+async complete(c: Context) {
+    const step1 = session(c).get('checkout.step1')
+    const step2 = session(c).get('checkout.step2')
+    
+    // ... process order
+    
+    session(c).delete('checkout.step1')
+    session(c).delete('checkout.step2')
+    
+    return c.redirect('/order/success')
+}
+```
+
+### Shopping Cart
+
+```typescript
+@Post('/cart/add/:productId')
+async addToCart(c: Context) {
+    const productId = c.req.param('productId')
+    const cart = session(c).get<string[]>('cart', [])
+    
+    cart.push(productId)
+    session(c).set('cart', cart)
+    
+    session(c).flash('success', 'Added to cart')
+    return c.redirect('/products')
+}
+
+@Get('/cart')
+viewCart(c: Context) {
+    const cart = session(c).get<string[]>('cart', [])
+    return c.html(<Cart items={cart} />)
+}
+```
+
+## Security Best Practices
+
+- Always use strong `SESSION_SECRET` (32+ random characters)
+- Call `session(c).regenerate()` after login (prevent session fixation)
+- Clear session data on logout
+- Use HTTPS in production (secure cookies)
+- Set appropriate `maxAge` for session expiration
+- Don't store sensitive data in cookie driver (use deno-kv)
+- Validate session data before use
+
+## Best Practices
+
+- Use flash messages for one-time notifications
+- Regenerate session ID on privilege escalation (login)
+- Clear sensitive data after use
+- Use cookie driver for stateless apps
+- Use deno-kv driver for large session data
+- Never use memory driver in production

@@ -1,0 +1,121 @@
+# Lockness Authentication
+
+Session-based authentication system with password hashing.
+
+## Setup
+
+```bash
+# Generate auth scaffolding
+./nessy make:auth
+```
+
+## Configuration
+
+```typescript
+// src/kernel.tsx
+import { configureAuth, container } from 'lockness'
+import { UserProvider } from '@provider/user_provider.ts'
+
+configureAuth({
+    userProvider: container.get(UserProvider),
+    redirectTo: '/auth/login',
+})
+```
+
+## Auth Guards
+
+```typescript
+import { Controller, Get, Post, Auth, Guest, Context, auth, session } from 'lockness'
+
+@Controller('/dashboard')
+@Auth() // Protect entire controller
+export class DashboardController {
+    @Get('/')
+    async index(c: Context) {
+        const user = auth(c).user()
+        return c.json({ user })
+    }
+}
+
+@Controller('/auth')
+export class AuthController {
+    @Guest('/dashboard') // Redirect if authenticated
+    @Get('/login')
+    login(c: Context) {
+        return c.html(<LoginPage />)
+    }
+
+    @Post('/login')
+    async handleLogin(c: Context) {
+        const { email, password } = await c.req.json()
+        
+        if (await auth(c).attempt(email, password)) {
+            session(c).regenerate()
+            return c.redirect('/dashboard')
+        }
+        
+        return c.json({ error: 'Invalid credentials' }, 401)
+    }
+
+    @Post('/logout')
+    async logout(c: Context) {
+        await auth(c).logout()
+        return c.redirect('/auth/login')
+    }
+}
+```
+
+## Auth API
+
+- `auth(c).check()` - Is authenticated?
+- `auth(c).guest()` - Is NOT authenticated?
+- `auth(c).user()` - Get current user
+- `auth(c).id()` - Get user ID
+- `auth(c).attempt(email, pass)` - Try login
+- `auth(c).login(user)` - Log in user
+- `auth(c).loginById(id)` - Log in by ID
+- `auth(c).logout()` - Log out
+
+## Password Hashing
+
+```typescript
+import { hashPassword, verifyPassword } from 'lockness'
+
+// Hash password (for registration)
+const hash = await hashPassword('secret123')
+
+// Verify password (for login)
+const valid = await verifyPassword('secret123', hash)
+```
+
+## User Provider
+
+```typescript
+// src/provider/user_provider.ts
+import { Service, Inject } from 'lockness'
+import { UserRepository } from '@repository/user_repository.ts'
+import type { User } from '@model/user.ts'
+
+@Service()
+export class UserProvider {
+    @Inject(UserRepository)
+    accessor userRepository!: UserRepository
+
+    async findByCredentials(email: string, password: string): Promise<User | null> {
+        const user = await this.userRepository.findByEmail(email)
+        if (!user) return null
+        
+        const valid = await verifyPassword(password, user.password)
+        return valid ? user : null
+    }
+
+    async findById(id: number): Promise<User | null> {
+        return await this.userRepository.findById(id)
+    }
+}
+```
+
+## Decorators
+
+- `@Auth()` - Require authentication (class or method level)
+- `@Guest(redirectTo?)` - Require NOT authenticated (for login/register pages)
