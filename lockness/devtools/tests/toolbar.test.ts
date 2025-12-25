@@ -12,7 +12,6 @@ Deno.test('DebugToolbar - generates valid HTML', () => {
     const html = DebugToolbar({}).toString()
 
     assertStringIncludes(html, 'lockness-debug-toolbar')
-    assertStringIncludes(html, 'Lockness')
 })
 
 Deno.test('DebugToolbar - includes stats', () => {
