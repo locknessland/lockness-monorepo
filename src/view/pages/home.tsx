@@ -378,7 +378,7 @@ export const HomeView = () => {
 
                         <div class='flex items-center gap-3'>
                             <a
-                                href='https://github.com/locknessjs/lockness'
+                                href='https://github.com/locknessjs/core'
                                 class='hidden md:inline-flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-primary transition-all'
                             >
                                 <GithubIcon />
@@ -1142,7 +1142,7 @@ export const HomeView = () => {
                                 GET STARTED NOW
                             </a>
                             <a
-                                href='https://github.com/locknessjs/lockness'
+                                href='https://github.com/locknessjs/core'
                                 class='pixel-btn bg-card text-foreground border-2 border-border'
                             >
                                 STAR ON GITHUB
@@ -1224,7 +1224,7 @@ export const HomeView = () => {
                                     </li>
                                     <li>
                                         <a
-                                            href='https://github.com/locknessjs/lockness'
+                                            href='https://github.com/locknessjs/core'
                                             class='text-muted-foreground hover:text-primary transition-colors'
                                         >
                                             GitHub
@@ -1240,7 +1240,7 @@ export const HomeView = () => {
                                 <ul class='space-y-3'>
                                     <li>
                                         <a
-                                            href='https://github.com/locknessjs/lockness/discussions'
+                                            href='https://github.com/locknessjs/core/discussions'
                                             class='text-muted-foreground hover:text-primary transition-colors'
                                         >
                                             Discussions
@@ -1248,7 +1248,7 @@ export const HomeView = () => {
                                     </li>
                                     <li>
                                         <a
-                                            href='https://github.com/locknessjs/lockness/issues'
+                                            href='https://github.com/locknessjs/core/issues'
                                             class='text-muted-foreground hover:text-primary transition-colors'
                                         >
                                             Issues
@@ -1256,7 +1256,7 @@ export const HomeView = () => {
                                     </li>
                                     <li>
                                         <a
-                                            href='https://github.com/locknessjs/lockness/blob/main/CONTRIBUTING.md'
+                                            href='https://github.com/locknessjs/core/blob/main/CONTRIBUTING.md'
                                             class='text-muted-foreground hover:text-primary transition-colors'
                                         >
                                             Contributing

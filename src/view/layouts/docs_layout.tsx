@@ -353,7 +353,7 @@ export const DocsLayout = (
                                 <HomeIcon />
                             </a>
                             <a
-                                href='https://github.com/locknessjs/lockness'
+                                href='https://github.com/locknessjs/core'
                                 class='text-muted-foreground hover:text-primary transition-colors'
                             >
                                 <svg
