@@ -8,7 +8,7 @@ controllers.
 Generate a new middleware class:
 
 ```bash
-deno task ace make:middleware Auth
+deno task cli make:middleware Auth
 ```
 
 This creates `src/middleware/auth_middleware.ts`:

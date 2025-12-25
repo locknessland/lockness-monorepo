@@ -12,7 +12,7 @@ keyword.
 Scaffold a complete authentication system with one command:
 
 ```bash
-deno task ace make:auth
+deno task cli make:auth
 ```
 
 This creates:
@@ -115,7 +115,7 @@ const valid = await verifyPassword('secret123', hash)
 Add social login with Google, GitHub, Discord:
 
 ```bash
-deno task ace make:auth --social
+deno task cli make:auth --social
 ```
 
 Configure providers in `src/kernel.ts`:

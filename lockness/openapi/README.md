@@ -8,7 +8,7 @@ OpenAPI 3.0 documentation generator for Lockness framework.
 - 📝 **OpenAPI 3.0**: Industry-standard API documentation
 - 🚀 **Automatic generation**: Scans controllers and builds spec
 - 📊 **Swagger UI**: Interactive API documentation interface
-- 🔧 **CLI command**: Generate JSON spec files with Ace
+- 🔧 **CLI command**: Generate JSON spec files with Cli
 
 ## Installation
 
@@ -157,10 +157,10 @@ export class ApiDocsController {
 
 ### Generate JSON Spec
 
-Use the Ace CLI command to generate an OpenAPI JSON file:
+Use the Cli CLI command to generate an OpenAPI JSON file:
 
 ```bash
-deno task ace docs:generate --output public/openapi.json
+deno task cli docs:generate --output public/openapi.json
 ```
 
 Options:

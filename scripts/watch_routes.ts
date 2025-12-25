@@ -4,7 +4,7 @@
  * Usage: deno run -A scripts/watch_routes.ts
  */
 
-import { generateRoutesFile } from '@lockness/ace'
+import { generateRoutesFile } from '@lockness/cli'
 
 const CONTROLLER_DIR = './src/controller'
 const OUTPUT_FILE = './src/routes.ts'

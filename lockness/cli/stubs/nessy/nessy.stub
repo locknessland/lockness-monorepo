@@ -1,0 +1,155 @@
+#!/bin/sh
+# Nessy - Lockness CLI wrapper with DX enhancements
+
+# Get the first argument (command)
+COMMAND=$1
+
+# Handle special commands
+case "$COMMAND" in
+    dev)
+        echo "🚀 Starting development server..."
+        deno task dev
+        ;;
+    
+    build)
+        echo "📦 Building production bundle..."
+        deno task build
+        ;;
+    
+    start)
+        echo "🚀 Starting production server..."
+        deno task start
+        ;;
+    
+    test)
+        shift
+        if [ -n "$1" ]; then
+            echo "🧪 Running tests matching: $1"
+            deno test --allow-all --env --filter="$1"
+        else
+            echo "🧪 Running all tests..."
+            deno test --allow-all --env
+        fi
+        ;;
+    
+    check)
+        echo "🔍 Type-checking project..."
+        deno check **/*.ts **/*.tsx
+        ;;
+    
+    fresh)
+        echo "🧹 Deep cleaning project..."
+        rm -rf .vite dist coverage .compiled node_modules 2>/dev/null
+        echo "   ✓ Removed temporary files and dependencies"
+        echo ""
+        echo "📦 Clearing Deno cache..."
+        deno cache --reload cli.ts
+        echo "   ✓ Cache cleared"
+        echo ""
+        echo "✅ Project is fresh! Run 'npm install' if you use Node packages."
+        ;;
+    
+    clean)
+        echo "🧹 Cleaning temporary files..."
+        rm -rf .vite dist coverage .compiled 2>/dev/null
+        echo "✅ Cleaned: .vite, dist, coverage, .compiled"
+        ;;
+    
+    watch)
+        echo "👀 Starting file watcher..."
+        deno task dev --watch
+        ;;
+    
+    status)
+        echo "📊 Project Status"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "📁 Git Status:"
+        git status -s || echo "   Not a git repository"
+        echo ""
+        echo "📦 Deno Version:"
+        deno --version | head -n 1
+        echo ""
+        echo "🗄️  Database:"
+        if [ -f "drizzle.config.ts" ]; then
+            echo "   ✓ Drizzle configured"
+        else
+            echo "   ✗ No database config"
+        fi
+        echo ""
+        echo "🦕 Nessy: Ready!"
+        ;;
+    
+    install)
+        shift
+        if [ -z "$1" ]; then
+            echo "❌ Please specify a package to install"
+            echo "   Usage: ./nessy install <package>"
+        else
+            echo "📦 Installing $1..."
+            deno add "$@"
+        fi
+        ;;
+    
+    -v|--version|version)
+        echo "🦕 Nessy - Lockness CLI"
+        echo "Version: 1.0.0"
+        deno --version
+        ;;
+    
+    -h|--help|help)
+        echo "🦕 Nessy - Your Lockness CLI companion"
+        echo ""
+        echo "Usage: ./nessy [command] [args]"
+        echo ""
+        echo "📦 Quick Commands:"
+        echo "  dev                  Start development server"
+        echo "  build                Build production bundle"
+        echo "  start                Start production server"
+        echo "  test [pattern]       Run tests (optionally filtered)"
+        echo "  check                Type-check the project"
+        echo "  fresh                Clean cache and temporary files"
+        echo "  clean                Remove temporary files only"
+        echo "  watch                Start dev server with file watcher"
+        echo "  status               Show project status"
+        echo "  install <pkg>        Add a dependency"
+        echo "  -v, --version        Show version"
+        echo "  -h, --help           Show this help"
+        echo ""
+        echo "🔨 Cli Commands:"
+        echo "  list                 List all available commands"
+        echo "  make:controller      Create a new controller"
+        echo "  make:service         Create a new service"
+        echo "  make:middleware      Create a new middleware"
+        echo "  make:view            Create a new view"
+        echo "  make:component       Create a new component"
+        echo "  make:command         Create a new CLI command"
+        echo "  make:job             Create a new background job"
+        echo "  router:list          Display all registered routes"
+        echo ""
+        echo "🗄️  Database Commands:"
+        echo "  db:generate          Generate migration files"
+        echo "  db:migrate           Run pending migrations"
+        echo "  db:push              Push schema changes"
+        echo "  db:seed              Seed the database"
+        echo "  db:studio            Open Drizzle Studio"
+        echo ""
+        echo "⚡ Queue Commands:"
+        echo "  queue:work           Process jobs from queue"
+        echo "  queue:clear          Clear all jobs"
+        echo ""
+        echo "Examples:"
+        echo "  ./nessy dev                        # Start dev server"
+        echo "  ./nessy build                      # Build for production"
+        echo "  ./nessy start                      # Start production server"
+        echo "  ./nessy test auth                  # Run auth tests"
+        echo "  ./nessy make:controller User       # Create controller"
+        echo "  ./nessy db:migrate                 # Run migrations"
+        echo "  ./nessy install @std/path          # Install package"
+        ;;
+    
+    *)
+        # Pass all other commands to cli.ts
+        deno run -A --env cli.ts "$@"
+        ;;
+esac

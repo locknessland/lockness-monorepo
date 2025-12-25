@@ -75,10 +75,10 @@ deno task test:coverage
 **Nessy** is a convenient CLI wrapper for faster development. Install it:
 
 ```bash
-deno task ace nessy:install
+deno task cli nessy:install
 ```
 
-Then use `./nessy` instead of `deno task ace`:
+Then use `./nessy` instead of `deno task cli`:
 
 ```bash
 # Scaffolding
@@ -109,25 +109,25 @@ Lockness uses **Drizzle ORM** for type-safe database operations.
 
 ```bash
 # Generate migrations from schema
-deno task ace db:generate
+deno task cli db:generate
 
 # Apply pending migrations
-deno task ace db:migrate
+deno task cli db:migrate
 
 # Push schema directly (dev)
-deno task ace db:push
+deno task cli db:push
 
 # Launch Drizzle Studio
-deno task ace db:studio
+deno task cli db:studio
 
 # Create a seeder
-deno task ace make:seeder User
+deno task cli make:seeder User
 
 # Run seeders
-deno task ace db:seed
+deno task cli db:seed
 
 # Scaffold a complete entity
-deno task ace make:model Post -a
+deno task cli make:model Post -a
 ```
 
 The `make:model` command supports flags:
@@ -141,7 +141,7 @@ The `make:model` command supports flags:
 For a full-stack CRUD with views:
 
 ```bash
-deno task ace make:crud Post
+deno task cli make:crud Post
 ```
 
 Generates:
@@ -156,8 +156,8 @@ Generates:
 ### Scaffolding Components
 
 ```bash
-deno task ace make:component Button
-deno task ace make:component ui/Card
+deno task cli make:component Button
+deno task cli make:component ui/Card
 ```
 
 ### Request Validation
@@ -207,7 +207,7 @@ export class UserRepository {
 Create and use middlewares:
 
 ```bash
-deno task ace make:middleware Auth
+deno task cli make:middleware Auth
 ```
 
 ```typescript
@@ -241,7 +241,7 @@ session(c).flash('success', 'Done!')  // For next request only
 Scaffold auth system:
 
 ```bash
-deno task ace make:auth
+deno task cli make:auth
 ```
 
 Use auth guards:
@@ -268,7 +268,7 @@ const user = await auth(c).user()
 Add social login with Google, GitHub, Discord:
 
 ```bash
-deno task ace make:auth --social
+deno task cli make:auth --social
 ```
 
 ```typescript
@@ -311,7 +311,7 @@ await mail()
 ### Background Jobs
 
 ```bash
-deno task ace make:job SendWelcomeEmail
+deno task cli make:job SendWelcomeEmail
 ```
 
 ```typescript
@@ -325,13 +325,13 @@ await dispatch(new SendWelcomeEmailJob({ userId: 1 }))
 await dispatch(new SendWelcomeEmailJob({ userId: 1 }), { delay: 60000 })
 
 // Start worker
-deno task ace queue:work
+deno task cli queue:work
 ```
 
 ### Interactive REPL
 
 ```bash
-deno task ace tinker
+deno task cli tinker
 ```
 
 ### Display All Routes
@@ -339,7 +339,7 @@ deno task ace tinker
 List all registered routes with their details:
 
 ```bash
-deno task ace router:list
+deno task cli router:list
 ```
 
 Shows a formatted table with HTTP methods (color-coded), paths, controllers,
@@ -355,7 +355,7 @@ configures and integrates additional features into your application.
 Use the `package:install` command for fully automated setup:
 
 ```bash
-deno task ace package:install openapi
+deno task cli package:install openapi
 ```
 
 This command will:

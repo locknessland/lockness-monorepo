@@ -99,10 +99,10 @@ in `coverage/html/`.
 it once:
 
 ```bash
-deno task ace nessy:install
+deno task cli nessy:install
 ```
 
-Then use `./nessy` instead of `deno task ace`:
+Then use `./nessy` instead of `deno task cli`:
 
 ```bash
 # Scaffolding
@@ -205,7 +205,7 @@ deno task routes:generate
 deno task routes:watch
 ```
 
-When you create a controller with `deno task ace make:controller`, the routes
+When you create a controller with `deno task cli make:controller`, the routes
 are automatically updated. The development server (`deno task dev`) runs with
 watchers for both CSS and routes, providing a zero-configuration experience.
 
@@ -218,7 +218,7 @@ Lockness uses **Drizzle ORM** for type-safe database operations.
 Generate migration files from your schema definitions:
 
 ```bash
-deno task ace db:generate
+deno task cli db:generate
 ```
 
 #### Run Migrations
@@ -226,7 +226,7 @@ deno task ace db:generate
 Apply pending migrations to your database:
 
 ```bash
-deno task ace db:migrate
+deno task cli db:migrate
 ```
 
 #### Push Schema
@@ -234,7 +234,7 @@ deno task ace db:migrate
 Push your schema directly to the database (useful for development):
 
 ```bash
-deno task ace db:push
+deno task cli db:push
 ```
 
 #### Drizzle Studio
@@ -242,7 +242,7 @@ deno task ace db:push
 Launch Drizzle Studio to visualize and manage your database:
 
 ```bash
-deno task ace db:studio
+deno task cli db:studio
 ```
 
 _Note: Make sure to set your `DATABASE_URL` environment variable in `.env` or
@@ -253,25 +253,25 @@ _Note: Make sure to set your `DATABASE_URL` environment variable in `.env` or
 Create a new seeder:
 
 ```bash
-deno task ace make:seeder User
+deno task cli make:seeder User
 ```
 
 Create the main database seeder (orchestrator):
 
 ```bash
-deno task ace make:seeder Database
+deno task cli make:seeder Database
 ```
 
 Run all seeders:
 
 ```bash
-deno task ace db:seed
+deno task cli db:seed
 ```
 
 Run a specific seeder:
 
 ```bash
-deno task ace db:seed User
+deno task cli db:seed User
 ```
 
 ### Scaffolding with make:model
@@ -281,19 +281,19 @@ controller:
 
 ```bash
 # Create just the model
-deno task ace make:model Post
+deno task cli make:model Post
 
 # Create model + repository
-deno task ace make:model Post -r
+deno task cli make:model Post -r
 
 # Create model + seeder
-deno task ace make:model Post -s
+deno task cli make:model Post -s
 
 # Create model + CRUD controller (with validation)
-deno task ace make:model Post -c
+deno task cli make:model Post -c
 
 # Create everything at once
-deno task ace make:model Post -a
+deno task cli make:model Post -a
 ```
 
 The `-a` flag generates:
@@ -308,7 +308,7 @@ The `-a` flag generates:
 For a full-stack CRUD with views:
 
 ```bash
-deno task ace make:crud Post
+deno task cli make:crud Post
 ```
 
 Generates:
@@ -353,10 +353,10 @@ Generate JSX components with the `make:component` command:
 
 ```bash
 # Create a new component
-deno task ace make:component Button
+deno task cli make:component Button
 
 # Create a nested component
-deno task ace make:component ui/Card
+deno task cli make:component ui/Card
 ```
 
 This creates `src/view/components/button.tsx` with:
@@ -432,7 +432,7 @@ Supported validation targets: `json`, `query`, `param`, `header`, `cookie`,
 Create a new middleware:
 
 ```bash
-deno task ace make:middleware Auth
+deno task cli make:middleware Auth
 ```
 
 This creates `src/middleware/auth_middleware.ts`.
@@ -487,16 +487,16 @@ export class DashboardController {
 
 ### Custom CLI Commands
 
-Create your own CLI commands that integrate with ACE:
+Create your own CLI commands that integrate with CLI:
 
 ```bash
-deno task ace make:command Greet
+deno task cli make:command Greet
 ```
 
 This creates `src/command/greet_command.ts`:
 
 ```typescript
-import { Command, type CommandContext, type ICommand } from '@lockness/ace'
+import { Command, type CommandContext, type ICommand } from '@lockness/cli'
 
 @Command('greet', 'Say hello to someone')
 export class GreetCommand implements ICommand {
@@ -510,7 +510,7 @@ export class GreetCommand implements ICommand {
 Run it:
 
 ```bash
-deno task ace greet John
+deno task cli greet John
 # Hello, John!
 ```
 
@@ -522,7 +522,7 @@ Commands are auto-discovered from `src/command/`. Use `ctx.args` for arguments,
 List all registered routes with their details:
 
 ```bash
-deno task ace router:list
+deno task cli router:list
 ```
 
 This displays a formatted table showing:
@@ -551,10 +551,10 @@ Example output:
 
 ### Interactive REPL (Tinker)
 
-Explore your application interactively with `ace tinker`:
+Explore your application interactively with `cli tinker`:
 
 ```bash
-deno task ace tinker
+deno task cli tinker
 ```
 
 ```
@@ -583,7 +583,7 @@ are registered in `deno.json` and loaded dynamically at runtime.
 Use the `package:install` command for fully automated setup:
 
 ```bash
-deno task ace package:install openapi
+deno task cli package:install openapi
 ```
 
 This command will:
@@ -630,15 +630,15 @@ registers their CLI commands.
 
 #### How It Works
 
-In your `ace.ts` file:
+In your `cli.ts` file:
 
 ```typescript
-import { Ace, loadPackageCommands, registerCoreCommands } from '@lockness/ace'
+import { Cli, loadPackageCommands, registerCoreCommands } from '@lockness/cli'
 
-const ace = new Ace()
-registerCoreCommands(ace)
-await loadPackageCommands(ace) // Loads from deno.json
-await ace.discoverCommands('./src/command')
+const cli = new Cli()
+registerCoreCommands(cli)
+await loadPackageCommands(cli) // Loads from deno.json
+await cli.discoverCommands('./src/command')
 ```
 
 The `loadPackageCommands()` function reads the `lockness.packages` array,
@@ -690,7 +690,7 @@ Available methods: `get()`, `set()`, `has()`, `forget()`, `all()`, `flush()`,
 Scaffold a complete authentication system:
 
 ```bash
-deno task ace make:auth
+deno task cli make:auth
 ```
 
 This creates an `AuthController` and `UserProvider`.
@@ -764,7 +764,7 @@ Add social login with Google, GitHub, Discord, and more:
 
 ```bash
 # Scaffold auth with social providers
-deno task ace make:auth --social
+deno task cli make:auth --social
 ```
 
 Configure providers in `src/kernel.ts`:
@@ -850,13 +850,13 @@ Process long-running tasks in the background:
 
 ```bash
 # Create a job
-deno task ace make:job SendWelcomeEmail
+deno task cli make:job SendWelcomeEmail
 
 # Process jobs
-deno task ace queue:work
+deno task cli queue:work
 
 # Clear a queue
-deno task ace queue:clear
+deno task cli queue:clear
 ```
 
 Dispatch jobs from your application:
@@ -879,7 +879,7 @@ Drivers: `memory` (dev) or `deno-kv` (production with persistence).
 Generate custom error pages with one command:
 
 ```bash
-deno task ace make:error-pages
+deno task cli make:error-pages
 ```
 
 This creates 4 error page templates in `src/view/pages/errors/`:

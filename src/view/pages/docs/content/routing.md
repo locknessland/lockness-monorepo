@@ -69,7 +69,7 @@ export class PostController {
 }
 ```
 
-> **Pro Tip:** Use `deno task ace make:controller Name` to generate boilerplate
+> **Pro Tip:** Use `deno task cli make:controller Name` to generate boilerplate
 
 ## Named Routes
 
@@ -112,7 +112,7 @@ return c.redirect(route('auth.login'))
 Use the `router:list` command to see all registered routes in your application:
 
 ```bash
-deno task ace router:list
+deno task cli router:list
 ```
 
 This displays a formatted table with:

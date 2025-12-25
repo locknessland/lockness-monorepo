@@ -2025,7 +2025,7 @@
       "npm:zod@^3.23.8"
     ],
     "members": {
-      "lockness/ace": {
+      "lockness/cli": {
         "dependencies": [
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",

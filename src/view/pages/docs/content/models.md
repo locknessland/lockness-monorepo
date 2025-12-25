@@ -7,7 +7,7 @@ Lockness uses **Drizzle ORM** for type-safe database operations with PostgreSQL.
 Generate a model with all related files:
 
 ```bash
-deno task ace make:model Post -a
+deno task cli make:model Post -a
 ```
 
 The `-a` flag creates:
@@ -105,7 +105,7 @@ export class PostRepository {
 Generate migrations from your schema:
 
 ```bash
-deno task ace db:generate
+deno task cli db:generate
 ```
 
 This creates migration files in `migrations/`:
@@ -125,7 +125,7 @@ CREATE TABLE "posts" (
 Apply migrations:
 
 ```bash
-deno task ace db:migrate
+deno task cli db:migrate
 ```
 
 ## Seeders
@@ -158,7 +158,7 @@ export class PostSeeder {
 Run seeders:
 
 ```bash
-deno task ace db:seed
+deno task cli db:seed
 ```
 
 ## Relationships
@@ -232,7 +232,7 @@ const searchResults = await db.instance
 Launch the visual database browser:
 
 ```bash
-deno task ace db:studio
+deno task cli db:studio
 ```
 
 This opens Drizzle Studio at `https://local.drizzle.studio` where you can:

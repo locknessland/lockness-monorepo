@@ -60,7 +60,7 @@ my-lockness-app/
 ├── migrations/          # Database Migrations
 ├── static/             # Static Assets
 ├── main.ts             # Server Entry Point
-├── ace.ts              # CLI Entry Point
+├── cli.ts              # CLI Entry Point
 └── deno.json           # Deno Configuration
 ```
 

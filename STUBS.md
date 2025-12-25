@@ -2,7 +2,7 @@
 
 This document tracks the correspondence between **source files** in the main
 project and their **stub templates** used for scaffolding new projects or
-generating code via ACE commands.
+generating code via CLI commands.
 
 > ⚠️ **Important**: When modifying a source file that has a corresponding stub,
 > remember to update the stub as well to keep them in sync!
@@ -11,12 +11,12 @@ generating code via ACE commands.
 
 ## 🏗️ Init Stubs (Project Scaffolding)
 
-These stubs are used when running `deno task ace init` to scaffold a new
+These stubs are used when running `deno task cli init` to scaffold a new
 project.
 
 | Source File                      | Stub File                                              | Sync? |
 | -------------------------------- | ------------------------------------------------------ | ----- |
-| `ace.ts`                         | `lockness/init/stubs/init/ace.ts.stub`                 | ✅    |
+| `cli.ts`                         | `lockness/init/stubs/init/cli.ts.stub`                 | ✅    |
 | `main.ts`                        | `lockness/init/stubs/init/main.ts.stub`                | ✅    |
 | `deno.json`                      | `lockness/init/stubs/init/deno.json.stub`              | ✅    |
 | `README.md`                      | `lockness/init/stubs/init/README.md.stub`              | ✅    |
@@ -37,10 +37,10 @@ project.
 
 ## 🔧 Make Stubs (Code Generation)
 
-These stubs are used by `deno task ace make:*` commands to generate individual
+These stubs are used by `deno task cli make:*` commands to generate individual
 files.
 
-### Core ACE Stubs (`lockness/ace/stubs/make/`)
+### Core CLI Stubs (`lockness/cli/stubs/make/`)
 
 | Command            | Stub File                | Generates                                   |
 | ------------------ | ------------------------ | ------------------------------------------- |
@@ -53,7 +53,7 @@ files.
 | `make:component`   | `component.stub`         | `src/view/components/{name}.tsx`            |
 | `make:error-pages` | `error_*.stub` (4 files) | All error pages in `src/view/pages/errors/` |
 
-### Auth Stubs (`lockness/ace/stubs/auth/`)
+### Auth Stubs (`lockness/cli/stubs/auth/`)
 
 | Command            | Stub File                     | Generates                                  |
 | ------------------ | ----------------------------- | ------------------------------------------ |
@@ -61,14 +61,14 @@ files.
 | `make:auth`        | `user_provider.stub`          | `src/auth/user_provider.ts`                |
 | `make:social-auth` | `social_auth_controller.stub` | `src/controller/social_auth_controller.ts` |
 
-### Nessy Stubs (`lockness/ace/stubs/nessy/`)
+### Nessy Stubs (`lockness/cli/stubs/nessy/`)
 
 | Command | Stub File        | Generates                    |
 | ------- | ---------------- | ---------------------------- |
 | `nessy` | `nessy.stub`     | Nessy ASCII art template     |
 | `nessy` | `nessy.cmd.stub` | Nessy command line templates |
 
-### Drizzle ACE Stubs (`lockness/drizzle/stubs/`)
+### Drizzle CLI Stubs (`lockness/drizzle/stubs/`)
 
 | Command                | Stub File              | Generates                             |
 | ---------------------- | ---------------------- | ------------------------------------- |
@@ -85,7 +85,7 @@ files.
 
 When modifying core framework files, check this list:
 
-- [ ] Modified `ace.ts`? → Update `ace.ts.stub`
+- [ ] Modified `cli.ts`? → Update `cli.ts.stub`
 - [ ] Modified `src/kernel.tsx`? → Update `kernel.tsx.stub`
 - [ ] Modified `deno.json` tasks? → Update `deno.json.stub`
 - [ ] Added new decorator/feature? → Update relevant `make:*` stubs
@@ -93,7 +93,7 @@ When modifying core framework files, check this list:
 - [ ] Changed middleware pattern? → Update `middleware.stub`
 - [ ] Updated README.md? → Update `README.md.stub`
 - [ ] Updated `.env.exemple`? → Update `.env.exemple.stub`
-- [ ] Added new ACE command? → Update `ace.ts.stub` if needed
+- [ ] Added new CLI command? → Update `cli.ts.stub` if needed
 
 ---
 

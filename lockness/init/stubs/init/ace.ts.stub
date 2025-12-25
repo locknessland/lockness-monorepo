@@ -1,18 +1,18 @@
-import { Ace } from '@lockness/ace'
-import { registerCoreCommands } from '@lockness/ace/commands'
+import { Cli } from '@lockness/cli'
+import { registerCoreCommands } from '@lockness/cli/commands'
 import { registerDrizzleCommands } from '@lockness/drizzle/commands'
 
-const ace = new Ace()
+const cli = new Cli()
 
 // Register framework commands (make:controller, make:middleware, etc.)
-registerCoreCommands(ace)
+registerCoreCommands(cli)
 
 // Register Drizzle ORM commands (db:generate, db:migrate, db:seed, etc.)
-registerDrizzleCommands(ace)
+registerDrizzleCommands(cli)
 
 // Discover user-defined commands in src/command/
-await ace.discoverCommands('./src/command')
+await cli.discoverCommands('./src/command')
 
 if (import.meta.main) {
-    await ace.run(Deno.args)
+    await cli.run(Deno.args)
 }

@@ -655,8 +655,8 @@ export const HomeView = () => {
                             />
                             <FeatureCard
                                 icon={<TerminalIcon />}
-                                title='Powerful CLI (Ace)'
-                                description='Scaffold controllers, models, middleware, jobs and more with the Ace CLI engine.'
+                                title='Powerful CLI (Cli)'
+                                description='Scaffold controllers, models, middleware, jobs and more with the Cli CLI engine.'
                                 delay={500}
                             />
                             <FeatureCard
@@ -686,7 +686,7 @@ export const HomeView = () => {
                     <div class='max-w-5xl mx-auto'>
                         <div class='text-center mb-16'>
                             <h2 class='font-pixel text-lg md:text-xl text-foreground mb-6'>
-                                ACE PRODUCTIVITY
+                                CLI PRODUCTIVITY
                             </h2>
                             <p class='text-xl text-muted-foreground max-w-2xl mx-auto'>
                                 Initialize your project and start building
@@ -704,7 +704,7 @@ export const HomeView = () => {
                                     Creating new Lockness project...{'\n'}
                                     {'\n'}
                                     <Prompt>$</Prompt>{' '}
-                                    deno task ace make:controller User{'\n'}
+                                    deno task cli make:controller User{'\n'}
                                     <Success>✅</Success> Controller created at
                                     {' '}
                                     <String>
@@ -713,7 +713,7 @@ export const HomeView = () => {
                                     {'\n'}
                                     {'\n'}
                                     <Prompt>$</Prompt>{' '}
-                                    deno task ace make:model Post -a{'\n'}
+                                    deno task cli make:model Post -a{'\n'}
                                     <Success>✅</Success> Model created at{' '}
                                     <String>./src/model/post.ts</String>
                                     {'\n'}
@@ -778,7 +778,7 @@ export const HomeView = () => {
                                         </span>
                                     </div>
                                     <code class='text-muted-foreground font-pixel-body text-lg'>
-                                        deno task ace db:migrate
+                                        deno task cli db:migrate
                                     </code>
                                 </div>
                                 <div class='p-4 pixel-card group'>

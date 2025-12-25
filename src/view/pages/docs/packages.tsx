@@ -82,7 +82,7 @@ export const PackagesPage = () => {
                 </p>
 
                 <pre class="bg-gray-900 text-white p-4 rounded-lg mb-4">
-                    <code>deno task ace package:install openapi</code>
+                    <code>deno task cli package:install openapi</code>
                 </pre>
 
                 <p class="mb-4">This command will:</p>
@@ -103,7 +103,7 @@ export const PackagesPage = () => {
                         ✅ Example: Installing OpenAPI
                     </p>
                     <pre class="bg-gray-900 text-white p-3 rounded mt-2 text-sm overflow-x-auto">
-                        <code>{`$ deno task ace package:install openapi
+                        <code>{`$ deno task cli package:install openapi
 
 🌊 Installing @lockness/openapi...
 
@@ -130,7 +130,7 @@ export const PackagesPage = () => {
                 </p>
 
                 <pre class="bg-gray-900 text-white p-4 rounded-lg mb-4">
-                    <code>deno task ace package:add openapi</code>
+                    <code>deno task cli package:add openapi</code>
                 </pre>
 
                 <p class="mb-4">
@@ -157,7 +157,7 @@ export const PackagesPage = () => {
                 <p class="mb-4">Remove a package from your configuration:</p>
 
                 <pre class="bg-gray-900 text-white p-4 rounded-lg mb-4">
-                    <code>deno task ace package:remove openapi</code>
+                    <code>deno task cli package:remove openapi</code>
                 </pre>
 
                 <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6">
@@ -285,23 +285,23 @@ export const PackagesPage = () => {
                 </h2>
                 <p class="mb-4">
                     When you start your application, the{' '}
-                    <code class="bg-gray-100 px-2 py-1 rounded">ace.ts</code>{' '}
+                    <code class="bg-gray-100 px-2 py-1 rounded">cli.ts</code>{' '}
                     file loads packages automatically:
                 </p>
 
                 <pre class="bg-gray-900 text-white p-4 rounded-lg mb-4 overflow-x-auto">
-                    <code>{`import { Ace, loadPackageCommands, registerCoreCommands } from '@lockness/ace'
+                    <code>{`import { Cli, loadPackageCommands, registerCoreCommands } from '@lockness/cli'
 
-const ace = new Ace()
+const cli = new Cli()
 
 // Register core commands
-registerCoreCommands(ace)
+registerCoreCommands(cli)
 
 // Load commands from packages in deno.json
-await loadPackageCommands(ace)
+await loadPackageCommands(cli)
 
 // Discover user commands
-await ace.discoverCommands('./src/command')`}</code>
+await cli.discoverCommands('./src/command')`}</code>
                 </pre>
 
                 <p class="mb-4">
@@ -317,7 +317,7 @@ await ace.discoverCommands('./src/command')`}</code>
                 <div class="bg-gray-50 border-l-4 border-gray-400 p-4">
                     <p class="font-semibold mb-2">💡 Convention</p>
                     <p>
-                        Packages export a function named <code class="bg-gray-100 px-2 py-1 rounded">register[Name]Commands</code> or <code class="bg-gray-100 px-2 py-1 rounded">register[Name]Command</code> from their main entry point. This function receives the Ace instance and registers the package's commands.
+                        Packages export a function named <code class="bg-gray-100 px-2 py-1 rounded">register[Name]Commands</code> or <code class="bg-gray-100 px-2 py-1 rounded">register[Name]Command</code> from their main entry point. This function receives the Cli instance and registers the package's commands.
                     </p>
                 </div>
             </section>
@@ -332,10 +332,10 @@ await ace.discoverCommands('./src/command')`}</code>
                 <h3 class="text-2xl font-semibold mb-3">1. Export Register Function</h3>
                 <pre class="bg-gray-900 text-white p-4 rounded-lg mb-4 overflow-x-auto">
                     <code>{`// my-package/index.ts
-import type { Ace } from '@lockness/ace'
+import type { Cli } from '@lockness/cli'
 
-export function registerMyPackageCommands(ace: Ace) {
-    ace.register('my:command', async () => {
+export function registerMyPackageCommands(cli: Cli) {
+    cli.register('my:command', async () => {
         console.log('Hello from my package!')
     }, 'My custom command')
 }
@@ -346,7 +346,7 @@ export { myPackageFunction } from './lib.ts'`}</code>
                 <h3 class="text-2xl font-semibold mb-3 mt-6">2. Create Install Script (Optional)</h3>
                 <pre class="bg-gray-900 text-white p-4 rounded-lg mb-4 overflow-x-auto">
                     <code>{`// my-package/install.ts
-import { addPackage } from '@lockness/ace'
+import { addPackage } from '@lockness/cli'
 
 async function main() {
     console.log('🌊 Installing my-package...\\n')
@@ -383,7 +383,7 @@ if (import.meta.main) {
                 <p class="mt-6">
                     See{' '}
                     <a
-                        href="https://github.com/locknessland/lockness/tree/main/lockness/ace/INSTALL_SCRIPTS.md"
+                        href="https://github.com/locknessland/lockness/tree/main/lockness/cli/INSTALL_SCRIPTS.md"
                         class="text-blue-600 hover:underline"
                     >
                         INSTALL_SCRIPTS.md

@@ -25,7 +25,7 @@ COPY vite.config.ts ./
 # Copy source files
 COPY src/ ./src/
 COPY public/ ./public/
-COPY main.ts ace.ts ./
+COPY main.ts cli.ts ./
 
 # Cache dependencies
 RUN deno install

@@ -2,14 +2,14 @@
 
 **Nessy** is a convenient CLI wrapper that simplifies your development workflow
 by providing shortcuts for common Deno and Lockness commands. Instead of typing
-`deno task ace` every time, just use `./nessy`.
+`deno task cli` every time, just use `./nessy`.
 
 ## Installation
 
 Generate the Nessy wrapper in your project:
 
 ```bash
-deno task ace nessy:install
+deno task cli nessy:install
 ```
 
 This creates a `nessy` script (or `nessy.cmd` on Windows) in your project root
@@ -17,17 +17,17 @@ and makes it executable. The script is automatically added to `.gitignore`.
 
 ## Basic Usage
 
-Once installed, use Nessy instead of `deno task ace`:
+Once installed, use Nessy instead of `deno task cli`:
 
 ```bash
 # Instead of:
-deno task ace make:controller User
+deno task cli make:controller User
 
 # Use:
 ./nessy make:controller User
 ```
 
-Nessy passes all arguments directly to the ACE CLI, so all your existing
+Nessy passes all arguments directly to the CLI CLI, so all your existing
 commands work exactly the same way.
 
 ## Developer Experience Commands
@@ -174,7 +174,7 @@ Show all available Nessy commands:
 
 Displays comprehensive help including:
 
-- ACE commands (make:_, db:_, etc.)
+- CLI commands (make:_, db:_, etc.)
 - Developer experience commands
 - Usage examples
 
@@ -182,7 +182,7 @@ Displays comprehensive help including:
 
 | Command                  | Description                     |
 | ------------------------ | ------------------------------- |
-| `./nessy <ace-command>`  | Run any ACE CLI command         |
+| `./nessy <cli-command>`  | Run any CLI CLI command         |
 | `./nessy dev`            | Start development server        |
 | `./nessy build`          | Build production bundle         |
 | `./nessy start`          | Start production server         |
@@ -208,11 +208,11 @@ when you run `nessy:install`.
 
 ## Why Nessy?
 
-1. **Faster to type**: `./nessy` vs `deno task ace`
+1. **Faster to type**: `./nessy` vs `deno task cli`
 2. **Consistent interface**: One command for all operations
 3. **Enhanced DX**: Built-in shortcuts for common tasks
 4. **Project-specific**: Generated per-project, not global
-5. **Always up-to-date**: Calls `ace.ts` directly, no compilation needed
+5. **Always up-to-date**: Calls `cli.ts` directly, no compilation needed
 
 ## Examples
 
@@ -251,4 +251,4 @@ rm nessy
 del nessy.cmd
 ```
 
-You can reinstall it anytime with `deno task ace nessy:install`.
+You can reinstall it anytime with `deno task cli nessy:install`.

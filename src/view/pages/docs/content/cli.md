@@ -1,20 +1,20 @@
-# CLI (Ace)
+# CLI (Cli)
 
-Ace is Lockness's powerful command-line interface for scaffolding, database
+Cli is Lockness's powerful command-line interface for scaffolding, database
 management, and custom commands.
 
-## Using Ace
+## Using Cli
 
-Run any Ace command:
+Run any Cli command:
 
 ```bash
-deno task ace [command] [arguments] [--flags]
+deno task cli [command] [arguments] [--flags]
 ```
 
 List all available commands:
 
 ```bash
-deno task ace
+deno task cli
 ```
 
 ## Scaffolding Commands
@@ -22,65 +22,65 @@ deno task ace
 **make:controller** - Create a new controller:
 
 ```bash
-deno task ace make:controller User
+deno task cli make:controller User
 ```
 
 **make:model** - Create a model with optional related files:
 
 ```bash
-deno task ace make:model Post        # Just the model
-deno task ace make:model Post -r    # + Repository
-deno task ace make:model Post -s    # + Seeder
-deno task ace make:model Post -c    # + Controller
-deno task ace make:model Post -a    # All of the above
+deno task cli make:model Post        # Just the model
+deno task cli make:model Post -r    # + Repository
+deno task cli make:model Post -s    # + Seeder
+deno task cli make:model Post -c    # + Controller
+deno task cli make:model Post -a    # All of the above
 ```
 
 **make:middleware** - Create a new middleware:
 
 ```bash
-deno task ace make:middleware Auth
+deno task cli make:middleware Auth
 ```
 
 **make:service** - Create a new service:
 
 ```bash
-deno task ace make:service User
+deno task cli make:service User
 ```
 
 **make:repository** - Create a new repository:
 
 ```bash
-deno task ace make:repository Post
+deno task cli make:repository Post
 ```
 
 **make:job** - Create a background job:
 
 ```bash
-deno task ace make:job SendWelcomeEmail
+deno task cli make:job SendWelcomeEmail
 ```
 
 **make:command** - Create a custom CLI command:
 
 ```bash
-deno task ace make:command Greet
+deno task cli make:command Greet
 ```
 
 **make:component** - Create a JSX component:
 
 ```bash
-deno task ace make:component Button
+deno task cli make:component Button
 ```
 
 **make:view** - Create a new view/page:
 
 ```bash
-deno task ace make:view home
+deno task cli make:view home
 ```
 
 **make:error-pages** - Generate all error pages (404, 401, 403, 500):
 
 ```bash
-deno task ace make:error-pages
+deno task cli make:error-pages
 ```
 
 Creates error pages in `src/view/pages/errors/` with minimal HTML (no styling).
@@ -90,7 +90,7 @@ After generation, configure the error handler in `src/kernel.tsx`.
 views):
 
 ```bash
-deno task ace make:crud Post
+deno task cli make:crud Post
 ```
 
 Generates:
@@ -108,8 +108,8 @@ After generation, define your schema in the model and run
 **make:auth** - Scaffold authentication system:
 
 ```bash
-deno task ace make:auth            # Basic auth
-deno task ace make:auth --social   # With OAuth2 providers
+deno task cli make:auth            # Basic auth
+deno task cli make:auth --social   # With OAuth2 providers
 ```
 
 ## Database Commands
@@ -117,32 +117,32 @@ deno task ace make:auth --social   # With OAuth2 providers
 **db:generate** - Generate migration from schema:
 
 ```bash
-deno task ace db:generate
+deno task cli db:generate
 ```
 
 **db:migrate** - Run pending migrations:
 
 ```bash
-deno task ace db:migrate
+deno task cli db:migrate
 ```
 
 **db:push** - Push schema directly to database:
 
 ```bash
-deno task ace db:push
+deno task cli db:push
 ```
 
 **db:studio** - Launch Drizzle Studio:
 
 ```bash
-deno task ace db:studio
+deno task cli db:studio
 ```
 
 **db:seed** - Run database seeders:
 
 ```bash
-deno task ace db:seed         # Run all seeders
-deno task ace db:seed User    # Run specific seeder
+deno task cli db:seed         # Run all seeders
+deno task cli db:seed User    # Run specific seeder
 ```
 
 ## Custom Commands
@@ -150,7 +150,7 @@ deno task ace db:seed User    # Run specific seeder
 Create your own CLI commands:
 
 ```typescript
-import { Command, type CommandContext, type ICommand } from '@lockness/ace'
+import { Command, type CommandContext, type ICommand } from '@lockness/cli'
 
 @Command('greet', 'Say hello to someone')
 export class GreetCommand implements ICommand {
@@ -176,9 +176,9 @@ Commands are auto-discovered from `src/command/`.
 Run your command:
 
 ```bash
-deno task ace greet John
-deno task ace greet --verbose
-deno task ace greet --format=json
+deno task cli greet John
+deno task cli greet --verbose
+deno task cli greet --format=json
 ```
 
 ## Interactive REPL (Tinker)
@@ -186,7 +186,7 @@ deno task ace greet --format=json
 Explore your application interactively:
 
 ```bash
-deno task ace tinker
+deno task cli tinker
 ```
 
 The REPL automatically loads:
@@ -221,11 +221,11 @@ Example session:
 **queue:work** - Process background jobs:
 
 ```bash
-deno task ace queue:work
+deno task cli queue:work
 ```
 
 **queue:clear** - Clear all jobs from queue:
 
 ```bash
-deno task ace queue:clear
+deno task cli queue:clear
 ```

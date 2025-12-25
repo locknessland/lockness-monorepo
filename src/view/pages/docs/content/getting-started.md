@@ -5,10 +5,10 @@ setup to deployment.
 
 ## 🎯 Your First Controller
 
-Let's create a simple API endpoint. Use the ACE CLI to scaffold a controller:
+Let's create a simple API endpoint. Use the CLI CLI to scaffold a controller:
 
 ```bash
-deno task ace make:controller Hello
+deno task cli make:controller Hello
 ```
 
 This creates `src/controller/hello_controller.ts`. Edit it:
@@ -41,7 +41,7 @@ Test it: `http://localhost:5173/api/hello`
 Create a model with repository, controller, and seeder in one command:
 
 ```bash
-deno task ace make:model Post -a
+deno task cli make:model Post -a
 ```
 
 The `-a` flag generates:
@@ -56,8 +56,8 @@ The `-a` flag generates:
 Generate and apply database migrations:
 
 ```bash
-deno task ace db:generate
-deno task ace db:migrate
+deno task cli db:generate
+deno task cli db:migrate
 ```
 
 ## 🌱 Seed the Database
@@ -65,7 +65,7 @@ deno task ace db:migrate
 Populate your database with test data:
 
 ```bash
-deno task ace db:seed
+deno task cli db:seed
 ```
 
 ## 🎨 Create a View
@@ -73,7 +73,7 @@ deno task ace db:seed
 Generate a JSX page component:
 
 ```bash
-deno task ace make:view posts/index
+deno task cli make:view posts/index
 ```
 
 This creates `src/view/pages/posts/index.tsx`. Use it in your controller:
@@ -95,7 +95,7 @@ export class PostController {
 Scaffold a complete auth system:
 
 ```bash
-deno task ace make:auth
+deno task cli make:auth
 ```
 
 Configure in `src/kernel.ts`:

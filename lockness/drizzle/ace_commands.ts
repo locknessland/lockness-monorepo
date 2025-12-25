@@ -1,4 +1,4 @@
-import type { Ace } from '@lockness/ace'
+import type { Cli } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { container } from '@lockness/core'
 import { Database } from './database.ts'
@@ -38,8 +38,8 @@ function parseFlags(args: string[]): {
     }
 }
 
-export function registerDrizzleCommands(ace: Ace) {
-    ace.register('db:generate', async () => {
+export function registerDrizzleCommands(cli: Cli) {
+    cli.register('db:generate', async () => {
         console.log('📦 Generating migrations...')
         const command = new Deno.Command('deno', {
             args: ['run', '-A', 'npm:drizzle-kit', 'generate'],
@@ -54,7 +54,7 @@ export function registerDrizzleCommands(ace: Ace) {
         }
     })
 
-    ace.register('db:migrate', async () => {
+    cli.register('db:migrate', async () => {
         console.log('🚀 Running migrations...')
         const command = new Deno.Command('deno', {
             args: ['run', '-A', 'npm:drizzle-kit', 'migrate'],
@@ -69,7 +69,7 @@ export function registerDrizzleCommands(ace: Ace) {
         }
     })
 
-    ace.register('db:push', async () => {
+    cli.register('db:push', async () => {
         console.log('🔄 Pushing schema to database...')
         const command = new Deno.Command('deno', {
             args: ['run', '-A', 'npm:drizzle-kit', 'push'],
@@ -84,7 +84,7 @@ export function registerDrizzleCommands(ace: Ace) {
         }
     })
 
-    ace.register('db:studio', async () => {
+    cli.register('db:studio', async () => {
         console.log('🎨 Starting Drizzle Studio...')
         const command = new Deno.Command('deno', {
             args: ['run', '-A', 'npm:drizzle-kit', 'studio'],
@@ -97,7 +97,7 @@ export function registerDrizzleCommands(ace: Ace) {
         }
     })
 
-    ace.register('db:seed', async (args) => {
+    cli.register('db:seed', async (args) => {
         console.log('🌱 Running seeders...')
 
         // Initialize database connection
@@ -150,14 +150,14 @@ export function registerDrizzleCommands(ace: Ace) {
                         await seeder.run()
                     } else {
                         console.error(
-                            '❌ DatabaseSeeder class not found. Run `deno task ace make:seeder Database` first.',
+                            '❌ DatabaseSeeder class not found. Run `deno task cli make:seeder Database` first.',
                         )
                     }
                 } catch (e) {
                     const error = e as Error
                     if (error.message.includes('Module not found')) {
                         console.error(
-                            '❌ No database_seeder.ts found. Run `deno task ace make:seeder Database` first.',
+                            '❌ No database_seeder.ts found. Run `deno task cli make:seeder Database` first.',
                         )
                     } else {
                         console.error(`❌ Seeding failed: ${error.message}`)
@@ -175,7 +175,7 @@ export function registerDrizzleCommands(ace: Ace) {
         }
     })
 
-    ace.register('make:seeder', async (args) => {
+    cli.register('make:seeder', async (args) => {
         const name = args[0]
         if (!name) {
             console.error('❌ Please provide a seeder name (e.g., User)')
@@ -214,13 +214,13 @@ export function registerDrizzleCommands(ace: Ace) {
         }
     })
 
-    ace.register('make:model', async (args) => {
+    cli.register('make:model', async (args) => {
         const { name, repository, seeder, controller } = parseFlags(args)
 
         if (!name) {
             console.error('❌ Please provide a model name (e.g., Post)')
             console.log('')
-            console.log('Usage: deno task ace make:model <Name> [options]')
+            console.log('Usage: deno task cli make:model <Name> [options]')
             console.log('')
             console.log('Options:')
             console.log('  -r, --repository    Create a repository')

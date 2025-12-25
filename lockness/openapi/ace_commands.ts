@@ -1,10 +1,10 @@
-import type { Ace } from '../ace/ace.ts'
+import type { Cli } from '../cli/cli.ts'
 import { generateOpenAPISpec } from './generator.ts'
 import type { ControllerClass } from '@lockness/core'
 import { join } from '@std/path'
 
-export function registerOpenAPICommands(ace: Ace) {
-    ace.register(
+export function registerOpenAPICommands(cli: Cli) {
+    cli.register(
         'docs:generate',
         async (args: string[]) => {
             console.log('📝 Generating OpenAPI specification...\n')

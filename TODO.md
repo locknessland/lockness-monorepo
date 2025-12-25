@@ -5,7 +5,7 @@
 - [x] **ORM Integration (Drizzle)**
   - [x] Setup Drizzle ORM core integration.
   - [x] Create a `Database` service for DI.
-  - [x] Implement Ace commands (`db:generate`, `db:migrate`, `db:push`,
+  - [x] Implement Cli commands (`db:generate`, `db:migrate`, `db:push`,
         `db:studio`).
 - [x] **Database Advanced**
   - [x] Seeders implementation (`db:seed`, `make:seeder`).
@@ -20,10 +20,10 @@
 - [x] **Middleware Improvements**
   - [x] Global middleware support (`globalMiddlewares` in kernel).
   - [x] Named middleware (e.g., `@Use('auth')` with registry in kernel).
-- [x] **CLI (Ace) Enhancements**
+- [x] **CLI (Cli) Enhancements**
   - [x] Support for user-defined commands in `src/command/` with `@Command`
         decorator.
-  - [x] `ace tinker` (REPL) for application interaction.
+  - [x] `cli tinker` (REPL) for application interaction.
 
 ## 🔒 Security & Auth
 
@@ -75,7 +75,7 @@
 - [x] **API Documentation (Swagger/OpenAPI)**
   - [x] `@ApiDoc` decorator for documenting routes.
   - [x] Auto-generate OpenAPI spec from controllers.
-  - [x] `ace docs:generate` command to output `openapi.json`.
+  - [x] `cli docs:generate` command to output `openapi.json`.
   - [x] Built-in Swagger UI route (`/docs`).
 
 ## 🧰 Devtools
@@ -125,7 +125,7 @@ moment. C'est simple, performant, et 100% Deno natif.
   - [ ] `web` - Full-stack with SSR views, sessions, auth.
   - [ ] `api` - REST API with JWT auth, CORS, rate limiting.
   - [ ] `slim` - Minimal setup, no auth, no views.
-  - [ ] Init command integration: `ace init --kit=api`.
+  - [ ] Init command integration: `cli init --kit=api`.
 
 ---
 

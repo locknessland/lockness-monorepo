@@ -1,14 +1,14 @@
 # Components
 
 Lockness uses JSX for building UI components. Generate reusable components with
-the Ace CLI.
+the Cli CLI.
 
 ## Creating Components
 
 Use the `make:component` command to scaffold new JSX components:
 
 ```bash
-deno task ace make:component Button
+deno task cli make:component Button
 ```
 
 This creates `src/view/components/button.tsx`:
@@ -34,8 +34,8 @@ export const Button = (props: { children?: any }) => {
 Create components in subdirectories for better organization:
 
 ```bash
-deno task ace make:component ui/Card
-deno task ace make:component forms/Input
+deno task cli make:component ui/Card
+deno task cli make:component forms/Input
 ```
 
 This creates:

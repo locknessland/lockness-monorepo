@@ -6,7 +6,7 @@
  * 
  * This file will be auto-generated when you run:
  * - deno task routes:generate
- * - deno task ace make:controller
+ * - deno task cli make:controller
  * - During development (routes watcher)
  */
 

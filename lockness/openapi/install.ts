@@ -7,12 +7,12 @@
  * Usage:
  *   deno run -A jsr:@lockness/openapi/install
  *   or
- *   deno task ace package:install openapi
+ *   deno task cli package:install openapi
  */
 
-import { addPackage } from '../ace/package_loader.ts'
+import { addPackage } from '../cli/package_loader.ts'
 import { join, dirname, fromFileUrl } from '@std/path'
-import { Stub } from '../ace/stubs.ts'
+import { Stub } from '../cli/stubs.ts'
 
 async function createDocsController() {
     const controllerPath = './src/controller/api_docs_controller.ts'
@@ -93,7 +93,7 @@ async function main() {
         console.log('   2. Visit: http://localhost:8888/api-docs')
         console.log('   3. Document your routes with @ApiDoc decorator\n')
         console.log('📝 Generate static OpenAPI spec:')
-        console.log('   deno task ace docs:generate\n')
+        console.log('   deno task cli docs:generate\n')
         console.log('📚 Documentation:')
         console.log('   https://github.com/locknessland/lockness/tree/main/lockness/openapi\n')
     } else {

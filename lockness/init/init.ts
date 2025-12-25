@@ -1,9 +1,9 @@
 import { parseArgs } from '@std/cli/parse-args'
 import { dirname, fromFileUrl, join } from '@std/path'
-import { type Ace, Stub } from '@lockness/ace'
+import { type Cli, Stub } from '@lockness/cli'
 
-export function registerInitCommand(ace: Ace) {
-    ace.register('init', async (args: string[]) => {
+export function registerInitCommand(cli: Cli) {
+    cli.register('init', async (args: string[]) => {
         const projectName = args[0] || 'lockness-app'
         const currentFile = fromFileUrl(import.meta.url)
         const stubsDir = join(dirname(currentFile), 'stubs', 'init')
@@ -56,5 +56,5 @@ if (import.meta.main) {
         register: (_name: string, handler: (args: string[]) => Promise<void>) =>
             handler([String(name)]),
     }
-    registerInitCommand(aceMock as unknown as Ace)
+    registerInitCommand(aceMock as unknown as Cli)
 }

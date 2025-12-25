@@ -345,7 +345,7 @@ export class UserRepository {
 ### Nessy CLI Wrapper
 
 **Nessy** is a convenient CLI wrapper that simplifies your development workflow
-by providing shortcuts for common commands. Instead of typing `deno task ace`
+by providing shortcuts for common commands. Instead of typing `deno task cli`
 every time, just use `./nessy`.
 
 #### Installation
@@ -353,7 +353,7 @@ every time, just use `./nessy`.
 Generate the Nessy wrapper in your project:
 
 ```bash
-deno task ace nessy:install
+deno task cli nessy:install
 ```
 
 This creates a `nessy` script (or `nessy.cmd` on Windows) in your project root.
@@ -362,10 +362,10 @@ The script is automatically added to `.gitignore`.
 #### Basic Usage
 
 ```bash
-# Instead of: deno task ace make:controller User
+# Instead of: deno task cli make:controller User
 ./nessy make:controller User
 
-# All ACE commands work the same way
+# All CLI commands work the same way
 ./nessy db:migrate
 ./nessy router:list
 ./nessy tinker
@@ -417,11 +417,11 @@ Nessy includes several built-in commands to improve your workflow:
 
 #### Why Nessy?
 
-1. **Faster to type**: `./nessy` vs `deno task ace`
+1. **Faster to type**: `./nessy` vs `deno task cli`
 2. **Consistent interface**: One command for all operations
 3. **Enhanced DX**: Built-in shortcuts for common tasks
 4. **Project-specific**: Generated per-project, not global
-5. **Always up-to-date**: Calls `ace.ts` directly, no compilation needed
+5. **Always up-to-date**: Calls `cli.ts` directly, no compilation needed
 6. **Platform support**: Works on Unix/Linux/macOS/Windows
 
 ### Deprecation Contracts
@@ -624,7 +624,7 @@ Lockness provides three ways to install packages:
 **Option 1: Automated Installation (Recommended)**
 
 ```bash
-deno task ace package:install openapi
+deno task cli package:install openapi
 ```
 
 This command:
@@ -637,7 +637,7 @@ This command:
 **Option 2: Manual Configuration**
 
 ```bash
-deno task ace package:add openapi
+deno task cli package:add openapi
 ```
 
 This only adds the package to your configuration. You'll need to follow the
@@ -652,7 +652,7 @@ deno run -A jsr:@lockness/openapi/install
 #### Removing Packages
 
 ```bash
-deno task ace package:remove openapi
+deno task cli package:remove openapi
 ```
 
 This removes the package from `deno.json`. You'll need to manually delete any
@@ -663,16 +663,16 @@ generated files if desired.
 The package loader system works through convention:
 
 ```typescript
-// ace.ts
-import { Ace, loadPackageCommands, registerCoreCommands } from '@lockness/ace'
+// cli.ts
+import { Cli, loadPackageCommands, registerCoreCommands } from '@lockness/cli'
 
-const ace = new Ace()
-registerCoreCommands(ace)
+const cli = new Cli()
+registerCoreCommands(cli)
 
 // Loads commands from packages in deno.json
-await loadPackageCommands(ace)
+await loadPackageCommands(cli)
 
-await ace.discoverCommands('./src/command')
+await cli.discoverCommands('./src/command')
 ```
 
 The `loadPackageCommands()` function:
@@ -697,10 +697,10 @@ Packages export a register function from their main entry point:
 
 ```typescript
 // my-package/index.ts
-import type { Ace } from '@lockness/ace'
+import type { Cli } from '@lockness/cli'
 
-export function registerMyPackageCommands(ace: Ace) {
-    ace.register('my:command', async () => {
+export function registerMyPackageCommands(cli: Cli) {
+    cli.register('my:command', async () => {
         console.log('Hello from my package!')
     }, 'My custom command')
 }
@@ -710,7 +710,7 @@ Optionally, create an install script:
 
 ```typescript
 // my-package/install.ts
-import { addPackage } from '@lockness/ace'
+import { addPackage } from '@lockness/cli'
 
 async function main() {
     console.log('🌊 Installing my-package...\n')
@@ -744,7 +744,7 @@ password hashing, and guards.
 
 ```bash
 # Scaffold auth controller and user provider
-deno task ace make:auth
+deno task cli make:auth
 ```
 
 **Configure in kernel.ts:**
@@ -842,7 +842,7 @@ and Discord.
 **Scaffold with social auth:**
 
 ```bash
-deno task ace make:auth --social
+deno task cli make:auth --social
 ```
 
 **Configuration in kernel.ts:**
@@ -1027,7 +1027,7 @@ for sending emails, processing uploads, or any long-running task.
 **Create a job:**
 
 ```bash
-deno task ace make:job SendWelcomeEmail
+deno task cli make:job SendWelcomeEmail
 ```
 
 This creates `src/job/sendwelcomeemail_job.ts`:
@@ -1087,19 +1087,19 @@ await dispatch(SendWelcomeEmailJob, { userId: 1, email: 'user@example.com' }, {
 
 ```bash
 # Process jobs from default queue
-deno task ace queue:work
+deno task cli queue:work
 
 # Process specific queue
-deno task ace queue:work --queue=emails
+deno task cli queue:work --queue=emails
 
 # Process multiple queues
-deno task ace queue:work --queue=high,default,low
+deno task cli queue:work --queue=high,default,low
 
 # Process once and stop when empty
-deno task ace queue:work --once
+deno task cli queue:work --once
 
 # Clear a queue
-deno task ace queue:clear emails
+deno task cli queue:clear emails
 ```
 
 **Configure queue driver:**
@@ -1133,7 +1133,7 @@ Eloquent.
 .
 ├── lockness/              # 📦 Modular Framework Libraries
 │   ├── core/              # Core Web & DI logic
-│   ├── ace/               # CLI Command Engine (Ace)
+│   ├── cli/               # CLI Command Engine (Cli)
 │   ├── drizzle/           # Drizzle ORM Extension
 │   └── init/              # Scaffolding & Project Init
 ├── src/                   # 🚀 Framework Template (Boilerplate)
@@ -1146,7 +1146,7 @@ Eloquent.
 ├── scripts/               # Build & Internal Scripts
 ├── _output/               # Build Artifacts & Binaries
 ├── main.ts                # Entry point
-├── ace.ts                 # CLI Entry point
+├── cli.ts                 # CLI Entry point
 └── deno.json              # Config & Aliases
 ```
 
@@ -1170,7 +1170,7 @@ Eloquent.
   - `src/kernel.ts` → `lockness/init/stubs/init/src/kernel.ts.stub`
   - `deno.json` → `lockness/init/stubs/init/deno.json.stub`
   - `README.md` → `lockness/init/stubs/init/README.md.stub`
-  - `make:*` command outputs → corresponding stubs in `lockness/ace/stubs/` and
+  - `make:*` command outputs → corresponding stubs in `lockness/cli/stubs/` and
     `lockness/drizzle/stubs/`
 
 ## 🛠 Development Stack
@@ -1186,20 +1186,20 @@ experience:
   - `deno task build`: Generates the production SSR bundle.
   - `deno task start`: Runs the production server (on port 8888). Use
     `-- --force` to automatically kill any process already using the port.
-  - `deno task ace init`: Scaffolds a new project.
-  - `deno task ace make:model <Name> [-r] [-s] [-c] [-a]`: Scaffolds a model
+  - `deno task cli init`: Scaffolds a new project.
+  - `deno task cli make:model <Name> [-r] [-s] [-c] [-a]`: Scaffolds a model
     with optional repository (-r), seeder (-s), controller (-c), or all (-a).
-  - `deno task ace make:middleware <Name>`: Creates a new middleware class.
-  - `deno task ace make:component <Name>`: Creates a new JSX component.
-  - `deno task ace make:command <Name>`: Creates a new CLI command.
-  - `deno task ace db:generate`: Generates database migrations.
-  - `deno task ace db:migrate`: Applies pending migrations.
-  - `deno task ace db:push`: Pushes schema directly to database.
-  - `deno task ace db:studio`: Launches Drizzle Studio.
-  - `deno task ace make:seeder`: Creates a new seeder class.
-  - `deno task ace db:seed`: Runs database seeders.
-  - `deno task ace router:list`: Displays all registered routes.
-  - `deno task ace tinker`: Starts an interactive REPL session.
+  - `deno task cli make:middleware <Name>`: Creates a new middleware class.
+  - `deno task cli make:component <Name>`: Creates a new JSX component.
+  - `deno task cli make:command <Name>`: Creates a new CLI command.
+  - `deno task cli db:generate`: Generates database migrations.
+  - `deno task cli db:migrate`: Applies pending migrations.
+  - `deno task cli db:push`: Pushes schema directly to database.
+  - `deno task cli db:studio`: Launches Drizzle Studio.
+  - `deno task cli make:seeder`: Creates a new seeder class.
+  - `deno task cli db:seed`: Runs database seeders.
+  - `deno task cli router:list`: Displays all registered routes.
+  - `deno task cli tinker`: Starts an interactive REPL session.
   - `deno task test`: Runs the test suite.
   - `deno task test:coverage`: Runs tests with coverage report.
   - `deno task test:watch`: Runs tests in watch mode.
@@ -1209,7 +1209,7 @@ experience:
 List all registered routes with their details:
 
 ```bash
-deno task ace router:list
+deno task cli router:list
 ```
 
 This displays a formatted table showing:
@@ -1236,9 +1236,9 @@ Example output:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-### ACE Tinker (REPL)
+### CLI Tinker (REPL)
 
-The `ace tinker` command starts an interactive REPL (Read-Eval-Print Loop) for
+The `cli tinker` command starts an interactive REPL (Read-Eval-Print Loop) for
 exploring your application. It automatically loads:
 
 - **Models**: All exports from `src/model/`
@@ -1247,7 +1247,7 @@ exploring your application. It automatically loads:
 - **Database**: The `db` instance from your kernel (if available)
 
 ```bash
-$ deno task ace tinker
+$ deno task cli tinker
 
 🔮 Lockness Tinker - Interactive REPL
 Type ".help" for commands, ".exit" to quit

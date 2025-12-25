@@ -39,7 +39,7 @@ const navSections: NavSection[] = [
         links: [
             { title: 'Lockness Devtools', name: 'docs.devtools' },
             { title: 'Deprecation Contracts', name: 'docs.deprecation' },
-            { title: 'CLI (Ace)', name: 'docs.cli' },
+            { title: 'CLI (Cli)', name: 'docs.cli' },
             { title: 'Nessy CLI', name: 'docs.nessy' },
         ],
     },
