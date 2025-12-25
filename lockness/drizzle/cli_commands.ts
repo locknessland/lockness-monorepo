@@ -2,6 +2,7 @@ import type { Cli } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { container } from '@lockness/core'
 import { Database } from './database.ts'
+import type postgres from 'postgres'
 
 const currentDir = dirname(fromFileUrl(import.meta.url))
 const STUBS_PATH = join(currentDir, 'stubs')
@@ -117,7 +118,7 @@ export function registerDrizzleCommands(cli: Cli) {
         try {
             const db = await initDatabase()
             // Test connection using the client
-            await (db as any).client`SELECT 1`
+            await (db as { client: postgres.Sql }).client`SELECT 1`
             console.log('✅ Database connection successful')
         } catch (error) {
             console.error('❌ Database connection failed:', (error as Error).message)

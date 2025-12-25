@@ -154,7 +154,6 @@ async function testDatabaseConnection() {
     console.log('\n🔌 Testing database connection...')
 
     try {
-        const { default: postgres } = await import('npm:postgres@^3.4.4')
         const sql = postgres(databaseUrl)
 
         await sql`SELECT 1`
@@ -169,7 +168,7 @@ async function testDatabaseConnection() {
     }
 }
 
-async function showNextSteps() {
+function showNextSteps() {
     console.log('\n📦 @lockness/drizzle installation complete!\n')
     console.log('Next steps:')
     console.log('  1. Update DATABASE_URL in .env with your database credentials')
