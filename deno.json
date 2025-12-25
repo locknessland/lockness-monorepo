@@ -47,6 +47,7 @@
     "@std/cli": "jsr:@std/cli@1",
     "@std/fs": "jsr:@std/fs@1",
     "@std/path": "jsr:@std/path@1",
+    "@zod/zod": "jsr:@zod/zod@^4.2.1",
     "lockness": "./lockness/core/core.ts",
     "@lockness/core": "./lockness/core/core.ts",
     "@lockness/auth": "./lockness/auth/auth.ts",

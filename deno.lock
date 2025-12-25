@@ -12,6 +12,7 @@
     "jsr:@std/path@1": "1.1.3",
     "jsr:@std/path@^1.1.3": "1.1.3",
     "jsr:@std/testing@1": "1.0.16",
+    "jsr:@zod/zod@^4.2.1": "4.2.1",
     "npm:@aws-sdk/client-s3@^3.709.0": "3.958.0",
     "npm:@aws-sdk/s3-request-presigner@^3.709.0": "3.958.0",
     "npm:@hono/zod-validator@~0.4.1": "0.4.3_hono@4.11.1_zod@3.25.76",
@@ -69,6 +70,9 @@
         "jsr:@std/assert@^1.0.15",
         "jsr:@std/internal@^1.0.12"
       ]
+    },
+    "@zod/zod@4.2.1": {
+      "integrity": "693a557fccaf73bfcbcd132ca286929f3343cda9efb56e9780985aa41d229b38"
     }
   },
   "npm": {
@@ -2012,6 +2016,7 @@
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
       "jsr:@std/path@1",
+      "jsr:@zod/zod@^4.2.1",
       "npm:@hono/zod-validator@~0.4.1",
       "npm:@tailwindcss/postcss@4",
       "npm:drizzle-kit@~0.27.2",
@@ -2025,13 +2030,6 @@
       "npm:zod@^3.23.8"
     ],
     "members": {
-      "lockness/cli": {
-        "dependencies": [
-          "jsr:@std/assert@1",
-          "jsr:@std/fs@1",
-          "jsr:@std/path@1"
-        ]
-      },
       "lockness/auth": {
         "dependencies": [
           "jsr:@std/assert@1",
@@ -2041,6 +2039,13 @@
       "lockness/cache": {
         "dependencies": [
           "jsr:@std/assert@1"
+        ]
+      },
+      "lockness/cli": {
+        "dependencies": [
+          "jsr:@std/assert@1",
+          "jsr:@std/fs@1",
+          "jsr:@std/path@1"
         ]
       },
       "lockness/container": {
