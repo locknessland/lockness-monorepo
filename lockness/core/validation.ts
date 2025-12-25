@@ -92,10 +92,14 @@ export function Validate(
                     schema,
                     middleware: zValidator(target, schema, (result, c) => {
                         if (!result.success) {
-                            return globalValidationErrorHandler(
-                                result.error.flatten().fieldErrors,
-                                c,
-                            )
+                            // Format Zod errors for response
+                            const errors: Record<string, string[]> = {}
+                            result.error.issues.forEach((issue) => {
+                                const path = issue.path.join('.') || 'root'
+                                if (!errors[path]) errors[path] = []
+                                errors[path].push(issue.message)
+                            })
+                            return globalValidationErrorHandler(errors, c)
                         }
                     }),
                 })

@@ -116,7 +116,8 @@ export function registerDrizzleCommands(cli: Cli) {
         console.log('🔍 Checking database connection...')
         try {
             const db = await initDatabase()
-            await db.instance.execute('SELECT 1')
+            // Test connection using the client
+            await (db as any).client`SELECT 1`
             console.log('✅ Database connection successful')
         } catch (error) {
             console.error('❌ Database connection failed:', (error as Error).message)
