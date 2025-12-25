@@ -106,16 +106,18 @@ const LlmLinks = (props: { llmPath?: string }) => {
             </a>
             <button
                 onclick={`
+                    const btn = event.currentTarget;
+                    const icon = btn.querySelector('.copy-icon');
+                    const check = btn.querySelector('.check-icon');
+                    const text = btn.querySelector('.copy-text');
                     const url = window.location.origin + '/llms/${props.llmPath}.txt';
+                    
                     navigator.clipboard.writeText(url).then(() => {
-                        const btn = event.currentTarget;
-                        const icon = btn.querySelector('.copy-icon');
-                        const check = btn.querySelector('.check-icon');
-                        const text = btn.querySelector('.copy-text');
-                        
-                        // Add scale animation
-                        btn.style.transform = 'scale(0.95)';
-                        setTimeout(() => { btn.style.transform = 'scale(1)'; }, 100);
+                        // Bounce animation
+                        btn.style.animation = 'none';
+                        setTimeout(() => {
+                            btn.style.animation = 'bounce 0.5s ease';
+                        }, 10);
                         
                         // Switch icons
                         icon.style.display = 'none';
@@ -132,12 +134,13 @@ const LlmLinks = (props: { llmPath?: string }) => {
                             btn.style.backgroundColor = '';
                             btn.style.borderColor = '';
                             btn.style.color = '';
+                            btn.style.animation = '';
                         }, 2000);
                     });
                 `}
                 class='flex items-center gap-1.5 px-2 py-1 bg-muted/30 hover:bg-muted/50 border-2 border-muted-foreground/30 text-muted-foreground hover:text-foreground transition-all cursor-pointer'
                 title='Copy link to clipboard'
-                style='box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.2); transition: all 0.1s ease;'
+                style='box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.2);'
             >
                 <span class='copy-icon'><CopyIcon /></span>
                 <span class='check-icon' style='display: none;'><CheckIcon /></span>
@@ -301,6 +304,14 @@ export const DocsLayout = (
                         font-family: 'VT323', monospace !important;
                         font-size: 1.125rem;
                         line-height: 1.8;
+                    }
+                    
+                    /* Bounce animation for copy button */
+                    @keyframes bounce {
+                        0%, 100% { transform: translateY(0); }
+                        25% { transform: translateY(-8px); }
+                        50% { transform: translateY(-4px); }
+                        75% { transform: translateY(-6px); }
                     }
                 `,
                     }}
