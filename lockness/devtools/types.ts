@@ -72,6 +72,15 @@ export interface PerformanceMetric {
     type: 'route' | 'database' | 'middleware' | 'other'
 }
 
+export interface DeprecationEntry {
+    pkg: string
+    version: string
+    message: string
+    fullMessage: string
+    timestamp: number
+    stack?: string
+}
+
 export interface DevtoolsData {
     routes: RouteInfo[]
     logs: LogEntry[]
@@ -81,6 +90,7 @@ export interface DevtoolsData {
     queue: QueueJob[]
     mails: MailInfo[]
     performance: PerformanceMetric[]
+    deprecations: DeprecationEntry[]
 }
 
 export interface DevtoolsConfig {

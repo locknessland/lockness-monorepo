@@ -5,7 +5,7 @@
 
 import type { Context } from 'hono'
 import { collector } from './collector.ts'
-import type { LogEntry, RequestInfo, RouteInfo } from './types.ts'
+import type { LogEntry, RequestInfo, RouteInfo, DeprecationEntry } from './types.ts'
 
 // Embedded Tailwind CSS (minimal production build)
 const TAILWIND_CSS = `
@@ -140,6 +140,7 @@ export function renderDashboard(c: Context) {
             data.performance.length,
         )
     }
+                ${tab('Deprecations', activePanel === 'deprecations', data.deprecations.length)}
             </nav>
         </div>
     </div>
@@ -156,7 +157,7 @@ export function renderDashboard(c: Context) {
     }
                 ${card('Requests', data.requests.length, 'Captured', 'green')}
                 ${card('SQL Queries', data.queries.length, 'Logged', 'yellow')}
-                ${card('Log Entries', data.logs.length, 'Stored', 'red')}
+                ${card('Deprecations', data.deprecations.length, 'Notices', 'yellow')}
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -300,6 +301,48 @@ export function renderDashboard(c: Context) {
             <div class="bg-white rounded-lg shadow p-6">
                 <h2 class="text-xl font-semibold mb-4">Performance Metrics</h2>
                 <p class="text-gray-600">${data.performance.length} metrics collected</p>
+            </div>
+        </div>
+
+        <!-- Deprecations Panel -->
+        <div data-panel="deprecations" class="${activePanel !== 'deprecations' ? 'hidden' : ''}">
+            <div class="bg-white rounded-lg shadow overflow-hidden">
+                <div class="p-6 border-b border-gray-200">
+                    <h2 class="text-xl font-semibold">Deprecation Notices</h2>
+                    <p class="text-sm text-gray-500 mt-1">Found ${data.deprecations.length} deprecations triggered by packages.</p>
+                </div>
+                <table class="w-full">
+                    <thead class="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Since</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Package</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Message</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stack</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        ${data.deprecations.map((dep: DeprecationEntry) => `
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">${dep.version}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${dep.pkg}</td>
+                                <td class="px-6 py-4 text-sm text-gray-600">${dep.message}</td>
+                                <td class="px-6 py-4 text-xs font-mono text-gray-400">
+                                    <details class="cursor-pointer">
+                                        <summary class="hover:text-blue-500">View Stack</summary>
+                                        <pre class="mt-2 whitespace-pre-wrap max-w-lg overflow-auto">${dep.stack || 'No stack trace available'}</pre>
+                                    </details>
+                                </td>
+                            </tr>
+                        `).join('')}
+                        ${data.deprecations.length === 0 ? `
+                            <tr>
+                                <td colspan="4" class="px-6 py-12 text-center text-gray-500 italic">
+                                    No deprecation notices found. Your code is clean! 🎉
+                                </td>
+                            </tr>
+                        ` : ''}
+                    </tbody>
+                </table>
             </div>
         </div>
     </main>

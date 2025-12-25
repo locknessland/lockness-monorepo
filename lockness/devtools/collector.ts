@@ -13,6 +13,7 @@ import type {
     RouteInfo,
     SessionData,
     SQLQuery,
+    DeprecationEntry,
 } from './types.ts'
 
 export class DevtoolsCollector {
@@ -26,6 +27,7 @@ export class DevtoolsCollector {
         queue: [],
         mails: [],
         performance: [],
+        deprecations: [],
     }
 
     private maxLogs = 1000
@@ -150,6 +152,18 @@ export class DevtoolsCollector {
         return this.data.performance
     }
 
+    // Deprecations
+    addDeprecation(deprecation: DeprecationEntry): void {
+        this.data.deprecations.unshift(deprecation)
+        if (this.data.deprecations.length > 500) {
+            this.data.deprecations = this.data.deprecations.slice(0, 500)
+        }
+    }
+
+    getDeprecations(): DeprecationEntry[] {
+        return this.data.deprecations
+    }
+
     // Get all data
     getAllData(): DevtoolsData {
         return this.data
@@ -166,6 +180,7 @@ export class DevtoolsCollector {
             queue: [],
             mails: [],
             performance: [],
+            deprecations: [],
         }
     }
 }

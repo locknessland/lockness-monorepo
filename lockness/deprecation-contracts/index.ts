@@ -2,11 +2,32 @@
  * @lockness/deprecation-contracts
  * 
  * A generic function and convention to trigger deprecation notices.
- * Augmented for Lockness JS with Logger and Service Container integration.
+ * Augmented for Lockness JS with Logger, Service Container and Devtools integration.
  */
 
 import { container } from '@lockness/container'
 import { Logger } from '@lockness/logger'
+
+// Minimal interface for devtools collector to avoid 'any'
+interface Collector {
+    addDeprecation(entry: {
+        pkg: string
+        version: string
+        message: string
+        fullMessage: string
+        timestamp: number
+        stack?: string
+    }): void
+}
+
+// Optional import for devtools integration
+let devtoolsCollector: Collector | null = null
+try {
+    const module = await import('@lockness/devtools')
+    devtoolsCollector = module.collector as Collector
+} catch {
+    // Devtools not available
+}
 
 /**
  * Triggers a deprecation notice.
@@ -47,6 +68,18 @@ export function triggerDeprecation(
         throw new Error(`[DEPRECATION] ${fullMessage}`)
     }
 
+    // Attempt to collect in devtools
+    if (devtoolsCollector) {
+        devtoolsCollector.addDeprecation({
+            pkg,
+            version,
+            message,
+            fullMessage,
+            timestamp: Date.now(),
+            stack: new Error().stack,
+        })
+    }
+
     // Attempt to use Lockness Logger if available in container
     try {
         if (container.has(Logger)) {
@@ -55,7 +88,7 @@ export function triggerDeprecation(
             return
         }
     } catch {
-    // Fallback if container or logger fails
+        // Fallback if container or logger fails
     }
 
     // Default behavior is styled console.warn
