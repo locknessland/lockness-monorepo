@@ -1,6 +1,6 @@
 {
     "name": "@lockness/drizzle",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "exports": {
         ".": "./database.ts",
         "./commands": "./cli_commands.ts",

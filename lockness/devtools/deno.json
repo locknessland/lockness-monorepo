@@ -1,6 +1,6 @@
 {
     "name": "@lockness/devtools",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "exports": "./devtools.ts",
     "compilerOptions": {
         "jsx": "precompile",

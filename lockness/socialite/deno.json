@@ -1,6 +1,6 @@
 {
     "name": "@lockness/socialite",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "exports": "./socialite.ts",
     "tasks": {
         "test": "deno test --allow-all"

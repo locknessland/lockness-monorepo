@@ -1,6 +1,6 @@
 {
     "name": "@lockness/mail",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "exports": "./mail.ts",
     "tasks": {
         "test": "deno test --allow-all"
