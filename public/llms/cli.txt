@@ -9,7 +9,7 @@ Complete command reference for the Nessy CLI tool.
 deno run -A jsr:@lockness/cli
 
 # Or use the local wrapper
-./nessy <command>
+deno task cli <command>
 ```
 
 ## Global Commands
@@ -18,14 +18,14 @@ deno run -A jsr:@lockness/cli
 List all available commands with descriptions.
 
 ```bash
-./nessy list
+deno task cli list
 ```
 
 ### init
 Initialize a new Lockness project.
 
 ```bash
-./nessy init
+deno task cli init
 ```
 
 Creates:
@@ -42,13 +42,13 @@ Generate a new controller.
 
 ```bash
 # Basic controller
-./nessy make:controller User
+deno task cli make:controller User
 
 # With view
-./nessy make:controller User --view
+deno task cli make:controller User --view
 
 # Nested controller
-./nessy make:controller Admin/User
+deno task cli make:controller Admin/User
 ```
 
 Creates: `src/controller/user_controller.tsx`
@@ -61,20 +61,20 @@ Add a method to an existing controller.
 
 ```bash
 # RESTful action (auto-detects route)
-./nessy make:action User index
-./nessy make:action User show
-./nessy make:action User create
-./nessy make:action User store
-./nessy make:action User edit
-./nessy make:action User update
-./nessy make:action User destroy
+deno task cli make:action User index
+deno task cli make:action User show
+deno task cli make:action User create
+deno task cli make:action User store
+deno task cli make:action User edit
+deno task cli make:action User update
+deno task cli make:action User destroy
 
 # Custom action with HTTP method
-./nessy make:action User approve --method=post
-./nessy make:action User export --method=get
+deno task cli make:action User approve --method=post
+deno task cli make:action User export --method=get
 
 # With view
-./nessy make:action User create --view
+deno task cli make:action User create --view
 ```
 
 RESTful Conventions:
@@ -90,8 +90,8 @@ RESTful Conventions:
 Generate a new middleware class.
 
 ```bash
-./nessy make:middleware LogRequest
-./nessy make:middleware Auth
+deno task cli make:middleware LogRequest
+deno task cli make:middleware Auth
 ```
 
 Creates: `src/middleware/log_request_middleware.ts`
@@ -100,8 +100,8 @@ Creates: `src/middleware/log_request_middleware.ts`
 Generate a new service class.
 
 ```bash
-./nessy make:service Email
-./nessy make:service Payment
+deno task cli make:service Email
+deno task cli make:service Payment
 ```
 
 Creates: `src/service/email_service.ts`
@@ -110,8 +110,8 @@ Creates: `src/service/email_service.ts`
 Generate a Drizzle ORM model.
 
 ```bash
-./nessy make:model User
-./nessy make:model BlogPost
+deno task cli make:model User
+deno task cli make:model BlogPost
 ```
 
 Creates: `src/model/user.ts` with Drizzle schema
@@ -120,7 +120,7 @@ Creates: `src/model/user.ts` with Drizzle schema
 Generate a repository class.
 
 ```bash
-./nessy make:repository User
+deno task cli make:repository User
 ```
 
 Creates: `src/repository/user_repository.ts` with CRUD methods
@@ -129,7 +129,7 @@ Creates: `src/repository/user_repository.ts` with CRUD methods
 Generate a provider class.
 
 ```bash
-./nessy make:provider User
+deno task cli make:provider User
 ```
 
 Creates: `src/provider/user_provider.ts`
@@ -138,7 +138,7 @@ Creates: `src/provider/user_provider.ts`
 Generate a database seeder.
 
 ```bash
-./nessy make:seeder User
+deno task cli make:seeder User
 ```
 
 Creates: `database/seeders/user_seeder.ts`
@@ -147,7 +147,7 @@ Creates: `database/seeders/user_seeder.ts`
 Generate authentication scaffolding.
 
 ```bash
-./nessy make:auth
+deno task cli make:auth
 ```
 
 Creates:
@@ -162,7 +162,7 @@ Creates:
 Generate SQL migrations from Drizzle schema changes.
 
 ```bash
-./nessy db:generate
+deno task cli db:generate
 ```
 
 Analyzes `src/model/*.ts` and creates migration in `database/migrations/`
@@ -171,7 +171,7 @@ Analyzes `src/model/*.ts` and creates migration in `database/migrations/`
 Run pending migrations.
 
 ```bash
-./nessy db:migrate
+deno task cli db:migrate
 ```
 
 Applies all migrations in `database/migrations/`
@@ -180,7 +180,7 @@ Applies all migrations in `database/migrations/`
 Push schema changes directly to database (development only).
 
 ```bash
-./nessy db:push
+deno task cli db:push
 ```
 
 ⚠️ Skips migrations - use for rapid prototyping only.
@@ -189,7 +189,7 @@ Push schema changes directly to database (development only).
 Open Drizzle Studio (visual database browser).
 
 ```bash
-./nessy db:studio
+deno task cli db:studio
 ```
 
 Opens web interface at `https://local.drizzle.studio`
@@ -198,7 +198,7 @@ Opens web interface at `https://local.drizzle.studio`
 Check migration status.
 
 ```bash
-./nessy db:status
+deno task cli db:status
 ```
 
 Shows applied and pending migrations.
@@ -207,14 +207,14 @@ Shows applied and pending migrations.
 Validate migration files for conflicts.
 
 ```bash
-./nessy db:check
+deno task cli db:check
 ```
 
 ### db:fresh
 Drop all tables and re-run migrations.
 
 ```bash
-./nessy db:fresh
+deno task cli db:fresh
 ```
 
 ⚠️ Destructive - deletes all data!
@@ -224,10 +224,10 @@ Run database seeders.
 
 ```bash
 # Run all seeders
-./nessy db:seed
+deno task cli db:seed
 
 # Run specific seeder
-./nessy db:seed --class=UserSeeder
+deno task cli db:seed --class=UserSeeder
 ```
 
 ## Route Commands
@@ -236,7 +236,7 @@ Run database seeders.
 Generate `src/routes.ts` from controller decorators.
 
 ```bash
-./nessy routes:generate
+deno task cli routes:generate
 ```
 
 Scans `src/controller/**/*.tsx` and generates route definitions.
@@ -249,7 +249,7 @@ Scans `src/controller/**/*.tsx` and generates route definitions.
 Generate OpenAPI specification from decorators.
 
 ```bash
-./nessy openapi:generate
+deno task cli openapi:generate
 ```
 
 Creates `public/openapi.json` from controller routes and `@OpenApi` decorators.
@@ -258,7 +258,7 @@ Creates `public/openapi.json` from controller routes and `@OpenApi` decorators.
 Open Swagger UI for testing API.
 
 ```bash
-./nessy openapi:ui
+deno task cli openapi:ui
 ```
 
 Starts dev server with Swagger UI at `/openapi`
@@ -285,7 +285,7 @@ deno task dev
 npm run build:css
 
 # Generate routes
-./nessy routes:generate
+deno task cli routes:generate
 
 # Run server
 deno task start
@@ -293,7 +293,7 @@ deno task start
 
 ## Tips
 
-- Use `./nessy list` to see all available commands
+- Use `deno task cli list` to see all available commands
 - Commands support nested paths: `make:controller Admin/User`
 - `make:controller --view` saves time on CRUD operations
 - `make:action` follows RESTful conventions automatically

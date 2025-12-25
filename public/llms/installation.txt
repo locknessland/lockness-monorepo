@@ -193,8 +193,8 @@ deno task dev
 
 ## Next Steps
 
-- Create your first controller: `./nessy make:controller Welcome`
-- Setup database: `./nessy db:generate`
+- Create your first controller: `deno task cli make:controller Welcome`
+- Setup database: `deno task cli db:generate`
 - Read the [Getting Started](/docs/getting-started) guide
 - Explore [CLI commands](/docs/cli)
 

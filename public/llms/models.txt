@@ -82,19 +82,19 @@ export class UserRepository {
 
 ```bash
 # Create model
-./nessy make:model Post           # Just model
-./nessy make:model Post -r        # + Repository
-./nessy make:model Post -s        # + Seeder
-./nessy make:model Post -c        # + Controller
-./nessy make:model Post -a        # All of above
+deno task cli make:model Post           # Just model
+deno task cli make:model Post -r        # + Repository
+deno task cli make:model Post -s        # + Seeder
+deno task cli make:model Post -c        # + Controller
+deno task cli make:model Post -a        # All of above
 
 # Database operations
-./nessy db:generate               # Generate migrations
-./nessy db:migrate                # Run migrations
-./nessy db:push                   # Push schema changes
-./nessy db:seed                   # Run seeders
-./nessy db:studio                 # Open Drizzle Studio
-./nessy db:fresh                  # Drop all & remigrate
+deno task cli db:generate               # Generate migrations
+deno task cli db:migrate                # Run migrations
+deno task cli db:push                   # Push schema changes
+deno task cli db:seed                   # Run seeders
+deno task cli db:studio                 # Open Drizzle Studio
+deno task cli db:fresh                  # Drop all & remigrate
 ```
 
 ## Configuration

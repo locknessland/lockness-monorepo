@@ -18,7 +18,7 @@ Server runs at `http://localhost:8888`
 ## Create Your First Controller
 
 ```bash
-./nessy make:controller Welcome --view
+deno task cli make:controller Welcome --view
 ```
 
 Creates:
@@ -62,7 +62,7 @@ Visit `http://localhost:8888/welcome`
 ### 1. Create Model
 
 ```bash
-./nessy make:model Post
+deno task cli make:model Post
 ```
 
 **Model (`src/model/post.ts`):**
@@ -84,14 +84,14 @@ export const postSelectSchema = createSelectSchema(post)
 ### 2. Generate Migration
 
 ```bash
-./nessy db:generate
-./nessy db:migrate
+deno task cli db:generate
+deno task cli db:migrate
 ```
 
 ### 3. Create Repository
 
 ```bash
-./nessy make:repository Post
+deno task cli make:repository Post
 ```
 
 **Repository (`src/repository/post_repository.ts`):**
@@ -138,9 +138,9 @@ export class PostRepository {
 ### 4. Create CRUD Controller
 
 ```bash
-./nessy make:controller Post --view
-./nessy make:action Post show --view
-./nessy make:action Post store
+deno task cli make:controller Post --view
+deno task cli make:action Post show --view
+deno task cli make:action Post store
 ```
 
 **Controller (`src/controller/post_controller.tsx`):**
@@ -186,7 +186,7 @@ export class PostController {
 ## Add Authentication
 
 ```bash
-./nessy make:auth
+deno task cli make:auth
 ```
 
 Creates:
@@ -230,15 +230,15 @@ deno task dev
 ```bash
 # 1. Modify model
 # 2. Generate migration
-./nessy db:generate
+deno task cli db:generate
 
 # 3. Review migration in database/migrations/
 
 # 4. Apply migration
-./nessy db:migrate
+deno task cli db:migrate
 
 # 5. Seed database
-./nessy db:seed
+deno task cli db:seed
 ```
 
 ## Project Structure
@@ -352,7 +352,7 @@ export class PostService {
 
 ## Tips
 
-- Use `./nessy list` to see all available commands
+- Use `deno task cli list` to see all available commands
 - Controllers auto-register in development mode
 - Use `--view` flag to generate views with controllers
 - Database migrations are reversible

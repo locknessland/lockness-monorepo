@@ -51,13 +51,13 @@ return c.redirect(route('auth.login'))
 
 ```bash
 # Create controller
-./nessy make:controller User                 # JSON API
-./nessy make:controller User --view          # With JSX view
+deno task cli make:controller User                 # JSON API
+deno task cli make:controller User --view          # With JSX view
 
 # Add action to existing controller
-./nessy make:action User show                # GET method
-./nessy make:action User store --method=post # POST method
-./nessy make:action User create --view       # With view
+deno task cli make:action User show                # GET method
+deno task cli make:action User store --method=post # POST method
+deno task cli make:action User create --view       # With view
 ```
 
 ## RESTful Conventions

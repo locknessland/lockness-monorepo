@@ -20,8 +20,8 @@ Command-line interface for scaffolding and development.
 
 ```bash
 deno run -A jsr:@lockness/cli init
-./nessy make:controller User
-./nessy db:migrate
+deno task cli make:controller User
+deno task cli db:migrate
 ```
 
 ### @lockness/drizzle
@@ -185,8 +185,8 @@ export class UserApiController {
 
 Generate spec:
 ```bash
-./nessy openapi:generate
-./nessy openapi:ui
+deno task cli openapi:generate
+deno task cli openapi:ui
 ```
 
 ### @lockness/storage

@@ -6,7 +6,7 @@ Session-based authentication system with password hashing.
 
 ```bash
 # Generate auth scaffolding
-./nessy make:auth
+deno task cli make:auth
 ```
 
 ## Configuration

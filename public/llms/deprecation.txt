@@ -293,7 +293,7 @@ export class UserRepository {
 ### Check for Deprecations
 
 ```bash
-./nessy deprecation:check
+deno task cli deprecation:check
 ```
 
 Output:
@@ -316,7 +316,7 @@ Found 3 deprecated features in use:
 ### Generate Report
 
 ```bash
-./nessy deprecation:report --output=deprecations.json
+deno task cli deprecation:report --output=deprecations.json
 ```
 
 ## Testing
@@ -442,14 +442,14 @@ export class NotificationService {
 # .github/workflows/ci.yml
 - name: Check deprecations
   run: |
-    ./nessy deprecation:check --strict
+    deno task cli deprecation:check --strict
 ```
 
 ### Track Over Time
 
 ```bash
 # Generate report
-./nessy deprecation:report --output=deprecations-${VERSION}.json
+deno task cli deprecation:report --output=deprecations-${VERSION}.json
 
 # Compare with previous version
 diff deprecations-v1.5.0.json deprecations-v1.6.0.json

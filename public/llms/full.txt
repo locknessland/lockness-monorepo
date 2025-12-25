@@ -13,11 +13,11 @@ cd my-app
 deno task dev
 
 # Create a controller
-./nessy make:controller User
-./nessy make:controller User --view  # With JSX view
+deno task cli make:controller User
+deno task cli make:controller User --view  # With JSX view
 
 # Create a model with repository, seeder, controller
-./nessy make:model Post -a
+deno task cli make:model Post -a
 ```
 
 ## Core Concepts
@@ -77,43 +77,43 @@ return c.redirect(route('auth.login'))
 
 ```bash
 # Controllers
-./nessy make:controller User                 # JSON API controller
-./nessy make:controller User --view          # With JSX view
-./nessy make:action User show                # Add method to controller
-./nessy make:action User store --method=post # With HTTP method
-./nessy make:action User create --view       # Add method + view
+deno task cli make:controller User                 # JSON API controller
+deno task cli make:controller User --view          # With JSX view
+deno task cli make:action User show                # Add method to controller
+deno task cli make:action User store --method=post # With HTTP method
+deno task cli make:action User create --view       # Add method + view
 
 # Models & Database
-./nessy make:model Post           # Just model
-./nessy make:model Post -r        # + Repository
-./nessy make:model Post -s        # + Seeder
-./nessy make:model Post -c        # + Controller
-./nessy make:model Post -a        # All of above
+deno task cli make:model Post           # Just model
+deno task cli make:model Post -r        # + Repository
+deno task cli make:model Post -s        # + Seeder
+deno task cli make:model Post -c        # + Controller
+deno task cli make:model Post -a        # All of above
 
 # Database operations
-./nessy db:generate               # Generate migrations
-./nessy db:migrate                # Run migrations
-./nessy db:push                   # Push schema changes
-./nessy db:seed                   # Run seeders
-./nessy db:studio                 # Open Drizzle Studio
-./nessy db:check                  # Test connection
-./nessy db:fresh                  # Drop all & remigrate
+deno task cli db:generate               # Generate migrations
+deno task cli db:migrate                # Run migrations
+deno task cli db:push                   # Push schema changes
+deno task cli db:seed                   # Run seeders
+deno task cli db:studio                 # Open Drizzle Studio
+deno task cli db:check                  # Test connection
+deno task cli db:fresh                  # Drop all & remigrate
 
 # Other scaffolding
-./nessy make:middleware Auth
-./nessy make:service User
-./nessy make:view home
-./nessy make:component Button
-./nessy make:job SendEmail
-./nessy make:command Greet
-./nessy make:crud Post            # Full CRUD scaffold
+deno task cli make:middleware Auth
+deno task cli make:service User
+deno task cli make:view home
+deno task cli make:component Button
+deno task cli make:job SendEmail
+deno task cli make:command Greet
+deno task cli make:crud Post            # Full CRUD scaffold
 
 # Project commands
-./nessy dev                       # Start dev server
-./nessy build                     # Build for production
-./nessy test [pattern]            # Run tests
-./nessy check                     # Type-check project
-./nessy router:list               # List all routes
+deno task cli dev                       # Start dev server
+deno task cli build                     # Build for production
+deno task cli test [pattern]            # Run tests
+deno task cli check                     # Type-check project
+deno task cli router:list               # List all routes
 ```
 
 ### Dependency Injection
@@ -245,7 +245,7 @@ Session-based authentication system:
 
 ```typescript
 // Generate auth scaffolding
-./nessy make:auth
+deno task cli make:auth
 
 // Configure in kernel.ts
 import { configureAuth, container } from 'lockness'
@@ -453,7 +453,7 @@ export class AppController {
 
 ### Packages
 
-Official packages (install with `./nessy package:install <name>`):
+Official packages (install with `deno task cli package:install <name>`):
 
 - **@lockness/drizzle** - Drizzle ORM integration
 - **@lockness/openapi** - OpenAPI/Swagger docs
@@ -505,13 +505,13 @@ Development mode runs 3 parallel processes:
 3. Deno server (hot-reload)
 
 ```bash
-./nessy dev
+deno task cli dev
 ```
 
 Production deployment options:
 1. **Deno Deploy** (recommended) - Native TypeScript execution
-2. **Compiled binary** - `./nessy compile` creates standalone executable
-3. **Direct execution** - `./nessy start` runs main.ts
+2. **Compiled binary** - `deno task cli compile` creates standalone executable
+3. **Direct execution** - `deno task cli start` runs main.ts
 
 ### Project Structure
 

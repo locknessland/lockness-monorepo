@@ -5,7 +5,7 @@ Class-based middleware with dependency injection.
 ## Create Middleware
 
 ```bash
-./nessy make:middleware LogRequest
+deno task cli make:middleware LogRequest
 ```
 
 Creates: `src/middleware/log_request_middleware.ts`
