@@ -92,7 +92,7 @@ const LlmLinks = (props: { llmPath?: string }) => {
     if (!props.llmPath) return null
 
     return (
-        <div class='flex items-center gap-2 mb-6 pb-4 border-b-2 border-border/50'>
+        <div class='flex items-center justify-end gap-2 mb-6 pb-4 border-b-2 border-border/50'>
             <span class='text-muted-foreground font-pixel text-[10px]'>LLM DOCS:</span>
             <a
                 href={`/llms/${props.llmPath}.txt`}
