@@ -1,19 +1,22 @@
+import { route } from 'lockness'
+
 interface NavLink {
     title: string
-    href: string
+    name: string
 }
 
 const navLinks: NavLink[] = [
-    { title: 'Installation', href: '/docs/installation' },
-    { title: 'Getting Started', href: '/docs/getting-started' },
-    { title: 'Routing & Controllers', href: '/docs/routing' },
-    { title: 'Models & Database', href: '/docs/models' },
-    { title: 'Validation', href: '/docs/validation' },
-    { title: 'Authentication', href: '/docs/authentication' },
-    { title: 'Middleware', href: '/docs/middleware' },
-    { title: 'Components', href: '/docs/components' },
-    { title: 'CLI (Ace)', href: '/docs/cli' },
-    { title: 'Nessy CLI', href: '/docs/nessy' },
+    { title: 'Installation', name: 'docs.installation' },
+    { title: 'Getting Started', name: 'docs.getting-started' },
+    { title: 'Routing & Controllers', name: 'docs.routing' },
+    { title: 'Models & Database', name: 'docs.models' },
+    { title: 'Validation', name: 'docs.validation' },
+    { title: 'Authentication', name: 'docs.authentication' },
+    { title: 'Middleware', name: 'docs.middleware' },
+    { title: 'Components', name: 'docs.components' },
+    { title: 'CLI (Ace)', name: 'docs.cli' },
+    { title: 'Nessy CLI', name: 'docs.nessy' },
+    { title: 'Packages', name: 'docs.packages' },
 ]
 
 export const DocsSidebar = (props: { currentPath: string }) => {
@@ -23,7 +26,7 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             <button
                 type='button'
                 id='mobile-menu-btn'
-                class='md:hidden fixed bottom-6 right-6 z-[60] w-14 h-14 bg-primary border-4 border-border flex items-center justify-center cursor-pointer hover:bg-primary/90'
+                class='md:hidden fixed bottom-6 right-6 z-60 w-14 h-14 bg-primary border-4 border-border flex items-center justify-center cursor-pointer hover:bg-primary/90'
                 style='box-shadow: 4px 4px 0 0 rgba(0,0,0,0.5);'
                 aria-label='Toggle menu'
             >
@@ -46,7 +49,7 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             {/* Backdrop (visible only when menu is open on mobile) */}
             <div
                 id='mobile-menu-backdrop'
-                class='md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[40] hidden'
+                class='md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40 hidden'
             >
             </div>
 
@@ -57,10 +60,11 @@ export const DocsSidebar = (props: { currentPath: string }) => {
             >
                 <nav class='md:fixed p-6 space-y-2'>
                     {navLinks.map((link) => {
-                        const isActive = props.currentPath === link.href
+                        const href = route(link.name)
+                        const isActive = props.currentPath === href
                         return (
                             <a
-                                href={link.href}
+                                href={href}
                                 class={`block font-pixel text-[10px] w-full px-4 py-2 border-2 ${
                                     isActive
                                         ? 'border-primary bg-primary/20 text-primary '

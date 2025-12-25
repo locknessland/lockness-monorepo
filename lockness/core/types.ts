@@ -16,6 +16,7 @@ export interface Route {
     method: string
     path: string
     methodName: string
+    name?: string
 }
 
 export interface ControllerMetadata {

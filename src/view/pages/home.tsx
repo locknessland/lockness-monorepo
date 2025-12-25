@@ -1,3 +1,4 @@
+import { route } from 'lockness'
 import { LandingLayout } from '../layouts/landing_layout.tsx'
 import pkg from '../../../lockness/core/deno.json' with { type: 'json' }
 
@@ -290,7 +291,7 @@ const CodeBlock = (
             </span>
         </div>
         <pre class='p-4 overflow-x-auto'>
-            <code class="text-foreground font-pixel-body leading-relaxed whitespace-pre-wrap break-words">{children}</code>
+            <code class="text-foreground font-pixel-body leading-relaxed whitespace-pre-wrap wrap-break-word">{children}</code>
         </pre>
     </div>
 )
@@ -395,7 +396,7 @@ export const HomeView = () => {
                 {/* Hero Section */}
                 <section class='pt-28 pb-20 px-6 relative overflow-hidden scanlines'>
                     {/* Background Pattern - Pixel grid */}
-                    <div class='absolute inset-0 bg-[linear-gradient(to_right,var(--border)_2px,transparent_2px),linear-gradient(to_bottom,var(--border)_2px,transparent_2px)] bg-[size:2rem_2rem] opacity-30'>
+                    <div class='absolute inset-0 bg-[linear-gradient(to_right,var(--border)_2px,transparent_2px),linear-gradient(to_bottom,var(--border)_2px,transparent_2px)] bg-size-[2rem_2rem] opacity-30'>
                     </div>
 
                     {/* Animated glow orbs */}
@@ -459,7 +460,7 @@ export const HomeView = () => {
                                     style='animation-delay: 300ms; animation-fill-mode: backwards;'
                                 >
                                     <a
-                                        href='/docs/installation'
+                                        href={route('docs.installation')}
                                         class='pixel-btn bg-primary text-primary-foreground'
                                     >
                                         GET STARTED
@@ -1135,7 +1136,7 @@ export const HomeView = () => {
                         </p>
                         <div class='flex flex-col sm:flex-row items-center justify-center gap-4'>
                             <a
-                                href='/docs/installation'
+                                href={route('docs.installation')}
                                 class='pixel-btn bg-primary text-primary-foreground'
                             >
                                 GET STARTED NOW

@@ -1,6 +1,7 @@
 export * from './types.ts'
 export * from './app.ts'
 export * from './decorators.ts'
+export * from './router.ts'
 export * from './validation.ts'
 export * from './helpers.ts'
 export * from './components.tsx'

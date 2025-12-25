@@ -3,7 +3,7 @@ import { HomeView } from '@view/pages/home.tsx'
 
 @Controller('/')
 export class AppController {
-    @Get('/')
+    @Get('/', { name: 'home' })
     index(c: Context) {
         return c.render(<HomeView />)
     }

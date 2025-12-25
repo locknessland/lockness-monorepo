@@ -69,6 +69,7 @@ export function registerRouterCommands(ace: Ace) {
             interface RouteInfo {
                 method: string
                 path: string
+                name?: string
                 controller: string
                 action: string
                 middlewares: string[]
@@ -129,6 +130,7 @@ export function registerRouterCommands(ace: Ace) {
                     routes.push({
                         method: route.method.toUpperCase(),
                         path: fullPath,
+                        name: route.name,
                         controller: controllerName,
                         action: route.methodName,
                         middlewares: middlewareNames,
@@ -149,6 +151,10 @@ export function registerRouterCommands(ace: Ace) {
                 ...routes.map((r) => r.method.length),
             )
             const pathWidth = Math.max(20, ...routes.map((r) => r.path.length))
+            const nameWidth = Math.max(
+                4,
+                ...routes.map((r) => (r.name || '').length),
+            )
             const controllerWidth = Math.max(
                 15,
                 ...routes.map((r) => r.controller.length),
@@ -161,7 +167,7 @@ export function registerRouterCommands(ace: Ace) {
             // Print header
             const header = `┃ ${'METHOD'.padEnd(methodWidth)} ┃ ${
                 'PATH'.padEnd(pathWidth)
-            } ┃ ${'CONTROLLER'.padEnd(controllerWidth)} ┃ ${
+                } ┃ ${'NAME'.padEnd(nameWidth)} ┃ ${'CONTROLLER'.padEnd(controllerWidth)} ┃ ${
                 'ACTION'.padEnd(actionWidth)
             } ┃ MIDDLEWARES`
             const separator = '━'.repeat(header.length)
@@ -174,6 +180,7 @@ export function registerRouterCommands(ace: Ace) {
             for (const route of routes) {
                 const method = route.method.padEnd(methodWidth)
                 const path = route.path.padEnd(pathWidth)
+                const name = (route.name || '-').padEnd(nameWidth)
                 const controller = route.controller.padEnd(controllerWidth)
                 const action = route.action.padEnd(actionWidth)
                 const middlewares = route.middlewares.length > 0
@@ -189,7 +196,7 @@ export function registerRouterCommands(ace: Ace) {
                 else if (route.method === 'DELETE') methodColor = '\x1b[31m'
 
                 console.log(
-                    `┃ ${methodColor}${method}\x1b[0m ┃ ${path} ┃ ${controller} ┃ ${action} ┃ ${middlewares}`,
+                    `┃ ${methodColor}${method}\x1b[0m ┃ ${path} ┃ ${name} ┃ ${controller} ┃ ${action} ┃ ${middlewares}`,
                 )
             }
 

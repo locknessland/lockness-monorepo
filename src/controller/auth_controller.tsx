@@ -18,7 +18,7 @@ export class AuthController {
     /**
      * Show login page
      */
-    @Get('/login')
+    @Get('/login', { name: 'auth.login' })
     showLogin(c: Context) {
         return c.html(<LoginPage />)
     }
@@ -26,7 +26,7 @@ export class AuthController {
     /**
      * Handle login
      */
-    @Post('/login')
+    @Post('/login', { name: 'auth.login.submit' })
     async login(c: Context) {
         const body = await c.req.parseBody()
         const email = body.email as string
@@ -58,7 +58,7 @@ export class AuthController {
     /**
      * Show registration page
      */
-    @Get('/register')
+    @Get('/register', { name: 'auth.register' })
     showRegister(c: Context) {
         return c.html(<RegisterPage />)
     }
@@ -66,7 +66,7 @@ export class AuthController {
     /**
      * Handle registration
      */
-    @Post('/register')
+    @Post('/register', { name: 'auth.register.submit' })
     async register(c: Context) {
         const body = await c.req.parseBody()
         const name = body.name as string
@@ -111,7 +111,7 @@ export class AuthController {
     /**
      * Protected profile page (requires authentication)
      */
-    @Get('/profile')
+    @Get('/profile', { name: 'auth.profile' })
     @Use('auth')
     profile(c: Context) {
         const auth = getAuth(c)
@@ -123,7 +123,7 @@ export class AuthController {
     /**
      * Handle logout
      */
-    @Post('/logout')
+    @Post('/logout', { name: 'auth.logout' })
     @Use('auth')
     async logout(c: Context) {
         const auth = getAuth(c)

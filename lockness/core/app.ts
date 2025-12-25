@@ -2,6 +2,7 @@
 import { Hono, type MiddlewareHandler } from 'hono'
 import { join } from 'node:path'
 import { jsxRenderer } from 'hono/jsx-renderer'
+import { namedRoutes } from './router.ts'
 import { createAuthMiddleware, createGuestMiddleware } from './auth.ts'
 import type {
     AppConfig,
@@ -24,6 +25,7 @@ export interface RouteInfo {
     controller: string
     action: string
     middlewares: string[]
+    name?: string
 }
 
 export class App {
@@ -238,14 +240,19 @@ export class App {
                     ],
                 })
 
-                // Store route info for router:list command
+                // Store route info for router:list command and named routes
                 this.routes.push({
                     method: route.method.toUpperCase(),
                     path: fullPath,
                     controller: controllerName,
                     action: route.methodName,
                     middlewares: middlewareNames,
+                    name: route.name,
                 })
+
+                if (route.name) {
+                    namedRoutes.set(route.name, fullPath)
+                }
             }
         }
 

@@ -20,10 +20,14 @@ export function Controller(path: string): any {
     }
 }
 
-type RouteDecorator = (path?: string) => any
+export interface RouteOptions {
+    name?: string
+}
+
+type RouteDecorator = (path?: string, options?: RouteOptions) => any
 
 function createRouteDecorator(method: string): RouteDecorator {
-    return function (path = '') {
+    return function (path = '', options: RouteOptions = {}) {
         return function (
             _target: any,
             context: ClassMethodDecoratorContext,
@@ -43,6 +47,7 @@ function createRouteDecorator(method: string): RouteDecorator {
                         method,
                         path,
                         methodName,
+                        name: options.name,
                     })
                 }
             })

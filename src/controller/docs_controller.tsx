@@ -1,4 +1,4 @@
-import { Context, Controller, Get } from 'lockness'
+import { Context, Controller, Get, route } from 'lockness'
 import { InstallationPage } from '@view/pages/docs/installation.tsx'
 import { GettingStartedPage } from '@view/pages/docs/getting-started.tsx'
 import { RoutingPage } from '@view/pages/docs/routing.tsx'
@@ -13,62 +13,62 @@ import { PackagesPage } from '@view/pages/docs/packages.tsx'
 
 @Controller('/docs')
 export class DocsController {
-    @Get('/')
+    @Get('/', { name: 'docs.index' })
     index(c: Context) {
-        return c.redirect('/docs/installation')
+        return c.redirect(route('docs.installation'))
     }
 
-    @Get('/installation')
+    @Get('/installation', { name: 'docs.installation' })
     installation(c: Context) {
         return c.html(<InstallationPage />)
     }
 
-    @Get('/getting-started')
+    @Get('/getting-started', { name: 'docs.getting-started' })
     gettingStarted(c: Context) {
         return c.html(<GettingStartedPage />)
     }
 
-    @Get('/routing')
+    @Get('/routing', { name: 'docs.routing' })
     routing(c: Context) {
         return c.html(<RoutingPage />)
     }
 
-    @Get('/models')
+    @Get('/models', { name: 'docs.models' })
     models(c: Context) {
         return c.html(<ModelsPage />)
     }
 
-    @Get('/validation')
+    @Get('/validation', { name: 'docs.validation' })
     validation(c: Context) {
         return c.html(<ValidationPage />)
     }
 
-    @Get('/authentication')
+    @Get('/authentication', { name: 'docs.authentication' })
     authentication(c: Context) {
         return c.html(<AuthenticationPage />)
     }
 
-    @Get('/middleware')
+    @Get('/middleware', { name: 'docs.middleware' })
     middleware(c: Context) {
         return c.html(<MiddlewarePage />)
     }
 
-    @Get('/cli')
+    @Get('/cli', { name: 'docs.cli' })
     cli(c: Context) {
         return c.html(<CliPage />)
     }
 
-    @Get('/components')
+    @Get('/components', { name: 'docs.components' })
     components(c: Context) {
         return c.html(<ComponentsPage />)
     }
 
-    @Get('/nessy')
+    @Get('/nessy', { name: 'docs.nessy' })
     nessy(c: Context) {
         return c.html(<NessyPage />)
     }
 
-    @Get('/packages')
+    @Get('/packages', { name: 'docs.packages' })
     packages(c: Context) {
         return c.html(<PackagesPage />)
     }
