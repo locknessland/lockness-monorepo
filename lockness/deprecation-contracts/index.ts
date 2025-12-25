@@ -2,8 +2,11 @@
  * @lockness/deprecation-contracts
  * 
  * A generic function and convention to trigger deprecation notices.
- * Inspired by symfony/deprecation-contracts.
+ * Augmented for Lockness JS with Logger and Service Container integration.
  */
+
+import { container } from '@lockness/container'
+import { Logger } from '@lockness/logger'
 
 /**
  * Triggers a deprecation notice.
@@ -37,13 +40,28 @@ export function triggerDeprecation(
     }
 
     const prefix = pkg || version ? `Since ${pkg} ${version}: ` : ''
-    const fullMessage = `[DEPRECATION] ${prefix}${formattedMessage}`
+    const fullMessage = `${prefix}${formattedMessage}`
 
     // In CI or strictly configured environments, we might want to throw
     if (Deno.env.get('STRICT_DEPRECATIONS') === 'true') {
-        throw new Error(fullMessage)
+        throw new Error(`[DEPRECATION] ${fullMessage}`)
     }
 
-    // Default behavior is console.warn (equivalent to PHP's USER_DEPRECATED when not silenced)
-    console.warn(`%c${fullMessage}`, 'color: #eab308; font-weight: bold;')
+    // Attempt to use Lockness Logger if available in container
+    try {
+        if (container.has(Logger)) {
+            const loggerInstance = container.get(Logger) as Logger
+            loggerInstance.warn(`[DEPRECATION] ${fullMessage}`)
+            return
+        }
+    } catch {
+    // Fallback if container or logger fails
+    }
+
+    // Default behavior is styled console.warn
+    console.warn(
+        `%c[DEPRECATION] %c${fullMessage}`,
+        'color: #eab308; font-weight: bold;',
+        'color: inherit; font-weight: normal;'
+    )
 }
