@@ -5,6 +5,13 @@
         ".": "./openapi.ts",
         "./install": "./install.ts"
     },
+    "tasks": {
+        "test": "deno test -A tests/"
+    },
+    "imports": {
+        "@std/assert": "jsr:@std/assert@1",
+        "@lockness/core": "../core/core.ts"
+    },
     "compilerOptions": {
         "jsx": "precompile",
         "jsxImportSource": "hono/jsx"

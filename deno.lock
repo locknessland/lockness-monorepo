@@ -2088,6 +2088,11 @@
           "jsr:@std/assert@1"
         ]
       },
+      "lockness/openapi": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ]
+      },
       "lockness/queue": {
         "dependencies": [
           "jsr:@std/assert@1"
