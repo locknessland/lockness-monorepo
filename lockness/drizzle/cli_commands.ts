@@ -97,6 +97,61 @@ export function registerDrizzleCommands(cli: Cli) {
         }
     })
 
+    cli.register('db:status', async () => {
+        console.log('📊 Checking migration status...')
+        const command = new Deno.Command('deno', {
+            args: ['run', '-A', 'npm:drizzle-kit', 'check'],
+            stdout: 'inherit',
+            stderr: 'inherit',
+        })
+        const { code } = await command.output()
+        if (code === 0) {
+            console.log('✅ Schema is up to date')
+        } else {
+            console.log('⚠️  Schema changes detected. Run db:generate to create a migration')
+        }
+    })
+
+    cli.register('db:check', async () => {
+        console.log('🔍 Checking database connection...')
+        try {
+            const db = await initDatabase()
+            await db.instance.execute('SELECT 1')
+            console.log('✅ Database connection successful')
+        } catch (error) {
+            console.error('❌ Database connection failed:', (error as Error).message)
+            console.log('\n💡 Check your DATABASE_URL in .env')
+        }
+    })
+
+    cli.register('db:fresh', async () => {
+        console.log('🚨 WARNING: This will drop ALL tables and re-migrate')
+        console.log('⏳ Starting in 3 seconds... (Ctrl+C to cancel)')
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+
+        console.log('🗑️  Dropping database...')
+        const dropCommand = new Deno.Command('deno', {
+            args: ['run', '-A', 'npm:drizzle-kit', 'drop'],
+            stdout: 'inherit',
+            stderr: 'inherit',
+        })
+        await dropCommand.output()
+
+        console.log('🔄 Running migrations...')
+        const migrateCommand = new Deno.Command('deno', {
+            args: ['run', '-A', 'npm:drizzle-kit', 'migrate'],
+            stdout: 'inherit',
+            stderr: 'inherit',
+        })
+        const { code } = await migrateCommand.output()
+
+        if (code === 0) {
+            console.log('✅ Database refreshed successfully')
+        } else {
+            console.error('❌ Failed to refresh database')
+        }
+    })
+
     cli.register('db:seed', async (args) => {
         console.log('🌱 Running seeders...')
 
@@ -120,7 +175,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         (v) =>
                             typeof v === 'function' &&
                             v.prototype?.run,
-                    ) as { new (): { run(): Promise<void> } } | undefined
+                    ) as { new(): { run(): Promise<void> } } | undefined
 
                     if (SeederClass) {
                         const seeder = new SeederClass()
@@ -142,7 +197,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         `file://${Deno.cwd()}/${mainSeederPath}`
                     )
                     const DatabaseSeeder = module.DatabaseSeeder as
-                        | { new (): { run(): Promise<void> } }
+                        | { new(): { run(): Promise<void> } }
                         | undefined
 
                     if (DatabaseSeeder) {
@@ -286,8 +341,7 @@ export function registerDrizzleCommands(cli: Cli) {
                 createdFiles.push(filePath)
             } catch (error) {
                 console.error(
-                    `❌ Failed to create repository: ${
-                        (error as Error).message
+                    `❌ Failed to create repository: ${(error as Error).message
                     }`,
                 )
             }
@@ -341,8 +395,7 @@ export function registerDrizzleCommands(cli: Cli) {
                 createdFiles.push(filePath)
             } catch (error) {
                 console.error(
-                    `❌ Failed to create controller: ${
-                        (error as Error).message
+                    `❌ Failed to create controller: ${(error as Error).message
                     }`,
                 )
             }

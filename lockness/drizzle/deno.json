@@ -3,10 +3,13 @@
     "version": "0.0.1",
     "exports": {
         ".": "./database.ts",
-        "./commands": "./cli_commands.ts"
+        "./commands": "./cli_commands.ts",
+        "./install": "./install.ts"
     },
     "imports": {
         "@lockness/core": "../core/core.ts",
+        "@lockness/cli": "../cli/cli.ts",
+        "@std/path": "jsr:@std/path@^1.0.0",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "postgres": "npm:postgres@^3.4.4"
     }

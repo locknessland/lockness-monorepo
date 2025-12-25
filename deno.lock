@@ -2073,6 +2073,7 @@
       },
       "lockness/drizzle": {
         "dependencies": [
+          "jsr:@std/path@1",
           "npm:drizzle-orm@~0.36.3",
           "npm:postgres@^3.4.4"
         ]
