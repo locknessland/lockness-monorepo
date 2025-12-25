@@ -232,7 +232,7 @@ const searchResults = await db.instance
 Launch the visual database browser:
 
 ```bash
-deno task cli db:studio
+dx drizzle-kit studio
 ```
 
 This opens Drizzle Studio at `https://local.drizzle.studio` where you can:
@@ -241,3 +241,4 @@ This opens Drizzle Studio at `https://local.drizzle.studio` where you can:
 - Run queries
 - Edit records
 - View relationships
+- Manage your database visually
