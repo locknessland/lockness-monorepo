@@ -46,7 +46,7 @@ export function registerInitCommand(cli: Cli) {
                 `❌ Initialization failed: ${(error as Error).message}`,
             )
         }
-    })
+    }, 'Initialize a new Lockness project')
 }
 
 if (import.meta.main) {

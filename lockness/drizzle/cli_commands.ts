@@ -53,7 +53,7 @@ export function registerDrizzleCommands(cli: Cli) {
         } else {
             console.error('❌ Failed to generate migrations')
         }
-    })
+    }, 'Generate migration files from schema changes')
 
     cli.register('db:migrate', async () => {
         console.log('🚀 Running migrations...')
@@ -68,7 +68,7 @@ export function registerDrizzleCommands(cli: Cli) {
         } else {
             console.error('❌ Failed to apply migrations')
         }
-    })
+    }, 'Run pending database migrations')
 
     cli.register('db:push', async () => {
         console.log('🔄 Pushing schema to database...')
@@ -83,7 +83,7 @@ export function registerDrizzleCommands(cli: Cli) {
         } else {
             console.error('❌ Failed to push schema')
         }
-    })
+    }, 'Push schema changes directly to database (without migrations)')
 
     cli.register('db:studio', async () => {
         console.log('🎨 Starting Drizzle Studio...')
@@ -96,7 +96,7 @@ export function registerDrizzleCommands(cli: Cli) {
         if (code !== 0) {
             console.error('❌ Failed to start Drizzle Studio')
         }
-    })
+    }, 'Open Drizzle Studio (database GUI)')
 
     cli.register('db:status', async () => {
         console.log('📊 Checking migration status...')
@@ -111,7 +111,7 @@ export function registerDrizzleCommands(cli: Cli) {
         } else {
             console.log('⚠️  Schema changes detected. Run db:generate to create a migration')
         }
-    })
+    }, 'Check if migrations are up to date with schema')
 
     cli.register('db:check', async () => {
         console.log('🔍 Checking database connection...')
@@ -124,7 +124,7 @@ export function registerDrizzleCommands(cli: Cli) {
             console.error('❌ Database connection failed:', (error as Error).message)
             console.log('\n💡 Check your DATABASE_URL in .env')
         }
-    })
+    }, 'Test database connection')
 
     cli.register('db:fresh', async () => {
         console.log('🚨 WARNING: This will drop ALL tables and re-migrate')
@@ -152,7 +152,7 @@ export function registerDrizzleCommands(cli: Cli) {
         } else {
             console.error('❌ Failed to refresh database')
         }
-    })
+    }, 'Drop all tables and run migrations from scratch')
 
     cli.register('db:seed', async (args) => {
         console.log('🌱 Running seeders...')
@@ -230,7 +230,7 @@ export function registerDrizzleCommands(cli: Cli) {
             // Close database connection
             await db.close()
         }
-    })
+    }, 'Seed the database with test data')
 
     cli.register('make:seeder', async (args) => {
         const name = args[0]
@@ -269,7 +269,7 @@ export function registerDrizzleCommands(cli: Cli) {
                 `❌ Failed to create seeder: ${(error as Error).message}`,
             )
         }
-    })
+    }, 'Create a new database seeder')
 
     cli.register('make:model', async (args) => {
         const { name, repository, seeder, controller } = parseFlags(args)
@@ -414,5 +414,5 @@ export function registerDrizzleCommands(cli: Cli) {
                 '   -r  repository   -s  seeder   -c  controller   -a  all',
             )
         }
-    })
+    }, 'Create a new Drizzle model (with optional repository, seeder, controller)')
 }
