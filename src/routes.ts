@@ -12,10 +12,12 @@ import { ApiDocsController } from '@controller/api_docs_controller.ts'
 import { AppController } from '@controller/app_controller.tsx'
 import { AuthController } from '@controller/auth_controller.tsx'
 import { DocsController } from '@controller/docs_controller.tsx'
+import { LlmController } from '@controller/llm_controller.tsx'
 
 export const controllers = [
     ApiDocsController,
     AppController,
     AuthController,
     DocsController,
+    LlmController,
 ]

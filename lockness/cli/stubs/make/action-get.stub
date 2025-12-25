@@ -1,0 +1,5 @@
+
+    @Get('{{ path }}', { name: '{{ routeName }}' })
+    {{ methodName }}(c: Context) {
+        {{ body }}
+    }

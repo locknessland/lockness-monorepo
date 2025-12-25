@@ -1,0 +1,5 @@
+
+    @Put('{{ path }}', { name: '{{ routeName }}' })
+    async {{ methodName }}(c: Context) {
+        {{ body }}
+    }
