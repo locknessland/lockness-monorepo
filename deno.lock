@@ -2059,6 +2059,11 @@
           "npm:zod@^3.23.8"
         ]
       },
+      "lockness/deprecation-contracts": {
+        "dependencies": [
+          "jsr:@std/assert@1"
+        ]
+      },
       "lockness/drizzle": {
         "dependencies": [
           "npm:drizzle-orm@~0.36.3",

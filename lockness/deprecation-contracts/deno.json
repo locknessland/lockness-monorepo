@@ -1,0 +1,14 @@
+{
+    "name": "@lockness/deprecation-contracts",
+    "version": "0.1.0",
+    "exports": {
+        ".": "./index.ts",
+        "./install": "./install.ts"
+    },
+    "tasks": {
+        "test": "deno test -A tests/"
+    },
+    "imports": {
+        "@std/assert": "jsr:@std/assert@1"
+    }
+}

@@ -16,7 +16,8 @@
     "./lockness/validator",
     "./lockness/ace",
     "./lockness/drizzle",
-    "./lockness/init"
+    "./lockness/init",
+    "./lockness/deprecation-contracts"
   ],
   "nodeModulesDir": "auto",
   "tasks": {
@@ -63,6 +64,7 @@
     "@lockness/ace": "./lockness/ace/ace.ts",
     "@lockness/drizzle": "./lockness/drizzle/database.ts",
     "@lockness/devtools": "./lockness/devtools/devtools.ts",
+    "@lockness/deprecation-contracts": "./lockness/deprecation-contracts/index.ts",
     "hono": "npm:hono@^4.11.1",
     "hono/": "npm:/hono@^4.11.1/",
     "postgres": "npm:postgres@^3.4.4",
