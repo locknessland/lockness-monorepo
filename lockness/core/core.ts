@@ -7,7 +7,6 @@ export * from './helpers.ts'
 export * from './components.tsx'
 export * from './auth.ts'
 export { html } from 'hono/html'
-export { z } from 'zod'
 
 // Re-export from separate libs
 export * from '@lockness/cache'
