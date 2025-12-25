@@ -5,19 +5,51 @@ interface NavLink {
     name: string
 }
 
-const navLinks: NavLink[] = [
-    { title: 'Installation', name: 'docs.installation' },
-    { title: 'Getting Started', name: 'docs.getting-started' },
-    { title: 'Routing & Controllers', name: 'docs.routing' },
-    { title: 'Models & Database', name: 'docs.models' },
-    { title: 'Validation', name: 'docs.validation' },
-    { title: 'Authentication', name: 'docs.authentication' },
-    { title: 'Middleware', name: 'docs.middleware' },
-    { title: 'Components', name: 'docs.components' },
-    { title: 'CLI (Ace)', name: 'docs.cli' },
-    { title: 'Nessy CLI', name: 'docs.nessy' },
-    { title: 'Packages', name: 'docs.packages' },
-    { title: 'Deprecation', name: 'docs.deprecation' },
+interface NavSection {
+    title: string
+    links: NavLink[]
+}
+
+const navSections: NavSection[] = [
+    {
+        title: 'Getting Started',
+        links: [
+            { title: 'Installation', name: 'docs.installation' },
+            { title: 'Introduction', name: 'docs.getting-started' },
+        ],
+    },
+    {
+        title: 'Core Concepts',
+        links: [
+            { title: 'Routing & Controllers', name: 'docs.routing' },
+            { title: 'Dependency Injection', name: 'docs.dependency-injection' },
+            { title: 'Middleware', name: 'docs.middleware' },
+            { title: 'Validation', name: 'docs.validation' },
+        ],
+    },
+    {
+        title: 'Database & State',
+        links: [
+            { title: 'Models & Database', name: 'docs.models' },
+            { title: 'Session Management', name: 'docs.sessions' },
+        ],
+    },
+    {
+        title: 'Development Tools',
+        links: [
+            { title: 'Lockness Devtools', name: 'docs.devtools' },
+            { title: 'Deprecation Contracts', name: 'docs.deprecation' },
+            { title: 'CLI (Ace)', name: 'docs.cli' },
+            { title: 'Nessy CLI', name: 'docs.nessy' },
+        ],
+    },
+    {
+        title: 'Advanced',
+        links: [
+            { title: 'View Components', name: 'docs.components' },
+            { title: 'Package Management', name: 'docs.packages' },
+        ],
+    },
 ]
 
 export const DocsSidebar = (props: { currentPath: string }) => {
@@ -59,26 +91,35 @@ export const DocsSidebar = (props: { currentPath: string }) => {
                 id='mobile-sidebar'
                 class='hidden md:block md:static md:w-64 border-r-4 border-border bg-card/30 overflow-y-auto scanlines md:z-auto min-h-screen min-w-[290px] md:min-w-[290px]'
             >
-                <nav class='md:fixed p-6 space-y-2'>
-                    {navLinks.map((link) => {
-                        const href = route(link.name)
-                        const isActive = props.currentPath === href
-                        return (
-                            <a
-                                href={href}
-                                class={`block font-pixel text-[10px] w-full px-4 py-2 border-2 ${
-                                    isActive
-                                        ? 'border-primary bg-primary/20 text-primary '
-                                        : 'border-border bg-background hover:border-primary hover:text-primary text-muted-foreground'
-                                }`}
-                                style={isActive
-                                    ? 'box-shadow: 2px 2px 0 0 rgba(var(--primary-rgb), 0.3);'
-                                    : ''}
-                            >
-                                {link.title}
-                            </a>
-                        )
-                    })}
+                <nav class='md:fixed p-6 space-y-8 overflow-y-auto max-h-screen pb-20'>
+                    {navSections.map((section) => (
+                        <div key={section.title}>
+                            <h3 class='font-pixel text-[12px] text-primary mb-4 uppercase tracking-wider'>
+                                {section.title}
+                            </h3>
+                            <div class='space-y-2'>
+                                {section.links.map((link) => {
+                                    const href = route(link.name)
+                                    const isActive = props.currentPath === href
+                                    return (
+                                        <a
+                                            key={link.name}
+                                            href={href}
+                                            class={`block font-pixel text-[10px] w-full px-4 py-2 border-2 ${isActive
+                                                    ? 'border-primary bg-primary/20 text-primary '
+                                                    : 'border-border bg-background hover:border-primary hover:text-primary text-muted-foreground'
+                                                }`}
+                                            style={isActive
+                                                ? 'box-shadow: 2px 2px 0 0 rgba(var(--primary-rgb), 0.3);'
+                                                : ''}
+                                        >
+                                            {link.title}
+                                        </a>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    ))}
                 </nav>
             </aside>
 

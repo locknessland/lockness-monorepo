@@ -11,6 +11,9 @@ import { ComponentsPage } from '@view/pages/docs/components.tsx'
 import { NessyPage } from '@view/pages/docs/nessy.tsx'
 import { PackagesPage } from '@view/pages/docs/packages.tsx'
 import { DeprecationPage } from '@view/pages/docs/deprecation.tsx'
+import { DependencyInjectionPage } from '@view/pages/docs/dependency-injection.tsx'
+import { SessionsPage } from '@view/pages/docs/sessions.tsx'
+import { DevtoolsPage } from '@view/pages/docs/devtools.tsx'
 
 @Controller('/docs')
 export class DocsController {
@@ -77,5 +80,20 @@ export class DocsController {
     @Get('/deprecation', { name: 'docs.deprecation' })
     deprecation(c: Context) {
         return c.html(<DeprecationPage />)
+    }
+
+    @Get('/dependency-injection', { name: 'docs.dependency-injection' })
+    dependencyInjection(c: Context) {
+        return c.html(<DependencyInjectionPage />)
+    }
+
+    @Get('/sessions', { name: 'docs.sessions' })
+    sessions(c: Context) {
+        return c.html(<SessionsPage />)
+    }
+
+    @Get('/devtools', { name: 'docs.devtools' })
+    devtools(c: Context) {
+        return c.html(<DevtoolsPage />)
     }
 }
