@@ -69,7 +69,53 @@ export class PostController {
 }
 ```
 
-> **Pro Tip:** Use `deno task cli make:controller Name` to generate boilerplate
+## Quick Scaffolding
+
+Generate controllers quickly with the CLI:
+
+```bash
+# API controller (JSON responses)
+deno task cli make:controller User
+
+# Web controller (renders JSX views)
+deno task cli make:controller User --view
+```
+
+## Adding Actions to Controllers
+
+Add new actions (methods) to existing controllers:
+
+```bash
+# Basic action
+deno task cli make:action User show
+
+# With specific HTTP method
+deno task cli make:action User store --method=post
+deno task cli make:action User update --method=put
+deno task cli make:action User destroy --method=delete
+
+# With view rendering
+deno task cli make:action User create --view
+```
+
+The command automatically:
+- Adds the method to your controller class
+- Follows RESTful conventions for common action names
+- Imports required decorators (@Post, @Put, etc.)
+- Generates appropriate route paths and names
+- Creates views when using `--view` flag
+
+**RESTful Conventions:**
+
+| Action  | Method | Path      | Route Name     |
+|---------|--------|-----------|----------------|
+| index   | GET    | /         | resource.index |
+| show    | GET    | /:id      | resource.show  |
+| create  | GET    | /create   | resource.create|
+| store   | POST   | /         | resource.store |
+| edit    | GET    | /:id/edit | resource.edit  |
+| update  | PUT    | /:id      | resource.update|
+| destroy | DELETE | /:id      | resource.destroy|
 
 ## Named Routes
 

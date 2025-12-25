@@ -5,11 +5,18 @@ setup to deployment.
 
 ## 🎯 Your First Controller
 
-Let's create a simple API endpoint. Use the CLI CLI to scaffold a controller:
+Let's create a simple API endpoint. Use the CLI to scaffold a controller:
 
 ```bash
+# API endpoint (returns JSON)
 deno task cli make:controller Hello
+
+# Web page (renders JSX view)
+deno task cli make:controller Hello --view
 ```
+
+The `--view` flag automatically creates a view in `src/view/pages/hello.tsx` and
+generates a controller that renders it.
 
 This creates `src/controller/hello_controller.ts`. Edit it:
 

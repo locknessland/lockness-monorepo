@@ -395,6 +395,9 @@ Nessy includes several built-in commands to improve your workflow:
 ```bash
 # Scaffolding
 ./nessy make:controller Post
+./nessy make:controller Post --view  # With automatic view generation
+./nessy make:action Post show        # Add action to existing controller
+./nessy make:action Post create --view --method=get
 ./nessy make:model Comment -a
 ./nessy make:auth --social
 
@@ -426,7 +429,8 @@ Nessy includes several built-in commands to improve your workflow:
 
 ### Deprecation Contracts
 
-Lockness includes a powerful deprecation system to help you evolve your codebase without breaking changes.
+Lockness includes a powerful deprecation system to help you evolve your codebase
+without breaking changes.
 
 **Using the Decorator:**
 
@@ -453,11 +457,14 @@ triggerDeprecation('my-pkg', '1.0.0', 'Message with %s', 'placeholder')
 
 **Devtools Integration:**
 
-All deprecations are automatically captured and displayed in the **Lockness Devtools**, providing a full stack trace for each notice.
+All deprecations are automatically captured and displayed in the **Lockness
+Devtools**, providing a full stack trace for each notice.
 
 ### Named Routes
 
-Lockness allows you to assign names to your routes, making it easier to generate URLs without hardcoding paths. This is especially useful for navigation links and redirects.
+Lockness allows you to assign names to your routes, making it easier to generate
+URLs without hardcoding paths. This is especially useful for navigation links
+and redirects.
 
 **Assigning Names:**
 
@@ -494,7 +501,8 @@ return c.redirect(route('auth.login'))
 
 **Listing Named Routes:**
 
-The `./nessy router:list` command displays all route names in a dedicated column.
+The `./nessy router:list` command displays all route names in a dedicated
+column.
 
 ### Session Management
 

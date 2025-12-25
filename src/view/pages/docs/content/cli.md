@@ -23,7 +23,30 @@ deno task cli
 
 ```bash
 deno task cli make:controller User
+
+# With automatic view generation
+deno task cli make:controller User --view
 ```
+
+The `--view` flag automatically creates a corresponding view in
+`src/view/pages/{name}.tsx` and generates a controller method that renders it
+using `c.html()`.
+
+**make:action** - Add a new action (method) to an existing controller:
+
+```bash
+deno task cli make:action User show
+
+# With specific HTTP method
+deno task cli make:action User store --method=post
+
+# With automatic view generation
+deno task cli make:action User create --view
+```
+
+Supported methods: `get`, `post`, `put`, `delete`, `patch`. The command follows
+RESTful conventions for common action names (index, show, create, store, edit,
+update, destroy).
 
 **make:model** - Create a model with optional related files:
 

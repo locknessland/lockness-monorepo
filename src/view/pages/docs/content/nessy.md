@@ -219,6 +219,8 @@ when you run `nessy:install`.
 ```bash
 # Scaffolding
 ./nessy make:controller Post
+./nessy make:controller Post --view  # With automatic view generation
+./nessy make:action Post show        # Add action to existing controller
 ./nessy make:model Comment -a
 ./nessy make:auth --social
 
