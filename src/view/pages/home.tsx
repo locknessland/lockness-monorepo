@@ -1164,8 +1164,7 @@ export const HomeView = () => {
                                     </span>
                                 </div>
                                 <p class='text-muted-foreground leading-relaxed'>
-                                    The modern full-stack MVC framework for Deno
-                                    2.0
+                                    The modern web full-stack TypeScript MVC framework for Deno 2.0
                                 </p>
                             </div>
 
