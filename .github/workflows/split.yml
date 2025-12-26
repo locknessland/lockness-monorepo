@@ -44,7 +44,7 @@ jobs:
           # The destination repository URL
           repository_host: github.com
           # Change "locknessjs" to your real GitHub organization name
-          repository_organization: 'locknessjs'
+          repository_organization: ${{ secrets.REPOSITORY_ORGANIZATION }}
           repository_name: '${{ matrix.package }}'
 
           # Use a Personal Access Token with 'repo' scope
