@@ -20,7 +20,7 @@
 - [x] **Middleware Improvements**
   - [x] Global middleware support (`globalMiddlewares` in kernel).
   - [x] Named middleware (e.g., `@Use('auth')` with registry in kernel).
-- [x] **CLI (Cli) Enhancements**
+- [x] **CLI Enhancements**
   - [x] Support for user-defined commands in `src/command/` with `@Command`
         decorator.
   - [x] `cli tinker` (REPL) for application interaction.

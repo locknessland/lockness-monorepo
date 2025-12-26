@@ -655,7 +655,7 @@ export const HomeView = () => {
                             />
                             <FeatureCard
                                 icon={<TerminalIcon />}
-                                title='Powerful CLI (Cli)'
+                                title='Powerful CLI'
                                 description='Scaffold controllers, models, middleware, jobs and more with the Cli CLI engine.'
                                 delay={500}
                             />
