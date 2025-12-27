@@ -1,0 +1,37 @@
+{
+    "name": "@lockness/hono",
+    "version": "0.1.0",
+    "exports": {
+        ".": "./mod.ts",
+        "./jsx": "./jsx.ts",
+        "./jsx-runtime": "./jsx-runtime.ts",
+        "./jsx/jsx-runtime": "./jsx-runtime.ts",
+        "./jsx-renderer": "./jsx-renderer.ts",
+        "./deno": "./deno.ts",
+        "./html": "./html.ts",
+        "./types": "./types.ts",
+        "./cookie": "./cookie.ts",
+        "./cors": "./cors.ts"
+    },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "jsx.ts",
+            "jsx-runtime.ts",
+            "jsx-renderer.ts",
+            "deno.ts",
+            "html.ts",
+            "types.ts",
+            "cookie.ts",
+            "cors.ts",
+            "deno.json",
+            "README.md"
+        ],
+        "exclude": [
+            "tests/"
+        ]
+    },
+    "imports": {
+        "hono": "npm:hono@^4.11.1"
+    }
+}

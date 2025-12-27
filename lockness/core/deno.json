@@ -36,15 +36,6 @@
         "@std/assert": "jsr:@std/assert@1",
         "@std/testing/bdd": "jsr:@std/testing@^1.0.0/bdd",
         "@std/expect": "jsr:@std/expect@^1.0.0",
-        "hono/cookie": "npm:hono@^4.11.1/cookie",
-        "hono/cors": "npm:hono@^4.11.1/cors",
-        "hono": "npm:hono@^4.11.1",
-        "hono/": "npm:hono@^4.11.1/",
-        "hono/jsx": "npm:hono@^4.11.1/jsx",
-        "hono/jsx/jsx-runtime": "npm:hono@^4.11.1/jsx/jsx-runtime",
-        "hono/jsx-renderer": "npm:hono@^4.11.1/jsx-renderer",
-        "hono/deno": "npm:hono@^4.11.1/deno",
-        "hono/html": "npm:hono@^4.11.1/html",
-        "hono/types": "npm:hono@^4.11.1/types"
+        "hono": "jsr:@lockness/hono@^0.1.0"
     }
 }

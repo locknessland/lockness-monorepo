@@ -17,7 +17,8 @@
         "./lockness/cli",
         "./lockness/drizzle",
         "./lockness/init",
-        "./lockness/deprecation-contracts"
+        "./lockness/deprecation-contracts",
+        "./lockness/hono"
     ],
     "nodeModulesDir": "auto",
     "tasks": {

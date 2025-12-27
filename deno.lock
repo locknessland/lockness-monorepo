@@ -2027,9 +2027,9 @@
     "members": {
       "lockness/auth": {
         "dependencies": [
+          "jsr:@lockness/hono@0.1",
           "jsr:@std/assert@1",
-          "npm:drizzle-orm@~0.36.3",
-          "npm:hono@^4.11.1"
+          "npm:drizzle-orm@~0.36.3"
         ]
       },
       "lockness/cache": {
@@ -2051,11 +2051,11 @@
       },
       "lockness/core": {
         "dependencies": [
+          "jsr:@lockness/hono@0.1",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/path@1",
-          "jsr:@std/testing@1",
-          "npm:hono@^4.11.1"
+          "jsr:@std/testing@1"
         ]
       },
       "lockness/deprecation-contracts": {
@@ -2065,7 +2065,7 @@
       },
       "lockness/devtools": {
         "dependencies": [
-          "npm:hono@^4.11.1"
+          "jsr:@lockness/hono@0.1"
         ]
       },
       "lockness/drizzle": {
@@ -2078,6 +2078,11 @@
       "lockness/events": {
         "dependencies": [
           "jsr:@std/assert@1"
+        ]
+      },
+      "lockness/hono": {
+        "dependencies": [
+          "npm:hono@^4.11.1"
         ]
       },
       "lockness/init": {
@@ -2100,8 +2105,8 @@
       },
       "lockness/openapi": {
         "dependencies": [
-          "jsr:@std/assert@1",
-          "npm:hono@^4.11.1"
+          "jsr:@lockness/hono@0.1",
+          "jsr:@std/assert@1"
         ]
       },
       "lockness/queue": {
@@ -2111,16 +2116,16 @@
       },
       "lockness/session": {
         "dependencies": [
-          "jsr:@std/assert@1",
-          "npm:hono@^4.11.1"
+          "jsr:@lockness/hono@0.1",
+          "jsr:@std/assert@1"
         ]
       },
       "lockness/socialite": {
         "dependencies": [
+          "jsr:@lockness/hono@0.1",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
-          "jsr:@std/testing@1",
-          "npm:hono@^4.11.1"
+          "jsr:@std/testing@1"
         ]
       },
       "lockness/storage": {
