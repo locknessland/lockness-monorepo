@@ -2,17 +2,16 @@ import { Cli, loadPackageCommands, registerCoreCommands } from '@lockness/cli'
 
 const cli = new Cli()
 
-// Register core commands (make, auth, queue, etc.)
+// Register framework core commands (make:controller, make:middleware, etc.)
 registerCoreCommands(cli)
 
-// Load commands from packages listed in deno.json "lockness.packages"
+// Load commands from installed packages (drizzle, openapi, etc.)
+// verified in deno.json under "lockness.packages"
 await loadPackageCommands(cli)
 
 // Discover user-defined commands in src/command/
 await cli.discoverCommands('./src/command')
 
-
 if (import.meta.main) {
     await cli.run(Deno.args)
-    Deno.exit(0)
 }
