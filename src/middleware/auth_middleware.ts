@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono'
-import { type IMiddleware, Middleware } from 'lockness'
+import { type IMiddleware, Middleware } from '@lockness/core'
 
 /**
  * Auth middleware - checks if user is authenticated
