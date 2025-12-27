@@ -1,8 +1,6 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@hono/hono@^4.8.3": "4.11.2",
-    "jsr:@hono/zod-validator@~0.7.6": "0.7.6",
     "jsr:@std/assert@1": "1.0.16",
     "jsr:@std/assert@^1.0.14": "1.0.16",
     "jsr:@std/assert@^1.0.15": "1.0.16",
@@ -14,33 +12,21 @@
     "jsr:@std/path@1": "1.1.4",
     "jsr:@std/path@^1.1.4": "1.1.4",
     "jsr:@std/testing@1": "1.0.16",
-    "jsr:@zod/zod@^4.2.1": "4.2.1",
     "npm:@aws-sdk/client-s3@^3.709.0": "3.958.0",
     "npm:@aws-sdk/s3-request-presigner@^3.709.0": "3.958.0",
+    "npm:@hono/zod-validator@~0.7.6": "0.7.6_hono@4.11.3_zod@4.2.1",
     "npm:@tailwindcss/postcss@4": "4.1.18",
-    "npm:drizzle-kit@*": "0.27.2_esbuild@0.19.12",
     "npm:drizzle-kit@~0.27.2": "0.27.2_esbuild@0.19.12",
     "npm:drizzle-orm@~0.36.3": "0.36.4_postgres@3.4.7",
     "npm:drizzle-zod@~0.5.1": "0.5.1_drizzle-orm@0.36.4__postgres@3.4.7_zod@4.2.1_postgres@3.4.7",
-    "npm:hono@^4.11.1": "4.11.2",
-    "npm:postcss-cli@*": "11.0.1_postcss@8.5.6",
+    "npm:hono@^4.11.1": "4.11.3",
     "npm:postcss-cli@11": "11.0.1_postcss@8.5.6",
     "npm:postcss@^8.4.49": "8.5.6",
     "npm:postgres@^3.4.4": "3.4.7",
     "npm:tailwindcss@4": "4.1.18",
-    "npm:zod@^4.1.13": "4.2.1"
+    "npm:zod@^4.2.1": "4.2.1"
   },
   "jsr": {
-    "@hono/hono@4.11.2": {
-      "integrity": "e2c9395af6f58129f29e7e61fd5dcc648290c467600d2d65780240ac2c50f312"
-    },
-    "@hono/zod-validator@0.7.6": {
-      "integrity": "cc15ec57dd8a49e49d81f1790fb2d35cb96c9d3b8b14d8d0b851c00ab00e50ca",
-      "dependencies": [
-        "jsr:@hono/hono",
-        "npm:zod"
-      ]
-    },
     "@std/assert@1.0.16": {
       "integrity": "6a7272ed1eaa77defe76e5ff63ca705d9c495077e2d5fd0126d2b53fc5bd6532",
       "dependencies": [
@@ -82,9 +68,6 @@
         "jsr:@std/assert@^1.0.15",
         "jsr:@std/internal@^1.0.12"
       ]
-    },
-    "@zod/zod@4.2.1": {
-      "integrity": "693a557fccaf73bfcbcd132ca286929f3343cda9efb56e9780985aa41d229b38"
     }
   },
   "npm": {
@@ -905,6 +888,13 @@
       "os": ["win32"],
       "cpu": ["x64"]
     },
+    "@hono/zod-validator@0.7.6_hono@4.11.3_zod@4.2.1": {
+      "integrity": "sha512-Io1B6d011Gj1KknV4rXYz4le5+5EubcWEU/speUjuw9XMMIaP3n78yXLhjd2A3PXaXaUwEAluOiAyLqhBEJgsw==",
+      "dependencies": [
+        "hono",
+        "zod"
+      ]
+    },
     "@jridgewell/gen-mapping@0.3.13": {
       "integrity": "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==",
       "dependencies": [
@@ -1709,8 +1699,8 @@
     "graceful-fs@4.2.11": {
       "integrity": "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ=="
     },
-    "hono@4.11.2": {
-      "integrity": "sha512-o+avdUAD1v94oHkjGBhiMhBV4WBHxhbu0+CUVH78hhphKy/OKQLxtKjkmmNcrMlbYAhAbsM/9F+l3KnYxyD3Lg=="
+    "hono@4.11.3": {
+      "integrity": "sha512-PmQi306+M/ct/m5s66Hrg+adPnkD5jiO6IjA7WhWw0gSBSo1EcRegwuI1deZ+wd5pzCGynCcn2DprnE4/yEV4w=="
     },
     "is-binary-path@2.1.0": {
       "integrity": "sha512-ZMERYes6pDydyuGidse7OsHxtbI7WVeUEozgR/g7rd0xUimYNlvZRE/K2MgZTjWy725IfelLeVcEM97mmtRGXw==",
@@ -2017,12 +2007,11 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@hono/zod-validator@~0.7.6",
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
       "jsr:@std/path@1",
-      "jsr:@zod/zod@^4.2.1",
+      "npm:@hono/zod-validator@~0.7.6",
       "npm:@tailwindcss/postcss@4",
       "npm:drizzle-kit@~0.27.2",
       "npm:drizzle-orm@~0.36.3",
@@ -2031,7 +2020,8 @@
       "npm:postcss-cli@11",
       "npm:postcss@^8.4.49",
       "npm:postgres@^3.4.4",
-      "npm:tailwindcss@4"
+      "npm:tailwindcss@4",
+      "npm:zod@^4.2.1"
     ],
     "members": {
       "lockness/auth": {
