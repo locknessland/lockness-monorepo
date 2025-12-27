@@ -824,7 +824,7 @@ export const HomeView = () => {
                                 <Type>Validate</Type>{' '}
                                 <Punctuation>{'}'}</Punctuation>{' '}
                                 <Keyword>from</Keyword>{' '}
-                                <String>'lockness'</String>
+                                <String>''lockness/core'</String>
                                 {'\n'}
                                 <Keyword>import</Keyword>{' '}
                                 <Punctuation>{'{'}</Punctuation>{' '}
@@ -960,7 +960,7 @@ export const HomeView = () => {
                                 {' '}
                                 <Punctuation>{'}'}</Punctuation>{' '}
                                 <Keyword>from</Keyword>{' '}
-                                <String>'lockness'</String>
+                                <String>''lockness/core'</String>
                                 {'\n'}
                                 <Keyword>import</Keyword>{' '}
                                 <Punctuation>{'{'}</Punctuation>{' '}
@@ -969,7 +969,7 @@ export const HomeView = () => {
                                 <Func>session</Func>{' '}
                                 <Punctuation>{'}'}</Punctuation>{' '}
                                 <Keyword>from</Keyword>{' '}
-                                <String>'lockness'</String>
+                                <String>'lockness/core'</String>
                                 {'\n'}
                                 {'\n'}
                                 <Decorator>@Controller</Decorator>
@@ -1216,7 +1216,7 @@ export const HomeView = () => {
                                     </li>
                                     <li>
                                         <a
-                                            href='https://jsr.io/@lockness'
+                                            href='https://jsr.io/@lockness/core'
                                             class='text-muted-foreground hover:text-primary transition-colors'
                                         >
                                             JSR Packages
