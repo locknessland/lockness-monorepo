@@ -9,7 +9,7 @@ Validation uses Zod schemas with the `@Validate` decorator.
 ## Basic Usage
 
 ```typescript
-import { Controller, Post, Validate, Context } from 'lockness/core'
+import { Controller, Post, Validate, Context } from '@lockness/core'
 import { z } from 'zod'
 
 @Controller('/users')
@@ -69,7 +69,7 @@ export const userUpdateSchema = userInsertSchema.pick({
 ## Controller with Model Schemas
 
 ```typescript
-import { Controller, Post, Put, Validate, Context } from 'lockness/core'
+import { Controller, Post, Put, Validate, Context } from '@lockness/core'
 import { userStoreSchema, userUpdateSchema } from '@model/user.ts'
 
 @Controller('/users')

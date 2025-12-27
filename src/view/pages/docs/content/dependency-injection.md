@@ -30,7 +30,7 @@ Use the `@Service()` decorator to mark a class as a service that can be managed
 by the container.
 
 ```typescript
-import { Service } from 'lockness/core'
+import { Service } from '@lockness/core'
 
 @Service()
 export class UserService {
@@ -49,7 +49,7 @@ to a property.
 > property, you MUST use the `accessor` keyword.
 
 ```typescript
-import { Context, Controller, Get, Inject } from 'lockness/core'
+import { Context, Controller, Get, Inject } from '@lockness/core'
 import { UserService } from '../service/user_service.ts'
 
 @Controller('/users')
@@ -98,7 +98,7 @@ If you need to resolve a service manually (for example, in a bootstrapper), you
 can use the global `container` instance.
 
 ```typescript
-import { container } from 'lockness/core'
+import { container } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 
 const db = container.get(Database)

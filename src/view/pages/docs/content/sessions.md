@@ -20,7 +20,7 @@ Sessions are configured in your `src/kernel.ts` using the `configureSession()`
 function.
 
 ```typescript
-import { configureSession, sessionMiddleware } from 'lockness/core'
+import { configureSession, sessionMiddleware } from '@lockness/core'
 
 configureSession({
     driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory' | 'redis'

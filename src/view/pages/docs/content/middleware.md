@@ -14,7 +14,7 @@ deno task cli make:middleware Auth
 This creates `src/middleware/auth_middleware.ts`:
 
 ```typescript
-import { Context, IMiddleware, MiddlewareHandler } from 'lockness/core'
+import { Context, IMiddleware, MiddlewareHandler } from '@lockness/core'
 
 export class AuthMiddleware implements IMiddleware {
     handle: MiddlewareHandler = async (c: Context, next) => {
@@ -68,7 +68,7 @@ await app.init({
 **With class reference:**
 
 ```typescript
-import { Controller, Get, Use } from 'lockness/core'
+import { Controller, Get, Use } from '@lockness/core'
 import { AuthMiddleware } from '@middleware/auth_middleware.ts'
 
 @Controller('/dashboard')

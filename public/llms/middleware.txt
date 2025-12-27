@@ -13,7 +13,7 @@ Creates: `src/middleware/log_request_middleware.ts`
 ## Basic Middleware
 
 ```typescript
-import { type Context, type Next } from 'lockness/core'
+import { type Context, type Next } from '@lockness/core'
 
 export class LogRequestMiddleware {
     async handle(c: Context, next: Next) {
@@ -26,7 +26,7 @@ export class LogRequestMiddleware {
 ## Middleware with DI
 
 ```typescript
-import { Service, Inject, type Context, type Next } from 'lockness/core'
+import { Service, Inject, type Context, type Next } from '@lockness/core'
 import { Logger } from '@service/logger.ts'
 
 @Service()
@@ -47,7 +47,7 @@ export class LogRequestMiddleware {
 
 ```typescript
 // src/kernel.tsx
-import { Kernel } from 'lockness/core'
+import { Kernel } from '@lockness/core'
 import { LogRequestMiddleware } from '@middleware/log_request_middleware.ts'
 import { AuthMiddleware } from '@middleware/auth_middleware.ts'
 
@@ -60,7 +60,7 @@ kernel.use(AuthMiddleware)
 ### Controller Middleware (All Methods)
 
 ```typescript
-import { Controller, Middleware, Get } from 'lockness/core'
+import { Controller, Middleware, Get } from '@lockness/core'
 import { AuthMiddleware } from '@middleware/auth_middleware.ts'
 
 @Controller('/admin')
@@ -81,7 +81,7 @@ export class AdminController {
 ### Route Middleware (Single Method)
 
 ```typescript
-import { Controller, Middleware, Get, Post } from 'lockness/core'
+import { Controller, Middleware, Get, Post } from '@lockness/core'
 import { RateLimitMiddleware } from '@middleware/rate_limit_middleware.ts'
 
 @Controller('/api')
@@ -167,7 +167,7 @@ export class CorsMiddleware {
 ### Rate Limiting
 
 ```typescript
-import { Service, Inject } from 'lockness/core'
+import { Service, Inject } from '@lockness/core'
 import { Cache } from '@lockness/cache'
 
 @Service()
@@ -194,7 +194,7 @@ export class RateLimitMiddleware {
 ### Authentication Check
 
 ```typescript
-import { Service, type Context, type Next, auth, session } from 'lockness/core'
+import { Service, type Context, type Next, auth, session } from '@lockness/core'
 
 @Service()
 export class AuthMiddleware {

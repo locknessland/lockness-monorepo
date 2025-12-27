@@ -33,7 +33,7 @@ export type NewUser = typeof users.$inferInsert
 ## Repository Pattern
 
 ```typescript
-import { Service, Inject } from 'lockness/core'
+import { Service, Inject } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 import { users, type User } from '@model/user.ts'
 import { eq } from 'drizzle-orm'

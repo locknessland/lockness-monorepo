@@ -39,7 +39,7 @@ export type NewUser = typeof users.$inferInsert
 Use the `@Validate` decorator in your controllers:
 
 ```typescript
-import { Context, Controller, Post, Validate } from 'lockness/core'
+import { Context, Controller, Post, Validate } from '@lockness/core'
 import { insertUserSchema } from '../model/user.ts'
 
 @Controller('/api/users')

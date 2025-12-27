@@ -21,7 +21,7 @@ generates a controller that renders it.
 This creates `src/controller/hello_controller.ts`. Edit it:
 
 ```typescript
-import { Context, Controller, Get } from 'lockness/core'
+import { Context, Controller, Get } from '@lockness/core'
 
 @Controller('/api/hello')
 export class HelloController {
@@ -87,6 +87,7 @@ This creates `src/view/pages/posts/index.tsx`. Use it in your controller:
 
 ```typescript
 import { IndexPage } from '@view/pages/posts/index.tsx'
+import { Context, Controller, Get } from '@lockness/core'
 
 @Controller('/posts')
 export class PostController {
@@ -108,7 +109,7 @@ deno task cli make:auth
 Configure in `src/kernel.ts`:
 
 ```typescript
-import { configureAuth, container } from 'lockness/core'
+import { configureAuth, container } from '@lockness/core'
 import { UserProvider } from '@provider/user_provider.ts'
 
 configureAuth({

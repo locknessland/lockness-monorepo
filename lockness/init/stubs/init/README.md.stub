@@ -1,6 +1,6 @@
 # 🌊 {{ projectName }}
 
-**Lockness JS** is a high-performance, fullstack MVC web framework built natively for **Deno**. Heavily inspired by the elegance of Laravel and AdonisJS, it leverages the speed of **HonoJS** while providing a structured and ergonomic development experience.
+**Lockness JS** is a high-performance, fullstack MVC web framework built natively for **Deno**. Heavily inspired by the elegance of Laravel and AdonisJS, it leverages the speed of **HonoJS** fully encapsulated within `@lockness/core`, providing a structured and ergonomic development experience.
 
 ### Development
 Start the development server with hot-reload and environment variables:
@@ -229,7 +229,7 @@ protected(c: Context) { ... }
 ### Sessions
 
 ```typescript
-import { session } from 'lockness/core'
+import { session } from '@lockness/core'
 
 session(c).set('user_id', 123)
 session(c).get('user_id')
@@ -247,7 +247,7 @@ deno task cli make:auth
 Use auth guards:
 
 ```typescript
-import { Auth, Guest, auth } from 'lockness/core'
+import { Auth, Guest, auth } from '@lockness/core'
 
 @Auth()  // Require authentication
 @Controller('/dashboard')
@@ -272,7 +272,7 @@ deno task cli make:auth --social
 ```
 
 ```typescript
-import { configureSocialite, socialite } from 'lockness/core'
+import { configureSocialite, socialite } from '@lockness/core'
 
 // Configure in kernel.ts
 configureSocialite({
@@ -299,7 +299,7 @@ async callback(c: Context) {
 ### Mail
 
 ```typescript
-import { mail } from 'lockness/core'
+import { mail } from '@lockness/core'
 
 await mail()
     .to('user@example.com')
@@ -315,7 +315,7 @@ deno task cli make:job SendWelcomeEmail
 ```
 
 ```typescript
-import { dispatch } from 'lockness/core'
+import { dispatch } from '@lockness/core'
 import { SendWelcomeEmailJob } from './job/send_welcome_email_job.ts'
 
 // Dispatch immediately

@@ -27,7 +27,7 @@ Creates:
 
 **Controller (`welcome_controller.tsx`):**
 ```typescript
-import { Controller, Get, Context } from 'lockness/core'
+import { Controller, Get, Context } from '@lockness/core'
 import { WelcomeIndexPage } from '@view/pages/welcome/index.tsx'
 
 @Controller('/welcome')
@@ -96,7 +96,7 @@ deno task cli make:repository Post
 
 **Repository (`src/repository/post_repository.ts`):**
 ```typescript
-import { Service, Inject } from 'lockness/core'
+import { Service, Inject } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 import { post } from '@model/post.ts'
 import { eq } from 'drizzle-orm'
@@ -145,7 +145,7 @@ deno task cli make:action Post store
 
 **Controller (`src/controller/post_controller.tsx`):**
 ```typescript
-import { Controller, Get, Post, Validate, Context, Inject } from 'lockness/core'
+import { Controller, Get, Post, Validate, Context, Inject } from '@lockness/core'
 import { PostRepository } from '@repository/post_repository.ts'
 import { postInsertSchema } from '@model/post.ts'
 import { PostIndexPage } from '@view/pages/post/index.tsx'
@@ -197,7 +197,7 @@ Creates:
 
 **Protected Route:**
 ```typescript
-import { Controller, Get, Auth, Context, auth } from 'lockness/core'
+import { Controller, Get, Auth, Context, auth } from '@lockness/core'
 
 @Controller('/dashboard')
 @Auth()
@@ -300,7 +300,7 @@ export class PostApiController {
 ### Form Handling with Validation
 
 ```typescript
-import { session } from 'lockness/core'
+import { session } from '@lockness/core'
 
 @Post('/')
 @Validate(postInsertSchema)
@@ -321,7 +321,7 @@ async store(c: Context) {
 ### Dependency Injection
 
 ```typescript
-import { Service, Inject } from 'lockness/core'
+import { Service, Inject } from '@lockness/core'
 
 @Service()
 export class PostService {

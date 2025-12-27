@@ -13,7 +13,7 @@ deno task cli make:auth
 
 ```typescript
 // src/kernel.tsx
-import { configureAuth, container } from 'lockness/core'
+import { configureAuth, container } from '@lockness/core'
 import { UserProvider } from '@provider/user_provider.ts'
 
 configureAuth({
@@ -25,7 +25,7 @@ configureAuth({
 ## Auth Guards
 
 ```typescript
-import { Controller, Get, Post, Auth, Guest, Context, auth, session } from 'lockness/core'
+import { Controller, Get, Post, Auth, Guest, Context, auth, session } from '@lockness/core'
 
 @Controller('/dashboard')
 @Auth() // Protect entire controller
@@ -79,7 +79,7 @@ export class AuthController {
 ## Password Hashing
 
 ```typescript
-import { hashPassword, verifyPassword } from 'lockness/core'
+import { hashPassword, verifyPassword } from '@lockness/core'
 
 // Hash password (for registration)
 const hash = await hashPassword('secret123')
@@ -92,7 +92,7 @@ const valid = await verifyPassword('secret123', hash)
 
 ```typescript
 // src/provider/user_provider.ts
-import { Service, Inject } from 'lockness/core'
+import { Service, Inject } from '@lockness/core'
 import { UserRepository } from '@repository/user_repository.ts'
 import type { User } from '@model/user.ts'
 

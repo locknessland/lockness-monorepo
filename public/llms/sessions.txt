@@ -6,7 +6,7 @@ Multi-driver session management with flash messages.
 
 ```typescript
 // src/kernel.tsx
-import { configureSession } from 'lockness/core'
+import { configureSession } from '@lockness/core'
 
 configureSession({
     driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
@@ -27,7 +27,7 @@ SESSION_DRIVER=cookie
 ## Session API
 
 ```typescript
-import { session, type Context } from 'lockness/core'
+import { session, type Context } from '@lockness/core'
 
 @Controller('/profile')
 export class ProfileController {
@@ -61,7 +61,7 @@ export class ProfileController {
 Flash messages persist for ONE request (useful for redirects).
 
 ```typescript
-import { session, type Context } from 'lockness/core'
+import { session, type Context } from '@lockness/core'
 
 @Controller('/users')
 export class UserController {
@@ -89,7 +89,7 @@ export class UserController {
 ## Authentication Integration
 
 ```typescript
-import { auth, session, type Context } from 'lockness/core'
+import { auth, session, type Context } from '@lockness/core'
 
 @Controller('/auth')
 export class AuthController {

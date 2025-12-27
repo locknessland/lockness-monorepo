@@ -20,6 +20,7 @@
     "npm:drizzle-orm@~0.36.3": "0.36.4_postgres@3.4.7",
     "npm:drizzle-zod@~0.5.1": "0.5.1_drizzle-orm@0.36.4__postgres@3.4.7_zod@4.2.1_postgres@3.4.7",
     "npm:hono@^4.11.1": "4.11.3",
+    "npm:postcss-cli@*": "11.0.1_postcss@8.5.6",
     "npm:postcss-cli@11": "11.0.1_postcss@8.5.6",
     "npm:postcss@^8.4.49": "8.5.6",
     "npm:postgres@*": "3.4.7",

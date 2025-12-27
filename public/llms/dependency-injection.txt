@@ -7,7 +7,7 @@ Built-in dependency injection container with automatic service resolution.
 ### Define Service
 
 ```typescript
-import { Service } from 'lockness/core'
+import { Service } from '@lockness/core'
 
 @Service()
 export class EmailService {
@@ -21,7 +21,7 @@ export class EmailService {
 ### Inject into Controller
 
 ```typescript
-import { Controller, Get, Inject, Context } from 'lockness/core'
+import { Controller, Get, Inject, Context } from '@lockness/core'
 import { EmailService } from '@service/email_service.ts'
 
 @Controller('/notifications')
@@ -180,7 +180,7 @@ export class PostController {
 ## Manual Container Usage
 
 ```typescript
-import { container } from 'lockness/core'
+import { container } from '@lockness/core'
 
 // Get service instance
 const emailService = container.get(EmailService)
@@ -200,7 +200,7 @@ if (container.has(EmailService)) {
 ### Mock Services
 
 ```typescript
-import { container } from 'lockness/core'
+import { container } from '@lockness/core'
 
 // Create mock
 class MockEmailService {
@@ -220,7 +220,7 @@ const controller = new NotificationController()
 ### Reset Container
 
 ```typescript
-import { container } from 'lockness/core'
+import { container } from '@lockness/core'
 
 // Clear all services (useful for testing)
 container.clear()

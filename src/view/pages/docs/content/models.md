@@ -55,7 +55,7 @@ Repositories provide a clean data access layer:
 
 ```typescript
 // src/repository/post_repository.ts
-import { Inject, Service } from 'lockness/core'
+import { Inject, Service } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 import { type NewPost, type Post, posts } from '../model/post.ts'
 import { eq } from 'drizzle-orm'

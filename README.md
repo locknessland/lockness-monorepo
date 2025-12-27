@@ -2,8 +2,8 @@
 
 **Lockness JS** is a high-performance, fullstack MVC web framework built
 natively for **Deno**. Heavily inspired by the elegance of Laravel and AdonisJS,
-it leverages the speed of **HonoJS** while providing a structured and ergonomic
-development experience.
+it leverages the speed of **HonoJS** fully encapsulated within
+`@lockness/core`, providing a structured and ergonomic development experience.
 
 ### Development
 
@@ -411,7 +411,7 @@ Then use the `@Validate` decorator in your controllers:
 
 ```typescript
 // src/controller/user_api_controller.ts
-import { Context, Controller, Post, Validate } from 'lockness/core'
+import { Context, Controller, Post, Validate } from '@lockness/core'
 import { insertUserSchema } from '../model/user.ts'
 
 @Controller('/api/users')
