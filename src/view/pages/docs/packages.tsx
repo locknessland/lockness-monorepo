@@ -380,6 +380,29 @@ if (import.meta.main) {
 }`}</code>
                 </pre>
 
+                <h3 class="text-2xl font-semibold mb-3 mt-8">4. Development Standards</h3>
+                <p class="mb-4">
+                    To maintain consistency and ensure compatibility across the Lockness ecosystem, all packages should follow these standards:
+                </p>
+                <ul class="list-disc list-inside space-y-4 mb-6">
+                    <li>
+                        <span class="font-semibold text-gray-900">Standard Entry Point:</span>
+                        Always use <code class="bg-gray-100 px-2 py-1 rounded">mod.ts</code> as the main entry point for your package.
+                    </li>
+                    <li>
+                        <span class="font-semibold text-gray-900">Test Organization:</span>
+                        Place all test files in a dedicated <code class="bg-gray-100 px-2 py-1 rounded">tests/</code> directory and use the <code class="bg-gray-100 px-2 py-1 rounded">*.test.ts</code> naming convention.
+                    </li>
+                    <li>
+                        <span class="font-semibold text-gray-900">Workspace Imports:</span>
+                        Use named workspace imports (e.g., <code class="bg-gray-100 px-2 py-1 rounded">@lockness/core</code>) for cross-package dependencies instead of relative paths.
+                    </li>
+                    <li>
+                        <span class="font-semibold text-gray-900">JSR Ready:</span>
+                        Configure the <code class="bg-gray-100 px-2 py-1 rounded">publish</code> field in your <code class="bg-gray-100 px-2 py-1 rounded">deno.json</code> to include only source files and exclude tests.
+                    </li>
+                </ul>
+
                 <p class="mt-6">
                     See{' '}
                     <a

@@ -388,9 +388,11 @@ my-lockness-package/
 ├── mod.ts              # Main export
 ├── deno.json          # Package config
 ├── README.md
-└── src/
-    ├── service.ts
-    └── types.ts
+├── src/
+│   ├── service.ts
+│   └── types.ts
+└── tests/             # Tests directory
+    └── service.test.ts
 ```
 
 ### Example Package
@@ -429,13 +431,15 @@ deno publish
 
 **For package authors:**
 
-- Use `@Service()` for injectable classes
-- Export types and interfaces
-- Provide TypeScript definitions
-- Include README with examples
-- Follow semantic versioning
-- Test with Lockness core
-- Document configuration
+- **Entry Point**: Always use `mod.ts` as the main export.
+- **Tests**: Place tests in `tests/` and use `*.test.ts` naming.
+- **Dependencies**: Use named workspace imports (e.g., `@lockness/core`) for other Lockness libraries.
+- **Deno JSON**: 
+  - Define clear `exports` for `mod.ts` and optionally `install.ts`.
+  - Include a `publish` section to `include` source files and `exclude` the `tests/` directory.
+- **DI**: Use `@Service()` for injectable classes.
+- **Documentation**: Include a README with clear examples and a `mod.ts` with JSR-doc comments.
+- **Versioning**: Follow semantic versioning strictly.
 
 ## Version Compatibility
 

@@ -668,7 +668,7 @@ generated files if desired.
 
 #### How It Works (Zero-Config Extension)
 
-The package loader system enables zero-configuration command discovery. When you add a package to your `deno.json`, its commands are automatically made available to the CLI without changing a single line of code in your project.
+The `loadPackageCommands()` function enables zero-configuration command discovery. When you add a package to your `deno.json`, its commands are automatically made available to the CLI without changing a single line of code in your project.
 
 ```typescript
 // cli.ts (Your project's entry point)
@@ -683,19 +683,10 @@ await loadPackageCommands(cli)
 await cli.discoverCommands('./src/command')
 ```
 
-The `loadPackageCommands()` function:
-
-1. Opens the local `deno.json` file.
-2. Reads the `lockness.packages` array.
-3. Dynamically imports each package from `@lockness/{name}`.
-4. Detects and calls the `register*Commands` export to populate the CLI.
-
 #### Official Packages
 
-- **@lockness/drizzle**: Drizzle ORM integration with migrations, seeders, and
-  CLI commands
-- **@lockness/openapi**: OpenAPI/Swagger documentation with automatic spec
-  generation
+- **@lockness/drizzle**: Drizzle ORM integration with migrations, seeders, and CLI commands
+- **@lockness/openapi**: OpenAPI/Swagger documentation with automatic spec generation
 - **@lockness/cache**: Multi-driver caching system (Memory, Deno KV, Redis)
 - **@lockness/socialite**: OAuth2 authentication (Google, GitHub, Discord)
 
@@ -704,7 +695,7 @@ The `loadPackageCommands()` function:
 Packages export a register function from their main entry point:
 
 ```typescript
-// my-package/index.ts
+// my-package/mod.ts
 import type { Cli } from '@lockness/cli'
 
 export function registerMyPackageCommands(cli: Cli) {
@@ -732,14 +723,40 @@ if (import.meta.main) {
 }
 ```
 
-Export both in your `deno.json`:
+#### Package Development Standards
+
+To maintain consistency and ensure compatibility with the Lockness ecosystem (and JSR), all libraries must follow these standards:
+
+1.  **Entry Point**: Use `mod.ts` as the main entry point.
+2.  **Exports**: Explicitly define exports in `deno.json`.
+3.  **Tests**: 
+    - Place all tests in a dedicated `tests/` directory.
+    - Use the `*.test.ts` naming convention (e.g., `validator.test.ts`).
+    - Standardize the `test` task in `deno.json` to `deno test -A tests/`.
+4.  **Publication**: 
+    - Use the `publish` field in `deno.json` to `include` only necessary source files and `exclude` the `tests/` directory.
+5.  **Imports**: 
+    - Use named workspace imports (e.g., `@lockness/cli`, `@lockness/core`) for cross-package dependencies instead of relative paths.
+    - Reference these in the `imports` section of the package's `deno.json`.
+
+Example `deno.json` for a package:
 
 ```json
 {
-    "exports": {
-        ".": "./index.ts",
-        "./install": "./install.ts"
-    }
+  "name": "@lockness/my-package",
+  "version": "0.1.0",
+  "exports": "./mod.ts",
+  "tasks": {
+    "test": "deno test -A tests/",
+    "test:watch": "deno test -A --watch tests/"
+  },
+  "publish": {
+    "include": ["mod.ts", "src/**/*.ts", "deno.json", "README.md"],
+    "exclude": ["tests/"]
+  },
+  "imports": {
+    "@lockness/core": "../core/mod.ts"
+  }
 }
 ```
 
