@@ -3,7 +3,7 @@
  */
 
 import { assertEquals, assertExists } from '@std/assert'
-import { container } from '../core.ts'
+import { container } from '../mod.ts'
 
 class TestService {
     getValue(): string {

@@ -2,7 +2,26 @@
     "name": "@lockness/core",
     "version": "0.1.0",
     "exports": {
-        ".": "./core.ts"
+        ".": "./mod.ts"
+    },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "app.ts",
+            "auth.ts",
+            "components.tsx",
+            "container.ts",
+            "decorators.ts",
+            "helpers.ts",
+            "router.ts",
+            "types.ts",
+            "validation.ts",
+            "deno.json",
+            "README.md"
+        ],
+        "exclude": [
+            "tests/"
+        ]
     },
     "tasks": {
         "test": "deno test -A tests/",
