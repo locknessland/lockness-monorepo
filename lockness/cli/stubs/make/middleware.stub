@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono'
-import { Middleware, type IMiddleware } from 'lockness'
+import { Middleware, type IMiddleware } from 'lockness/core'
 
 /**
  * {{ className }} Middleware

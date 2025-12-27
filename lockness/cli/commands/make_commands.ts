@@ -657,7 +657,7 @@ const errorHandler = (error: Error, c: Context) => {
                         }
                         return `import { ${
                             importList.join(', ')
-                        } } from 'lockness'`
+                        } } from 'lockness/core'`
                     },
                 )
             }

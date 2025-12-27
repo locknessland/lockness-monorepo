@@ -8,7 +8,7 @@ Official packages extending Lockness functionality.
 Base framework with routing, DI, and controllers.
 
 ```typescript
-import { createApp, Controller, Get } from 'lockness'
+import { createApp, Controller, Get } from 'lockness/core'
 
 const app = await createApp({
     controllers: [HomeController],
@@ -403,7 +403,7 @@ export { MyService } from './src/service.ts'
 export type { MyConfig } from './src/types.ts'
 
 // src/service.ts
-import { Service } from 'lockness'
+import { Service } from 'lockness/core'
 
 @Service()
 export class MyService {

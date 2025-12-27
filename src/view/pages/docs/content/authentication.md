@@ -25,7 +25,7 @@ This creates:
 Configure authentication in `src/kernel.ts`:
 
 ```typescript
-import { configureAuth, container } from 'lockness'
+import { configureAuth, container } from 'lockness/core'
 import { UserProvider } from '@provider/user_provider.ts'
 
 configureAuth({
@@ -39,7 +39,7 @@ configureAuth({
 Protect routes with authentication guards:
 
 ```typescript
-import { Auth, auth, Controller, Get, Guest } from 'lockness'
+import { Auth, auth, Controller, Get, Guest } from 'lockness/core'
 
 @Controller('/dashboard')
 @Auth() // Require authentication for entire controller
@@ -101,7 +101,7 @@ return c.redirect('/auth/login')
 ## Password Hashing
 
 ```typescript
-import { hashPassword, verifyPassword } from 'lockness'
+import { hashPassword, verifyPassword } from 'lockness/core'
 
 // Hash a password
 const hash = await hashPassword('secret123')
@@ -121,7 +121,7 @@ deno task cli make:auth --social
 Configure providers in `src/kernel.ts`:
 
 ```typescript
-import { configureSocialite } from 'lockness'
+import { configureSocialite } from 'lockness/core'
 
 configureSocialite({
     google: {
@@ -140,7 +140,7 @@ configureSocialite({
 Use in controllers:
 
 ```typescript
-import { socialite, generateState, session } from 'lockness'
+import { socialite, generateState, session } from 'lockness/core'
 
 @Get('/auth/google')
 google(c: Context) {

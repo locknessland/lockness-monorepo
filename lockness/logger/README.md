@@ -18,7 +18,7 @@ formatters.
 ```typescript
 import { configureLogger, Logger } from '@lockness/logger'
 // or from main package
-import { configureLogger, Logger } from 'lockness'
+import { configureLogger, Logger } from 'lockness/core'
 ```
 
 ## Quick Start

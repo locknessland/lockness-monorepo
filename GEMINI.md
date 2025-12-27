@@ -297,7 +297,7 @@ Then use the `@Validate` decorator in your controllers:
 
 ```typescript
 // src/controller/user_api_controller.ts
-import { Context, Controller, Post, Validate } from 'lockness'
+import { Context, Controller, Post, Validate } from 'lockness/core'
 import { insertUserSchema } from '../model/user.ts'
 
 @Controller('/api/users')
@@ -435,7 +435,7 @@ without breaking changes.
 **Using the Decorator:**
 
 ```typescript
-import { Deprecated } from 'lockness'
+import { Deprecated } from 'lockness/core'
 
 @Deprecated('1.2.0', 'Use NewService instead')
 export class OldService {
@@ -486,7 +486,7 @@ export class AuthController {
 Use the `route(name, params?)` helper function:
 
 ```typescript
-import { route } from 'lockness'
+import { route } from 'lockness/core'
 
 // Simple URL
 const loginUrl = route('auth.login') // "/auth/login"
@@ -513,7 +513,7 @@ via a simple API.
 **Configuration in kernel.ts:**
 
 ```typescript
-import { configureSession, createSessionMiddleware } from 'lockness'
+import { configureSession, createSessionMiddleware } from 'lockness/core'
 
 // Configure session
 configureSession({
@@ -532,7 +532,7 @@ await app.init({
 **Using sessions in controllers:**
 
 ```typescript
-import { Context, Controller, Get, Post, session } from 'lockness'
+import { Context, Controller, Get, Post, session } from 'lockness/core'
 
 @Controller('/dashboard')
 export class DashboardController {
@@ -783,7 +783,7 @@ deno task cli make:auth
 **Configure in kernel.ts:**
 
 ```typescript
-import { configureAuth, container } from 'lockness'
+import { configureAuth, container } from 'lockness/core'
 import { UserProvider } from '@provider/user_provider.ts'
 
 // Configure authentication
@@ -796,7 +796,7 @@ configureAuth({
 **Using auth in controllers:**
 
 ```typescript
-import { Controller, Get, Post, Auth, Guest, Context, auth, session } from 'lockness'
+import { Controller, Get, Post, Auth, Guest, Context, auth, session } from 'lockness/core'
 
 @Controller('/dashboard')
 @Auth() // Protect entire controller
@@ -851,7 +851,7 @@ export class AuthController {
 **Password Hashing:**
 
 ```typescript
-import { hashPassword, verifyPassword } from 'lockness'
+import { hashPassword, verifyPassword } from 'lockness/core'
 
 // Hash a password (for registration)
 const hash = await hashPassword('secret123')
@@ -881,7 +881,7 @@ deno task cli make:auth --social
 **Configuration in kernel.ts:**
 
 ```typescript
-import { configureSocialite } from 'lockness'
+import { configureSocialite } from 'lockness/core'
 
 configureSocialite({
     google: {
@@ -905,7 +905,7 @@ configureSocialite({
 **Using socialite in controllers:**
 
 ```typescript
-import { generateState, session, socialite } from 'lockness'
+import { generateState, session, socialite } from 'lockness/core'
 
 @Controller('/auth')
 export class SocialAuthController {
@@ -951,7 +951,7 @@ export class SocialAuthController {
 **Custom providers:**
 
 ```typescript
-import { BaseOAuth2Driver, registerSocialiteDriver } from 'lockness'
+import { BaseOAuth2Driver, registerSocialiteDriver } from 'lockness/core'
 
 class CustomDriver extends BaseOAuth2Driver {
     protected authUrl = 'https://custom.com/oauth/authorize'
@@ -975,7 +975,7 @@ support (Console, Memory, SMTP, Resend).
 **Configuration in kernel.ts:**
 
 ```typescript
-import { configureMail } from 'lockness'
+import { configureMail } from 'lockness/core'
 
 configureMail({
     driver: (Deno.env.get('MAIL_DRIVER') as 'console' | 'smtp' | 'resend') ||
@@ -1003,7 +1003,7 @@ configureMail({
 **Sending emails with fluent API:**
 
 ```typescript
-import { mail } from 'lockness'
+import { mail } from 'lockness/core'
 
 // Simple email
 await mail()
@@ -1044,7 +1044,7 @@ await mail()
 **Testing emails:**
 
 ```typescript
-import { MemoryMailDriver } from 'lockness'
+import { MemoryMailDriver } from 'lockness/core'
 
 // After sending emails in tests
 const sent = MemoryMailDriver.getSentEmails()
@@ -1066,7 +1066,7 @@ deno task cli make:job SendWelcomeEmail
 This creates `src/job/sendwelcomeemail_job.ts`:
 
 ```typescript
-import { type Job, type JobPayload } from 'lockness'
+import { type Job, type JobPayload } from 'lockness/core'
 
 interface SendWelcomeEmailPayload extends JobPayload {
     userId: number
@@ -1099,7 +1099,7 @@ export class SendWelcomeEmailJob implements Job<SendWelcomeEmailPayload> {
 **Dispatch a job:**
 
 ```typescript
-import { dispatch } from 'lockness'
+import { dispatch } from 'lockness/core'
 import { SendWelcomeEmailJob } from '@job/sendwelcomeemail_job.ts'
 
 // Dispatch immediately
@@ -1138,7 +1138,7 @@ deno task cli queue:clear emails
 **Configure queue driver:**
 
 ```typescript
-import { configureQueue } from 'lockness'
+import { configureQueue } from 'lockness/core'
 
 configureQueue({
     driver: 'deno-kv', // 'memory' | 'deno-kv'

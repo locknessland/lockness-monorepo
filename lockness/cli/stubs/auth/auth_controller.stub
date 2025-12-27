@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Guest, Context, auth, session, Validate, route } from 'lockness'
+import { Controller, Get, Post, Guest, Context, auth, session, Validate, route } from 'lockness/core'
 import { z } from 'zod'
 
 const loginSchema = z.object({

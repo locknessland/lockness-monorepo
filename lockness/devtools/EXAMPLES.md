@@ -5,7 +5,7 @@
 ### In your kernel.tsx
 
 ```typescript
-import { App } from 'lockness'
+import { App } from 'lockness/core'
 import { enableDevtools } from '@lockness/devtools'
 
 export const bootstrap = async () => {
@@ -259,7 +259,7 @@ export const bootstrap = async () => {
 ### Complete middleware setup
 
 ```typescript
-import { App } from 'lockness'
+import { App } from 'lockness/core'
 import { enableDevtools } from '@lockness/devtools'
 import { logger } from './middleware/logger.ts'
 import { cors } from 'hono/cors'

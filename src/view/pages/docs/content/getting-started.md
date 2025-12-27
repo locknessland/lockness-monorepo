@@ -21,7 +21,7 @@ generates a controller that renders it.
 This creates `src/controller/hello_controller.ts`. Edit it:
 
 ```typescript
-import { Context, Controller, Get } from 'lockness'
+import { Context, Controller, Get } from 'lockness/core'
 
 @Controller('/api/hello')
 export class HelloController {
@@ -108,7 +108,7 @@ deno task cli make:auth
 Configure in `src/kernel.ts`:
 
 ```typescript
-import { configureAuth, container } from 'lockness'
+import { configureAuth, container } from 'lockness/core'
 import { UserProvider } from '@provider/user_provider.ts'
 
 configureAuth({

@@ -27,7 +27,7 @@ deno task cli make:model Post -a
 Class-based controllers with decorators:
 
 ```typescript
-import { Controller, Get, Post, Put, Delete, Context } from 'lockness'
+import { Controller, Get, Post, Put, Delete, Context } from 'lockness/core'
 
 @Controller('/api/users')
 export class UserController {
@@ -67,7 +67,7 @@ Available decorators: @Get, @Post, @Put, @Delete, @Patch, @Options, @Head
 
 Generate URLs from named routes:
 ```typescript
-import { route } from 'lockness'
+import { route } from 'lockness/core'
 
 const url = route('users.show', { id: 123 }) // "/api/users/123"
 return c.redirect(route('auth.login'))
@@ -121,7 +121,7 @@ deno task cli router:list               # List all routes
 Built-in IoC container with TC39 decorators:
 
 ```typescript
-import { Service, Inject } from 'lockness'
+import { Service, Inject } from 'lockness/core'
 
 @Service()
 export class UserService {
@@ -176,7 +176,7 @@ export type NewUser = typeof users.$inferInsert
 Repository pattern:
 
 ```typescript
-import { Service, Inject } from 'lockness'
+import { Service, Inject } from 'lockness/core'
 import { Database } from '@lockness/drizzle'
 import { users, type User } from '@model/user.ts'
 
@@ -212,7 +212,7 @@ export class UserRepository {
 Request validation with Zod + drizzle-zod:
 
 ```typescript
-import { Controller, Post, Validate, Context } from 'lockness'
+import { Controller, Post, Validate, Context } from 'lockness/core'
 import { insertUserSchema } from '@model/user.ts'
 
 @Controller('/api/users')
@@ -248,7 +248,7 @@ Session-based authentication system:
 deno task cli make:auth
 
 // Configure in kernel.ts
-import { configureAuth, container } from 'lockness'
+import { configureAuth, container } from 'lockness/core'
 import { UserProvider } from '@provider/user_provider.ts'
 
 configureAuth({
@@ -257,7 +257,7 @@ configureAuth({
 })
 
 // Use in controllers
-import { Auth, Guest, auth, session } from 'lockness'
+import { Auth, Guest, auth, session } from 'lockness/core'
 
 @Controller('/dashboard')
 @Auth() // Protect entire controller
@@ -307,7 +307,7 @@ Auth API:
 
 Password hashing:
 ```typescript
-import { hashPassword, verifyPassword } from 'lockness'
+import { hashPassword, verifyPassword } from 'lockness/core'
 
 const hash = await hashPassword('secret123')
 const valid = await verifyPassword('secret123', hash)
@@ -319,7 +319,7 @@ Multi-driver session management:
 
 ```typescript
 // Configure in kernel.ts
-import { configureSession, createSessionMiddleware } from 'lockness'
+import { configureSession, createSessionMiddleware } from 'lockness/core'
 
 configureSession({
     driver: 'cookie', // or 'deno-kv' or 'memory'
@@ -334,7 +334,7 @@ await app.init({
 })
 
 // Use in controllers
-import { session } from 'lockness'
+import { session } from 'lockness/core'
 
 @Controller('/cart')
 export class CartController {
@@ -376,7 +376,7 @@ Session API:
 Class-based middleware with decorators:
 
 ```typescript
-import { Middleware, Context, Next } from 'lockness'
+import { Middleware, Context, Next } from 'lockness/core'
 
 @Middleware()
 export class AuthMiddleware {
@@ -393,7 +393,7 @@ export class AuthMiddleware {
 }
 
 // Use on controller
-import { UseMiddleware } from 'lockness'
+import { UseMiddleware } from 'lockness/core'
 
 @Controller('/api/admin')
 @UseMiddleware(AuthMiddleware) // Apply to all routes
@@ -439,7 +439,7 @@ export const Home = () => {
 }
 
 // src/controller/app_controller.tsx
-import { Controller, Get, Context } from 'lockness'
+import { Controller, Get, Context } from 'lockness/core'
 import { Home } from '@view/pages/home.tsx'
 
 @Controller('/')

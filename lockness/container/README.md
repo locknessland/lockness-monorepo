@@ -423,7 +423,7 @@ When used with Lockness framework:
 
 ```typescript
 // src/service/user_service.ts
-import { Inject, Service } from 'lockness'
+import { Inject, Service } from 'lockness/core'
 import { UserRepository } from '@repository/user_repository.ts'
 
 @Service()
@@ -437,7 +437,7 @@ export class UserService {
 }
 
 // src/controller/user_controller.tsx
-import { Controller, Get, Post } from 'lockness'
+import { Controller, Get, Post } from 'lockness/core'
 import { UserService } from '@service/user_service.ts'
 
 @Controller('/users')

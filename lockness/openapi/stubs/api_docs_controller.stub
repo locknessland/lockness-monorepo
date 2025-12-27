@@ -1,4 +1,4 @@
-import { Controller, Get, type Context, type ControllerClass } from 'lockness'
+import { Controller, Get, type Context, type ControllerClass } from 'lockness/core'
 import {
     ApiDoc,
     generateOpenAPISpec,

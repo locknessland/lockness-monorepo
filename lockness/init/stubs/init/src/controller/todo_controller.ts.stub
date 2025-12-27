@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Context } from 'lockness'
+import { Controller, Get, Post, Context } from 'lockness/core'
 import todo from '@/data/todo.json' with { type: 'json' }
 
 interface Todo {

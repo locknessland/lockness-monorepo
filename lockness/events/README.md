@@ -19,7 +19,7 @@ priorities, and wildcards.
 ```typescript
 import { EventEmitter, events } from '@lockness/events'
 // or from main package
-import { EventEmitter, events } from 'lockness'
+import { EventEmitter, events } from 'lockness/core'
 ```
 
 ## Quick Start

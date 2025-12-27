@@ -1,4 +1,4 @@
-import { Context, Controller, Delete, Get, Inject, Post, Put, Validate } from 'lockness'
+import { Context, Controller, Delete, Get, Inject, Post, Put, Validate } from 'lockness/core'
 import { {{RepositoryName}} } from '@repository/{{fileName}}_repository.ts'
 import { insert{{ModelName}}Schema } from '@model/{{fileName}}.ts'
 

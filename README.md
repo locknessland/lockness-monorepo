@@ -175,7 +175,7 @@ export class AuthController {
 }
 
 // Generate URL anywhere
-import { route } from 'lockness'
+import { route } from 'lockness/core'
 const url = route('auth.login') // "/auth/login"
 ```
 
@@ -411,7 +411,7 @@ Then use the `@Validate` decorator in your controllers:
 
 ```typescript
 // src/controller/user_api_controller.ts
-import { Context, Controller, Post, Validate } from 'lockness'
+import { Context, Controller, Post, Validate } from 'lockness/core'
 import { insertUserSchema } from '../model/user.ts'
 
 @Controller('/api/users')
@@ -466,7 +466,7 @@ await app.init({
 #### Using Middlewares in Controllers
 
 ```typescript
-import { Controller, Get, Use } from 'lockness'
+import { Controller, Get, Use } from 'lockness/core'
 import { AuthMiddleware } from '@middleware/auth_middleware.ts'
 
 @Controller('/dashboard')
@@ -652,7 +652,7 @@ Lockness provides session management with multiple drivers.
 Configure sessions in `src/kernel.ts`:
 
 ```typescript
-import { configureSession, createSessionMiddleware } from 'lockness'
+import { configureSession, createSessionMiddleware } from 'lockness/core'
 
 configureSession({
     driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
@@ -668,7 +668,7 @@ await app.init({
 Use sessions in controllers:
 
 ```typescript
-import { session } from 'lockness'
+import { session } from 'lockness/core'
 
 @Get('/dashboard')
 index(c: Context) {
@@ -699,7 +699,7 @@ This creates an `AuthController` and `UserProvider`.
 Configure auth in `src/kernel.ts`:
 
 ```typescript
-import { configureAuth, container } from 'lockness'
+import { configureAuth, container } from 'lockness/core'
 import { UserProvider } from '@provider/user_provider.ts'
 
 configureAuth({
@@ -711,7 +711,7 @@ configureAuth({
 Use auth in controllers:
 
 ```typescript
-import { Auth, Guest, auth } from 'lockness'
+import { Auth, Guest, auth } from 'lockness/core'
 
 // Protect entire controller
 @Auth()
@@ -753,7 +753,7 @@ export class AuthController {
 Password hashing:
 
 ```typescript
-import { hashPassword, verifyPassword } from 'lockness'
+import { hashPassword, verifyPassword } from 'lockness/core'
 
 const hash = await hashPassword('secret123')
 const valid = await verifyPassword('secret123', hash)
@@ -771,7 +771,7 @@ deno task cli make:auth --social
 Configure providers in `src/kernel.ts`:
 
 ```typescript
-import { configureSocialite } from 'lockness'
+import { configureSocialite } from 'lockness/core'
 
 configureSocialite({
     google: {
@@ -795,7 +795,7 @@ configureSocialite({
 Use in controllers:
 
 ```typescript
-import { socialite, generateState, session } from 'lockness'
+import { socialite, generateState, session } from 'lockness/core'
 
 @Get('/auth/google')
 google(c: Context) {
@@ -823,7 +823,7 @@ Available providers: `google`, `github`, `discord`. Add custom providers with
 Send emails with an expressive fluent API:
 
 ```typescript
-import { mail } from 'lockness'
+import { mail } from 'lockness/core'
 
 await mail()
     .to('user@example.com')
@@ -835,7 +835,7 @@ await mail()
 Configure mail in `src/kernel.ts`:
 
 ```typescript
-import { configureMail } from 'lockness'
+import { configureMail } from 'lockness/core'
 
 configureMail({
     driver: 'console', // 'console' | 'memory' | 'smtp' | 'resend'
@@ -863,7 +863,7 @@ deno task cli queue:clear
 Dispatch jobs from your application:
 
 ```typescript
-import { dispatch } from 'lockness'
+import { dispatch } from 'lockness/core'
 import { SendWelcomeEmailJob } from '@job/sendwelcomeemail_job.ts'
 
 // Immediate dispatch

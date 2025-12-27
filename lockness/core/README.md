@@ -24,7 +24,7 @@ The `App` class is the main entry point for your application. It manages the
 Hono instance and initializes all your modules.
 
 ```typescript
-import { App } from 'lockness'
+import { App } from 'lockness/core'
 
 const app = new App()
 
@@ -61,7 +61,7 @@ export class UserController {
 You can generate URLs for any named route using the `route()` helper.
 
 ```typescript
-import { route } from 'lockness'
+import { route } from 'lockness/core'
 
 const url = route('users.show', { id: 123 }) // "/users/123"
 ```

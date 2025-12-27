@@ -1,4 +1,4 @@
-import { Inject, Service } from 'lockness'
+import { Inject, Service } from 'lockness/core'
 import { Database } from '@lockness/drizzle'
 import { type {{ModelName}}, type New{{ModelName}}, {{tableName}} } from '@model/{{fileName}}.ts'
 import { eq } from 'drizzle-orm'

@@ -17,7 +17,7 @@ AWS S3, Cloudflare R2).
 ```typescript
 import { configureStorage, Storage } from '@lockness/storage'
 // or from main package
-import { configureStorage, Storage } from 'lockness'
+import { configureStorage, Storage } from 'lockness/core'
 ```
 
 ## Quick Start

@@ -1,4 +1,4 @@
-import { Controller, Get, Context } from 'lockness'
+import { Controller, Get, Context } from 'lockness/core'
 import { {{ viewName }} } from '@view/pages/{{ route }}.tsx'
 
 @Controller('/{{ route }}')

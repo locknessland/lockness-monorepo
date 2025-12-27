@@ -17,7 +17,7 @@ DevTools is built into Lockness and auto-enables in development.
 
 ```typescript
 // src/kernel.tsx
-import { Kernel } from 'lockness'
+import { Kernel } from 'lockness/core'
 import { DevToolsMiddleware } from '@lockness/devtools'
 
 export const kernel = new Kernel()

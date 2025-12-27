@@ -5,7 +5,7 @@ Class-based controllers with decorators for routing.
 ## Basic Controller
 
 ```typescript
-import { Controller, Get, Post, Context } from 'lockness'
+import { Controller, Get, Post, Context } from 'lockness/core'
 
 @Controller('/api/users')
 export class UserController {
@@ -42,7 +42,7 @@ export class UserController {
 }
 
 // Generate URLs
-import { route } from 'lockness'
+import { route } from 'lockness/core'
 const url = route('users.show', { id: 123 }) // "/users/123"
 return c.redirect(route('auth.login'))
 ```

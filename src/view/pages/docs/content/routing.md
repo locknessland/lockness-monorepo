@@ -6,7 +6,7 @@ Lockness uses class-based controllers with decorators for clean, expressive
 routing:
 
 ```typescript
-import { Context, Controller, Delete, Get, Post, Put } from 'lockness'
+import { Context, Controller, Delete, Get, Post, Put } from 'lockness/core'
 
 @Controller('/api/users')
 export class UserController {
@@ -142,7 +142,7 @@ export class UserController {
 Use the `route()` helper to generate a URL from a route name:
 
 ```typescript
-import { route } from 'lockness'
+import { route } from 'lockness/core'
 
 // Simple route
 const url = route('users.index') // "/users"

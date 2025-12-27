@@ -229,7 +229,7 @@ protected(c: Context) { ... }
 ### Sessions
 
 ```typescript
-import { session } from 'lockness'
+import { session } from 'lockness/core'
 
 session(c).set('user_id', 123)
 session(c).get('user_id')
@@ -247,7 +247,7 @@ deno task cli make:auth
 Use auth guards:
 
 ```typescript
-import { Auth, Guest, auth } from 'lockness'
+import { Auth, Guest, auth } from 'lockness/core'
 
 @Auth()  // Require authentication
 @Controller('/dashboard')
@@ -272,7 +272,7 @@ deno task cli make:auth --social
 ```
 
 ```typescript
-import { configureSocialite, socialite } from 'lockness'
+import { configureSocialite, socialite } from 'lockness/core'
 
 // Configure in kernel.ts
 configureSocialite({
@@ -299,7 +299,7 @@ async callback(c: Context) {
 ### Mail
 
 ```typescript
-import { mail } from 'lockness'
+import { mail } from 'lockness/core'
 
 await mail()
     .to('user@example.com')
@@ -315,7 +315,7 @@ deno task cli make:job SendWelcomeEmail
 ```
 
 ```typescript
-import { dispatch } from 'lockness'
+import { dispatch } from 'lockness/core'
 import { SendWelcomeEmailJob } from './job/send_welcome_email_job.ts'
 
 // Dispatch immediately

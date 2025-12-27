@@ -1,4 +1,4 @@
-import { type Job, type JobPayload } from 'lockness'
+import { type Job, type JobPayload } from 'lockness/core'
 
 interface {{ className }}Payload extends JobPayload {
     // Define your job payload here

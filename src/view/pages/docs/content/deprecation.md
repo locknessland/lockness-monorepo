@@ -42,7 +42,7 @@ Lockness is using the `@Deprecated` decorator. It can be applied to **classes**,
 The notice is triggered when a new instance is created.
 
 ```typescript
-import { Deprecated } from 'lockness'
+import { Deprecated } from 'lockness/core'
 
 @Deprecated('2.0.0', 'Use AuthService instead')
 export class UserRegistrationService {

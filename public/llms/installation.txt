@@ -57,7 +57,7 @@ mkdir my-app && cd my-app
 
 ```typescript
 // main.ts
-import { createApp } from 'lockness'
+import { createApp } from 'lockness/core'
 
 const app = await createApp({
     controllers: [],
