@@ -99,6 +99,7 @@ deno task cli make:action User create --view
 ```
 
 The command automatically:
+
 - Adds the method to your controller class
 - Follows RESTful conventions for common action names
 - Imports required decorators (@Post, @Put, etc.)
@@ -107,23 +108,26 @@ The command automatically:
 
 **RESTful Conventions:**
 
-| Action  | Method | Path      | Route Name     |
-|---------|--------|-----------|----------------|
-| index   | GET    | /         | resource.index |
-| show    | GET    | /:id      | resource.show  |
-| create  | GET    | /create   | resource.create|
-| store   | POST   | /         | resource.store |
-| edit    | GET    | /:id/edit | resource.edit  |
-| update  | PUT    | /:id      | resource.update|
-| destroy | DELETE | /:id      | resource.destroy|
+| Action  | Method | Path      | Route Name       |
+| ------- | ------ | --------- | ---------------- |
+| index   | GET    | /         | resource.index   |
+| show    | GET    | /:id      | resource.show    |
+| create  | GET    | /create   | resource.create  |
+| store   | POST   | /         | resource.store   |
+| edit    | GET    | /:id/edit | resource.edit    |
+| update  | PUT    | /:id      | resource.update  |
+| destroy | DELETE | /:id      | resource.destroy |
 
 ## Named Routes
 
-Named routes allow you to generate URLs for specific routes using a unique name. This prevents hardcoding paths throughout your application and makes it easier to change URLs later.
+Named routes allow you to generate URLs for specific routes using a unique name.
+This prevents hardcoding paths throughout your application and makes it easier
+to change URLs later.
 
 ### Assigning Names
 
-You can assign a name to a route using the options object in the route decorator:
+You can assign a name to a route using the options object in the route
+decorator:
 
 ```typescript
 @Controller('/users')

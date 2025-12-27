@@ -1,14 +1,18 @@
 # @lockness/core
 
-The heart of the Lockness framework. This package provides the core architectural components, decorators, and routing engine that power your MVC application.
+The heart of the Lockness framework. This package provides the core
+architectural components, decorators, and routing engine that power your MVC
+application.
 
 ## 📦 Features
 
 - **MVC Engine**: Class-based architecture for clean separation of concerns.
 - **Modern Decorators**: Native support for TC39 Stage 3 decorators.
-- **Powerful Routing**: Built on top of Hono, providing zero-configuration controller discovery.
+- **Powerful Routing**: Built on top of Hono, providing zero-configuration
+  controller discovery.
 - **Dependency Injection**: A built-in IoC container for service management.
-- **Zod Validation**: Seamless integration with Zod for type-safe request validation.
+- **Zod Validation**: Seamless integration with Zod for type-safe request
+  validation.
 - **Named Routes**: Generate URLs dynamically without hardcoding paths.
 - **JSX Everywhere**: Native support for JSX components in views.
 
@@ -16,7 +20,8 @@ The heart of the Lockness framework. This package provides the core architectura
 
 ### The App Class
 
-The `App` class is the main entry point for your application. It manages the Hono instance and initializes all your modules.
+The `App` class is the main entry point for your application. It manages the
+Hono instance and initializes all your modules.
 
 ```typescript
 import { App } from 'lockness'
@@ -63,7 +68,8 @@ const url = route('users.show', { id: 123 }) // "/users/123"
 
 ### Dependency Injection
 
-Register services with `@Service()` and inject them into controllers or other services using `@Inject()`.
+Register services with `@Service()` and inject them into controllers or other
+services using `@Inject()`.
 
 ```typescript
 @Service()
@@ -107,7 +113,8 @@ export class UserController {
 
 ## 🛠 Advanced Configuration
 
-The `app.init()` method accepts a configuration object to customize your application:
+The `app.init()` method accepts a configuration object to customize your
+application:
 
 - `controllers`: Array of controller classes (for production/compilation).
 - `controllersDir`: Directory for auto-discovery (for development).
@@ -120,6 +127,7 @@ The `app.init()` method accepts a configuration object to customize your applica
 ## 📚 Technical Reference
 
 ### Decorators
+
 - `@Controller(path)`: Declares a class as a controller.
 - `@Get(path, options)`: Registers a GET route.
 - `@Post(path, options)`: Registers a POST route.
@@ -127,12 +135,15 @@ The `app.init()` method accepts a configuration object to customize your applica
 - `@Patch(path, options)`: Registers a PATCH route.
 - `@Delete(path, options)`: Registers a DELETE route.
 - `@Use(middleware)`: Applies middleware to a class or method.
-- `@Validate(target, schema)`: Validates request data (json, form, query, param, header, cookie).
+- `@Validate(target, schema)`: Validates request data (json, form, query, param,
+  header, cookie).
 - `@Service()`: Declares a class as a service.
 - `@Inject(class)`: Injects a service into a property.
 
 ### Context
-The `Context` object (from Hono) is passed to every route handler and provides access to request data, response helpers, and validation results.
+
+The `Context` object (from Hono) is passed to every route handler and provides
+access to request data, response helpers, and validation results.
 
 ---
 

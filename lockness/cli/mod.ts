@@ -1,23 +1,27 @@
 import { Stub } from './stubs.ts'
 
 export { registerCoreCommands } from './core_commands.ts'
-export { loadPackageCommands, addPackage, removePackage } from './package_loader.ts'
+export {
+    addPackage,
+    loadPackageCommands,
+    removePackage,
+} from './package_loader.ts'
 
 /**
  * Register multiple command registration functions at once
- * 
+ *
  * @example
  * ```ts
  * import { Cli, registerAll, registerCoreCommands } from '@lockness/cli'
  * import { registerDrizzleCommands } from '@lockness/drizzle'
- * 
+ *
  * const cli = new Cli()
  * registerAll(cli, [registerCoreCommands, registerDrizzleCommands])
  * ```
  */
 export function registerAll(
     cli: Cli,
-    registerFunctions: Array<(cli: Cli) => void | Promise<void>>
+    registerFunctions: Array<(cli: Cli) => void | Promise<void>>,
 ): void {
     for (const registerFn of registerFunctions) {
         registerFn(cli)
@@ -177,7 +181,8 @@ export class Cli {
                         }
                     } catch (e) {
                         console.warn(
-                            `⚠️ Failed to load command ${entry.name}: ${(e as Error).message
+                            `⚠️ Failed to load command ${entry.name}: ${
+                                (e as Error).message
                             }`,
                         )
                     }

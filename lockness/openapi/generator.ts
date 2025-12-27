@@ -5,7 +5,7 @@
 
 import type { ControllerClass } from '@lockness/core'
 import { getApiDocMetadata, hasApiDoc } from './decorator.ts'
-import type { OpenAPISpec, PathItem, Operation } from './types.ts'
+import type { OpenAPISpec, Operation, PathItem } from './types.ts'
 
 export interface GenerateSpecOptions {
     title: string
@@ -44,7 +44,9 @@ export function generateOpenAPISpec(
         // Read controller metadata
         const controllerAny = controller as {
             _basePath?: string
-            _routes?: Array<{ method: string; path: string; methodName: string }>
+            _routes?: Array<
+                { method: string; path: string; methodName: string }
+            >
         }
 
         // Create a temporary instance to trigger decorator initializers if needed
@@ -78,8 +80,8 @@ export function generateOpenAPISpec(
             const operation: Operation = {
                 summary: apiDoc.summary,
                 description: apiDoc.description,
-                operationId:
-                    apiDoc.operationId || `${controller.name}.${route.methodName}`,
+                operationId: apiDoc.operationId ||
+                    `${controller.name}.${route.methodName}`,
                 tags: apiDoc.tags || [
                     controller.name.replace('Controller', ''),
                 ],

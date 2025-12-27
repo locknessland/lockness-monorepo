@@ -3,12 +3,7 @@
  */
 
 import { assertEquals } from '@std/assert'
-import {
-    after,
-    before,
-    dateString,
-    validate,
-} from '../mod.ts'
+import { after, before, dateString, validate } from '../mod.ts'
 
 Deno.test('Validator - Date validators', async (t) => {
     await t.step('dateString', async () => {

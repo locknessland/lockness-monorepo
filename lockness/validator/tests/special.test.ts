@@ -3,12 +3,7 @@
  */
 
 import { assertEquals } from '@std/assert'
-import {
-    custom,
-    ip,
-    json,
-    validate,
-} from '../mod.ts'
+import { custom, ip, json, validate } from '../mod.ts'
 
 Deno.test('Validator - Special validators', async (t) => {
     await t.step('ip validator', async () => {

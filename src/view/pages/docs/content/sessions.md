@@ -1,6 +1,7 @@
 # Session Management
 
-Lockness provides a robust, multi-driver session management system. It allows you to store user data across requests securely and efficiently.
+Lockness provides a robust, multi-driver session management system. It allows
+you to store user data across requests securely and efficiently.
 
 ---
 
@@ -15,7 +16,8 @@ Lockness provides a robust, multi-driver session management system. It allows yo
 
 ## ⚙️ Configuration
 
-Sessions are configured in your `src/kernel.ts` using the `configureSession()` function.
+Sessions are configured in your `src/kernel.ts` using the `configureSession()`
+function.
 
 ```typescript
 import { configureSession, sessionMiddleware } from 'lockness'
@@ -28,7 +30,8 @@ configureSession({
 })
 ```
 
-To enable sessions, you must add the `sessionMiddleware()` to your global middlewares:
+To enable sessions, you must add the `sessionMiddleware()` to your global
+middlewares:
 
 ```typescript
 await app.init({
@@ -67,7 +70,9 @@ export class DashboardController {
 ```
 
 ### Flash Messages
-Flash messages are available only for the **next request**, which is perfect for success or error notifications after a redirect.
+
+Flash messages are available only for the **next request**, which is perfect for
+success or error notifications after a redirect.
 
 ```typescript
 @Post('/login')
@@ -90,7 +95,9 @@ index(c: Context) {
 ## 🛡 Security
 
 ### Session Regeneration
-To prevent session fixation attacks, you should **always** regenerate the session ID after a successful login.
+
+To prevent session fixation attacks, you should **always** regenerate the
+session ID after a successful login.
 
 ```typescript
 @Post('/login')
@@ -103,6 +110,7 @@ async login(c: Context) {
 ```
 
 ### Session Destruction
+
 To log out a user or clear all data:
 
 ```typescript
@@ -117,9 +125,9 @@ async logout(c: Context) {
 
 ## 🗄️ Drivers
 
-| Driver | Description | Best for |
-|--------|-------------|----------|
-| **cookie** | Encrypted client-side storage | Small data, Stateless |
+| Driver      | Description                   | Best for                |
+| ----------- | ----------------------------- | ----------------------- |
+| **cookie**  | Encrypted client-side storage | Small data, Stateless   |
 | **deno-kv** | Deno's native Key-Value store | Deno Deploy, Persistent |
-| **redis** | External Redis server | Scalable Production |
-| **memory** | In-memory storage | Development only |
+| **redis**   | External Redis server         | Scalable Production     |
+| **memory**  | In-memory storage             | Development only        |

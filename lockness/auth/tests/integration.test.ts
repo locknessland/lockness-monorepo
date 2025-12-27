@@ -3,22 +3,20 @@ import { assertEquals, assertExists } from '@std/assert'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import {
-    initializeAuthMiddleware,
     authMiddleware,
     getAuth,
+    initializeAuthMiddleware,
     SessionGuard,
     TokenGuard,
 } from '../mod.ts'
-import {
-    MockSessionProvider,
-    MockTokenProvider,
-} from './mocks.ts'
+import { MockSessionProvider, MockTokenProvider } from './mocks.ts'
 
 Deno.test('initializeAuthMiddleware - attaches auth to context', async () => {
     const app = new Hono()
     const provider = new MockSessionProvider()
 
-    const sessionGuardFactory = (c: Context) => new SessionGuard('web', c as any, provider)
+    const sessionGuardFactory = (c: Context) =>
+        new SessionGuard('web', c as any, provider)
 
     app.use(
         '*',
@@ -42,7 +40,8 @@ Deno.test('authMiddleware - protects routes', async () => {
     const app = new Hono()
     const provider = new MockTokenProvider()
 
-    const tokenGuardFactory = (c: Context) => new TokenGuard('api', c as any, provider)
+    const tokenGuardFactory = (c: Context) =>
+        new TokenGuard('api', c as any, provider)
 
     app.onError((err, c) => {
         if ('status' in err && typeof err.status === 'number') {
@@ -68,7 +67,10 @@ Deno.test('authMiddleware - protects routes', async () => {
     assertEquals(res1.status, 401)
 
     // With valid token
-    const user = await provider.findByCredentials('alice@example.com', 'password123')
+    const user = await provider.findByCredentials(
+        'alice@example.com',
+        'password123',
+    )
     const token = await provider.createToken(user!, 'test')
 
     const res2 = await app.request('/protected', {
@@ -81,10 +83,13 @@ Deno.test('Authenticator - check returns boolean', async () => {
     const provider = new MockTokenProvider()
     const app = new Hono()
 
-    app.use('*', initializeAuthMiddleware({
-        default: 'api',
-        guards: { api: (c) => new TokenGuard('api', c as any, provider) },
-    }))
+    app.use(
+        '*',
+        initializeAuthMiddleware({
+            default: 'api',
+            guards: { api: (c) => new TokenGuard('api', c as any, provider) },
+        }),
+    )
 
     app.get('/test', async (c) => {
         const auth = getAuth(c)

@@ -22,7 +22,10 @@ const navSections: NavSection[] = [
         title: 'Core Concepts',
         links: [
             { title: 'Routing & Controllers', name: 'docs.routing' },
-            { title: 'Dependency Injection', name: 'docs.dependency-injection' },
+            {
+                title: 'Dependency Injection',
+                name: 'docs.dependency-injection',
+            },
             { title: 'Middleware', name: 'docs.middleware' },
             { title: 'Validation', name: 'docs.validation' },
         ],
@@ -111,10 +114,11 @@ export const DocsSidebar = (props: { currentPath: string }) => {
                                         <a
                                             key={link.name}
                                             href={href}
-                                            class={`block font-pixel text-[10px] w-full px-4 py-2 border-2 ${isActive
+                                            class={`block font-pixel text-[10px] w-full px-4 py-2 border-2 ${
+                                                isActive
                                                     ? 'border-primary bg-primary/20 text-primary '
                                                     : 'border-border bg-background hover:border-primary hover:text-primary text-muted-foreground'
-                                                }`}
+                                            }`}
                                             style={isActive
                                                 ? 'box-shadow: 2px 2px 0 0 rgba(var(--primary-rgb), 0.3);'
                                                 : ''}

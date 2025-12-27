@@ -6,7 +6,11 @@ export const SessionsPage = () => {
     const content = loadMarkdownContent('sessions')
 
     return (
-        <DocsLayout title='Sessions' currentPath='/docs/sessions' llmPath='sessions'>
+        <DocsLayout
+            title='Sessions'
+            currentPath='/docs/sessions'
+            llmPath='sessions'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

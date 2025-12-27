@@ -3,7 +3,7 @@
  */
 
 import { assertEquals, assertExists } from '@std/assert'
-import { S3StorageDriver, R2StorageDriver } from '../mod.ts'
+import { R2StorageDriver, S3StorageDriver } from '../mod.ts'
 
 // =============================================================================
 // S3 Driver Tests (Unit tests with mocked behavior)

@@ -109,7 +109,7 @@ export const bootstrap = async () => {
                 },
             },
         })
-        
+
         // Collect routes AFTER app.init
         collectAppRoutes(app)
     } else {

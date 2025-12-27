@@ -668,7 +668,10 @@ generated files if desired.
 
 #### How It Works (Zero-Config Extension)
 
-The `loadPackageCommands()` function enables zero-configuration command discovery. When you add a package to your `deno.json`, its commands are automatically made available to the CLI without changing a single line of code in your project.
+The `loadPackageCommands()` function enables zero-configuration command
+discovery. When you add a package to your `deno.json`, its commands are
+automatically made available to the CLI without changing a single line of code
+in your project.
 
 ```typescript
 // cli.ts (Your project's entry point)
@@ -685,8 +688,10 @@ await cli.discoverCommands('./src/command')
 
 #### Official Packages
 
-- **@lockness/drizzle**: Drizzle ORM integration with migrations, seeders, and CLI commands
-- **@lockness/openapi**: OpenAPI/Swagger documentation with automatic spec generation
+- **@lockness/drizzle**: Drizzle ORM integration with migrations, seeders, and
+  CLI commands
+- **@lockness/openapi**: OpenAPI/Swagger documentation with automatic spec
+  generation
 - **@lockness/cache**: Multi-driver caching system (Memory, Deno KV, Redis)
 - **@lockness/socialite**: OAuth2 authentication (Google, GitHub, Discord)
 
@@ -725,38 +730,41 @@ if (import.meta.main) {
 
 #### Package Development Standards
 
-To maintain consistency and ensure compatibility with the Lockness ecosystem (and JSR), all libraries must follow these standards:
+To maintain consistency and ensure compatibility with the Lockness ecosystem
+(and JSR), all libraries must follow these standards:
 
-1.  **Entry Point**: Use `mod.ts` as the main entry point.
-2.  **Exports**: Explicitly define exports in `deno.json`.
-3.  **Tests**: 
-    - Place all tests in a dedicated `tests/` directory.
-    - Use the `*.test.ts` naming convention (e.g., `validator.test.ts`).
-    - Standardize the `test` task in `deno.json` to `deno test -A tests/`.
-4.  **Publication**: 
-    - Use the `publish` field in `deno.json` to `include` only necessary source files and `exclude` the `tests/` directory.
-5.  **Imports**: 
-    - Use named workspace imports (e.g., `@lockness/cli`, `@lockness/core`) for cross-package dependencies instead of relative paths.
-    - Reference these in the `imports` section of the package's `deno.json`.
+1. **Entry Point**: Use `mod.ts` as the main entry point.
+2. **Exports**: Explicitly define exports in `deno.json`.
+3. **Tests**:
+   - Place all tests in a dedicated `tests/` directory.
+   - Use the `*.test.ts` naming convention (e.g., `validator.test.ts`).
+   - Standardize the `test` task in `deno.json` to `deno test -A tests/`.
+4. **Publication**:
+   - Use the `publish` field in `deno.json` to `include` only necessary source
+     files and `exclude` the `tests/` directory.
+5. **Imports**:
+   - Use named workspace imports (e.g., `@lockness/cli`, `@lockness/core`) for
+     cross-package dependencies instead of relative paths.
+   - Reference these in the `imports` section of the package's `deno.json`.
 
 Example `deno.json` for a package:
 
 ```json
 {
-  "name": "@lockness/my-package",
-  "version": "0.1.0",
-  "exports": "./mod.ts",
-  "tasks": {
-    "test": "deno test -A tests/",
-    "test:watch": "deno test -A --watch tests/"
-  },
-  "publish": {
-    "include": ["mod.ts", "src/**/*.ts", "deno.json", "README.md"],
-    "exclude": ["tests/"]
-  },
-  "imports": {
-    "@lockness/core": "../core/mod.ts"
-  }
+    "name": "@lockness/my-package",
+    "version": "0.1.0",
+    "exports": "./mod.ts",
+    "tasks": {
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
+    "publish": {
+        "include": ["mod.ts", "src/**/*.ts", "deno.json", "README.md"],
+        "exclude": ["tests/"]
+    },
+    "imports": {
+        "@lockness/core": "../core/mod.ts"
+    }
 }
 ```
 
@@ -1352,23 +1360,32 @@ The `.dockerignore` file excludes unnecessary files from the build context:
 
 ## 🌊 Contributing to the Monorepo
 
-Lockness is a monorepo that uses **Deno Workspaces** to manage its internal libraries. This allows for a clean separation of concerns while maintaining a single source of truth for development.
+Lockness is a monorepo that uses **Deno Workspaces** to manage its internal
+libraries. This allows for a clean separation of concerns while maintaining a
+single source of truth for development.
 
 ### Workspace Structure
 
 - `lockness/`: Each subdirectory is an independent Deno package.
-- `lockness/*/mod.ts`: Every library MUST use `mod.ts` as its main entry point (standardized convention).
-- `lockness/*/deno.json`: Package configuration including name (e.g., `@lockness/core`), version, and exports.
+- `lockness/*/mod.ts`: Every library MUST use `mod.ts` as its main entry point
+  (standardized convention).
+- `lockness/*/deno.json`: Package configuration including name (e.g.,
+  `@lockness/core`), version, and exports.
 
 ### Unified Development
 
-- **Imports**: Use public package names (e.g., `@lockness/auth`) for internal cross-package dependencies. Deno resolves these to local paths automatically.
-- **Testing**: Run `deno task test` from the root to execute all workspace tests.
+- **Imports**: Use public package names (e.g., `@lockness/auth`) for internal
+  cross-package dependencies. Deno resolves these to local paths automatically.
+- **Testing**: Run `deno task test` from the root to execute all workspace
+  tests.
 - **Publication**: Publication to JSR is handled atomicaly from the root.
 
 ### Contribution Rules
 
 1. **Exports**: Always expose public APIs through `mod.ts`.
-2. **Workspaces**: Do not manually add `@lockness/*` mappings to the root `deno.json`'s `imports` section.
-3. **Registry**: Register any new library in the `workspace` array of the root `deno.json`.
-4. **GitHub**: The official monorepo is located at [locknessjs/lockness](https://github.com/locknessjs/lockness).
+2. **Workspaces**: Do not manually add `@lockness/*` mappings to the root
+   `deno.json`'s `imports` section.
+3. **Registry**: Register any new library in the `workspace` array of the root
+   `deno.json`.
+4. **GitHub**: The official monorepo is located at
+   [locknessjs/lockness](https://github.com/locknessjs/lockness).

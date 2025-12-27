@@ -1,13 +1,17 @@
 # Lockness Devtools
 
-Lockness includes a powerful set of development tools to help you debug and optimize your application. Inspired by the Symfony Web Debug Toolbar, it provides real-time insights into your app's behavior.
+Lockness includes a powerful set of development tools to help you debug and
+optimize your application. Inspired by the Symfony Web Debug Toolbar, it
+provides real-time insights into your app's behavior.
 
 ---
 
 ## 🚀 Features
 
-- **🔧 Debug Toolbar**: A fixed toolbar at the bottom of every page showing real-time stats.
-- **📊 Profiler Dashboard**: A full-featured web interface at `/_devtools` to inspect every detail.
+- **🔧 Debug Toolbar**: A fixed toolbar at the bottom of every page showing
+  real-time stats.
+- **📊 Profiler Dashboard**: A full-featured web interface at `/_devtools` to
+  inspect every detail.
 - **🔍 Request Inspector**: Track HTTP requests, headers, and payloads.
 - **🗄️ SQL Monitor**: View all database queries executed by Drizzle with timing.
 - **📝 Log Viewer**: See all application logs in a centralized place.
@@ -17,7 +21,8 @@ Lockness includes a powerful set of development tools to help you debug and opti
 
 ## ⚙️ Enabling Devtools
 
-Devtools are disabled by default. You should enable them **only in development** in your `src/kernel.ts`.
+Devtools are disabled by default. You should enable them **only in development**
+in your `src/kernel.ts`.
 
 ```typescript
 import { enableDevtools, collectAppRoutes } from '@lockness/devtools'
@@ -42,7 +47,10 @@ if (isDevelopment) {
 ## 🛠 Usage
 
 ### The Web Debug Toolbar
-When devtools are enabled, a small bar appears at the bottom of your browser. It displays:
+
+When devtools are enabled, a small bar appears at the bottom of your browser. It
+displays:
+
 - The current route name.
 - Total request duration.
 - Number of database queries.
@@ -51,21 +59,32 @@ When devtools are enabled, a small bar appears at the bottom of your browser. It
 Click on any icon to jump directly to the relevant tab in the full dashboard.
 
 ### The Dashboard
-Access the full dashboard by clicking the "wrench" icon in the toolbar or visiting `/_devtools`.
+
+Access the full dashboard by clicking the "wrench" icon in the toolbar or
+visiting `/_devtools`.
 
 #### SQL Queries
-Inspect exactly what SQL was sent to your database. It highlights slow queries and shows the duration for each execution.
+
+Inspect exactly what SQL was sent to your database. It highlights slow queries
+and shows the duration for each execution.
 
 #### Logs
-View all logs triggered by `Logger.info()`, `Logger.warn()`, etc., but also the new **Deprecation notices**.
+
+View all logs triggered by `Logger.info()`, `Logger.warn()`, etc., but also the
+new **Deprecation notices**.
 
 #### Performance
-See a detailed breakdown of the request lifecycle, including time spent in middlewares and controllers.
+
+See a detailed breakdown of the request lifecycle, including time spent in
+middlewares and controllers.
 
 ---
 
 ## 🛡 Security Note
 
-⚠️ **Critical**: Never enable devtools in production. They expose sensitive data like session structures, database queries, and environment details.
+⚠️ **Critical**: Never enable devtools in production. They expose sensitive data
+like session structures, database queries, and environment details.
 
-Lockness automatically filters out the debug bar injection and dashboard routes if the `APP_ENV` is not set to `development`, or if you manually set `DEBUG_BAR=false` in your `.env`.
+Lockness automatically filters out the debug bar injection and dashboard routes
+if the `APP_ENV` is not set to `development`, or if you manually set
+`DEBUG_BAR=false` in your `.env`.

@@ -53,7 +53,10 @@ const DEFAULT_CONFIG: DevtoolsConfig = {
  * }
  * ```
  */
-export function enableDevtools(app: Hono | { getHono: () => Hono }, config: DevtoolsConfig = {}) {
+export function enableDevtools(
+    app: Hono | { getHono: () => Hono },
+    config: DevtoolsConfig = {},
+) {
     const cfg = { ...DEFAULT_CONFIG, ...config }
 
     if (!cfg.enabled) {

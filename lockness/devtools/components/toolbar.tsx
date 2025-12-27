@@ -56,7 +56,8 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                 height: '64px',
                 backgroundColor: '#16171c',
                 borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)',
+                boxShadow:
+                    '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)',
                 zIndex: '999999',
                 fontFamily: 'system-ui, -apple-system, sans-serif',
             }}
@@ -79,7 +80,13 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                     }}
                 >
                     {/* Left section - Logo + Status */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                    <div
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '20px',
+                        }}
+                    >
                         <a
                             href='/_devtools'
                             style={{
@@ -98,8 +105,14 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                             onmouseout="this.style.backgroundColor='transparent'"
                         >
                             <div
-                                style={{ width: '20px', height: '20px', color: '#6366f1' }}
-                                dangerouslySetInnerHTML={{ __html: icons.wrench }}
+                                style={{
+                                    width: '20px',
+                                    height: '20px',
+                                    color: '#6366f1',
+                                }}
+                                dangerouslySetInnerHTML={{
+                                    __html: icons.wrench,
+                                }}
                             />
                         </a>
 
@@ -116,7 +129,8 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                                     fontSize: '13px',
                                     color: 'white',
                                     border: `1px solid ${statusBgColor}`,
-                                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                                    boxShadow:
+                                        '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
                                 }}
                             >
                                 {statusCode}
@@ -145,21 +159,54 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                                     border: '1px solid rgba(99, 102, 241, 0.2)',
                                 }}
                             >
-                                <span style={{ fontSize: '13px', color: '#a5b4fc', fontWeight: '500' }}>
+                                <span
+                                    style={{
+                                        fontSize: '13px',
+                                        color: '#a5b4fc',
+                                        fontWeight: '500',
+                                    }}
+                                >
                                     {currentRequest.controller}
                                 </span>
                                 {currentRequest.action && (
                                     <>
-                                        <span style={{ fontSize: '13px', color: '#6366f1' }}>@</span>
-                                        <span style={{ fontSize: '13px', color: '#818cf8', fontWeight: '600' }}>
+                                        <span
+                                            style={{
+                                                fontSize: '13px',
+                                                color: '#6366f1',
+                                            }}
+                                        >
+                                            @
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: '13px',
+                                                color: '#818cf8',
+                                                fontWeight: '600',
+                                            }}
+                                        >
                                             {currentRequest.action}
                                         </span>
                                     </>
                                 )}
                                 {currentRequest.component && (
                                     <>
-                                        <span style={{ fontSize: '13px', color: '#6366f1' }}>→</span>
-                                        <span style={{ fontSize: '13px', color: '#c4b5fd', fontWeight: '600', fontStyle: 'italic' }}>
+                                        <span
+                                            style={{
+                                                fontSize: '13px',
+                                                color: '#6366f1',
+                                            }}
+                                        >
+                                            →
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: '13px',
+                                                color: '#c4b5fd',
+                                                fontWeight: '600',
+                                                fontStyle: 'italic',
+                                            }}
+                                        >
                                             {currentRequest.component}
                                         </span>
                                     </>
@@ -195,7 +242,9 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                             <ToolbarItem
                                 icon={icons.bolt}
                                 label='Duration'
-                                value={`${currentRequest.duration?.toFixed(2) || '0'}ms`}
+                                value={`${
+                                    currentRequest.duration?.toFixed(2) || '0'
+                                }ms`}
                                 color={!currentRequest.duration
                                     ? '#9ca3af'
                                     : currentRequest.duration < 100
@@ -211,7 +260,9 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                             label='Logs'
                             value={data.logs.length}
                             href='/_devtools?panel=logs'
-                            badge={data.logs.filter((l: LogEntry) => l.level === 'error')
+                            badge={data.logs.filter((l: LogEntry) =>
+                                l.level === 'error'
+                            )
                                 .length > 0}
                         />
 
@@ -262,7 +313,9 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
                         >
                             <div
                                 style={{ width: '18px', height: '18px' }}
-                                dangerouslySetInnerHTML={{ __html: icons.close }}
+                                dangerouslySetInnerHTML={{
+                                    __html: icons.close,
+                                }}
                             />
                         </button>
                     </div>

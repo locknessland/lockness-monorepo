@@ -6,7 +6,11 @@ export const RoutingPage = () => {
     const content = loadMarkdownContent('routing')
 
     return (
-        <DocsLayout title='Routing & Controllers' currentPath='/docs/routing' llmPath='routing'>
+        <DocsLayout
+            title='Routing & Controllers'
+            currentPath='/docs/routing'
+            llmPath='routing'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

@@ -8,8 +8,8 @@ import {
     different,
     requiredIf,
     requiredUnless,
-    validator,
     validate,
+    validator,
 } from '../mod.ts'
 
 Deno.test('Validator - Relational validators', async (t) => {

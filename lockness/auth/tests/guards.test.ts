@@ -2,17 +2,17 @@
 import { assertEquals, assertExists, assertRejects } from '@std/assert'
 import { Hono } from 'hono'
 import {
-    SessionGuard,
-    TokenGuard,
     BasicAuthGuard,
     InvalidCredentialsError,
+    SessionGuard,
+    TokenGuard,
 } from '../mod.ts'
 import {
     createMockContext,
+    type Env,
+    MockBasicAuthProvider,
     MockSessionProvider,
     MockTokenProvider,
-    MockBasicAuthProvider,
-    type Env,
 } from './mocks.ts'
 
 Deno.test('SessionGuard - login with valid credentials', async () => {
@@ -22,8 +22,8 @@ Deno.test('SessionGuard - login with valid credentials', async () => {
     app.use('*', async (c, next) => {
         const mockSession = {
             get: () => undefined,
-            set: () => { },
-            regenerate: async () => { },
+            set: () => {},
+            regenerate: async () => {},
         }
         c.set('session', mockSession as any)
         await next()
@@ -58,7 +58,11 @@ Deno.test('TokenGuard - generate token for user', async () => {
     const provider = new MockTokenProvider()
     const guard = new TokenGuard('api', ctx, provider)
 
-    const token = await guard.generate('alice@example.com', 'password123', 'test-app')
+    const token = await guard.generate(
+        'alice@example.com',
+        'password123',
+        'test-app',
+    )
 
     assertExists(token)
     assertExists(token.value)
@@ -69,13 +73,19 @@ Deno.test('TokenGuard - authenticate with valid token', async () => {
     const provider = new MockTokenProvider()
     const app = new Hono()
 
-    const user = await provider.findByCredentials('alice@example.com', 'password123')
+    const user = await provider.findByCredentials(
+        'alice@example.com',
+        'password123',
+    )
     const token = await provider.createToken(user!, 'test')
 
     app.get('/test', async (c) => {
         const guard = new TokenGuard('api', c as any, provider)
         const authenticatedUser = await guard.authenticate()
-        return c.json({ email: authenticatedUser.email, isAuthenticated: guard.isAuthenticated })
+        return c.json({
+            email: authenticatedUser.email,
+            isAuthenticated: guard.isAuthenticated,
+        })
     })
 
     const res = await app.request('http://localhost/test', {
@@ -94,7 +104,10 @@ Deno.test('BasicAuthGuard - authenticate with valid credentials', async () => {
     app.get('/test', async (c) => {
         const guard = new BasicAuthGuard('basic', c as any, provider)
         const user = await guard.authenticate()
-        return c.json({ email: user.email, isAuthenticated: guard.isAuthenticated })
+        return c.json({
+            email: user.email,
+            isAuthenticated: guard.isAuthenticated,
+        })
     })
 
     const credentials = btoa('alice@example.com:password123')

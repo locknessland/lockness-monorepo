@@ -24,7 +24,12 @@ async function createDrizzleConfig() {
         const currentDir = dirname(fromFileUrl(import.meta.url))
         const stubsDir = join(currentDir, 'stubs')
 
-        const content = await Stub.renderFrom(stubsDir, '', 'drizzle.config.ts', {})
+        const content = await Stub.renderFrom(
+            stubsDir,
+            '',
+            'drizzle.config.ts',
+            {},
+        )
 
         await Deno.writeTextFile(configPath, content)
         console.log('✓ Created drizzle.config.ts')
@@ -170,7 +175,9 @@ async function testDatabaseConnection() {
 function showNextSteps() {
     console.log('\n📦 @lockness/drizzle installation complete!\n')
     console.log('Next steps:')
-    console.log('  1. Update DATABASE_URL in .env with your database credentials')
+    console.log(
+        '  1. Update DATABASE_URL in .env with your database credentials',
+    )
     console.log('  2. Create your first model:')
     console.log('     deno task cli make:model User -a')
     console.log('  3. Generate and run migrations:')

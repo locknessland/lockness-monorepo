@@ -6,11 +6,14 @@ export const namedRoutes: Map<string, string> = new Map<string, string>()
 
 /**
  * Generate a URL for a named route
- * 
+ *
  * @example
  * route('user.show', { id: 123 }) // returns '/users/123'
  */
-export function route(name: string, params: Record<string, string | number> = {}): string {
+export function route(
+    name: string,
+    params: Record<string, string | number> = {},
+): string {
     let path = namedRoutes.get(name)
     if (!path) {
         throw new Error(`Route "${name}" not found in registered routes`)

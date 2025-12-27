@@ -4,6 +4,7 @@
  */
 
 import type {
+    DeprecationEntry,
     DevtoolsData,
     LogEntry,
     MailInfo,
@@ -13,7 +14,6 @@ import type {
     RouteInfo,
     SessionData,
     SQLQuery,
-    DeprecationEntry,
 } from './types.ts'
 
 export class DevtoolsCollector {

@@ -1,7 +1,7 @@
 /**
  * @lockness/deprecation-contracts - Decorators
- * 
- * Expressive decorators to trigger deprecation notices on classes, 
+ *
+ * Expressive decorators to trigger deprecation notices on classes,
  * methods, and accessors.
  */
 
@@ -15,10 +15,10 @@ export interface DeprecationOptions {
 
 /**
  * @Deprecated decorator
- * 
+ *
  * Mark a class, method, or accessor as deprecated.
  * A notice will be triggered when the decorated item is used.
- * 
+ *
  * @example
  * ```ts
  * @Deprecated('1.2.0', 'Use AuthService instead')
@@ -30,12 +30,22 @@ export function Deprecated(version: string, message: string, pkg?: string): any
 // deno-lint-ignore no-explicit-any
 export function Deprecated(options: DeprecationOptions): any
 // deno-lint-ignore no-explicit-any
-export function Deprecated(arg1: string | DeprecationOptions, arg2?: string, arg3?: string): any {
+export function Deprecated(
+    arg1: string | DeprecationOptions,
+    arg2?: string,
+    arg3?: string,
+): any {
     const options: DeprecationOptions = typeof arg1 === 'string'
         ? { version: arg1, message: arg2!, package: arg3 }
         : arg1
 
-    return function (target: unknown, context: ClassDecoratorContext | ClassMethodDecoratorContext | ClassAccessorDecoratorContext) {
+    return function (
+        target: unknown,
+        context:
+            | ClassDecoratorContext
+            | ClassMethodDecoratorContext
+            | ClassAccessorDecoratorContext,
+    ) {
         const name = String(context.name)
 
         if (context.kind === 'class') {
@@ -67,7 +77,10 @@ export function Deprecated(arg1: string | DeprecationOptions, arg2?: string, arg
         }
 
         if (context.kind === 'accessor') {
-            const originalAccessor = target as { get: () => unknown; set: (value: unknown) => void }
+            const originalAccessor = target as {
+                get: () => unknown
+                set: (value: unknown) => void
+            }
             return {
                 get(this: unknown) {
                     triggerDeprecation(
@@ -84,7 +97,7 @@ export function Deprecated(arg1: string | DeprecationOptions, arg2?: string, arg
                         `Setting deprecated property "${name}". ${options.message}`,
                     )
                     return originalAccessor.set.call(this, value)
-                }
+                },
             }
         }
 

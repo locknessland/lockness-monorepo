@@ -9,11 +9,11 @@ import {
     configureSocialite,
     generateState,
     getSocialiteConfig,
+    type OAuthTokens,
+    type ProviderConfig,
     registerSocialiteDriver,
     socialite,
     type SocialUser,
-    type OAuthTokens,
-    type ProviderConfig,
 } from '../mod.ts'
 
 describe('socialite system', () => {

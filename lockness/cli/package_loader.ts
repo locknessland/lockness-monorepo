@@ -2,7 +2,7 @@ import type { Cli } from './mod.ts'
 
 /**
  * Load and register commands from packages listed in deno.json
- * 
+ *
  * Reads the "lockness" section from deno.json and dynamically imports
  * the register functions from each package.
  */
@@ -34,7 +34,8 @@ export async function loadPackageCommands(cli: Cli): Promise<void> {
                 for (const key of Object.keys(module)) {
                     if (
                         (key.startsWith('register') &&
-                            (key.endsWith('Commands') || key.endsWith('Command'))) ||
+                            (key.endsWith('Commands') ||
+                                key.endsWith('Command'))) ||
                         key === 'registerCommands'
                     ) {
                         const registerFn = module[key]
@@ -47,13 +48,27 @@ export async function loadPackageCommands(cli: Cli): Promise<void> {
                 }
 
                 if (!registered) {
-                    console.warn(`⚠ Package ${fullPackageName} does not export a register function`)
+                    console.warn(
+                        `⚠ Package ${fullPackageName} does not export a register function`,
+                    )
                 }
             } catch (error) {
-                console.error(`❌ Failed to load commands from @lockness/${packageName.replace('@lockness/', '')}:`)
-                console.error(`   The package is listed in "lockness.packages" in your deno.json but could not be imported.`)
-                console.error(`   - Error: ${error instanceof Error ? error.message : error}`)
-                console.error(`   - Fix: Use "./nessy package:remove ${packageName}" or manually remove it from deno.json`)
+                console.error(
+                    `❌ Failed to load commands from @lockness/${
+                        packageName.replace('@lockness/', '')
+                    }:`,
+                )
+                console.error(
+                    `   The package is listed in "lockness.packages" in your deno.json but could not be imported.`,
+                )
+                console.error(
+                    `   - Error: ${
+                        error instanceof Error ? error.message : error
+                    }`,
+                )
+                console.error(
+                    `   - Fix: Use "./nessy package:remove ${packageName}" or manually remove it from deno.json`,
+                )
                 console.log('') // Add empty line for readability
             }
         }
@@ -102,13 +117,15 @@ export async function addPackage(packageName: string): Promise<void> {
         // Write back to file
         await Deno.writeTextFile(
             denoJsonPath,
-            JSON.stringify(denoJson, null, 2) + '\n'
+            JSON.stringify(denoJson, null, 2) + '\n',
         )
 
         console.log(`✓ Added ${normalizedName} to lockness.packages`)
     } catch (error) {
         throw new Error(
-            `Failed to add package: ${error instanceof Error ? error.message : error}`
+            `Failed to add package: ${
+                error instanceof Error ? error.message : error
+            }`,
         )
     }
 }
@@ -145,13 +162,15 @@ export async function removePackage(packageName: string): Promise<void> {
         // Write back to file
         await Deno.writeTextFile(
             denoJsonPath,
-            JSON.stringify(denoJson, null, 2) + '\n'
+            JSON.stringify(denoJson, null, 2) + '\n',
         )
 
         console.log(`✓ Removed ${normalizedName} from lockness.packages`)
     } catch (error) {
         throw new Error(
-            `Failed to remove package: ${error instanceof Error ? error.message : error}`
+            `Failed to remove package: ${
+                error instanceof Error ? error.message : error
+            }`,
         )
     }
 }

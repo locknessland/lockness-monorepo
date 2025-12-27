@@ -6,7 +6,11 @@ export const InstallationPage = () => {
     const content = loadMarkdownContent('installation')
 
     return (
-        <DocsLayout title='Installation' currentPath='/docs/installation' llmPath='installation'>
+        <DocsLayout
+            title='Installation'
+            currentPath='/docs/installation'
+            llmPath='installation'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

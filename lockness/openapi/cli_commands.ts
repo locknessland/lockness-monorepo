@@ -63,7 +63,9 @@ export function registerOpenAPICommands(cli: Cli) {
 
             console.log(`✅ OpenAPI spec generated at: ${outputPath}`)
             console.log(
-                `   Found ${Object.keys(spec.paths).length} documented endpoints`,
+                `   Found ${
+                    Object.keys(spec.paths).length
+                } documented endpoints`,
             )
             console.log(`   ${spec.tags?.length || 0} tags`)
             console.log(`\n💡 View docs at: http://localhost:8888/api-docs`)
@@ -92,4 +94,3 @@ function parseOptions(args: string[]): {
 
     return options
 }
-

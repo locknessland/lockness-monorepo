@@ -1,84 +1,84 @@
 {
-  "workspace": [
-    "./lockness/core",
-    "./lockness/auth",
-    "./lockness/cache",
-    "./lockness/container",
-    "./lockness/devtools",
-    "./lockness/events",
-    "./lockness/logger",
-    "./lockness/mail",
-    "./lockness/openapi",
-    "./lockness/queue",
-    "./lockness/session",
-    "./lockness/socialite",
-    "./lockness/storage",
-    "./lockness/validator",
-    "./lockness/cli",
-    "./lockness/drizzle",
-    "./lockness/init",
-    "./lockness/deprecation-contracts"
-  ],
-  "nodeModulesDir": "auto",
-  "tasks": {
-    "dev": "bash scripts/dev.sh",
-    "build": "deno task css:build",
-    "compile": "deno task routes:generate && deno task css:build && APP_ENV=production deno compile --output=_dist/lockness -A main.ts",
-    "start": "deno run -A --env-file=.env.production.local main.ts",
-    "cli": "deno run -A --env cli.ts",
-    "css:build": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css",
-    "css:watch": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css --watch",
-    "test": "deno test -A lockness/",
-    "test:watch": "deno test -A --watch lockness/",
-    "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
-    "routes:generate": "deno run -A scripts/generate_routes.ts",
-    "routes:watch": "deno run -A scripts/watch_routes.ts"
-  },
-  "imports": {
-    "@/": "./",
-    "@controller/": "./src/controller/",
-    "@service/": "./src/service/",
-    "@middleware/": "./src/middleware/",
-    "@model/": "./src/model/",
-    "@repository/": "./src/repository/",
-    "@view/": "./src/view/",
-    "@kernel": "./src/kernel.tsx",
-    "@std/assert": "jsr:@std/assert@1",
-    "@std/cli": "jsr:@std/cli@1",
-    "@std/fs": "jsr:@std/fs@1",
-    "@std/path": "jsr:@std/path@1",
-    "hono": "npm:hono@^4.11.1",
-    "postgres": "npm:postgres@^3.4.4",
-    "drizzle-orm": "npm:drizzle-orm@^0.36.3",
-    "drizzle-zod": "npm:drizzle-zod@^0.5.1",
-    "drizzle-kit": "npm:drizzle-kit@^0.27.2",
-    "tailwindcss": "npm:tailwindcss@^4.0.0",
-    "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.0.0",
-    "postcss": "npm:postcss@^8.4.49",
-    "postcss-cli": "npm:postcss-cli@^11.0.0",
-    "zod": "jsr:@zod/zod@^4.2.1",
-    "@hono/zod-validator": "jsr:@hono/zod-validator@^0.7.6"
-  },
-  "unstable": [
-    "kv"
-  ],
-  "fmt": {
-    "indentWidth": 4,
-    "useTabs": false,
-    "singleQuote": true,
-    "proseWrap": "always",
-    "lineWidth": 80,
-    "semiColons": false
-  },
-  "compilerOptions": {
-    "jsx": "precompile",
-    "jsxImportSource": "hono/jsx"
-  },
-  "lockness": {
-    "packages": [
-      "drizzle",
-      "init",
-      "openapi"
-    ]
-  }
+    "workspace": [
+        "./lockness/core",
+        "./lockness/auth",
+        "./lockness/cache",
+        "./lockness/container",
+        "./lockness/devtools",
+        "./lockness/events",
+        "./lockness/logger",
+        "./lockness/mail",
+        "./lockness/openapi",
+        "./lockness/queue",
+        "./lockness/session",
+        "./lockness/socialite",
+        "./lockness/storage",
+        "./lockness/validator",
+        "./lockness/cli",
+        "./lockness/drizzle",
+        "./lockness/init",
+        "./lockness/deprecation-contracts"
+    ],
+    "nodeModulesDir": "auto",
+    "tasks": {
+        "dev": "bash scripts/dev.sh",
+        "build": "deno task css:build",
+        "compile": "deno task routes:generate && deno task css:build && APP_ENV=production deno compile --output=_dist/lockness -A main.ts",
+        "start": "deno run -A --env-file=.env.production.local main.ts",
+        "cli": "deno run -A --env cli.ts",
+        "css:build": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css",
+        "css:watch": "deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css --watch",
+        "test": "deno test -A lockness/",
+        "test:watch": "deno test -A --watch lockness/",
+        "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
+        "routes:generate": "deno run -A scripts/generate_routes.ts",
+        "routes:watch": "deno run -A scripts/watch_routes.ts"
+    },
+    "imports": {
+        "@/": "./",
+        "@controller/": "./src/controller/",
+        "@service/": "./src/service/",
+        "@middleware/": "./src/middleware/",
+        "@model/": "./src/model/",
+        "@repository/": "./src/repository/",
+        "@view/": "./src/view/",
+        "@kernel": "./src/kernel.tsx",
+        "@std/assert": "jsr:@std/assert@1",
+        "@std/cli": "jsr:@std/cli@1",
+        "@std/fs": "jsr:@std/fs@1",
+        "@std/path": "jsr:@std/path@1",
+        "hono": "npm:hono@^4.11.1",
+        "postgres": "npm:postgres@^3.4.4",
+        "drizzle-orm": "npm:drizzle-orm@^0.36.3",
+        "drizzle-zod": "npm:drizzle-zod@^0.5.1",
+        "drizzle-kit": "npm:drizzle-kit@^0.27.2",
+        "tailwindcss": "npm:tailwindcss@^4.0.0",
+        "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.0.0",
+        "postcss": "npm:postcss@^8.4.49",
+        "postcss-cli": "npm:postcss-cli@^11.0.0",
+        "zod": "jsr:@zod/zod@^4.2.1",
+        "@hono/zod-validator": "jsr:@hono/zod-validator@^0.7.6"
+    },
+    "unstable": [
+        "kv"
+    ],
+    "fmt": {
+        "indentWidth": 4,
+        "useTabs": false,
+        "singleQuote": true,
+        "proseWrap": "always",
+        "lineWidth": 80,
+        "semiColons": false
+    },
+    "compilerOptions": {
+        "jsx": "precompile",
+        "jsxImportSource": "hono/jsx"
+    },
+    "lockness": {
+        "packages": [
+            "drizzle",
+            "init",
+            "openapi"
+        ]
+    }
 }

@@ -6,7 +6,11 @@ export const DevtoolsPage = () => {
     const content = loadMarkdownContent('devtools')
 
     return (
-        <DocsLayout title='DevTools' currentPath='/docs/devtools' llmPath='devtools'>
+        <DocsLayout
+            title='DevTools'
+            currentPath='/docs/devtools'
+            llmPath='devtools'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

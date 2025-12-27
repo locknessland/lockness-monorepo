@@ -3,12 +3,7 @@
  */
 
 import { assertEquals, assertExists } from '@std/assert'
-import {
-    Logger,
-    LogLevel,
-    MemoryTransport,
-    TextFormatter,
-} from '../mod.ts'
+import { Logger, LogLevel, MemoryTransport, TextFormatter } from '../mod.ts'
 
 Deno.test('Logger - Basic logging', async (t) => {
     await t.step('creates logger with default config', () => {

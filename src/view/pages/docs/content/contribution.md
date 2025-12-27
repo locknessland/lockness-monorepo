@@ -1,10 +1,12 @@
 # Contributing to Lockness
 
-Lockness is a monorepo containing multiple libraries. Contributing to the core of the framework requires understanding how the workspace is structured.
+Lockness is a monorepo containing multiple libraries. Contributing to the core
+of the framework requires understanding how the workspace is structured.
 
 ## Monorepo Structure
 
-The project uses **Deno Workspaces** to manage multiple internal libraries. All core libraries are located in the `lockness/` directory:
+The project uses **Deno Workspaces** to manage multiple internal libraries. All
+core libraries are located in the `lockness/` directory:
 
 - `@lockness/core`: The web framework core (routing, controllers, etc.)
 - `@lockness/auth`: Authentication system
@@ -16,14 +18,19 @@ The project uses **Deno Workspaces** to manage multiple internal libraries. All 
 
 ### Deno Workspaces
 
-Deno Workspaces allow you to use the final import names (e.g., `@lockness/core`) in your code. Deno automatically resolves these to the local folders in the workspace.
+Deno Workspaces allow you to use the final import names (e.g., `@lockness/core`)
+in your code. Deno automatically resolves these to the local folders in the
+workspace.
 
-You don't need to change any imports when switching between development and production.
+You don't need to change any imports when switching between development and
+production.
 
 ### Naming Convention
 
 Each library in the workspace follows the Deno convention for its entry point:
-- **`mod.ts`**: This is the main entry point of the library. It exports the public API.
+
+- **`mod.ts`**: This is the main entry point of the library. It exports the
+  public API.
 - **`deno.json`**: Each library has its own configuration and versioning.
 
 ### Running Tests
@@ -38,7 +45,8 @@ This will run all tests for all libraries in the workspace.
 
 ## Contributing
 
-1. **Fork the repository**: [locknessjs/lockness](https://github.com/locknessjs/lockness)
+1. **Fork the repository**:
+   [locknessjs/lockness](https://github.com/locknessjs/lockness)
 2. **Create a branch**: `git checkout -b feature/my-new-feature`
 3. **Make your changes**: Ensure you follow the `mod.ts` convention for exports.
 4. **Test your changes**: Run `deno task test` to verify everything works.
@@ -46,4 +54,7 @@ This will run all tests for all libraries in the workspace.
 
 ## Local Development linking
 
-If you want to test your local changes in another project, you can use the `imports` section of your project's `deno.json` to point to your local clones of the Lockness libraries, or better, use the workspace feature if your project is also a monorepo.
+If you want to test your local changes in another project, you can use the
+`imports` section of your project's `deno.json` to point to your local clones of
+the Lockness libraries, or better, use the workspace feature if your project is
+also a monorepo.

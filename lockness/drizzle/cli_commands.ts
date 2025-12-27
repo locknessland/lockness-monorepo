@@ -109,7 +109,9 @@ export function registerDrizzleCommands(cli: Cli) {
         if (code === 0) {
             console.log('✅ Schema is up to date')
         } else {
-            console.log('⚠️  Schema changes detected. Run db:generate to create a migration')
+            console.log(
+                '⚠️  Schema changes detected. Run db:generate to create a migration',
+            )
         }
     }, 'Check if migrations are up to date with schema')
 
@@ -121,7 +123,10 @@ export function registerDrizzleCommands(cli: Cli) {
             await (db as unknown as { client: postgres.Sql }).client`SELECT 1`
             console.log('✅ Database connection successful')
         } catch (error) {
-            console.error('❌ Database connection failed:', (error as Error).message)
+            console.error(
+                '❌ Database connection failed:',
+                (error as Error).message,
+            )
             console.log('\n💡 Check your DATABASE_URL in .env')
         }
     }, 'Test database connection')
@@ -177,7 +182,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         (v) =>
                             typeof v === 'function' &&
                             v.prototype?.run,
-                    ) as { new(): { run(): Promise<void> } } | undefined
+                    ) as { new (): { run(): Promise<void> } } | undefined
 
                     if (SeederClass) {
                         const seeder = new SeederClass()
@@ -199,7 +204,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         `file://${Deno.cwd()}/${mainSeederPath}`
                     )
                     const DatabaseSeeder = module.DatabaseSeeder as
-                        | { new(): { run(): Promise<void> } }
+                        | { new (): { run(): Promise<void> } }
                         | undefined
 
                     if (DatabaseSeeder) {
@@ -271,148 +276,156 @@ export function registerDrizzleCommands(cli: Cli) {
         }
     }, 'Create a new database seeder')
 
-    cli.register('make:model', async (args) => {
-        const { name, repository, seeder, controller } = parseFlags(args)
+    cli.register(
+        'make:model',
+        async (args) => {
+            const { name, repository, seeder, controller } = parseFlags(args)
 
-        if (!name) {
-            console.error('❌ Please provide a model name (e.g., Post)')
-            console.log('')
-            console.log('Usage: deno task cli make:model <Name> [options]')
-            console.log('')
-            console.log('Options:')
-            console.log('  -r, --repository    Create a repository')
-            console.log('  -s, --seeder        Create a seeder')
-            console.log('  -c, --controller    Create a CRUD controller')
-            console.log(
-                '  -a, --all           Create all (repository, seeder, controller)',
-            )
-            return
-        }
+            if (!name) {
+                console.error('❌ Please provide a model name (e.g., Post)')
+                console.log('')
+                console.log('Usage: deno task cli make:model <Name> [options]')
+                console.log('')
+                console.log('Options:')
+                console.log('  -r, --repository    Create a repository')
+                console.log('  -s, --seeder        Create a seeder')
+                console.log('  -c, --controller    Create a CRUD controller')
+                console.log(
+                    '  -a, --all           Create all (repository, seeder, controller)',
+                )
+                return
+            }
 
-        // Naming conventions
-        const modelName = name.charAt(0).toUpperCase() + name.slice(1) // User
-        const tableName = name.toLowerCase() + 's' // users
-        const fileName = name.toLowerCase() // user
-        const route = tableName // users
-        const repositoryName = `${modelName}Repository`
-        const repositoryVar = `${fileName}Repository`
+            // Naming conventions
+            const modelName = name.charAt(0).toUpperCase() + name.slice(1) // User
+            const tableName = name.toLowerCase() + 's' // users
+            const fileName = name.toLowerCase() // user
+            const route = tableName // users
+            const repositoryName = `${modelName}Repository`
+            const repositoryVar = `${fileName}Repository`
 
-        const createdFiles: string[] = []
+            const createdFiles: string[] = []
 
-        // Always create the model
-        try {
-            const stubContent = await Deno.readTextFile(
-                join(STUBS_PATH, 'model.stub'),
-            )
-
-            const content = stubContent
-                .replace(/\{\{ModelName\}\}/g, modelName)
-                .replace(/\{\{tableName\}\}/g, tableName)
-
-            const dirPath = './src/model'
-            const filePath = `${dirPath}/${fileName}.ts`
-
-            await Deno.mkdir(dirPath, { recursive: true })
-            await Deno.writeTextFile(filePath, content)
-            createdFiles.push(filePath)
-        } catch (error) {
-            console.error(
-                `❌ Failed to create model: ${(error as Error).message}`,
-            )
-            return
-        }
-
-        // Create repository if requested
-        if (repository) {
+            // Always create the model
             try {
                 const stubContent = await Deno.readTextFile(
-                    join(STUBS_PATH, 'repository.stub'),
+                    join(STUBS_PATH, 'model.stub'),
                 )
 
                 const content = stubContent
                     .replace(/\{\{ModelName\}\}/g, modelName)
                     .replace(/\{\{tableName\}\}/g, tableName)
-                    .replace(/\{\{fileName\}\}/g, fileName)
-                    .replace(/\{\{RepositoryName\}\}/g, repositoryName)
 
-                const dirPath = './src/repository'
-                const filePath = `${dirPath}/${fileName}_repository.ts`
+                const dirPath = './src/model'
+                const filePath = `${dirPath}/${fileName}.ts`
 
                 await Deno.mkdir(dirPath, { recursive: true })
                 await Deno.writeTextFile(filePath, content)
                 createdFiles.push(filePath)
             } catch (error) {
                 console.error(
-                    `❌ Failed to create repository: ${(error as Error).message
-                    }`,
+                    `❌ Failed to create model: ${(error as Error).message}`,
+                )
+                return
+            }
+
+            // Create repository if requested
+            if (repository) {
+                try {
+                    const stubContent = await Deno.readTextFile(
+                        join(STUBS_PATH, 'repository.stub'),
+                    )
+
+                    const content = stubContent
+                        .replace(/\{\{ModelName\}\}/g, modelName)
+                        .replace(/\{\{tableName\}\}/g, tableName)
+                        .replace(/\{\{fileName\}\}/g, fileName)
+                        .replace(/\{\{RepositoryName\}\}/g, repositoryName)
+
+                    const dirPath = './src/repository'
+                    const filePath = `${dirPath}/${fileName}_repository.ts`
+
+                    await Deno.mkdir(dirPath, { recursive: true })
+                    await Deno.writeTextFile(filePath, content)
+                    createdFiles.push(filePath)
+                } catch (error) {
+                    console.error(
+                        `❌ Failed to create repository: ${
+                            (error as Error).message
+                        }`,
+                    )
+                }
+            }
+
+            // Create seeder if requested
+            if (seeder) {
+                try {
+                    const stubContent = await Deno.readTextFile(
+                        join(STUBS_PATH, 'seeder.stub'),
+                    )
+
+                    const content = stubContent.replace(
+                        /\{\{className\}\}/g,
+                        modelName,
+                    )
+
+                    const dirPath = './database/seeders'
+                    const filePath = `${dirPath}/${fileName}_seeder.ts`
+
+                    await Deno.mkdir(dirPath, { recursive: true })
+                    await Deno.writeTextFile(filePath, content)
+                    createdFiles.push(filePath)
+                } catch (error) {
+                    console.error(
+                        `❌ Failed to create seeder: ${
+                            (error as Error).message
+                        }`,
+                    )
+                }
+            }
+
+            // Create controller if requested
+            if (controller) {
+                try {
+                    const stubContent = await Deno.readTextFile(
+                        join(STUBS_PATH, 'controller.stub'),
+                    )
+
+                    const content = stubContent
+                        .replace(/\{\{ModelName\}\}/g, modelName)
+                        .replace(/\{\{tableName\}\}/g, tableName)
+                        .replace(/\{\{fileName\}\}/g, fileName)
+                        .replace(/\{\{route\}\}/g, route)
+                        .replace(/\{\{RepositoryName\}\}/g, repositoryName)
+                        .replace(/\{\{repositoryVar\}\}/g, repositoryVar)
+
+                    const dirPath = './src/controller'
+                    const filePath = `${dirPath}/${fileName}_controller.ts`
+
+                    await Deno.mkdir(dirPath, { recursive: true })
+                    await Deno.writeTextFile(filePath, content)
+                    createdFiles.push(filePath)
+                } catch (error) {
+                    console.error(
+                        `❌ Failed to create controller: ${
+                            (error as Error).message
+                        }`,
+                    )
+                }
+            }
+
+            // Summary
+            console.log(`✅ Created ${createdFiles.length} file(s):`)
+            createdFiles.forEach((f) => console.log(`   ${f}`))
+
+            if (createdFiles.length === 1) {
+                console.log('')
+                console.log('💡 Use flags to generate related files:')
+                console.log(
+                    '   -r  repository   -s  seeder   -c  controller   -a  all',
                 )
             }
-        }
-
-        // Create seeder if requested
-        if (seeder) {
-            try {
-                const stubContent = await Deno.readTextFile(
-                    join(STUBS_PATH, 'seeder.stub'),
-                )
-
-                const content = stubContent.replace(
-                    /\{\{className\}\}/g,
-                    modelName,
-                )
-
-                const dirPath = './database/seeders'
-                const filePath = `${dirPath}/${fileName}_seeder.ts`
-
-                await Deno.mkdir(dirPath, { recursive: true })
-                await Deno.writeTextFile(filePath, content)
-                createdFiles.push(filePath)
-            } catch (error) {
-                console.error(
-                    `❌ Failed to create seeder: ${(error as Error).message}`,
-                )
-            }
-        }
-
-        // Create controller if requested
-        if (controller) {
-            try {
-                const stubContent = await Deno.readTextFile(
-                    join(STUBS_PATH, 'controller.stub'),
-                )
-
-                const content = stubContent
-                    .replace(/\{\{ModelName\}\}/g, modelName)
-                    .replace(/\{\{tableName\}\}/g, tableName)
-                    .replace(/\{\{fileName\}\}/g, fileName)
-                    .replace(/\{\{route\}\}/g, route)
-                    .replace(/\{\{RepositoryName\}\}/g, repositoryName)
-                    .replace(/\{\{repositoryVar\}\}/g, repositoryVar)
-
-                const dirPath = './src/controller'
-                const filePath = `${dirPath}/${fileName}_controller.ts`
-
-                await Deno.mkdir(dirPath, { recursive: true })
-                await Deno.writeTextFile(filePath, content)
-                createdFiles.push(filePath)
-            } catch (error) {
-                console.error(
-                    `❌ Failed to create controller: ${(error as Error).message
-                    }`,
-                )
-            }
-        }
-
-        // Summary
-        console.log(`✅ Created ${createdFiles.length} file(s):`)
-        createdFiles.forEach((f) => console.log(`   ${f}`))
-
-        if (createdFiles.length === 1) {
-            console.log('')
-            console.log('💡 Use flags to generate related files:')
-            console.log(
-                '   -r  repository   -s  seeder   -c  controller   -a  all',
-            )
-        }
-    }, 'Create a new Drizzle model (with optional repository, seeder, controller)')
+        },
+        'Create a new Drizzle model (with optional repository, seeder, controller)',
+    )
 }

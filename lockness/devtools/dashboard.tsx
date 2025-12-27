@@ -5,7 +5,12 @@
 
 import type { Context } from 'hono'
 import { collector } from './collector.ts'
-import type { LogEntry, RequestInfo, RouteInfo, DeprecationEntry } from './types.ts'
+import type {
+    DeprecationEntry,
+    LogEntry,
+    RequestInfo,
+    RouteInfo,
+} from './types.ts'
 
 // Embedded Tailwind CSS (minimal production build)
 const TAILWIND_CSS = `
@@ -140,7 +145,13 @@ export function renderDashboard(c: Context) {
             data.performance.length,
         )
     }
-                ${tab('Deprecations', activePanel === 'deprecations', data.deprecations.length)}
+                ${
+        tab(
+            'Deprecations',
+            activePanel === 'deprecations',
+            data.deprecations.length,
+        )
+    }
             </nav>
         </div>
     </div>
@@ -157,7 +168,9 @@ export function renderDashboard(c: Context) {
     }
                 ${card('Requests', data.requests.length, 'Captured', 'green')}
                 ${card('SQL Queries', data.queries.length, 'Logged', 'yellow')}
-                ${card('Deprecations', data.deprecations.length, 'Notices', 'yellow')}
+                ${
+        card('Deprecations', data.deprecations.length, 'Notices', 'yellow')
+    }
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -173,7 +186,11 @@ export function renderDashboard(c: Context) {
             badge(req.method, req.method === 'GET' ? 'blue' : 'green')
         }
                                     <span class="text-sm font-medium">${req.path}</span>
-                                    ${req.routeName ? `<span class="text-xs text-blue-600 font-medium">(${req.routeName})</span>` : ''}
+                                    ${
+            req.routeName
+                ? `<span class="text-xs text-blue-600 font-medium">(${req.routeName})</span>`
+                : ''
+        }
                                 </div>
                                 <span class="text-xs text-gray-500">${
             req.duration?.toFixed(2) || '-'
@@ -236,8 +253,12 @@ export function renderDashboard(c: Context) {
         }
                                 </td>
                                 <td class="px-6 py-4 font-mono text-sm">${route.path}</td>
-                                <td class="px-6 py-4 text-sm text-blue-600 font-medium">${route.name || '-'}</td>
-                                <td class="px-6 py-4 text-sm text-gray-600">${route.controller || '-'}</td>
+                                <td class="px-6 py-4 text-sm text-blue-600 font-medium">${
+            route.name || '-'
+        }</td>
+                                <td class="px-6 py-4 text-sm text-gray-600">${
+            route.controller || '-'
+        }</td>
                                 <td class="px-6 py-4 text-sm">
                                     ${
             route.middlewares.map((m: string) => badge(m, 'gray')).join(' ')
@@ -305,7 +326,9 @@ export function renderDashboard(c: Context) {
         </div>
 
         <!-- Deprecations Panel -->
-        <div data-panel="deprecations" class="${activePanel !== 'deprecations' ? 'hidden' : ''}">
+        <div data-panel="deprecations" class="${
+        activePanel !== 'deprecations' ? 'hidden' : ''
+    }">
             <div class="bg-white rounded-lg shadow overflow-hidden">
                 <div class="p-6 border-b border-gray-200">
                     <h2 class="text-xl font-semibold">Deprecation Notices</h2>
@@ -321,7 +344,8 @@ export function renderDashboard(c: Context) {
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
-                        ${data.deprecations.map((dep: DeprecationEntry) => `
+                        ${
+        data.deprecations.map((dep: DeprecationEntry) => `
                             <tr class="hover:bg-gray-50 transition">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-600">${dep.version}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${dep.pkg}</td>
@@ -329,18 +353,25 @@ export function renderDashboard(c: Context) {
                                 <td class="px-6 py-4 text-xs font-mono text-gray-400">
                                     <details class="cursor-pointer">
                                         <summary class="hover:text-blue-500">View Stack</summary>
-                                        <pre class="mt-2 whitespace-pre-wrap max-w-lg overflow-auto">${dep.stack || 'No stack trace available'}</pre>
+                                        <pre class="mt-2 whitespace-pre-wrap max-w-lg overflow-auto">${
+            dep.stack || 'No stack trace available'
+        }</pre>
                                     </details>
                                 </td>
                             </tr>
-                        `).join('')}
-                        ${data.deprecations.length === 0 ? `
+                        `).join('')
+    }
+                        ${
+        data.deprecations.length === 0
+            ? `
                             <tr>
                                 <td colspan="4" class="px-6 py-12 text-center text-gray-500 italic">
                                     No deprecation notices found. Your code is clean! 🎉
                                 </td>
                             </tr>
-                        ` : ''}
+                        `
+            : ''
+    }
                     </tbody>
                 </table>
             </div>

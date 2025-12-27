@@ -4,11 +4,7 @@
 
 import { assertEquals } from '@std/assert'
 import { Hono } from 'hono'
-import {
-    configureSession,
-    getSession,
-    sessionMiddleware,
-} from '../mod.ts'
+import { configureSession, getSession, sessionMiddleware } from '../mod.ts'
 
 Deno.test('sessionMiddleware - attaches session to context', async () => {
     configureSession({

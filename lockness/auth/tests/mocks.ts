@@ -2,11 +2,11 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import type {
+    AccessToken,
     Authenticatable,
+    BasicAuthUserProviderContract,
     SessionUserProviderContract,
     TokenUserProviderContract,
-    BasicAuthUserProviderContract,
-    AccessToken,
 } from '../types.ts'
 import { PROVIDER_REAL_USER } from '../types.ts'
 
@@ -36,7 +36,8 @@ export type Env = {
 // Mock Session User Provider (In-Memory)
 // =============================================================================
 
-export class MockSessionProvider implements SessionUserProviderContract<TestUser> {
+export class MockSessionProvider
+    implements SessionUserProviderContract<TestUser> {
     declare [PROVIDER_REAL_USER]: TestUser
 
     private users: Map<number, TestUser> = new Map()
@@ -61,7 +62,10 @@ export class MockSessionProvider implements SessionUserProviderContract<TestUser
         return Promise.resolve(this.users.get(Number(id)) || null)
     }
 
-    findByCredentials(email: string, password: string): Promise<TestUser | null> {
+    findByCredentials(
+        email: string,
+        password: string,
+    ): Promise<TestUser | null> {
         for (const user of this.users.values()) {
             if (user.email === email && user.password === password) {
                 return Promise.resolve(user)
@@ -98,7 +102,10 @@ export class MockTokenProvider implements TokenUserProviderContract<TestUser> {
         return Promise.resolve(this.users.get(Number(id)) || null)
     }
 
-    findByCredentials(email: string, password: string): Promise<TestUser | null> {
+    findByCredentials(
+        email: string,
+        password: string,
+    ): Promise<TestUser | null> {
         for (const user of this.users.values()) {
             if (user.email === email && user.password === password) {
                 return Promise.resolve(user)
@@ -119,14 +126,18 @@ export class MockTokenProvider implements TokenUserProviderContract<TestUser> {
             value: tokenValue,
             hash: tokenValue, // Simplified for testing
             userId: user.id,
-            expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : undefined,
+            expiresAt: expiresIn
+                ? new Date(Date.now() + expiresIn * 1000)
+                : undefined,
             createdAt: new Date(),
         }
         this.tokens.set(tokenValue, token)
         return Promise.resolve(token)
     }
 
-    async verifyToken(tokenValue: string): Promise<{ user: TestUser; token: AccessToken } | null> {
+    async verifyToken(
+        tokenValue: string,
+    ): Promise<{ user: TestUser; token: AccessToken } | null> {
         const token = this.tokens.get(tokenValue)
         if (!token) return null
 
@@ -164,7 +175,8 @@ export class MockTokenProvider implements TokenUserProviderContract<TestUser> {
 // Mock Basic Auth Provider
 // =============================================================================
 
-export class MockBasicAuthProvider implements BasicAuthUserProviderContract<TestUser> {
+export class MockBasicAuthProvider
+    implements BasicAuthUserProviderContract<TestUser> {
     declare [PROVIDER_REAL_USER]: TestUser
 
     private users: Map<number, TestUser> = new Map()
@@ -182,7 +194,10 @@ export class MockBasicAuthProvider implements BasicAuthUserProviderContract<Test
         return Promise.resolve(this.users.get(Number(id)) || null)
     }
 
-    findByCredentials(email: string, password: string): Promise<TestUser | null> {
+    findByCredentials(
+        email: string,
+        password: string,
+    ): Promise<TestUser | null> {
         for (const user of this.users.values()) {
             if (user.email === email && user.password === password) {
                 return Promise.resolve(user)
@@ -208,9 +223,16 @@ export async function createMockContext(): Promise<Context> {
         const dataMap = new Map<string, unknown>()
         const mockSession = {
             _data: dataMap,
-            get: function (key: string) { return dataMap.get(key) },
-            set: function (key: string, value: unknown) { dataMap.set(key, value) },
-            regenerate: () => { dataMap.clear(); return Promise.resolve() },
+            get: function (key: string) {
+                return dataMap.get(key)
+            },
+            set: function (key: string, value: unknown) {
+                dataMap.set(key, value)
+            },
+            regenerate: () => {
+                dataMap.clear()
+                return Promise.resolve()
+            },
         }
         c.set('session', mockSession as any)
         await next()

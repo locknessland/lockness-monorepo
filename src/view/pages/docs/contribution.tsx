@@ -6,7 +6,11 @@ export const ContributionPage = () => {
     const content = loadMarkdownContent('contribution')
 
     return (
-        <DocsLayout title='Contribution' currentPath='/docs/contribution' llmPath='contribution'>
+        <DocsLayout
+            title='Contribution'
+            currentPath='/docs/contribution'
+            llmPath='contribution'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

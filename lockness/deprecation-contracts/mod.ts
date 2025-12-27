@@ -26,7 +26,7 @@ try {
 
 /**
  * Triggers a deprecation notice.
- * 
+ *
  * @param pkg The name of the package that is triggering the deprecation
  * @param version The version of the package that introduced the deprecation
  * @param message The message of the deprecation
@@ -46,7 +46,7 @@ export function triggerDeprecation(
     let formattedMessage = message
     if (args.length > 0) {
         // Simple string replacement if %s is found, otherwise append
-        args.forEach(arg => {
+        args.forEach((arg) => {
             if (formattedMessage.includes('%s')) {
                 formattedMessage = formattedMessage.replace('%s', String(arg))
             } else {
@@ -90,6 +90,6 @@ export function triggerDeprecation(
     console.warn(
         `%c[DEPRECATION] %c${fullMessage}`,
         'color: #eab308; font-weight: bold;',
-        'color: inherit; font-weight: normal;'
+        'color: inherit; font-weight: normal;',
     )
 }

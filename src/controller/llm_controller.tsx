@@ -1,25 +1,52 @@
-import { Controller, Get, Context } from '@lockness/core'
+import { Context, Controller, Get } from '@lockness/core'
 
 @Controller('/llms')
 export class LlmController {
     @Get('/')
     index(c: Context) {
         const sections = [
-            { name: 'lockness', description: 'Complete Lockness framework documentation' },
-            { name: 'installation', description: 'Installation and setup guide' },
-            { name: 'getting-started', description: 'First steps with Lockness' },
-            { name: 'routing', description: 'Controllers, decorators, and routing' },
+            {
+                name: 'lockness',
+                description: 'Complete Lockness framework documentation',
+            },
+            {
+                name: 'installation',
+                description: 'Installation and setup guide',
+            },
+            {
+                name: 'getting-started',
+                description: 'First steps with Lockness',
+            },
+            {
+                name: 'routing',
+                description: 'Controllers, decorators, and routing',
+            },
             { name: 'models', description: 'Database models with Drizzle ORM' },
             { name: 'validation', description: 'Request validation with Zod' },
-            { name: 'authentication', description: 'Session-based authentication system' },
+            {
+                name: 'authentication',
+                description: 'Session-based authentication system',
+            },
             { name: 'middleware', description: 'Class-based middleware' },
-            { name: 'sessions', description: 'Multi-driver session management' },
-            { name: 'dependency-injection', description: 'Dependency injection container' },
+            {
+                name: 'sessions',
+                description: 'Multi-driver session management',
+            },
+            {
+                name: 'dependency-injection',
+                description: 'Dependency injection container',
+            },
             { name: 'cli', description: 'CLI command reference' },
             { name: 'nessy', description: 'Nessy CLI wrapper' },
             { name: 'components', description: 'JSX components for views' },
-            { name: 'devtools', description: 'Development tools and debugging' },
-            { name: 'deprecation', description: 'Deprecation system and warnings' },
+            {
+                name: 'devtools',
+                description: 'Development tools and debugging',
+            },
+            {
+                name: 'deprecation',
+                description: 'Deprecation system and warnings',
+            },
             { name: 'packages', description: 'Official Lockness packages' },
         ]
 
@@ -32,7 +59,7 @@ export class LlmController {
             '',
             'Available sections:',
             '',
-            ...sections.map(s => `- /llms/${s.name}.txt - ${s.description}`),
+            ...sections.map((s) => `- /llms/${s.name}.txt - ${s.description}`),
             '',
             'Usage: Fetch any endpoint to get plain text documentation optimized for LLM consumption.',
         ].join('\n')
@@ -96,7 +123,9 @@ export class LlmController {
 
     @Get('/dependency-injection.txt')
     async dependencyInjection(c: Context) {
-        const text = await Deno.readTextFile('public/llms/dependency-injection.txt')
+        const text = await Deno.readTextFile(
+            'public/llms/dependency-injection.txt',
+        )
         return c.text(text)
     }
 
@@ -136,6 +165,3 @@ export class LlmController {
         return c.text(text)
     }
 }
-
-
-

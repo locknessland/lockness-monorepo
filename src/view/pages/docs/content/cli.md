@@ -218,9 +218,10 @@ dynamically load commands from any package listed in your `deno.json`.
 ```
 
 When you run `deno task cli`, the engine:
-1.  Reads the `lockness.packages` array.
-2.  Dynamically imports `@lockness/{name}`.
-3.  Executes the package's registration function.
+
+1. Reads the `lockness.packages` array.
+2. Dynamically imports `@lockness/{name}`.
+3. Executes the package's registration function.
 
 This means that after installing a new package, its commands (like `db:migrate`
 or `openapi:generate`) are immediately available without any manual code
@@ -258,7 +259,7 @@ cli.registerCommand(MyCustomCommand)
 
 // Or a simple function
 cli.register('simple', async (args) => {
-  console.log('Simple command')
+    console.log('Simple command')
 }, 'A simple function command')
 
 await cli.run(Deno.args)

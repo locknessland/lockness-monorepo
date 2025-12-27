@@ -9,7 +9,7 @@ const API_DOC_METADATA = Symbol('api_doc_metadata')
 
 export function ApiDoc(metadata: ApiDocMetadata): (
     target: unknown,
-    context: ClassMethodDecoratorContext
+    context: ClassMethodDecoratorContext,
 ) => void {
     return function (
         _target: unknown,
@@ -21,13 +21,22 @@ export function ApiDoc(metadata: ApiDocMetadata): (
         context.addInitializer(function (this: unknown) {
             if (!initialized) {
                 initialized = true
-                const constructor = (this as { constructor: unknown }).constructor
+                const constructor =
+                    (this as { constructor: unknown }).constructor
 
-                if (!(constructor as Record<PropertyKey, unknown>)[API_DOC_METADATA]) {
-                    (constructor as Record<PropertyKey, unknown>)[API_DOC_METADATA] = new Map()
+                if (
+                    !(constructor as Record<PropertyKey, unknown>)[
+                        API_DOC_METADATA
+                    ]
+                ) {
+                    ;(constructor as Record<PropertyKey, unknown>)[
+                        API_DOC_METADATA
+                    ] = new Map()
                 }
 
-                const map = (constructor as Record<PropertyKey, unknown>)[API_DOC_METADATA] as Map<
+                const map = (constructor as Record<PropertyKey, unknown>)[
+                    API_DOC_METADATA
+                ] as Map<
                     string,
                     ApiDocMetadata
                 >
@@ -41,10 +50,12 @@ export function getApiDocMetadata(
     target: { prototype: unknown },
     methodName: string,
 ): ApiDocMetadata | undefined {
-    const map = (target as Record<PropertyKey, unknown>)[API_DOC_METADATA] as Map<
-        string,
-        ApiDocMetadata
-    > | undefined
+    const map = (target as Record<PropertyKey, unknown>)[API_DOC_METADATA] as
+        | Map<
+            string,
+            ApiDocMetadata
+        >
+        | undefined
 
     return map?.get(methodName)
 }
@@ -52,4 +63,3 @@ export function getApiDocMetadata(
 export function hasApiDoc(target: { prototype: unknown }): boolean {
     return !!(target as Record<PropertyKey, unknown>)[API_DOC_METADATA]
 }
-

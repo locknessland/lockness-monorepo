@@ -1,9 +1,10 @@
-import { Controller, Get, type Context, type ControllerClass } from '@lockness/core'
 import {
-    ApiDoc,
-    generateOpenAPISpec,
-    serveSwaggerUI,
-} from '@lockness/openapi'
+    type Context,
+    Controller,
+    type ControllerClass,
+    Get,
+} from '@lockness/core'
+import { ApiDoc, generateOpenAPISpec, serveSwaggerUI } from '@lockness/openapi'
 import { join } from '@std/path'
 
 async function loadControllers(): Promise<ControllerClass[]> {
@@ -19,7 +20,9 @@ async function loadControllers(): Promise<ControllerClass[]> {
                 entry.name !== 'api_docs_controller.ts' // Skip self
             ) {
                 const modulePath = join(controllersDir, entry.name)
-                const module = await import(`file://${Deno.cwd()}/${modulePath}`)
+                const module = await import(
+                    `file://${Deno.cwd()}/${modulePath}`
+                )
 
                 // Get all exported controllers
                 for (const key of Object.keys(module)) {

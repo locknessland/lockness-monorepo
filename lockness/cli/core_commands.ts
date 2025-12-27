@@ -20,7 +20,7 @@ export function registerCoreCommands(cli: Cli) {
             }
             await addPackage(packageName)
         },
-        'Add a Lockness package to your project configuration'
+        'Add a Lockness package to your project configuration',
     )
 
     cli.register(
@@ -47,22 +47,31 @@ export function registerCoreCommands(cli: Cli) {
                     // Fallback: just add to config
                     await addPackage(packageName)
                     console.log('\n✅ Package added to configuration')
-                    console.log('⚠️  This package does not have an automated installer')
-                    console.log('   Please refer to the package documentation for setup instructions')
+                    console.log(
+                        '⚠️  This package does not have an automated installer',
+                    )
+                    console.log(
+                        '   Please refer to the package documentation for setup instructions',
+                    )
                 }
             } catch (error) {
-                if (error instanceof Error && error.message.includes('does not provide an export')) {
+                if (
+                    error instanceof Error &&
+                    error.message.includes('does not provide an export')
+                ) {
                     // No install script, just add to config
                     await addPackage(packageName)
                     console.log('\n✅ Package added to configuration')
-                    console.log('ℹ️  This package does not have an automated installer')
+                    console.log(
+                        'ℹ️  This package does not have an automated installer',
+                    )
                 } else {
                     console.error('❌ Installation failed:', error)
                     Deno.exit(1)
                 }
             }
         },
-        'Install and configure a Lockness package (runs setup automatically)'
+        'Install and configure a Lockness package (runs setup automatically)',
     )
 
     cli.register(
@@ -75,7 +84,7 @@ export function registerCoreCommands(cli: Cli) {
             }
             await removePackage(packageName)
         },
-        'Remove a Lockness package from your project configuration'
+        'Remove a Lockness package from your project configuration',
     )
 
     // Register all command modules

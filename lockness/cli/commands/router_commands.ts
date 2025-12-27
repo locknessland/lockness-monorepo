@@ -16,8 +16,9 @@ export function registerRouterCommands(cli: Cli) {
                         (entry.name.endsWith('.ts') ||
                             entry.name.endsWith('.tsx'))
                     ) {
-                        const filePath = `file://${join(controllerDir, entry.name)
-                            }`
+                        const filePath = `file://${
+                            join(controllerDir, entry.name)
+                        }`
                         try {
                             const module = await import(
                                 /* @vite-ignore */ filePath
@@ -46,7 +47,8 @@ export function registerRouterCommands(cli: Cli) {
                             }
                         } catch (importError) {
                             console.warn(
-                                `⚠️  Could not import ${entry.name}: ${(importError as Error).message
+                                `⚠️  Could not import ${entry.name}: ${
+                                    (importError as Error).message
                                 }`,
                             )
                         }
@@ -163,9 +165,11 @@ export function registerRouterCommands(cli: Cli) {
             )
 
             // Print header
-            const header = `┃ ${'METHOD'.padEnd(methodWidth)} ┃ ${'PATH'.padEnd(pathWidth)
-                } ┃ ${'NAME'.padEnd(nameWidth)} ┃ ${'CONTROLLER'.padEnd(controllerWidth)} ┃ ${'ACTION'.padEnd(actionWidth)
-                } ┃ MIDDLEWARES`
+            const header = `┃ ${'METHOD'.padEnd(methodWidth)} ┃ ${
+                'PATH'.padEnd(pathWidth)
+            } ┃ ${'NAME'.padEnd(nameWidth)} ┃ ${
+                'CONTROLLER'.padEnd(controllerWidth)
+            } ┃ ${'ACTION'.padEnd(actionWidth)} ┃ MIDDLEWARES`
             const separator = '━'.repeat(header.length)
 
             console.log(separator)

@@ -6,7 +6,11 @@ export const DeprecationPage = () => {
     const content = loadMarkdownContent('deprecation')
 
     return (
-        <DocsLayout title='Deprecation' currentPath='/docs/deprecation' llmPath='deprecation'>
+        <DocsLayout
+            title='Deprecation'
+            currentPath='/docs/deprecation'
+            llmPath='deprecation'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

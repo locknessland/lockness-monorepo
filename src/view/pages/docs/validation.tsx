@@ -6,7 +6,11 @@ export const ValidationPage = () => {
     const content = loadMarkdownContent('validation')
 
     return (
-        <DocsLayout title='Validation' currentPath='/docs/validation' llmPath='validation'>
+        <DocsLayout
+            title='Validation'
+            currentPath='/docs/validation'
+            llmPath='validation'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

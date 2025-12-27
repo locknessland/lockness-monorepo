@@ -3,10 +3,7 @@
  */
 
 import { assertEquals, assertNotEquals } from '@std/assert'
-import {
-    MemorySessionDriver,
-    SessionStore,
-} from '../mod.ts'
+import { MemorySessionDriver, SessionStore } from '../mod.ts'
 
 Deno.test('SessionStore - get and set values', () => {
     const driver = new MemorySessionDriver()

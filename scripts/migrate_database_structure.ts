@@ -1,7 +1,7 @@
 #!/usr/bin/env -S deno run -A
 /**
  * Migration script to move files to new database/ structure
- * 
+ *
  * Usage: deno run -A scripts/migrate_database_structure.ts
  */
 
@@ -30,7 +30,8 @@ try {
 // Move migrations
 console.log('\nMigrating migrations...')
 try {
-    const oldMigrationsExist = await Deno.stat('migrations').then(() => true).catch(() => false)
+    const oldMigrationsExist = await Deno.stat('migrations').then(() => true)
+        .catch(() => false)
 
     if (oldMigrationsExist) {
         for await (const entry of Deno.readDir('migrations')) {
@@ -52,7 +53,10 @@ try {
             await Deno.remove('migrations', { recursive: true })
             console.log('✓ Removed old migrations/ directory')
         } catch (error) {
-            console.warn('⚠ Could not remove old migrations/ directory:', error.message)
+            console.warn(
+                '⚠ Could not remove old migrations/ directory:',
+                error.message,
+            )
         }
     } else {
         console.log('ℹ️  No migrations/ directory found, skipping')
@@ -64,7 +68,8 @@ try {
 // Move seeders
 console.log('\nMigrating seeders...')
 try {
-    const oldSeedersExist = await Deno.stat('src/seeder').then(() => true).catch(() => false)
+    const oldSeedersExist = await Deno.stat('src/seeder').then(() => true)
+        .catch(() => false)
 
     if (oldSeedersExist) {
         for await (const entry of Deno.readDir('src/seeder')) {
@@ -81,7 +86,10 @@ try {
             await Deno.remove('src/seeder', { recursive: true })
             console.log('✓ Removed old src/seeder/ directory')
         } catch (error) {
-            console.warn('⚠ Could not remove old src/seeder/ directory:', error.message)
+            console.warn(
+                '⚠ Could not remove old src/seeder/ directory:',
+                error.message,
+            )
         }
     } else {
         console.log('ℹ️  No src/seeder/ directory found, skipping')
@@ -100,7 +108,10 @@ try {
 
             // Update imports: ../model -> ../../src/model
             if (content.includes("from '../model/")) {
-                content = content.replaceAll("from '../model/", "from '../../src/model/")
+                content = content.replaceAll(
+                    "from '../model/",
+                    "from '../../src/model/",
+                )
                 await Deno.writeTextFile(filePath, content)
                 console.log(`✓ Updated imports in ${entry.name}`)
             }

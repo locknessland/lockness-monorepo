@@ -1,7 +1,8 @@
 # @lockness/deprecation-contracts
 
 A generic function and convention to trigger deprecation notices in Lockness JS.
-Inspired by [symfony/deprecation-contracts](https://github.com/symfony/deprecation-contracts).
+Inspired by
+[symfony/deprecation-contracts](https://github.com/symfony/deprecation-contracts).
 
 ## 🚀 Installation
 
@@ -15,19 +16,20 @@ deno add jsr:@lockness/deprecation-contracts
 
 ## 🛠 Usage
 
-The package provides a `triggerDeprecation` function to signal that a feature is deprecated.
+The package provides a `triggerDeprecation` function to signal that a feature is
+deprecated.
 
 ```typescript
 import { triggerDeprecation } from '@lockness/deprecation-contracts'
 
 function oldMethod() {
     triggerDeprecation(
-        'my-package', 
-        '1.2.0', 
-        'The oldMethod() is deprecated, use %s instead', 
-        'newMethod()'
+        'my-package',
+        '1.2.0',
+        'The oldMethod() is deprecated, use %s instead',
+        'newMethod()',
     )
-    
+
     // ... logic
 }
 ```
@@ -45,10 +47,10 @@ function oldMethod() {
 
 You can control the behavior of deprecations via environment variables:
 
-| Variable | Description |
-|----------|-------------|
+| Variable                   | Description                                                     |
+| -------------------------- | --------------------------------------------------------------- |
 | `STRICT_DEPRECATIONS=true` | Throws an `Error` instead of logging a warning. Perfect for CI. |
-| `IGNORE_DEPRECATIONS=true` | Silences all deprecation notices. |
+| `IGNORE_DEPRECATIONS=true` | Silences all deprecation notices.                               |
 
 ## 🎨 Aesthetics
 

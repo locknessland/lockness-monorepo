@@ -6,7 +6,11 @@ export const DependencyInjectionPage = () => {
     const content = loadMarkdownContent('dependency-injection')
 
     return (
-        <DocsLayout title='Dependency Injection' currentPath='/docs/dependency-injection' llmPath='dependency-injection'>
+        <DocsLayout
+            title='Dependency Injection'
+            currentPath='/docs/dependency-injection'
+            llmPath='dependency-injection'
+        >
             <MarkdownRenderer blocks={content} />
         </DocsLayout>
     )

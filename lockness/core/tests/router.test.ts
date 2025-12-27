@@ -60,7 +60,10 @@ Deno.test('route - throws error for non-existent route', () => {
         error = e as Error
     }
 
-    assertEquals(error?.message, 'Route "non.existent" not found in registered routes')
+    assertEquals(
+        error?.message,
+        'Route "non.existent" not found in registered routes',
+    )
 })
 
 Deno.test('route - returns route path without params when no params provided', () => {
@@ -135,7 +138,11 @@ Deno.test('route - handles consecutive parameters', () => {
     namedRoutes.clear()
     namedRoutes.set('api.nested', '/api/:version/:resource/:id')
 
-    const result = route('api.nested', { version: 'v1', resource: 'users', id: 42 })
+    const result = route('api.nested', {
+        version: 'v1',
+        resource: 'users',
+        id: 42,
+    })
 
     assertEquals(result, '/api/v1/users/42')
 })

@@ -9,9 +9,9 @@ import {
     lowercase,
     minLength,
     trim,
-    validator,
     validateOrThrow,
     ValidationError,
+    validator,
 } from '../mod.ts'
 
 Deno.test('Validator - Validator class', async (t) => {

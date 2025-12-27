@@ -68,7 +68,8 @@ const CopyIcon = () => (
         stroke-linejoin='round'
     >
         <rect width='14' height='14' x='8' y='8' rx='2' ry='2'></rect>
-        <path d='M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'></path>
+        <path d='M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'>
+        </path>
     </svg>
 )
 
@@ -93,7 +94,9 @@ const LlmLinks = (props: { llmPath?: string }) => {
 
     return (
         <div class='flex items-center justify-end gap-2 mb-6 pb-4 border-b-2 border-border/50'>
-            <span class='text-muted-foreground font-pixel text-[10px]'>LLM DOCS:</span>
+            <span class='text-muted-foreground font-pixel text-[10px]'>
+                LLM DOCS:
+            </span>
             <a
                 href={`/llms/${props.llmPath}.txt`}
                 target='_blank'
@@ -143,8 +146,12 @@ const LlmLinks = (props: { llmPath?: string }) => {
                 title='Copy link to clipboard'
                 style='box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.2);'
             >
-                <span class='copy-icon'><CopyIcon /></span>
-                <span class='check-icon' style='display: none;'><CheckIcon /></span>
+                <span class='copy-icon'>
+                    <CopyIcon />
+                </span>
+                <span class='check-icon' style='display: none;'>
+                    <CheckIcon />
+                </span>
                 <span class='font-pixel text-[9px] mt-0.5 copy-text'>COPY</span>
             </button>
         </div>
@@ -153,7 +160,12 @@ const LlmLinks = (props: { llmPath?: string }) => {
 
 export const DocsLayout = (
     // deno-lint-ignore no-explicit-any
-    props: { title: string; children: any; currentPath: string; llmPath?: string },
+    props: {
+        title: string
+        children: any
+        currentPath: string
+        llmPath?: string
+    },
 ) => {
     return (
         <html lang='en' class='dark'>

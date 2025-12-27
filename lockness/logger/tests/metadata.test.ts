@@ -3,11 +3,7 @@
  */
 
 import { assertEquals, assertExists } from '@std/assert'
-import {
-    Logger,
-    MemoryTransport,
-    TextFormatter,
-} from '../mod.ts'
+import { Logger, MemoryTransport, TextFormatter } from '../mod.ts'
 
 Deno.test('Logger - Metadata support', async (t) => {
     await t.step('logs with metadata', async () => {
