@@ -1,4 +1,4 @@
-import { route } from 'lockness'
+import { route } from '@lockness/core'
 import { LandingLayout } from '../layouts/landing_layout.tsx'
 import pkg from '../../../lockness/core/deno.json' with { type: 'json' }
 

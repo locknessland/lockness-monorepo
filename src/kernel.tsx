@@ -4,7 +4,7 @@ import {
     container,
     type Context,
     sessionMiddleware,
-} from 'lockness'
+} from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 import {
     authMiddleware,

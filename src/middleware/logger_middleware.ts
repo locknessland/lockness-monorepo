@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono'
-import { type IMiddleware, Middleware } from 'lockness'
+import { type IMiddleware, Middleware } from '@lockness/core'
 
 /**
  * Logger middleware - logs all incoming requests

@@ -1,4 +1,4 @@
-import { Controller, Get, Context } from 'lockness'
+import { Controller, Get, Context } from '@lockness/core'
 
 @Controller('/llms')
 export class LlmController {

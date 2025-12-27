@@ -1,4 +1,4 @@
-import { Context, Controller, Get, route } from 'lockness'
+import { Context, Controller, Get, route } from '@lockness/core'
 import { InstallationPage } from '@view/pages/docs/installation.tsx'
 import { GettingStartedPage } from '@view/pages/docs/getting-started.tsx'
 import { RoutingPage } from '@view/pages/docs/routing.tsx'

@@ -1,4 +1,4 @@
-import { route } from 'lockness'
+import { route } from '@lockness/core'
 
 interface NavLink {
     title: string
