@@ -6,6 +6,22 @@
         "test": "deno test -A tests/",
         "test:watch": "deno test -A --watch tests/"
     },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "authenticator.ts",
+            "errors.ts",
+            "types.ts",
+            "deno.json",
+            "README.md",
+            "guards/**/*.ts",
+            "middleware/**/*.ts",
+            "providers/**/*.ts"
+        ],
+        "exclude": [
+            "tests/"
+        ]
+    },
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
         "hono": "npm:hono@^4.11.1",
