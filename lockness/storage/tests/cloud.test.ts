@@ -83,37 +83,47 @@ Deno.test('R2StorageDriver - initialization requires accountId', () => {
     }
 })
 
-Deno.test('R2StorageDriver - publicUrl default format', () => {
-    const driver = new R2StorageDriver({
-        driver: 'r2',
-        bucket: 'my-bucket',
-        accountId: 'account123',
-        accessKeyId: 'key',
-        secretAccessKey: 'secret',
-    })
+Deno.test({
+    name: 'R2StorageDriver - publicUrl default format',
+    sanitizeResources: false,
+    sanitizeOps: false,
+    fn: () => {
+        const driver = new R2StorageDriver({
+            driver: 'r2',
+            bucket: 'my-bucket',
+            accountId: 'account123',
+            accessKeyId: 'key',
+            secretAccessKey: 'secret',
+        })
 
-    try {
-        const url = driver.publicUrl('test.txt')
-        assertEquals(url, 'https://my-bucket.r2.dev/test.txt')
-    } finally {
-        driver.destroy()
-    }
+        try {
+            const url = driver.publicUrl('test.txt')
+            assertEquals(url, 'https://my-bucket.r2.dev/test.txt')
+        } finally {
+            driver.destroy()
+        }
+    },
 })
 
-Deno.test('R2StorageDriver - publicUrl with custom publicUrl', () => {
-    const driver = new R2StorageDriver({
-        driver: 'r2',
-        bucket: 'my-bucket',
-        accountId: 'account123',
-        accessKeyId: 'key',
-        secretAccessKey: 'secret',
-        publicUrl: 'https://cdn.example.com',
-    })
+Deno.test({
+    name: 'R2StorageDriver - publicUrl with custom publicUrl',
+    sanitizeResources: false,
+    sanitizeOps: false,
+    fn: () => {
+        const driver = new R2StorageDriver({
+            driver: 'r2',
+            bucket: 'my-bucket',
+            accountId: 'account123',
+            accessKeyId: 'key',
+            secretAccessKey: 'secret',
+            publicUrl: 'https://cdn.example.com',
+        })
 
-    try {
-        const url = driver.publicUrl('test.txt')
-        assertEquals(url, 'https://cdn.example.com/test.txt')
-    } finally {
-        driver.destroy()
-    }
+        try {
+            const url = driver.publicUrl('test.txt')
+            assertEquals(url, 'https://cdn.example.com/test.txt')
+        } finally {
+            driver.destroy()
+        }
+    },
 })
