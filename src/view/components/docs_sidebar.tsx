@@ -50,6 +50,12 @@ const navSections: NavSection[] = [
             { title: 'Package Management', name: 'docs.packages' },
         ],
     },
+    {
+        title: 'Contributing',
+        links: [
+            { title: 'Framework Contribution', name: 'docs.contribution' },
+        ],
+    },
 ]
 
 export const DocsSidebar = (props: { currentPath: string }) => {

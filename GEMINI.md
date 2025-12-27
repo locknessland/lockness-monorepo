@@ -1332,3 +1332,26 @@ The `.dockerignore` file excludes unnecessary files from the build context:
 - Environment files (`.env`, `.env.local`)
 - Test files (`*.test.ts`)
 - IDE files (`.vscode/`, `.idea/`)
+
+## 🌊 Contributing to the Monorepo
+
+Lockness is a monorepo that uses **Deno Workspaces** to manage its internal libraries. This allows for a clean separation of concerns while maintaining a single source of truth for development.
+
+### Workspace Structure
+
+- `lockness/`: Each subdirectory is an independent Deno package.
+- `lockness/*/mod.ts`: Every library MUST use `mod.ts` as its main entry point (standardized convention).
+- `lockness/*/deno.json`: Package configuration including name (e.g., `@lockness/core`), version, and exports.
+
+### Unified Development
+
+- **Imports**: Use public package names (e.g., `@lockness/auth`) for internal cross-package dependencies. Deno resolves these to local paths automatically.
+- **Testing**: Run `deno task test` from the root to execute all workspace tests.
+- **Publication**: Publication to JSR is handled atomicaly from the root.
+
+### Contribution Rules
+
+1. **Exports**: Always expose public APIs through `mod.ts`.
+2. **Workspaces**: Do not manually add `@lockness/*` mappings to the root `deno.json`'s `imports` section.
+3. **Registry**: Register any new library in the `workspace` array of the root `deno.json`.
+4. **GitHub**: The official monorepo is located at [locknessjs/lockness](https://github.com/locknessjs/lockness).

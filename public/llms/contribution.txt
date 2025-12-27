@@ -1,0 +1,47 @@
+# How to contribute to Lockness Monorepo
+
+Lockness is a full-stack MVC framework for Deno built with multiple independent libraries.
+
+## Repository Information
+- **GitHub Monorepo**: [https://github.com/locknessjs/lockness](https://github.com/locknessjs/lockness)
+- **Contribution Policy**: Pull Requests are welcome for features, bug fixes, and documentation.
+
+## Project Structure
+The monorepo uses Deno Workspaces:
+- `lockness/`: Contains all framework libraries.
+- `src/`: Contains the core application and website components.
+- `scripts/`: Development and maintenance scripts.
+
+### Workspace Members
+Each directory in `lockness/` is a workspace member with its own `deno.json`.
+Example members: `core`, `auth`, `cli`, `drizzle`, `session`, etc.
+
+## Development Workflow
+
+### 1. Unified Imports
+Thanks to Deno Workspaces, you can import internal libraries using their public names (e.g., `@lockness/core`) even during development. Deno automatically maps these to the local folders.
+
+### 2. Export Convention
+All libraries MUST use `mod.ts` as their main entry point. 
+The `deno.json` of each library should specify:
+```json
+"exports": {
+    ".": "./mod.ts"
+}
+```
+
+### 3. Testing
+Before submitting changes, run the global test suite from the root:
+```bash
+deno task test
+```
+This ensures that all libraries and their integrations are working correctly.
+
+## Scaffolding & CLI
+Contribution to the CLI or scaffolding tools should respect the stubs system located in `lockness/init/stubs` and `lockness/cli/stubs`.
+
+## Summary Checklist
+- Use `mod.ts` for library exports.
+- Do not manually map internal libs in the root `deno.json`'s `imports` section; let the workspace handle it.
+- Always run tests before pushing.
+- Link to the monorepo: [locknessjs/lockness](https://github.com/locknessjs/lockness)

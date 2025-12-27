@@ -920,3 +920,14 @@ await app.init({
 
 Pages are generated with minimal HTML (no styling) so you can customize them
 with your own CSS.
+
+### Contributing to the Monorepo
+
+Lockness is developed as a monorepo using Deno Workspaces. If you wish to contribute to the framework itself, please follow these guidelines:
+
+1.  **Workspaces**: All core libraries are located in the `lockness/` directory.
+2.  **Naming Convention**: Every library must use `mod.ts` as its main entry point and be registered in the root `deno.json` workspace array.
+3.  **Testing**: Run the global test suite with `deno task test` before submitting any changes.
+4.  **GitHub**: Submit your pull requests to the [locknessjs/lockness](https://github.com/locknessjs/lockness) repository.
+
+For more detailed information, see the [Contribution Guide](https://lockness.land/docs/contribution).

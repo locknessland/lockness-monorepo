@@ -14,6 +14,7 @@ import { DeprecationPage } from '@view/pages/docs/deprecation.tsx'
 import { DependencyInjectionPage } from '@view/pages/docs/dependency-injection.tsx'
 import { SessionsPage } from '@view/pages/docs/sessions.tsx'
 import { DevtoolsPage } from '@view/pages/docs/devtools.tsx'
+import { ContributionPage } from '@view/pages/docs/contribution.tsx'
 
 @Controller('/docs')
 export class DocsController {
@@ -95,5 +96,10 @@ export class DocsController {
     @Get('/devtools', { name: 'docs.devtools' })
     devtools(c: Context) {
         return c.html(<DevtoolsPage />)
+    }
+
+    @Get('/contribution', { name: 'docs.contribution' })
+    contribution(c: Context) {
+        return c.html(<ContributionPage />)
     }
 }
