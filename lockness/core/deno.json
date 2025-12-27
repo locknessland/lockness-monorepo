@@ -2,7 +2,9 @@
     "name": "@lockness/core",
     "version": "0.1.0",
     "exports": {
-        ".": "./mod.ts"
+        ".": "./mod.ts",
+        "./jsx": "./jsx.ts",
+        "./jsx-runtime": "./jsx-runtime.ts"
     },
     "publish": {
         "include": [
@@ -16,6 +18,8 @@
             "router.ts",
             "types.ts",
             "validation.ts",
+            "jsx.ts",
+            "jsx-runtime.ts",
             "deno.json",
             "README.md"
         ],

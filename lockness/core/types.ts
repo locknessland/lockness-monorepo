@@ -6,6 +6,8 @@ import type {
 } from 'hono'
 import type { Env, Input } from 'hono/types'
 
+export type { Next } from 'hono'
+
 export type Context<
     E extends Env = any,
     P extends string = any,

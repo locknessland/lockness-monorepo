@@ -6,7 +6,9 @@ export * from './validation.ts'
 export * from './helpers.ts'
 export * from './components.tsx'
 export * from './auth.ts'
+export { Hono } from 'hono'
 export { html } from 'hono/html'
+export type { Child } from 'hono/jsx'
 
 // Re-export from separate libs
 export * from '@lockness/cache'

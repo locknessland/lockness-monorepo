@@ -1,4 +1,4 @@
-import { Child } from 'hono/jsx'
+import { type Child } from '@lockness/core'
 
 export const Button = (
     { children, variant = 'primary', ...props }: {

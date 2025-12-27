@@ -2017,7 +2017,6 @@
       "npm:drizzle-kit@~0.27.2",
       "npm:drizzle-orm@~0.36.3",
       "npm:drizzle-zod@~0.5.1",
-      "npm:hono@^4.11.1",
       "npm:postcss-cli@11",
       "npm:postcss@^8.4.49",
       "npm:postgres@^3.4.4",
