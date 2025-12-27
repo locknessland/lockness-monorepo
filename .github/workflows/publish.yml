@@ -1,0 +1,38 @@
+name: Publish to JSR
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Requis pour JSR
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # 1. Vérifie que le code respecte le formatage standard
+      - name: Check Formatting
+        run: deno fmt --check
+
+      # 2. Analyse statique pour trouver les erreurs courantes
+      - name: Lint
+        run: deno lint
+
+      # 3. Lance tous les tests du workspace
+      # L'option -A donne toutes les perms pour les tests (adaptable selon besoins)
+      - name: Run Tests
+        run: deno task test -A
+
+      # 4. Publie seulement si tout est vert
+      - name: Publish to JSR
+        run: deno publish
