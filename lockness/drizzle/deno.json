@@ -2,9 +2,19 @@
     "name": "@lockness/drizzle",
     "version": "0.1.0",
     "exports": {
-        ".": "./database.ts",
+        ".": "./mod.ts",
         "./commands": "./cli_commands.ts",
         "./install": "./install.ts"
+    },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "cli_commands.ts",
+            "install.ts",
+            "deno.json",
+            "README.md",
+            "stubs/**/*"
+        ]
     },
     "imports": {
         "@std/path": "jsr:@std/path@^1.0.0",

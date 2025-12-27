@@ -1,7 +1,7 @@
 import type { Cli } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { container } from '@lockness/core'
-import { Database } from './database.ts'
+import { Database } from './mod.ts'
 import type postgres from 'postgres'
 
 const currentDir = dirname(fromFileUrl(import.meta.url))
