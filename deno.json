@@ -58,7 +58,7 @@
         "postcss-cli": "npm:postcss-cli@^11.0.0",
         "@lockness/core": "jsr:@lockness/core@^0.1.0",
         "zod": "npm:zod@^4.2.1",
-        "@hono/zod-validator": "npm:@hono/zod-validator@^0.7.6"
+        "@hono/zod-validator": "jsr:@lockness/hono@^0.1.0/zod-validator"
     },
     "unstable": [
         "kv"

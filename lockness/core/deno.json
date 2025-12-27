@@ -37,6 +37,6 @@
         "@std/testing/bdd": "jsr:@std/testing@^1.0.0/bdd",
         "@std/expect": "jsr:@std/expect@^1.0.0",
         "hono": "jsr:@lockness/hono@^0.1.0",
-        "@hono/zod-validator": "npm:@hono/zod-validator@^0.7.6"
+        "@hono/zod-validator": "jsr:@lockness/hono@^0.1.0/zod-validator"
     }
 }

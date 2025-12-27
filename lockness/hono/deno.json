@@ -11,7 +11,8 @@
         "./html": "./html.ts",
         "./types": "./types.ts",
         "./cookie": "./cookie.ts",
-        "./cors": "./cors.ts"
+        "./cors": "./cors.ts",
+        "./zod-validator": "./zod-validator.ts"
     },
     "publish": {
         "include": [
@@ -24,6 +25,7 @@
             "types.ts",
             "cookie.ts",
             "cors.ts",
+            "zod-validator.ts",
             "deno.json",
             "README.md"
         ],

@@ -2010,11 +2010,11 @@
   "workspace": {
     "dependencies": [
       "jsr:@lockness/core@0.1",
+      "jsr:@lockness/hono@0.1",
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
       "jsr:@std/path@1",
-      "npm:@hono/zod-validator@~0.7.6",
       "npm:@tailwindcss/postcss@4",
       "npm:drizzle-kit@~0.27.2",
       "npm:drizzle-orm@~0.36.3",
@@ -2056,8 +2056,7 @@
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/path@1",
-          "jsr:@std/testing@1",
-          "npm:@hono/zod-validator@~0.7.6"
+          "jsr:@std/testing@1"
         ]
       },
       "lockness/deprecation-contracts": {
