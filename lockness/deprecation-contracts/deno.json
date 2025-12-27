@@ -22,7 +22,6 @@
         ]
     },
     "imports": {
-        "@lockness/cli": "../cli/mod.ts",
         "@std/assert": "jsr:@std/assert@1"
     }
 }

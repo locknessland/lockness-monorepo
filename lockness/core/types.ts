@@ -2,11 +2,12 @@
 import type {
     Context as HonoContext,
     MiddlewareHandler,
+    Next,
     ValidationTargets,
 } from 'hono'
 import type { Env, Input } from 'hono/types'
 
-export type { Next } from 'hono'
+export type { MiddlewareHandler, Next, ValidationTargets }
 
 export type Context<
     E extends Env = any,

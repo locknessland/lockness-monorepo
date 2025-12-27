@@ -1,5 +1,5 @@
 /** @jsx jsx */
-/** @jsxImportSource hono/jsx */
+/** @jsxImportSource @lockness/core */
 
 /**
  * Devtools Middleware

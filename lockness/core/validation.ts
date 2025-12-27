@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { zValidator } from '@hono/zod-validator'
-import type { ValidationTargets } from 'hono'
+import type { ValidationTargets } from './types.ts'
 import type { ZodSchema } from 'zod'
 
 /**

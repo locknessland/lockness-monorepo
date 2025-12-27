@@ -2063,6 +2063,11 @@
           "jsr:@std/assert@1"
         ]
       },
+      "lockness/devtools": {
+        "dependencies": [
+          "npm:hono@^4.11.1"
+        ]
+      },
       "lockness/drizzle": {
         "dependencies": [
           "jsr:@std/path@1",
@@ -2095,7 +2100,8 @@
       },
       "lockness/openapi": {
         "dependencies": [
-          "jsr:@std/assert@1"
+          "jsr:@std/assert@1",
+          "npm:hono@^4.11.1"
         ]
       },
       "lockness/queue": {

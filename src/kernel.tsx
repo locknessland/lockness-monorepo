@@ -101,8 +101,8 @@ export const bootstrap = async () => {
             middlewares: {
                 auth: class AuthMiddleware {
                     async handle(
-                        c: import('hono').Context,
-                        next: import('hono').Next,
+                        c: import('@lockness/core').Context,
+                        next: import('@lockness/core').Next,
                     ) {
                         return await authMiddleware()(c, next)
                     }
@@ -139,8 +139,8 @@ export const bootstrap = async () => {
             middlewares: {
                 auth: class AuthMiddleware {
                     async handle(
-                        c: import('hono').Context,
-                        next: import('hono').Next,
+                        c: import('@lockness/core').Context,
+                        next: import('@lockness/core').Next,
                     ) {
                         return await authMiddleware()(c, next)
                     }

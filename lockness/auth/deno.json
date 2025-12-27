@@ -23,7 +23,6 @@
         ]
     },
     "imports": {
-        "@lockness/drizzle": "../drizzle/mod.ts",
         "@std/assert": "jsr:@std/assert@1",
         "hono": "npm:hono@^4.11.1",
         "hono/cookie": "npm:hono@^4.11.1/cookie",
