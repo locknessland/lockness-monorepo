@@ -12,6 +12,7 @@
 
 import { addPackage, Stub } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
+import postgres from 'npm:postgres'
 
 async function createDrizzleConfig() {
     const configPath = './drizzle.config.ts'
@@ -51,7 +52,7 @@ async function createDirectories() {
             console.log(`✓ Created ${dir}`)
         } catch (error) {
             if (!(error instanceof Deno.errors.AlreadyExists)) {
-                console.error(`✗ Failed to create ${dir}:`, error.message)
+                console.error(`✗ Failed to create ${dir}:`, (error as Error).message)
             }
         }
     }
@@ -165,7 +166,7 @@ async function testDatabaseConnection() {
 
         console.log('✓ Database connection successful!')
     } catch (error) {
-        console.log('✗ Database connection failed:', error.message)
+        console.log('✗ Database connection failed:', (error as Error).message)
         console.log(
             '\n💡 Make sure your database is running and DATABASE_URL is correct',
         )
