@@ -8,7 +8,7 @@ import {
     ConsoleMailDriver,
     mail,
     MemoryMailDriver,
-} from './mail.ts'
+} from '../mod.ts'
 
 Deno.test('mail system', async (t) => {
     await t.step('configureMail sets up mail config', () => {
