@@ -1,9 +1,20 @@
 {
     "name": "@lockness/session",
     "version": "0.1.0",
-    "exports": "./session.ts",
+    "exports": "./mod.ts",
     "tasks": {
-        "test": "deno test --allow-net --allow-write --allow-read --allow-env"
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "deno.json",
+            "README.md"
+        ],
+        "exclude": [
+            "tests/"
+        ]
     },
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
