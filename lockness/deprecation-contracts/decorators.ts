@@ -5,7 +5,7 @@
  * methods, and accessors.
  */
 
-import { triggerDeprecation } from './index.ts'
+import { triggerDeprecation } from './mod.ts'
 
 export interface DeprecationOptions {
     version: string

@@ -2037,6 +2037,7 @@
       "lockness/auth": {
         "dependencies": [
           "jsr:@std/assert@1",
+          "npm:drizzle-orm@~0.36.3",
           "npm:hono@^4.11.1"
         ]
       },
