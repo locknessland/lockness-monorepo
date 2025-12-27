@@ -1,7 +1,6 @@
 import { Stub } from './stubs.ts'
 
 export { registerCoreCommands } from './core_commands.ts'
-export { autoRegisterCommands } from './auto_register.ts'
 export { loadPackageCommands, addPackage, removePackage } from './package_loader.ts'
 
 /**
