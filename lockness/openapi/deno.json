@@ -27,6 +27,7 @@
         ]
     },
     "imports": {
+        "@lockness/core": "jsr:@lockness/core@^0.1.0",
         "@std/assert": "jsr:@std/assert@1",
         "hono": "jsr:@lockness/hono@^0.1.0"
     },

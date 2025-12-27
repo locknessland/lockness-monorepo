@@ -26,6 +26,7 @@
         "jsxImportSource": "@lockness/core"
     },
     "imports": {
+        "@lockness/core": "jsr:@lockness/core@^0.1.0",
         "hono": "jsr:@lockness/hono@^0.1.0"
     }
 }

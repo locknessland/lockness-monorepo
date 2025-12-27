@@ -2009,6 +2009,7 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@lockness/core@0.1",
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
@@ -2055,7 +2056,8 @@
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/path@1",
-          "jsr:@std/testing@1"
+          "jsr:@std/testing@1",
+          "npm:@hono/zod-validator@~0.7.6"
         ]
       },
       "lockness/deprecation-contracts": {
@@ -2065,6 +2067,7 @@
       },
       "lockness/devtools": {
         "dependencies": [
+          "jsr:@lockness/core@0.1",
           "jsr:@lockness/hono@0.1"
         ]
       },
@@ -2105,6 +2108,7 @@
       },
       "lockness/openapi": {
         "dependencies": [
+          "jsr:@lockness/core@0.1",
           "jsr:@lockness/hono@0.1",
           "jsr:@std/assert@1"
         ]
