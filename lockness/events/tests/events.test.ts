@@ -11,7 +11,7 @@ import {
     on,
     once,
     waitForEvent,
-} from '../events.ts'
+} from '../mod.ts'
 
 // =============================================================================
 // EventEmitter Basic Tests

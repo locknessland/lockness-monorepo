@@ -1,9 +1,20 @@
 {
     "name": "@lockness/events",
     "version": "0.1.0",
-    "exports": "./events.ts",
+    "exports": "./mod.ts",
     "tasks": {
-        "test": "deno test --allow-all --no-check"
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "deno.json",
+            "README.md"
+        ],
+        "exclude": [
+            "tests/"
+        ]
     },
     "imports": {
         "@std/assert": "jsr:@std/assert@1"
