@@ -10,7 +10,7 @@ import {
     Inject,
     resolve,
     Service,
-} from './container.ts'
+} from '../mod.ts'
 
 // Test services
 class TestService {
@@ -32,7 +32,7 @@ class AnotherService {
 }
 
 class ConfigService {
-    constructor(public apiKey = 'default-key') {}
+    constructor(public apiKey = 'default-key') { }
 }
 
 @Service()
@@ -81,11 +81,11 @@ Deno.test('Container - Basic operations', async (t) => {
 
     await t.step('container.has checks service existence', () => {
         assertEquals(container.has(TestService), true)
-        assertEquals(container.has(class NotRegistered {}), false)
+        assertEquals(container.has(class NotRegistered { }), false)
     })
 
     await t.step('container.delete removes a service', () => {
-        const TestClass = class {}
+        const TestClass = class { }
         container.set(TestClass, new TestClass())
 
         assertEquals(container.has(TestClass), true)
@@ -97,7 +97,7 @@ Deno.test('Container - Basic operations', async (t) => {
 
     await t.step('container.size returns service count', () => {
         const initialSize = container.size
-        const TestClass = class {}
+        const TestClass = class { }
         container.set(TestClass, new TestClass())
 
         assertEquals(container.size, initialSize + 1)
@@ -127,7 +127,7 @@ Deno.test('Container - Decorators', async (t) => {
             // Manually inject for testing purposes
             if (!instance.decorated) {
                 // deno-lint-ignore no-explicit-any
-                ;(instance as any).decorated = container.get(DecoratedService)
+                ; (instance as any).decorated = container.get(DecoratedService)
             }
 
             assertExists(instance.decorated)
@@ -236,7 +236,7 @@ Deno.test('Container - Constructor injection pattern', async (t) => {
             }
 
             class UserRepository {
-                constructor(private db: DatabaseService) {}
+                constructor(private db: DatabaseService) { }
 
                 getUsers(): string {
                     return this.db.query()
