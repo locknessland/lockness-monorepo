@@ -50,10 +50,11 @@ export async function loadPackageCommands(cli: Cli): Promise<void> {
                     console.warn(`⚠ Package ${fullPackageName} does not export a register function`)
                 }
             } catch (error) {
-                console.error(
-                    `❌ Failed to load commands from ${packageName}:`,
-                    error instanceof Error ? error.message : error
-                )
+                console.error(`❌ Failed to load commands from @lockness/${packageName.replace('@lockness/', '')}:`)
+                console.error(`   The package is listed in "lockness.packages" in your deno.json but could not be imported.`)
+                console.error(`   - Error: ${error instanceof Error ? error.message : error}`)
+                console.error(`   - Fix: Use "./nessy package:remove ${packageName}" or manually remove it from deno.json`)
+                console.log('') // Add empty line for readability
             }
         }
     } catch (error) {
