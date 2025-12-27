@@ -8,8 +8,8 @@ import type { Cli } from './mod.ts'
  */
 export async function loadPackageCommands(cli: Cli): Promise<void> {
     try {
-        // Read deno.json
-        const denoJsonPath = new URL('../../deno.json', import.meta.url).pathname
+        // Read deno.json from current working directory
+        const denoJsonPath = 'deno.json'
         const denoJson = JSON.parse(await Deno.readTextFile(denoJsonPath))
 
         // Get packages list from lockness config
