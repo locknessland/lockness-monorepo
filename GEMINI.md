@@ -666,18 +666,18 @@ deno task cli package:remove openapi
 This removes the package from `deno.json`. You'll need to manually delete any
 generated files if desired.
 
-#### How It Works
+#### How It Works (Zero-Config Extension)
 
-The package loader system works through convention:
+The package loader system enables zero-configuration command discovery. When you add a package to your `deno.json`, its commands are automatically made available to the CLI without changing a single line of code in your project.
 
 ```typescript
-// cli.ts
+// cli.ts (Your project's entry point)
 import { Cli, loadPackageCommands, registerCoreCommands } from '@lockness/cli'
 
 const cli = new Cli()
 registerCoreCommands(cli)
 
-// Loads commands from packages in deno.json
+// Dynamically loads commands from packages listed in deno.json "lockness.packages"
 await loadPackageCommands(cli)
 
 await cli.discoverCommands('./src/command')
@@ -685,10 +685,10 @@ await cli.discoverCommands('./src/command')
 
 The `loadPackageCommands()` function:
 
-1. Reads the `lockness.packages` array from `deno.json`
-2. Dynamically imports each package from `@lockness/{name}`
-3. Looks for a `register*Commands` function
-4. Calls the function to register CLI commands
+1. Opens the local `deno.json` file.
+2. Reads the `lockness.packages` array.
+3. Dynamically imports each package from `@lockness/{name}`.
+4. Detects and calls the `register*Commands` export to populate the CLI.
 
 #### Official Packages
 

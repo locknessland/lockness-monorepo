@@ -194,6 +194,76 @@ export class GreetCommand implements ICommand {
 }
 ```
 
+## Plugin System & Extensions
+
+Lockness features a zero-config extension system that allows official and
+third-party packages to register their own CLI commands automatically.
+
+### Automatic Package Loading
+
+The `cli.ts` entry point in your project uses `loadPackageCommands(cli)` to
+dynamically load commands from any package listed in your `deno.json`.
+
+```json
+// deno.json
+{
+    "lockness": {
+        "packages": [
+            "drizzle",
+            "openapi",
+            "queue"
+        ]
+    }
+}
+```
+
+When you run `deno task cli`, the engine:
+1.  Reads the `lockness.packages` array.
+2.  Dynamically imports `@lockness/{name}`.
+3.  Executes the package's registration function.
+
+This means that after installing a new package, its commands (like `db:migrate`
+or `openapi:generate`) are immediately available without any manual code
+changes.
+
+### Custom Command Discovery
+
+Your own commands are automatically discovered from `src/command/` as long as
+they use the `@Command` decorator and the class is exported.
+
+```typescript
+import { Command, type CommandContext, type ICommand } from '@lockness/cli'
+
+@Command('greet', 'Say hello')
+export class GreetCommand implements ICommand {
+    async handle(ctx: CommandContext) {
+        console.log(`Hello, ${ctx.arg(0) || 'World'}!`)
+    }
+}
+```
+
+### Manual Registration
+
+For advanced scenarios, you can manually register commands in `cli.ts`:
+
+```typescript
+import { Cli, registerCoreCommands } from '@lockness/cli'
+import { MyCustomCommand } from './my_command.ts'
+
+const cli = new Cli()
+registerCoreCommands(cli)
+
+// Manually register a class
+cli.registerCommand(MyCustomCommand)
+
+// Or a simple function
+cli.register('simple', async (args) => {
+  console.log('Simple command')
+}, 'A simple function command')
+
+await cli.run(Deno.args)
+```
+
 Commands are auto-discovered from `src/command/`.
 
 Run your command:

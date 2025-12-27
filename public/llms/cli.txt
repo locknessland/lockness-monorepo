@@ -301,6 +301,31 @@ deno task start
 - `db:studio` provides visual database inspection
 - Route generation is automatic in dev mode
 
+## Extension System
+
+### Automatic Command Loading
+Lockness CLI automatically registers commands from official packages via `loadPackageCommands(cli)`.
+
+**Configuration (deno.json):**
+```json
+{
+  "lockness": {
+    "packages": ["drizzle", "openapi", "queue"]
+  }
+}
+```
+
+When a package name is added to this list, the CLI dynamically imports `@lockness/<name>` and registers its commands.
+
+### Custom Commands
+Create a class in `src/command/` with the `@Command` decorator:
+```typescript
+@Command('my:command', 'Description')
+export class MyCommand implements ICommand {
+  async handle(ctx: CommandContext) {}
+}
+```
+
 ## Configuration
 
 Commands respect configuration in:
