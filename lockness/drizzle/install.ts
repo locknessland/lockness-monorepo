@@ -52,7 +52,10 @@ async function createDirectories() {
             console.log(`✓ Created ${dir}`)
         } catch (error) {
             if (!(error instanceof Deno.errors.AlreadyExists)) {
-                console.error(`✗ Failed to create ${dir}:`, (error as Error).message)
+                console.error(
+                    `✗ Failed to create ${dir}:`,
+                    (error as Error).message,
+                )
             }
         }
     }

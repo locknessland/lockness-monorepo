@@ -83,7 +83,9 @@ export function registerAuthCommands(cli: Cli) {
                     '3. Configure socialite providers in your kernel.ts:',
                 )
                 console.log('')
-                console.log("   import { configureSocialite } from 'lockness/core'")
+                console.log(
+                    "   import { configureSocialite } from 'lockness/core'",
+                )
                 console.log('')
                 console.log('   configureSocialite({')
                 console.log('       google: {')
