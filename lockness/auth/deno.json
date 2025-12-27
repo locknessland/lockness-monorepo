@@ -1,11 +1,11 @@
 {
     "name": "@lockness/auth",
     "version": "0.1.0",
-    "exports": "./auth.ts",
+    "exports": "./mod.ts",
     "tasks": {
-        "test": "deno test --allow-net --allow-read --allow-write --allow-env tests/"
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
     },
-    "exclude": ["tests/"],
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
         "hono": "npm:hono@^4.11.1",
