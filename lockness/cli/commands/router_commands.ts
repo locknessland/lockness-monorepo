@@ -1,5 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import type { Cli } from '../cli.ts'
+import type { Cli } from '../mod.ts'
 import { join } from '@std/path'
 
 export function registerRouterCommands(cli: Cli) {

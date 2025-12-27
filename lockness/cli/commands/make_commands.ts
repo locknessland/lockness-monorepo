@@ -1,4 +1,4 @@
-import { type Cli, Stub } from '../cli.ts'
+import { type Cli, Stub } from '../mod.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { generateRoutesFile } from '../routes_generator.ts'
 

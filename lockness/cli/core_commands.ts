@@ -1,4 +1,4 @@
-import type { Cli } from './cli.ts'
+import type { Cli } from './mod.ts'
 import { addPackage, removePackage } from './package_loader.ts'
 import { registerMakeCommands } from './commands/make_commands.ts'
 import { registerAuthCommands } from './commands/auth_commands.ts'

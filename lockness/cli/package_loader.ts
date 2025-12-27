@@ -1,4 +1,4 @@
-import type { Cli } from './cli.ts'
+import type { Cli } from './mod.ts'
 
 /**
  * Load and register commands from packages listed in deno.json

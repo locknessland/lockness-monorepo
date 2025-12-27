@@ -1,4 +1,4 @@
-import type { Cli } from '../cli.ts'
+import type { Cli } from '../mod.ts'
 
 export function registerQueueCommands(cli: Cli) {
     cli.register('queue:work', async (args) => {

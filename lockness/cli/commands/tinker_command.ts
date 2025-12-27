@@ -1,4 +1,4 @@
-import type { Cli } from '../cli.ts'
+import type { Cli } from '../mod.ts'
 
 export function registerTinkerCommand(cli: Cli) {
     cli.register('tinker', async () => {

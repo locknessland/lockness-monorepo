@@ -1,4 +1,4 @@
-import type { Cli } from './cli.ts'
+import type { Cli } from './mod.ts'
 
 /**
  * Auto-register commands from all installed Lockness packages
