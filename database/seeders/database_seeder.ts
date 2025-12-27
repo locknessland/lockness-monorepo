@@ -1,5 +1,5 @@
 import { Database } from '@lockness/drizzle'
-import { container } from 'lockness'
+import { container } from '@lockness/core'
 import { UserSeeder } from './user_seeder.ts'
 
 export class DatabaseSeeder {

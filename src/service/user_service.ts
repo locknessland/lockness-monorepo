@@ -1,4 +1,4 @@
-import { Service } from 'lockness'
+import { Service } from '@lockness/core'
 
 @Service()
 export class UserService {
