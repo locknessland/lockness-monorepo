@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 /**
  * Tests for @lockness/session - Drivers
  */
@@ -75,13 +76,12 @@ Deno.test('CookieSessionDriver - write and read session', async () => {
     await driver.write('session-id-1', sessionData, 3600)
 
     // Simulate cookie being set by extracting from headers
-    // deno-lint-ignore no-explicit-any
     const setCookieHeader = (ctx as any)._headers['Set-Cookie']?.[0]
     if (setCookieHeader) {
         const cookieValue = setCookieHeader.split(';')[0].split('=')[1]
         // Simulate browser sending cookie back
         const headers = new Headers()
-        headers.set('Cookie', `${config.cookieName}=${cookieValue}`) // deno-lint-ignore no-explicit-any
+        headers.set('Cookie', `${config.cookieName}=${cookieValue}`)
         ;(ctx.req as any).raw.headers = headers
     }
 

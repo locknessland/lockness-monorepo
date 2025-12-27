@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { assertEquals, assertExists } from '@std/assert'
 import { Authenticator, SessionGuard } from '../mod.ts'
 import { createMockContext, MockSessionProvider } from './mocks.ts'

@@ -521,7 +521,7 @@ const errorHandler = (error: Error, c: Context) => {
             // Determine route path and name based on RESTful conventions
             const route = controllerName.toLowerCase()
             let path = '/'
-            let routeName = `${route}.${actionName}`
+            const routeName = `${route}.${actionName}`
 
             // RESTful path patterns
             const restfulPaths: Record<string, string> = {
@@ -553,7 +553,7 @@ const errorHandler = (error: Error, c: Context) => {
                     await Deno.mkdir(viewDirPath, { recursive: true })
                     const viewContent = await Stub.renderFrom(STUBS_PATH, 'make', 'view', {
                         className: viewClassName,
-                        fileName: `${controllerName.toLowerCase()}/${actionName.toLowerCase()}`,
+                        fileName: viewFileName,
                     })
                     await Deno.writeTextFile(viewFilePath, viewContent)
                     console.log(`✅ View created at ${viewFilePath}`)
@@ -611,7 +611,7 @@ const errorHandler = (error: Error, c: Context) => {
                 // Add to imports
                 finalContent = finalContent.replace(
                     /import\s*{([^}]+)}\s*from\s*['"]lockness['"]/,
-                    (match, imports) => {
+                    (_match, imports) => {
                         const importList = imports.split(',').map((i: string) => i.trim())
                         if (!importList.includes(decoratorName)) {
                             importList.push(decoratorName)

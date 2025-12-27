@@ -105,6 +105,7 @@ const LlmLinks = (props: { llmPath?: string }) => {
                 <span class='font-pixel text-[9px] mt-0.5'>VIEW</span>
             </a>
             <button
+                type='button'
                 onclick={`
                     const btn = event.currentTarget;
                     const icon = btn.querySelector('.copy-icon');

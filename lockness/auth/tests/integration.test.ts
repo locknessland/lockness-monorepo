@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { assertEquals, assertExists } from '@std/assert'
 import { Hono } from 'hono'
 import type { Context } from 'hono'

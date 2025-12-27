@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 /**
  * Tests for @lockness/container - Dependency Injection
  */
@@ -126,7 +127,6 @@ Deno.test('Container - Decorators', async (t) => {
 
             // Manually inject for testing purposes
             if (!instance.decorated) {
-                // deno-lint-ignore no-explicit-any
                 ; (instance as any).decorated = container.get(DecoratedService)
             }
 

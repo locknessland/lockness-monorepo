@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 import { assertEquals, assertExists, assertRejects } from '@std/assert'
 import { Hono } from 'hono'
 import {
@@ -11,7 +12,7 @@ import {
     MockSessionProvider,
     MockTokenProvider,
     MockBasicAuthProvider,
-    Env,
+    type Env,
 } from './mocks.ts'
 
 Deno.test('SessionGuard - login with valid credentials', async () => {

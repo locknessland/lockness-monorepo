@@ -3,7 +3,7 @@ import { Controller, Get, Context } from '@lockness/core'
 @Controller('/llms')
 export class LlmController {
     @Get('/')
-    async index(c: Context) {
+    index(c: Context) {
         const sections = [
             { name: 'lockness', description: 'Complete Lockness framework documentation' },
             { name: 'installation', description: 'Installation and setup guide' },
