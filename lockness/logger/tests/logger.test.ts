@@ -20,7 +20,7 @@ import {
     PrettyFormatter,
     TextFormatter,
     warn,
-} from '../logger.ts'
+} from '../mod.ts'
 
 Deno.test('Logger - Basic logging', async (t) => {
     await t.step('creates logger with default config', () => {
