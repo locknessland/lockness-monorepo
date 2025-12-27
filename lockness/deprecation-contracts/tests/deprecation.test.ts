@@ -1,5 +1,5 @@
 import { assertThrows } from '@std/assert'
-import { triggerDeprecation } from '../index.ts'
+import { triggerDeprecation } from '../mod.ts'
 
 Deno.test('Deprecation - should log warning by default', () => {
     // We can't easily assert console.warn without mocking, 
@@ -38,7 +38,7 @@ Deno.test('Deprecation - should be ignored if IGNORE_DEPRECATIONS is set', () =>
     }
 })
 
-import { Deprecated } from '../index.ts'
+import { Deprecated } from '../mod.ts'
 
 Deno.test('Deprecated Decorator - should trigger on class instantiation', () => {
     Deno.env.set('STRICT_DEPRECATIONS', 'true')

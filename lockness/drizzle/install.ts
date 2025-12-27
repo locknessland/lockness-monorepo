@@ -10,9 +10,8 @@
  *   deno task cli package:install drizzle
  */
 
-import { addPackage } from '../cli/package_loader.ts'
+import { addPackage, Stub } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
-import { Stub } from '../cli/stubs.ts'
 
 async function createDrizzleConfig() {
     const configPath = './drizzle.config.ts'

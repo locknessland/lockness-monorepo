@@ -5,7 +5,7 @@
  * Automatically configures the @lockness/deprecation-contracts package in your project.
  */
 
-import { addPackage } from '../cli/package_loader.ts'
+import { addPackage } from '@lockness/cli'
 
 async function checkProjectStructure() {
     try {

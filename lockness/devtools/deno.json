@@ -1,7 +1,26 @@
 {
     "name": "@lockness/devtools",
     "version": "0.1.0",
-    "exports": "./devtools.ts",
+    "exports": "./mod.ts",
+    "tasks": {
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "collector.ts",
+            "middleware.ts",
+            "types.ts",
+            "dashboard.tsx",
+            "components",
+            "deno.json",
+            "README.md"
+        ],
+        "exclude": [
+            "tests/"
+        ]
+    },
     "compilerOptions": {
         "jsx": "precompile",
         "jsxImportSource": "hono/jsx"

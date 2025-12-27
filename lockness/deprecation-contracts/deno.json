@@ -2,13 +2,27 @@
     "name": "@lockness/deprecation-contracts",
     "version": "0.1.0",
     "exports": {
-        ".": "./index.ts",
+        ".": "./mod.ts",
         "./install": "./install.ts"
     },
     "tasks": {
-        "test": "deno test -A tests/"
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "decorators.ts",
+            "install.ts",
+            "deno.json",
+            "README.md"
+        ],
+        "exclude": [
+            "tests/"
+        ]
     },
     "imports": {
+        "@lockness/cli": "../cli/mod.ts",
         "@std/assert": "jsr:@std/assert@1"
     }
 }

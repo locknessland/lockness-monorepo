@@ -10,9 +10,8 @@
  *   deno task cli package:install openapi
  */
 
-import { addPackage } from '../cli/package_loader.ts'
+import { addPackage, Stub } from '@lockness/cli'
 import { join, dirname, fromFileUrl } from '@std/path'
-import { Stub } from '../cli/stubs.ts'
 
 async function createDocsController() {
     const controllerPath = './src/controller/api_docs_controller.ts'

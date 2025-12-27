@@ -1,7 +1,6 @@
 import { assertEquals, assertExists } from '@std/assert'
 import { Controller, Get } from '@lockness/core'
-import { ApiDoc } from '../decorator.ts'
-import { generateOpenAPISpec } from '../generator.ts'
+import { ApiDoc, generateOpenAPISpec } from '../mod.ts'
 import type { ControllerClass } from '@lockness/core'
 
 @Controller('/users')

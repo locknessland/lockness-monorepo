@@ -2,13 +2,33 @@
     "name": "@lockness/openapi",
     "version": "0.1.0",
     "exports": {
-        ".": "./openapi.ts",
+        ".": "./mod.ts",
         "./install": "./install.ts"
     },
     "tasks": {
-        "test": "deno test -A tests/"
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "generator.ts",
+            "decorator.ts",
+            "types.ts",
+            "ui.ts",
+            "cli_commands.ts",
+            "install.ts",
+            "stubs",
+            "deno.json",
+            "README.md"
+        ],
+        "exclude": [
+            "tests/"
+        ]
     },
     "imports": {
+        "@lockness/cli": "../cli/mod.ts",
+        "@lockness/core": "../core/mod.ts",
         "@std/assert": "jsr:@std/assert@1"
     },
     "compilerOptions": {

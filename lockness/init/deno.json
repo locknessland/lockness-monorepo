@@ -2,12 +2,25 @@
     "name": "@lockness/init",
     "version": "0.1.0",
     "exports": {
-        ".": "./init.ts"
+        ".": "./mod.ts"
     },
     "tasks": {
-        "test": "deno test -A tests/"
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
+    "publish": {
+        "include": [
+            "mod.ts",
+            "stubs",
+            "deno.json",
+            "README.md"
+        ],
+        "exclude": [
+            "tests/"
+        ]
     },
     "imports": {
+        "@lockness/cli": "../cli/mod.ts",
         "@std/path": "jsr:@std/path@^1.0.0",
         "@std/testing/bdd": "jsr:@std/testing@^1.0.0/bdd",
         "@std/expect": "jsr:@std/expect@^1.0.0",

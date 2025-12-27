@@ -1,4 +1,4 @@
-import type { Cli } from '../cli/cli.ts'
+import type { Cli } from '@lockness/cli'
 import { generateOpenAPISpec } from './generator.ts'
 import type { ControllerClass } from '@lockness/core'
 import { join } from '@std/path'

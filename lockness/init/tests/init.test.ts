@@ -27,7 +27,7 @@ describe('init command', () => {
     })
 
     it('registerInitCommand registers the init command', async () => {
-        const { registerInitCommand } = await import('../init.ts')
+        const { registerInitCommand } = await import('../mod.ts')
 
         let registeredName = ''
         const cliMock = {
@@ -41,7 +41,7 @@ describe('init command', () => {
     })
 
     it('scaffolds project with correct structure', async () => {
-        const { registerInitCommand } = await import('../init.ts')
+        const { registerInitCommand } = await import('../mod.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const cliMock = {
@@ -76,7 +76,7 @@ describe('init command', () => {
     })
 
     it('creates deno.json with correct structure', async () => {
-        const { registerInitCommand } = await import('../init.ts')
+        const { registerInitCommand } = await import('../mod.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const cliMock = {
@@ -109,7 +109,7 @@ describe('init command', () => {
     })
 
     it('uses default project name when none provided', async () => {
-        const { registerInitCommand } = await import('../init.ts')
+        const { registerInitCommand } = await import('../mod.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const cliMock = {
@@ -136,7 +136,7 @@ describe('init command', () => {
     })
 
     it('creates .env file from .env.exemple', async () => {
-        const { registerInitCommand } = await import('../init.ts')
+        const { registerInitCommand } = await import('../mod.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const cliMock = {
@@ -166,7 +166,7 @@ describe('init command', () => {
     })
 
     it('creates Dockerfile with correct content', async () => {
-        const { registerInitCommand } = await import('../init.ts')
+        const { registerInitCommand } = await import('../mod.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const cliMock = {
@@ -214,7 +214,7 @@ describe('init command', () => {
     })
 
     it('creates .dockerignore with correct content', async () => {
-        const { registerInitCommand } = await import('../init.ts')
+        const { registerInitCommand } = await import('../mod.ts')
 
         let capturedHandler: ((args: string[]) => Promise<void>) | null = null
         const cliMock = {
