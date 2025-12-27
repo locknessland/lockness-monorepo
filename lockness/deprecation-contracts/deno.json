@@ -9,9 +9,6 @@
         "test": "deno test -A tests/"
     },
     "imports": {
-        "@std/assert": "jsr:@std/assert@1",
-        "@lockness/logger": "../logger/logger.ts",
-        "@lockness/container": "../container/container.ts",
-        "@lockness/devtools": "../devtools/devtools.ts"
+        "@std/assert": "jsr:@std/assert@1"
     }
 }

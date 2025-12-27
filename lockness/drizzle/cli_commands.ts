@@ -118,7 +118,7 @@ export function registerDrizzleCommands(cli: Cli) {
         try {
             const db = await initDatabase()
             // Test connection using the client
-            await (db as { client: postgres.Sql }).client`SELECT 1`
+            await (db as unknown as { client: postgres.Sql }).client`SELECT 1`
             console.log('✅ Database connection successful')
         } catch (error) {
             console.error('❌ Database connection failed:', (error as Error).message)
