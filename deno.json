@@ -1,10 +1,10 @@
 {
     "workspace": [
         "./lockness/core",
+        "./lockness/hono",
         "./lockness/auth",
         "./lockness/cache",
         "./lockness/container",
-        "./lockness/devtools",
         "./lockness/events",
         "./lockness/logger",
         "./lockness/mail",
@@ -18,7 +18,8 @@
         "./lockness/drizzle",
         "./lockness/init",
         "./lockness/deprecation-contracts",
-        "./lockness/hono"
+        "./lockness/devtools"
+
     ],
     "nodeModulesDir": "auto",
     "tasks": {
