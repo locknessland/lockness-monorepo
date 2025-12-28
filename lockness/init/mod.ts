@@ -54,10 +54,8 @@ export function registerInitCommand(cli: Cli) {
 
             // Create empty directories that might not be in stubs
             const dirs = [
-                'src/model',
                 'src/service',
                 'src/middleware',
-                'src/repository',
                 'public',
             ]
 
@@ -73,6 +71,16 @@ export function registerInitCommand(cli: Cli) {
                 await Deno.writeTextFile(`${projectName}/.env`, envContent)
             } catch {
                 // Ignore if .env.exemple doesn't exist
+            }
+
+            // Create .env.production.local
+            try {
+                await Deno.writeTextFile(
+                    `${projectName}/.env.production.local`,
+                    'APP_ENV=production\n',
+                )
+            } catch (error) {
+                console.error('⚠️  Could not create .env.production.local')
             }
 
             console.log('\n✅ Done! To get started:')
