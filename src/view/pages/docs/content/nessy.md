@@ -44,6 +44,18 @@ Start the development server with hot-reload:
 
 This is equivalent to `deno task dev` but faster to type.
 
+### Compile Standalone Binary
+
+Create a standalone executable:
+
+```bash
+./nessy compile
+```
+
+This runs `deno task compile` to generate a self-contained binary in
+`_dist/lockness`. The binary includes the Deno runtime and all dependencies,
+perfect for deployment on VPS or traditional hosting environments.
+
 ### Testing
 
 Run tests with various options:
@@ -185,6 +197,7 @@ Displays comprehensive help including:
 | `./nessy <cli-command>`  | Run any CLI CLI command         |
 | `./nessy dev`            | Start development server        |
 | `./nessy build`          | Build production bundle         |
+| `./nessy compile`        | Compile standalone binary       |
 | `./nessy start`          | Start production server         |
 | `./nessy test [pattern]` | Run tests (optionally filtered) |
 | `./nessy check`          | Type-check all files            |
@@ -234,6 +247,10 @@ when you run `nessy:install`.
 ./nessy test User     # Run user tests
 ./nessy check         # Verify types
 ./nessy router:list   # Show all routes
+
+# Production
+./nessy compile       # Create standalone binary
+./nessy build         # Build CSS/assets
 
 # Maintenance
 ./nessy clean         # Clean build

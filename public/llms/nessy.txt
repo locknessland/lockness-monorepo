@@ -27,6 +27,16 @@ deno run -A jsr:@lockness/cli make:controller User
 ./nessy make:controller User
 ```
 
+### Compile Standalone Binary
+
+Create a self-contained executable for deployment:
+
+```bash
+./nessy compile
+```
+
+This runs `deno task compile` to generate a standalone binary in `_dist/lockness`. The binary includes the Deno runtime and all dependencies (~83MB), making it perfect for VPS deployment or traditional hosting environments.
+
 ## Why Nessy?
 
 ### Shorter Commands
@@ -156,6 +166,9 @@ deno task dev
 ./nessy make:controller New
 ./nessy make:action Existing newMethod
 ./nessy db:generate
+
+# Build for production:
+./nessy compile
 ```
 
 ### Database Workflow

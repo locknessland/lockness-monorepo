@@ -16,6 +16,11 @@ case "$COMMAND" in
         deno task build
         ;;
     
+    compile)
+        echo "📦 Compiling standalone binary..."
+        deno task compile
+        ;;
+    
     start)
         echo "🚀 Starting production server..."
         deno task start
@@ -105,6 +110,7 @@ case "$COMMAND" in
         echo "📦 Quick Commands:"
         echo "  dev                  Start development server"
         echo "  build                Build production bundle"
+        echo "  compile              Compile standalone binary"
         echo "  start                Start production server"
         echo "  test [pattern]       Run tests (optionally filtered)"
         echo "  check                Type-check the project"
@@ -141,6 +147,7 @@ case "$COMMAND" in
         echo "Examples:"
         echo "  ./nessy dev                        # Start dev server"
         echo "  ./nessy build                      # Build for production"
+        echo "  ./nessy compile                    # Compile standalone binary"
         echo "  ./nessy start                      # Start production server"
         echo "  ./nessy test auth                  # Run auth tests"
         echo "  ./nessy make:controller User       # Create controller"
