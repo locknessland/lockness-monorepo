@@ -27,4 +27,4 @@ public/css/
 /nessy.cmd
 
 # Initialize a new Lockness project (Only for development purposes)
-_init
+_lockness_app
