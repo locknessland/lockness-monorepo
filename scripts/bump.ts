@@ -79,6 +79,62 @@ for (const member of rootConfig.workspace) {
 }
 
 console.log('')
+console.log('🔧 Mise à jour des fichiers stubs...')
+
+// Étape 3: Met à jour les versions dans les fichiers .stub
+const stubFiles = []
+for await (const entry of Deno.readDir('lockness')) {
+    if (entry.isDirectory) {
+        const stubsPath = `lockness/${entry.name}/stubs`
+        try {
+            for await (
+                const walkEntry of Deno.readDir(stubsPath)
+            ) {
+                if (walkEntry.isDirectory) {
+                    // Parcourt récursivement les sous-dossiers de stubs
+                    const walk = async (path: string) => {
+                        for await (const file of Deno.readDir(path)) {
+                            const fullPath = `${path}/${file.name}`
+                            if (file.isDirectory) {
+                                await walk(fullPath)
+                            } else if (file.name.endsWith('.stub')) {
+                                stubFiles.push(fullPath)
+                            }
+                        }
+                    }
+                    await walk(`${stubsPath}/${walkEntry.name}`)
+                } else if (walkEntry.name.endsWith('.stub')) {
+                    stubFiles.push(`${stubsPath}/${walkEntry.name}`)
+                }
+            }
+        } catch {
+            // Pas de dossier stubs, on continue
+        }
+    }
+}
+
+for (const stubPath of stubFiles) {
+    try {
+        let content = await Deno.readTextFile(stubPath)
+        const originalContent = content
+
+        // Remplace toutes les versions @lockness/* dans le contenu
+        content = content.replace(
+            /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/g,
+            `$1@$2${newVersion}`,
+        )
+
+        if (content !== originalContent) {
+            await Deno.writeTextFile(stubPath, content)
+            console.log(`   ✅ ${stubPath}`)
+        }
+    } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn(`   ⚠️  Erreur pour ${stubPath}: ${message}`)
+    }
+}
+
+console.log('')
 console.log(`✨ Bump terminé ! Tous les packages sont en version ${newVersion}`)
 console.log('')
 console.log('📝 Prochaines étapes:')

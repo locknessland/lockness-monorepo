@@ -2028,7 +2028,7 @@
     "members": {
       "lockness/auth": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.5",
+          "jsr:@lockness/hono@~0.1.6",
           "jsr:@std/assert@1",
           "npm:drizzle-orm@~0.36.3"
         ]
@@ -2052,7 +2052,7 @@
       },
       "lockness/core": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.5",
+          "jsr:@lockness/hono@~0.1.6",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/path@1",
@@ -2066,8 +2066,8 @@
       },
       "lockness/devtools": {
         "dependencies": [
-          "jsr:@lockness/core@~0.1.5",
-          "jsr:@lockness/hono@~0.1.5"
+          "jsr:@lockness/core@~0.1.6",
+          "jsr:@lockness/hono@~0.1.6"
         ]
       },
       "lockness/drizzle": {
@@ -2108,8 +2108,8 @@
       },
       "lockness/openapi": {
         "dependencies": [
-          "jsr:@lockness/core@~0.1.5",
-          "jsr:@lockness/hono@~0.1.5",
+          "jsr:@lockness/core@~0.1.6",
+          "jsr:@lockness/hono@~0.1.6",
           "jsr:@std/assert@1"
         ]
       },
@@ -2120,13 +2120,13 @@
       },
       "lockness/session": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.5",
+          "jsr:@lockness/hono@~0.1.6",
           "jsr:@std/assert@1"
         ]
       },
       "lockness/socialite": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.5",
+          "jsr:@lockness/hono@~0.1.6",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/testing@1"
