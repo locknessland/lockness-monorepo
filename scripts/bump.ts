@@ -73,7 +73,8 @@ for (const member of rootConfig.workspace) {
             console.log(`   ✅ ${member} - dépendances mises à jour`)
         }
     } catch (error) {
-        console.warn(`   ⚠️  Erreur pour ${member}: ${error.message}`)
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn(`   ⚠️  Erreur pour ${member}: ${message}`)
     }
 }
 
