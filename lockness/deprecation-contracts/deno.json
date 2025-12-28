@@ -1,6 +1,6 @@
 {
     "name": "@lockness/deprecation-contracts",
-    "version": "0.1.6",
+    "version": "0.1.7",
     "license": "MIT",
     "exports": {
         ".": "./mod.ts",
@@ -24,9 +24,9 @@
     },
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
-        "@lockness/container": "jsr:@lockness/container@^0.1.6",
-        "@lockness/logger": "jsr:@lockness/logger@^0.1.6",
-        "@lockness/devtools": "jsr:@lockness/devtools@^0.1.6"
+        "@lockness/container": "jsr:@lockness/container@^0.1.7",
+        "@lockness/logger": "jsr:@lockness/logger@^0.1.7",
+        "@lockness/devtools": "jsr:@lockness/devtools@^0.1.7"
     },
     "description": "Generic deprecation notice system for triggering and managing feature deprecation warnings"
 }

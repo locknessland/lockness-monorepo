@@ -31,7 +31,46 @@ for (const member of rootConfig.workspace) {
 console.log('')
 console.log('🔗 Mise à jour des dépendances inter-packages...')
 
-// Étape 2: Met à jour les imports @lockness/* dans chaque package
+// Étape 2a: Met à jour les imports dans le deno.json racine
+try {
+    const rootConfig = JSON.parse(await Deno.readTextFile('./deno.json'))
+
+    if (rootConfig.imports) {
+        let hasUpdates = false
+
+        for (const [key, value] of Object.entries(rootConfig.imports)) {
+            if (
+                typeof value === 'string' &&
+                (key.startsWith('@lockness/') || value.includes('jsr:@lockness/'))
+            ) {
+                const match = value.match(
+                    /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/,
+                )
+                if (match) {
+                    const [, packagePath, versionPrefix] = match
+                    const newImport = `${packagePath}@${versionPrefix}${newVersion}`
+                    if (newImport !== value) {
+                        rootConfig.imports[key] = newImport
+                        hasUpdates = true
+                    }
+                }
+            }
+        }
+
+        if (hasUpdates) {
+            await Deno.writeTextFile(
+                './deno.json',
+                JSON.stringify(rootConfig, null, 4) + '\n',
+            )
+            console.log('   ✅ deno.json racine - dépendances mises à jour')
+        }
+    }
+} catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn(`   ⚠️  Erreur pour deno.json racine: ${message}`)
+}
+
+// Étape 2b: Met à jour les imports @lockness/* dans chaque package
 for (const member of rootConfig.workspace) {
     const configPath = `${member}/deno.json`
     try {
