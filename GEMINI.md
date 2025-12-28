@@ -17,8 +17,8 @@ Lockness abstracts this layer to offer a complete and familiar MVC
 
 - **Solid Foundation**: Uses HonoJS under the hood for maximum performance, but
   fully encapsulated within `@lockness/core`.
-- **Zero-Dependency Setup**: You only need `@lockness/core` in your imports; Hono
-  and its utilities are automatically provided.
+- **Zero-Dependency Setup**: You only need `@lockness/core` in your imports;
+  Hono and its utilities are automatically provided.
 - **MVC Architecture**: A clear structure separating business logic, data, and
   display.
 - **Inspiration**: Heavily inspired by the elegance of Laravel and AdonisJS.

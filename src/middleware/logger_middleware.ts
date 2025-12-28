@@ -1,4 +1,9 @@
-import { type Context, type IMiddleware, Middleware, type Next } from '@lockness/core'
+import {
+    type Context,
+    type IMiddleware,
+    Middleware,
+    type Next,
+} from '@lockness/core'
 
 /**
  * Logger middleware - logs all incoming requests

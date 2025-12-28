@@ -3,8 +3,9 @@
 > Lockness JS requires **Deno 2.0+**. Make sure you have it installed before
 > proceeding.
 
-> **💡 Note:** Lockness internalizes **HonoJS**. You don't need to install or import
-> Hono separately; everything you need is re-exported from `@lockness/core`.
+> **💡 Note:** Lockness internalizes **HonoJS**. You don't need to install or
+> import Hono separately; everything you need is re-exported from
+> `@lockness/core`.
 
 ## 📦 Quick Start
 
