@@ -27,8 +27,7 @@ project.
 | `src/kernel.tsx`                 | `lockness/init/stubs/init/src/kernel.tsx.stub`         | ✅    |
 | `src/controller/todo_controller` | `lockness/init/stubs/init/src/controller/todo_...stub` | ✅    |
 | `src/view/app.ts`                | `lockness/init/stubs/init/src/view/app.ts.stub`        | ✅    |
-| `src/view/assets/style.css`      | `lockness/init/stubs/init/src/view/assets/style...`    | ✅    |
-| `src/view/assets/landing.css`    | `lockness/init/stubs/init/src/view/assets/landing...`  | ✅    |
+| `src/view/assets/app.css`        | `lockness/init/stubs/init/src/view/assets/app.css...`  | ✅    |
 | `src/view/components/ui.tsx`     | `lockness/init/stubs/init/src/view/components/ui...`   | ✅    |
 | `src/view/layouts/main_layout`   | `lockness/init/stubs/init/src/view/layouts/main...`    | ✅    |
 | `src/view/pages/home.tsx`        | `lockness/init/stubs/init/src/view/pages/home...`      | ✅    |
