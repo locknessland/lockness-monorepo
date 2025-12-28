@@ -33,7 +33,8 @@
         "test:watch": "deno test -A --watch lockness/",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
         "routes:generate": "deno run -A scripts/generate_routes.ts",
-        "routes:watch": "deno run -A scripts/watch_routes.ts"
+        "routes:watch": "deno run -A scripts/watch_routes.ts",
+        "bump": "deno run -A ./scripts/bump.ts"
     },
     "imports": {
         "@/": "./",
