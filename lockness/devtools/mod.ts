@@ -22,18 +22,24 @@ import { renderDashboard } from './dashboard.tsx'
 import { collector } from './collector.ts'
 import type { DevtoolsConfig, MailInfo, QueueJob, RouteInfo } from './types.ts'
 
-// Register devtools collector with deprecation-contracts
-try {
-    const { registerDeprecationCollector } = await import(
-        '@lockness/deprecation-contracts'
-    )
-    registerDeprecationCollector(collector)
-} catch {
-    console.log(
-        '%c[Devtools]%c Install @lockness/deprecation-contracts to track deprecation notices in the toolbar',
-        'color: #3b82f6; font-weight: bold;',
-        'color: inherit; font-weight: normal;',
-    )
+// Register devtools collector with deprecation-contracts (lazy initialization)
+let collectorRegistered = false
+function ensureCollectorRegistered() {
+    if (collectorRegistered) return
+    collectorRegistered = true
+
+    // Try to register with deprecation-contracts if available
+    import('@lockness/deprecation-contracts')
+        .then(({ registerDeprecationCollector }) => {
+            registerDeprecationCollector(collector)
+        })
+        .catch(() => {
+            console.log(
+                '%c[Devtools]%c Install @lockness/deprecation-contracts to track deprecation notices in the toolbar',
+                'color: #3b82f6; font-weight: bold;',
+                'color: inherit; font-weight: normal;',
+            )
+        })
 }
 
 export * from './types.ts'
@@ -76,6 +82,9 @@ export function enableDevtools(
     if (!cfg.enabled) {
         return
     }
+
+    // Initialize collector registration on first use
+    ensureCollectorRegistered()
 
     console.log(`[Devtools] Registering routes on basePath: ${cfg.basePath}`)
 
