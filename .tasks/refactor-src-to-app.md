@@ -59,7 +59,22 @@ Rename the root `src` directory to `app` to align with the framework's evolving 
         *   `make:crud`: `./src/model`, `./src/repository`, `./src/service`, `./src/controller`, `./src/view/pages`
         *   `make:action`: `./src/controller`, `./src/view/pages`
 
-### 6. Documentation & Stubs (Optional but Recommended)
+### 6. Update Stubs
+*   **`lockness/init/stubs/init/`**:
+    *   Rename directory `src` to `app`.
+    *   **`deno.json.stub`**: Update imports and tasks.
+    *   **`cli.ts.stub`**: Update command discovery path.
+    *   **`Dockerfile.stub`**: Update `COPY src/ ./src/` to `COPY app/ ./app/`.
+    *   **`scripts/dev.sh.stub`**: Update CSS path.
+    *   **`scripts/generate_routes.ts.stub`**: Update controller/output paths.
+    *   **`scripts/watch_routes.ts.stub`**: Update controller/output paths.
+    *   **`src/kernel.tsx.stub`** (will be in `app/`): Update `controllersDir`.
+    *   **`README.md.stub`**: Update documentation text references.
+*   **`lockness/drizzle/stubs/drizzle.config.ts.stub`**: Update schema glob path.
+*   **`lockness/openapi/stubs/api_docs_controller.stub`**: Update `controllersDir`.
+*   **`lockness/cli/stubs/make/view.stub`**: Update helper text.
+
+### 7. Documentation & Stubs (Optional but Recommended)
 *   **`GEMINI.md`**: Update references to `src/` to `app/`.
 *   **`README.md`**: Update references to `src/` to `app/`.
 
@@ -74,3 +89,15 @@ Rename the root `src` directory to `app` to align with the framework's evolving 
 - [ ] `app/kernel.tsx`
 - [ ] `app/controller/api_docs_controller.ts`
 - [ ] `lockness/cli/commands/make_commands.ts`
+- [ ] `lockness/init/stubs/init/src` (Directory rename to `app`)
+- [ ] `lockness/init/stubs/init/deno.json.stub`
+- [ ] `lockness/init/stubs/init/cli.ts.stub`
+- [ ] `lockness/init/stubs/init/Dockerfile.stub`
+- [ ] `lockness/init/stubs/init/scripts/dev.sh.stub`
+- [ ] `lockness/init/stubs/init/scripts/generate_routes.ts.stub`
+- [ ] `lockness/init/stubs/init/scripts/watch_routes.ts.stub`
+- [ ] `lockness/init/stubs/init/src/kernel.tsx.stub`
+- [ ] `lockness/init/stubs/init/README.md.stub`
+- [ ] `lockness/drizzle/stubs/drizzle.config.ts.stub`
+- [ ] `lockness/openapi/stubs/api_docs_controller.stub`
+- [ ] `lockness/cli/stubs/make/view.stub`
