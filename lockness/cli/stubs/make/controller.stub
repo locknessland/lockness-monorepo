@@ -1,4 +1,4 @@
-import { Controller, Get, Context, Inject } from 'lockness/core'
+import { Controller, Get, Context, Inject } from '@lockness/core'
 
 @Controller('/{{ route }}')
 export class {{ className }}Controller {
