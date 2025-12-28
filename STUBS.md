@@ -21,12 +21,11 @@ project.
 | `deno.json`                      | `lockness/init/stubs/init/deno.json.stub`              | ✅    |
 | `README.md`                      | `lockness/init/stubs/init/README.md.stub`              | ✅    |
 | `drizzle.config.ts`              | `lockness/drizzle/stubs/drizzle.config.ts.stub`        | ✅    |
-| `.env.exemple`                   | `lockness/init/stubs/init/.env.exemple.stub`           | ✅    |
-| `.gitignore`                     | `lockness/init/stubs/init/.gitignore.stub`             | ✅    |
-| `data/todo.json`                 | `lockness/init/stubs/init/data/todo.json.stub`         | ✅    |
-| `src/kernel.tsx`                 | `lockness/init/stubs/init/src/kernel.tsx.stub`         | ✅    |
-| `src/controller/todo_controller` | `lockness/init/stubs/init/src/controller/todo_...stub` | ✅    |
-| `src/view/app.ts`                | `lockness/init/stubs/init/src/view/app.ts.stub`        | ✅    |
+| `.env.exemple`                  | `lockness/init/stubs/init/.env.exemple.stub`          | ✅    |
+| `.gitignore`                    | `lockness/init/stubs/init/.gitignore.stub`            | ✅    |
+| `src/kernel.tsx`                | `lockness/init/stubs/init/src/kernel.tsx.stub`        | ✅    |
+| `src/controller/app_controller` | `lockness/init/stubs/init/src/controller/app_...stub` | ✅    |
+| `src/view/app.ts`               | `lockness/init/stubs/init/src/view/app.ts.stub`       | ✅    |
 | `src/view/assets/app.css`        | `lockness/init/stubs/init/src/view/assets/app.css...`  | ✅    |
 | `src/view/components/ui.tsx`     | `lockness/init/stubs/init/src/view/components/ui...`   | ✅    |
 | `src/view/layouts/main_layout`   | `lockness/init/stubs/init/src/view/layouts/main...`    | ✅    |

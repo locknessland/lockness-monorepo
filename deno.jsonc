@@ -34,8 +34,8 @@
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
         "routes:generate": "deno run -A scripts/generate_routes.ts",
         "routes:watch": "deno run -A scripts/watch_routes.ts",
-        "bump": "deno run -A ./scripts/bump.ts",
-        "init": "deno run -Ar lockness/init/mod.ts _init" // Initialize a new Lockness project (Only for development purposes in the Monorepo)
+        "bump": "deno run -A ./scripts/bump.ts", // Bump Lockness version and all packages versions // Only for development purposes in the Monorepo
+        "init": "deno run -Ar lockness/init/mod.ts _lockness_app" // Initialize a new Lockness project // Only for development purposes in the Monorepo
     },
     "imports": {
         "@/": "./",
