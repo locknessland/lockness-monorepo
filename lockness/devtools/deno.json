@@ -1,6 +1,6 @@
 {
     "name": "@lockness/devtools",
-    "version": "0.1.16",
+    "version": "0.1.17",
     "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
@@ -27,8 +27,8 @@
         "jsxImportSource": "hono"
     },
     "imports": {
-        "@lockness/core": "jsr:@lockness/core@^0.1.16",
-        "hono": "jsr:@lockness/hono@^0.1.16"
+        "@lockness/core": "jsr:@lockness/core@^0.1.17",
+        "hono": "jsr:@lockness/hono@^0.1.17"
     },
     "description": "Development debugging toolbar and utilities for Lockness framework"
 }
