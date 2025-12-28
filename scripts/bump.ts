@@ -1,4 +1,5 @@
 // scripts/bump.ts
+import { parse } from '@std/jsonc'
 const newVersion = Deno.args[0]
 if (!newVersion) {
     console.error('❌ Merci de spécifier une version. Ex: deno task bump 0.2.0')
@@ -9,7 +10,8 @@ console.log(`🚀 Mise à jour vers la version ${newVersion}`)
 console.log('')
 
 // Lit la configuration racine pour trouver les membres
-const rootConfig = JSON.parse(await Deno.readTextFile('./deno.json'))
+// deno-lint-ignore no-explicit-any
+const rootConfig = parse(await Deno.readTextFile('./deno.jsonc')) as any
 
 // Étape 1: Met à jour la version de chaque package
 console.log('📦 Mise à jour des versions des packages...')
@@ -33,7 +35,8 @@ console.log('🔗 Mise à jour des dépendances inter-packages...')
 
 // Étape 2a: Met à jour les imports dans le deno.json racine
 try {
-    const rootConfig = JSON.parse(await Deno.readTextFile('./deno.json'))
+    // deno-lint-ignore no-explicit-any
+    const rootConfig = parse(await Deno.readTextFile('./deno.jsonc')) as any
 
     if (rootConfig.imports) {
         let hasUpdates = false
@@ -61,15 +64,15 @@ try {
 
         if (hasUpdates) {
             await Deno.writeTextFile(
-                './deno.json',
+                './deno.jsonc',
                 JSON.stringify(rootConfig, null, 4) + '\n',
             )
-            console.log('   ✅ deno.json racine - dépendances mises à jour')
+            console.log('   ✅ deno.jsonc racine - dépendances mises à jour')
         }
     }
 } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.warn(`   ⚠️  Erreur pour deno.json racine: ${message}`)
+    console.warn(`   ⚠️  Erreur pour deno.jsonc racine: ${message}`)
 }
 
 // Étape 2b: Met à jour les imports @lockness/* dans chaque package
