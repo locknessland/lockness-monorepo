@@ -28,7 +28,6 @@
     },
     "imports": {
         "@lockness/core": "jsr:@lockness/core@^0.1.8",
-        "@lockness/deprecation-contracts": "jsr:@lockness/deprecation-contracts@^0.1.8",
         "hono": "jsr:@lockness/hono@^0.1.8"
     },
     "description": "Development debugging toolbar and utilities for Lockness framework"
