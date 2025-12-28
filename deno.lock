@@ -2084,6 +2084,7 @@
       },
       "lockness/hono": {
         "dependencies": [
+          "npm:@hono/zod-validator@~0.7.6",
           "npm:hono@^4.11.1"
         ]
       },

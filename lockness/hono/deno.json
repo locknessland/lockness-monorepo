@@ -34,6 +34,15 @@
         ]
     },
     "imports": {
-        "hono": "npm:hono@^4.11.1"
+        "hono": "npm:hono@^4.11.1",
+        "hono/jsx": "npm:hono@^4.11.1/jsx",
+        "hono/jsx-runtime": "npm:hono@^4.11.1/jsx/jsx-runtime",
+        "hono/jsx-renderer": "npm:hono@^4.11.1/jsx-renderer",
+        "hono/deno": "npm:hono@^4.11.1/deno",
+        "hono/html": "npm:hono@^4.11.1/html",
+        "hono/types": "npm:hono@^4.11.1/types",
+        "hono/cookie": "npm:hono@^4.11.1/cookie",
+        "hono/cors": "npm:hono@^4.11.1/cors",
+        "@hono/zod-validator": "npm:@hono/zod-validator@^0.7.6"
     }
 }

@@ -1,1 +1,1 @@
-export * from 'npm:hono@^4.11.1/jsx-renderer'
+export * from 'hono/jsx-renderer'
