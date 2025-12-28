@@ -12,7 +12,7 @@
 
 import { addPackage, Stub } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
-import postgres from 'npm:postgres'
+import postgres from 'postgres'
 
 async function createDrizzleConfig() {
     const configPath = './drizzle.config.ts'

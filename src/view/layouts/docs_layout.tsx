@@ -159,10 +159,9 @@ const LlmLinks = (props: { llmPath?: string }) => {
 }
 
 export const DocsLayout = (
-    // deno-lint-ignore no-explicit-any
     props: {
         title: string
-        children: any
+        children: unknown
         currentPath: string
         llmPath?: string
     },

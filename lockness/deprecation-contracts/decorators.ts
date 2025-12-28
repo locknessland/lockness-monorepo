@@ -29,11 +29,11 @@ export interface DeprecationOptions {
 export function Deprecated(version: string, message: string, pkg?: string): any
 // deno-lint-ignore no-explicit-any
 export function Deprecated(options: DeprecationOptions): any
-// deno-lint-ignore no-explicit-any
 export function Deprecated(
     arg1: string | DeprecationOptions,
     arg2?: string,
     arg3?: string,
+    // deno-lint-ignore no-explicit-any
 ): any {
     const options: DeprecationOptions = typeof arg1 === 'string'
         ? { version: arg1, message: arg2!, package: arg3 }
