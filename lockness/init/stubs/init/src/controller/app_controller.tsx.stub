@@ -1,10 +1,10 @@
-import { Controller, Get, Context } from '@lockness/core'
+import { Context, Controller, Get } from '@lockness/core'
 import { Home } from '@/view/pages/home.tsx'
 
 @Controller('/')
 export class AppController {
-    @Get()
+    @Get('/', { name: 'home' })
     index(c: Context) {
-        return c.html(<Home />)
+        return c.render(<Home />)
     }
 }

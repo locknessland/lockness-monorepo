@@ -11,10 +11,8 @@
  */
 
 // Example:
-// import { AppController } from '@controller/app_controller.tsx'
-// import { UserController } from '@controller/user_controller.tsx'
+import { AppController } from '@controller/app_controller.tsx'
 
 export const controllers = [
-    // AppController,
-    // UserController,
+    AppController,
 ]

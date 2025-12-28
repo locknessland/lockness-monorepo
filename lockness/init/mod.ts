@@ -15,7 +15,7 @@ const INIT_STUB_FILES = [
     'scripts/dev.sh.stub',
     'scripts/generate_routes.ts.stub',
     'scripts/watch_routes.ts.stub',
-    'src/controller/app_controller.ts.stub',
+    'src/controller/app_controller.tsx.stub',
     'src/kernel.tsx.stub',
     'src/routes.ts.stub',
     'src/view/app.ts.stub',
