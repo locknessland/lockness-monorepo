@@ -5,8 +5,8 @@ SET COMMAND=%1
 
 REM Handle special commands
 IF "%COMMAND%"=="init" (
-    echo 🌊 Initializing new Lockness project: _lockness_app...
-    deno run -Ar jsr:@lockness/init "_lockness_app"
+    echo 🌊 Initializing new Lockness project...
+    deno task init
     EXIT /B
 )
 

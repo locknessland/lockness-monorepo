@@ -7,8 +7,8 @@ COMMAND=$1
 # Handle special commands
 case "$COMMAND" in
     init)
-        echo "🌊 Initializing new Lockness project: _lockness_app..."
-        deno run -Ar jsr:@lockness/init "_lockness_app"
+        echo "🌊 Initializing new Lockness project..."
+        deno task init
         ;;
     
     dev)
