@@ -70,8 +70,26 @@ and shows the duration for each execution.
 
 #### Logs
 
-View all logs triggered by `Logger.info()`, `Logger.warn()`, etc., but also the
-new **Deprecation notices**.
+View all logs triggered by `Logger.info()`, `Logger.warn()`, etc.
+
+#### Deprecation Notices
+
+When `@lockness/deprecation-contracts` is installed, the Logs tab displays
+deprecation warnings with:
+
+- Package name and version that introduced the deprecation
+- Detailed message explaining the change
+- Full stack trace to locate the deprecated code usage
+- Timestamp for tracking when the deprecation was triggered
+
+**Installation:**
+
+```bash
+deno task cli package:install deprecation-contracts
+```
+
+This package is **optional**. Without it, deprecations will still appear in the
+console, but won't be tracked in the devtools dashboard.
 
 #### Performance
 

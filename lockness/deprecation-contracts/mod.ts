@@ -3,7 +3,7 @@ import { Logger } from '@lockness/logger'
 
 export * from './decorators.ts'
 
-// Minimal interface for devtools collector to avoid 'any'
+// Minimal interface for external collectors (e.g., devtools)
 interface Collector {
     addDeprecation(entry: {
         pkg: string
@@ -15,13 +15,15 @@ interface Collector {
     }): void
 }
 
-// Optional import for devtools integration
-let devtoolsCollector: Collector | null = null
-try {
-    const module = await import('@lockness/devtools')
-    devtoolsCollector = module.collector as Collector
-} catch {
-    // Devtools not available
+// External collector can be registered by devtools or other packages
+let externalCollector: Collector | null = null
+
+/**
+ * Register an external collector for deprecation notices.
+ * This allows packages like @lockness/devtools to receive deprecation events.
+ */
+export function registerDeprecationCollector(collector: Collector): void {
+    externalCollector = collector
 }
 
 /**
@@ -63,9 +65,9 @@ export function triggerDeprecation(
         throw new Error(`[DEPRECATION] ${fullMessage}`)
     }
 
-    // Attempt to collect in devtools
-    if (devtoolsCollector) {
-        devtoolsCollector.addDeprecation({
+    // Send to external collector if registered
+    if (externalCollector) {
+        externalCollector.addDeprecation({
             pkg,
             version,
             message,

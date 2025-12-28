@@ -22,6 +22,20 @@ import { renderDashboard } from './dashboard.tsx'
 import { collector } from './collector.ts'
 import type { DevtoolsConfig, MailInfo, QueueJob, RouteInfo } from './types.ts'
 
+// Register devtools collector with deprecation-contracts
+try {
+    const { registerDeprecationCollector } = await import(
+        '@lockness/deprecation-contracts'
+    )
+    registerDeprecationCollector(collector)
+} catch {
+    console.log(
+        '%c[Devtools]%c Install @lockness/deprecation-contracts to track deprecation notices in the toolbar',
+        'color: #3b82f6; font-weight: bold;',
+        'color: inherit; font-weight: normal;',
+    )
+}
+
 export * from './types.ts'
 export { collector } from './collector.ts'
 export { devtoolsMiddleware } from './middleware.ts'

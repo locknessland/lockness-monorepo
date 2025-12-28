@@ -437,13 +437,28 @@ Nessy includes several built-in commands to improve your workflow:
 
 ### Deprecation Contracts
 
-Lockness includes a powerful deprecation system to help you evolve your codebase
-without breaking changes.
+Lockness provides a powerful deprecation system through the
+`@lockness/deprecation-contracts` package. It helps you evolve your codebase
+without breaking changes by providing clear warnings about deprecated features.
 
-**Using the Decorator:**
+#### Installation
+
+The deprecation system is optional and installed separately:
+
+```bash
+deno task cli package:install deprecation-contracts
+```
+
+This will:
+
+- Add `@lockness/deprecation-contracts` to your `deno.json` imports
+- Create environment variables in your `.env` file for configuration
+- Enable deprecation tracking throughout your application
+
+#### Using the Decorator
 
 ```typescript
-import { Deprecated } from '@lockness/core'
+import { Deprecated } from '@lockness/deprecation-contracts'
 
 @Deprecated('1.2.0', 'Use NewService instead')
 export class OldService {
@@ -455,18 +470,43 @@ export class OldService {
 }
 ```
 
-**Using the Function:**
+#### Using the Function
+
+For runtime deprecation notices:
 
 ```typescript
 import { triggerDeprecation } from '@lockness/deprecation-contracts'
 
-triggerDeprecation('my-pkg', '1.0.0', 'Message with %s', 'placeholder')
+triggerDeprecation('my-pkg', '1.0.0', 'Use newFunction() instead')
+
+// With dynamic values
+triggerDeprecation('my-pkg', '1.0.0', 'Method %s is deprecated', 'oldMethod')
 ```
 
-**Devtools Integration:**
+#### Configuration
 
-All deprecations are automatically captured and displayed in the **Lockness
-Devtools**, providing a full stack trace for each notice.
+Control deprecation behavior via environment variables:
+
+```bash
+# .env
+STRICT_DEPRECATIONS=false  # Set to 'true' to throw errors instead of warnings
+IGNORE_DEPRECATIONS=false  # Set to 'true' to completely disable deprecations
+```
+
+#### Devtools Integration
+
+When both `@lockness/devtools` and `@lockness/deprecation-contracts` are
+installed, deprecations are automatically captured and displayed in the Devtools
+toolbar with:
+
+- Full stack trace for each deprecation
+- Package name and version information
+- Timestamp and occurrence count
+- Quick navigation to source code
+
+The integration is **automatic** - no configuration needed. If you only install
+devtools, deprecations will still be logged to the console, and you'll see a
+suggestion to install the deprecation-contracts package for full tracking.
 
 ### Named Routes
 

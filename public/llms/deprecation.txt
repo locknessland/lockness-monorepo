@@ -4,11 +4,41 @@ Graceful deprecation warnings for breaking changes.
 
 ## Overview
 
-Lockness provides a built-in deprecation system to:
+Lockness provides a powerful deprecation system through the
+`@lockness/deprecation-contracts` package to:
 - Warn developers about deprecated features
 - Provide migration paths
-- Track deprecation usage
+- Track deprecation usage in Devtools (when installed)
 - Plan for removal
+
+## Installation
+
+```bash
+deno task cli package:install deprecation-contracts
+```
+
+This will:
+- Add the package to your `deno.json` imports
+- Create environment variables in `.env` for configuration
+- Enable deprecation tracking throughout your application
+
+### Optional: Devtools Integration
+
+For **visual tracking** of deprecations, install Lockness Devtools:
+
+```bash
+deno task cli package:install devtools
+```
+
+When both packages are installed:
+- ✅ Deprecations appear in the Devtools dashboard (Logs panel)
+- ✅ Full stack traces for each deprecation
+- ✅ Package and version information
+- ✅ Timestamp and occurrence tracking
+- ✅ Quick navigation to source code
+
+The integration is **automatic** - no configuration needed. Without devtools,
+deprecations still work and are logged to the console.
 
 ## Basic Usage
 
@@ -79,24 +109,32 @@ export class Config {
 
 ## Configuration
 
-```typescript
-// src/kernel.tsx
-import { configureDeprecation } from '@lockness/deprecation-contracts'
+Configure deprecation behavior via environment variables:
 
-configureDeprecation({
-    // When to show warnings
-    mode: 'development', // 'development' | 'production' | 'off'
-    
-    // How to handle
-    onDeprecation: (message, location) => {
-        console.warn(`DEPRECATED: ${message} at ${location}`)
+```bash
+# .env
+STRICT_DEPRECATIONS=false  # Set to 'true' to throw errors instead of warnings
+IGNORE_DEPRECATIONS=false  # Set to 'true' to completely disable deprecations
+```
+
+**Note:** When `@lockness/devtools` is installed, all deprecations are
+automatically sent to the Devtools collector in addition to console logging.
+
+### Custom Collector
+
+If you need custom handling, you can register your own collector:
+
+```typescript
+import { registerDeprecationCollector } from '@lockness/deprecation-contracts'
+
+registerDeprecationCollector({
+    addDeprecation(entry) {
+        // Send to external logging service
+        fetch('https://api.logging.com/deprecations', {
+            method: 'POST',
+            body: JSON.stringify(entry),
+        })
     },
-    
-    // Throw errors instead of warnings
-    strict: false,
-    
-    // Track usage
-    track: true,
 })
 ```
 
@@ -236,6 +274,22 @@ configureDeprecation({
 ```
 
 ## Best Practices
+
+### Use Devtools in Development
+
+For Lockness applications, always use devtools to track deprecations:
+
+```bash
+# Install both packages
+deno task cli package:install deprecation-contracts
+deno task cli package:install devtools
+```
+
+Benefits:
+- Visual dashboard showing all deprecations
+- Stack traces for quick debugging
+- Historical tracking of deprecation usage
+- No manual logging configuration needed
 
 ### Clear Migration Path
 

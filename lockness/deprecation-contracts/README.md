@@ -61,3 +61,47 @@ Deprecations are logged with a distinctive style in the console:
 ```text
 [DEPRECATION] Since my-package 1.2.0: The oldMethod() is deprecated...
 ```
+
+## 🔧 Devtools Integration
+
+For Lockness applications, deprecations can be automatically tracked in the
+**Lockness Devtools** dashboard.
+
+### Installation
+
+Install both packages:
+
+```bash
+./nessy package:install deprecation-contracts
+./nessy package:install devtools
+```
+
+### Automatic Integration
+
+No configuration needed! When both packages are installed:
+
+- ✅ Deprecations appear in the Devtools dashboard
+- ✅ Full stack traces for debugging
+- ✅ Timestamp and occurrence tracking
+- ✅ Package and version information
+- ✅ Quick navigation to source code
+
+The integration happens automatically when you enable devtools in your kernel:
+
+```typescript
+import { collectAppRoutes, enableDevtools } from '@lockness/devtools'
+
+const isDevelopment = Deno.env.get('APP_ENV') === 'development'
+
+if (isDevelopment) {
+    enableDevtools(app.getHono())
+}
+```
+
+### Standalone Usage
+
+You can also use `@lockness/deprecation-contracts` **without** devtools. In this
+case, deprecations will be logged to the console with styled warnings.
+
+**Pro tip:** Install devtools in development to get visual tracking of all
+deprecations in your application!

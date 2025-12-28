@@ -13,20 +13,43 @@ Lockness DevTools provides:
 
 ## Installation
 
-DevTools is built into Lockness and auto-enables in development.
+DevTools is a separate package that you install in development.
+
+```bash
+deno task cli package:install devtools
+```
+
+Then enable it in your kernel:
 
 ```typescript
 // src/kernel.tsx
-import { Kernel } from '@lockness/core'
-import { DevToolsMiddleware } from '@lockness/devtools'
+import { enableDevtools, collectAppRoutes } from '@lockness/devtools'
 
-export const kernel = new Kernel()
+const isDevelopment = Deno.env.get('APP_ENV') === 'development'
 
-// Auto-enabled when APP_ENV=development
-if (Deno.env.get('APP_ENV') === 'development') {
-    kernel.use(DevToolsMiddleware)
+if (isDevelopment) {
+    // Enable devtools before app.init()
+    enableDevtools(app.getHono())
+}
+
+await app.init({ /* config */ })
+
+if (isDevelopment) {
+    // Collect routes after app.init()
+    collectAppRoutes(app)
 }
 ```
+
+### Optional: Deprecation Tracking
+
+To track deprecation notices in the devtools dashboard:
+
+```bash
+deno task cli package:install deprecation-contracts
+```
+
+This package integrates automatically with devtools when both are installed.
+Without it, deprecations still work but only appear in the console.
 
 ## Access DevTools
 
@@ -77,6 +100,59 @@ Monitor application events:
 - Cache operations
 - Queue jobs
 - Custom events
+
+### Deprecation Notices
+
+**Requires:** `@lockness/deprecation-contracts` package
+
+Track deprecated features usage:
+- Package and version information
+- Deprecation message
+- Full stack trace
+- Timestamp and occurrence count
+- Quick navigation to source code
+
+**Installation:**
+
+```bash
+deno task cli package:install deprecation-contracts
+```
+
+**Using Deprecations:**
+
+```typescript
+import { Deprecated, triggerDeprecation } from '@lockness/deprecation-contracts'
+
+// Decorator usage
+@Deprecated('1.2.0', 'Use NewService instead')
+export class OldService {}
+
+@Service()
+export class MyService {
+    @Deprecated('1.0.0', 'Use newMethod() instead')
+    oldMethod() { }
+}
+
+// Function usage
+triggerDeprecation('my-pkg', '1.0.0', 'Feature %s is deprecated', 'oldFeature')
+```
+
+**Configuration (.env):**
+
+```bash
+# Throw errors instead of warnings (useful in tests)
+STRICT_DEPRECATIONS=false
+
+# Completely disable deprecations
+IGNORE_DEPRECATIONS=false
+```
+
+**Integration:**
+
+When both `@lockness/devtools` and `@lockness/deprecation-contracts` are
+installed, they connect automatically. No manual configuration needed.
+
+Deprecations appear in the Logs panel with a special icon and full context.
 
 ## Configuration
 
