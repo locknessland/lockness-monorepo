@@ -1,6 +1,6 @@
 {
     "name": "@lockness/auth",
-    "version": "0.1.12",
+    "version": "0.0.13",
     "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
@@ -25,7 +25,7 @@
     },
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
-        "hono": "jsr:@lockness/hono@^0.1.12",
+        "hono": "jsr:@lockness/hono@^0.0.13",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3"
     },
     "description": "Robust authentication system with multiple guards (Session, Token, Basic Auth) and pluggable user providers"
