@@ -65,7 +65,7 @@ This command automatically:
 1. Review changes: `git diff`
 2. Run tests: `deno task test`
 3. Commit: `git commit -am "chore: bump version to 0.2.0"`
-4. Publish packages: `deno publish --allow-dirty` (in each package directory)
+4. Publish packages: `deno publish` (in each package directory)
 
 ## Contributing
 
