@@ -2009,8 +2009,8 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@lockness/core@~0.1.6",
-      "jsr:@lockness/hono@0.1",
+      "jsr:@lockness/core@~0.1.7",
+      "jsr:@lockness/hono@~0.1.7",
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
@@ -2062,7 +2062,6 @@
       "lockness/deprecation-contracts": {
         "dependencies": [
           "jsr:@lockness/container@~0.1.7",
-          "jsr:@lockness/devtools@~0.1.7",
           "jsr:@lockness/logger@~0.1.7",
           "jsr:@std/assert@1"
         ]
