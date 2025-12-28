@@ -1,6 +1,6 @@
 {
     "name": "@lockness/storage",
-    "version": "0.0.14",
+    "version": "0.1.14",
     "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
