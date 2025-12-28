@@ -1,6 +1,6 @@
 {
     "name": "@lockness/devtools",
-    "version": "0.1.0",
+    "version": "0.1.3",
     "exports": "./mod.ts",
     "tasks": {
         "test": "deno test -A tests/",
@@ -26,7 +26,7 @@
         "jsxImportSource": "@lockness/core"
     },
     "imports": {
-        "@lockness/core": "jsr:@lockness/core@^0.1.0",
-        "hono": "jsr:@lockness/hono@^0.1.0"
+        "@lockness/core": "jsr:@lockness/core@^0.1.3",
+        "hono": "jsr:@lockness/hono@^0.1.3"
     }
 }
