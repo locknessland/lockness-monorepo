@@ -1,6 +1,6 @@
 {
     "name": "@lockness/validator",
-    "version": "0.1.11",
+    "version": "0.1.12",
     "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
