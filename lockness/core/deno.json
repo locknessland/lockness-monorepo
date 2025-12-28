@@ -42,5 +42,6 @@
     "compilerOptions": {
         "jsx": "precompile",
         "jsxImportSource": "hono"
-    }
+    },
+    "description": "Core framework components providing MVC architecture, routing engine, decorators, and dependency injection"
 }

@@ -45,5 +45,6 @@
         "hono/cookie": "npm:hono@^4.11.1/cookie",
         "hono/cors": "npm:hono@^4.11.1/cors",
         "@hono/zod-validator": "npm:@hono/zod-validator@^0.7.6"
-    }
+    },
+    "description": "Hono bridge for Lockness framework providing centralized Hono dependency management across the ecosystem"
 }

@@ -25,5 +25,6 @@
         "@std/testing/bdd": "jsr:@std/testing@^1.0.0/bdd",
         "@std/expect": "jsr:@std/expect@^1.0.0",
         "@std/fs": "jsr:@std/fs@^1.0.0"
-    }
+    },
+    "description": "Project scaffolding and initialization for creating new Lockness applications with complete structure"
 }

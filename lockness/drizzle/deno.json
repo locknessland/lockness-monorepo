@@ -21,5 +21,6 @@
         "@std/path": "jsr:@std/path@^1.0.0",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "postgres": "npm:postgres@^3.4.4"
-    }
+    },
+    "description": "Drizzle ORM integration with PostgreSQL support, migration management, and database seeding system"
 }

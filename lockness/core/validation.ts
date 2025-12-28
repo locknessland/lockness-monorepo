@@ -91,18 +91,22 @@ export function Validate(
                 constructor._validators[methodName].push({
                     target,
                     schema,
-                    middleware: zValidator(target, schema, (result: any, c: Context) => {
-                        if (!result.success) {
-                            // Format Zod errors for response
-                            const errors: Record<string, string[]> = {}
-                            result.error.issues.forEach((issue: any) => {
-                                const path = issue.path.join('.') || 'root'
-                                if (!errors[path]) errors[path] = []
-                                errors[path].push(issue.message)
-                            })
-                            return globalValidationErrorHandler(errors, c)
-                        }
-                    }),
+                    middleware: zValidator(
+                        target,
+                        schema,
+                        (result: any, c: Context) => {
+                            if (!result.success) {
+                                // Format Zod errors for response
+                                const errors: Record<string, string[]> = {}
+                                result.error.issues.forEach((issue: any) => {
+                                    const path = issue.path.join('.') || 'root'
+                                    if (!errors[path]) errors[path] = []
+                                    errors[path].push(issue.message)
+                                })
+                                return globalValidationErrorHandler(errors, c)
+                            }
+                        },
+                    ),
                 })
             }
         })

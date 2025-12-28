@@ -1396,7 +1396,8 @@ single source of truth for development.
 3. **Registry**: Register any new library in the `workspace` array of the root
    `deno.json`.
 4. **Version Management**: When releasing new versions, use
-   `deno task bump <version>` to update all packages and their inter-dependencies
-   atomically. This ensures version consistency across the entire monorepo.
+   `deno task bump <version>` to update all packages and their
+   inter-dependencies atomically. This ensures version consistency across the
+   entire monorepo.
 5. **GitHub**: The official monorepo is located at
    [locknessjs/lockness](https://github.com/locknessjs/lockness).
