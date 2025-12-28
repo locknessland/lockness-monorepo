@@ -190,7 +190,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         (v) =>
                             typeof v === 'function' &&
                             v.prototype?.run,
-                    ) as { new(): { run(): Promise<void> } } | undefined
+                    ) as { new (): { run(): Promise<void> } } | undefined
 
                     if (SeederClass) {
                         const seeder = new SeederClass()
@@ -212,7 +212,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         `file://${Deno.cwd()}/${mainSeederPath}`
                     )
                     const DatabaseSeeder = module.DatabaseSeeder as
-                        | { new(): { run(): Promise<void> } }
+                        | { new (): { run(): Promise<void> } }
                         | undefined
 
                     if (DatabaseSeeder) {
@@ -358,7 +358,8 @@ export function registerDrizzleCommands(cli: Cli) {
                     createdFiles.push(filePath)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create repository: ${(error as Error).message
+                        `❌ Failed to create repository: ${
+                            (error as Error).message
                         }`,
                     )
                 }
@@ -384,7 +385,8 @@ export function registerDrizzleCommands(cli: Cli) {
                     createdFiles.push(filePath)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create seeder: ${(error as Error).message
+                        `❌ Failed to create seeder: ${
+                            (error as Error).message
                         }`,
                     )
                 }
@@ -413,7 +415,8 @@ export function registerDrizzleCommands(cli: Cli) {
                     createdFiles.push(filePath)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create controller: ${(error as Error).message
+                        `❌ Failed to create controller: ${
+                            (error as Error).message
                         }`,
                     )
                 }
