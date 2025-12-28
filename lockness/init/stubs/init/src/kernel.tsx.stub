@@ -5,7 +5,6 @@ import {
     sessionMiddleware,
     type Context,
 } from '@lockness/core'
-import { Database } from '@lockness/drizzle'
 import {
     authMiddleware,
     initializeAuthMiddleware,
@@ -45,11 +44,6 @@ const errorHandler = (error: Error, c: Context) => {
 */
 
 export const bootstrap = async () => {
-    // Initialize Database (Optional)
-    const db = container.get<Database>(Database)
-    await db.connect(
-        Deno.env.get('DATABASE_URL') || 'postgres://localhost:5432/lockness',
-    )
 
     // Configure session (optional - defaults to cookie driver)
     configureSession({
