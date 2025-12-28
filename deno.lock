@@ -2069,6 +2069,7 @@
       "lockness/devtools": {
         "dependencies": [
           "jsr:@lockness/core@~0.1.7",
+          "jsr:@lockness/deprecation-contracts@~0.1.7",
           "jsr:@lockness/hono@~0.1.7"
         ]
       },
