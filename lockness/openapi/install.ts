@@ -21,9 +21,14 @@ async function createDocsController() {
         console.log('ℹ️  ApiDocsController already exists, skipping...')
         return false
     } catch {
-        // File doesn't exist, create it
-        const currentDir = dirname(fromFileUrl(import.meta.url))
-        const stubsDir = join(currentDir, 'stubs')
+        // Handle both local file:// and remote https:// URLs
+        let stubsDir: string
+        if (import.meta.url.startsWith('file://')) {
+            const currentDir = dirname(fromFileUrl(import.meta.url))
+            stubsDir = join(currentDir, 'stubs')
+        } else {
+            stubsDir = new URL('./stubs', import.meta.url).href
+        }
 
         const content = await Stub.renderFrom(
             stubsDir,

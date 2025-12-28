@@ -4,8 +4,16 @@ import { container } from '@lockness/core'
 import { Database } from './mod.ts'
 import type postgres from 'postgres'
 
-const currentDir = dirname(fromFileUrl(import.meta.url))
-const STUBS_PATH = join(currentDir, 'stubs')
+// Handle both local file:// and remote https:// URLs
+let STUBS_PATH: string
+
+if (import.meta.url.startsWith('file://')) {
+    const currentDir = dirname(fromFileUrl(import.meta.url))
+    STUBS_PATH = join(currentDir, 'stubs')
+} else {
+    // When running from JSR, use relative URLs
+    STUBS_PATH = new URL('./stubs', import.meta.url).href
+}
 
 async function initDatabase(): Promise<Database> {
     const db = container.get<Database>(Database)
@@ -182,7 +190,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         (v) =>
                             typeof v === 'function' &&
                             v.prototype?.run,
-                    ) as { new (): { run(): Promise<void> } } | undefined
+                    ) as { new(): { run(): Promise<void> } } | undefined
 
                     if (SeederClass) {
                         const seeder = new SeederClass()
@@ -204,7 +212,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         `file://${Deno.cwd()}/${mainSeederPath}`
                     )
                     const DatabaseSeeder = module.DatabaseSeeder as
-                        | { new (): { run(): Promise<void> } }
+                        | { new(): { run(): Promise<void> } }
                         | undefined
 
                     if (DatabaseSeeder) {
@@ -350,8 +358,7 @@ export function registerDrizzleCommands(cli: Cli) {
                     createdFiles.push(filePath)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create repository: ${
-                            (error as Error).message
+                        `❌ Failed to create repository: ${(error as Error).message
                         }`,
                     )
                 }
@@ -377,8 +384,7 @@ export function registerDrizzleCommands(cli: Cli) {
                     createdFiles.push(filePath)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create seeder: ${
-                            (error as Error).message
+                        `❌ Failed to create seeder: ${(error as Error).message
                         }`,
                     )
                 }
@@ -407,8 +413,7 @@ export function registerDrizzleCommands(cli: Cli) {
                     createdFiles.push(filePath)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create controller: ${
-                            (error as Error).message
+                        `❌ Failed to create controller: ${(error as Error).message
                         }`,
                     )
                 }

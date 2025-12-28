@@ -22,8 +22,14 @@ async function createDrizzleConfig() {
         console.log('ℹ️  drizzle.config.ts already exists, skipping...')
         return false
     } catch {
-        const currentDir = dirname(fromFileUrl(import.meta.url))
-        const stubsDir = join(currentDir, 'stubs')
+        // Handle both local file:// and remote https:// URLs
+        let stubsDir: string
+        if (import.meta.url.startsWith('file://')) {
+            const currentDir = dirname(fromFileUrl(import.meta.url))
+            stubsDir = join(currentDir, 'stubs')
+        } else {
+            stubsDir = new URL('./stubs', import.meta.url).href
+        }
 
         const content = await Stub.renderFrom(
             stubsDir,
@@ -69,8 +75,14 @@ async function createDatabaseSeeder() {
         console.log('ℹ️  database_seeder.ts already exists, skipping...')
         return false
     } catch {
-        const currentDir = dirname(fromFileUrl(import.meta.url))
-        const stubsDir = join(currentDir, 'stubs')
+        // Handle both local file:// and remote https:// URLs
+        let stubsDir: string
+        if (import.meta.url.startsWith('file://')) {
+            const currentDir = dirname(fromFileUrl(import.meta.url))
+            stubsDir = join(currentDir, 'stubs')
+        } else {
+            stubsDir = new URL('./stubs', import.meta.url).href
+        }
 
         const content = await Stub.renderFrom(
             stubsDir,
