@@ -1,8 +1,16 @@
 import { type Cli, Stub } from '../mod.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
 
-const currentDir = dirname(fromFileUrl(import.meta.url))
-const STUBS_PATH = join(currentDir, '..', 'stubs')
+// Handle both local file:// and remote https:// URLs
+let STUBS_PATH: string
+
+if (import.meta.url.startsWith('file://')) {
+    const currentDir = dirname(fromFileUrl(import.meta.url))
+    STUBS_PATH = join(currentDir, '..', 'stubs')
+} else {
+    // When running from JSR, use relative URLs
+    STUBS_PATH = new URL('../stubs', import.meta.url).href
+}
 
 export function registerNessyCommands(cli: Cli) {
     cli.register('nessy:install', async () => {

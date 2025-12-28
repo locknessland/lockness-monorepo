@@ -41,14 +41,16 @@ try {
         for (const [key, value] of Object.entries(rootConfig.imports)) {
             if (
                 typeof value === 'string' &&
-                (key.startsWith('@lockness/') || value.includes('jsr:@lockness/'))
+                (key.startsWith('@lockness/') ||
+                    value.includes('jsr:@lockness/'))
             ) {
                 const match = value.match(
                     /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/,
                 )
                 if (match) {
                     const [, packagePath, versionPrefix] = match
-                    const newImport = `${packagePath}@${versionPrefix}${newVersion}`
+                    const newImport =
+                        `${packagePath}@${versionPrefix}${newVersion}`
                     if (newImport !== value) {
                         rootConfig.imports[key] = newImport
                         hasUpdates = true

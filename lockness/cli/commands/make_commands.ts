@@ -2,9 +2,19 @@ import { type Cli, Stub } from '../mod.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { generateRoutesFile } from '../routes_generator.ts'
 
-const currentDir = dirname(fromFileUrl(import.meta.url))
-const STUBS_PATH = join(currentDir, '..', 'stubs')
-const DRIZZLE_STUBS_PATH = join(currentDir, '..', '..', 'drizzle', 'stubs')
+// Handle both local file:// and remote https:// URLs
+let STUBS_PATH: string
+let DRIZZLE_STUBS_PATH: string
+
+if (import.meta.url.startsWith('file://')) {
+    const currentDir = dirname(fromFileUrl(import.meta.url))
+    STUBS_PATH = join(currentDir, '..', 'stubs')
+    DRIZZLE_STUBS_PATH = join(currentDir, '..', '..', 'drizzle', 'stubs')
+} else {
+    // When running from JSR, use relative URLs
+    STUBS_PATH = new URL('../stubs', import.meta.url).href
+    DRIZZLE_STUBS_PATH = new URL('../../drizzle/stubs', import.meta.url).href
+}
 
 export function registerMakeCommands(cli: Cli) {
     cli.register('make:controller', async (args) => {
