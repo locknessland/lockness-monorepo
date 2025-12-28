@@ -1,6 +1,7 @@
 {
     "name": "@lockness/core",
     "version": "0.1.3",
+    "license": "MIT",
     "exports": {
         ".": "./mod.ts",
         "./jsx": "./jsx.ts",

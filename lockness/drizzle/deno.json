@@ -1,6 +1,7 @@
 {
     "name": "@lockness/drizzle",
     "version": "0.1.3",
+    "license": "MIT",
     "exports": {
         ".": "./mod.ts",
         "./commands": "./cli_commands.ts",

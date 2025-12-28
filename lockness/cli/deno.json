@@ -1,6 +1,7 @@
 {
     "name": "@lockness/cli",
     "version": "0.1.3",
+    "license": "MIT",
     "exports": {
         ".": "./mod.ts",
         "./commands": "./core_commands.ts"

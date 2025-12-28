@@ -1,6 +1,7 @@
 {
     "name": "@lockness/session",
     "version": "0.1.3",
+    "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
         "test": "deno test -A tests/",
