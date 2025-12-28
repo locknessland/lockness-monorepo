@@ -34,7 +34,7 @@
     },
     "compilerOptions": {
         "jsx": "precompile",
-        "jsxImportSource": "@lockness/core"
+        "jsxImportSource": "hono"
     },
     "description": "OpenAPI 3.0 documentation generator with decorator-based route documentation and Swagger UI integration"
 }

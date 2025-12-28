@@ -24,7 +24,7 @@
     },
     "compilerOptions": {
         "jsx": "precompile",
-        "jsxImportSource": "@lockness/core"
+        "jsxImportSource": "hono"
     },
     "imports": {
         "@lockness/core": "jsr:@lockness/core@^0.1.3",
