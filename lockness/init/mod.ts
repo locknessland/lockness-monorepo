@@ -12,6 +12,7 @@ const INIT_STUB_FILES = [
     'Dockerfile.stub',
     'main.ts.stub',
     'postcss.config.js.stub',
+    'public/img/lockness-logo.svg',
     'README.md.stub',
     'scripts/dev.sh.stub',
     'scripts/generate_routes.ts.stub',

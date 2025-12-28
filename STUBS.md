@@ -19,6 +19,7 @@ project.
 | `cli.ts`                            | `lockness/init/stubs/init/cli.ts.stub`                            | ✅    |
 | `main.ts`                           | `lockness/init/stubs/init/main.ts.stub`                           | ✅    |
 | `postcss.config.js`                 | `lockness/init/stubs/init/postcss.config.js.stub`                 | ✅    |
+| `public/img/lockness-logo.svg`      | `lockness/init/stubs/init/public/img/lockness-logo.svg`           | ✅    |
 | `deno.json`                         | `lockness/init/stubs/init/deno.json.stub`                         | ✅    |
 | `README.md`                         | `lockness/init/stubs/init/README.md.stub`                         | ✅    |
 | `drizzle.config.ts`                 | `lockness/drizzle/stubs/drizzle.config.ts.stub`                   | ✅    |
