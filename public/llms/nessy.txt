@@ -69,6 +69,14 @@ Nessy runs your local CLI configuration (`cli.ts`) which:
 
 ## Core Commands
 
+### Project Initialization
+
+```bash
+# Create a new Lockness project (generates in _lockness_app/)
+./nessy init
+cd _lockness_app
+```
+
 ### Scaffolding
 
 ```bash
@@ -201,9 +209,13 @@ cat database/migrations/0001_*.sql
 ### Project Initialization
 
 ```bash
-# New project
-deno run -A jsr:@lockness/cli init
+# New project (from outside)
+deno run -Ar jsr:@lockness/init my-app
 cd my-app
+
+# Or using nessy (from existing project with nessy, always creates _lockness_app/)
+./nessy init
+cd _lockness_app
 
 # Setup
 ./nessy make:auth

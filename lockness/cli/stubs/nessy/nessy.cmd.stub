@@ -4,6 +4,12 @@ REM Nessy - Lockness CLI wrapper with DX enhancements
 SET COMMAND=%1
 
 REM Handle special commands
+IF "%COMMAND%"=="init" (
+    echo 🌊 Initializing new Lockness project: _lockness_app...
+    deno run -Ar jsr:@lockness/init "_lockness_app"
+    EXIT /B
+)
+
 IF "%COMMAND%"=="dev" (
     echo 🚀 Starting development server...
     deno task dev
@@ -120,6 +126,7 @@ GOTO skip_help
     echo Usage: nessy [command] [args]
     echo.
     echo 📦 Quick Commands:
+    echo   init                 Initialize new Lockness project (_lockness_app)
     echo   dev                  Start development server
     echo   build                Build production bundle
     echo   start                Start production server
@@ -156,6 +163,7 @@ GOTO skip_help
     echo   queue:clear          Clear all jobs
     echo.
     echo Examples:
+    echo   nessy init                       # Create new project (_lockness_app)
     echo   nessy dev                        # Start dev server
     echo   nessy build                      # Build for production
     echo   nessy start                      # Start production server

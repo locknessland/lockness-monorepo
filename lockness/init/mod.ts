@@ -11,6 +11,7 @@ const INIT_STUB_FILES = [
     'deno.json.stub',
     'Dockerfile.stub',
     'main.ts.stub',
+    'postcss.config.js.stub',
     'README.md.stub',
     'scripts/dev.sh.stub',
     'scripts/generate_routes.ts.stub',
