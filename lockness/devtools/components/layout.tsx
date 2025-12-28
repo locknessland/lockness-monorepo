@@ -1,5 +1,5 @@
 /** @jsx jsx */
-/** @jsxImportSource @lockness/core */
+/** @jsxImportSource hono */
 
 interface LayoutProps {
     children: unknown
