@@ -1,0 +1,18 @@
+Can you create in English the technical task explain in Markdown for the
+following feature bellow ? This new markdown file will be place in the .tasks
+folder. Don't do the task yet, just create the markdown file for Github Copilot
+to generate the code. Put all the file path in the markdown file. Explain the
+task in detail and the expected result. Ensure to use the right markdown syntax
+and to be clear and concise. Adhere strictly to SOLID and DRY principles.
+Enforce a hierarchical layered architecture to decouple concerns: Controllers
+must remain "thin", delegating business logic to Services and data persistence
+to Repositories. Direct database queries within Controllers are strictly
+prohibited. Leverage Dependency Injection to inject Services into Controllers
+and Repositories into Services, ensuring a unidirectional data flow (Controller
+-> Service -> Repository). Focus heavily on Unit Testing to validate these
+isolated components, utilizing mock objects where appropriate. Strictly avoid
+creating tests that interact with the live database (reads or writes); all
+database operations must be mocked to ensure tests are fast and deterministic.
+Minimize reliance on Functional Tests. All of these technical specifications and
+architectural constraints must be explicitly included in the generated markdown
+file. Task:
