@@ -391,6 +391,7 @@ Nessy includes several built-in commands to improve your workflow:
 | `./nessy watch`          | Dev server in watch mode                    |
 | `./nessy status`         | Show project health information             |
 | `./nessy install <pkg>`  | Add a dependency                            |
+| `./nessy bump <version>` | Update all package versions                 |
 | `./nessy --version`      | Show version information                    |
 | `./nessy --help`         | Display comprehensive help                  |
 
@@ -415,6 +416,9 @@ Nessy includes several built-in commands to improve your workflow:
 ./nessy test User     # Run user tests
 ./nessy check         # Verify types
 ./nessy router:list   # Show all routes with names
+
+# Version management (for contributors)
+./nessy bump 0.2.0    # Update all package versions
 
 # Maintenance
 ./nessy clean         # Clean build
@@ -1391,5 +1395,8 @@ single source of truth for development.
    `deno.json`'s `imports` section.
 3. **Registry**: Register any new library in the `workspace` array of the root
    `deno.json`.
-4. **GitHub**: The official monorepo is located at
+4. **Version Management**: When releasing new versions, use
+   `deno task bump <version>` to update all packages and their inter-dependencies
+   atomically. This ensures version consistency across the entire monorepo.
+5. **GitHub**: The official monorepo is located at
    [locknessjs/lockness](https://github.com/locknessjs/lockness).

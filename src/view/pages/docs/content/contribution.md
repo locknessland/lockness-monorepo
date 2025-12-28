@@ -43,6 +43,30 @@ deno task test
 
 This will run all tests for all libraries in the workspace.
 
+### Version Management
+
+When releasing a new version of Lockness, all packages in the monorepo need to
+be bumped to the same version. Use the `bump` command:
+
+```bash
+deno task bump 0.2.0
+```
+
+This command automatically:
+
+- Updates the `version` field in all workspace packages' `deno.json`
+- Updates all inter-package dependencies (e.g., `@lockness/core@^0.1.0` →
+  `@lockness/core@^0.2.0`)
+- Preserves version prefixes (`^` or `~`)
+- Provides a summary of changes
+
+**After bumping:**
+
+1. Review changes: `git diff`
+2. Run tests: `deno task test`
+3. Commit: `git commit -am "chore: bump version to 0.2.0"`
+4. Publish packages: `deno publish --allow-dirty` (in each package directory)
+
 ## Contributing
 
 1. **Fork the repository**:

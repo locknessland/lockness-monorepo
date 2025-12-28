@@ -110,6 +110,14 @@ Nessy runs your local CLI configuration (`cli.ts`) which:
 ./nessy db:seed          # Run seeders
 ```
 
+### Version Management
+
+```bash
+./nessy bump 0.2.0       # Update all package versions
+```
+
+This command updates the version in all workspace packages and their inter-dependencies.
+
 ### Other
 
 ```bash

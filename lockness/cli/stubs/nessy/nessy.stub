@@ -96,6 +96,17 @@ case "$COMMAND" in
         fi
         ;;
     
+    bump)
+        shift
+        if [ -z "$1" ]; then
+            echo "❌ Please specify a version"
+            echo "   Usage: ./nessy bump 0.2.0"
+        else
+            echo "🚀 Bumping version to $1..."
+            deno task bump "$1"
+        fi
+        ;;
+    
     -v|--version|version)
         echo "🦕 Nessy - Lockness CLI"
         echo "Version: 1.0.0"
@@ -119,6 +130,7 @@ case "$COMMAND" in
         echo "  watch                Start dev server with file watcher"
         echo "  status               Show project status"
         echo "  install <pkg>        Add a dependency"
+        echo "  bump <version>       Update all package versions"
         echo "  -v, --version        Show version"
         echo "  -h, --help           Show this help"
         echo ""
@@ -153,6 +165,7 @@ case "$COMMAND" in
         echo "  ./nessy make:controller User       # Create controller"
         echo "  ./nessy db:migrate                 # Run migrations"
         echo "  ./nessy install @std/path          # Install package"
+        echo "  ./nessy bump 0.2.0                 # Update version"
         ;;
     
     *)
