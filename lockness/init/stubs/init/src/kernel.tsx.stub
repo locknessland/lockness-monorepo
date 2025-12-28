@@ -4,13 +4,15 @@ import {
     container,
     sessionMiddleware,
     type Context,
-} from 'lockness/core'
+} from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 import {
     authMiddleware,
     initializeAuthMiddleware,
     SessionGuard,
 } from '@lockness/auth'
+import { collectAppRoutes, enableDevtools } from '@lockness/devtools'
+import { controllers } from './routes.ts'
 // import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 // import { UserProvider } from '../auth/user_provider.ts'
 // import { NotFoundPage } from '@view/pages/errors/not_found.tsx'
@@ -35,9 +37,10 @@ const errorHandler = (error: Error, c: Context) => {
             return c.html(<UnauthorizedPage />, 401)
         case 403:
             return c.html(<ForbiddenPage />, 403)
-        default:
+        default: {
             const showDetails = Deno.env.get('APP_ENV') === 'development'
             return c.html(<ServerErrorPage error={error} showDetails={showDetails} />, 500)
+        }
     }
 }
 */
@@ -62,6 +65,11 @@ export const bootstrap = async () => {
 
     // Use auto-discovery in development, explicit imports in production
     const isDevelopment = Deno.env.get('APP_ENV') === 'development'
+
+    // Enable devtools BEFORE app.init (in development)
+    if (isDevelopment) {
+        enableDevtools(app.getHono())
+    }
 
     if (isDevelopment) {
         // Auto-discover controllers (dev mode)
@@ -90,19 +98,19 @@ export const bootstrap = async () => {
             middlewares: {
                 auth: class AuthMiddleware {
                     async handle(
-                        c: import('hono').Context,
-                        next: import('hono').Next,
+                        c: import('@lockness/core').Context,
+                        next: import('@lockness/core').Next,
                     ) {
                         return await authMiddleware()(c, next)
                     }
                 },
             },
         })
+
+        // Collect routes AFTER app.init
+        collectAppRoutes(app)
     } else {
         // Explicit imports (compile/production mode)
-        // Import controllers from auto-generated routes.ts
-        const { controllers } = await import('./routes.ts')
-        
         await app.init({
             controllers,
             staticDir: 'public',
@@ -128,8 +136,8 @@ export const bootstrap = async () => {
             middlewares: {
                 auth: class AuthMiddleware {
                     async handle(
-                        c: import('hono').Context,
-                        next: import('hono').Next,
+                        c: import('@lockness/core').Context,
+                        next: import('@lockness/core').Next,
                     ) {
                         return await authMiddleware()(c, next)
                     }
