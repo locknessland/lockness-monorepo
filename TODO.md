@@ -24,6 +24,9 @@
   - [x] Support for user-defined commands in `src/command/` with `@Command`
         decorator.
   - [x] `cli tinker` (REPL) for application interaction.
+  - [ ] **Preserve Comments in JSONC**
+    - [ ] Update `scripts/bump.ts` to preserve comments in `deno.jsonc` during
+          version updates (currently stripped by `JSON.stringify`).
 
 ## 🔒 Security & Auth
 
