@@ -64,11 +64,11 @@ describe('init command', () => {
 
             // Check that main directories exist
             expect(existsSync('test-project')).toBe(true)
-            expect(existsSync('test-project/src')).toBe(true)
-            expect(existsSync('test-project/src/model')).toBe(true)
-            expect(existsSync('test-project/src/service')).toBe(true)
-            expect(existsSync('test-project/src/middleware')).toBe(true)
-            expect(existsSync('test-project/src/repository')).toBe(true)
+            expect(existsSync('test-project/app')).toBe(true)
+            expect(existsSync('test-project/app/model')).toBe(true)
+            expect(existsSync('test-project/app/service')).toBe(true)
+            expect(existsSync('test-project/app/middleware')).toBe(true)
+            expect(existsSync('test-project/app/repository')).toBe(true)
             expect(existsSync('test-project/public')).toBe(true)
         } finally {
             Deno.chdir(originalCwd)

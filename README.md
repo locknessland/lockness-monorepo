@@ -186,13 +186,13 @@ and generates a static routes registry for production compilation.
 
 **Development Mode** (auto-discovery):
 
-- Controllers in `src/controller/` are automatically discovered at runtime
+- Controllers in `app/controller/` are automatically discovered at runtime
 - Changes are detected by a file watcher and reflected immediately
 - No manual route registration needed
 
 **Production Mode** (compilation):
 
-- Routes are generated in `src/routes.ts` before compilation
+- Routes are generated in `app/routes.ts` before compilation
 - Use `deno task compile` to create a standalone binary
 - The binary uses static imports for optimal performance
 
@@ -299,10 +299,10 @@ deno task cli make:model Post -a
 
 The `-a` flag generates:
 
-- `src/model/post.ts` - Drizzle table + drizzle-zod schemas
-- `src/repository/post_repository.ts` - Full CRUD with DI
-- `src/seeder/post_seeder.ts` - Seeder template
-- `src/controller/post_controller.ts` - REST API with validation
+- `app/model/post.ts` - Drizzle table + drizzle-zod schemas
+- `app/repository/post_repository.ts` - Full CRUD with DI
+- `app/seeder/post_seeder.ts` - Seeder template
+- `app/controller/post_controller.ts` - REST API with validation
 
 ### Complete CRUD Scaffolding
 
@@ -314,12 +314,12 @@ deno task cli make:crud Post
 
 Generates:
 
-- `src/model/post.ts` - Drizzle schema
-- `src/repository/post_repository.ts` - Data access layer
-- `src/service/post_service.ts` - Business logic
-- `src/controller/post_controller.tsx` - HTTP handler
-- `src/view/pages/post/index.tsx` - List view
-- `src/view/pages/post/show.tsx` - Detail view
+- `app/model/post.ts` - Drizzle schema
+- `app/repository/post_repository.ts` - Data access layer
+- `app/service/post_service.ts` - Business logic
+- `app/controller/post_controller.tsx` - HTTP handler
+- `app/view/pages/post/index.tsx` - List view
+- `app/view/pages/post/show.tsx` - Detail view
 
 ### Development Debugging Tools
 
@@ -327,7 +327,7 @@ Lockness includes **@lockness/devtools** - a Symfony-style debug toolbar and
 dashboard:
 
 ```typescript
-// In src/kernel.tsx
+// In app/kernel.tsx
 if (Deno.env.get('APP_ENV') === 'development') {
     enableDevtools(app.getHono())
 }
@@ -360,7 +360,7 @@ deno task cli make:component Button
 deno task cli make:component ui/Card
 ```
 
-This creates `src/view/components/button.tsx` with:
+This creates `app/view/components/button.tsx` with:
 
 ```tsx
 export const Button = (props: ButtonProps) => {
@@ -385,7 +385,7 @@ Lockness uses **drizzle-zod** to generate Zod validation schemas directly from
 your Drizzle models:
 
 ```typescript
-// src/model/user.ts
+// app/model/user.ts
 import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'
@@ -410,7 +410,7 @@ export type NewUser = typeof users.$inferInsert
 Then use the `@Validate` decorator in your controllers:
 
 ```typescript
-// src/controller/user_api_controller.ts
+// app/controller/user_api_controller.ts
 import { Context, Controller, Post, Validate } from '@lockness/core'
 import { insertUserSchema } from '../model/user.ts'
 
@@ -436,11 +436,11 @@ Create a new middleware:
 deno task cli make:middleware Auth
 ```
 
-This creates `src/middleware/auth_middleware.ts`.
+This creates `app/middleware/auth_middleware.ts`.
 
 #### Global Middlewares
 
-Apply middlewares to all routes in `src/kernel.ts`:
+Apply middlewares to all routes in `app/kernel.ts`:
 
 ```typescript
 await app.init({
@@ -494,7 +494,7 @@ Create your own CLI commands that integrate with CLI:
 deno task cli make:command Greet
 ```
 
-This creates `src/command/greet_command.ts`:
+This creates `app/command/greet_command.ts`:
 
 ```typescript
 import { Command, type CommandContext, type ICommand } from '@lockness/cli'
@@ -515,7 +515,7 @@ deno task cli greet John
 # Hello, John!
 ```
 
-Commands are auto-discovered from `src/command/`. Use `ctx.args` for arguments,
+Commands are auto-discovered from `app/command/`. Use `ctx.args` for arguments,
 `ctx.hasFlag('verbose')` for flags, and `ctx.getFlag('name')` for flag values.
 
 ### Display All Routes
@@ -639,7 +639,7 @@ import { Cli, loadPackageCommands, registerCoreCommands } from '@lockness/cli'
 const cli = new Cli()
 registerCoreCommands(cli)
 await loadPackageCommands(cli) // Loads from deno.json
-await cli.discoverCommands('./src/command')
+await cli.discoverCommands('./app/command')
 ```
 
 The `loadPackageCommands()` function reads the `lockness.packages` array,
@@ -649,7 +649,7 @@ dynamically imports each package, and registers their commands.
 
 Lockness provides session management with multiple drivers.
 
-Configure sessions in `src/kernel.ts`:
+Configure sessions in `app/kernel.ts`:
 
 ```typescript
 import { configureSession, createSessionMiddleware } from 'lockness/core'
@@ -696,7 +696,7 @@ deno task cli make:auth
 
 This creates an `AuthController` and `UserProvider`.
 
-Configure auth in `src/kernel.ts`:
+Configure auth in `app/kernel.ts`:
 
 ```typescript
 import { configureAuth, container } from 'lockness/core'
@@ -768,7 +768,7 @@ Add social login with Google, GitHub, Discord, and more:
 deno task cli make:auth --social
 ```
 
-Configure providers in `src/kernel.ts`:
+Configure providers in `app/kernel.ts`:
 
 ```typescript
 import { configureSocialite } from 'lockness/core'
@@ -832,7 +832,7 @@ await mail()
     .send()
 ```
 
-Configure mail in `src/kernel.ts`:
+Configure mail in `app/kernel.ts`:
 
 ```typescript
 import { configureMail } from 'lockness/core'
@@ -883,14 +883,14 @@ Generate custom error pages with one command:
 deno task cli make:error-pages
 ```
 
-This creates 4 error page templates in `src/view/pages/errors/`:
+This creates 4 error page templates in `app/view/pages/errors/`:
 
 - `not_found.tsx` (404)
 - `unauthorized.tsx` (401)
 - `forbidden.tsx` (403)
 - `server_error.tsx` (500)
 
-Configure the error handler in `src/kernel.tsx`:
+Configure the error handler in `app/kernel.tsx`:
 
 ```typescript
 import { NotFoundPage } from '@view/pages/errors/not_found.tsx'

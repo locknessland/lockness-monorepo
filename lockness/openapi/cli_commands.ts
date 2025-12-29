@@ -15,8 +15,8 @@ export function registerOpenAPICommands(cli: Cli) {
             // Get all controllers
             const controllers: ControllerClass[] = []
 
-            // Scan src/controller directory
-            const controllersDir = './src/controller'
+            // Scan app/controller directory
+            const controllersDir = './app/controller'
             try {
                 for await (const entry of Deno.readDir(controllersDir)) {
                     if (

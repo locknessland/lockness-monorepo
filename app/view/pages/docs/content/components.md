@@ -11,7 +11,7 @@ Use the `make:component` command to scaffold new JSX components:
 deno task cli make:component Button
 ```
 
-This creates `src/view/components/button.tsx`:
+This creates `app/view/components/button.tsx`:
 
 ```typescript
 export const Button = (props: { children?: any }) => {
@@ -40,8 +40,8 @@ deno task cli make:component forms/Input
 
 This creates:
 
-- `src/view/components/ui/card.tsx`
-- `src/view/components/forms/input.tsx`
+- `app/view/components/ui/card.tsx`
+- `app/view/components/forms/input.tsx`
 
 ## Component Props
 
@@ -108,7 +108,7 @@ load
 Organize your components by feature or type:
 
 ```plaintext
-src/view/components/
+app/view/components/
 ├── ui/
 │   ├── button.tsx
 │   ├── card.tsx

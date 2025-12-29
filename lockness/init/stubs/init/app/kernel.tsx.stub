@@ -62,7 +62,7 @@ export const bootstrap = async () => {
     if (isDevelopment) {
         // Auto-discover controllers (dev mode)
         await app.init({
-            controllersDir: './src/controller',
+            controllersDir: './app/controller',
             staticDir: 'public',
 
             // Error handler (uncomment to use custom error pages)

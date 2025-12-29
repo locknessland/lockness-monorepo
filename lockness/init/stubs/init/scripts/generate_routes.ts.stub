@@ -1,13 +1,13 @@
 /**
- * Auto-generate src/routes.ts by scanning src/controller/ directory
+ * Auto-generate app/routes.ts by scanning app/controller/ directory
  * 
  * Usage: deno run -A scripts/generate_routes.ts
  */
 
 import { generateRoutesFile } from '@lockness/cli'
 
-const CONTROLLER_DIR = './src/controller'
-const OUTPUT_FILE = './src/routes.ts'
+const CONTROLLER_DIR = './app/controller'
+const OUTPUT_FILE = './app/routes.ts'
 
 async function main() {
     const result = await generateRoutesFile(CONTROLLER_DIR, OUTPUT_FILE)

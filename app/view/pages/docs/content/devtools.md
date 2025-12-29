@@ -22,7 +22,7 @@ provides real-time insights into your app's behavior.
 ## ⚙️ Enabling Devtools
 
 Devtools are disabled by default. You should enable them **only in development**
-in your `src/kernel.ts`.
+in your `app/kernel.ts`.
 
 ```typescript
 import { enableDevtools, collectAppRoutes } from '@lockness/devtools'

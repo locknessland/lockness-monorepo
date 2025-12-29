@@ -9,7 +9,7 @@ import { join } from '@std/path'
 
 async function loadControllers(): Promise<ControllerClass[]> {
     const controllers: ControllerClass[] = []
-    const controllersDir = './src/controller'
+    const controllersDir = './app/controller'
 
     try {
         for await (const entry of Deno.readDir(controllersDir)) {

@@ -16,7 +16,7 @@ you to store user data across requests securely and efficiently.
 
 ## ⚙️ Configuration
 
-Sessions are configured in your `src/kernel.ts` using the `configureSession()`
+Sessions are configured in your `app/kernel.ts` using the `configureSession()`
 function.
 
 ```typescript

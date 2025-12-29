@@ -73,7 +73,7 @@ const stub = new Stub('controller.stub')
 stub.replace('{{name}}', 'UserController')
 stub.replace('{{route}}', '/users')
 
-await stub.save('./src/controller/user_controller.ts')
+await stub.save('./app/controller/user_controller.ts')
 ```
 
 ### Package Installation
@@ -108,7 +108,7 @@ Automatically generate route definitions from controllers:
 ```typescript
 import { generateRoutes } from '@lockness/cli'
 
-await generateRoutes('./src/controller', './src/routes.ts')
+await generateRoutes('./app/controller', './app/routes.ts')
 ```
 
 This scans controller files and generates a routes file with proper imports.

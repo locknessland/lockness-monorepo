@@ -331,7 +331,7 @@ const Prompt = ({ children }: { children: string }) => (
     <span class='text-[#A6E22E]/70 font-bold'>{children}</span>
 )
 
-export const HomeView = () => {
+export const Home = () => {
     return (
         <LandingLayout title='Lockness JS - The Fullstack MVC Framework for Deno'>
             <div class='min-h-screen'>
@@ -708,28 +708,28 @@ export const HomeView = () => {
                                     <Success>✅</Success> Controller created at
                                     {' '}
                                     <String>
-                                        ./src/controller/user_controller.ts
+                                        ./app/controller/user_controller.ts
                                     </String>
                                     {'\n'}
                                     {'\n'}
                                     <Prompt>$</Prompt>{' '}
                                     deno task cli make:model Post -a{'\n'}
                                     <Success>✅</Success> Model created at{' '}
-                                    <String>./src/model/post.ts</String>
+                                    <String>./app/model/post.ts</String>
                                     {'\n'}
                                     <Success>✅</Success> Repository created at
                                     {' '}
                                     <String>
-                                        ./src/repository/post_repository.ts
+                                        ./app/repository/post_repository.ts
                                     </String>
                                     {'\n'}
                                     <Success>✅</Success> Seeder created at{' '}
-                                    <String>./src/seeder/post_seeder.ts</String>
+                                    <String>./app/seeder/post_seeder.ts</String>
                                     {'\n'}
                                     <Success>✅</Success> Controller created at
                                     {' '}
                                     <String>
-                                        ./src/controller/post_controller.ts
+                                        ./app/controller/post_controller.ts
                                     </String>
                                     {'\n'}
                                     {'\n'}
@@ -814,7 +814,7 @@ export const HomeView = () => {
 
                         <div class='grid grid-cols-1 lg:grid-cols-2 gap-6'>
                             {/* Controller Example */}
-                            <CodeBlock filename='src/controller/user_controller.ts'>
+                            <CodeBlock filename='app/controller/user_controller.ts'>
                                 <Keyword>import</Keyword>{' '}
                                 <Punctuation>{'{'}</Punctuation>{' '}
                                 <Type>Controller</Type>
@@ -949,7 +949,7 @@ export const HomeView = () => {
                             </CodeBlock>
 
                             {/* Auth Example */}
-                            <CodeBlock filename='src/controller/auth_controller.ts'>
+                            <CodeBlock filename='app/controller/auth_controller.ts'>
                                 <Keyword>import</Keyword>{' '}
                                 <Punctuation>{'{'}</Punctuation>{' '}
                                 <Type>Controller</Type>

@@ -11,7 +11,7 @@ Generate a new middleware class:
 deno task cli make:middleware Auth
 ```
 
-This creates `src/middleware/auth_middleware.ts`:
+This creates `app/middleware/auth_middleware.ts`:
 
 ```typescript
 import { Context, IMiddleware, MiddlewareHandler } from '@lockness/core'
@@ -31,7 +31,7 @@ export class AuthMiddleware implements IMiddleware {
 
 ## Global Middleware
 
-Apply middleware to all routes in `src/kernel.ts`:
+Apply middleware to all routes in `app/kernel.ts`:
 
 ```typescript
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'

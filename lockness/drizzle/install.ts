@@ -48,8 +48,8 @@ async function createDirectories() {
     const directories = [
         './database/migrations',
         './database/seeders',
-        './src/model',
-        './src/repository',
+        './app/model',
+        './app/repository',
     ]
 
     for (const dir of directories) {

@@ -15,10 +15,10 @@ deno task cli make:controller Hello
 deno task cli make:controller Hello --view
 ```
 
-The `--view` flag automatically creates a view in `src/view/pages/hello.tsx` and
+The `--view` flag automatically creates a view in `app/view/pages/hello.tsx` and
 generates a controller that renders it.
 
-This creates `src/controller/hello_controller.ts`. Edit it:
+This creates `app/controller/hello_controller.ts`. Edit it:
 
 ```typescript
 import { Context, Controller, Get } from '@lockness/core'
@@ -53,10 +53,10 @@ deno task cli make:model Post -a
 
 The `-a` flag generates:
 
-- `src/model/post.ts` - Drizzle schema + Zod validation
-- `src/repository/post_repository.ts` - Data access layer
-- `src/controller/post_controller.ts` - REST API with validation
-- `src/seeder/post_seeder.ts` - Database seeder
+- `app/model/post.ts` - Drizzle schema + Zod validation
+- `app/repository/post_repository.ts` - Data access layer
+- `app/controller/post_controller.ts` - REST API with validation
+- `app/seeder/post_seeder.ts` - Database seeder
 
 ## 📊 Run Migrations
 
@@ -83,7 +83,7 @@ Generate a JSX page component:
 deno task cli make:view posts/index
 ```
 
-This creates `src/view/pages/posts/index.tsx`. Use it in your controller:
+This creates `app/view/pages/posts/index.tsx`. Use it in your controller:
 
 ```typescript
 import { IndexPage } from '@view/pages/posts/index.tsx'
@@ -106,7 +106,7 @@ Scaffold a complete auth system:
 deno task cli make:auth
 ```
 
-Configure in `src/kernel.ts`:
+Configure in `app/kernel.ts`:
 
 ```typescript
 import { configureAuth, container } from '@lockness/core'

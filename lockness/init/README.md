@@ -45,7 +45,7 @@ my-app/
 ├── kernel.tsx                # Application kernel
 ├── public/                   # Static files
 │   └── css/
-├── src/
+├── app/
 │   ├── controller/           # HTTP controllers
 │   ├── middleware/           # Custom middleware
 │   ├── model/                # Data models

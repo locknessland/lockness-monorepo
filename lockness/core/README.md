@@ -29,7 +29,7 @@ import { App } from 'lockness/core'
 const app = new App()
 
 await app.init({
-    controllersDir: './src/controller',
+    controllersDir: './app/controller',
     globalMiddlewares: [LoggerMiddleware],
 })
 

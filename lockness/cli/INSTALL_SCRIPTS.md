@@ -20,12 +20,12 @@ async function main() {
     await addPackage('my-package')
 
     // 2. Create files (controllers, config, etc.)
-    await Deno.writeTextFile('./src/config/my-package.ts', CONFIG_TEMPLATE)
+    await Deno.writeTextFile('./app/config/my-package.ts', CONFIG_TEMPLATE)
 
     // 3. Display instructions
     console.log('✅ Installation complete!\n')
     console.log('Next steps:')
-    console.log('  1. Configure in src/config/my-package.ts')
+    console.log('  1. Configure in app/config/my-package.ts')
     console.log('  2. Restart your dev server\n')
 }
 
@@ -113,7 +113,7 @@ Then follow the package's README for manual setup.
 The OpenAPI package install script:
 
 1. ✅ Adds "openapi" to `deno.json` lockness.packages
-2. ✅ Creates `src/controller/docs_controller.ts`
+2. ✅ Creates `app/controller/docs_controller.ts`
 3. ℹ️ Reminds you to run `deno task routes:generate`
 4. 📖 Displays documentation links
 
@@ -123,7 +123,7 @@ $ deno task cli package:install openapi
 🌊 Installing @lockness/openapi...
 
 ✓ Added openapi to lockness.packages
-✓ Created src/controller/docs_controller.ts
+✓ Created app/controller/docs_controller.ts
 
 ⚠️  Routes need to be regenerated:
    Run: deno task routes:generate

@@ -422,7 +422,7 @@ class BackgroundWorker {
 When used with Lockness framework:
 
 ```typescript
-// src/service/user_service.ts
+// app/service/user_service.ts
 import { Inject, Service } from 'lockness/core'
 import { UserRepository } from '@repository/user_repository.ts'
 
@@ -436,7 +436,7 @@ export class UserService {
     }
 }
 
-// src/controller/user_controller.tsx
+// app/controller/user_controller.tsx
 import { Controller, Get, Post } from 'lockness/core'
 import { UserService } from '@service/user_service.ts'
 

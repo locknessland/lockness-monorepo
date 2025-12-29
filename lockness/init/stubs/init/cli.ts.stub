@@ -9,8 +9,8 @@ registerCoreCommands(cli)
 // verified in deno.json under "lockness.packages"
 await loadPackageCommands(cli)
 
-// Discover user-defined commands in src/command/
-await cli.discoverCommands('./src/command')
+// Discover user-defined commands in app/command/
+await cli.discoverCommands('./app/command')
 
 if (import.meta.main) {
     await cli.run(Deno.args)

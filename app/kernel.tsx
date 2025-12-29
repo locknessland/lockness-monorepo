@@ -13,7 +13,7 @@ import {
 } from '@lockness/auth'
 import { collectAppRoutes, enableDevtools } from '@lockness/devtools'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
-import { UserProvider } from '../src/auth/user_provider.ts'
+import { UserProvider } from '../app/auth/user_provider.ts'
 import { controllers } from './routes.ts'
 import { NotFoundPage } from '@view/pages/errors/not_found.tsx'
 import { UnauthorizedPage } from '@view/pages/errors/unauthorized.tsx'
@@ -77,7 +77,7 @@ export const bootstrap = async () => {
     if (isDevelopment) {
         // Auto-discover controllers (dev mode)
         await app.init({
-            controllersDir: './src/controller',
+            controllersDir: './app/controller',
             staticDir: 'public',
 
             // Error handler

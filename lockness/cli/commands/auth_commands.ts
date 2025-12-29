@@ -24,12 +24,12 @@ export function registerAuthCommands(cli: Cli) {
             const files = [
                 {
                     stub: 'auth_controller',
-                    output: './src/controller/auth_controller.tsx',
+                    output: './app/controller/auth_controller.tsx',
                     name: 'AuthController',
                 },
                 {
                     stub: 'user_provider',
-                    output: './src/provider/user_provider.ts',
+                    output: './app/provider/user_provider.ts',
                     name: 'UserProvider',
                 },
             ]
@@ -37,7 +37,7 @@ export function registerAuthCommands(cli: Cli) {
             if (includeSocial) {
                 files.push({
                     stub: 'social_auth_controller',
-                    output: './src/controller/social_auth_controller.tsx',
+                    output: './app/controller/social_auth_controller.tsx',
                     name: 'SocialAuthController',
                 })
             }

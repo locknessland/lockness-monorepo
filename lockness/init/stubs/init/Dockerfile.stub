@@ -23,7 +23,7 @@ COPY deno.json deno.lock* ./
 COPY vite.config.ts ./
 
 # Copy source files
-COPY src/ ./src/
+COPY app/ ./app/
 COPY public/ ./public/
 COPY main.ts cli.ts ./
 

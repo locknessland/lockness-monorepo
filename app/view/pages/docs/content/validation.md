@@ -8,7 +8,7 @@ your Drizzle models.
 Generate validation schemas from your models:
 
 ```typescript
-// src/model/user.ts
+// app/model/user.ts
 import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'

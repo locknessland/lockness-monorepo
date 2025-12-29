@@ -111,7 +111,7 @@ All processes run concurrently via `scripts/dev.sh`:
 trap 'kill $(jobs -p) 2>/dev/null' EXIT
 
 # CSS watcher
-deno run -A npm:postcss-cli src/view/assets/app.css -o public/css/app.css --watch &
+deno run -A npm:postcss-cli app/view/assets/app.css -o public/css/app.css --watch &
 
 # Routes watcher
 deno run -A scripts/watch_routes.ts &
@@ -126,23 +126,23 @@ The routes system provides zero-configuration controller discovery:
 
 **Development (auto-discovery):**
 
-- Controllers in `src/controller/` are discovered at runtime
-- File watcher detects changes and regenerates `src/routes.ts`
+- Controllers in `app/controller/` are discovered at runtime
+- File watcher detects changes and regenerates `app/routes.ts`
 - No manual imports needed
 
 **Production (compilation):**
 
-- Routes are explicitly imported from `src/routes.ts`
+- Routes are explicitly imported from `app/routes.ts`
 - Enables `deno compile` to create standalone binaries
 - Conditional logic based on `APP_ENV` variable
 
 ```typescript
-// src/kernel.ts
+// app/kernel.ts
 const isDevelopment = Deno.env.get('APP_ENV') === 'development'
 
 if (isDevelopment) {
     await app.init({
-        controllersDir: './src/controller', // Auto-discovery
+        controllersDir: './app/controller', // Auto-discovery
         // ...
     })
 } else {
@@ -153,7 +153,7 @@ if (isDevelopment) {
 }
 ```
 
-**Generated Routes File** (`src/routes.ts`):
+**Generated Routes File** (`app/routes.ts`):
 
 ```typescript
 /**
@@ -181,7 +181,7 @@ deno task css:build
 deno task css:watch
 ```
 
-Your `src/view/assets/app.css` imports Tailwind:
+Your `app/view/assets/app.css` imports Tailwind:
 
 ```css
 @import 'tailwindcss';
@@ -224,7 +224,7 @@ deno task compile
 
 The compilation process:
 
-1. Generates `src/routes.ts` with explicit controller imports
+1. Generates `app/routes.ts` with explicit controller imports
 2. Compiles to binary (includes all controllers, services, views)
 3. Binary uses static imports (no runtime discovery)
 
@@ -273,7 +273,7 @@ your Drizzle models. This eliminates duplication between your database schema
 and validation logic:
 
 ```typescript
-// src/model/user.ts
+// app/model/user.ts
 import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'
@@ -300,7 +300,7 @@ export type NewUser = typeof users.$inferInsert
 Then use the `@Validate` decorator in your controllers:
 
 ```typescript
-// src/controller/user_api_controller.ts
+// app/controller/user_api_controller.ts
 import { Context, Controller, Post, Validate } from '@lockness/core'
 import { insertUserSchema } from '../model/user.ts'
 
@@ -731,7 +731,7 @@ registerCoreCommands(cli)
 // Dynamically loads commands from packages listed in deno.json "lockness.packages"
 await loadPackageCommands(cli)
 
-await cli.discoverCommands('./src/command')
+await cli.discoverCommands('./app/command')
 ```
 
 #### Official Packages
@@ -807,7 +807,7 @@ Example `deno.json` for a package:
         "test:watch": "deno test -A --watch tests/"
     },
     "publish": {
-        "include": ["mod.ts", "src/**/*.ts", "deno.json", "README.md"],
+        "include": ["mod.ts", "app/**/*.ts", "deno.json", "README.md"],
         "exclude": ["tests/"]
     },
     "imports": {
@@ -1111,7 +1111,7 @@ for sending emails, processing uploads, or any long-running task.
 deno task cli make:job SendWelcomeEmail
 ```
 
-This creates `src/job/sendwelcomeemail_job.ts`:
+This creates `app/job/sendwelcomeemail_job.ts`:
 
 ```typescript
 import { type Job, type JobPayload } from '@lockness/core'
@@ -1217,7 +1217,7 @@ Eloquent.
 │   ├── cli/               # CLI Command Engine (Cli)
 │   ├── drizzle/           # Drizzle ORM Extension
 │   └── init/              # Scaffolding & Project Init
-├── src/                   # 🚀 Framework Template (Boilerplate)
+├── app/                   # 🚀 Framework Template (Boilerplate)
 │   ├── controller/        # HTTP Controllers
 │   ├── model/             # Database Models
 │   ├── service/           # Business Logic
@@ -1234,7 +1234,7 @@ Eloquent.
 - **`lockness/`**: Contains the decoupled libraries. This modularity allows for
   an ORM-agnostic core while providing official extensions like
   `lockness-drizzle`.
-- **Root Files & `src/`**: Boilerplate structure generated for users.
+- **Root Files & `app/`**: Boilerplate structure generated for users.
 - **`docs/`**: Contains reference documentation and rules, including HonoJS
   docs, for AI assistance.
 - **`dist/`**: Output directory for production SSR builds (`server.js`).
@@ -1248,7 +1248,7 @@ Eloquent.
   stubs (see `STUBS.md`), always update the stub templates as well. This ensures
   that newly scaffolded projects stay in sync with the framework's latest
   features. Key mappings:
-  - `src/kernel.ts` → `lockness/init/stubs/init/src/kernel.ts.stub`
+  - `app/kernel.ts` → `lockness/init/stubs/init/app/kernel.ts.stub`
   - `deno.json` → `lockness/init/stubs/init/deno.json.stub`
   - `README.md` → `lockness/init/stubs/init/README.md.stub`
   - `make:*` command outputs → corresponding stubs in `lockness/cli/stubs/` and
@@ -1322,9 +1322,9 @@ Example output:
 The `cli tinker` command starts an interactive REPL (Read-Eval-Print Loop) for
 exploring your application. It automatically loads:
 
-- **Models**: All exports from `src/model/`
-- **Services**: All classes from `src/service/`
-- **Repositories**: All classes from `src/repository/`
+- **Models**: All exports from `app/model/`
+- **Services**: All classes from `app/service/`
+- **Repositories**: All classes from `app/repository/`
 - **Database**: The `db` instance from your kernel (if available)
 
 ```bash

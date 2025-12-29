@@ -5,7 +5,7 @@ export const {{ className }} = () => {
     <Layout title="{{ className }}">
       <div class="p-8 text-center">
         <h1 class="text-3xl font-bold">Page: {{ className }}</h1>
-        <p class="text-slate-500 mt-2">Edit me in src/view/pages/{{ fileName }}.tsx</p>
+        <p class="text-slate-500 mt-2">Edit me in app/view/pages/{{ fileName }}.tsx</p>
       </div>
     </Layout>
   )

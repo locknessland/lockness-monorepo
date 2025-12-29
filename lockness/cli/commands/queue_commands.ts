@@ -22,11 +22,11 @@ export function registerQueueCommands(cli: Cli) {
             'memory'
         configureQueue({ driver })
 
-        // Auto-discover and register jobs from src/job/
+        // Auto-discover and register jobs from app/job/
         try {
-            for await (const entry of Deno.readDir('./src/job')) {
+            for await (const entry of Deno.readDir('./app/job')) {
                 if (entry.isFile && entry.name.endsWith('.ts')) {
-                    const modulePath = `${Deno.cwd()}/src/job/${entry.name}`
+                    const modulePath = `${Deno.cwd()}/app/job/${entry.name}`
                     const module = await import(modulePath)
                     for (const key in module) {
                         const Exported = module[key]

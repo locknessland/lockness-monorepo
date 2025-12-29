@@ -14,7 +14,7 @@ import { addPackage, Stub } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 
 async function createDocsController() {
-    const controllerPath = './src/controller/api_docs_controller.ts'
+    const controllerPath = './app/controller/api_docs_controller.ts'
 
     try {
         await Deno.stat(controllerPath)
@@ -42,14 +42,14 @@ async function createDocsController() {
         )
 
         await Deno.writeTextFile(controllerPath, content)
-        console.log('✓ Created src/controller/api_docs_controller.ts')
+        console.log('✓ Created app/controller/api_docs_controller.ts')
         return true
     }
 }
 
 async function checkProjectStructure() {
     const checks = [
-        { path: './src/controller', name: 'src/controller directory' },
+        { path: './app/controller', name: 'app/controller directory' },
         { path: './deno.json', name: 'deno.json' },
     ]
 

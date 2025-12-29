@@ -5,8 +5,8 @@ import { join } from '@std/path'
 export function registerRouterCommands(cli: Cli) {
     cli.register('router:list', async () => {
         try {
-            // Load controllers from src/controller directory
-            const controllerDir = join(Deno.cwd(), 'src', 'controller')
+            // Load controllers from app/controller directory
+            const controllerDir = join(Deno.cwd(), 'app', 'controller')
             const controllers: any[] = []
 
             try {
@@ -55,13 +55,13 @@ export function registerRouterCommands(cli: Cli) {
                     }
                 }
             } catch (e) {
-                console.error('❌ Could not read src/controller directory')
+                console.error('❌ Could not read app/controller directory')
                 console.error(`   ${(e as Error).message}`)
                 return
             }
 
             if (controllers.length === 0) {
-                console.log('⚠️  No controllers found in src/controller/')
+                console.log('⚠️  No controllers found in app/controller/')
                 return
             }
 

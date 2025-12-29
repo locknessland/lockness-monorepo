@@ -1,12 +1,15 @@
 # ⚛️ Frontend Architecture
 
-**Note**: Après exploration (déc. 2024), les approches Islands/SPA/Inertia nécessitent:
+**Note**: Après exploration (déc. 2024), les approches Islands/SPA/Inertia
+nécessitent:
 
-- Des outils de bundling lourds (Vite, esbuild) → contre la philosophie "full Deno"
+- Des outils de bundling lourds (Vite, esbuild) → contre la philosophie "full
+  Deno"
 - `deno bundle` qui reste expérimental et instable
 - Complexité de transpilation TypeScript → JavaScript pour le client
 
-**Décision**: Lockness reste sur du **SSR classique avec Hono JSX** pour le moment. C'est simple, performant, et 100% Deno natif.
+**Décision**: Lockness reste sur du **SSR classique avec Hono JSX** pour le
+moment. C'est simple, performant, et 100% Deno natif.
 
 ### Futures options possibles (quand la stack Deno sera plus mature):
 
@@ -21,4 +24,5 @@
   - Composants JSX avec attributs Alpine
   - Pas de build step, juste du HTML enrichi
 
-**Alternative actuelle**: Pour une SPA moderne, monter un frontend séparé (Next.js, Remix, SvelteKit) qui consomme une API Lockness REST/GraphQL.
+**Alternative actuelle**: Pour une SPA moderne, monter un frontend séparé
+(Next.js, Remix, SvelteKit) qui consomme une API Lockness REST/GraphQL.

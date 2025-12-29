@@ -12,17 +12,17 @@ deno task cli make:model Post -a
 
 The `-a` flag creates:
 
-- `src/model/post.ts` - Drizzle schema + Zod validation
-- `src/repository/post_repository.ts` - Data access layer
-- `src/controller/post_controller.ts` - REST API controller
-- `src/seeder/post_seeder.ts` - Database seeder
+- `app/model/post.ts` - Drizzle schema + Zod validation
+- `app/repository/post_repository.ts` - Data access layer
+- `app/controller/post_controller.ts` - REST API controller
+- `app/seeder/post_seeder.ts` - Database seeder
 
 ## Defining Models
 
 Create a Drizzle table schema:
 
 ```typescript
-// src/model/post.ts
+// app/model/post.ts
 import { boolean, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 import { z } from 'zod'
@@ -54,7 +54,7 @@ export type NewPost = typeof posts.$inferInsert
 Repositories provide a clean data access layer:
 
 ```typescript
-// src/repository/post_repository.ts
+// app/repository/post_repository.ts
 import { Inject, Service } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 import { type NewPost, type Post, posts } from '../model/post.ts'
@@ -133,7 +133,7 @@ deno task cli db:migrate
 Create seed data for testing:
 
 ```typescript
-// src/seeder/post_seeder.ts
+// app/seeder/post_seeder.ts
 import { Database } from '@lockness/drizzle'
 import { posts } from '../model/post.ts'
 

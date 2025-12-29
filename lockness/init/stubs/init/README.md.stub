@@ -146,12 +146,12 @@ deno task cli make:crud Post
 
 Generates:
 
-- `src/model/post.ts` - Drizzle schema
-- `src/repository/post_repository.ts` - Data access layer
-- `src/service/post_service.ts` - Business logic
-- `src/controller/post_controller.tsx` - HTTP handler
-- `src/view/pages/post/index.tsx` - List view
-- `src/view/pages/post/show.tsx` - Detail view
+- `app/model/post.ts` - Drizzle schema
+- `app/repository/post_repository.ts` - Data access layer
+- `app/service/post_service.ts` - Business logic
+- `app/controller/post_controller.tsx` - HTTP handler
+- `app/view/pages/post/index.tsx` - List view
+- `app/view/pages/post/show.tsx` - Detail view
 
 ### Scaffolding Components
 
@@ -165,7 +165,7 @@ deno task cli make:component ui/Card
 Use **drizzle-zod** to generate validation schemas from your models:
 
 ```typescript
-// src/model/user.ts
+// app/model/user.ts
 import { createInsertSchema } from 'drizzle-zod'
 
 export const insertUserSchema = createInsertSchema(users, {
@@ -175,7 +175,7 @@ export const insertUserSchema = createInsertSchema(users, {
 ```
 
 ```typescript
-// src/controller/user_controller.ts
+// app/controller/user_controller.ts
 import { insertUserSchema } from '../model/user.ts'
 
 @Post('/')
@@ -211,7 +211,7 @@ deno task cli make:middleware Auth
 ```
 
 ```typescript
-// src/kernel.ts
+// app/kernel.ts
 await app.init({
     controllers,
     globalMiddlewares: [LoggerMiddleware],  // Applied to all routes

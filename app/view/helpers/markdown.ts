@@ -109,7 +109,7 @@ export function loadMarkdownContent(filename: string): MarkdownBlock[] {
         ? join(
             cwd,
             '..',
-            'src',
+            'app',
             'view',
             'pages',
             'docs',
@@ -118,7 +118,7 @@ export function loadMarkdownContent(filename: string): MarkdownBlock[] {
         )
         : join(
             cwd,
-            'src',
+            'app',
             'view',
             'pages',
             'docs',

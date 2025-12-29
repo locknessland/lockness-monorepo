@@ -118,7 +118,7 @@ export const PackagesPage = () => {
 🌊 Installing @lockness/openapi...
 
 ✓ Added openapi to lockness.packages
-✓ Created src/controller/docs_controller.ts
+✓ Created app/controller/docs_controller.ts
 
 ⚠️  Routes need to be regenerated:
    Run: deno task routes:generate
@@ -312,7 +312,7 @@ registerCoreCommands(cli)
 await loadPackageCommands(cli)
 
 // Discover user commands
-await cli.discoverCommands('./src/command')`}</code>
+await cli.discoverCommands('./app/command')`}</code>
                 </pre>
 
                 <p class='mb-4'>

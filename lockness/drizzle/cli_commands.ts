@@ -324,7 +324,7 @@ export function registerDrizzleCommands(cli: Cli) {
                     .replace(/\{\{ModelName\}\}/g, modelName)
                     .replace(/\{\{tableName\}\}/g, tableName)
 
-                const dirPath = './src/model'
+                const dirPath = './app/model'
                 const filePath = `${dirPath}/${fileName}.ts`
 
                 await Deno.mkdir(dirPath, { recursive: true })
@@ -350,7 +350,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         .replace(/\{\{fileName\}\}/g, fileName)
                         .replace(/\{\{RepositoryName\}\}/g, repositoryName)
 
-                    const dirPath = './src/repository'
+                    const dirPath = './app/repository'
                     const filePath = `${dirPath}/${fileName}_repository.ts`
 
                     await Deno.mkdir(dirPath, { recursive: true })
@@ -407,7 +407,7 @@ export function registerDrizzleCommands(cli: Cli) {
                         .replace(/\{\{RepositoryName\}\}/g, repositoryName)
                         .replace(/\{\{repositoryVar\}\}/g, repositoryVar)
 
-                    const dirPath = './src/controller'
+                    const dirPath = './app/controller'
                     const filePath = `${dirPath}/${fileName}_controller.ts`
 
                     await Deno.mkdir(dirPath, { recursive: true })

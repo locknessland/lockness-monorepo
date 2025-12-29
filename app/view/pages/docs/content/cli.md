@@ -29,7 +29,7 @@ deno task cli make:controller User --view
 ```
 
 The `--view` flag automatically creates a corresponding view in
-`src/view/pages/{name}.tsx` and generates a controller method that renders it
+`app/view/pages/{name}.tsx` and generates a controller method that renders it
 using `c.html()`.
 
 **make:action** - Add a new action (method) to an existing controller:
@@ -106,8 +106,8 @@ deno task cli make:view home
 deno task cli make:error-pages
 ```
 
-Creates error pages in `src/view/pages/errors/` with minimal HTML (no styling).
-After generation, configure the error handler in `src/kernel.tsx`.
+Creates error pages in `app/view/pages/errors/` with minimal HTML (no styling).
+After generation, configure the error handler in `app/kernel.tsx`.
 
 **make:crud** - Scaffold complete CRUD (model, repository, service, controller,
 views):
@@ -118,12 +118,12 @@ deno task cli make:crud Post
 
 Generates:
 
-- `src/model/post.ts` - Drizzle schema
-- `src/repository/post_repository.ts` - Data access layer
-- `src/service/post_service.ts` - Business logic
-- `src/controller/post_controller.tsx` - HTTP handler
-- `src/view/pages/post/index.tsx` - List view
-- `src/view/pages/post/show.tsx` - Detail view
+- `app/model/post.ts` - Drizzle schema
+- `app/repository/post_repository.ts` - Data access layer
+- `app/service/post_service.ts` - Business logic
+- `app/controller/post_controller.tsx` - HTTP handler
+- `app/view/pages/post/index.tsx` - List view
+- `app/view/pages/post/show.tsx` - Detail view
 
 After generation, define your schema in the model and run
 `deno task db:generate` to create migrations.
@@ -229,7 +229,7 @@ changes.
 
 ### Custom Command Discovery
 
-Your own commands are automatically discovered from `src/command/` as long as
+Your own commands are automatically discovered from `app/command/` as long as
 they use the `@Command` decorator and the class is exported.
 
 ```typescript
@@ -265,7 +265,7 @@ cli.register('simple', async (args) => {
 await cli.run(Deno.args)
 ```
 
-Commands are auto-discovered from `src/command/`.
+Commands are auto-discovered from `app/command/`.
 
 Run your command:
 
@@ -285,9 +285,9 @@ deno task cli tinker
 
 The REPL automatically loads:
 
-- All models from `src/model/`
-- All services from `src/service/`
-- All repositories from `src/repository/`
+- All models from `app/model/`
+- All services from `app/service/`
+- All repositories from `app/repository/`
 
 Example session:
 

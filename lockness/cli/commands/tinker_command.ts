@@ -18,9 +18,9 @@ export function registerTinkerCommand(cli: Cli) {
 
 async function loadTinkerContext(context: Record<string, unknown>) {
     const dirs = [
-        { path: './src/model', prefix: '' },
-        { path: './src/service', prefix: '' },
-        { path: './src/repository', prefix: '' },
+        { path: './app/model', prefix: '' },
+        { path: './app/service', prefix: '' },
+        { path: './app/repository', prefix: '' },
     ]
 
     for (const { path } of dirs) {
@@ -51,7 +51,7 @@ async function loadTinkerContext(context: Record<string, unknown>) {
 
     // Try to import drizzle db
     try {
-        const drizzleModule = await import(`${Deno.cwd()}/src/kernel.ts`)
+        const drizzleModule = await import(`${Deno.cwd()}/app/kernel.ts`)
         if (drizzleModule.db) {
             context.db = drizzleModule.db
         }

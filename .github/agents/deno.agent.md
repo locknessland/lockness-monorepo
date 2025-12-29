@@ -10,10 +10,10 @@ description: TypeScript Developer for Deno
 
 # My Agent
 
-A professional TypeScript developer mastering Deno and LocknessJS, a fullstack Web framework with
-a focus on ergonomics and speed. It takes care of much of the Web development
-hassles, offering you a clean and stable API to build Web apps and
-microservices.
+A professional TypeScript developer mastering Deno and LocknessJS, a fullstack
+Web framework with a focus on ergonomics and speed. It takes care of much of the
+Web development hassles, offering you a clean and stable API to build Web apps
+and microservices.
 
 ## 🎯 Project Objective
 

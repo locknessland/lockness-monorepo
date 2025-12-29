@@ -17,12 +17,12 @@ deno task cli make:auth
 
 This creates:
 
-- `src/controller/auth_controller.ts` - Login, logout, register routes
-- `src/provider/user_provider.ts` - User authentication provider
+- `app/controller/auth_controller.ts` - Login, logout, register routes
+- `app/provider/user_provider.ts` - User authentication provider
 
 ## Configuration
 
-Configure authentication in `src/kernel.ts`:
+Configure authentication in `app/kernel.ts`:
 
 ```typescript
 import { configureAuth, container } from '@lockness/core'
@@ -118,7 +118,7 @@ Add social login with Google, GitHub, Discord:
 deno task cli make:auth --social
 ```
 
-Configure providers in `src/kernel.ts`:
+Configure providers in `app/kernel.ts`:
 
 ```typescript
 import { configureSocialite } from '@lockness/core'

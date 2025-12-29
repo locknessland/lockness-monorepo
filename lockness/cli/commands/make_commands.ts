@@ -29,7 +29,7 @@ export function registerMakeCommands(cli: Cli) {
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
         const fileName = `${name.toLowerCase()}_controller.tsx`
-        const dirPath = `./src/controller`
+        const dirPath = `./app/controller`
         const filePath = `${dirPath}/${fileName}`
 
         try {
@@ -38,7 +38,7 @@ export function registerMakeCommands(cli: Cli) {
             if (withView) {
                 const viewClassName = className
                 const viewFileName = name.toLowerCase()
-                const viewDirPath = `./src/view/pages`
+                const viewDirPath = `./app/view/pages`
                 const viewFilePath = `${viewDirPath}/${viewFileName}.tsx`
 
                 try {
@@ -86,7 +86,7 @@ export function registerMakeCommands(cli: Cli) {
 
             // Auto-regenerate routes.ts for production builds
             try {
-                await generateRoutesFile('./src/controller', './src/routes.ts')
+                await generateRoutesFile('./app/controller', './app/routes.ts')
                 console.log('✅ Routes registry updated')
             } catch {
                 console.log(
@@ -110,7 +110,7 @@ export function registerMakeCommands(cli: Cli) {
         const className = name.charAt(0).toUpperCase() + name.slice(1)
         const middlewareName = name.toLowerCase()
         const fileName = `${name.toLowerCase()}_middleware.ts`
-        const dirPath = `./src/middleware`
+        const dirPath = `./app/middleware`
         const filePath = `${dirPath}/${fileName}`
 
         try {
@@ -143,7 +143,7 @@ export function registerMakeCommands(cli: Cli) {
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
         const fileName = `${name.toLowerCase()}_service.ts`
-        const dirPath = `./src/service`
+        const dirPath = `./app/service`
         const filePath = `${dirPath}/${fileName}`
 
         try {
@@ -175,7 +175,7 @@ export function registerMakeCommands(cli: Cli) {
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
         const fileName = name.toLowerCase()
-        const dirPath = `./src/view/pages`
+        const dirPath = `./app/view/pages`
         const filePath = `${dirPath}/${fileName}.tsx`
 
         try {
@@ -203,7 +203,7 @@ export function registerMakeCommands(cli: Cli) {
 
         const className = name.charAt(0).toUpperCase() + name.slice(1)
         const fileName = name.toLowerCase()
-        const dirPath = `./src/view/components`
+        const dirPath = `./app/view/components`
         const filePath = `${dirPath}/${fileName}.tsx`
 
         const propsInterface = `{ children?: any }`
@@ -239,7 +239,7 @@ export function registerMakeCommands(cli: Cli) {
         const className = name.charAt(0).toUpperCase() + name.slice(1)
         const commandName = name.toLowerCase()
         const fileName = `${name.toLowerCase()}_command.ts`
-        const dirPath = `./src/command`
+        const dirPath = `./app/command`
         const filePath = `${dirPath}/${fileName}`
 
         try {
@@ -279,7 +279,7 @@ export function registerMakeCommands(cli: Cli) {
             '',
         )
         const fileName = `${name.toLowerCase()}_job.ts`
-        const dirPath = `./src/job`
+        const dirPath = `./app/job`
         const filePath = `${dirPath}/${fileName}`
 
         try {
@@ -328,7 +328,7 @@ export function registerMakeCommands(cli: Cli) {
             },
         ]
 
-        const dirPath = './src/view/pages/errors'
+        const dirPath = './app/view/pages/errors'
 
         try {
             await Deno.mkdir(dirPath, { recursive: true })
@@ -347,7 +347,7 @@ export function registerMakeCommands(cli: Cli) {
             }
 
             console.log('\n🎉 All error pages created successfully!')
-            console.log('\n💡 Configure error handler in src/kernel.tsx:')
+            console.log('\n💡 Configure error handler in app/kernel.tsx:')
             console.log(`
 import { NotFoundPage } from '@view/pages/errors/not_found.tsx'
 import { UnauthorizedPage } from '@view/pages/errors/unauthorized.tsx'
@@ -393,7 +393,7 @@ const errorHandler = (error: Error, c: Context) => {
 
         try {
             // 1. Model (using drizzle stub)
-            const modelPath = `./src/model/${fileName}.ts`
+            const modelPath = `./app/model/${fileName}.ts`
             const modelStubContent = await Deno.readTextFile(
                 join(DRIZZLE_STUBS_PATH, 'model.stub'),
             )
@@ -401,12 +401,12 @@ const errorHandler = (error: Error, c: Context) => {
                 .replace(/\{\{ModelName\}\}/g, modelName)
                 .replace(/\{\{tableName\}\}/g, tableName)
 
-            await Deno.mkdir('./src/model', { recursive: true })
+            await Deno.mkdir('./app/model', { recursive: true })
             await Deno.writeTextFile(modelPath, modelContent)
             files.push(`✅ Model: ${modelPath}`)
 
             // 2. Repository (using drizzle stub)
-            const repoPath = `./src/repository/${fileName}_repository.ts`
+            const repoPath = `./app/repository/${fileName}_repository.ts`
             const repoStubContent = await Deno.readTextFile(
                 join(DRIZZLE_STUBS_PATH, 'repository.stub'),
             )
@@ -416,24 +416,24 @@ const errorHandler = (error: Error, c: Context) => {
                 .replace(/\{\{fileName\}\}/g, fileName)
                 .replace(/\{\{RepositoryName\}\}/g, repositoryName)
 
-            await Deno.mkdir('./src/repository', { recursive: true })
+            await Deno.mkdir('./app/repository', { recursive: true })
             await Deno.writeTextFile(repoPath, repoContent)
             files.push(`✅ Repository: ${repoPath}`)
 
             // 3. Service (using cli stub)
-            const servicePath = `./src/service/${fileName}_service.ts`
+            const servicePath = `./app/service/${fileName}_service.ts`
             const serviceContent = await Stub.renderFrom(
                 STUBS_PATH,
                 'make',
                 'service',
                 { className: `${modelName}Service` },
             )
-            await Deno.mkdir('./src/service', { recursive: true })
+            await Deno.mkdir('./app/service', { recursive: true })
             await Deno.writeTextFile(servicePath, serviceContent)
             files.push(`✅ Service: ${servicePath}`)
 
             // 4. Controller (using cli stub)
-            const controllerPath = `./src/controller/${fileName}_controller.tsx`
+            const controllerPath = `./app/controller/${fileName}_controller.tsx`
             const controllerContent = await Stub.renderFrom(
                 STUBS_PATH,
                 'make',
@@ -443,12 +443,12 @@ const errorHandler = (error: Error, c: Context) => {
                     route: route,
                 },
             )
-            await Deno.mkdir('./src/controller', { recursive: true })
+            await Deno.mkdir('./app/controller', { recursive: true })
             await Deno.writeTextFile(controllerPath, controllerContent)
             files.push(`✅ Controller: ${controllerPath}`)
 
             // 5. Views (index, show)
-            const viewsDir = `./src/view/pages/${fileName}`
+            const viewsDir = `./app/view/pages/${fileName}`
             await Deno.mkdir(viewsDir, { recursive: true })
 
             const indexPath = `${viewsDir}/index.tsx`
@@ -484,7 +484,7 @@ const errorHandler = (error: Error, c: Context) => {
             console.log(
                 `   2. Implement methods in ${repoPath} and ${servicePath}`,
             )
-            console.log(`   3. Add routes in src/kernel.tsx:`)
+            console.log(`   3. Add routes in app/kernel.tsx:`)
             console.log(`      app.route('/${route}', ${modelName}Controller)`)
             console.log(
                 `   4. Run "deno task db:generate" to create migrations`,
@@ -495,7 +495,7 @@ const errorHandler = (error: Error, c: Context) => {
 
             // Auto-regenerate routes.ts for production builds
             try {
-                await generateRoutesFile('./src/controller', './src/routes.ts')
+                await generateRoutesFile('./app/controller', './app/routes.ts')
                 console.log('✅ Routes registry updated')
             } catch {
                 // Silently fail, user can run manually
@@ -537,7 +537,7 @@ const errorHandler = (error: Error, c: Context) => {
             controllerName.slice(1)
         const controllerFileName =
             `${controllerName.toLowerCase()}_controller.tsx`
-        const controllerPath = `./src/controller/${controllerFileName}`
+        const controllerPath = `./app/controller/${controllerFileName}`
 
         try {
             // Check if controller exists
@@ -575,7 +575,7 @@ const errorHandler = (error: Error, c: Context) => {
                 const viewFileName =
                     `${controllerName.toLowerCase()}/${actionName.toLowerCase()}`
                 const viewDirPath =
-                    `./src/view/pages/${controllerName.toLowerCase()}`
+                    `./app/view/pages/${controllerName.toLowerCase()}`
                 const viewFilePath =
                     `${viewDirPath}/${actionName.toLowerCase()}.tsx`
 

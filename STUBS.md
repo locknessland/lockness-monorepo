@@ -20,18 +20,24 @@ project.
 | `main.ts`                           | `lockness/init/stubs/init/main.ts.stub`                           | ✅    |
 | `postcss.config.js`                 | `lockness/init/stubs/init/postcss.config.js.stub`                 | ✅    |
 | `public/img/lockness-logo.svg`      | `lockness/init/stubs/init/public/img/lockness-logo.svg`           | ✅    |
+| `public/favicon.ico`                | `lockness/init/stubs/init/public/favicon.ico`                     | ✅    |
+| `public/favicon-16x16.png`          | `lockness/init/stubs/init/public/favicon-16x16.png`               | ✅    |
+| `public/favicon-32x32.png`          | `lockness/init/stubs/init/public/favicon-32x32.png`               | ✅    |
+| `public/apple-touch-icon.png`       | `lockness/init/stubs/init/public/apple-touch-icon.png`            | ✅    |
+| `public/android-chrome-192x192.png` | `lockness/init/stubs/init/public/android-chrome-192x192.png`      | ✅    |
+| `public/android-chrome-512x512.png` | `lockness/init/stubs/init/public/android-chrome-512x512.png`      | ✅    |
 | `deno.json`                         | `lockness/init/stubs/init/deno.json.stub`                         | ✅    |
 | `README.md`                         | `lockness/init/stubs/init/README.md.stub`                         | ✅    |
 | `drizzle.config.ts`                 | `lockness/drizzle/stubs/drizzle.config.ts.stub`                   | ✅    |
 | `.env.exemple`                      | `lockness/init/stubs/init/.env.exemple.stub`                      | ✅    |
 | `.gitignore`                        | `lockness/init/stubs/init/.gitignore.stub`                        | ✅    |
-| `src/kernel.tsx`                    | `lockness/init/stubs/init/src/kernel.tsx.stub`                    | ✅    |
-| `src/controller/app_controller.tsx` | `lockness/init/stubs/init/src/controller/app_controller.tsx.stub` | ✅    |
-| `src/view/app.ts`                   | `lockness/init/stubs/init/src/view/app.ts.stub`                   | ✅    |
-| `src/view/assets/app.css`           | `lockness/init/stubs/init/src/view/assets/app.css.stub`           | ✅    |
-| `src/view/components/ui.tsx`        | `lockness/init/stubs/init/src/view/components/ui.tsx.stub`        | ✅    |
-| `src/view/layouts/main_layout.tsx`  | `lockness/init/stubs/init/src/view/layouts/main_layout.tsx.stub`  | ✅    |
-| `src/view/pages/home.tsx`           | `lockness/init/stubs/init/src/view/pages/home.tsx.stub`           | ✅    |
+| `app/kernel.tsx`                    | `lockness/init/stubs/init/app/kernel.tsx.stub`                    | ✅    |
+| `app/controller/app_controller.tsx` | `lockness/init/stubs/init/app/controller/app_controller.tsx.stub` | ✅    |
+| `app/view/app.ts`                   | `lockness/init/stubs/init/app/view/app.ts.stub`                   | ✅    |
+| `app/view/assets/app.css`           | `lockness/init/stubs/init/app/view/assets/app.css.stub`           | ✅    |
+| `app/view/components/ui.tsx`        | `lockness/init/stubs/init/app/view/components/ui.tsx.stub`        | ✅    |
+| `app/view/layouts/main_layout.tsx`  | `lockness/init/stubs/init/app/view/layouts/main_layout.tsx.stub`  | ✅    |
+| `app/view/pages/home.tsx`           | `lockness/init/stubs/init/app/view/pages/home.tsx.stub`           | ✅    |
 
 ---
 
@@ -44,22 +50,22 @@ files.
 
 | Command            | Stub File                                        | Generates                                   |
 | ------------------ | ------------------------------------------------ | ------------------------------------------- |
-| `make:controller`  | `lockness/cli/stubs/make/controller.stub`        | `src/controller/{name}_controller.ts`       |
-| `make:middleware`  | `lockness/cli/stubs/make/middleware.stub`        | `src/middleware/{name}_middleware.ts`       |
-| `make:service`     | `lockness/cli/stubs/make/service.stub`           | `src/service/{name}_service.ts`             |
-| `make:view`        | `lockness/cli/stubs/make/view.stub`              | `src/view/pages/{name}.tsx`                 |
-| `make:command`     | `lockness/cli/stubs/make/command.stub`           | `src/command/{name}_command.ts`             |
-| `make:job`         | `lockness/cli/stubs/make/job.stub`               | `src/job/{name}_job.ts`                     |
-| `make:component`   | `lockness/cli/stubs/make/component.stub`         | `src/view/components/{name}.tsx`            |
-| `make:error-pages` | `lockness/cli/stubs/make/error_*.stub` (4 files) | All error pages in `src/view/pages/errors/` |
+| `make:controller`  | `lockness/cli/stubs/make/controller.stub`        | `app/controller/{name}_controller.ts`       |
+| `make:middleware`  | `lockness/cli/stubs/make/middleware.stub`        | `app/middleware/{name}_middleware.ts`       |
+| `make:service`     | `lockness/cli/stubs/make/service.stub`           | `app/service/{name}_service.ts`             |
+| `make:view`        | `lockness/cli/stubs/make/view.stub`              | `app/view/pages/{name}.tsx`                 |
+| `make:command`     | `lockness/cli/stubs/make/command.stub`           | `app/command/{name}_command.ts`             |
+| `make:job`         | `lockness/cli/stubs/make/job.stub`               | `app/job/{name}_job.ts`                     |
+| `make:component`   | `lockness/cli/stubs/make/component.stub`         | `app/view/components/{name}.tsx`            |
+| `make:error-pages` | `lockness/cli/stubs/make/error_*.stub` (4 files) | All error pages in `app/view/pages/errors/` |
 
 ### Auth Stubs (`lockness/cli/stubs/auth/`)
 
 | Command            | Stub File                                             | Generates                                  |
 | ------------------ | ----------------------------------------------------- | ------------------------------------------ |
-| `make:auth`        | `lockness/cli/stubs/auth/auth_controller.stub`        | `src/controller/auth_controller.ts`        |
-| `make:auth`        | `lockness/cli/stubs/auth/user_provider.stub`          | `src/auth/user_provider.ts`                |
-| `make:social-auth` | `lockness/cli/stubs/auth/social_auth_controller.stub` | `src/controller/social_auth_controller.ts` |
+| `make:auth`        | `lockness/cli/stubs/auth/auth_controller.stub`        | `app/controller/auth_controller.ts`        |
+| `make:auth`        | `lockness/cli/stubs/auth/user_provider.stub`          | `app/auth/user_provider.ts`                |
+| `make:social-auth` | `lockness/cli/stubs/auth/social_auth_controller.stub` | `app/controller/social_auth_controller.ts` |
 
 ### Nessy Stubs (`lockness/cli/stubs/nessy/`)
 
@@ -72,12 +78,12 @@ files.
 
 | Command                | Stub File                                     | Generates                             |
 | ---------------------- | --------------------------------------------- | ------------------------------------- |
-| `make:model`           | `lockness/drizzle/stubs/model.stub`           | `src/model/{name}.ts`                 |
-| `make:model -r`        | `lockness/drizzle/stubs/repository.stub`      | `src/repository/{name}_repository.ts` |
-| `make:model -c`        | `lockness/drizzle/stubs/controller.stub`      | `src/controller/{name}_controller.ts` |
-| `make:model -s`        | `lockness/drizzle/stubs/seeder.stub`          | `src/seeder/{name}_seeder.ts`         |
-| `make:seeder`          | `lockness/drizzle/stubs/seeder.stub`          | `src/seeder/{name}_seeder.ts`         |
-| `make:seeder Database` | `lockness/drizzle/stubs/database_seeder.stub` | `src/seeder/database_seeder.ts`       |
+| `make:model`           | `lockness/drizzle/stubs/model.stub`           | `app/model/{name}.ts`                 |
+| `make:model -r`        | `lockness/drizzle/stubs/repository.stub`      | `app/repository/{name}_repository.ts` |
+| `make:model -c`        | `lockness/drizzle/stubs/controller.stub`      | `app/controller/{name}_controller.ts` |
+| `make:model -s`        | `lockness/drizzle/stubs/seeder.stub`          | `app/seeder/{name}_seeder.ts`         |
+| `make:seeder`          | `lockness/drizzle/stubs/seeder.stub`          | `app/seeder/{name}_seeder.ts`         |
+| `make:seeder Database` | `lockness/drizzle/stubs/database_seeder.stub` | `app/seeder/database_seeder.ts`       |
 
 ---
 
@@ -86,7 +92,7 @@ files.
 When modifying core framework files, check this list:
 
 - [ ] Modified `cli.ts`? → Update `cli.ts.stub`
-- [ ] Modified `src/kernel.tsx`? → Update `kernel.tsx.stub`
+- [ ] Modified `app/kernel.tsx`? → Update `kernel.tsx.stub`
 - [ ] Modified `deno.json` tasks? → Update `deno.json.stub`
 - [ ] Added new decorator/feature? → Update relevant `make:*` stubs
 - [ ] Changed validation pattern? → Update `controller.stub` in drizzle

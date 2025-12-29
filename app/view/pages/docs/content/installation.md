@@ -52,7 +52,7 @@ Your app will be available at `http://localhost:5173`
 
 ```plaintext
 my-lockness-app/
-├── src/
+├── app/
 │   ├── controller/      # HTTP Controllers
 │   ├── model/          # Database Models
 │   ├── repository/      # Data Access Layer

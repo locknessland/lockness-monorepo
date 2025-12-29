@@ -13,18 +13,24 @@ const INIT_STUB_FILES = [
     'main.ts.stub',
     'postcss.config.js.stub',
     'public/img/lockness-logo.svg',
+    'public/favicon.ico',
+    'public/favicon-16x16.png',
+    'public/favicon-32x32.png',
+    'public/apple-touch-icon.png',
+    'public/android-chrome-192x192.png',
+    'public/android-chrome-512x512.png',
     'README.md.stub',
     'scripts/dev.sh.stub',
     'scripts/generate_routes.ts.stub',
     'scripts/watch_routes.ts.stub',
-    'src/controller/app_controller.tsx.stub',
-    'src/kernel.tsx.stub',
-    'src/routes.ts.stub',
-    'src/view/app.ts.stub',
-    'src/view/assets/app.css.stub',
-    'src/view/components/ui.tsx.stub',
-    'src/view/layouts/main_layout.tsx.stub',
-    'src/view/pages/home.tsx.stub',
+    'app/controller/app_controller.tsx.stub',
+    'app/kernel.tsx.stub',
+    'app/routes.ts.stub',
+    'app/view/app.ts.stub',
+    'app/view/assets/app.css.stub',
+    'app/view/components/ui.tsx.stub',
+    'app/view/layouts/main_layout.tsx.stub',
+    'app/view/pages/home.tsx.stub',
 ]
 
 export function registerInitCommand(cli: Cli) {
@@ -55,8 +61,10 @@ export function registerInitCommand(cli: Cli) {
 
             // Create empty directories that might not be in stubs
             const dirs = [
-                'src/service',
-                'src/middleware',
+                'app/service',
+                'app/middleware',
+                'app/model',
+                'app/repository',
                 'public',
             ]
 
@@ -80,7 +88,7 @@ export function registerInitCommand(cli: Cli) {
                     `${projectName}/.env.production.local`,
                     'APP_ENV=production\n',
                 )
-            } catch (error) {
+            } catch {
                 console.error('⚠️  Could not create .env.production.local')
             }
 
