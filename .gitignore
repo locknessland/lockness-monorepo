@@ -11,7 +11,8 @@ node_modules
 # Compile and Build output 
 _dist
 
-# Test coverage
+# Test & Test coverage
+.test-init-output
 coverage
 
 # Compiled CSS assets

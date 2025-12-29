@@ -1,5 +1,4 @@
 {
-    "name": "@lockness/monorepo",
     "description": "Lockness Project Monorepo which contains all packages",
     "license": "MIT",
     "version": "0.1.18",
@@ -38,8 +37,8 @@
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage lockness/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
         "routes:generate": "deno run -A scripts/generate_routes.ts",
         "routes:watch": "deno run -A scripts/watch_routes.ts",
-        "bump": "deno run -A ./scripts/bump.ts", // Bump Lockness version and all packages versions // Only for development purposes in the Monorepo
-        "init": "deno run -Ar lockness/init/mod.ts _lockness_app" // Initialize a new Lockness project // Only for development purposes in the Monorepo
+        "bump": "deno run -A ./scripts/bump.ts",
+        "init": "deno run -Ar lockness/init/mod.ts _lockness_app"
     },
     "imports": {
         "@/": "./",
@@ -63,9 +62,9 @@
         "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.0.0",
         "postcss": "npm:postcss@^8.4.49",
         "postcss-cli": "npm:postcss-cli@^11.0.0",
-        "@lockness/core": "jsr:@lockness/core@^0.1.17",
+        "@lockness/core": "jsr:@lockness/core@^0.1.18",
         "zod": "npm:zod@^4.2.1",
-        "@hono/zod-validator": "jsr:@lockness/hono@^0.1.17"
+        "@hono/zod-validator": "jsr:@lockness/hono@^0.1.18"
     },
     "unstable": [
         "kv"

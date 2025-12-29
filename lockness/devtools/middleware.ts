@@ -1,12 +1,9 @@
-/** @jsx jsx */
-/** @jsxImportSource hono */
-
 /**
  * Devtools Middleware
  * Intercepts requests and collects debugging data
  */
 
-import type { Context, MiddlewareHandler } from 'hono'
+import type { Context, MiddlewareHandler } from '@lockness/core'
 import { collector } from './collector.ts'
 import { DebugToolbar } from './components/toolbar.tsx'
 import type { RequestInfo } from './types.ts'

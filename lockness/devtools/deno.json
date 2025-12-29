@@ -1,6 +1,6 @@
 {
     "name": "@lockness/devtools",
-    "version": "0.1.17",
+    "version": "0.1.18",
     "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
@@ -14,12 +14,13 @@
             "middleware.ts",
             "types.ts",
             "dashboard.tsx",
-            "components",
+            "components/toolbar.tsx",
             "deno.json",
             "README.md"
         ],
         "exclude": [
-            "tests/"
+            "tests/",
+            ".github/"
         ]
     },
     "compilerOptions": {
@@ -27,8 +28,8 @@
         "jsxImportSource": "hono"
     },
     "imports": {
-        "@lockness/core": "jsr:@lockness/core@^0.1.17",
-        "hono": "jsr:@lockness/hono@^0.1.17"
+        "@lockness/core": "jsr:@lockness/core@^0.1.18",
+        "hono": "jsr:@lockness/hono@^0.1.18"
     },
     "description": "Development debugging toolbar and utilities for Lockness framework"
 }

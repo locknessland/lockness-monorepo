@@ -16,7 +16,7 @@
  * ```
  */
 
-import type { Hono } from 'hono'
+import type { Hono } from '@lockness/core'
 import { devtoolsMiddleware } from './middleware.ts'
 import { renderDashboard } from './dashboard.tsx'
 import { collector } from './collector.ts'
