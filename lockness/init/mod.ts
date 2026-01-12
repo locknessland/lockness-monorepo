@@ -61,10 +61,6 @@ export function registerInitCommand(cli: Cli) {
 
             // Create empty directories that might not be in stubs
             const dirs = [
-                'app/service',
-                'app/middleware',
-                'app/model',
-                'app/repository',
                 'public',
             ]
 
