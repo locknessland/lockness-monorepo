@@ -3,9 +3,9 @@
  * Compiled via Tailwind CSS v4.1 standalone CLI
  */
 
-@import "tailwindcss";
+@import 'tailwindcss';
 
-@source "../../**/*.tsx";
+@source '../../**/*.tsx';
 
 /* Your custom styles here */
 

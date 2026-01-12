@@ -69,10 +69,16 @@ export function registerInitCommand(cli: Cli) {
                     try {
                         const sourcePath = join(stubsDir, file)
                         const targetPath = join(projectName, file)
-                        await Deno.mkdir(dirname(targetPath), { recursive: true })
+                        await Deno.mkdir(dirname(targetPath), {
+                            recursive: true,
+                        })
                         await Deno.copyFile(sourcePath, targetPath)
                     } catch (error) {
-                        console.warn(`⚠️  Could not copy binary file ${file}: ${(error as Error).message}`)
+                        console.warn(
+                            `⚠️  Could not copy binary file ${file}: ${
+                                (error as Error).message
+                            }`,
+                        )
                     }
                 }
             }

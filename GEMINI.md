@@ -119,27 +119,38 @@ controllers.
 
 #### Development Mode
 
-Lockness uses a **multi-terminal development workflow** for optimal stability. Each process runs in its own terminal:
+Lockness uses a **multi-terminal development workflow** for optimal stability.
+Each process runs in its own terminal:
 
 **Terminal 1 - CSS Watcher:**
+
 ```bash
 deno task css:watch
 ```
-Compiles CSS on file changes (Tailwind v4.1 for monorepo, PostCSS for generated projects)
+
+Compiles CSS on file changes (Tailwind v4.1 for monorepo, PostCSS for generated
+projects)
 
 **Terminal 2 - Routes Watcher:**
+
 ```bash
 deno task routes:watch
 ```
+
 Auto-detects new controllers and updates routes registry
 
 **Terminal 3 - Development Server:**
+
 ```bash
 deno task dev
 ```
+
 Runs the Deno server with hot-reload enabled
 
-**Why separate terminals?** Running multiple file watchers concurrently in a single shell script can cause I/O conflicts and prevent proper file detection. Separate terminals ensure each watcher has dedicated process isolation and reliable file system monitoring.
+**Why separate terminals?** Running multiple file watchers concurrently in a
+single shell script can cause I/O conflicts and prevent proper file detection.
+Separate terminals ensure each watcher has dedicated process isolation and
+reliable file system monitoring.
 
 #### Automatic Route Generation
 
@@ -220,13 +231,15 @@ Configuration in `deno.json`:
 ```
 
 **Important:** Both packages are required:
-- `tailwindcss` - The core Tailwind CSS engine (needed for `@import "tailwindcss"`)
+
+- `tailwindcss` - The core Tailwind CSS engine (needed for
+  `@import "tailwindcss"`)
 - `@tailwindcss/cli` - The standalone CLI tool for compilation
 
 Your CSS file (`app/view/assets/app.css`) should start with:
 
 ```css
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @custom-variant dark (&:is(.dark *));
 

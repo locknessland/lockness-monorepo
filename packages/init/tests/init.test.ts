@@ -279,14 +279,24 @@ describe('init command', () => {
 
             // Check that binary files exist
             expect(existsSync('binary-test/public/favicon.ico')).toBe(true)
-            expect(existsSync('binary-test/public/favicon-16x16.png')).toBe(true)
-            expect(existsSync('binary-test/public/favicon-32x32.png')).toBe(true)
-            expect(existsSync('binary-test/public/apple-touch-icon.png')).toBe(true)
-            expect(existsSync('binary-test/public/android-chrome-192x192.png')).toBe(true)
-            expect(existsSync('binary-test/public/android-chrome-512x512.png')).toBe(true)
+            expect(existsSync('binary-test/public/favicon-16x16.png')).toBe(
+                true,
+            )
+            expect(existsSync('binary-test/public/favicon-32x32.png')).toBe(
+                true,
+            )
+            expect(existsSync('binary-test/public/apple-touch-icon.png')).toBe(
+                true,
+            )
+            expect(existsSync('binary-test/public/android-chrome-192x192.png'))
+                .toBe(true)
+            expect(existsSync('binary-test/public/android-chrome-512x512.png'))
+                .toBe(true)
 
             // Verify that files are not empty (basic check)
-            const faviconStats = await Deno.stat('binary-test/public/favicon.ico')
+            const faviconStats = await Deno.stat(
+                'binary-test/public/favicon.ico',
+            )
             expect(faviconStats.size).toBeGreaterThan(0)
         } finally {
             Deno.chdir(originalCwd)
