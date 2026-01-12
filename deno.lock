@@ -17,6 +17,7 @@
     "npm:@aws-sdk/client-s3@^3.709.0": "3.966.0",
     "npm:@aws-sdk/s3-request-presigner@^3.709.0": "3.966.0",
     "npm:@hono/zod-validator@~0.7.6": "0.7.6_hono@4.11.3_zod@4.3.5",
+    "npm:@tailwindcss/cli@4.1": "4.1.18",
     "npm:@tailwindcss/cli@next": "4.0.0",
     "npm:drizzle-kit@beta": "1.0.0-beta.10-4a43a22",
     "npm:drizzle-orm@~0.36.3": "0.36.4_postgres@3.4.8",
@@ -1502,6 +1503,19 @@
       ],
       "bin": true
     },
+    "@tailwindcss/cli@4.1.18": {
+      "integrity": "sha512-sMZ+lZbDyxwjD2E0L7oRUjJ01Ffjtme5OtjvvnC+cV4CEDcbqzbp25TCpxHj6kWLU9+DlqJOiNgSOgctC2aZmg==",
+      "dependencies": [
+        "@parcel/watcher",
+        "@tailwindcss/node",
+        "@tailwindcss/oxide",
+        "enhanced-resolve",
+        "mri",
+        "picocolors",
+        "tailwindcss@4.1.18"
+      ],
+      "bin": true
+    },
     "@tailwindcss/node@4.1.18": {
       "integrity": "sha512-DoR7U1P7iYhw16qJ49fgXUlry1t4CpXeErJHnQ44JgTSKMaZUdf17cfn5mHchfJ4KRBZRFA/Coo+MUF5+gOaCQ==",
       "dependencies": [
@@ -1875,7 +1889,7 @@
       "jsr:@std/fs@1",
       "jsr:@std/jsonc@1",
       "jsr:@std/path@1",
-      "npm:@tailwindcss/cli@next",
+      "npm:@tailwindcss/cli@4.1",
       "npm:drizzle-kit@beta",
       "npm:drizzle-orm@~0.36.3",
       "npm:drizzle-zod@~0.5.1",
