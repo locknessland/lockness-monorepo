@@ -36,7 +36,9 @@ Lockness abstracts this layer to offer a complete and familiar MVC
   `@Service` and `@Inject` decorators (TC39 Stage 3 decorators)
 - **View Engine (JSX)**: Native JSX support powered by Hono's JSX runtime, fully
   integrated into `@lockness/core`. No extra `hono` imports required.
-- **Modern CSS**: Tailwind CSS v4 with PostCSS for utility-first styling
+- **Modern CSS**: For the main monorepo, Tailwind CSS v4.1 for utility-first
+  styling. Generated projects use PostCSS as a neutral CSS processor, allowing
+  you to add any framework you prefer.
 - **ORM / Query Builder**: Official integration with **Drizzle ORM** for
   type-safe database queries with PostgreSQL support.
 - **Deprecation Contracts**: Elegant system to manage code evolution with
@@ -84,23 +86,43 @@ Deno 2+. No `experimentalDecorators` flag is needed.
 **Important:** Do NOT add Hono to your imports manually. Lockness manages its
 own Hono version to ensure compatibility.
 
+**For the monorepo:**
+
 ```json
 "imports": {
-    "@lockness/core": "jsr:@lockness/core@^0.1.0"
+    "@lockness/core": "jsr:@lockness/core@^0.1.0",
+    "@tailwindcss/cli": "npm:@tailwindcss/cli@4.1"
+}
+```
+
+**For generated projects (minimal setup):**
+
+```json
+"imports": {
+    "@lockness/core": "jsr:@lockness/core@^0.1.0",
+    "postcss": "npm:postcss@^8.4",
+    "postcss-cli": "npm:postcss-cli@^11.0"
 }
 ```
 
 ### Modern Development Workflow
 
-Lockness uses a pure Deno workflow with **Tailwind CSS v4** and **PostCSS** for
-styling, and automatic route generation for controllers.
+Lockness uses a pure Deno workflow with automatic route generation for
+controllers.
+
+**CSS Configuration:**
+
+- **Monorepo (this project)**: Uses Tailwind CSS v4.1 with standalone CLI
+- **Generated projects (`deno task init`)**: Uses PostCSS as a neutral
+  processor, no CSS framework by default
 
 #### Development Mode
 
 In development (`deno task dev`), the framework launches three parallel
 processes:
 
-1. **CSS Watcher**: Compiles Tailwind CSS with PostCSS on file changes
+1. **CSS Watcher**: Compiles CSS on file changes (Tailwind v4.1 for monorepo,
+   PostCSS for generated projects)
 2. **Routes Watcher**: Auto-detects new controllers and updates routes registry
 3. **Deno Server**: Hot-reload enabled with native Deno watch mode
 
@@ -111,10 +133,10 @@ All processes run concurrently via `scripts/dev.sh`:
 trap 'kill $(jobs -p) 2>/dev/null' EXIT
 
 # CSS watcher
-deno run -A npm:postcss-cli app/view/assets/app.css -o public/css/app.css --watch &
+deno task css:watch &
 
 # Routes watcher
-deno run -A scripts/watch_routes.ts &
+deno task routes:watch &
 
 # Deno server (foreground)
 deno run -A --watch --env main.ts
@@ -169,9 +191,11 @@ export const controllers = [
 ]
 ```
 
-#### CSS Workflow (Tailwind CSS v4)
+#### CSS Workflow
 
-Tailwind CSS v4 is compiled via PostCSS:
+**For the Monorepo (Development):**
+
+The main monorepo uses Tailwind CSS v4.1 compiled via standalone CLI:
 
 ```bash
 # Manual CSS build
@@ -181,16 +205,62 @@ deno task css:build
 deno task css:watch
 ```
 
-Your `app/view/assets/app.css` imports Tailwind:
+Configuration in `deno.json`:
 
-```css
-@import 'tailwindcss';
-
-/* Your custom styles */
+```json
+{
+    "tasks": {
+        "css:build": "deno run -A npm:@tailwindcss/cli@4.1 -i app/view/assets/app.css -o public/css/app.css",
+        "css:watch": "deno run -A npm:@tailwindcss/cli@4.1 -i app/view/assets/app.css -o public/css/app.css --watch"
+    },
+    "imports": {
+        "@tailwindcss/cli": "npm:@tailwindcss/cli@4.1"
+    }
+}
 ```
 
-Compiled output goes to `public/css/app.css` and is served by Hono's
-`serveStatic()` middleware.
+**For Generated Projects (`deno task init`):**
+
+New projects are intentionally **framework-agnostic** and use PostCSS as a
+neutral CSS processor:
+
+```bash
+# CSS tasks use postcss-cli
+deno task css:build  # Compiles with PostCSS
+deno task css:watch  # Watches with PostCSS
+```
+
+Generated `deno.json`:
+
+```json
+{
+    "tasks": {
+        "css:build": "deno run -A npm:postcss-cli@11 app/view/assets/app.css -o public/css/app.css",
+        "css:watch": "deno run -A npm:postcss-cli@11 app/view/assets/app.css -o public/css/app.css --watch"
+    },
+    "imports": {
+        "postcss": "npm:postcss@^8.4",
+        "postcss-cli": "npm:postcss-cli@^11.0"
+    }
+}
+```
+
+The generated `postcss.config.js` is empty by default:
+
+```javascript
+export default {
+    plugins: {},
+}
+```
+
+This allows users to add **any CSS framework** they prefer:
+
+- Plain CSS (default)
+- Tailwind CSS (add `tailwindcss` plugin)
+- Any PostCSS plugin ecosystem
+
+See the generated project's README for instructions on adding Tailwind or other
+frameworks.
 
 #### Production Deployment
 
