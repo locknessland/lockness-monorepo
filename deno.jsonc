@@ -58,8 +58,6 @@
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "drizzle-zod": "npm:drizzle-zod@^0.5.1",
         "drizzle-kit": "npm:drizzle-kit@beta",
-        "tailwindcss": "npm:tailwindcss@^4.0.0",
-        "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.0.0",
         "@tailwindcss/cli": "npm:@tailwindcss/cli@next",
         "@lockness/core": "jsr:@lockness/core@^0.1.18",
         "zod": "npm:zod@^4.2.1",
@@ -86,5 +84,9 @@
             "init",
             "openapi"
         ]
+    },
+    "allowScripts": {
+        "allow": [],
+        "deny": ["npm:@parcel/watcher@2.5.4", "npm:esbuild@0.25.12", "npm:esbuild@0.27.2", "npm:fsevents@2.3.3"]
     }
 }
