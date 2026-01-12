@@ -25,7 +25,7 @@
     ],
     "nodeModulesDir": "auto",
     "tasks": {
-        "dev": "deno run -A --dev main.ts",
+        "dev": "deno run -A --watch --env main.ts",
         "build": "deno task css:build",
         "compile": "deno task routes:generate && deno task css:build && deno compile --output=_dist/lockness --env-file=.env.production.local -A main.ts",
         "start": "deno run -A --env-file=.env.production.local main.ts",
