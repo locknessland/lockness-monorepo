@@ -1,8 +1,28 @@
 /**
- * Main CSS file with Tailwind directives
- * Compiled via PostCSS to public/css/app.css
+ * Main application CSS file
+ * 
+ * Add your custom styles here.
+ * You can use any CSS framework you like (Tailwind, Bootstrap, etc.)
+ * or write plain CSS.
  */
 
-/* @import 'tailwindcss'; */
+:root {
+    --primary-color: #3b82f6;
+    --text-color: #1f2937;
+    --bg-color: #ffffff;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    color: var(--text-color);
+    background: var(--bg-color);
+}
 
 /* Your custom styles here */

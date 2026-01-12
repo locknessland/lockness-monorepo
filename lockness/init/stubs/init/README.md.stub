@@ -2,6 +2,33 @@
 
 **Lockness JS** is a high-performance, fullstack MVC web framework built natively for **Deno**. Heavily inspired by the elegance of Laravel and AdonisJS, it leverages the speed of **HonoJS** fully encapsulated within `@lockness/core`, providing a structured and ergonomic development experience.
 
+## 📁 Project Structure
+
+This project starts with a minimal, unopinionated structure:
+
+```
+{{ projectName }}/
+├── app/
+│   ├── controller/       # HTTP request handlers
+│   └── view/            # JSX components & assets
+│       ├── assets/      # CSS source files
+│       ├── components/  # Reusable UI components
+│       ├── layouts/     # Page layouts
+│       └── pages/       # Page components
+├── database/
+│   └── migrations/      # Drizzle ORM migrations
+├── public/
+│   ├── css/            # Compiled CSS output
+│   └── img/            # Static images
+└── scripts/            # Development scripts
+```
+
+**Note**: Additional folders like `service/`, `model/`, `repository/`, and `middleware/` 
+are not created by default. You can scaffold them as needed using CLI commands like:
+- `./nessy make:model User -a` (creates model, repository, service, controller)
+- `./nessy make:middleware Auth`
+- `./nessy make:service Email`
+
 ### Development
 Start the development server with hot-reload and environment variables:
 ```bash
@@ -38,7 +65,7 @@ Deploy to Deno Deploy cloud platform:
 
 1. Connect your GitHub repository
 2. Set entry point to `main.ts`
-3. Add build command: `deno task routes:generate && deno task css:build`
+3. Add build command: `deno task routes:generate`
 4. Configure environment variables (`APP_ENV=production`, `DATABASE_URL`, etc.)
 
 Deno Deploy runs TypeScript directly with native TC39 decorators support - no
@@ -69,6 +96,98 @@ Run tests with coverage:
 ```bash
 deno task test:coverage
 ```
+
+### Styling & CSS
+
+The project comes with **PostCSS** pre-configured as a neutral CSS processor. 
+By default, no CSS framework is included - you're free to choose your preferred approach.
+
+**Source file**: `app/view/assets/app.css`  
+**Output file**: `public/css/app.css`
+
+**Build CSS once**:
+```bash
+deno task css:build
+```
+
+**Watch CSS changes** (auto-runs with `deno task dev`):
+```bash
+deno task css:watch
+```
+
+#### Styling Options
+
+The project is intentionally **framework-agnostic**. Choose the approach that fits your needs:
+
+**Option 1: Plain CSS (Default)**
+Edit `app/view/assets/app.css` with vanilla CSS. The starter includes CSS variables 
+and basic resets:
+
+```css
+:root {
+    --primary-color: #007bff;
+    --text-color: #333;
+    --bg-color: #fff;
+}
+```
+
+**Option 2: Add Tailwind CSS**
+```bash
+# 1. Add Tailwind to postcss.config.js
+cat > postcss.config.js << 'EOF'
+export default {
+    plugins: {
+        tailwindcss: {},
+    },
+}
+EOF
+
+# 2. Create tailwind.config.ts
+cat > tailwind.config.ts << 'EOF'
+export default {
+    content: ['./app/**/*.{ts,tsx}'],
+    theme: { extend: {} },
+    plugins: [],
+}
+EOF
+
+# 3. Update app/view/assets/app.css
+cat > app/view/assets/app.css << 'EOF'
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+EOF
+
+# 4. Add tailwindcss to deno.json imports
+# Add this line to the "imports" section:
+# "tailwindcss": "npm:tailwindcss@3"
+
+# 5. Build CSS
+deno task css:build
+```
+
+**Option 3: Add other PostCSS plugins**
+Install any PostCSS plugin and add it to `postcss.config.js`:
+```javascript
+export default {
+    plugins: {
+        'autoprefixer': {},
+        'postcss-preset-env': {},
+        'cssnano': {},
+    },
+}
+```
+
+Then add the corresponding npm packages to your `deno.json` imports:
+```json
+{
+  "imports": {
+    "autoprefixer": "npm:autoprefixer@^10.4",
+    "cssnano": "npm:cssnano@^7"
+  }
+}
+```
+
 
 ### Nessy CLI Wrapper
 
@@ -131,34 +250,58 @@ deno task cli make:model Post -a
 ```
 
 The `make:model` command supports flags:
-- `-r` repository
-- `-s` seeder  
-- `-c` controller (CRUD)
-- `-a` all of the above
+- `-r` generate repository
+- `-s` generate seeder  
+- `-c` generate controller (with CRUD actions)
+- `-a` generate all (model + repository + service + controller + seeder)
 
 ### Complete CRUD Scaffolding
 
-For a full-stack CRUD with views:
+Generate a complete CRUD feature with views in one command:
 
 ```bash
 deno task cli make:crud Post
 ```
 
-Generates:
+This creates a full-stack feature including:
 
-- `app/model/post.ts` - Drizzle schema
+- `app/model/post.ts` - Drizzle schema definition
 - `app/repository/post_repository.ts` - Data access layer
-- `app/service/post_service.ts` - Business logic
-- `app/controller/post_controller.tsx` - HTTP handler
+- `app/service/post_service.ts` - Business logic layer
+- `app/controller/post_controller.tsx` - HTTP request handlers
 - `app/view/pages/post/index.tsx` - List view
 - `app/view/pages/post/show.tsx` - Detail view
 
-### Scaffolding Components
+All layers follow the repository pattern for clean architecture.
+
+### Scaffolding & Code Generation
+
+Lockness provides powerful scaffolding commands to generate boilerplate code:
 
 ```bash
-deno task cli make:component Button
-deno task cli make:component ui/Card
+# Generate individual components
+./nessy make:controller User
+./nessy make:model Post
+./nessy make:service Email
+./nessy make:repository User
+./nessy make:middleware Auth
+./nessy make:component Button
+
+# Generate complete entity (model + repository + service + controller)
+./nessy make:model Post -a
 ```
+
+The `-a` flag creates all layers for a complete entity:
+- Model (Drizzle schema)
+- Repository (data access)
+- Service (business logic)
+- Controller (HTTP handlers)
+
+**Available flags for `make:model`**:
+- `-r` repository only
+- `-s` seeder only
+- `-c` controller only (CRUD)
+- `-a` all of the above
 
 ### Request Validation
 

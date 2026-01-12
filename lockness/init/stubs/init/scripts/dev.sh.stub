@@ -5,7 +5,7 @@
 trap 'kill $(jobs -p) 2>/dev/null' EXIT
 
 # Start CSS watcher in background
-deno run -A npm:@tailwindcss/cli@next -i app/view/assets/app.css -o public/css/app.css --watch &
+deno run -A npm:postcss-cli@11 app/view/assets/app.css -o public/css/app.css --watch &
 
 # Start Routes watcher in background
 deno run -A scripts/watch_routes.ts &

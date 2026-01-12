@@ -11,6 +11,7 @@ const INIT_STUB_FILES = [
     'deno.json.stub',
     'Dockerfile.stub',
     'main.ts.stub',
+    'postcss.config.js.stub',
     'public/img/lockness-logo.svg',
     'README.md.stub',
     'scripts/dev.sh.stub',
@@ -79,6 +80,7 @@ export function registerInitCommand(cli: Cli) {
             // Create empty directories that might not be in stubs
             const dirs = [
                 'public',
+                'public/css',
             ]
 
             for (const dir of dirs) {
