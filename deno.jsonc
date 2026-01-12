@@ -38,6 +38,7 @@
         "routes:generate": "deno run -A scripts/generate_routes.ts",
         "routes:watch": "deno run -A scripts/watch_routes.ts",
         "bump": "deno run -A ./scripts/bump.ts",
+        "hooks:install": "deno run -A scripts/install_hooks.ts",
         "init": "deno run -Ar packages/init/mod.ts _lockness_app"
     },
     "imports": {
