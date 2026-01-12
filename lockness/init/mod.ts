@@ -11,7 +11,6 @@ const INIT_STUB_FILES = [
     'deno.json.stub',
     'Dockerfile.stub',
     'main.ts.stub',
-    'postcss.config.js.stub',
     'public/img/lockness-logo.svg',
     'public/favicon.ico',
     'public/favicon-16x16.png',

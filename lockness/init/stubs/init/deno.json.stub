@@ -7,8 +7,8 @@
         "compile": "deno task routes:generate && deno task css:build && deno compile --output=_dist/lockness --env-file=.env.production.local -A main.ts",
         "start": "deno run -A --env-file=.env.production.local main.ts",
         "cli": "deno run -A --env cli.ts",
-        "css:build": "deno run -A npm:postcss-cli app/view/assets/app.css -o public/css/app.css",
-        "css:watch": "deno run -A npm:postcss-cli app/view/assets/app.css -o public/css/app.css --watch",
+        "css:build": "deno run -A npm:@tailwindcss/cli@next -i app/view/assets/app.css -o public/css/app.css",
+        "css:watch": "deno run -A npm:@tailwindcss/cli@next -i app/view/assets/app.css -o public/css/app.css --watch",
         "routes:generate": "deno run -A scripts/generate_routes.ts",
         "routes:watch": "deno run -A scripts/watch_routes.ts",
         "test": "deno test -A"
@@ -29,10 +29,7 @@
         "@lockness/core": "jsr:@lockness/core@^0.1.18",
         "@lockness/cli": "jsr:@lockness/cli@^0.1.18",
         "@lockness/auth": "jsr:@lockness/auth@^0.1.18",
-        "tailwindcss": "npm:tailwindcss@^4.0.0",
-        "@tailwindcss/postcss": "npm:@tailwindcss/postcss@^4.0.0",
-        "postcss": "npm:postcss@^8.4.49",
-        "postcss-cli": "npm:postcss-cli@^11.0.0"
+        "@tailwindcss/cli": "npm:@tailwindcss/cli@next"
     },
     "unstable": [
         "kv"
