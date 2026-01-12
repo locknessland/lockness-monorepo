@@ -5,6 +5,8 @@
 
 @import "tailwindcss";
 
+@source "../../**/*.tsx";
+
 /* Your custom styles here */
 
 @custom-variant dark (&:is(.dark *));
