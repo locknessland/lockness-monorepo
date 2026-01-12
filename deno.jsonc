@@ -1,7 +1,7 @@
 {
     "description": "Lockness Project Monorepo which contains all packages",
     "license": "MIT",
-    "version": "0.1.18",
+    "version": "0.1.19",
     "workspace": [
         "./lockness/core",
         "./lockness/hono",
