@@ -59,9 +59,9 @@
         "drizzle-zod": "npm:drizzle-zod@^0.5.1",
         "drizzle-kit": "npm:drizzle-kit@beta",
         "@tailwindcss/cli": "npm:@tailwindcss/cli@4.1",
-        "@lockness/core": "jsr:@lockness/core@^0.1.18",
+        "@lockness/core": "jsr:@lockness/core@^0.1.19",
         "zod": "npm:zod@^4.2.1",
-        "@hono/zod-validator": "jsr:@lockness/hono@^0.1.18"
+        "@hono/zod-validator": "jsr:@lockness/hono@^0.1.19"
     },
     "unstable": [
         "kv"
@@ -87,6 +87,11 @@
     },
     "allowScripts": {
         "allow": [],
-        "deny": ["npm:@parcel/watcher@2.5.4", "npm:esbuild@0.25.12", "npm:esbuild@0.27.2", "npm:fsevents@2.3.3"]
+        "deny": [
+            "npm:@parcel/watcher@2.5.4",
+            "npm:esbuild@0.25.12",
+            "npm:esbuild@0.27.2",
+            "npm:fsevents@2.3.3"
+        ]
     }
 }
