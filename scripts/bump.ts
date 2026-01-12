@@ -127,9 +127,9 @@ console.log('🔧 Mise à jour des fichiers stubs...')
 
 // Étape 3: Met à jour les versions dans les fichiers .stub
 const stubFiles = []
-for await (const entry of Deno.readDir('lockness')) {
+for await (const entry of Deno.readDir('packages')) {
     if (entry.isDirectory) {
-        const stubsPath = `lockness/${entry.name}/stubs`
+        const stubsPath = `packages/${entry.name}/stubs`
         try {
             for await (
                 const walkEntry of Deno.readDir(stubsPath)

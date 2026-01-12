@@ -18,12 +18,13 @@
     "npm:@aws-sdk/s3-request-presigner@^3.709.0": "3.966.0",
     "npm:@hono/zod-validator@~0.7.6": "0.7.6_hono@4.11.3_zod@4.3.5",
     "npm:@tailwindcss/cli@4.1": "4.1.18",
-    "npm:@tailwindcss/cli@next": "4.0.0",
+    "npm:@tailwindcss/cli@^4.1.18": "4.1.18",
     "npm:drizzle-kit@beta": "1.0.0-beta.10-4a43a22",
     "npm:drizzle-orm@~0.36.3": "0.36.4_postgres@3.4.8",
     "npm:drizzle-zod@~0.5.1": "0.5.1_drizzle-orm@0.36.4__postgres@3.4.8_zod@4.3.5_postgres@3.4.8",
     "npm:hono@^4.11.1": "4.11.3",
     "npm:postgres@^3.4.4": "3.4.8",
+    "npm:tailwindcss@^4.1.18": "4.1.18",
     "npm:zod@^4.2.1": "4.3.5"
   },
   "jsr": {
@@ -1489,20 +1490,6 @@
         "tslib"
       ]
     },
-    "@tailwindcss/cli@4.0.0": {
-      "integrity": "sha512-nh6kzSTalHf9yk6WNsS4MMZakSINsncNQXsSJthvcPI4x+yajEaNQvS2uUti3PGLbsmlGoUvjhnGTBpzh7H0bA==",
-      "dependencies": [
-        "@parcel/watcher",
-        "@tailwindcss/node",
-        "@tailwindcss/oxide",
-        "enhanced-resolve",
-        "lightningcss",
-        "mri",
-        "picocolors",
-        "tailwindcss@4.0.0"
-      ],
-      "bin": true
-    },
     "@tailwindcss/cli@4.1.18": {
       "integrity": "sha512-sMZ+lZbDyxwjD2E0L7oRUjJ01Ffjtme5OtjvvnC+cV4CEDcbqzbp25TCpxHj6kWLU9+DlqJOiNgSOgctC2aZmg==",
       "dependencies": [
@@ -1512,7 +1499,7 @@
         "enhanced-resolve",
         "mri",
         "picocolors",
-        "tailwindcss@4.1.18"
+        "tailwindcss"
       ],
       "bin": true
     },
@@ -1525,7 +1512,7 @@
         "lightningcss",
         "magic-string",
         "source-map-js",
-        "tailwindcss@4.1.18"
+        "tailwindcss"
       ]
     },
     "@tailwindcss/oxide-android-arm64@4.1.18": {
@@ -1853,9 +1840,6 @@
     "strnum@2.1.2": {
       "integrity": "sha512-l63NF9y/cLROq/yqKXSLtcMeeyOfnSQlfMSlzFt/K73oIaD8DGaQWd7Z34X9GPiKqP5rbSh84Hl4bOlLcjiSrQ=="
     },
-    "tailwindcss@4.0.0": {
-      "integrity": "sha512-ULRPI3A+e39T7pSaf1xoi58AqqJxVCLg8F/uM5A3FadUbnyDTgltVnXJvdkTjwCOGA6NazqHVcwPJC5h2vRYVQ=="
-    },
     "tailwindcss@4.1.18": {
       "integrity": "sha512-4+Z+0yiYyEtUVCScyfHCxOYP06L5Ne+JiHhY2IjR2KWMIWhJOYZKLSGZaP5HkZ8+bY0cxfzwDE5uOmzFXyIwxw=="
     },
@@ -1889,39 +1873,40 @@
       "jsr:@std/fs@1",
       "jsr:@std/jsonc@1",
       "jsr:@std/path@1",
-      "npm:@tailwindcss/cli@4.1",
+      "npm:@tailwindcss/cli@^4.1.18",
       "npm:drizzle-kit@beta",
       "npm:drizzle-orm@~0.36.3",
       "npm:drizzle-zod@~0.5.1",
       "npm:postgres@^3.4.4",
+      "npm:tailwindcss@^4.1.18",
       "npm:zod@^4.2.1"
     ],
     "members": {
-      "lockness/auth": {
+      "packages/auth": {
         "dependencies": [
           "jsr:@lockness/hono@~0.1.19",
           "jsr:@std/assert@1",
           "npm:drizzle-orm@~0.36.3"
         ]
       },
-      "lockness/cache": {
+      "packages/cache": {
         "dependencies": [
           "jsr:@std/assert@1"
         ]
       },
-      "lockness/cli": {
+      "packages/cli": {
         "dependencies": [
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
         ]
       },
-      "lockness/container": {
+      "packages/container": {
         "dependencies": [
           "jsr:@std/assert@1"
         ]
       },
-      "lockness/core": {
+      "packages/core": {
         "dependencies": [
           "jsr:@lockness/hono@~0.1.19",
           "jsr:@std/assert@1",
@@ -1930,38 +1915,38 @@
           "jsr:@std/testing@1"
         ]
       },
-      "lockness/deprecation-contracts": {
+      "packages/deprecation-contracts": {
         "dependencies": [
           "jsr:@lockness/container@~0.1.19",
           "jsr:@lockness/logger@~0.1.19",
           "jsr:@std/assert@1"
         ]
       },
-      "lockness/devtools": {
+      "packages/devtools": {
         "dependencies": [
           "jsr:@lockness/core@~0.1.19",
           "jsr:@lockness/hono@~0.1.19"
         ]
       },
-      "lockness/drizzle": {
+      "packages/drizzle": {
         "dependencies": [
           "jsr:@std/path@1",
           "npm:drizzle-orm@~0.36.3",
           "npm:postgres@^3.4.4"
         ]
       },
-      "lockness/events": {
+      "packages/events": {
         "dependencies": [
           "jsr:@std/assert@1"
         ]
       },
-      "lockness/hono": {
+      "packages/hono": {
         "dependencies": [
           "npm:@hono/zod-validator@~0.7.6",
           "npm:hono@^4.11.1"
         ]
       },
-      "lockness/init": {
+      "packages/init": {
         "dependencies": [
           "jsr:@std/expect@1",
           "jsr:@std/fs@1",
@@ -1969,35 +1954,35 @@
           "jsr:@std/testing@1"
         ]
       },
-      "lockness/logger": {
+      "packages/logger": {
         "dependencies": [
           "jsr:@std/assert@1"
         ]
       },
-      "lockness/mail": {
+      "packages/mail": {
         "dependencies": [
           "jsr:@std/assert@1"
         ]
       },
-      "lockness/openapi": {
+      "packages/openapi": {
         "dependencies": [
           "jsr:@lockness/core@~0.1.19",
           "jsr:@lockness/hono@~0.1.19",
           "jsr:@std/assert@1"
         ]
       },
-      "lockness/queue": {
+      "packages/queue": {
         "dependencies": [
           "jsr:@std/assert@1"
         ]
       },
-      "lockness/session": {
+      "packages/session": {
         "dependencies": [
           "jsr:@lockness/hono@~0.1.19",
           "jsr:@std/assert@1"
         ]
       },
-      "lockness/socialite": {
+      "packages/socialite": {
         "dependencies": [
           "jsr:@lockness/hono@~0.1.19",
           "jsr:@std/assert@1",
@@ -2005,7 +1990,7 @@
           "jsr:@std/testing@1"
         ]
       },
-      "lockness/storage": {
+      "packages/storage": {
         "dependencies": [
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
@@ -2014,7 +1999,7 @@
           "npm:@aws-sdk/s3-request-presigner@^3.709.0"
         ]
       },
-      "lockness/validator": {
+      "packages/validator": {
         "dependencies": [
           "jsr:@std/assert@1"
         ]

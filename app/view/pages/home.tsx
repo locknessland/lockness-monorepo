@@ -1,6 +1,6 @@
 import { route } from '@lockness/core'
 import { LandingLayout } from '../layouts/landing_layout.tsx'
-import pkg from '../../../lockness/core/deno.json' with { type: 'json' }
+import pkg from '../../../packages/core/deno.json' with { type: 'json' }
 
 // Icons as components
 const _CodeIcon = () => (
@@ -824,7 +824,7 @@ export const Home = () => {
                                 <Type>Validate</Type>{' '}
                                 <Punctuation>{'}'}</Punctuation>{' '}
                                 <Keyword>from</Keyword>{' '}
-                                <String>''lockness/core'</String>
+                                <String>'@lockness/core'</String>
                                 {'\n'}
                                 <Keyword>import</Keyword>{' '}
                                 <Punctuation>{'{'}</Punctuation>{' '}
@@ -960,7 +960,7 @@ export const Home = () => {
                                 {' '}
                                 <Punctuation>{'}'}</Punctuation>{' '}
                                 <Keyword>from</Keyword>{' '}
-                                <String>''lockness/core'</String>
+                                <String>'@lockness/core'</String>
                                 {'\n'}
                                 <Keyword>import</Keyword>{' '}
                                 <Punctuation>{'{'}</Punctuation>{' '}
@@ -969,7 +969,7 @@ export const Home = () => {
                                 <Func>session</Func>{' '}
                                 <Punctuation>{'}'}</Punctuation>{' '}
                                 <Keyword>from</Keyword>{' '}
-                                <String>'lockness/core'</String>
+                                <String>'@lockness/core'</String>
                                 {'\n'}
                                 {'\n'}
                                 <Decorator>@Controller</Decorator>

@@ -6,7 +6,7 @@ of the framework requires understanding how the workspace is structured.
 ## Monorepo Structure
 
 The project uses **Deno Workspaces** to manage multiple internal libraries. All
-core libraries are located in the `lockness/` directory:
+core libraries are located in the `packages/` directory:
 
 - `@lockness/core`: The web framework core (routing, controllers, etc.)
 - `@lockness/auth`: Authentication system

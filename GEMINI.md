@@ -91,7 +91,8 @@ own Hono version to ensure compatibility.
 ```json
 "imports": {
     "@lockness/core": "jsr:@lockness/core@^0.1.0",
-    "@tailwindcss/cli": "npm:@tailwindcss/cli@4.1"
+    "tailwindcss": "npm:tailwindcss@^4.1",
+    "@tailwindcss/cli": "npm:@tailwindcss/cli@^4.1"
 }
 ```
 
@@ -214,8 +215,27 @@ Configuration in `deno.json`:
         "css:watch": "deno run -A npm:@tailwindcss/cli@4.1 -i app/view/assets/app.css -o public/css/app.css --watch"
     },
     "imports": {
-        "@tailwindcss/cli": "npm:@tailwindcss/cli@4.1"
+        "tailwindcss": "npm:tailwindcss@^4.1",
+        "@tailwindcss/cli": "npm:@tailwindcss/cli@^4.1"
     }
+}
+```
+
+**Important:** Both packages are required:
+- `tailwindcss` - The core Tailwind CSS engine (needed for `@import "tailwindcss"`)
+- `@tailwindcss/cli` - The standalone CLI tool for compilation
+
+Your CSS file (`app/view/assets/app.css`) should start with:
+
+```css
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Your custom CSS variables and styles */
+:root {
+    --background: oklch(0.9821 0 0);
+    /* ... */
 }
 ```
 
@@ -1282,7 +1302,7 @@ Eloquent.
 
 ```text
 .
-├── lockness/              # 📦 Modular Framework Libraries
+├── packages/              # 📦 Modular Framework Libraries
 │   ├── core/              # Core Web & DI logic
 │   ├── cli/               # CLI Command Engine (Cli)
 │   ├── drizzle/           # Drizzle ORM Extension
@@ -1301,7 +1321,7 @@ Eloquent.
 └── deno.json              # Config & Aliases
 ```
 
-- **`lockness/`**: Contains the decoupled libraries. This modularity allows for
+- **`packages/`**: Contains the decoupled libraries. This modularity allows for
   an ORM-agnostic core while providing official extensions like
   `lockness-drizzle`.
 - **Root Files & `app/`**: Boilerplate structure generated for users.
@@ -1318,11 +1338,11 @@ Eloquent.
   stubs (see `STUBS.md`), always update the stub templates as well. This ensures
   that newly scaffolded projects stay in sync with the framework's latest
   features. Key mappings:
-  - `app/kernel.ts` → `lockness/init/stubs/init/app/kernel.ts.stub`
-  - `deno.json` → `lockness/init/stubs/init/deno.json.stub`
-  - `README.md` → `lockness/init/stubs/init/README.md.stub`
-  - `make:*` command outputs → corresponding stubs in `lockness/cli/stubs/` and
-    `lockness/drizzle/stubs/`
+  - `app/kernel.ts` → `packages/init/stubs/init/app/kernel.ts.stub`
+  - `deno.json` → `packages/init/stubs/init/deno.json.stub`
+  - `README.md` → `packages/init/stubs/init/README.md.stub`
+  - `make:*` command outputs → corresponding stubs in `packages/cli/stubs/` and
+    `packages/drizzle/stubs/`
 
 ## 🛠 Development Stack
 
@@ -1484,10 +1504,10 @@ single source of truth for development.
 
 ### Workspace Structure
 
-- `lockness/`: Each subdirectory is an independent Deno package.
-- `lockness/*/mod.ts`: Every library MUST use `mod.ts` as its main entry point
+- `packages/`: Each subdirectory is an independent Deno package.
+- `packages/*/mod.ts`: Every library MUST use `mod.ts` as its main entry point
   (standardized convention).
-- `lockness/*/deno.json`: Package configuration including name (e.g.,
+- `packages/*/deno.json`: Package configuration including name (e.g.,
   `@lockness/core`), version, and exports.
 
 ### Unified Development
