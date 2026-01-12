@@ -119,29 +119,27 @@ controllers.
 
 #### Development Mode
 
-In development (`deno task dev`), the framework launches three parallel
-processes:
+Lockness uses a **multi-terminal development workflow** for optimal stability. Each process runs in its own terminal:
 
-1. **CSS Watcher**: Compiles CSS on file changes (Tailwind v4.1 for monorepo,
-   PostCSS for generated projects)
-2. **Routes Watcher**: Auto-detects new controllers and updates routes registry
-3. **Deno Server**: Hot-reload enabled with native Deno watch mode
-
-All processes run concurrently via `scripts/dev.sh`:
-
+**Terminal 1 - CSS Watcher:**
 ```bash
-#!/bin/bash
-trap 'kill $(jobs -p) 2>/dev/null' EXIT
-
-# CSS watcher
-deno task css:watch &
-
-# Routes watcher
-deno task routes:watch &
-
-# Deno server (foreground)
-deno run -A --watch --env main.ts
+deno task css:watch
 ```
+Compiles CSS on file changes (Tailwind v4.1 for monorepo, PostCSS for generated projects)
+
+**Terminal 2 - Routes Watcher:**
+```bash
+deno task routes:watch
+```
+Auto-detects new controllers and updates routes registry
+
+**Terminal 3 - Development Server:**
+```bash
+deno task dev
+```
+Runs the Deno server with hot-reload enabled
+
+**Why separate terminals?** Running multiple file watchers concurrently in a single shell script can cause I/O conflicts and prevent proper file detection. Separate terminals ensure each watcher has dedicated process isolation and reliable file system monitoring.
 
 #### Automatic Route Generation
 
