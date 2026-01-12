@@ -266,7 +266,7 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ;(this.hono as any)[route.method](
+            ; (this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
@@ -331,8 +331,7 @@ export class App {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${
-                    (error as Error).message
+                `❌ Error during controller discovery: ${(error as Error).message
                 }`,
             )
         }
@@ -400,8 +399,7 @@ export class App {
                             }
                         } catch (e) {
                             console.error(
-                                `  ⚠️  Failed to force release port ${port}: ${
-                                    (e as Error).message
+                                `  ⚠️  Failed to force release port ${port}: ${(e as Error).message
                                 }`,
                             )
                         }
@@ -416,9 +414,9 @@ export class App {
   1. Kill the process using this port:
      lsof -ti:${port} | xargs kill -9
   2. Use the --force flag to let Lockness do it for you:
-     deno task start -- --force
+     deno task dev -- --force
   3. Use a different port by setting the PORT environment variable:
-     PORT=9999 deno task start
+     PORT=9999 deno task dev
                 \x1b[0m`)
                     Deno.exit(1)
                 }

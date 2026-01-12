@@ -2,7 +2,7 @@
     "workspace": [],
     "nodeModulesDir": "auto",
     "tasks": {
-        "dev": "bash scripts/dev.sh",
+        "dev": "deno run -A --watch --env main.ts",
         "build": "deno task css:build",
         "start": "deno run -A --env-file=.env.production.local main.ts",
         "cli": "deno run -A --env cli.ts",
