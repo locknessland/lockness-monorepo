@@ -63,8 +63,6 @@ export function enableDevtools(
         return
     }
 
-    console.log(`[Devtools] Registering routes on basePath: ${cfg.basePath}`)
-
     // Extract Hono instance
     const honoApp = 'getHono' in app ? app.getHono() : app
 
@@ -109,7 +107,6 @@ export function collectAppRoutes(app: { getRoutes: () => RouteInfo[] }) {
     const routes = app.getRoutes()
     if (routes.length > 0) {
         collector.setRoutes(routes)
-        console.log(`[Devtools] Collected ${routes.length} routes`)
     }
 }
 
