@@ -12,12 +12,6 @@ const INIT_STUB_FILES = [
     'Dockerfile.stub',
     'main.ts.stub',
     'public/img/lockness-logo.svg',
-    'public/favicon.ico',
-    'public/favicon-16x16.png',
-    'public/favicon-32x32.png',
-    'public/apple-touch-icon.png',
-    'public/android-chrome-192x192.png',
-    'public/android-chrome-512x512.png',
     'README.md.stub',
     'scripts/dev.sh.stub',
     'scripts/generate_routes.ts.stub',
@@ -30,6 +24,16 @@ const INIT_STUB_FILES = [
     'app/view/components/ui.tsx.stub',
     'app/view/layouts/main_layout.tsx.stub',
     'app/view/pages/home.tsx.stub',
+]
+
+// Binary files that need special handling (not included in remote scaffolding)
+const BINARY_FILES = [
+    'public/favicon.ico',
+    'public/favicon-16x16.png',
+    'public/favicon-32x32.png',
+    'public/apple-touch-icon.png',
+    'public/android-chrome-192x192.png',
+    'public/android-chrome-512x512.png',
 ]
 
 export function registerInitCommand(cli: Cli) {
@@ -57,6 +61,20 @@ export function registerInitCommand(cli: Cli) {
                 { projectName: String(projectName) },
                 isRemote ? INIT_STUB_FILES : undefined,
             )
+
+            // Copy binary files (only in local mode, as they can't be read as text)
+            if (!isRemote) {
+                for (const file of BINARY_FILES) {
+                    try {
+                        const sourcePath = join(stubsDir, file)
+                        const targetPath = join(projectName, file)
+                        await Deno.mkdir(dirname(targetPath), { recursive: true })
+                        await Deno.copyFile(sourcePath, targetPath)
+                    } catch (error) {
+                        console.warn(`⚠️  Could not copy binary file ${file}: ${(error as Error).message}`)
+                    }
+                }
+            }
 
             // Create empty directories that might not be in stubs
             const dirs = [

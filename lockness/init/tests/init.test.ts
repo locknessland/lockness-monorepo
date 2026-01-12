@@ -65,11 +65,17 @@ describe('init command', () => {
             // Check that main directories exist
             expect(existsSync('test-project')).toBe(true)
             expect(existsSync('test-project/app')).toBe(true)
-            expect(existsSync('test-project/app/model')).toBe(true)
-            expect(existsSync('test-project/app/service')).toBe(true)
-            expect(existsSync('test-project/app/middleware')).toBe(true)
-            expect(existsSync('test-project/app/repository')).toBe(true)
             expect(existsSync('test-project/public')).toBe(true)
+            expect(existsSync('test-project/scripts')).toBe(true)
+
+            // Check that optional directories are not created by default
+            expect(existsSync('test-project/app/model')).toBe(false)
+            expect(existsSync('test-project/app/service')).toBe(false)
+            expect(existsSync('test-project/app/middleware')).toBe(false)
+            expect(existsSync('test-project/app/repository')).toBe(false)
+
+            // Check that static directory is not created
+            expect(existsSync('test-project/static')).toBe(false)
         } finally {
             Deno.chdir(originalCwd)
         }
@@ -245,6 +251,43 @@ describe('init command', () => {
             expect(dockerignore).toContain('.git')
             expect(dockerignore).toContain('.env')
             expect(dockerignore).toContain('coverage')
+        } finally {
+            Deno.chdir(originalCwd)
+        }
+    })
+
+    it('creates binary files (favicon, images) correctly', async () => {
+        const { registerInitCommand } = await import('../mod.ts')
+
+        let capturedHandler: ((args: string[]) => Promise<void>) | null = null
+        const cliMock = {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
+                capturedHandler = handler
+            },
+        }
+
+        registerInitCommand(cliMock as never)
+
+        const originalCwd = Deno.cwd()
+        Deno.chdir(TEST_DIR)
+
+        try {
+            await capturedHandler!(['binary-test'])
+
+            // Check that binary files exist
+            expect(existsSync('binary-test/public/favicon.ico')).toBe(true)
+            expect(existsSync('binary-test/public/favicon-16x16.png')).toBe(true)
+            expect(existsSync('binary-test/public/favicon-32x32.png')).toBe(true)
+            expect(existsSync('binary-test/public/apple-touch-icon.png')).toBe(true)
+            expect(existsSync('binary-test/public/android-chrome-192x192.png')).toBe(true)
+            expect(existsSync('binary-test/public/android-chrome-512x512.png')).toBe(true)
+
+            // Verify that files are not empty (basic check)
+            const faviconStats = await Deno.stat('binary-test/public/favicon.ico')
+            expect(faviconStats.size).toBeGreaterThan(0)
         } finally {
             Deno.chdir(originalCwd)
         }
