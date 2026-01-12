@@ -5,10 +5,10 @@
 trap 'kill $(jobs -p) 2>/dev/null' EXIT
 
 # Start CSS watcher in background
-deno run -A npm:postcss-cli@11 app/view/assets/app.css -o public/css/app.css --watch &
+deno task css:watch &
 
 # Start Routes watcher in background
-deno run -A scripts/watch_routes.ts &
+deno task routes:watch &
 
 # Start Deno server (foreground)
 deno run -A --watch --env main.ts
