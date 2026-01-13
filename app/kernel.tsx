@@ -79,11 +79,5 @@ export const bootstrap = async () => {
         collectAppRoutes(app)
     }
 
-    // Add 404 handler (AFTER init so it's registered last)
-    app.getHono().notFound((c) => {
-        // deno-lint-ignore no-explicit-any
-        return errorHandler(new Error('Not Found'), c as any)
-    })
-
     return app
 }
