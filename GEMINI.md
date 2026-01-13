@@ -131,21 +131,18 @@ deno task css:watch
 Compiles CSS on file changes (Tailwind v4.1 for monorepo, PostCSS for generated
 projects)
 
-**Terminal 2 - Routes Watcher:**
-
-```bash
-deno task routes:watch
-```
-
-Auto-detects new controllers and updates routes registry
-
-**Terminal 3 - Development Server:**
+**Terminal 2 - Development Server:**
 
 ```bash
 deno task dev
 ```
 
 Runs the Deno server with hot-reload enabled
+
+**Routes are automatically updated** when you create or modify controllers. The
+routes registry (`app/routes.ts`) is regenerated on-the-fly without a separate
+watcher. The `deno task routes:watch` command exists but is typically not needed
+during development.
 
 **Why separate terminals?** Running multiple file watchers concurrently in a
 single shell script can cause I/O conflicts and prevent proper file detection.

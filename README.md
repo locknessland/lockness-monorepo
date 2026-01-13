@@ -14,15 +14,16 @@ each watcher in a separate terminal:
 # Terminal 1: CSS Watcher
 deno task css:watch
 
-# Terminal 2: Routes Watcher
-deno task routes:watch
-
-# Terminal 3: Development Server
+# Terminal 2: Development Server
 deno task dev
 ```
 
-The `dev` task runs the main server with hot-reload. The CSS and routes watchers
-rebuild assets automatically when files change.
+The `dev` task runs the main server with hot-reload. The CSS watcher rebuilds
+styles automatically when files change.
+
+**Routes are automatically updated** when you create or modify controllers - no
+separate watcher needed. The `deno task routes:watch` command exists but is
+optional.
 
 **Why separate terminals?** Each watcher needs its own process to function
 properly. Running them concurrently in a single script can cause conflicts in
