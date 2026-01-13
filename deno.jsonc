@@ -27,7 +27,7 @@
     "tasks": {
         "dev": "deno run -A --watch --env main.ts",
         "build": "deno task css:build",
-        "compile": "deno task routes:generate && deno task css:build && deno compile --output=_dist/lockness --env-file=.env.production.local -A main.ts",
+        "compile": "deno task routes:generate && deno task css:build && deno compile --output=_dist/lockness --env-file=.env.production.local -A main.ts && cp -r public _dist/",
         "start": "deno run -A --env-file=.env.production.local main.ts",
         "cli": "deno run -A --env cli.ts",
         "css:build": "deno run -A @tailwindcss/cli -i app/view/assets/app.css -o public/css/app.css",

@@ -197,10 +197,6 @@ export class App {
             controllers = await this.discoverControllers(config.controllersDir)
         }
 
-        if ('staticDir' in config && config.staticDir) {
-            this.static('/*', config.staticDir)
-        }
-
         // Apply global middlewares to all routes
         const globalHandlers = globalMiddlewares
             .map((M) => this.resolveMiddleware(M))
@@ -341,11 +337,17 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ;(this.hono as any)[route.method](
+            ; (this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
             )
+        }
+
+        // Register static files AFTER routes but BEFORE notFound handler
+        // This ensures proper priority: routes -> static files -> 404
+        if ('staticDir' in config && config.staticDir) {
+            this.static('/*', config.staticDir)
         }
 
         // Register notFound handler LAST, after all routes and static files
@@ -416,8 +418,7 @@ export class App {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${
-                    (error as Error).message
+                `❌ Error during controller discovery: ${(error as Error).message
                 }`,
             )
         }
@@ -485,8 +486,7 @@ export class App {
                             }
                         } catch (e) {
                             console.error(
-                                `  ⚠️  Failed to force release port ${port}: ${
-                                    (e as Error).message
+                                `  ⚠️  Failed to force release port ${port}: ${(e as Error).message
                                 }`,
                             )
                         }
