@@ -56,8 +56,9 @@ Create a standalone executable for VPS or self-hosted environments:
 deno task compile
 ```
 
-This generates `_dist/lockness` (~83MB) - a fully self-contained binary that
-includes the Deno runtime and all dependencies. Not needed for Deno Deploy.
+This generates `_dist/lockness` (~92MB) - a fully self-contained binary that
+includes the Deno runtime, all dependencies, and copies the `public/` folder for
+static assets. Not needed for Deno Deploy.
 
 ### Deno Deploy
 

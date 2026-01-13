@@ -102,6 +102,45 @@ export class UserController {
 }
 ```
 
+### Error Handling
+
+Lockness automatically discovers custom error handlers without requiring manual
+registration.
+
+**Auto-Discovery:**
+
+The framework checks for a custom error handler at
+`app/view/pages/errors/error_handler.tsx`. If found, it's used automatically.
+
+**Creating Custom Error Pages:**
+
+```bash
+deno task cli make:error-pages
+```
+
+**Using Built-in Error Formatting:**
+
+```typescript
+import { Context, formatErrorForConsole, HTTPException } from '@lockness/core'
+
+export function errorHandler(error: Error, c: Context) {
+    const status = error instanceof HTTPException ? error.status : 500
+
+    // Clean console output with appropriate detail level
+    formatErrorForConsole(error, status, c.req.path, {
+        showStackTrace: status >= 500,
+    })
+
+    // Return appropriate error page
+    return c.html(<ErrorPage />, status)
+}
+```
+
+**Default Error Handler:**
+
+If no custom handler exists, the framework provides elegant default error pages
+with inline CSS (no framework dependencies).
+
 ### Request Validation
 
 Use the `@Validate` decorator to ensure incoming data matches your Zod schemas.
@@ -143,7 +182,8 @@ await app.init({ controllersDir: './app/controller' })
 
 - `app.useMiddleware(...middlewares)`: Add global middlewares (applied to all
   routes)
-- `app.useErrorHandler(handler)`: Set custom error handler
+- `app.useErrorHandler(handler)`: Set custom error handler (optional -
+  auto-discovers `app/view/pages/errors/error_handler.tsx` if present)
 - `app.isDevelopment`: Check if running in development mode
 - `app.isProduction`: Check if running in production mode
 

@@ -369,11 +369,29 @@ deno task compile
 The compilation process:
 
 1. Generates `app/routes.ts` with explicit controller imports
-2. Compiles to binary (includes all controllers, services, views)
-3. Binary uses static imports (no runtime discovery)
+2. Builds production CSS assets
+3. Copies `public/` folder to `_dist/` for static file serving
+4. Compiles to binary (includes all controllers, services, views)
+5. Binary uses static imports (no runtime discovery)
 
-Output: `_dist/lockness` (~83MB) - fully self-contained executable including the
-Deno runtime and all dependencies.
+Output: `_dist/lockness` (~92MB) - fully self-contained executable including the
+Deno runtime, all dependencies, and static assets.
+
+**Important:** The compiled binary looks for static files in the `public/`
+directory relative to its location. The compile task automatically copies the
+public folder to `_dist/public/` to ensure CSS, images, and other assets are
+available.
+
+**Deploying the Binary:**
+
+```bash
+# Copy the entire _dist folder to your server
+scp -r _dist/ user@server:/opt/myapp/
+
+# On the server, run the binary
+cd /opt/myapp/_dist
+./lockness
+```
 
 **Option 3: Direct Execution**
 
@@ -695,6 +713,110 @@ return c.redirect(route('auth.login'))
 
 The `./nessy router:list` command displays all route names in a dedicated
 column.
+
+### Error Handling
+
+Lockness provides a comprehensive error handling system with automatic
+discovery, elegant error pages, and clean console output.
+
+#### Auto-Discovery of Custom Error Handlers
+
+The framework automatically detects custom error handlers without requiring
+manual registration in your kernel. This follows the same zero-configuration
+philosophy as frameworks like AdonisJS and Symfony.
+
+**How it works:**
+
+When your application starts, `@lockness/core` automatically checks for a custom
+error handler at:
+
+```
+app/view/pages/errors/error_handler.tsx
+```
+
+If found, it's used automatically. If not, the framework uses its built-in
+default error handler.
+
+**Creating Custom Error Pages:**
+
+```bash
+# Generate error pages with inline CSS (framework-agnostic)
+deno task cli make:error-pages
+```
+
+This creates:
+
+- `app/view/pages/errors/error_handler.tsx` - Main error handler
+- `app/view/pages/errors/not_found.tsx` - 404 page
+- `app/view/pages/errors/unauthorized.tsx` - 401 page
+- `app/view/pages/errors/forbidden.tsx` - 403 page
+- `app/view/pages/errors/server_error.tsx` - 500 page
+
+**Example Custom Error Handler:**
+
+```typescript
+// app/view/pages/errors/error_handler.tsx
+import { Context, formatErrorForConsole, HTTPException } from '@lockness/core'
+import { NotFoundPage } from './not_found.tsx'
+import { ServerErrorPage } from './server_error.tsx'
+
+export function errorHandler(error: Error, c: Context) {
+    // Use the centralized error formatter
+    formatErrorForConsole(error, 500, c.req.path)
+
+    if (error instanceof HTTPException) {
+        const status = error.status
+
+        if (status === 404) {
+            return c.html(<NotFoundPage />, 404)
+        }
+        // Handle other status codes...
+    }
+
+    return c.html(<ServerErrorPage />, 500)
+}
+```
+
+**Built-in Error Formatting:**
+
+The `formatErrorForConsole()` utility provides clean, color-coded console
+output:
+
+```typescript
+import { formatErrorForConsole } from '@lockness/core'
+
+// In your error handler
+formatErrorForConsole(error, status, path, {
+    showStackTrace: status >= 500, // Show trace for 5xx errors
+})
+```
+
+Output examples:
+
+- **404 errors**: Minimal logging `⚠️ 404 Not Found: /api/users/999`
+- **401/403 errors**: Simple message with path
+- **500 errors**: Full error details with condensed stack trace
+
+**Default Error Pages:**
+
+If you don't create custom error pages, the framework provides elegant default
+pages with:
+
+- Clean, responsive design using inline CSS (no framework dependencies)
+- Appropriate HTTP status codes
+- User-friendly error messages
+- System fonts for zero external dependencies
+
+**Key Benefits:**
+
+1. **Zero Configuration**: No need to import or register error handlers in your
+   kernel
+2. **Framework Agnostic**: Generated error page templates use inline CSS, no
+   Tailwind/framework dependencies
+3. **Clean Console Output**: Elegant, color-coded error logging that respects
+   error severity
+4. **Automatic Fallback**: Built-in default error handler if no custom handler
+   exists
 
 ### Session Management
 

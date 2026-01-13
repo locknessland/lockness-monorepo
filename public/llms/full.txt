@@ -646,6 +646,127 @@ export class PostWebController {
 }
 ```
 
+## Error Handling
+
+Lockness provides automatic error handler discovery and clean console output.
+
+### Auto-Discovery
+
+The framework automatically detects custom error handlers at:
+`app/view/pages/errors/error_handler.tsx`
+
+No manual registration needed in kernel.tsx - it's convention over configuration.
+
+### Create Custom Error Pages
+
+```bash
+deno task cli make:error-pages
+```
+
+Creates error handler with 404, 401, 403, 500 pages using inline CSS (framework-agnostic).
+
+### Custom Error Handler Example
+
+```typescript
+import { Context, formatErrorForConsole, HTTPException } from '@lockness/core'
+
+export function errorHandler(error: Error, c: Context) {
+    const status = error instanceof HTTPException ? error.status : 500
+    
+    // Clean console output with color-coding
+    formatErrorForConsole(error, status, c.req.path, {
+        showStackTrace: status >= 500,
+    })
+
+    if (error instanceof HTTPException) {
+        switch (status) {
+            case 404: return c.html(<NotFoundPage />, 404)
+            case 401: return c.html(<UnauthorizedPage />, 401)
+            case 403: return c.html(<ForbiddenPage />, 403)
+        }
+    }
+    
+    return c.html(<ServerErrorPage />, 500)
+}
+```
+
+### HTTP Exceptions
+
+```typescript
+// Throw from anywhere
+throw new HTTPException(404, { message: 'User not found' })
+throw new HTTPException(401, { message: 'Invalid credentials' })
+throw new HTTPException(403, { message: 'Access denied' })
+```
+
+### Error Formatting
+
+formatErrorForConsole() provides:
+- 404: Minimal logging (⚠️ 404 Not Found: /path)
+- 401/403: Simple messages
+- 500+: Full stack traces with condensed output
+
+## Deployment
+
+### Option 1: Deno Deploy (Recommended)
+
+```bash
+# Entry Point: main.ts
+# Build Command: deno task routes:generate && deno task css:build
+# Environment Variables: APP_ENV=production, DATABASE_URL=...
+```
+
+Zero configuration, automatic HTTPS, native TypeScript execution.
+
+### Option 2: Standalone Binary
+
+```bash
+deno task compile
+```
+
+Creates self-contained executable (~92MB) in _dist/ folder with:
+- Deno runtime
+- All dependencies
+- Static assets (public/ copied to _dist/public/)
+
+Deploy entire _dist/ folder to server:
+
+```bash
+scp -r _dist/ user@server:/opt/myapp/
+ssh user@server
+cd /opt/myapp/_dist
+./lockness
+```
+
+### Option 3: Direct Execution
+
+```bash
+deno task start
+# Or: deno run -A --env-file=.env.production.local main.ts
+```
+
+### Production Checklist
+
+Environment Variables:
+- APP_ENV=production
+- SESSION_SECRET=strong-random-value
+- DATABASE_URL=postgresql://...
+
+Assets:
+- deno task css:build
+- deno task routes:generate
+
+Security:
+- Disable devtools in kernel.tsx
+- Use HTTPS (automatic with Deno Deploy)
+- Run database migrations
+
+### Troubleshooting
+
+Static Files 404 (Binary): Deploy entire _dist/ folder, not just binary. Public folder must be at _dist/public/.
+
+Routes Not Found: Run `deno task routes:generate` before `deno task compile`.
+
 ## Best Practices
 
 1. **Use Dependency Injection** - Inject services, don't instantiate
@@ -656,6 +777,8 @@ export class PostWebController {
 6. **Environment Variables** - Never commit secrets, use .env
 7. **Migrations** - Always use migrations, never modify database manually
 8. **Type Safety** - Leverage TypeScript and Drizzle's type inference
+9. **Error Handling** - Use HTTPException and formatErrorForConsole()
+10. **Framework-Agnostic Error Pages** - Use inline CSS in error templates
 
 ## Resources
 

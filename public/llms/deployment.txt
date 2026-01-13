@@ -1,0 +1,206 @@
+# Deployment
+
+Lockness provides multiple deployment options to suit different hosting environments and requirements.
+
+## Production Options
+
+### Option 1: Deno Deploy (Recommended)
+
+Deploy directly to Deno Deploy's cloud platform for the simplest production setup.
+
+Benefits:
+- Native TypeScript execution (no compilation needed)
+- Automatic HTTPS and global CDN
+- Zero configuration scaling
+- Built-in environment variable management
+
+Setup:
+1. Connect your GitHub repository to Deno Deploy
+2. Configure the project:
+   - Entry Point: main.ts
+   - Build Command: deno task routes:generate && deno task css:build
+3. Set environment variables:
+   APP_ENV=production
+   APP_PORT=8888
+   DATABASE_URL=postgresql://...
+
+Important: Deno Deploy automatically runs your TypeScript code with full support for TC39 decorators and all Lockness features.
+
+### Option 2: Standalone Binary (VPS/Self-hosted)
+
+Compile your application to a self-contained executable for traditional hosting.
+
+When to use:
+- Deploying to VPS (DigitalOcean, Linode, etc.)
+- Self-hosted infrastructure
+- Air-gapped environments
+- Docker containers
+
+Create the binary:
+```bash
+deno task compile
+```
+
+What happens:
+1. Routes are generated from controllers (app/routes.ts)
+2. CSS assets are built (public/css/app.css)
+3. Public folder is copied to _dist/public/
+4. Application is compiled to _dist/lockness (~92MB)
+5. Binary includes Deno runtime + all dependencies + static assets
+
+Deploy to server:
+```bash
+# Copy entire _dist folder to server
+scp -r _dist/ user@server:/opt/myapp/
+
+# SSH to server and run
+ssh user@server
+cd /opt/myapp/_dist
+./lockness
+```
+
+Important: The binary looks for the public/ folder relative to its location. Always deploy the entire _dist/ directory.
+
+### Option 3: Direct Execution
+
+Run the application directly from source on your server.
+
+```bash
+deno task start
+# Or: deno run -A --env-file=.env.production.local main.ts
+```
+
+When to use:
+- Quick prototypes
+- Internal tools
+- Development staging servers
+
+## Production Checklist
+
+Before deploying, ensure:
+
+### Environment Variables
+
+```bash
+# .env.production or .env.production.local
+APP_ENV=production
+APP_PORT=8888
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
+
+# Optional
+SESSION_SECRET=your-secret-key
+MAIL_DRIVER=smtp
+```
+
+### Assets
+
+- CSS compiled: deno task css:build
+- Routes generated: deno task routes:generate
+- Static files in public/ directory
+
+### Database
+
+```bash
+# Run migrations before deployment
+deno task db:migrate
+```
+
+### Security
+
+- Change SESSION_SECRET to a strong random value
+- Set APP_ENV=production
+- Use HTTPS in production (automatic with Deno Deploy)
+- Disable devtools (check kernel.tsx)
+
+## Docker Deployment
+
+Lockness includes a production-ready Dockerfile:
+
+```bash
+# Build image
+docker build -t my-lockness-app .
+
+# Run container
+docker run -p 8888:8888 --env-file .env.production my-lockness-app
+
+# Custom Deno version
+docker build --build-arg DENO_VERSION=2.7.0 -t my-app .
+```
+
+The Dockerfile:
+- Uses multi-stage build for optimized image size
+- Runs as non-root user for security
+- Includes health checks
+- Properly handles signals for graceful shutdown
+
+## Monitoring
+
+### Health Checks
+
+Add a health endpoint in your application:
+
+```typescript
+@Controller('/health')
+export class HealthController {
+    @Get('/')
+    check(c: Context) {
+        return c.json({ status: 'ok', timestamp: new Date() })
+    }
+}
+```
+
+### Logging
+
+Lockness logs are structured and production-ready:
+
+```typescript
+// In kernel.tsx
+app.useMiddleware(LoggerMiddleware)
+```
+
+### Performance
+
+- Use Deno Deploy's built-in analytics
+- Monitor database query performance with Drizzle logs
+- Enable response caching for static assets
+
+## Troubleshooting
+
+### Static Files Not Loading (Binary Deployment)
+
+Symptom: 404 errors on /css/app.css or other static files
+
+Solution: Ensure the entire _dist/ folder is deployed, not just the binary. The public/ folder must be present at _dist/public/.
+
+Correct deployment structure:
+_dist/
+├── lockness          # Binary
+└── public/           # Static assets
+    └── css/
+        └── app.css
+
+### Routes Not Found
+
+Symptom: 404 errors on valid routes
+
+Solution: Ensure routes were generated before compilation:
+```bash
+deno task routes:generate
+deno task compile
+```
+
+### Environment Variables Not Loaded
+
+Symptom: Application can't find configuration
+
+Solution: Use --env-file flag or set variables in system:
+
+```bash
+# Direct execution
+deno run -A --env-file=.env.production.local main.ts
+
+# Binary (set in system environment)
+export APP_ENV=production
+export DATABASE_URL=...
+./lockness
+```

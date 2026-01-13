@@ -44,6 +44,7 @@ The CLI provides several built-in commands:
 - **`make:controller <name>`** - Generate a controller class
 - **`make:model <name>`** - Generate a model with repository
 - **`make:middleware <name>`** - Generate a middleware
+- **`make:error-pages`** - Generate custom error pages (404, 401, 403, 500)
 - **`route:list`** - Display all registered routes
 - **`package:install <name>`** - Install and configure a Lockness package
 

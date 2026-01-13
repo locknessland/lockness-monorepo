@@ -106,8 +106,9 @@ deno task cli make:view home
 deno task cli make:error-pages
 ```
 
-Creates error pages in `app/view/pages/errors/` with minimal HTML (no styling).
-After generation, configure the error handler in `app/kernel.tsx`.
+Creates error pages in `app/view/pages/errors/` with inline CSS
+(framework-agnostic). The error handler is automatically discovered by the
+framework - no manual registration needed in `app/kernel.tsx`.
 
 **make:crud** - Scaffold complete CRUD (model, repository, service, controller,
 views):
