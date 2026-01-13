@@ -37,12 +37,14 @@ Apply middleware to all routes in `app/kernel.ts`:
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { CorsMiddleware } from '@middleware/cors_middleware.ts'
 
+// Configure global middlewares using fluent API
+app.useMiddleware(
+    LoggerMiddleware,
+    CorsMiddleware,
+)
+
 await app.init({
     controllers,
-    globalMiddlewares: [
-        LoggerMiddleware,
-        CorsMiddleware,
-    ],
 })
 ```
 
@@ -169,7 +171,8 @@ Middleware execution order:
 Example execution order:
 
 ```typescript
-globalMiddlewares: [LoggerMiddleware]
+// Global middlewares via fluent API
+app.useMiddleware(LoggerMiddleware)
 
 @Controller('/api')
 @Use(AuthMiddleware)

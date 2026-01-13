@@ -8,6 +8,7 @@ import type {
     AppConfig,
     Context,
     ControllerClass,
+    ErrorHandler,
     IMiddleware,
     MiddlewareClass,
     MiddlewareInput,
@@ -32,9 +33,43 @@ export class App {
     private hono = new Hono({ strict: false })
     private middlewareRegistry: MiddlewareRegistry = {}
     private routes: RouteInfo[] = []
+    private pendingGlobalMiddlewares: MiddlewareInput[] = []
+    private pendingErrorHandler?: ErrorHandler
 
     constructor() {
         this.hono.use('*', jsxRenderer(({ children }) => children as any))
+    }
+
+    /**
+     * Check if in development mode
+     */
+    get isDevelopment(): boolean {
+        return Deno.env.get('APP_ENV') === 'development'
+    }
+
+    /**
+     * Check if in production mode
+     */
+    get isProduction(): boolean {
+        return Deno.env.get('APP_ENV') === 'production'
+    }
+
+    /**
+     * Add a global middleware using fluent API
+     * @example app.useMiddleware(LoggerMiddleware)
+     */
+    useMiddleware(...middlewares: MiddlewareInput[]): this {
+        this.pendingGlobalMiddlewares.push(...middlewares)
+        return this
+    }
+
+    /**
+     * Set custom error handler using fluent API
+     * @example app.useErrorHandler((error, c) => c.json({ error: error.message }, 500))
+     */
+    useErrorHandler(handler: ErrorHandler): this {
+        this.pendingErrorHandler = handler
+        return this
     }
 
     /**
@@ -104,21 +139,26 @@ export class App {
             this.middlewareRegistry = config.middlewares
         }
 
-        // Register custom error handler if provided
-        if ('errorHandler' in config && config.errorHandler) {
+        // Register custom error handler (prefer fluent API, fallback to config)
+        const errorHandler = this.pendingErrorHandler ||
+            ('errorHandler' in config ? config.errorHandler : undefined)
+        if (errorHandler) {
             this.hono.onError((error, c) => {
-                return config.errorHandler!(error, c as any)
+                return errorHandler(error, c as any)
             })
         }
 
-        // Get global middlewares
-        if ('globalMiddlewares' in config && config.globalMiddlewares) {
-            globalMiddlewares = config.globalMiddlewares
-        }
+        // Merge global middlewares (fluent API + config)
+        globalMiddlewares = [
+            ...this.pendingGlobalMiddlewares,
+            ...('globalMiddlewares' in config && config.globalMiddlewares
+                ? config.globalMiddlewares
+                : []),
+        ]
 
-        if ('controllers' in config) {
+        if ('controllers' in config && config.controllers) {
             controllers = config.controllers
-        } else if (config.controllersDir) {
+        } else if ('controllersDir' in config && config.controllersDir) {
             controllers = await this.discoverControllers(config.controllersDir)
         }
 

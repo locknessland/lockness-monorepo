@@ -1865,8 +1865,8 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@lockness/core@~0.1.19",
-      "jsr:@lockness/hono@~0.1.19",
+      "jsr:@lockness/core@~0.1.20",
+      "jsr:@lockness/hono@~0.1.20",
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
@@ -1883,7 +1883,7 @@
     "members": {
       "packages/auth": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.19",
+          "jsr:@lockness/hono@~0.1.20",
           "jsr:@std/assert@1",
           "npm:drizzle-orm@~0.36.3"
         ]
@@ -1907,7 +1907,7 @@
       },
       "packages/core": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.19",
+          "jsr:@lockness/hono@~0.1.20",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/path@1",
@@ -1916,15 +1916,15 @@
       },
       "packages/deprecation-contracts": {
         "dependencies": [
-          "jsr:@lockness/container@~0.1.19",
-          "jsr:@lockness/logger@~0.1.19",
+          "jsr:@lockness/container@~0.1.20",
+          "jsr:@lockness/logger@~0.1.20",
           "jsr:@std/assert@1"
         ]
       },
       "packages/devtools": {
         "dependencies": [
-          "jsr:@lockness/core@~0.1.19",
-          "jsr:@lockness/hono@~0.1.19"
+          "jsr:@lockness/core@~0.1.20",
+          "jsr:@lockness/hono@~0.1.20"
         ]
       },
       "packages/drizzle": {
@@ -1965,8 +1965,8 @@
       },
       "packages/openapi": {
         "dependencies": [
-          "jsr:@lockness/core@~0.1.19",
-          "jsr:@lockness/hono@~0.1.19",
+          "jsr:@lockness/core@~0.1.20",
+          "jsr:@lockness/hono@~0.1.20",
           "jsr:@std/assert@1"
         ]
       },
@@ -1977,13 +1977,13 @@
       },
       "packages/session": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.19",
+          "jsr:@lockness/hono@~0.1.20",
           "jsr:@std/assert@1"
         ]
       },
       "packages/socialite": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.19",
+          "jsr:@lockness/hono@~0.1.20",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/testing@1"

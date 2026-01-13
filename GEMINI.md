@@ -171,16 +171,21 @@ This happens automatically when you call `app.init()` with `controllersDir`:
 
 ```typescript
 // Development: auto-discovery from directory
+const app = new App()
+app.useMiddleware(sessionMiddleware() /* ... */)
+
 await app.init({
     controllersDir: './app/controller',
-    globalMiddlewares: [/* ... */],
 })
 
 // Production: explicit imports for compilation
 import { controllers } from './app/routes.ts'
+
+const app = new App()
+app.useMiddleware(sessionMiddleware() /* ... */)
+
 await app.init({
     controllers,
-    globalMiddlewares: [/* ... */],
 })
 ```
 
@@ -215,20 +220,12 @@ await app.init({
 - Use the optional `deno task routes:watch` for continuous updates
 
 ```typescript
-// app/kernel.tsx - Conditional routing strategy
-const isDevelopment = Deno.env.get('APP_ENV') === 'development'
-
-if (isDevelopment) {
-    await app.init({
-        controllersDir: './app/controller', // Auto-discovery
-        // ...
-    })
-} else {
-    await app.init({
-        controllers, // Explicit imports from routes.ts
-        // ...
-    })
-}
+// app/kernel.tsx - Simplified conditional routing strategy
+await app.init({
+    controllersDir: app.isDevelopment ? './app/controller' : undefined,
+    controllers: app.isDevelopment ? undefined : controllers,
+    staticDir: 'public',
+})
 ```
 
 **Generated Routes File** (`app/routes.ts`):
@@ -1395,7 +1392,7 @@ Eloquent.
   stubs (see `STUBS.md`), always update the stub templates as well. This ensures
   that newly scaffolded projects stay in sync with the framework's latest
   features. Key mappings:
-  - `app/kernel.ts` → `packages/init/stubs/init/app/kernel.ts.stub`
+  - `app/kernel.tsx` → `packages/init/stubs/init/app/kernel.tsx.stub`
   - `deno.json` → `packages/init/stubs/init/deno.json.stub`
   - `README.md` → `packages/init/stubs/init/README.md.stub`
   - `make:*` command outputs → corresponding stubs in `packages/cli/stubs/` and

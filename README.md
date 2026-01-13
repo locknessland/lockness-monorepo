@@ -195,6 +195,75 @@ import { route } from '@lockness/core'
 const url = route('auth.login') // "/auth/login"
 ```
 
+### Application Kernel
+
+The application kernel (`app/kernel.tsx`) is the central configuration file
+where you bootstrap your Lockness application. It provides a clean, fluent API
+for configuring middleware, error handling, and other core features.
+
+**Basic Configuration:**
+
+```typescript
+import { App, configureSession, sessionMiddleware } from '@lockness/core'
+import { controllers } from './routes.ts'
+
+export const bootstrap = async () => {
+    // Configure session
+    configureSession({
+        driver: 'cookie',
+        secret: Deno.env.get('APP_KEY') || 'change-me',
+        lifetime: 7200,
+    })
+
+    // Create app
+    const app = new App()
+
+    // Configure using fluent API
+    app.useMiddleware(sessionMiddleware())
+
+    // Initialize with controllers
+    await app.init({
+        controllersDir: app.isDevelopment ? './app/controller' : undefined,
+        controllers: app.isDevelopment ? undefined : controllers,
+        staticDir: 'public',
+    })
+
+    return app
+}
+```
+
+**Advanced Configuration:**
+
+```typescript
+import { errorHandler } from '@view/pages/errors/mod.tsx'
+import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
+
+const app = new App()
+
+// Fluent API for middlewares
+app
+    .useMiddleware(
+        sessionMiddleware(),
+        LoggerMiddleware,
+    )
+    .useErrorHandler(errorHandler)
+
+// Enable devtools in development
+if (app.isDevelopment) {
+    enableDevtools(app.getHono())
+}
+```
+
+**Available Helper Properties:**
+
+- `app.isDevelopment` - Check if running in development mode
+- `app.isProduction` - Check if running in production mode
+
+**Fluent API Methods:**
+
+- `app.useMiddleware(...middlewares)` - Add global middlewares
+- `app.useErrorHandler(handler)` - Set custom error handler
+
 ### Automatic Routes System
 
 Lockness automatically discovers and registers controllers in development mode,
@@ -344,7 +413,7 @@ dashboard:
 
 ```typescript
 // In app/kernel.tsx
-if (Deno.env.get('APP_ENV') === 'development') {
+if (app.isDevelopment) {
     enableDevtools(app.getHono())
 }
 ```
@@ -456,9 +525,13 @@ This creates `app/middleware/auth_middleware.ts`.
 
 #### Global Middlewares
 
-Apply middlewares to all routes in `app/kernel.ts`:
+Apply middlewares to all routes using the fluent API or config:
 
 ```typescript
+// Option 1: Fluent API (recommended)
+app.useMiddleware(LoggerMiddleware, CorsMiddleware)
+
+// Option 2: Via config
 await app.init({
     controllers,
     globalMiddlewares: [LoggerMiddleware, CorsMiddleware],
@@ -906,16 +979,27 @@ This creates 4 error page templates in `app/view/pages/errors/`:
 - `forbidden.tsx` (403)
 - `server_error.tsx` (500)
 
-Configure the error handler in `app/kernel.tsx`:
+The command also generates `app/view/pages/errors/mod.tsx` with a centralized
+error handler. Configure it in `app/kernel.tsx`:
 
 ```typescript
-import { NotFoundPage } from '@view/pages/errors/not_found.tsx'
-import { UnauthorizedPage } from '@view/pages/errors/unauthorized.tsx'
-import { ForbiddenPage } from '@view/pages/errors/forbidden.tsx'
-import { ServerErrorPage } from '@view/pages/errors/server_error.tsx'
+import { errorHandler } from '@view/pages/errors/mod.tsx'
 
-const errorHandler = (error: Error, c: Context) => {
-    const status = (error as any).status || 500
+// Option 1: Fluent API (recommended)
+app.useErrorHandler(errorHandler)
+
+// Option 2: Via config
+await app.init({
+    errorHandler,
+    // ... other config
+})
+```
+
+The generated `mod.tsx` file contains:
+
+```typescript
+export const errorHandler = (error: Error, c: Context) => {
+    const status = (error as unknown as { status?: number }).status || 500
     switch (status) {
         case 404:
             return c.html(<NotFoundPage />, 404)
@@ -927,12 +1011,6 @@ const errorHandler = (error: Error, c: Context) => {
             return c.html(<ServerErrorPage error={error} />, 500)
     }
 }
-
-// Add to app.init() config
-await app.init({
-    errorHandler,
-    // ... other config
-})
 ```
 
 Pages are generated with minimal HTML (no styling) so you can customize them

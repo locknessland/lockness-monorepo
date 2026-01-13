@@ -28,9 +28,11 @@ import { App } from 'lockness/core'
 
 const app = new App()
 
+// Configure middlewares using fluent API
+app.useMiddleware(LoggerMiddleware)
+
 await app.init({
     controllersDir: './app/controller',
-    globalMiddlewares: [LoggerMiddleware],
 })
 
 app.listen(8888)
@@ -113,16 +115,37 @@ export class UserController {
 
 ## 🛠 Advanced Configuration
 
-The `app.init()` method accepts a configuration object to customize your
-application:
+### Fluent API
+
+The `App` class provides a fluent API for configuration:
+
+```typescript
+const app = new App()
+
+app
+    .useMiddleware(sessionMiddleware(), LoggerMiddleware)
+    .useErrorHandler(errorHandler)
+
+await app.init({ controllersDir: './app/controller' })
+```
+
+### Available Methods
+
+- `app.useMiddleware(...middlewares)`: Add global middlewares (applied to all
+  routes)
+- `app.useErrorHandler(handler)`: Set custom error handler
+- `app.isDevelopment`: Check if running in development mode
+- `app.isProduction`: Check if running in production mode
+
+### Init Configuration
+
+The `app.init()` method accepts a configuration object:
 
 - `controllers`: Array of controller classes (for production/compilation).
 - `controllersDir`: Directory for auto-discovery (for development).
-- `globalMiddlewares`: Middlewares applied to every route.
+- `staticDir`: Directory for serving static files.
 - `middlewares`: Named middlewares for use with `@Use('name')`.
-- `modules`: Additional Lockness modules to load.
-- `errorHandler`: Custom function for handling application errors.
-- `notFoundHandler`: Custom function for handling 404s.
+- Note: `globalMiddlewares` and `errorHandler` are now configured via fluent API
 
 ## 📚 Technical Reference
 

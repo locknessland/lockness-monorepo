@@ -30,15 +30,16 @@ configureSession({
 })
 ```
 
-To enable sessions, you must add the `sessionMiddleware()` to your global
-middlewares:
+To enable sessions, you must add the `sessionMiddleware()` using the fluent API:
 
 ```typescript
+app.useMiddleware(
+    sessionMiddleware(),
+    // ...
+)
+
 await app.init({
-    globalMiddlewares: [
-        sessionMiddleware(),
-        // ...
-    ],
+    controllers,
 })
 ```
 

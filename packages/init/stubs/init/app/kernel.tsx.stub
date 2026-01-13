@@ -1,50 +1,22 @@
 import {
     App,
     configureSession,
-    container,
     sessionMiddleware,
-    type Context,
 } from '@lockness/core'
 import {
     authMiddleware,
-    initializeAuthMiddleware,
-    SessionGuard,
 } from '@lockness/auth'
 import { controllers } from './routes.ts'
-// import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
-// import { UserProvider } from '../auth/user_provider.ts'
-// import { NotFoundPage } from '@view/pages/errors/not_found.tsx'
-// import { UnauthorizedPage } from '@view/pages/errors/unauthorized.tsx'
-// import { ForbiddenPage } from '@view/pages/errors/forbidden.tsx'
-// import { ServerErrorPage } from '@view/pages/errors/server_error.tsx'
 
 /**
- * Default error handler (optional)
- * Uncomment and customize error pages as needed
+ * Bootstrap the {{ projectName }} application
+ *
+ * This is your application's kernel - the central configuration file
+ * that sets up middleware, authentication, sessions, and other core features.
+ *
+ * Start simple and add features as you need them!
  */
-/*
-const errorHandler = (error: Error, c: Context) => {
-    console.error('Error:', error)
-
-    const status = (error as any).status || 500
-
-    switch (status) {
-        case 404:
-            return c.html(<NotFoundPage />, 404)
-        case 401:
-            return c.html(<UnauthorizedPage />, 401)
-        case 403:
-            return c.html(<ForbiddenPage />, 403)
-        default: {
-            const showDetails = Deno.env.get('APP_ENV') === 'development'
-            return c.html(<ServerErrorPage error={error} showDetails={showDetails} />, 500)
-        }
-    }
-}
-*/
-
 export const bootstrap = async () => {
-
     // Configure session (optional - defaults to cookie driver)
     configureSession({
         driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
@@ -56,80 +28,61 @@ export const bootstrap = async () => {
     // Create Lockness application
     const app = new App()
 
-    // Use auto-discovery in development, explicit imports in production
-    const isDevelopment = Deno.env.get('APP_ENV') === 'development'
+    // Configure global middlewares using fluent API
+    app.useMiddleware(
+        sessionMiddleware(), // Session middleware (required for auth)
+        // Add more global middlewares here
+        // LoggerMiddleware,
+    )
 
-    if (isDevelopment) {
-        // Auto-discover controllers (dev mode)
-        await app.init({
-            controllersDir: './app/controller',
-            staticDir: 'public',
+    // Initialize with controllers (auto-discovery in dev, explicit in prod)
+    await app.init({
+        controllersDir: app.isDevelopment ? './app/controller' : undefined,
+        controllers: app.isDevelopment ? undefined : controllers,
+        staticDir: 'public',
 
-            // Error handler (uncomment to use custom error pages)
-            // errorHandler,
-
-            // Global middlewares (applied to all routes)
-            globalMiddlewares: [
-                sessionMiddleware(), // Session middleware (required for auth)
-                // Initialize auth (attaches authenticator to context)
-                // Uncomment when you have a UserProvider set up
-                // initializeAuthMiddleware({
-                //     default: 'web',
-                //     guards: {
-                //         web: (ctx) => new SessionGuard('web', ctx, new UserProvider(db)),
-                //     },
-                // }),
-                // LoggerMiddleware,
-            ],
-
-            // Named middlewares (use with @Use('auth'))
-            middlewares: {
-                auth: class AuthMiddleware {
-                    async handle(
-                        c: import('@lockness/core').Context,
-                        next: import('@lockness/core').Next,
-                    ) {
-                        return await authMiddleware()(c, next)
-                    }
-                },
+        // Named middlewares (use with @Use('auth'))
+        middlewares: {
+            auth: class AuthMiddleware {
+                async handle(
+                    c: import('@lockness/core').Context,
+                    next: import('@lockness/core').Next,
+                ) {
+                    return await authMiddleware()(c, next)
+                }
             },
-        })
-    } else {
-        // Explicit imports (compile/production mode)
-        await app.init({
-            controllers,
-            staticDir: 'public',
-
-            // Error handler (uncomment to use custom error pages)
-            // errorHandler,
-
-            // Global middlewares (applied to all routes)
-            globalMiddlewares: [
-                sessionMiddleware(), // Session middleware (required for auth)
-                // Initialize auth (attaches authenticator to context)
-                // Uncomment when you have a UserProvider set up
-                // initializeAuthMiddleware({
-                //     default: 'web',
-                //     guards: {
-                //         web: (ctx) => new SessionGuard('web', ctx, new UserProvider(db)),
-                //     },
-                // }),
-                // LoggerMiddleware,
-            ],
-
-            // Named middlewares (use with @Use('auth'))
-            middlewares: {
-                auth: class AuthMiddleware {
-                    async handle(
-                        c: import('@lockness/core').Context,
-                        next: import('@lockness/core').Next,
-                    ) {
-                        return await authMiddleware()(c, next)
-                    }
-                },
-            },
-        })
-    }
+        },
+    })
 
     return app
 }
+
+/**
+ * Advanced Configuration Examples:
+ *
+ * 1. Add custom error pages:
+ * 
+ *    import { errorHandler } from '@view/pages/errors/mod.ts'
+ *    app.useErrorHandler(errorHandler)
+ *
+ * 2. Add authentication (requires UserProvider):
+ * 
+ *    import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
+ *    import { UserProvider } from '@auth/user_provider.ts'
+ *    
+ *    app.useMiddleware(
+ *        initializeAuthMiddleware({
+ *            default: 'web',
+ *            guards: {
+ *                web: (ctx) => new SessionGuard('web', ctx, new UserProvider()),
+ *            },
+ *        })
+ *    )
+ *
+ * 3. Enable devtools in development:
+ * 
+ *    import { enableDevtools } from '@lockness/devtools'
+ *    if (app.isDevelopment) {
+ *        enableDevtools(app.getHono())
+ *    }
+ */

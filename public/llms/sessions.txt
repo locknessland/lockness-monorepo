@@ -24,6 +24,25 @@ SESSION_SECRET=your-random-32-char-secret
 SESSION_DRIVER=cookie
 ```
 
+## Enable Sessions
+
+Add the session middleware using the fluent API:
+
+```typescript
+// src/kernel.tsx
+import { App, sessionMiddleware } from '@lockness/core'
+
+const app = new App()
+
+app.useMiddleware(
+    sessionMiddleware(),
+)
+
+await app.init({
+    controllers,
+})
+```
+
 ## Session API
 
 ```typescript

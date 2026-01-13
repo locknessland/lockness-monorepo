@@ -329,8 +329,11 @@ configureSession({
     secure: Deno.env.get('APP_ENV') === 'production',
 })
 
+// Configure session middleware using fluent API
+app.useMiddleware(createSessionMiddleware())
+
 await app.init({
-    globalMiddlewares: [createSessionMiddleware()],
+    controllers,
 })
 
 // Use in controllers

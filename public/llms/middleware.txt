@@ -47,14 +47,17 @@ export class LogRequestMiddleware {
 
 ```typescript
 // src/kernel.tsx
-import { Kernel } from '@lockness/core'
+import { App } from '@lockness/core'
 import { LogRequestMiddleware } from '@middleware/log_request_middleware.ts'
 import { AuthMiddleware } from '@middleware/auth_middleware.ts'
 
-export const kernel = new Kernel()
+const app = new App()
 
-kernel.use(LogRequestMiddleware)
-kernel.use(AuthMiddleware)
+// Configure global middlewares using fluent API
+app.useMiddleware(
+    LogRequestMiddleware,
+    AuthMiddleware,
+)
 ```
 
 ### Controller Middleware (All Methods)
