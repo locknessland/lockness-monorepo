@@ -1,6 +1,46 @@
 # Lockness Controllers & Routing
 
-Class-based controllers with decorators for routing.
+Class-based controllers with decorators for routing and automatic route discovery.
+
+## How Route Discovery Works
+
+Lockness uses **automatic controller discovery** through `@lockness/core`:
+
+**Development Mode (Runtime Discovery):**
+- The `App.discoverControllers()` method scans `app/controller/` directory
+- Dynamically imports all `.ts`, `.tsx`, `.js` files
+- Detects classes decorated with `@Controller()` via `_basePath` metadata
+- Instantiates controllers temporarily to initialize TC39 decorator metadata
+- Registers routes defined with `@Get()`, `@Post()`, etc. automatically
+- Hot-reload with `--watch` picks up changes instantly
+
+**Production Mode (Static Imports):**
+- Uses explicit imports from `app/routes.ts` (pre-generated file)
+- Enables `deno compile` to bundle controllers into standalone binary
+- No runtime scanning needed - all imports are static
+
+**In app/kernel.tsx:**
+```typescript
+const isDevelopment = Deno.env.get('APP_ENV') === 'development'
+
+if (isDevelopment) {
+    await app.init({
+        controllersDir: './app/controller', // Auto-discover
+    })
+} else {
+    import { controllers } from './app/routes.ts'
+    await app.init({
+        controllers, // Explicit imports
+    })
+}
+```
+
+**The app/routes.ts file** is auto-generated when you:
+- Run `deno task cli make:controller` (creates controller + updates routes)
+- Run `deno task routes:generate` manually
+- Use `deno task routes:watch` (optional watcher)
+
+This means: **No manual route registration needed in development!** Just create a controller with decorators and it's automatically discovered.
 
 ## Basic Controller
 
