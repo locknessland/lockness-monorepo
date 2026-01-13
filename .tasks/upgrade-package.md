@@ -3,9 +3,9 @@
 ## 📋 Task Overview
 
 Create a new `@lockness/upgrade` package that allows users to upgrade their
-Lockness projects by updating all `@lockness/*` dependencies in the
-`deno.json` file. The tool should be runnable directly from JSR without prior
-installation, providing a seamless upgrade experience similar to `deno upgrade`.
+Lockness projects by updating all `@lockness/*` dependencies in the `deno.json`
+file. The tool should be runnable directly from JSR without prior installation,
+providing a seamless upgrade experience similar to `deno upgrade`.
 
 **Problem Being Solved:**
 
