@@ -86,6 +86,45 @@ Deno 2+. No `experimentalDecorators` flag is needed.
 **Important:** Do NOT add Hono to your imports manually. Lockness manages its
 own Hono version to ensure compatibility.
 
+### Core Architecture (SOLID Principles)
+
+The `@lockness/core` package follows SOLID design principles with a modular,
+maintainable architecture:
+
+#### Component Structure
+
+The framework is composed of focused, single-responsibility components:
+
+- **App**: Main orchestrator that coordinates all framework components
+- **MiddlewareResolver**: Resolves middleware from classes, functions, and named
+  strings
+- **ControllerDiscovery**: Scans directories and discovers controller classes
+- **RouteRegistry**: Manages route registration, sorting, and Hono integration
+- **ErrorHandlerRegistry**: Auto-discovers and manages error handlers
+- **StaticFileServer**: Handles static file serving configuration
+- **ServerListener**: Manages server startup, port conflicts, and console output
+
+#### Design Benefits
+
+- **Maintainability**: Each component is < 200 lines with a single, clear
+  purpose
+- **Testability**: Components can be unit tested in isolation
+- **Extensibility**: New features can be added without modifying existing
+  components
+- **Backward Compatibility**: Public API remains stable across internal
+  refactoring
+
+#### Architecture Philosophy
+
+The App class acts as a lightweight orchestrator, delegating responsibilities to
+specialized components. This approach:
+
+- Reduces complexity in the main App class (from 520 to 269 lines)
+- Enables parallel development of features
+- Makes the codebase easier to understand for contributors
+- Follows the Open/Closed Principle (open for extension, closed for
+  modification)
+
 **For the monorepo:**
 
 ```json

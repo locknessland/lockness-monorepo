@@ -1,23 +1,20 @@
 // deno-lint-ignore-file no-explicit-any
-import { Hono, type MiddlewareHandler } from 'hono'
-import { join } from 'node:path'
+import { Hono } from 'hono'
 import { jsxRenderer } from 'hono/jsx-renderer'
-import { namedRoutes } from './router.ts'
-import { createAuthMiddleware, createGuestMiddleware } from './auth.ts'
 import type {
     AppConfig,
-    Context,
     ControllerClass,
     ErrorHandler,
-    IMiddleware,
-    MiddlewareClass,
     MiddlewareInput,
-    MiddlewareRegistry,
     Module,
     ModuleWithMiddleware,
 } from './types.ts'
-
-import { serveStatic } from 'hono/deno'
+import { MiddlewareResolver } from './middleware_resolver.ts'
+import { ErrorHandlerRegistry } from './error_handler_registry.ts'
+import { ControllerDiscovery } from './controller_discovery.ts'
+import { RouteRegistry } from './route_registry.ts'
+import { StaticFileServer } from './static_file_server.ts'
+import { ServerListener } from './server_listener.ts'
 import pkg from './deno.json' with { type: 'json' }
 
 export interface RouteInfo {
@@ -29,15 +26,31 @@ export interface RouteInfo {
     name?: string
 }
 
+/**
+ * Main application class that orchestrates the framework's components.
+ * Handles initialization, middleware registration, routing, and server startup.
+ */
 export class App {
     private hono = new Hono({ strict: false })
-    private middlewareRegistry: MiddlewareRegistry = {}
-    private routes: RouteInfo[] = []
+    private middlewareResolver: MiddlewareResolver
+    private errorHandlerRegistry: ErrorHandlerRegistry
+    private controllerDiscovery: ControllerDiscovery
+    private routeRegistry: RouteRegistry
+    private staticFileServer: StaticFileServer
+    private serverListener: ServerListener
     private pendingGlobalMiddlewares: MiddlewareInput[] = []
     private pendingErrorHandler?: ErrorHandler
 
     constructor() {
         this.hono.use('*', jsxRenderer(({ children }) => children as any))
+
+        // Initialize utility classes
+        this.middlewareResolver = new MiddlewareResolver()
+        this.errorHandlerRegistry = new ErrorHandlerRegistry()
+        this.controllerDiscovery = new ControllerDiscovery()
+        this.routeRegistry = new RouteRegistry(this.middlewareResolver)
+        this.staticFileServer = new StaticFileServer()
+        this.serverListener = new ServerListener()
     }
 
     /**
@@ -76,7 +89,7 @@ export class App {
      * Get all registered routes
      */
     public getRoutes(): RouteInfo[] {
-        return this.routes
+        return this.routeRegistry.getRoutes()
     }
 
     /**
@@ -86,10 +99,17 @@ export class App {
         return this.hono
     }
 
-    public static(pathPattern: string, root: string = 'public') {
-        this.hono.use(pathPattern, serveStatic({ root }))
+    /**
+     * Register static file serving (deprecated - use init config instead)
+     * @deprecated Use staticDir in init() config
+     */
+    public static(pathPattern: string, root: string = 'public'): void {
+        this.staticFileServer.register(this.hono, pathPattern, root)
     }
 
+    /**
+     * Get the fetch handler for the application
+     */
     public get fetch(): (
         request: Request,
         Env?: any,
@@ -99,422 +119,156 @@ export class App {
     }
 
     /**
-     * Resolve a middleware (class, function, or named string) to a handler function
+     * Initialize the application with controllers, middlewares, and configuration.
+     * This is the main setup method that wires up all components.
+     *
+     * @param config - Configuration object with controllers, middlewares, etc.
+     *
+     * @example
+     * await app.init({
+     *     controllers: [UserController, PostController],
+     *     globalMiddlewares: [loggerMiddleware],
+     *     staticDir: 'public'
+     * })
+     *
+     * @example
+     * // Auto-discovery mode
+     * await app.init({
+     *     controllersDir: './app/controller',
+     *     staticDir: 'public'
+     * })
      */
-    private resolveMiddleware(
-        middleware: MiddlewareInput | string,
-    ): MiddlewareHandler | null {
-        if (typeof middleware === 'string') {
-            // Named middleware - look up in registry
-            const MiddlewareClass = this.middlewareRegistry[middleware]
-            if (!MiddlewareClass) {
-                console.warn(
-                    `⚠️ Named middleware '${middleware}' not found in registry`,
-                )
-                return null
-            }
-            const instance = new MiddlewareClass() as IMiddleware
-            return instance.handle.bind(instance)
-        } else if (typeof middleware === 'function') {
-            // Check if it's a class (has prototype with handle) or a plain function
-            if (middleware.prototype && middleware.prototype.handle) {
-                // Class middleware
-                const instance =
-                    new (middleware as MiddlewareClass)() as IMiddleware
-                return instance.handle.bind(instance)
-            } else {
-                // Plain function middleware (like sessionMiddleware())
-                return middleware as MiddlewareHandler
-            }
-        }
-        return null
+    async init(
+        config: Module | ModuleWithMiddleware | AppConfig,
+    ): Promise<void> {
+        // Step 1: Register named middlewares
+        this.registerNamedMiddlewares(config)
+
+        // Step 2: Discover and register error handler
+        const errorHandler = await this.discoverErrorHandler(config)
+        this.registerErrorHandler(errorHandler)
+
+        // Step 3: Resolve global middlewares
+        const globalMiddlewares = this.resolveGlobalMiddlewares(config)
+        this.applyGlobalMiddlewares(globalMiddlewares)
+
+        // Step 4: Discover or load controllers
+        const controllers = await this.loadControllers(config)
+
+        // Step 5: Register controllers and routes
+        this.routeRegistry.registerControllers(this.hono, controllers)
+
+        // Step 6: Register static file serving (after routes, before notFound)
+        this.registerStaticFiles(config)
+
+        // Step 7: Register 404 handler (must be last)
+        this.registerNotFoundHandler(errorHandler)
     }
 
-    async init(config: Module | ModuleWithMiddleware | AppConfig) {
-        let controllers: ControllerClass[] = []
-        let globalMiddlewares: MiddlewareInput[] = []
+    /**
+     * Start the server and listen on the specified port
+     */
+    listen(port: number): Deno.HttpServer<Deno.NetAddr> {
+        return this.serverListener.listen(this.hono, {
+            port,
+            version: pkg.version,
+        })
+    }
 
-        // Register named middlewares first (before discovering controllers)
+    /**
+     * Register named middlewares from config
+     */
+    private registerNamedMiddlewares(
+        config: Module | ModuleWithMiddleware | AppConfig,
+    ): void {
         if ('middlewares' in config && config.middlewares) {
-            this.middlewareRegistry = config.middlewares
+            this.middlewareResolver.setRegistry(config.middlewares)
         }
+    }
 
-        // Register error handler with auto-discovery fallback
-        let errorHandler = this.pendingErrorHandler ||
+    /**
+     * Discover and return the error handler
+     */
+    private async discoverErrorHandler(
+        config: Module | ModuleWithMiddleware | AppConfig,
+    ): Promise<ErrorHandler> {
+        const providedHandler = this.pendingErrorHandler ||
             ('errorHandler' in config ? config.errorHandler : undefined)
 
-        // Auto-discover custom error handler if not provided
-        if (!errorHandler) {
-            try {
-                // Use absolute path from CWD for compiled binaries compatibility
-                const cwd = Deno.cwd()
-                const customErrorHandlerPath =
-                    `${cwd}/app/view/pages/errors/error_handler.tsx`
+        return await this.errorHandlerRegistry.discover(providedHandler)
+    }
 
-                // Check if file exists before trying to import
-                try {
-                    await Deno.stat(customErrorHandlerPath)
-                    const customHandler = await import(customErrorHandlerPath)
-                    if (customHandler.errorHandler) {
-                        errorHandler = customHandler.errorHandler
-                        console.log(
-                            '  ✨ Using custom error handler',
-                        )
-                    }
-                } catch {
-                    // File doesn't exist or can't be imported, use default
-                    const { defaultErrorHandler } = await import(
-                        './default_error_handler.tsx'
-                    )
-                    errorHandler = defaultErrorHandler
-                }
-            } catch {
-                // Fallback to default error handler
-                const { defaultErrorHandler } = await import(
-                    './default_error_handler.tsx'
-                )
-                errorHandler = defaultErrorHandler
-            }
-        }
+    /**
+     * Register error handler with Hono
+     */
+    private registerErrorHandler(errorHandler: ErrorHandler): void {
+        this.hono.onError((error, c) => {
+            return errorHandler(error, c as any)
+        })
+    }
 
-        if (errorHandler) {
-            this.hono.onError((error, c) => {
-                return errorHandler(error, c as any)
-            })
-        }
-
-        // Merge global middlewares (fluent API + config)
-        globalMiddlewares = [
+    /**
+     * Resolve global middlewares from fluent API and config
+     */
+    private resolveGlobalMiddlewares(
+        config: Module | ModuleWithMiddleware | AppConfig,
+    ): MiddlewareInput[] {
+        return [
             ...this.pendingGlobalMiddlewares,
             ...('globalMiddlewares' in config && config.globalMiddlewares
                 ? config.globalMiddlewares
                 : []),
         ]
+    }
 
-        if ('controllers' in config && config.controllers) {
-            controllers = config.controllers
-        } else if ('controllersDir' in config && config.controllersDir) {
-            controllers = await this.discoverControllers(config.controllersDir)
-        }
-
-        // Apply global middlewares to all routes
-        const globalHandlers = globalMiddlewares
-            .map((M) => this.resolveMiddleware(M))
-            .filter((h) => h !== null)
-
-        if (globalHandlers.length > 0) {
-            this.hono.use('*', ...globalHandlers as any)
-        }
-
-        const allRoutes: {
-            fullPath: string
-            method: string
-            handler: (c: Context) => any
-            middlewares: any[]
-        }[] = []
-
-        for (const Controller of controllers) {
-            const instance = new Controller()
-            const basePath = Controller._basePath || ''
-            const routes = Controller._routes || []
-            const middlewares = Controller._middlewares || {}
-            const validators = Controller._validators || {}
-            const authMethods = Controller._authMethods || {} // TC39: Read from constructor
-            const guestMethods = Controller._guestMethods || {} // TC39: Read from constructor
-            const controllerName = Controller.name
-
-            // Check for class-level @Auth or @Guest decorators
-            const classAuthRequired = Controller._authRequired === true
-            const classAuthOptions = Controller._authOptions
-            const classGuestRequired = Controller._guestRequired === true
-            const classGuestRedirectTo = Controller._guestRedirectTo || '/'
-
-            for (const route of routes) {
-                let fullPath = `/${basePath}/${route.path}`.replace(/\/+/g, '/')
-                if (fullPath.length > 1 && fullPath.endsWith('/')) {
-                    fullPath = fullPath.slice(0, -1)
-                }
-
-                // Get validator middlewares (run first)
-                const routeValidators = (validators[route.methodName] || [])
-                    .map((v: { middleware: any }) => v.middleware)
-
-                // Get regular middlewares (support both class and named string)
-                const routeMiddlewares = (middlewares[route.methodName] || [])
-                    .map((m: MiddlewareClass | string) =>
-                        this.resolveMiddleware(m)
-                    )
-                    .filter((h: any) => h !== null)
-
-                // Build auth middlewares
-                const authMiddlewares: MiddlewareHandler[] = []
-
-                // TC39: Check method-level @Auth decorator from constructor metadata
-                const methodAuth = authMethods[route.methodName]
-                // TC39: Check method-level @Guest decorator from constructor metadata
-                const methodGuest = guestMethods[route.methodName]
-
-                if (methodAuth?.required) {
-                    // Method-level @Auth takes precedence
-                    authMiddlewares.push(
-                        createAuthMiddleware(methodAuth.options),
-                    )
-                } else if (methodGuest?.required) {
-                    // Method-level @Guest takes precedence
-                    authMiddlewares.push(
-                        createGuestMiddleware(methodGuest.redirectTo),
-                    )
-                } else if (classAuthRequired) {
-                    // Fall back to class-level @Auth
-                    authMiddlewares.push(createAuthMiddleware(classAuthOptions))
-                } else if (classGuestRequired) {
-                    // Fall back to class-level @Guest
-                    authMiddlewares.push(
-                        createGuestMiddleware(classGuestRedirectTo),
-                    )
-                }
-
-                // Collect middleware names for display
-                const middlewareNames: string[] = []
-
-                // Auth/Guest middlewares
-                if (methodAuth?.required || classAuthRequired) {
-                    middlewareNames.push('@Auth')
-                } else if (methodGuest?.required || classGuestRequired) {
-                    middlewareNames.push('@Guest')
-                }
-
-                // Validator middlewares
-                if (validators[route.methodName]?.length > 0) {
-                    middlewareNames.push('@Validate')
-                }
-
-                // Regular middlewares
-                const routeMiddlewareList = middlewares[route.methodName] || []
-                for (const m of routeMiddlewareList) {
-                    if (typeof m === 'string') {
-                        middlewareNames.push(m)
-                    } else if (typeof m === 'function') {
-                        middlewareNames.push(m.name)
-                    }
-                }
-
-                allRoutes.push({
-                    fullPath,
-                    method: route.method.toLowerCase(),
-                    handler: (c: Context) =>
-                        (instance as any)[route.methodName](c),
-                    middlewares: [
-                        ...authMiddlewares,
-                        ...routeValidators,
-                        ...routeMiddlewares,
-                    ],
-                })
-
-                // Store route info for router:list command and named routes
-                this.routes.push({
-                    method: route.method.toUpperCase(),
-                    path: fullPath,
-                    controller: controllerName,
-                    action: route.methodName,
-                    middlewares: middlewareNames,
-                    name: route.name,
-                })
-
-                if (route.name) {
-                    namedRoutes.set(route.name, fullPath)
-                }
-            }
-        }
-
-        allRoutes.sort((a, b) => {
-            const aHasParam = a.fullPath.includes(':')
-            const bHasParam = b.fullPath.includes(':')
-
-            if (aHasParam && !bHasParam) return 1
-            if (!aHasParam && bHasParam) return -1
-            return b.fullPath.length - a.fullPath.length
-        })
-
-        for (const route of allRoutes) {
-            ;(this.hono as any)[route.method](
-                route.fullPath,
-                ...route.middlewares,
-                route.handler,
-            )
-        }
-
-        // Register static files AFTER routes but BEFORE notFound handler
-        // This ensures proper priority: routes -> static files -> 404
-        if ('staticDir' in config && config.staticDir) {
-            this.static('/*', config.staticDir)
-        }
-
-        // Register notFound handler LAST, after all routes and static files
-        // This ensures static middleware and routes have priority
-        if (errorHandler) {
-            this.hono.notFound((c) => {
-                const error = new Error('Not Found') as any
-                error.status = 404
-                return errorHandler(error, c as any)
-            })
+    /**
+     * Apply global middlewares to all routes
+     */
+    private applyGlobalMiddlewares(middlewares: MiddlewareInput[]): void {
+        const handlers = this.middlewareResolver.resolveMany(middlewares)
+        if (handlers.length > 0) {
+            this.hono.use('*', ...handlers as any)
         }
     }
 
-    private async discoverControllers(
-        dirPath: string,
+    /**
+     * Load controllers from config (explicit list or discovery)
+     */
+    private async loadControllers(
+        config: Module | ModuleWithMiddleware | AppConfig,
     ): Promise<ControllerClass[]> {
-        const controllers: ControllerClass[] = []
-        let absolutePath: string
-
-        try {
-            absolutePath = Deno.realPathSync(dirPath)
-        } catch (_e) {
-            // If it fails, try to use CWD + dirPath
-            try {
-                absolutePath = join(Deno.cwd(), dirPath)
-                // Test if it's a directory
-                const info = Deno.statSync(absolutePath)
-                if (!info.isDirectory) return []
-            } catch (__e) {
-                console.warn(`⚠️ Controllers directory not found: ${dirPath}`)
-                return []
-            }
-        }
-
-        try {
-            for await (const entry of Deno.readDir(absolutePath)) {
-                if (
-                    entry.isFile &&
-                    (entry.name.endsWith('.ts') ||
-                        entry.name.endsWith('.js') ||
-                        entry.name.endsWith('.tsx'))
-                ) {
-                    const filePath = `file://${join(absolutePath, entry.name)}`
-                    const module = await import(/* @vite-ignore */ filePath)
-
-                    for (const exportKey in module) {
-                        const Exported = module[exportKey]
-                        if (
-                            typeof Exported === 'function' &&
-                            Exported._basePath !== undefined
-                        ) {
-                            // TC39 decorators: addInitializer only runs on instance creation
-                            // Create temporary instance to trigger metadata initialization
-                            if (
-                                !Exported._routes ||
-                                Exported._routes.length === 0
-                            ) {
-                                try {
-                                    new Exported()
-                                } catch (_e) {
-                                    // Ignore errors during temporary instantiation
-                                }
-                            }
-                            controllers.push(Exported as ControllerClass)
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error(
-                `❌ Error during controller discovery: ${
-                    (error as Error).message
-                }`,
+        if ('controllers' in config && config.controllers) {
+            return config.controllers
+        } else if ('controllersDir' in config && config.controllersDir) {
+            return await this.controllerDiscovery.discover(
+                config.controllersDir,
             )
         }
-
-        return controllers
+        return []
     }
 
-    listen(port: number): Deno.HttpServer<Deno.NetAddr> {
-        const env = Deno.env.get('DENO_ENV') || Deno.env.get('APP_ENV') ||
-            'development'
-        const isProd = env.toLowerCase() === 'production'
-        const envLabel = isProd
-            ? '\x1b[45m\x1b[37m\x1b[1m PRODUCTION \x1b[0m'
-            : '\x1b[44m\x1b[37m DEVELOPMENT \x1b[0m'
-
-        console.log(`
-  ▜     ▌         
-  ▐ ▛▌▛▘▙▘▛▌█▌▛▘▛▘
-  ▐▖▙▌▙▖▛▖▌▌▙▖▄▌▄▌ v${pkg.version}
-        `)
-
-        const tryServe = async () => {
-            try {
-                return Deno.serve({
-                    port,
-                    onListen: ({ port, hostname }) => {
-                        const protocol = 'http'
-                        const host = hostname === '0.0.0.0'
-                            ? 'localhost'
-                            : hostname
-                        console.log(`  Environment: ${envLabel}\n`)
-                        console.log(
-                            `  🚀 Server is flying at \x1b[36m${protocol}://${host}:${port}\x1b[0m`,
-                        )
-                        console.log(`  📂 Ready to serve your awesome app!\n`)
-                    },
-                }, this.hono.fetch.bind(this.hono))
-            } catch (error) {
-                if (error instanceof Deno.errors.AddrInUse) {
-                    const hasForce = Deno.args.includes('--force')
-
-                    if (hasForce) {
-                        try {
-                            console.log(
-                                `  🛠  Port ${port} in use. Attempting to force release...`,
-                            )
-                            const lsof = new Deno.Command('lsof', {
-                                args: ['-ti', `:${port}`],
-                                stdout: 'piped',
-                            })
-                            const { stdout } = await lsof.output()
-                            const pids = new TextDecoder().decode(stdout).trim()
-                                .split('\n').filter((p) => p.length > 0)
-
-                            if (pids.length > 0) {
-                                for (const pid of pids) {
-                                    const kill = new Deno.Command('kill', {
-                                        args: ['-9', pid],
-                                    })
-                                    await kill.output()
-                                }
-                                // Small delay to let OS release the port
-                                await new Promise((r) => setTimeout(r, 800))
-                                return await tryServe()
-                            }
-                        } catch (e) {
-                            console.error(
-                                `  ⚠️  Failed to force release port ${port}: ${
-                                    (e as Error).message
-                                }`,
-                            )
-                        }
-                    }
-
-                    console.error(`\x1b[31m
-  ❌ Error: Port ${port} is already in use.
-  
-  The server could not start because another process is already listening on this port.
-
-  Possible solutions:
-  1. Kill the process using this port:
-     lsof -ti:${port} | xargs kill -9
-  2. Use the --force flag to let Lockness do it for you:
-     deno task dev -- --force
-  3. Use a different port by setting the PORT environment variable:
-     PORT=9999 deno task dev
-                \x1b[0m`)
-                    Deno.exit(1)
-                }
-                throw error
-            }
+    /**
+     * Register static file serving if configured
+     */
+    private registerStaticFiles(
+        config: Module | ModuleWithMiddleware | AppConfig,
+    ): void {
+        if ('staticDir' in config && config.staticDir) {
+            this.staticFileServer.registerIfConfigured(
+                this.hono,
+                config.staticDir,
+            )
         }
+    }
 
-        // Return a promise that resolves to the server
-        // Note: Deno.serve is synchronous in Deno 1.x but we wrap it for the --force retry logic
-        return tryServe() as any
+    /**
+     * Register 404 not found handler (must be registered last)
+     */
+    private registerNotFoundHandler(errorHandler: ErrorHandler): void {
+        this.hono.notFound((c) => {
+            const error = new Error('Not Found') as any
+            error.status = 404
+            return errorHandler(error, c as any)
+        })
     }
 }

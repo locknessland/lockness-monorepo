@@ -199,6 +199,29 @@ The `app.init()` method accepts a configuration object:
 
 ## 📚 Technical Reference
 
+### Internal Architecture
+
+The `@lockness/core` package is built with maintainability and SOLID principles
+in mind. The framework is composed of focused, single-responsibility components:
+
+#### Core Components
+
+- **App**: Main orchestrator that coordinates all framework components
+- **MiddlewareResolver**: Resolves middleware from classes, functions, and named
+  strings
+- **ControllerDiscovery**: Scans directories and discovers controller classes
+- **RouteRegistry**: Manages route registration, sorting, and Hono integration
+- **ErrorHandlerRegistry**: Auto-discovers and manages error handlers
+- **StaticFileServer**: Handles static file serving configuration
+- **ServerListener**: Manages server startup, port conflicts, and console output
+
+#### Design Principles
+
+- **Single Responsibility**: Each component has one clear purpose
+- **Dependency Injection**: Components are injected where needed
+- **Backward Compatibility**: Public API remains stable across refactoring
+- **Testability**: Focused components enable isolated unit testing
+
 ### Decorators
 
 - `@Controller(path)`: Declares a class as a controller.
