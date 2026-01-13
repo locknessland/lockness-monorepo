@@ -139,9 +139,32 @@ export class App {
             this.middlewareRegistry = config.middlewares
         }
 
-        // Register custom error handler (prefer fluent API, fallback to config)
-        const errorHandler = this.pendingErrorHandler ||
+        // Register error handler with auto-discovery fallback
+        let errorHandler = this.pendingErrorHandler ||
             ('errorHandler' in config ? config.errorHandler : undefined)
+
+        // Auto-discover custom error handler if not provided
+        if (!errorHandler) {
+            try {
+                const customErrorHandlerPath =
+                    './app/view/pages/errors/error_handler.tsx'
+                const customHandler = await import(customErrorHandlerPath)
+                if (customHandler.errorHandler) {
+                    errorHandler = customHandler.errorHandler
+                    console.log(
+                        '  ✨ Using custom error handler from',
+                        customErrorHandlerPath,
+                    )
+                }
+            } catch {
+                // No custom error handler found, will use default
+                const { defaultErrorHandler } = await import(
+                    './default_error_handler.tsx'
+                )
+                errorHandler = defaultErrorHandler
+            }
+        }
+
         if (errorHandler) {
             this.hono.onError((error, c) => {
                 return errorHandler(error, c as any)

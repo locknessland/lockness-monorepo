@@ -60,10 +60,10 @@ export const bootstrap = async () => {
 /**
  * Advanced Configuration Examples:
  *
- * 1. Add custom error pages:
- * 
- *    import { errorHandler } from '@view/pages/errors/mod.ts'
- *    app.useErrorHandler(errorHandler)
+ * 1. Customize error pages (auto-discovered):
+ *    Run: deno task cli make:error-pages
+ *    This creates app/view/pages/errors/error_handler.tsx
+ *    The framework will automatically use it - no import needed!
  *
  * 2. Add authentication (requires UserProvider):
  * 

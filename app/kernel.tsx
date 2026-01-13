@@ -14,7 +14,6 @@ import { collectAppRoutes, enableDevtools } from '@lockness/devtools'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { UserProvider } from '../app/auth/user_provider.ts'
 import { controllers } from './routes.ts'
-import { errorHandler } from '@view/pages/errors/mod.tsx'
 
 export const bootstrap = async () => {
     // Initialize Database (Optional)
@@ -40,20 +39,18 @@ export const bootstrap = async () => {
     }
 
     // Configure global middlewares using fluent API
-    app
-        .useMiddleware(
-            sessionMiddleware(), // Session middleware (required for auth)
-            // Initialize auth (attaches authenticator to context)
-            initializeAuthMiddleware({
-                default: 'web',
-                guards: {
-                    web: (ctx) =>
-                        new SessionGuard('web', ctx, new UserProvider(db)),
-                },
-            }),
-            LoggerMiddleware,
-        )
-        .useErrorHandler(errorHandler)
+    app.useMiddleware(
+        sessionMiddleware(), // Session middleware (required for auth)
+        // Initialize auth (attaches authenticator to context)
+        initializeAuthMiddleware({
+            default: 'web',
+            guards: {
+                web: (ctx) =>
+                    new SessionGuard('web', ctx, new UserProvider(db)),
+            },
+        }),
+        LoggerMiddleware,
+    )
 
     // Initialize with controllers (auto-discovery in dev, explicit in prod)
     await app.init({

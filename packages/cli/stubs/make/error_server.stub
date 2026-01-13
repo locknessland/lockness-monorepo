@@ -15,15 +15,79 @@ export function ServerErrorPage({ error, showDetails = false }: ServerErrorPageP
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <title>500 - Server Error</title>
                 <link rel="stylesheet" href="/css/app.css" />
+                <style>{`
+                    body {
+                        font-family: system-ui, -apple-system, sans-serif;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 100vh;
+                        margin: 0;
+                        background: #f9fafb;
+                    }
+                    .container {
+                        text-align: center;
+                        padding: 2rem;
+                        max-width: 48rem;
+                    }
+                    h1 {
+                        font-size: 6rem;
+                        margin: 0;
+                        color: #d1d5db;
+                        font-weight: 700;
+                    }
+                    h2 {
+                        font-size: 1.5rem;
+                        margin: 1rem 0;
+                        color: #1f2937;
+                    }
+                    p {
+                        color: #6b7280;
+                        margin: 1rem auto;
+                    }
+                    .error-details {
+                        margin-top: 2rem;
+                        text-align: left;
+                        background: #fef2f2;
+                        border: 1px solid #fecaca;
+                        border-radius: 0.5rem;
+                        padding: 1rem;
+                    }
+                    .error-details h3 {
+                        color: #991b1b;
+                        margin-top: 0;
+                        font-size: 1rem;
+                    }
+                    .error-details pre {
+                        color: #b91c1c;
+                        font-size: 0.875rem;
+                        overflow: auto;
+                        margin: 0;
+                        white-space: pre-wrap;
+                    }
+                    a {
+                        display: inline-block;
+                        margin-top: 2rem;
+                        padding: 0.75rem 1.5rem;
+                        background: #3b82f6;
+                        color: white;
+                        text-decoration: none;
+                        border-radius: 0.5rem;
+                        transition: background 0.2s;
+                    }
+                    a:hover {
+                        background: #2563eb;
+                    }
+                `}</style>
             </head>
             <body>
-                <div>
+                <div class="container">
                     <h1>500</h1>
                     <h2>Something Went Wrong</h2>
                     <p>An unexpected error occurred. Please try again later.</p>
                     
                     {showDetails && error && (
-                        <div>
+                        <div class="error-details">
                             <h3>Error Details:</h3>
                             <pre>
                                 {error.message}

@@ -333,6 +333,7 @@ export function registerMakeCommands(cli: Cli) {
         try {
             await Deno.mkdir(dirPath, { recursive: true })
 
+            // Generate error pages
             for (const page of errorPages) {
                 const filePath = `${dirPath}/${page.fileName}`
                 const content = await Stub.renderFrom(
@@ -346,25 +347,27 @@ export function registerMakeCommands(cli: Cli) {
                 console.log(`✅ Created ${filePath}`)
             }
 
+            // Generate error_handler.tsx
+            const handlerPath = `${dirPath}/error_handler.tsx`
+            const handlerContent = await Stub.renderFrom(
+                STUBS_PATH,
+                'make',
+                'error_handler',
+                {},
+            )
+            await Deno.writeTextFile(handlerPath, handlerContent)
+            console.log(`✅ Created ${handlerPath}`)
+
             console.log('\n🎉 All error pages created successfully!')
             console.log('\n💡 Configure error handler in app/kernel.tsx:')
             console.log(`
-import { NotFoundPage } from '@view/pages/errors/not_found.tsx'
-import { UnauthorizedPage } from '@view/pages/errors/unauthorized.tsx'
-import { ForbiddenPage } from '@view/pages/errors/forbidden.tsx'
-import { ServerErrorPage } from '@view/pages/errors/server_error.tsx'
+import { errorHandler } from '@view/pages/errors/error_handler.tsx'
 
-const errorHandler = (error: Error, c: Context) => {
-    const status = (error as any).status || 500
-    switch (status) {
-        case 404: return c.html(<NotFoundPage />, 404)
-        case 401: return c.html(<UnauthorizedPage />, 401)
-        case 403: return c.html(<ForbiddenPage />, 403)
-        default: return c.html(<ServerErrorPage error={error} />, 500)
-    }
-}
-
-// Then add errorHandler to app.init() config
+// Then add errorHandler to app.init() config:
+app.init({
+    errorHandler,
+    // ... other config
+})
 `)
         } catch (error) {
             console.error(

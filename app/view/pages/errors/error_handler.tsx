@@ -1,4 +1,4 @@
-import type { Context } from '@lockness/core'
+import { type Context, formatErrorForConsole } from '@lockness/core'
 import { NotFoundPage } from './not_found.tsx'
 import { UnauthorizedPage } from './unauthorized.tsx'
 import { ForbiddenPage } from './forbidden.tsx'
@@ -9,10 +9,11 @@ import { ServerErrorPage } from './server_error.tsx'
  * Maps error status codes to custom pages
  */
 export const errorHandler = (error: Error, c: Context) => {
-    console.error('Error:', error)
-
     // Check for status property (from custom errors like UnauthorizedAccessError)
     const status = (error as unknown as { status?: number }).status || 500
+
+    // Format and log the error using the core formatter
+    formatErrorForConsole(error, status, c.req.path)
 
     // Return appropriate error page based on status
     switch (status) {

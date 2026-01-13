@@ -235,7 +235,7 @@ export const bootstrap = async () => {
 **Advanced Configuration:**
 
 ```typescript
-import { errorHandler } from '@view/pages/errors/mod.tsx'
+import { errorHandler } from '@view/pages/errors/error_handler.tsx'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 
 const app = new App()
@@ -979,11 +979,11 @@ This creates 4 error page templates in `app/view/pages/errors/`:
 - `forbidden.tsx` (403)
 - `server_error.tsx` (500)
 
-The command also generates `app/view/pages/errors/mod.tsx` with a centralized
-error handler. Configure it in `app/kernel.tsx`:
+The command also generates `app/view/pages/errors/error_handler.tsx` with a
+centralized error handler. Configure it in `app/kernel.tsx`:
 
 ```typescript
-import { errorHandler } from '@view/pages/errors/mod.tsx'
+import { errorHandler } from '@view/pages/errors/error_handler.tsx'
 
 // Option 1: Fluent API (recommended)
 app.useErrorHandler(errorHandler)
