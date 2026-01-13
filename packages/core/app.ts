@@ -146,18 +146,29 @@ export class App {
         // Auto-discover custom error handler if not provided
         if (!errorHandler) {
             try {
-                const customErrorHandlerPath =
-                    './app/view/pages/errors/error_handler.tsx'
-                const customHandler = await import(customErrorHandlerPath)
-                if (customHandler.errorHandler) {
-                    errorHandler = customHandler.errorHandler
-                    console.log(
-                        '  ✨ Using custom error handler from',
-                        customErrorHandlerPath,
+                // Use absolute path from CWD for compiled binaries compatibility
+                const cwd = Deno.cwd()
+                const customErrorHandlerPath = `${cwd}/app/view/pages/errors/error_handler.tsx`
+
+                // Check if file exists before trying to import
+                try {
+                    await Deno.stat(customErrorHandlerPath)
+                    const customHandler = await import(customErrorHandlerPath)
+                    if (customHandler.errorHandler) {
+                        errorHandler = customHandler.errorHandler
+                        console.log(
+                            '  ✨ Using custom error handler',
+                        )
+                    }
+                } catch {
+                    // File doesn't exist or can't be imported, use default
+                    const { defaultErrorHandler } = await import(
+                        './default_error_handler.tsx'
                     )
+                    errorHandler = defaultErrorHandler
                 }
             } catch {
-                // No custom error handler found, will use default
+                // Fallback to default error handler
                 const { defaultErrorHandler } = await import(
                     './default_error_handler.tsx'
                 )
@@ -329,7 +340,7 @@ export class App {
         })
 
         for (const route of allRoutes) {
-            ;(this.hono as any)[route.method](
+            ; (this.hono as any)[route.method](
                 route.fullPath,
                 ...route.middlewares,
                 route.handler,
@@ -404,8 +415,7 @@ export class App {
             }
         } catch (error) {
             console.error(
-                `❌ Error during controller discovery: ${
-                    (error as Error).message
+                `❌ Error during controller discovery: ${(error as Error).message
                 }`,
             )
         }
@@ -473,8 +483,7 @@ export class App {
                             }
                         } catch (e) {
                             console.error(
-                                `  ⚠️  Failed to force release port ${port}: ${
-                                    (e as Error).message
+                                `  ⚠️  Failed to force release port ${port}: ${(e as Error).message
                                 }`,
                             )
                         }
