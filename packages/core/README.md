@@ -18,6 +18,16 @@ application.
 
 ## 🚀 Getting Started
 
+### Create a New Project
+
+```bash
+deno run -A jsr:@lockness/init project-name
+```
+
+This scaffolds a complete Lockness application with MVC structure, ready to run.
+
+### Manual Setup
+
 ### The App Class
 
 The `App` class is the main entry point for your application. It manages the
