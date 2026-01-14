@@ -21,7 +21,8 @@
         "./packages/drizzle",
         "./packages/init",
         "./packages/deprecation-contracts",
-        "./packages/devtools"
+        "./packages/devtools",
+        "./packages/upgrade"
     ],
     "nodeModulesDir": "auto",
     "tasks": {

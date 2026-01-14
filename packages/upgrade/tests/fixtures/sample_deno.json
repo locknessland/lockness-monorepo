@@ -1,0 +1,13 @@
+{
+    "name": "test-project",
+    "version": "1.0.0",
+    "imports": {
+        "@lockness/core": "jsr:@lockness/core@^0.1.19",
+        "@lockness/cli": "jsr:@lockness/cli@^0.1.19",
+        "@lockness/auth": "jsr:@lockness/auth@^0.1.19",
+        "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.19",
+        "@lockness/cache": "jsr:@lockness/cache@^0.1.19",
+        "@std/path": "jsr:@std/path@^1.0.0",
+        "zod": "npm:zod@^3.22.0"
+    }
+}

@@ -1558,6 +1558,42 @@ Eloquent.
   - `README.md` → `packages/init/stubs/init/README.md.stub`
   - `make:*` command outputs → corresponding stubs in `packages/cli/stubs/` and
     `packages/drizzle/stubs/`
+- **Version Management**: When releasing new versions, use
+  `deno task bump <version>` to update all packages and their inter-dependencies
+  atomically. This ensures version consistency across the entire monorepo.
+
+## 🔄 Upgrading Lockness Projects
+
+The `@lockness/upgrade` package provides an automated tool for upgrading
+Lockness projects. Users can run it directly from JSR without installation:
+
+```bash
+# Upgrade to latest version
+deno run -Ar jsr:@lockness/upgrade
+
+# Upgrade to specific version
+deno run -Ar jsr:@lockness/upgrade 0.2.0
+
+# Preview changes (dry run)
+deno run -Ar jsr:@lockness/upgrade --dry-run
+```
+
+**How it works:**
+
+1. Scans `deno.json` for all `@lockness/*` packages
+2. Fetches latest versions from JSR API (or uses specified version)
+3. Updates package versions while preserving other dependencies
+4. Writes changes back to `deno.json` (unless dry-run)
+5. Displays clear upgrade summary
+
+**Architecture:**
+
+- `mod.ts` - CLI entry point with argument parsing
+- `upgrader.ts` - Core upgrade logic (read, parse, update, write)
+- `version_fetcher.ts` - JSR API client with timeout handling
+- `types.ts` - TypeScript interfaces
+
+See `packages/upgrade/README.md` for complete documentation.
 
 ## 🛠 Development Stack
 

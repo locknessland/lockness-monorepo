@@ -706,6 +706,52 @@ formatErrorForConsole() provides:
 - 401/403: Simple messages
 - 500+: Full stack traces with condensed output
 
+## Upgrading
+
+### Automated Upgrade Tool
+
+Keep your project up to date with the upgrade tool:
+
+```bash
+# Upgrade to latest version
+deno run -Ar jsr:@lockness/upgrade
+
+# Upgrade to specific version
+deno run -Ar jsr:@lockness/upgrade 0.2.0
+
+# Preview changes without applying
+deno run -Ar jsr:@lockness/upgrade --dry-run
+```
+
+### What Gets Updated
+
+The tool automatically:
+- Scans `deno.json` for all `@lockness/*` packages
+- Fetches latest versions from JSR
+- Updates versions while preserving other dependencies
+- Shows detailed upgrade summary
+
+**Example output:**
+```
+🔍 Detecting Lockness packages in deno.json...
+
+📦 Found 5 package(s):
+
+  @lockness/core    0.1.19 → 0.2.0
+  @lockness/cli     0.1.19 → 0.2.0
+  @lockness/auth    0.1.19 → 0.2.0
+
+✅ deno.json updated successfully!
+```
+
+### Upgrade Best Practices
+
+1. **Preview First**: Always use `--dry-run` to preview changes
+2. **Check Changelog**: Review release notes for breaking changes
+3. **Test Thoroughly**: Run your test suite after upgrading
+4. **Version Control**: Commit before upgrading so you can revert
+5. **Incremental Updates**: Don't skip major versions if possible
+
 ## Deployment
 
 ### Option 1: Deno Deploy (Recommended)

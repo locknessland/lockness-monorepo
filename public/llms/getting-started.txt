@@ -342,6 +342,33 @@ export class PostService {
 }
 ```
 
+## Upgrading Your Project
+
+Keep your Lockness dependencies up to date:
+
+```bash
+# Upgrade to latest version
+deno run -Ar jsr:@lockness/upgrade
+
+# Upgrade to specific version
+deno run -Ar jsr:@lockness/upgrade 0.2.0
+
+# Preview changes first (recommended)
+deno run -Ar jsr:@lockness/upgrade --dry-run
+```
+
+The upgrade tool automatically:
+- Detects all `@lockness/*` packages in your `deno.json`
+- Fetches the latest versions from JSR
+- Updates versions while preserving other dependencies
+- Shows a clear summary of changes
+
+**Best Practices:**
+- Always use `--dry-run` first to preview changes
+- Review the changelog before upgrading
+- Test your application after upgrading
+- Commit your changes before upgrading
+
 ## Next Steps
 
 - Read [Routing & Controllers](/docs/routing)

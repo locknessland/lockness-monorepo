@@ -1998,6 +1998,14 @@
           "npm:@aws-sdk/s3-request-presigner@^3.709.0"
         ]
       },
+      "packages/upgrade": {
+        "dependencies": [
+          "jsr:@std/assert@1",
+          "jsr:@std/cli@1",
+          "jsr:@std/jsonc@1",
+          "jsr:@std/path@1"
+        ]
+      },
       "packages/validator": {
         "dependencies": [
           "jsr:@std/assert@1"

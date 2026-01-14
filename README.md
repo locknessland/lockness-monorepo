@@ -87,6 +87,58 @@ docker run -p 8888:8888 --env-file .env.production my-lockness-app
 docker build --build-arg DENO_VERSION=2.7.0 -t my-app .
 ```
 
+### Upgrading Your Project
+
+Lockness provides a dedicated upgrade tool to update all `@lockness/*`
+dependencies in your project:
+
+```bash
+# Upgrade to latest version
+deno run -Ar jsr:@lockness/upgrade
+
+# Upgrade to specific version
+deno run -Ar jsr:@lockness/upgrade 0.2.0
+
+# Preview changes without applying (dry run)
+deno run -Ar jsr:@lockness/upgrade --dry-run
+```
+
+The upgrade tool automatically:
+
+- Detects all `@lockness/*` packages in your `deno.json`
+- Fetches the latest version from JSR (or uses specified version)
+- Updates versions while preserving other dependencies
+- Shows a clear summary of changes
+
+**Example output:**
+
+```
+🔍 Detecting Lockness packages in deno.json...
+
+📦 Found 5 package(s):
+
+  @lockness/core              0.1.19 → 0.2.0
+  @lockness/cli               0.1.19 → 0.2.0
+  @lockness/auth              0.1.19 → 0.2.0
+
+✅ deno.json updated successfully!
+
+⚠️  Don't forget to:
+  - Review the changes with git diff
+  - Check the changelog
+  - Test your application
+```
+
+**Best Practices:**
+
+1. Always use `--dry-run` first to preview changes
+2. Review the changelog before upgrading
+3. Test your application after upgrading
+4. Commit your changes before upgrading so you can revert if needed
+
+See the [upgrade package documentation](./packages/upgrade/README.md) for more
+details.
+
 ### Testing
 
 Run the test suite:
