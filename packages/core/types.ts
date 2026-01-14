@@ -5,7 +5,7 @@ import type {
     Next,
     ValidationTargets,
 } from 'hono'
-import type { Env, Input } from 'hono/types'
+import type { Env, Input } from '@lockness/hono'
 
 export type { MiddlewareHandler, Next, ValidationTargets }
 

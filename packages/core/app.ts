@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { Hono } from 'hono'
-import { jsxRenderer } from 'hono/jsx-renderer'
+import { jsxRenderer } from '@lockness/hono'
 import type {
     AppConfig,
     ControllerClass,

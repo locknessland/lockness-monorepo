@@ -6,7 +6,7 @@
  */
 
 import type { Context } from 'hono'
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
+import { deleteCookie, getCookie, setCookie } from '@lockness/hono'
 import { getSession, type Session } from '@lockness/session'
 import type { EventEmitter } from '@lockness/events'
 import type {

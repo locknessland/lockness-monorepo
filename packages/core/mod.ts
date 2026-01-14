@@ -9,8 +9,8 @@ export * from './auth.ts'
 export * from './error_formatter.ts'
 export * from './default_error_handler.tsx'
 export { Hono } from 'hono'
-export { html } from 'hono/html'
-export type { Child } from 'hono/jsx'
+export { html } from '@lockness/hono'
+export type { Child } from '@lockness/hono'
 
 // Re-export from separate libs
 export * from '@lockness/cache'

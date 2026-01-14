@@ -1,1 +1,1 @@
-export * from 'hono/jsx-runtime'
+export * from '@lockness/hono'

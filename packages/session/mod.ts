@@ -10,7 +10,7 @@
 // deno-lint-ignore-file require-await
 
 import type { Context } from 'hono'
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie'
+import { deleteCookie, getCookie, setCookie } from '@lockness/hono'
 
 // =============================================================================
 // Types & Interfaces
