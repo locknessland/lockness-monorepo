@@ -70,7 +70,7 @@ export const Overview = ({ data }: { data: any }) => {
                                 </div>
                                 <div class='flex items-center gap-3'>
                                     <span class='text-xs font-mono text-gray-500'>
-                                        {req.duration.toFixed(1)}ms
+                                        {req.duration?.toFixed(1) || '-'}ms
                                     </span>
                                     <Badge
                                         text={`${req.statusCode}`}

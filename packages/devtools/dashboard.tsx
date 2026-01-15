@@ -9,7 +9,13 @@ import type { RequestInfo } from './types.ts'
 import { Dashboard } from './ui/Dashboard.tsx'
 
 export function renderDashboard(c: Context) {
-    const data = collector.getAllData()
+    const data = {
+        ...collector.getAllData(),
+        system: {
+            uptime: performance.now() / 1000,
+            memory: Deno.memoryUsage(),
+        },
+    }
     const activePanel = c.req.query('panel') || 'overview'
     const requestId = c.req.query('requestId')
     const selectedRequest = requestId
