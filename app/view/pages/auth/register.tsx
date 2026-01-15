@@ -1,8 +1,8 @@
-import { LandingLayout } from '@view/layouts/landing_layout.tsx'
+import { AuthLayout } from '@view/layouts/auth_layout.tsx'
 
 export const RegisterPage = () => {
     return (
-        <LandingLayout title='Register - Lockness JS'>
+        <AuthLayout title='Register'>
             <div class='min-h-screen flex items-center justify-center p-4'>
                 <div class='w-full max-w-md'>
                     <div class='bg-card border border-border rounded-lg shadow-lg p-8'>
@@ -86,6 +86,6 @@ export const RegisterPage = () => {
                     </div>
                 </div>
             </div>
-        </LandingLayout>
+        </AuthLayout>
     )
 }

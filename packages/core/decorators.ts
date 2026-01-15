@@ -1,5 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import type { IMiddleware } from './types.ts'
+import type { MiddlewareInput } from './types.ts'
 
 /**
  * Controller decorator - marks a class as a controller and sets its base path
@@ -81,7 +81,7 @@ export function Middleware(): any {
  * // Using a named middleware (must be registered in kernel)
  * @Use('auth')
  */
-export function Use(middleware: (new () => IMiddleware) | string): any {
+export function Use(middleware: MiddlewareInput | string): any {
     return function (
         _target: any,
         context: ClassMethodDecoratorContext,

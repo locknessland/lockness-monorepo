@@ -72,17 +72,82 @@ export const Button = (props: ButtonProps) => {
 }
 ```
 
+## Layouts
+
+Layouts wrap pages with common structure like navigation bars, sidebars, and
+footers. They're higher-order components that provide consistent styling across
+multiple pages.
+
+**Creating a Layout:**
+
+```typescript
+// app/view/layouts/auth_layout.tsx
+export const AuthLayout = ({
+    title,
+    children,
+}: {
+    title: string
+    children: JSX.Element
+}) => {
+    return (
+        <>
+            <head>
+                <title>{title} - Lockness</title>
+                <meta charset='UTF-8' />
+                <meta
+                    name='viewport'
+                    content='width=device-width, initial-scale=1.0'
+                />
+            </head>
+            <body>
+                <Navbar />
+                <main>{children}</main>
+            </body>
+        </>
+    )
+}
+```
+
+**Using a Layout in a Page:**
+
+```typescript
+import { AuthLayout } from '@view/layouts/auth_layout.tsx'
+
+export const LoginPage = () => {
+    return (
+        <AuthLayout title='Login'>
+            <div class='min-h-screen flex items-center justify-center'>
+                <form class='space-y-4'>
+                    <input type='email' placeholder='Email' />
+                    <input type='password' placeholder='Password' />
+                    <button>Login</button>
+                </form>
+            </div>
+        </AuthLayout>
+    )
+}
+```
+
+**Layout Best Practices:**
+
+- ✓ Use layouts for pages with shared structure (navigation, sidebars)
+- ✓ Pass children as the main content area
+- ✓ Extract reusable components (Navbar, Sidebar) into separate files
+- ✓ Use consistent naming (e.g., `app_layout.tsx`, `docs_layout.tsx`)
+
 ## Using Components
 
-Import and use components in your pages:
+Import and use components in your pages and layouts:
 
 ```typescript
 import { Button } from '@view/components/button.tsx'
 import { Card } from '@view/components/ui/card.tsx'
+import { Navbar } from '@view/components/navbar.tsx'
 
 export const HomePage = () => {
     return (
         <div>
+            <Navbar />
             <Card>
                 <h1>Welcome</h1>
                 <Button variant='primary' size='lg'>

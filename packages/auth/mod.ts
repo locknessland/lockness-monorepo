@@ -17,14 +17,14 @@ export { SessionGuard } from './guards/session_guard.ts'
 export { TokenGuard } from './guards/token_guard.ts'
 export { BasicAuthGuard } from './guards/basic_auth_guard.ts'
 
-// Providers
-export { DrizzleSessionProvider } from './providers/drizzle_session_provider.ts'
-export { DrizzleTokenProvider } from './providers/drizzle_token_provider.ts'
-export { DrizzleBasicAuthProvider } from './providers/drizzle_basic_auth_provider.ts'
+// Providers - deprecated, use @lockness/auth-provider instead
+export { DrizzleSessionProvider } from '../auth-provider/drizzle/drizzle_session_provider.ts'
+export { DrizzleTokenProvider } from '../auth-provider/drizzle/drizzle_token_provider.ts'
+export { DrizzleBasicAuthProvider } from '../auth-provider/drizzle/drizzle_basic_auth_provider.ts'
 
-export type { DrizzleSessionProviderOptions } from './providers/drizzle_session_provider.ts'
-export type { DrizzleTokenProviderOptions } from './providers/drizzle_token_provider.ts'
-export type { DrizzleBasicAuthProviderOptions } from './providers/drizzle_basic_auth_provider.ts'
+export type { DrizzleSessionProviderOptions } from '../auth-provider/drizzle/drizzle_session_provider.ts'
+export type { DrizzleTokenProviderOptions } from '../auth-provider/drizzle/drizzle_token_provider.ts'
+export type { DrizzleBasicAuthProviderOptions } from '../auth-provider/drizzle/drizzle_basic_auth_provider.ts'
 
 // Middleware
 export {
@@ -32,7 +32,20 @@ export {
     initializeAuthMiddleware,
 } from './middleware/initialize_auth_middleware.ts'
 export {
+    authGuard,
     authMiddleware,
+    authOptional,
+    authRequired,
     guestMiddleware,
+    withAuth,
 } from './middleware/auth_middleware.ts'
 export type { AuthMiddlewareOptions } from './middleware/auth_middleware.ts'
+
+// Decorators
+export {
+    AuthGuard,
+    AuthOptional,
+    AuthRequired,
+    Guard,
+    InjectGuard,
+} from './decorators.ts'

@@ -1,35 +1,36 @@
 /**
- * @lockness/auth - Drizzle User Provider for Basic Auth Guard
+ * @lockness/auth-provider/drizzle - Drizzle Basic Auth Provider
  *
- * Simple user provider for HTTP Basic Authentication using Drizzle ORM.
+ * HTTP Basic Authentication provider using Drizzle ORM.
+ * Extends BasicAuthProviderBase to inherit shared password verification logic.
  */
 
-import type { Database } from '@lockness/drizzle'
-import type {
-    Authenticatable,
-    BasicAuthUserProviderContract,
-    PROVIDER_REAL_USER,
-} from '../types.ts'
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import type { Authenticatable } from '@lockness/auth'
+import { BasicAuthProviderBase } from '../base/basic_auth_provider_base.ts'
 
 /**
  * Options for Drizzle Basic Auth User Provider
  */
 export interface DrizzleBasicAuthProviderOptions<User extends Authenticatable> {
     /**
-     * Database instance
+     * Drizzle database instance (from @lockness/drizzle Database service)
      */
-    db: Database
+    db: PostgresJsDatabase<Record<string, unknown>>
 
     /**
      * Function to find user by ID
      */
-    findUserById: (db: Database, id: string | number) => Promise<User | null>
+    findUserById: (
+        db: PostgresJsDatabase<Record<string, unknown>>,
+        id: string | number,
+    ) => Promise<User | null>
 
     /**
      * Function to find user by email and verify password
      */
     findUserByCredentials: (
-        db: Database,
+        db: PostgresJsDatabase<Record<string, unknown>>,
         email: string,
         password: string,
     ) => Promise<User | null>
@@ -63,27 +64,16 @@ export interface DrizzleBasicAuthProviderOptions<User extends Authenticatable> {
  * })
  */
 export class DrizzleBasicAuthProvider<User extends Authenticatable>
-    implements BasicAuthUserProviderContract<User> {
-    /**
-     * Symbol to access real user type
-     */
-    declare [PROVIDER_REAL_USER]: User
-
+    extends BasicAuthProviderBase<User> {
     #options: Required<DrizzleBasicAuthProviderOptions<User>>
 
     constructor(options: DrizzleBasicAuthProviderOptions<User>) {
+        super()
         this.#options = {
             ...options,
             verifyPassword: options.verifyPassword ??
-                this.#defaultVerifyPassword,
+                this.defaultVerifyPassword.bind(this),
         }
-    }
-
-    /**
-     * Default password verification (direct comparison - not secure for production)
-     */
-    #defaultVerifyPassword(plain: string, hash: string): Promise<boolean> {
-        return Promise.resolve(plain === hash)
     }
 
     /**
@@ -108,7 +98,7 @@ export class DrizzleBasicAuthProvider<User extends Authenticatable>
     }
 
     /**
-     * Verify password
+     * Verify password hash
      */
     async verifyPassword(plain: string, hash: string): Promise<boolean> {
         return await this.#options.verifyPassword(plain, hash)

@@ -1,0 +1,21 @@
+{
+    "name": "@lockness/auth-provider",
+    "version": "0.1.22",
+    "description": "ORM-agnostic user providers for @lockness/auth. Support for Drizzle, Kysely, and more.",
+    "exports": {
+        ".": "./mod.ts",
+        "./base": "./base/mod.ts",
+        "./drizzle": "./drizzle/mod.ts",
+        "./kysely": "./kysely/mod.ts"
+    },
+    "lint": {
+        "exclude": [
+            "node_modules"
+        ],
+        "rules": {
+            "exclude": [
+                "no-explicit-any"
+            ]
+        }
+    }
+}

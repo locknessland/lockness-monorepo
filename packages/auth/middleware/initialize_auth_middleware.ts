@@ -31,10 +31,9 @@ export function initializeAuthMiddleware<
 ): import('hono').MiddlewareHandler {
     return async (c: Context, next: () => Promise<void>) => {
         // Create authenticator instance
-        const auth = new Authenticator(c, config)
-
-        // Attach to context
-        c.set('auth', auth)
+        const auth = new Authenticator(c, config) // Attach to context under __auth key to avoid conflicts with fluent API
+         // deno-lint-ignore no-explicit-any
+        ;(c as any).__auth = auth
 
         await next()
     }
@@ -54,7 +53,8 @@ export function getAuth<
 >(
     c: Context,
 ): Authenticator<Guards> {
-    const auth = c.get('auth') as Authenticator<Guards> | undefined
+    // deno-lint-ignore no-explicit-any
+    const auth = (c as any).__auth as Authenticator<Guards> | undefined
 
     if (!auth) {
         throw new Error(

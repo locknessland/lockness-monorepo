@@ -152,6 +152,70 @@ app.post('/logout', authMiddleware(), async (c) => {
 })
 ```
 
+## Decorators (Recommended Approach)
+
+Use dedicated decorators for clean, type-safe route protection:
+
+```typescript
+import { Context, Controller, Get, Post } from '@lockness/core'
+import { AuthGuard, AuthOptional, AuthRequired } from '@lockness/auth'
+
+@Controller('/auth')
+export class AuthController {
+    @Get('/login')
+    @AuthOptional()
+    showLogin(c: Context) {
+        const user = c.get('auth')?.user
+        return c.html(<LoginPage user={user} />)
+    }
+
+    @Post('/login')
+    @AuthOptional()
+    async login(c: Context) {
+        const { email, password, remember } = await c.req.json()
+        const auth = c.get('auth')
+
+        try {
+            await auth.login(email, password, remember)
+            return c.json({ message: 'Logged in successfully' })
+        } catch (error) {
+            return c.json({ error: 'Invalid credentials' }, 401)
+        }
+    }
+
+    @Get('/profile')
+    @AuthRequired({ redirectTo: '/auth/login' })
+    profile(c: Context) {
+        const user = c.get('auth').user // Guaranteed to exist
+        return c.json({ user })
+    }
+
+    @Post('/logout')
+    @AuthRequired()
+    async logout(c: Context) {
+        await c.get('auth').logout()
+        return c.json({ message: 'Logged out' })
+    }
+
+    @Post('/api/data')
+    @AuthGuard('api')
+    apiData(c: Context) {
+        const user = c.get('auth').user
+        return c.json({ data: [] })
+    }
+}
+```
+
+**Decorator Summary:**
+
+- `@AuthOptional()` - Makes auth available but not required
+- `@AuthRequired()` - Requires authentication (redirects to login on failure if
+  `redirectTo` specified)
+- `@AuthRequired({ redirectTo: '/path' })` - Requires auth and redirects to
+  specified path on failure
+- `@AuthGuard(guardName)` - Requires specific guard
+- `@AuthGuard('api')` - Use API token authentication instead of session
+
 ## Guards
 
 ### Session Guard
@@ -492,6 +556,129 @@ import { getAuth } from '@lockness/auth'
 const auth = getAuth(ctx)
 const guard = auth.use('web')
 ```
+
+## Enhanced Auth Guard API
+
+Lockness provides **three approaches** for accessing guards. Choose based on
+your use case.
+
+### Approach 1: Context API (Recommended)
+
+The cleanest approach with `c.auth.*` fluent API - **use this for 95% of
+cases**.
+
+```typescript
+import { Context, Controller, Post, Use } from '@lockness/core'
+import { withAuth } from '@lockness/auth'
+
+@Controller('/auth')
+export class AuthController {
+    @Post('/login')
+    @Use(withAuth()) // Enriches context, doesn't require auth
+    async login(c: Context) {
+        await c.auth.login(email, password, remember) // ✨ One line!
+        return c.redirect('/dashboard')
+    }
+
+    @Post('/logout')
+    @Use('auth') // Requires authentication
+    async logout(c: Context) {
+        await c.auth.logout() // ✨ Clean!
+        return c.redirect('/login')
+    }
+
+    @Get('/profile')
+    @Use('auth')
+    profile(c: Context) {
+        const user = c.auth.user // ✨ Direct typed access
+        return c.html(<ProfilePage user={user} />)
+    }
+}
+```
+
+**Available Methods:**
+
+| Method                                 | Description                           |
+| -------------------------------------- | ------------------------------------- |
+| `c.auth.user`                          | Get authenticated user (or undefined) |
+| `c.auth.check()`                       | Check if authenticated                |
+| `c.auth.login(email, pass, remember?)` | Login with credentials                |
+| `c.auth.loginById(id, remember?)`      | Login by user ID                      |
+| `c.auth.logout()`                      | Logout current user                   |
+| `c.auth.guard()`                       | Get underlying guard instance         |
+
+**Middlewares:**
+
+- `@Use('auth')` - Requires authentication (throws if not authenticated)
+- `@Use(withAuth())` - Enriches context without requiring authentication
+
+### Approach 2: Decorator Injection (Advanced)
+
+Use `@InjectGuard()` when you need direct guard access for advanced operations.
+
+```typescript
+import { InjectGuard } from '@lockness/auth'
+import type { SessionGuard } from '@lockness/auth'
+import type { UserProvider } from '../auth/user_provider.ts'
+
+type WebGuard = SessionGuard<true, UserProvider>
+
+@Controller('/auth')
+export class AuthController {
+    @Post('/logout')
+    @InjectGuard('web')
+    async logout(c: Context, guard: WebGuard) {
+        // guard is injected as 2nd parameter, fully typed
+        await guard.logout()
+        return c.redirect('/login')
+    }
+}
+```
+
+**When to use:**
+
+- Need direct guard instance for testing
+- Complex guard operations not in Context API
+- Want explicit dependency injection pattern
+
+### Approach 3: Manual Access (Multiple Guards)
+
+Use `getAuth(c).use()` when working with multiple guards.
+
+```typescript
+import { getAuth } from '@lockness/auth'
+
+@Post('/multi-auth')
+@Use(withAuth())
+async multiAuth(c: Context) {
+    const auth = getAuth(c)
+
+    if (c.req.header('Authorization')) {
+        const apiGuard = auth.use('api')
+        return await apiGuard.check()
+    } else {
+        const webGuard = auth.use('web')
+        return await webGuard.check()
+    }
+}
+```
+
+**When to use:**
+
+- Multiple guards in single method
+- Dynamic guard selection at runtime
+
+### Why No reflect-metadata?
+
+Lockness uses **TC39 Stage 3 decorators** (standard JavaScript decorators):
+
+- ✅ No `reflect-metadata` dependency
+- ✅ Works natively in Deno 2+, Node 22+
+- ✅ Future-proof and standards-compliant
+- ❌ Parameter decorators don't exist (use method decorators)
+
+The `@InjectGuard()` decorator uses a method decorator pattern to inject guards
+as parameters.
 
 ## API Reference
 

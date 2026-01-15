@@ -1,11 +1,12 @@
 {
     "description": "Lockness Project Monorepo which contains all packages",
     "license": "MIT",
-    "version": "0.1.20",
+    "version": "0.1.22",
     "workspace": [
         "./packages/core",
         "./packages/hono",
         "./packages/auth",
+        "./packages/auth-provider",
         "./packages/cache",
         "./packages/container",
         "./packages/events",
@@ -60,9 +61,10 @@
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "drizzle-zod": "npm:drizzle-zod@^0.5.1",
         "drizzle-kit": "npm:drizzle-kit@beta",
-        "@lockness/core": "jsr:@lockness/core@^0.1.21",
+        "@lockness/core": "jsr:@lockness/core@^0.1.22",
+        "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.22",
         "zod": "npm:zod@^4.2.1",
-        "@hono/zod-validator": "jsr:@lockness/hono@^0.1.21",
+        "@hono/zod-validator": "jsr:@lockness/hono@^0.1.22",
         "tailwindcss": "npm:tailwindcss@^4.1.18",
         "@tailwindcss/cli": "npm:@tailwindcss/cli@^4.1.18"
     },
@@ -96,5 +98,12 @@
             "npm:esbuild@0.27.2",
             "npm:fsevents@2.3.3"
         ]
+    },
+    "lint": {
+        "rules": {
+            "exclude": [
+                "no-explicit-any"
+            ]
+        }
     }
 }

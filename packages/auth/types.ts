@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-slow-types
 /**
  * @lockness/auth - Types & Interfaces
  *
@@ -461,3 +462,130 @@ export type InferGuardUser<T extends GuardContract<any>> = T extends
 // deno-lint-ignore no-explicit-any
 export type InferProviderUser<T extends UserProviderContract<any>> =
     T[typeof PROVIDER_REAL_USER]
+
+// =============================================================================
+// Auth Context API (Fluent Interface)
+// =============================================================================
+
+/**
+ * Auth Context API
+ *
+ * Provides a fluent interface for authentication operations.
+ * Automatically available on Context when auth middleware is applied.
+ *
+ * @example
+ * ```typescript
+ * @Post('/logout')
+ * @Use('auth')
+ * async logout(c: Context) {
+ *     await c.auth.logout()
+ *     return c.redirect('/login')
+ * }
+ * ```
+ */
+// deno-lint-ignore no-explicit-any
+export interface AuthContext<TUser = any> {
+    /**
+     * Currently authenticated user (undefined if not authenticated)
+     */
+    user: TUser | undefined
+
+    /**
+     * Check if user is authenticated
+     */
+    check(): Promise<boolean>
+
+    /**
+     * Login user with credentials
+     *
+     * @param email - User email
+     * @param password - User password
+     * @param remember - Whether to persist session (default: false)
+     */
+    login(email: string, password: string, remember?: boolean): Promise<TUser>
+
+    /**
+     * Login user by ID
+     *
+     * @param id - User ID
+     * @param remember - Whether to persist session (default: false)
+     */
+    loginById(id: number | string, remember?: boolean): Promise<TUser>
+
+    /**
+     * Logout current user
+     */
+    logout(): Promise<void>
+
+    /**
+     * Get the underlying guard instance
+     * Use this for advanced operations not covered by the fluent API
+     */
+    // deno-lint-ignore no-explicit-any
+    guard(): any
+}
+
+/**
+ * Type helper for SessionGuard with typed UserProvider
+ *
+ * @example
+ * ```typescript
+ * import type { UserProvider } from '../auth/user_provider.ts'
+ *
+ * type WebGuard = TypedSessionGuard<UserProvider>
+ *
+ * @InjectGuard('web')
+ * async logout(c: Context, guard: WebGuard) {
+ *     // guard is fully typed
+ * }
+ * ```
+ */
+// deno-lint-ignore no-explicit-any
+export type TypedSessionGuard<TProvider extends UserProviderContract<any>> =
+    // deno-lint-ignore no-explicit-any
+    GuardContract<any> & {
+        login(
+            email: string,
+            password: string,
+            remember?: boolean,
+        ): Promise<TProvider[typeof PROVIDER_REAL_USER]>
+        loginById(
+            id: number | string,
+            remember?: boolean,
+        ): Promise<TProvider[typeof PROVIDER_REAL_USER]>
+        logout(): Promise<void>
+    }
+
+/**
+ * Augment Context from hono with auth property
+ *
+ * Note: The 'auth' key is stored in context variables by the auth middleware.
+ * You can access it via c.get('auth') to get the AuthContext.
+ *
+ * @example
+ * ```typescript
+ * @Post('/logout')
+ * async logout(c: Context) {
+ *     const auth = c.get('auth')
+ *     await auth.logout()
+ *     return c.redirect('/login')
+ * }
+ * ```
+ */
+/**
+ * Type Helper: Get typed auth context from Hono Context
+ * Since ambient modules are not JSR-compatible, use this helper for proper typing:
+ *
+ * @example
+ * ```typescript
+ * import { type AuthContext } from '@lockness/auth'
+ *
+ * @Post('/logout')
+ * @Use('auth')
+ * async logout(c: Context) {
+ *     const auth = c.get('auth') as AuthContext
+ *     await auth.logout()
+ *     return c.redirect('/login')
+ * }
+ * ```
+ */

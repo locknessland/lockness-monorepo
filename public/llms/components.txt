@@ -5,7 +5,7 @@ Reusable JSX components for server-side rendered views.
 ## Basic Component
 
 ```tsx
-// src/view/components/button.tsx
+// app/view/components/button.tsx
 export const Button = (props: { text: string; href: string }) => {
     return (
         <a 
@@ -61,54 +61,97 @@ export const Card = (props: CardProps) => {
 </Card>
 ```
 
+## Reusable Components (Navbar Example)
+
+```tsx
+// app/view/components/navbar.tsx
+export const Navbar = () => {
+    return (
+        <nav class="navbar bg-background border-b border-border">
+            <div class="navbar-content">
+                <div class="navbar-brand">
+                    <a href="/" class="logo">Lockness</a>
+                </div>
+                
+                <div class="navbar-links">
+                    <a href="/" class="nav-link">Home</a>
+                    <a href="/docs" class="nav-link">Docs</a>
+                    <a href="/auth/profile" class="nav-link">Profile</a>
+                </div>
+            </div>
+        </nav>
+    )
+}
+```
+
+**Usage in layouts:**
+```tsx
+import { Navbar } from '@view/components/navbar.tsx'
+
+export const AppLayout = (props: { children: any }) => {
+    return (
+        <div>
+            <Navbar />
+            <main>{props.children}</main>
+        </div>
+    )
+}
+```
+
 ## Layout Components
 
 ```tsx
-// src/view/layouts/app_layout.tsx
-export const AppLayout = (props: { 
+// app/view/layouts/auth_layout.tsx
+import { Navbar } from '@view/components/navbar.tsx'
+
+export const AuthLayout = (props: { 
     title: string
     children: any 
 }) => {
     return (
-        <html>
+        <>
             <head>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <title>{props.title}</title>
+                <title>{props.title} - Lockness</title>
                 <link rel="stylesheet" href="/css/app.css" />
             </head>
             <body>
-                <nav>
-                    <a href="/">Home</a>
-                    <a href="/about">About</a>
-                </nav>
+                <Navbar />
                 
                 <main>
                     {props.children}
                 </main>
-                
-                <footer>
-                    <p>&copy; 2024 My App</p>
-                </footer>
             </body>
-        </html>
+        </>
     )
 }
 ```
 
-**Usage:**
+**Usage in pages:**
 ```tsx
-import { AppLayout } from '@view/layouts/app_layout.tsx'
+import { AuthLayout } from '@view/layouts/auth_layout.tsx'
 
-export const AboutPage = () => {
+export const LoginPage = () => {
     return (
-        <AppLayout title="About Us">
-            <h1>About Us</h1>
-            <p>We are awesome!</p>
-        </AppLayout>
+        <AuthLayout title="Login">
+            <div class="min-h-screen flex items-center justify-center">
+                <form class="space-y-4">
+                    <input type="email" placeholder="Email" />
+                    <input type="password" placeholder="Password" />
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+        </AuthLayout>
     )
 }
 ```
+
+**Best practices:**
+- Extract common layout elements (Navbar, Sidebar, Footer) into separate components
+- Use layouts for pages with shared structure
+- Pass children for page-specific content
+- Import layouts in page components
 
 ## Conditional Rendering
 

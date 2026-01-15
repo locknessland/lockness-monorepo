@@ -239,71 +239,181 @@ Error response format:
 }
 ```
 
+### Components & Layouts
+
+Create reusable JSX components and page layouts:
+
+**Reusable Component (Navbar):**
+```typescript
+// app/view/components/navbar.tsx
+export const Navbar = () => {
+    return (
+        <nav class="navbar bg-background border-b border-border">
+            <div class="navbar-content">
+                <a href="/" class="logo">Lockness</a>
+                <div class="navbar-links">
+                    <a href="/docs">Docs</a>
+                    <a href="/auth/profile">Profile</a>
+                </div>
+            </div>
+        </nav>
+    )
+}
+```
+
+**Page Layout with Navbar:**
+```typescript
+// app/view/layouts/auth_layout.tsx
+import { Navbar } from '@view/components/navbar.tsx'
+
+export const AuthLayout = ({
+    title,
+    children,
+}: {
+    title: string
+    children: JSX.Element
+}) => {
+    return (
+        <>
+            <head>
+                <title>{title} - Lockness</title>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            </head>
+            <body>
+                <Navbar />
+                <main>{children}</main>
+            </body>
+        </>
+    )
+}
+```
+
+**Using Layout in Page:**
+```typescript
+import { AuthLayout } from '@view/layouts/auth_layout.tsx'
+
+export const LoginPage = () => {
+    return (
+        <AuthLayout title="Login">
+            <div class="min-h-screen flex items-center justify-center">
+                <form method="post" action="/auth/login" class="space-y-4">
+                    <input type="email" name="email" placeholder="Email" required />
+                    <input type="password" name="password" placeholder="Password" required />
+                    <button type="submit">Login</button>
+                </form>
+            </div>
+        </AuthLayout>
+    )
+}
+```
+
+**Best Practices:**
+- Extract common components (Navbar, Sidebar, Footer)
+- Use layouts for pages with shared structure
+- Pass children for page-specific content
+- Keep components focused and reusable
+
 ### Authentication
 
-Session-based authentication system:
+Multi-guard authentication system with Session, Token, and Basic Auth:
 
 ```typescript
-// Generate auth scaffolding
-deno task cli make:auth
-
 // Configure in kernel.ts
-import { configureAuth, container } from '@lockness/core'
+import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
+import { sessionMiddleware } from '@lockness/session'
 import { UserProvider } from '@provider/user_provider.ts'
 
-configureAuth({
-    userProvider: container.get(UserProvider),
-    redirectTo: '/auth/login',
-})
+const userProvider = new UserProvider()
 
-// Use in controllers
-import { Auth, Guest, auth, session } from '@lockness/core'
+// Initialize session
+app.use('*', sessionMiddleware({
+    driver: 'cookie',
+    cookieName: 'session_id',
+    lifetime: 7200,
+}))
 
-@Controller('/dashboard')
-@Auth() // Protect entire controller
-export class DashboardController {
-    @Get('/')
-    async index(c: Context) {
-        const user = auth(c).user()
-        return c.json({ user })
-    }
-}
+// Initialize auth
+app.use('*', initializeAuthMiddleware({
+    default: 'web',
+    guards: {
+        web: (ctx) => new SessionGuard('web', ctx, userProvider),
+    },
+}))
+
+// Use decorators in controllers
+import { AuthOptional, AuthRequired, AuthGuard } from '@lockness/auth'
 
 @Controller('/auth')
 export class AuthController {
-    @Guest('/dashboard') // Redirect if authenticated
     @Get('/login')
-    login(c: Context) {
-        return c.html(<LoginPage />)
+    @AuthOptional()
+    showLogin(c: Context) {
+        const user = c.get('auth')?.user
+        return c.html(<LoginPage user={user} />)
     }
 
     @Post('/login')
-    async handleLogin(c: Context) {
-        const { email, password } = await c.req.json()
+    @AuthOptional()
+    async login(c: Context) {
+        const { email, password, remember } = await c.req.json()
+        const auth = c.get('auth')
         
-        if (await auth(c).attempt(email, password)) {
-            session(c).regenerate()
-            return c.redirect('/dashboard')
+        try {
+            await auth.login(email, password, remember)
+            return c.json({ message: 'Logged in' })
+        } catch (error) {
+            return c.json({ error: 'Invalid credentials' }, 401)
         }
-        
-        return c.json({ error: 'Invalid credentials' }, 401)
+    }
+
+    @Get('/profile')
+    @AuthRequired({ redirectTo: '/auth/login' })
+    profile(c: Context) {
+        const user = c.get('auth').user
+        return c.json({ user })
     }
 
     @Post('/logout')
+    @AuthRequired()
     async logout(c: Context) {
-        await auth(c).logout()
+        await c.get('auth').logout()
         return c.redirect('/auth/login')
+    }
+
+    @Post('/api/data')
+    @AuthGuard('api')
+    apiData(c: Context) {
+        const user = c.get('auth').user
+        return c.json({ data: [] })
     }
 }
 ```
 
-Auth API:
-- `auth(c).check()` - Is authenticated?
-- `auth(c).user()` - Get current user
-- `auth(c).id()` - Get user ID
-- `auth(c).attempt(email, pass)` - Try login
-- `auth(c).login(user)` - Log in user
-- `auth(c).logout()` - Log out
+Auth Decorators:
+- `@AuthOptional()` - Auth available but not required
+- `@AuthRequired()` - Auth required (401 if missing, or redirect if redirectTo specified)
+- `@AuthRequired({ redirectTo: '/path' })` - Auth required with redirect on failure
+- `@AuthGuard(guardName)` - Specific guard required
+
+Context API:
+```typescript
+const auth = c.get('auth')
+
+// Check authentication
+await auth.check()  // boolean
+auth.user          // User | undefined
+
+// Login/Logout
+await auth.login(email, password, remember?)
+await auth.loginById(userId, remember?)
+await auth.logout()
+```
+
+Guards:
+- SessionGuard - Cookie/session-based (web apps)
+- TokenGuard - Bearer token (APIs)
+- BasicAuthGuard - HTTP Basic (development)
 
 Password hashing:
 ```typescript

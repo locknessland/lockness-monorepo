@@ -50,6 +50,16 @@ Deno.test('authMiddleware - protects routes', async () => {
         return c.json({ error: 'Internal server error' }, 500)
     })
 
+    // Mock session (required for guard initialization)
+    app.use('*', async (c, next) => {
+        ;(c as any).set('session', {
+            get: () => null,
+            set: () => {},
+            regenerate: () => Promise.resolve(),
+        } as any)
+        await next()
+    })
+
     app.use(
         '*',
         initializeAuthMiddleware({
@@ -58,7 +68,7 @@ Deno.test('authMiddleware - protects routes', async () => {
         }),
     )
 
-    app.get('/protected', authMiddleware(), (c) => {
+    app.get('/protected', authMiddleware({ guards: 'api' }), (c) => {
         return c.json({ message: 'Protected data' })
     })
 

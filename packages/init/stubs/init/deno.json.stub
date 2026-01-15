@@ -25,9 +25,9 @@
         "@std/cli": "jsr:@std/cli@1",
         "@std/fs": "jsr:@std/fs@1",
         "@std/path": "jsr:@std/path@1",
-        "@lockness/core": "jsr:@lockness/core@^0.1.21",
-        "@lockness/cli": "jsr:@lockness/cli@^0.1.21",
-        "@lockness/auth": "jsr:@lockness/auth@^0.1.21",
+        "@lockness/core": "jsr:@lockness/core@^0.1.22",
+        "@lockness/cli": "jsr:@lockness/cli@^0.1.22",
+        "@lockness/auth": "jsr:@lockness/auth@^0.1.22",
         "postcss": "npm:postcss@^8.4.49",
         "postcss-cli": "npm:postcss-cli@^11.0.0"
     },

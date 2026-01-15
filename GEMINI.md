@@ -36,11 +36,17 @@ Lockness abstracts this layer to offer a complete and familiar MVC
   `@Service` and `@Inject` decorators (TC39 Stage 3 decorators)
 - **View Engine (JSX)**: Native JSX support powered by Hono's JSX runtime, fully
   integrated into `@lockness/core`. No extra `hono` imports required.
+- **Reusable Components & Layouts**: Build consistent UIs with composable JSX
+  components and page layouts (navigation, page structure, etc.)
+- **Authentication Decorators**: `@AuthRequired()`, `@AuthOptional()`,
+  `@AuthGuard()` decorators with optional redirect support
 - **Modern CSS**: For the main monorepo, Tailwind CSS v4.1 for utility-first
   styling. Generated projects use PostCSS as a neutral CSS processor, allowing
   you to add any framework you prefer.
 - **ORM / Query Builder**: Official integration with **Drizzle ORM** for
   type-safe database queries with PostgreSQL support.
+- **Multi-ORM Support**: ORM-agnostic authentication providers via
+  `@lockness/auth-provider` (Drizzle, Kysely, Prisma, TypeORM ready)
 - **Deprecation Contracts**: Elegant system to manage code evolution with
   logging and Devtools integration.
 - **Production Ready**: Compile to standalone binaries with `deno compile`
@@ -1123,85 +1129,273 @@ Example `deno.json` for a package:
 
 ### Authentication System
 
-Lockness provides a complete authentication system with session-based auth,
-password hashing, and guards.
+Lockness provides a complete, multi-guard authentication system inspired by
+AdonisJS with support for Session, Token (API), and Basic Auth.
 
 **Quick Setup:**
 
 ```bash
-# Scaffold auth controller and user provider
-deno task cli make:auth
+# Create user provider
+touch app/provider/user_provider.ts
 ```
 
 **Configure in kernel.ts:**
 
 ```typescript
-import { configureAuth, container } from '@lockness/core'
+import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
+import { sessionMiddleware } from '@lockness/session'
 import { UserProvider } from '@provider/user_provider.ts'
 
-// Configure authentication
-configureAuth({
-    userProvider: container.get(UserProvider),
-    redirectTo: '/auth/login',
-})
+const app = new App()
+const userProvider = new UserProvider()
+
+// Initialize session
+app.use(
+    '*',
+    sessionMiddleware({
+        driver: 'cookie',
+        cookieName: 'session_id',
+        lifetime: 7200,
+    }),
+)
+
+// Initialize auth
+app.use(
+    '*',
+    initializeAuthMiddleware({
+        default: 'web',
+        guards: {
+            web: (ctx) => new SessionGuard('web', ctx, userProvider),
+        },
+    }),
+)
 ```
 
-**Using auth in controllers:**
+**Using auth in controllers with decorators:**
 
 ```typescript
-import { Controller, Get, Post, Auth, Guest, Context, auth, session } from '@lockness/core'
-
-@Controller('/dashboard')
-@Auth() // Protect entire controller
-export class DashboardController {
-    @Get('/')
-    async index(c: Context) {
-        const user = await auth(c).user()
-        return c.json({ user })
-    }
-}
+import { Context, Controller, Get, Post } from '@lockness/core'
+import { AuthGuard, AuthOptional, AuthRequired } from '@lockness/auth'
 
 @Controller('/auth')
 export class AuthController {
-    @Guest('/dashboard') // Redirect if already logged in
     @Get('/login')
-    showLogin(c: Context) { ... }
+    @AuthOptional() // auth available but not required
+    showLogin(c: Context) {
+        const user = c.get('auth')?.user
+        return c.html(<LoginPage />)
+    }
 
     @Post('/login')
+    @AuthOptional()
     async login(c: Context) {
-        const { email, password } = await c.req.parseBody()
-        const success = await auth(c).attempt(email, password)
+        const { email, password, remember } = await c.req.json()
+        const auth = c.get('auth')
 
-        if (!success) {
-            session(c).flash('error', 'Invalid credentials')
-            return c.redirect('/auth/login')
+        try {
+            await auth.login(email, password, remember)
+            return c.json({ message: 'Logged in' })
+        } catch (error) {
+            return c.json({ error: 'Invalid credentials' }, 401)
         }
+    }
 
-        return c.redirect('/dashboard')
+    @Get('/profile')
+    @AuthRequired() // user required
+    profile(c: Context) {
+        const user = c.get('auth').user
+        return c.json({ user })
     }
 
     @Post('/logout')
+    @AuthRequired()
     async logout(c: Context) {
-        await auth(c).logout()
+        await c.get('auth').logout()
         return c.redirect('/auth/login')
+    }
+
+    @Post('/api/data')
+    @AuthGuard('api') // specific guard
+    apiData(c: Context) {
+        const user = c.get('auth').user
+        return c.json({ data: [] })
     }
 }
 ```
 
-**Auth Guard API:**
+**Auth Context API:**
 
-| Method                         | Description                        |
-| ------------------------------ | ---------------------------------- |
-| `auth(c).check()`              | Check if user is authenticated     |
-| `auth(c).guest()`              | Check if user is NOT authenticated |
-| `auth(c).user()`               | Get authenticated user             |
-| `auth(c).id()`                 | Get user ID from session           |
-| `auth(c).attempt(email, pass)` | Attempt login with credentials     |
-| `auth(c).login(user)`          | Log in a user directly             |
-| `auth(c).loginById(id)`        | Log in user by ID                  |
-| `auth(c).logout()`             | Log out current user               |
+Available through `c.get('auth')`:
 
-**Password Hashing:**
+| Method                                              | Description                           |
+| --------------------------------------------------- | ------------------------------------- |
+| `c.get('auth').user`                                | Get authenticated user (or undefined) |
+| `await c.get('auth').check()`                       | Check if authenticated                |
+| `await c.get('auth').login(email, pass, remember?)` | Login with credentials                |
+| `await c.get('auth').loginById(id, remember?)`      | Login by user ID                      |
+| `await c.get('auth').logout()`                      | Logout current user                   |
+| `c.get('auth').guard()`                             | Get underlying guard instance         |
+
+### Authentication Decorators
+
+Three decorators provide clear, type-safe route protection:
+
+#### `@AuthOptional()`
+
+Makes authentication available without requiring it. Perfect for routes that
+serve both authenticated and unauthenticated users.
+
+```typescript
+@Get('/home')
+@AuthOptional()
+home(c: Context) {
+    const user = c.get('auth')?.user  // May be undefined
+    return c.json({ user })
+}
+```
+
+#### `@AuthRequired()`
+
+Requires authentication. Automatically rejects unauthenticated requests
+with 401.
+
+```typescript
+@Get('/profile')
+@AuthRequired()
+profile(c: Context) {
+    const user = c.get('auth').user  // Guaranteed to exist
+    return c.json({ user })
+}
+```
+
+#### `@AuthGuard(guardName)`
+
+Requires a specific guard. Useful for APIs requiring token authentication or
+other guard types.
+
+```typescript
+@Post('/api/users')
+@AuthGuard('api')
+createUser(c: Context) {
+    const user = c.get('auth').user
+    return c.json({ user })
+}
+
+// Multiple guards (try web OR api)
+@Get('/data')
+@AuthGuard(['web', 'api'])
+getData(c: Context) {
+    const user = c.get('auth').user
+    return c.json({ data: [] })
+}
+```
+
+**Benefits of decorators:**
+
+- ✅ Clear intent - no string magic values
+- ✅ Type-safe - compiler validates guard names
+- ✅ Composable - stack with other decorators
+- ✅ DRY - no repeated middleware wrapping
+
+### Guards
+
+Multiple authentication strategies for different use cases:
+
+#### Session Guard (Web Apps)
+
+Cookie/session-based authentication:
+
+```typescript
+import { SessionGuard } from '@lockness/auth'
+
+const guard = new SessionGuard('web', c, userProvider, {
+    useRememberMeTokens: true,
+    rememberMeTokenLifetime: 365 * 24 * 60 * 60,
+    sessionKeyName: 'auth_user_id',
+})
+
+await guard.login('user@example.com', 'password', true) // remember
+await guard.loginById(userId, false)
+const user = await guard.authenticate()
+await guard.logout()
+```
+
+#### Token Guard (APIs)
+
+Bearer token authentication for APIs and mobile apps:
+
+```typescript
+import { TokenGuard } from '@lockness/auth'
+
+const guard = new TokenGuard('api', c, tokenProvider, {
+    prefix: 'Bearer',
+    tokenType: 'Bearer',
+})
+
+const token = await guard.generate('user@example.com', 'password', 'mobile')
+const user = await guard.authenticate() // reads Authorization header
+await guard.revoke() // revoke current token
+await guard.revokeAll() // logout all devices
+```
+
+#### Basic Auth Guard (Development)
+
+HTTP Basic Authentication for internal APIs:
+
+```typescript
+import { BasicAuthGuard } from '@lockness/auth'
+
+const guard = new BasicAuthGuard('basic', c, basicAuthProvider, {
+    realm: 'Protected Area',
+})
+
+const user = await guard.authenticate()
+```
+
+### User Providers
+
+Implement `SessionUserProviderContract` to bring your own database:
+
+```typescript
+import type {
+    PROVIDER_REAL_USER,
+    SessionUserProviderContract,
+} from '@lockness/auth'
+
+interface User {
+    id: number
+    email: string
+    password: string
+}
+
+export class UserProvider implements SessionUserProviderContract<User> {
+    declare [PROVIDER_REAL_USER]: User
+
+    async findById(id: string | number): Promise<User | null> {
+        return db.query.users.findFirst({ where: eq(users.id, id) })
+    }
+
+    async findByCredentials(
+        email: string,
+        password: string,
+    ): Promise<User | null> {
+        const user = await db.query.users.findFirst({
+            where: eq(users.email, email),
+        })
+        if (!user) return null
+        const valid = await verifyPassword(password, user.password)
+        return valid ? user : null
+    }
+
+    async verifyPassword(plain: string, hash: string): Promise<boolean> {
+        return await bcrypt.compare(plain, hash)
+    }
+}
+```
+
+### Password Hashing
+
+Secure password hashing and verification:
 
 ```typescript
 import { hashPassword, verifyPassword } from '@lockness/core'
@@ -1213,12 +1407,19 @@ const hash = await hashPassword('secret123')
 const valid = await verifyPassword('secret123', hash)
 ```
 
-**Decorators:**
+### Security Best Practices
 
-- `@Auth()` - Require authentication (redirects to login or returns 401)
-- `@Guest(redirectTo?)` - Require NOT authenticated (for login/register pages)
-
-Both decorators can be used at class or method level.
+1. **Always use HTTPS in production** - Prevents session/token theft
+2. **Rotate secrets regularly** - APP_KEY, token secrets
+3. **Hash passwords** - Use bcrypt, argon2, or scrypt
+4. **Set secure cookies** - `secure: true`, `httpOnly: true`,
+   `sameSite: 'Strict'`
+5. **Implement rate limiting** - Prevent brute force attacks
+6. **Regenerate session ID after login** - Prevent session fixation
+7. **Enable remember token recycling** - Detect stolen tokens
+8. **Set token expiration** - Limit damage from leaked tokens
+9. **Log authentication events** - Monitor suspicious activity
+10. **Validate user input** - Prevent injection attacks
 
 ### Social Authentication (Socialite)
 

@@ -248,6 +248,72 @@ import { route } from '@lockness/core'
 const url = route('auth.login') // "/auth/login"
 ```
 
+#### Reusable Layouts and Components
+
+Lockness provides a component-based architecture for building consistent UI
+across your application:
+
+**Layouts** - Wrap pages with common structure (navigation, headers, sidebars):
+
+```typescript
+// app/view/layouts/auth_layout.tsx
+export const AuthLayout = (
+    { title, children }: { title: string; children: JSX.Element },
+) => {
+    return (
+        <>
+            <head>
+                <title>{title} - Lockness</title>
+                {/* Meta tags and styles */}
+            </head>
+            <body>
+                <Navbar />
+                <main>{children}</main>
+            </body>
+        </>
+    )
+}
+
+// Usage in pages
+import { AuthLayout } from '@view/layouts/auth_layout.tsx'
+
+export const LoginPage = () => (
+    <AuthLayout title='Login'>
+        <div class='login-form'>
+            {/* Login form */}
+        </div>
+    </AuthLayout>
+)
+```
+
+**Reusable Components** - Extract common UI patterns:
+
+```typescript
+// app/view/components/navbar.tsx
+export const Navbar = () => {
+    return (
+        <nav class='navbar'>
+            <a href='/' class='logo'>Lockness</a>
+            <div class='nav-links'>
+                <a href='/docs'>Docs</a>
+                <a href='/auth/profile'>Profile</a>
+            </div>
+        </nav>
+    )
+}
+
+// Usage across layouts
+import { Navbar } from '@view/components/navbar.tsx'
+
+export const DocsLayout = ({ children }: { children: JSX.Element }) => (
+    <div>
+        <Navbar />
+        <aside>{/* Sidebar */}</aside>
+        <main>{children}</main>
+    </div>
+)
+```
+
 ### Application Kernel
 
 The application kernel (`app/kernel.tsx`) is the central configuration file
@@ -830,7 +896,10 @@ Available methods: `get()`, `set()`, `has()`, `forget()`, `all()`, `flush()`,
 
 ### Authentication
 
-Scaffold a complete authentication system:
+Lockness provides a powerful authentication system with multiple approaches for
+accessing guards.
+
+**Quick Start:**
 
 ```bash
 deno task cli make:auth
@@ -841,56 +910,126 @@ This creates an `AuthController` and `UserProvider`.
 Configure auth in `app/kernel.ts`:
 
 ```typescript
-import { configureAuth, container } from '@lockness/core'
+import { initializeAuthMiddleware } from '@lockness/auth'
 import { UserProvider } from '@provider/user_provider.ts'
 
-configureAuth({
-    userProvider: container.get(UserProvider),
-    redirectTo: '/auth/login',
-})
+// Initialize auth middleware
+app.use(
+    '*',
+    initializeAuthMiddleware({
+        default: 'web',
+        guards: {
+            web: (ctx) => new SessionGuard('web', ctx, userProvider),
+        },
+    }),
+)
 ```
 
-Use auth in controllers:
+**Three Ways to Access Guards:**
+
+**1. Context API (Recommended for 95% of cases)**
+
+The cleanest approach using `c.auth.*` fluent API:
 
 ```typescript
-import { Auth, Guest, auth } from '@lockness/core'
+import { Context, Controller, Get, Post, Use } from '@lockness/core'
+import { withAuth } from '@lockness/auth'
 
-// Protect entire controller
-@Auth()
-@Controller('/dashboard')
-export class DashboardController {
-    @Get('/')
-    async index(c: Context) {
-        const user = await auth(c).user()
-        return c.json({ user })
-    }
-}
-
-// Guest-only routes (redirect if logged in)
 @Controller('/auth')
 export class AuthController {
-    @Guest('/dashboard')
-    @Get('/login')
-    showLogin(c: Context) { ... }
-
+    // Simple login
     @Post('/login')
+    @Use(withAuth())
     async login(c: Context) {
-        const { email, password } = await c.req.parseBody()
-        const success = await auth(c).attempt(email, password)
-        if (!success) {
-            session(c).flash('error', 'Invalid credentials')
-            return c.redirect('/auth/login')
-        }
+        await c.auth.login(email, password, remember)
         return c.redirect('/dashboard')
     }
 
+    // Auto-login after registration
+    @Post('/register')
+    @Use(withAuth())
+    async register(c: Context) {
+        const user = await createUser(...)
+        await c.auth.loginById(user.id)
+        return c.redirect('/dashboard')
+    }
+
+    // Logout
     @Post('/logout')
+    @Use('auth')
     async logout(c: Context) {
-        await auth(c).logout()
+        await c.auth.logout()
+        return c.redirect('/auth/login')
+    }
+
+    // Protected route
+    @Get('/profile')
+    @Use('auth')
+    profile(c: Context) {
+        const user = c.auth.user // Typed user access
+        return c.html(<ProfilePage user={user} />)
+    }
+}
+```
+
+**2. Decorator Injection (For advanced scenarios)**
+
+Use `@InjectGuard()` when you need direct guard instance access:
+
+```typescript
+import { InjectGuard } from '@lockness/auth'
+import type { SessionGuard, UserProvider } from '@lockness/auth'
+
+type WebGuard = SessionGuard<true, UserProvider>
+
+@Controller('/auth')
+export class AuthController {
+    @Post('/logout')
+    @InjectGuard('web')
+    async logout(c: Context, guard: WebGuard) {
+        // guard is automatically injected and fully typed
+        await guard.logout()
         return c.redirect('/auth/login')
     }
 }
 ```
+
+**3. Manual Access (For multiple guards)**
+
+Use `getAuth(c).use()` when you need multiple guards:
+
+```typescript
+import { getAuth } from '@lockness/auth'
+
+@Controller('/auth')
+export class AuthController {
+    @Post('/multi-auth')
+    @Use(withAuth())
+    async multiAuth(c: Context) {
+        const auth = getAuth(c)
+
+        // Use different guards based on request
+        if (c.req.header('Authorization')) {
+            const apiGuard = auth.use('api')
+            return await apiGuard.check()
+        } else {
+            const webGuard = auth.use('web')
+            return await webGuard.check()
+        }
+    }
+}
+```
+
+**Available Methods on `c.auth`:**
+
+| Method                                 | Description                           |
+| -------------------------------------- | ------------------------------------- |
+| `c.auth.user`                          | Get authenticated user (or undefined) |
+| `c.auth.check()`                       | Check if authenticated                |
+| `c.auth.login(email, pass, remember?)` | Login with credentials                |
+| `c.auth.loginById(id, remember?)`      | Login by user ID                      |
+| `c.auth.logout()`                      | Logout current user                   |
+| `c.auth.guard()`                       | Get underlying guard instance         |
 
 Password hashing:
 
