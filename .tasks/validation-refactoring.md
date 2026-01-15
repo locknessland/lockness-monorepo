@@ -2,29 +2,29 @@
 
 ## 📋 Task Overview
 
-Currently, `@lockness/core` includes a `@Validate` decorator that forces users
-to use Zod for request validation. This violates the principle of a minimal,
-agnostic framework core inspired by AdonisJS's VineJS philosophy.
+Currently, `@lockness/core` includes a `@Validate` decorator that uses Zod for
+request validation. Following the principle of a minimal core (routing + DI
+only), this validation logic should live in `@lockness/validator` instead.
 
-**Problem:** Core package has validation logic (Zod-specific), making it
-non-agnostic and bloated for API-only projects.
+**Problem:** Core package has validation logic (Zod-specific), making it heavier
+than necessary for API-only projects.
 
 **Solution:** Move all validation code from `@lockness/core` to
-`@lockness/validator`, making validation opt-in rather than mandatory.
+`@lockness/validator`, making validation opt-in. This follows the same pattern
+as `@lockness/hono` wrapping Hono - the validator package wraps Zod.
 
 ## 🎯 Objectives
 
-1. **Framework Agnosticism**: Remove all validation opinions from
-   `@lockness/core`, allowing users to choose Zod, Yup, Joi, or custom
-   validators
+1. **Lean Core**: Remove Zod dependency from `@lockness/core` to keep it minimal
+   (routing + DI only)
 2. **Package Boundaries**: Clearly separate core framework concerns (routing/DI)
    from validation concerns
 3. **Bundle Size Reduction**: Reduce core bundle by ~50KB by removing Zod
    dependency
 4. **Unified Validation Package**: Make `@lockness/validator` the complete
-   validation solution (custom rules + Zod decorators)
-5. **Migration Path**: Provide clear migration guide with minimal breaking
-   changes
+   validation solution (custom rules + Zod decorator wrapper)
+5. **Future Flexibility**: Wrap Zod in `@lockness/validator` so the framework
+   could potentially swap the underlying engine later without breaking the API
 
 ## 📁 Affected File Paths
 
@@ -548,81 +548,26 @@ import { Controller, Delete, Get, Inject, Post, Put } from 'lockness/core'
 import { Validate } from 'lockness/validator'
 ```
 
-## 🔄 Migration Guide
+## 🔄 Migration (Monorepo Only)
 
-### For Existing Users
+Since Lockness is still in development with no external users, migration only
+affects the root monorepo project.
 
-**Before (Current Implementation):**
+**Change required in monorepo:**
 
 ```typescript
+// Before
 import { Controller, Post, Validate } from '@lockness/core'
-import { z } from 'zod'
 
-@Controller('/users')
-class UserController {
-    @Post()
-    @Validate('json', z.object({ email: z.string().email() }))
-    create(c: Context) {
-        const data = c.req.valid('json')
-        return c.json(data)
-    }
-}
-```
-
-**After (New Implementation):**
-
-```typescript
+// After
 import { Controller, Post } from '@lockness/core'
 import { Validate } from '@lockness/validator'
-import { z } from 'zod'
-
-@Controller('/users')
-class UserController {
-    @Post()
-    @Validate('json', z.object({ email: z.string().email() }))
-    create(c: Context) {
-        const data = c.req.valid('json')
-        return c.json(data)
-    }
-}
 ```
 
-**Migration Steps:**
+**Files to update in monorepo:**
 
-1. Update import statements:
-   ```typescript
-   // Change this:
-   import { Validate } from '@lockness/core'
-
-   // To this:
-   import { Validate } from '@lockness/validator'
-   ```
-
-2. Ensure `@lockness/validator` is installed:
-   ```json
-   // deno.json
-   {
-       "imports": {
-           "lockness/validator": "jsr:@lockness/validator@^0.1.22"
-       }
-   }
-   ```
-
-### Breaking Changes
-
-- ⚠️ **`@Validate` removed from core**: Users must import from
-  `@lockness/validator`
-  - **Impact**: All controllers using `@Validate` need import update
-  - **Migration**: Simple find/replace in imports
-  - **Effort**: 5 minutes per project
-
-### Deprecation Strategy
-
-No deprecation period - clean break in version 0.2.0:
-
-1. Version 0.1.x: `@Validate` in core (current)
-2. Version 0.2.0: `@Validate` in validator (breaking change)
-3. Migration guide in release notes
+- Any controller using `@Validate` (update imports)
+- Root `deno.jsonc` (already has `@lockness/validator` in imports)
 
 ## 📚 Documentation Updates Checklist
 
@@ -770,23 +715,21 @@ deno task test
 - [ ] `@lockness/core` has zero validation code
 - [ ] `@lockness/hono` has no `@hono/zod-validator` dependency
 - [ ] validation.test.ts moved to validator package
-- [ ] All tests passing (5250+ tests)
+- [ ] All tests passing
 - [ ] Documentation updated (README, GEMINI, web docs, LLM docs)
 - [ ] Stub templates updated (controller, auth, drizzle)
-- [ ] Migration guide written and tested
 - [ ] ✅ **Quality checks passed**
   - [ ] `deno check` passes on all modified packages
   - [ ] `deno lint` passes on all modified packages
   - [ ] `deno test` passes (100% success)
   - [ ] `grep -r "from 'zod'" packages/core/` returns nothing
 - [ ] Manual testing completed (init, make:controller, dev mode)
-- [ ] Core bundle size reduced by ~50KB (verified)
 
 ## 🔗 Related Tasks
 
 - Related to "Unify framework API" (current PR #23)
-- Future task: Create `@lockness/yup-validator` package
-- Future task: Create `@lockness/vine-validator` package
+- Future consideration: If needed, swap Zod for VineJS or custom engine inside
+  `@lockness/validator` (same public API)
 
 ## 📅 Timeline
 
@@ -807,31 +750,30 @@ deno task test
 ### Design Decisions
 
 - **Why move to validator, not create new package?**
-  - Keeps validation concerns unified
-  - Less package fragmentation
-  - `@lockness/validator` becomes complete validation solution
+  - Keeps validation concerns unified in one place
+  - `@lockness/validator` already has custom validation rules
+  - Adding Zod decorator makes it the complete validation solution
+
+- **Why wrap Zod instead of exposing it directly?**
+  - Same pattern as `@lockness/hono` wrapping `npm:hono`
+  - Allows framework to swap underlying engine later (e.g., VineJS)
+  - User API stays stable: `import { Validate } from '@lockness/validator'`
 
 - **Why remove @hono/zod-validator from hono package?**
   - Hono bridge should be pure framework re-exports
-  - Zod is validation concern, not Hono concern
-  - Reduces dependencies for non-validation users
+  - Zod is validation concern, belongs in validator package
 
-- **Why breaking change instead of deprecation?**
-  - Simple import change, low migration cost
-  - Cleaner architecture without legacy code
-  - Version 0.x allows breaking changes
+### Architecture Pattern
 
-### Performance Considerations
+This follows the same internal abstraction pattern used elsewhere:
 
-- Core bundle size reduced by ~50KB (no Zod)
-- Validation only loaded when needed
-- No runtime performance impact (same code, different location)
+```
+@lockness/core     → uses → @lockness/hono     → wraps → npm:hono
+@lockness/validator → uses → @hono/zod-validator → wraps → npm:zod
+```
 
-### Security Considerations
-
-- No security changes - same validation logic
-- Users should still validate all untrusted input
-- Custom error handlers must not leak sensitive data
+Both bridges isolate external dependencies, enabling future swaps without
+breaking the public API.
 
 ---
 
