@@ -278,6 +278,7 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
 
                         {currentRequest?.controller && (
                             <RequestInfoItem
+                                id={currentRequest.id}
                                 method={currentRequest.method}
                                 statusCode={statusCode}
                                 controller={currentRequest.controller}

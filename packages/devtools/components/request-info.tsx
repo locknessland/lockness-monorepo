@@ -1,4 +1,5 @@
 interface RequestInfoProps {
+    id: string
     method: string
     statusCode?: number
     controller?: string
@@ -16,14 +17,18 @@ function getStatusColor(statusCode?: number): string {
 }
 
 export function RequestInfoItem(
-    { method, statusCode, controller, action, component }: RequestInfoProps,
+    { id, method, statusCode, controller, action, component }: RequestInfoProps,
 ) {
     if (!controller) return null
 
     const statusColor = getStatusColor(statusCode)
 
     return (
-        <div className='ln-request-info'>
+        <a
+            href={`/_devtools?panel=requests&requestId=${id}`}
+            className='ln-request-info ln-link'
+            style={{ textDecoration: 'none', cursor: 'pointer' }}
+        >
             <span
                 className='ln-method'
                 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -83,6 +88,6 @@ export function RequestInfoItem(
                     </div>
                 )}
             </span>
-        </div>
+        </a>
     )
 }
