@@ -136,7 +136,7 @@ export class UserRepository {
 ### Migration File (`database/migrations/TIMESTAMP_create_users.ts`)
 
 ```typescript
-import { Kysely } from 'kysely'
+import { Kysely } from '@lockness/kysely'
 
 export async function up(db: Kysely<any>): Promise<void> {
     await db.schema
@@ -178,6 +178,8 @@ export async function down(db: Kysely<any>): Promise<void> {
 **Step 1.2: Implement `Database` Service (`mod.ts`)**
 
 - Implement `Database` class decorated with `@Service()`.
+- **Export Kysely types**: Re-export `Kysely`, `Generated`, `sql` and other
+  useful types so users don't need direct npm dependency.
 - Implement `connect()` method that initializes `Kysely` instance.
 - Support at least `PostgresDialect` initially (extensible to others).
 - **Note**: Deno requires specific dialect handling (using `pg` via npm
@@ -206,7 +208,7 @@ export async function down(db: Kysely<any>): Promise<void> {
 **Step 3.1: Create Stubs**
 
 - `model.stub`: Since Kysely uses interfaces, generate TypeScript interfaces.
-  ```typescript
+  ```typescript@lockness/
   import { Generated } from 'kysely'
   export interface UserTable {
       id: Generated<number>
