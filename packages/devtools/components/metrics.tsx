@@ -27,7 +27,7 @@ export function Metrics({ data, currentRequest, mobile }: MetricsProps) {
             // Skip in mobile menu if desired, or keep it.
             // Original code didn't have TIME in mobile menu.
             // But user asked to include "time" in the list of reusable items.
-            // Let's include it but maybe hidden or visible? 
+            // Let's include it but maybe hidden or visible?
             // The mobile menu is an overlay, so specific context like "current request time" is less relevant than global stats?
             // But if user asked for it, I'll add it.
         },

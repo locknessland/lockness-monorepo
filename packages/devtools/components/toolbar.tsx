@@ -264,7 +264,8 @@ export function DebugToolbar({ requestId }: DebugToolbarProps) {
     `
 
     // Script to toggle the menu (using vanilla JS injected into onclick attribute)
-    const toggleScript = `const m=document.getElementById('ln-mobile-menu');if(m.style.display==='flex'){m.style.display='none';m.classList.remove('open')}else{m.style.display='flex';m.classList.add('open')}`
+    const toggleScript =
+        `const m=document.getElementById('ln-mobile-menu');if(m.style.display==='flex'){m.style.display='none';m.classList.remove('open')}else{m.style.display='flex';m.classList.add('open')}`
 
     return (
         <>

@@ -24,7 +24,10 @@ export function RequestInfoItem(
 
     return (
         <div className='ln-request-info'>
-            <span className='ln-method' style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span
+                className='ln-method'
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
                 {method}
                 {statusCode && (
                     <span
