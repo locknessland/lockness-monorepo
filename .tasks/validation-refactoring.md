@@ -121,15 +121,17 @@ non-agnostic and bloated for API-only projects.
 
 **2. Open/Closed Principle (OCP)**
 
-- **Current Problem**: Core is closed for extension - users cannot swap Zod for
-  alternative validators
-- **Solution**: Core provides decorator infrastructure, validator packages
-  extend with specific implementations
+- **Current Problem**: Core is tightly coupled to Zod implementation
+- **Solution**: `@lockness/validator` acts as an abstraction layer (wrapper)
+  around Zod, allowing the framework to potentially replace the underlying
+  validation engine without breaking user code
   ```typescript
-  // Users can create custom validator packages
-  @lockness/yup-validator
-  @lockness/joi-validator
-  @lockness/vine-validator
+  // @lockness/validator wraps Zod today
+  // Tomorrow it could wrap VineJS or a custom engine
+  // User API stays the same:
+  import { Validate } from '@lockness/validator'
+
+  @Validate('json', schema)  // Works regardless of underlying engine
   ```
 
 **3. Dependency Inversion Principle (DIP)**
