@@ -30,6 +30,11 @@ export const Layout = ({ children }: { children: any }) => {
                                 .then(() => window.location.reload())
                         }
                     }
+
+                    function toggleMobileMenu() {
+                        const menu = document.getElementById('mobile-menu')
+                        menu.classList.toggle('hidden')
+                    }
                 `,
                     }}
                 />
