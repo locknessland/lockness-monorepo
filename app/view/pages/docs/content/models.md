@@ -25,7 +25,7 @@ Create a Drizzle table schema:
 // app/model/post.ts
 import { boolean, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
-import { z } from 'zod'
+import { z } from '@lockness/validator'
 
 export const posts = pgTable('posts', {
     id: serial('id').primaryKey(),

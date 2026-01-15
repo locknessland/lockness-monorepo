@@ -15,7 +15,6 @@
             "helpers.ts",
             "router.ts",
             "types.ts",
-            "validation.ts",
             "jsx.ts",
             "jsx-runtime.ts",
             "controller_discovery.ts",

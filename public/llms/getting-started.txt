@@ -145,7 +145,8 @@ deno task cli make:action Post store
 
 **Controller (`src/controller/post_controller.tsx`):**
 ```typescript
-import { Controller, Get, Post, Validate, Context, Inject } from '@lockness/core'
+import { Controller, Get, Post, Context, Inject } from '@lockness/core'
+import { Validate } from '@lockness/validator'
 import { PostRepository } from '@repository/post_repository.ts'
 import { postInsertSchema } from '@model/post.ts'
 import { PostIndexPage } from '@view/pages/post/index.tsx'

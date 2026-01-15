@@ -1,6 +1,5 @@
 import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
-import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
-import { z } from 'zod'
+import { z } from '@lockness/validator'
 
 export const users = pgTable('users', {
     id: serial('id').primaryKey(),
@@ -11,13 +10,12 @@ export const users = pgTable('users', {
     updatedAt: timestamp('updated_at').defaultNow(),
 })
 
-// Auto-generated Zod schemas from Drizzle model
-export const insertUserSchema = createInsertSchema(users, {
+// Zod schemas for validation
+export const insertUserSchema = z.object({
     email: z.string().email('Invalid email format'),
     password: z.string().min(8, 'Password must be at least 8 characters'),
+    name: z.string().optional(),
 })
-
-export const selectUserSchema = createSelectSchema(users)
 
 // TypeScript types inferred from Drizzle
 export type User = typeof users.$inferSelect

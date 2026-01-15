@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Guest, Context, auth, session, Validate, route } from 'lockness/core'
-import { z } from 'zod'
+import { Controller, Get, Post, Guest, Context, auth, session, route } from '@lockness/core'
+import { Validate, z } from '@lockness/validator'
 
 const loginSchema = z.object({
     email: z.string().email('Invalid email'),

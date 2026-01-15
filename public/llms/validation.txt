@@ -4,13 +4,13 @@ Request validation with Zod and drizzle-zod.
 
 ## Setup
 
-Validation uses Zod schemas with the `@Validate` decorator.
+Validation uses Zod schemas with the `@Validate` decorator from `@lockness/validator`.
 
 ## Basic Usage
 
 ```typescript
-import { Controller, Post, Validate, Context } from '@lockness/core'
-import { z } from 'zod'
+import { Controller, Post, Context } from '@lockness/core'
+import { Validate, z } from '@lockness/validator'
 
 @Controller('/users')
 export class UserController {
@@ -69,7 +69,8 @@ export const userUpdateSchema = userInsertSchema.pick({
 ## Controller with Model Schemas
 
 ```typescript
-import { Controller, Post, Put, Validate, Context } from '@lockness/core'
+import { Controller, Post, Put, Context } from '@lockness/core'
+import { Validate } from '@lockness/validator'
 import { userStoreSchema, userUpdateSchema } from '@model/user.ts'
 
 @Controller('/users')

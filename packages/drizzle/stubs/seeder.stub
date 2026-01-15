@@ -1,5 +1,5 @@
 import { Database } from '@lockness/drizzle'
-import { container } from 'lockness/core'
+import { container } from '@lockness/core'
 
 export class {{className}}Seeder {
     private database: Database

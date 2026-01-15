@@ -4,7 +4,6 @@ export * from './types.ts'
 export * from './app.ts'
 export * from './decorators.ts'
 export * from './router.ts'
-export * from './validation.ts'
 export * from './helpers.ts'
 export * from './error_formatter.ts'
 export * from './default_error_handler.tsx'
@@ -81,5 +80,4 @@ export {
     useRequestContext,
     validator,
     verify as jwtVerify,
-    zValidator,
 } from '@lockness/hono'

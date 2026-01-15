@@ -28,13 +28,14 @@ All Hono middleware and utilities (61+ exports) included:
   `secureHeaders`
 - **Authentication**: `basicAuth`, `bearerAuth`, `jwt`, `jwk`
 - **Caching & Timing**: `cache` (HTTP caching), `timeout`, `timing`
-- **Validation**: `validator`, `zValidator` (Zod integration)
 - **Client & Testing**: `hc`, `testClient`
 - **Utilities**: `getCookie`, `setCookie`, `html`, `css`, `streamSSE`
 - And many more...
 
 ### What's NOT Included (Optional Packages)
 
+- `@lockness/validator` - Request validation with `@Validate` decorator (Zod
+  integration)
 - `@lockness/session` - Session management (for web apps)
 - `@lockness/queue` - Background job processing
 - `@lockness/cache` - Application-level caching system (Note: Hono's HTTP
@@ -234,27 +235,6 @@ export function errorHandler(error: Error, c: Context) {
 If no custom handler exists, the framework provides elegant default error pages
 with inline CSS (no framework dependencies).
 
-### Request Validation
-
-Use the `@Validate` decorator to ensure incoming data matches your Zod schemas.
-
-```typescript
-const createUserSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(8),
-})
-
-@Controller('/users')
-export class UserController {
-    @Post('/')
-    @Validate('json', createUserSchema)
-    async store(c: Context) {
-        const data = c.req.valid('json')
-        // data is typed and validated!
-    }
-}
-```
-
 ### Middleware & Utilities
 
 `@lockness/core` provides access to all Hono middleware and utilities through a
@@ -422,10 +402,12 @@ in mind. The framework is composed of focused, single-responsibility components:
 - `@Patch(path, options)`: Registers a PATCH route.
 - `@Delete(path, options)`: Registers a DELETE route.
 - `@Use(middleware)`: Applies middleware to a class or method.
-- `@Validate(target, schema)`: Validates request data (json, form, query, param,
-  header, cookie).
 - `@Service()`: Declares a class as a service.
 - `@Inject(class)`: Injects a service into a property.
+
+> **Note**: For request validation with the `@Validate` decorator, use
+> `@lockness/validator` package. This keeps the core package minimal and makes
+> validation opt-in.
 
 ### Context
 

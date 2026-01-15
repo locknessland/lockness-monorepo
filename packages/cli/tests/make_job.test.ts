@@ -55,6 +55,6 @@ Deno.test('make:job', async (t) => {
 
         assertStringIncludes(content, 'type Job')
         assertStringIncludes(content, 'type JobPayload')
-        assertStringIncludes(content, "from 'lockness/core'")
+        assertStringIncludes(content, "from '@lockness/core'")
     })
 })

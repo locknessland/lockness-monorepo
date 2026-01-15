@@ -566,7 +566,7 @@ and validation logic:
 // app/model/user.ts
 import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
-import { z } from 'zod'
+import { z } from '@lockness/validator'
 
 export const users = pgTable('users', {
     id: serial('id').primaryKey(),
@@ -591,7 +591,8 @@ Then use the `@Validate` decorator in your controllers:
 
 ```typescript
 // app/controller/user_api_controller.ts
-import { Context, Controller, Post, Validate } from '@lockness/core'
+import { Context, Controller, Post } from '@lockness/core'
+import { Validate } from '@lockness/validator'
 import { insertUserSchema } from '../model/user.ts'
 
 @Controller('/api/users')

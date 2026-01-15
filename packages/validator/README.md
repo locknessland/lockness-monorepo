@@ -1,10 +1,12 @@
 # @lockness/validator
 
 Advanced validation system with custom rules, async validation, sanitization,
-and conditional logic - going beyond basic schema validation.
+and Zod decorator for controller validation.
 
 ## Features
 
+- **Zod Decorator for Controllers**: `@Validate` decorator for request
+  validation in controllers
 - **30+ Built-in Validators**: Email, URL, UUID, patterns, dates, files, and
   more
 - **Conditional Validation**: `requiredIf`, `requiredUnless`, `confirmed`,
@@ -21,10 +23,60 @@ and conditional logic - going beyond basic schema validation.
 ## Installation
 
 ```typescript
-import { email, minLength, validator } from '@lockness/validator'
-// or from core
-import { email, minLength, validator } from '@lockness/core'
+import { email, minLength, Validate, validator } from '@lockness/validator'
 ```
+
+## Zod Decorator for Controllers
+
+Use the `@Validate` decorator to validate incoming request data using Zod
+schemas in your controllers:
+
+```typescript
+import { Context, Controller, Post } from '@lockness/core'
+import { Validate, z } from '@lockness/validator'
+
+const createUserSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+})
+
+@Controller('/users')
+export class UserController {
+    @Post('/')
+    @Validate('json', createUserSchema)
+    create(c: Context) {
+        const data = c.req.valid('json') // Typed & validated!
+        return c.json({ success: true, data })
+    }
+}
+```
+
+**Validation Targets:** `json`, `query`, `param`, `header`, `cookie`, `form`
+
+**Error Response Format:**
+
+```json
+{
+    "success": false,
+    "message": "Validation failed",
+    "errors": {
+        "email": ["Invalid email format"],
+        "password": ["String must contain at least 8 character(s)"]
+    }
+}
+```
+
+**Custom Error Handler:**
+
+```typescript
+import { setValidationErrorHandler } from '@lockness/validator'
+
+setValidationErrorHandler((errors, c) => {
+    return c.json({ errors }, 422)
+})
+```
+
+## Custom Validation System
 
 ## Quick Start
 
@@ -375,11 +427,10 @@ const passwordStrength = custom(
 ## Integration with Zod
 
 While @lockness/validator provides advanced business logic validation, you can
-still use Zod for schema validation:
+also use Zod for schema validation:
 
 ```typescript
-import { z } from 'zod'
-import { custom, validator } from '@lockness/validator'
+import { custom, validator, z } from '@lockness/validator'
 
 // Zod for structure
 const UserSchema = z.object({

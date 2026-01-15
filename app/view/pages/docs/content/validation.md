@@ -11,7 +11,7 @@ Generate validation schemas from your models:
 // app/model/user.ts
 import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
-import { z } from 'zod'
+import { z } from '@lockness/validator'
 
 export const users = pgTable('users', {
     id: serial('id').primaryKey(),
@@ -39,7 +39,8 @@ export type NewUser = typeof users.$inferInsert
 Use the `@Validate` decorator in your controllers:
 
 ```typescript
-import { Context, Controller, Post, Validate } from '@lockness/core'
+import { Context, Controller, Post } from '@lockness/core'
+import { Validate } from '@lockness/validator'
 import { insertUserSchema } from '../model/user.ts'
 
 @Controller('/api/users')

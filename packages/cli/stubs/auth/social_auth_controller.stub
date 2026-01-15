@@ -1,4 +1,4 @@
-import { Controller, Get, Context, session, socialite, generateState, type SocialUser, route } from 'lockness/core'
+import { Controller, Get, Context, session, socialite, generateState, type SocialUser, route } from '@lockness/core'
 
 /**
  * Social Authentication Controller

@@ -60,12 +60,9 @@
         "@std/testing": "jsr:@std/testing@1",
         "postgres": "npm:postgres@^3.4.4",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
-        "drizzle-zod": "npm:drizzle-zod@^0.5.1",
         "drizzle-kit": "npm:drizzle-kit@beta",
         "@lockness/core": "jsr:@lockness/core@^0.1.22",
         "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.22",
-        "zod": "npm:zod@^4.2.1",
-        "@hono/zod-validator": "jsr:@lockness/hono@^0.1.22",
         "tailwindcss": "npm:tailwindcss@^4.1.18",
         "@tailwindcss/cli": "npm:@tailwindcss/cli@^4.1.18"
     },

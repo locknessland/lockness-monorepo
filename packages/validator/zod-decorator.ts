@@ -1,7 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
-import { zValidator } from '@lockness/hono'
-import type { Context } from 'hono'
-import type { ValidationTargets } from './types.ts'
+import { zValidator } from '@lockness/hono/zod-validator'
+import type { Context } from '@lockness/hono'
 import type { ZodSchema } from 'zod'
 
 /**
@@ -42,14 +41,24 @@ export function setValidationErrorHandler(
     globalValidationErrorHandler = handler
 }
 
+type ValidationTargets = {
+    json: any
+    form: any
+    query: any
+    param: any
+    header: any
+    cookie: any
+}
+
 /**
  * Decorator to validate request data using Zod
+ *
  * @param target The part of the request to validate ('json', 'query', 'param', 'header', 'cookie', 'form')
  * @param schema The Zod schema to validate against
  *
  * @example
  * ```ts
- * import { z } from 'zod'
+ * import { Validate, z } from '@lockness/validator'
  *
  * const CreateUserSchema = z.object({
  *   email: z.string().email(),
@@ -103,6 +112,7 @@ export function Validate(
                                     if (!errors[path]) errors[path] = []
                                     errors[path].push(issue.message)
                                 })
+
                                 return globalValidationErrorHandler(errors, c)
                             }
                         },

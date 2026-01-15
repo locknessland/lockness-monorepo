@@ -100,8 +100,7 @@ describe('Hono Re-exports from @lockness/core', () => {
     })
 
     it('should export validation utilities', async () => {
-        const { zValidator, validator } = await import('../mod.ts')
-        expect(zValidator).toBeDefined()
+        const { validator } = await import('../mod.ts')
         expect(validator).toBeDefined()
     })
 

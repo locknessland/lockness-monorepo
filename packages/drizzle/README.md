@@ -171,8 +171,7 @@ Define your database schema with Drizzle:
 ```typescript
 // app/model/user.ts
 import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
-import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
-import { z } from 'zod'
+import { z } from '@lockness/validator'
 
 export const users = pgTable('users', {
     id: serial('id').primaryKey(),
@@ -182,13 +181,11 @@ export const users = pgTable('users', {
     updatedAt: timestamp('updated_at').defaultNow(),
 })
 
-// Zod validation schemas
-export const insertUserSchema = createInsertSchema(users, {
+// Zod validation schemas (manual definition)
+export const insertUserSchema = z.object({
     email: z.string().email(),
     name: z.string().min(2).max(100),
 })
-
-export const selectUserSchema = createSelectSchema(users)
 
 // TypeScript types
 export type User = typeof users.$inferSelect

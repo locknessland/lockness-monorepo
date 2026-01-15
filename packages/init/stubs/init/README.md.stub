@@ -331,6 +331,7 @@ export const insertUserSchema = createInsertSchema(users, {
 
 ```typescript
 // app/controller/user_controller.ts
+import { Validate } from '@lockness/validator'
 import { insertUserSchema } from '../model/user.ts'
 
 @Post('/')

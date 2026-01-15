@@ -2,8 +2,30 @@
  * Lockness Validator System
  *
  * Advanced validation with custom rules, async validation, and sanitization.
- * Goes beyond Zod for complex business logic validation.
+ * Also includes Zod decorator for controller validation.
  */
+
+// =============================================================================
+// Zod Re-export (for convenience)
+// =============================================================================
+
+export { z } from 'zod'
+export type { ZodSchema, ZodType } from 'zod'
+
+// =============================================================================
+// Zod Decorator for Controller Validation (Optional)
+// =============================================================================
+
+export {
+    setValidationErrorHandler,
+    Validate,
+    type ValidationErrorHandler,
+    type ValidationErrorResponse,
+} from './zod-decorator.ts'
+
+// =============================================================================
+// Custom Validation System
+// =============================================================================
 
 // =============================================================================
 // Types & Interfaces

@@ -21,6 +21,9 @@ Deno.test('make:service', async (t) => {
         })
 
         assertStringIncludes(content, '@Service()')
-        assertStringIncludes(content, "import { Service } from 'lockness/core'")
+        assertStringIncludes(
+            content,
+            "import { Service } from '@lockness/core'",
+        )
     })
 })
