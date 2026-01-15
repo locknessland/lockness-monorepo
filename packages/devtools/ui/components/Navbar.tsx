@@ -6,7 +6,7 @@ export const Navbar = (
     return (
         <div class='bg-[#0f1115] border-b border-[rgba(255,255,255,0.08)] sticky top-0 z-10 backdrop-blur-md bg-opacity-95'>
             <div class='max-w-7xl mx-auto px-6'>
-                <nav class='flex space-x-1 overflow-x-auto no-scrollbar'>
+                <nav class='flex gap-6 overflow-x-auto no-scrollbar'>
                     <Tab
                         name='Overview'
                         active={activePanel === 'overview'}

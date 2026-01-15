@@ -1928,7 +1928,6 @@
       },
       "packages/devtools": {
         "dependencies": [
-          "jsr:@lockness/core@~0.1.22",
           "jsr:@lockness/hono@~0.1.22"
         ]
       },

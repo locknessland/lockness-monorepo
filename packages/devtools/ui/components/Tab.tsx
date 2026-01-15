@@ -12,10 +12,10 @@ export const Tab = ({
     const countBadge = count !== undefined
         ? (
             <span
-                class={`ml-2.5 px-2 py-0.5 text-[10px] rounded-md font-mono transition-colors ${
+                class={`ml-3 px-2.5 py-1 text-xs font-bold rounded-full transition-all duration-300 ${
                     active
-                        ? 'bg-indigo-500/20 text-indigo-300'
-                        : 'bg-[#0f1115] border border-[rgba(255,255,255,0.08)] text-gray-500 group-hover:bg-[#181a20] group-hover:text-gray-400'
+                        ? 'bg-indigo-500/20 text-indigo-300 shadow-[0_0_10px_-3px_rgba(99,102,241,0.3)]'
+                        : 'bg-[#1a1d23] border border-[rgba(255,255,255,0.08)] text-gray-500 group-hover:bg-[#20232a] group-hover:text-gray-300'
                 }`}
             >
                 {count}
@@ -26,10 +26,10 @@ export const Tab = ({
     const icon = iconPath
         ? (
             <svg
-                class={`w-4 h-4 mr-2.5 ${
+                class={`w-4 h-4 mr-3 transition-colors duration-300 ${
                     active
                         ? 'text-indigo-400'
-                        : 'text-gray-500 group-hover:text-gray-400'
+                        : 'text-gray-500 group-hover:text-gray-300'
                 }`}
                 fill='none'
                 stroke='currentColor'
@@ -49,10 +49,10 @@ export const Tab = ({
         <button
             type='button'
             onclick={`showPanel('${name.toLowerCase()}')`}
-            class={`group flex items-center px-5 py-3.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+            class={`group flex items-center px-2 py-4 text-sm font-medium border-b-[3px] transition-all duration-300 whitespace-nowrap outline-none ${
                 active
-                    ? 'border-indigo-500 text-white bg-[#181a20]/50'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-[rgba(255,255,255,0.08)] hover:bg-[#181a20]/30'
+                    ? 'border-indigo-500 text-white'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-700'
             }`}
         >
             {icon}

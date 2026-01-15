@@ -3,7 +3,7 @@
  * Web-based debug dashboard with Tailwind CSS
  */
 
-import type { Context } from '@lockness/core'
+import type { Context } from 'hono'
 import { collector } from './collector.ts'
 import type { RequestInfo } from './types.ts'
 import { Dashboard } from './ui/Dashboard.tsx'
