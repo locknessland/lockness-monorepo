@@ -1,71 +1,49 @@
 import {
     App,
-    configureSession,
-    sessionMiddleware,
 } from '@lockness/core'
-import {
-    authMiddleware,
-} from '@lockness/auth'
 import { controllers } from './routes.ts'
 
 /**
  * Bootstrap the {{ projectName }} application
  *
  * This is your application's kernel - the central configuration file
- * that sets up middleware, authentication, sessions, and other core features.
+ * that sets up middleware, authentication, and other core features.
  *
  * Start simple and add features as you need them!
  */
 export const bootstrap = async () => {
-    // Configure session (optional - defaults to cookie driver)
-    configureSession({
-        driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
-        secret: Deno.env.get('APP_KEY') || 'change-me-in-production',
-        lifetime: 7200, // 2 hours
-        secure: Deno.env.get('APP_ENV') === 'production',
-    })
-
     // Create Lockness application
     const app = new App()
-
-    // Configure global middlewares using fluent API
-    app.useMiddleware(
-        sessionMiddleware(), // Session middleware (required for auth)
-        // Add more global middlewares here
-        // LoggerMiddleware,
-    )
 
     // Initialize with controllers (auto-discovery in dev, explicit in prod)
     await app.init({
         controllersDir: app.isDevelopment ? './app/controller' : undefined,
         controllers: app.isDevelopment ? undefined : controllers,
         staticDir: 'public',
-
-        // Named middlewares (use with @Use('auth'))
-        middlewares: {
-            auth: class AuthMiddleware {
-                async handle(
-                    c: import('@lockness/core').Context,
-                    next: import('@lockness/core').Next,
-                ) {
-                    return await authMiddleware()(c, next)
-                }
-            },
-        },
     })
 
     return app
 }
 
 /**
- * Advanced Configuration Examples:
+ * Configuration Examples - Add features as you need them:
  *
- * 1. Customize error pages (auto-discovered):
- *    Run: deno task cli make:error-pages
- *    This creates app/view/pages/errors/error_handler.tsx
- *    The framework will automatically use it - no import needed!
+ * 1. Add Session Management (for traditional web apps):
+ * 
+ *    import { configureSession, sessionMiddleware } from '@lockness/session'
+ *    
+ *    configureSession({
+ *        driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
+ *        secret: Deno.env.get('APP_KEY') || 'change-me-in-production',
+ *        lifetime: 7200, // 2 hours
+ *        secure: Deno.env.get('APP_ENV') === 'production',
+ *    })
+ *    
+ *    app.useMiddleware(
+ *        sessionMiddleware(), // Add before auth if using session-based auth
+ *    )
  *
- * 2. Add authentication (requires UserProvider):
+ * 2. Add Authentication (session-based or JWT):
  * 
  *    import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
  *    import { UserProvider } from '@auth/user_provider.ts'
@@ -78,8 +56,38 @@ export const bootstrap = async () => {
  *            },
  *        })
  *    )
+ *    
+ *    // Then use named middleware:
+ *    await app.init({
+ *        middlewares: {
+ *            auth: class AuthMiddleware {
+ *                async handle(c: import('@lockness/core').Context, next: import('@lockness/core').Next) {
+ *                    // Your auth logic or import from @lockness/auth
+ *                    return await next()
+ *                }
+ *            },
+ *        },
+ *    })
  *
- * 3. Enable devtools in development:
+ * 3. Add Global Middleware (CORS, logging, etc.):
+ * 
+ *    import { cors, logger } from '@lockness/core' // Hono middleware
+ *    
+ *    app.useMiddleware(
+ *        logger(),
+ *        cors({
+ *            origin: ['http://localhost:3000'],
+ *            credentials: true,
+ *        })
+ *    )
+ *
+ * 4. Customize error pages (auto-discovered):
+ * 
+ *    Run: deno task cli make:error-pages
+ *    This creates app/view/pages/errors/error_handler.tsx
+ *    The framework will automatically use it - no import needed!
+ *
+ * 5. Enable devtools in development:
  * 
  *    import { enableDevtools } from '@lockness/devtools'
  *    if (app.isDevelopment) {

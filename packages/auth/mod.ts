@@ -11,6 +11,7 @@
 export * from './types.ts'
 export * from './errors.ts'
 export * from './authenticator.ts'
+export * from './password.ts'
 
 // Guards
 export { SessionGuard } from './guards/session_guard.ts'

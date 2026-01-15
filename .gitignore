@@ -30,3 +30,4 @@ public/css/
 
 # Initialize a new Lockness project (Only for development purposes)
 _lockness_app
+verify_unified_api.ts

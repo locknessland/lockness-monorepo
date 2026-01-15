@@ -13,7 +13,7 @@ import type {
     RememberMeToken,
     SessionWithRememberMeProviderContract,
 } from '@lockness/auth'
-import { verifyPassword } from '@lockness/core'
+import { verifyPassword } from '@lockness/auth'
 
 /**
  * User type matching our database schema

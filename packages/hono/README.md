@@ -1,5 +1,20 @@
 # @lockness/hono
 
+> **📌 Internal Package Notice**: This is an internal infrastructure package for
+> the Lockness framework. For application development, please use the unified
+> **`@lockness/core`** package, which provides all these functionalities and
+> more.
+>
+> **Developers should import from `@lockness/core` instead:**
+>
+> ```typescript
+> // ✅ Recommended (Unified API)
+> import { basicAuth, cors, Hono, logger } from '@lockness/core'
+>
+> // ❌ Not recommended (Internal package)
+> import { basicAuth, cors, Hono, logger } from '@lockness/hono'
+> ```
+
 > Hono bridge for Lockness framework providing centralized Hono dependency
 > management with simplified imports and comprehensive documentation.
 

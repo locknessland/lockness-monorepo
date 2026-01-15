@@ -4,7 +4,7 @@ export function registerQueueCommands(cli: Cli) {
     cli.register('queue:work', async (args) => {
         // Dynamic import to avoid loading queue module at CLI startup
         const { QueueWorker, configureQueue, registerJob } = await import(
-            '@lockness/core'
+            '@lockness/queue'
         )
 
         // Parse flags from args
@@ -61,7 +61,7 @@ export function registerQueueCommands(cli: Cli) {
     }, 'Process jobs from the queue')
 
     cli.register('queue:clear', async (args) => {
-        const { clearQueue, configureQueue } = await import('@lockness/core')
+        const { clearQueue, configureQueue } = await import('@lockness/queue')
 
         const queue = args[0] || 'default'
         const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') ||

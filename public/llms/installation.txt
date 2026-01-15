@@ -52,48 +52,55 @@ mkdir my-app && cd my-app
 
 ```typescript
 // main.ts
-import { createApp } from '@lockness/core'
+import { bootstrap } from './app/kernel.tsx'
 
-const app = await createApp({
-    controllers: [],
-})
+const app = await bootstrap()
 
 Deno.serve({ port: 8888 }, app.fetch)
 ```
 
-### 4. Setup Tailwind CSS (Optional)
+**Create app/kernel.tsx:**
+```typescript
+import { App } from '@lockness/core'
+
+export const bootstrap = async () => {
+    const app = new App()
+    
+    await app.init({
+        controllersDir: './app/controller',
+        staticDir: 'public',
+    })
+    
+    return app
+}
+```
+
+### 4. Setup PostCSS (Optional)
 
 ```bash
-npm install -D tailwindcss postcss autoprefixer
-npx tailwindcss init
+# PostCSS is included by default in generated projects
+# Add Tailwind or other plugins as needed
 ```
 
-**tailwind.config.js:**
+**postcss.config.js:**
 ```javascript
 export default {
-  content: ['./src/**/*.{ts,tsx}'],
-  theme: {
-    extend: {},
+  plugins: {
+    // Add your PostCSS plugins here
+    // Example: tailwindcss, autoprefixer, etc.
   },
-  plugins: [],
 }
 ```
 
-**Create src/styles/app.css:**
+**Create app/view/assets/app.css:**
 ```css
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Your styles here */
 ```
 
-**package.json scripts:**
-```json
-{
-  "scripts": {
-    "dev:css": "tailwindcss -i src/styles/app.css -o public/css/app.css --watch",
-    "build:css": "tailwindcss -i src/styles/app.css -o public/css/app.css --minify"
-  }
-}
+**Build CSS:**
+```bash
+deno task css:build   # One-time build
+deno task css:watch   # Watch mode
 ```
 
 ### 5. Database Setup (Optional)

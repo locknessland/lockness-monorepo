@@ -17,7 +17,7 @@ import {
 } from '@lockness/auth'
 import type { SessionGuard } from '@lockness/auth'
 import type { UserProvider } from '../auth/user_provider.ts'
-import { hashPassword } from '@lockness/core'
+import { hashPassword } from '@lockness/auth'
 import { UserRepository } from '@repository/user_repository.ts'
 import { LoginPage } from '@view/pages/auth/login.tsx'
 import { RegisterPage } from '@view/pages/auth/register.tsx'

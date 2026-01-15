@@ -6,7 +6,7 @@ Multi-driver session management with flash messages.
 
 ```typescript
 // src/kernel.tsx
-import { configureSession } from '@lockness/core'
+import { configureSession } from '@lockness/session'
 
 configureSession({
     driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
@@ -30,7 +30,8 @@ Add the session middleware using the fluent API:
 
 ```typescript
 // src/kernel.tsx
-import { App, sessionMiddleware } from '@lockness/core'
+import { App } from '@lockness/core'
+import { sessionMiddleware } from '@lockness/session'
 
 const app = new App()
 
@@ -46,7 +47,7 @@ await app.init({
 ## Session API
 
 ```typescript
-import { session, type Context } from '@lockness/core'
+import { session, type Context } from '@lockness/session'
 
 @Controller('/profile')
 export class ProfileController {

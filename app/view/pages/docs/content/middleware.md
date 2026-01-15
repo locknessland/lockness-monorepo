@@ -3,6 +3,96 @@
 Middleware allows you to filter and modify HTTP requests before they reach your
 controllers.
 
+## Built-in Middleware
+
+Lockness provides access to all Hono middleware directly from `@lockness/core`.
+No need to install or import from separate packages!
+
+### Common Middleware Examples
+
+**Security & CORS:**
+
+```typescript
+import { cors, csrf, secureHeaders } from '@lockness/core'
+
+app.useMiddleware(
+    cors({ origin: 'https://example.com' }),
+    csrf(),
+    secureHeaders(),
+)
+```
+
+**Request Handling:**
+
+```typescript
+import { bodyLimit, logger, requestId } from '@lockness/core'
+
+app.useMiddleware(
+    logger(),
+    requestId(),
+    bodyLimit({ maxSize: 50 * 1024 }), // 50KB limit
+)
+```
+
+**Performance:**
+
+```typescript
+import { cache, compress, etag } from '@lockness/core'
+
+app.useMiddleware(
+    compress(),
+    etag(),
+    cache({ cacheName: 'my-app', cacheControl: 'max-age=3600' }),
+)
+```
+
+**Authentication:**
+
+```typescript
+import { basicAuth, bearerAuth, jwt } from '@lockness/core'
+
+// HTTP Basic Auth
+app.useMiddleware(basicAuth({ username: 'admin', password: 'secret' }))
+
+// Bearer Token
+app.useMiddleware(bearerAuth({ token: 'secret-token' }))
+
+// JWT
+app.useMiddleware(jwt({ secret: 'jwt-secret' }))
+```
+
+**Complete Example:**
+
+```typescript
+import {
+    App,
+    compress,
+    cors,
+    csrf,
+    logger,
+    requestId,
+    secureHeaders,
+} from '@lockness/core'
+
+const app = new App()
+
+app.useMiddleware(
+    logger(),
+    requestId(),
+    cors(),
+    csrf(),
+    secureHeaders(),
+    compress(),
+)
+
+await app.init({ controllersDir: './app/controller' })
+```
+
+For a complete list of available middleware, see:
+
+- [Hono Middleware Documentation](https://hono.dev/docs/guides/middleware)
+- All middleware listed there are available from `@lockness/core`
+
 ## Creating Middleware
 
 Generate a new middleware class:

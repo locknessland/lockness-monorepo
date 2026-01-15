@@ -2,18 +2,35 @@
 
 Official packages extending Lockness functionality.
 
-## Core Packages
+## Core Package
 
 ### @lockness/core
-Base framework with routing, DI, and controllers.
+**Essential framework** with routing, DI, controllers, and complete Hono integration.
+
+**What's included:**
+- Framework core (App, routing, decorators)
+- Dependency Injection system
+- All Hono middleware and utilities (cors, logger, cache, jwt, etc.)
+- JSX runtime and components
 
 ```typescript
-import { createApp, Controller, Get } from '@lockness/core'
+import { 
+    App, 
+    Controller, 
+    Get, 
+    logger, 
+    cors 
+} from '@lockness/core'
 
-const app = await createApp({
-    controllers: [HomeController],
+const app = new App()
+app.useMiddleware(logger(), cors())
+
+await app.init({
+    controllersDir: './app/controller',
 })
 ```
+
+**Note:** `@lockness/core` is the only required package. All other packages are optional and imported explicitly when needed.
 
 ### @lockness/cli
 Command-line interface for scaffolding and development.
@@ -28,6 +45,7 @@ deno task cli db:migrate
 Database integration with Drizzle ORM.
 
 ```typescript
+import { Service, Inject } from '@lockness/core'
 import { Database } from '@lockness/drizzle'
 
 @Service()
@@ -41,25 +59,41 @@ export class UserRepository {
 }
 ```
 
-## Official Packages
+## Optional Packages
+
+The following packages are **optional** and should be imported directly when needed:
+
+### @lockness/session
+Multi-driver session management (cookie, Deno KV, memory).
+
+```typescript
+import { App } from '@lockness/core'
+import { configureSession, sessionMiddleware } from '@lockness/session'
+
+configureSession({
+    driver: 'cookie',
+    secret: Deno.env.get('SESSION_SECRET')!,
+})
+
+const app = new App()
+app.useMiddleware(sessionMiddleware())
+```
 
 ### @lockness/cache
 Multi-driver caching (memory, Deno KV, Redis).
 
 ```typescript
-import { Cache } from '@lockness/cache'
+import { Service, Inject } from '@lockness/core'
+import { cache } from '@lockness/cache'
 
 @Service()
 export class UserService {
-    @Inject(Cache)
-    accessor cache!: Cache
-
     async getUser(id: number) {
-        const cached = await this.cache.get(`user:${id}`)
+        const cached = await cache.get(`user:${id}`)
         if (cached) return cached
 
         const user = await this.repository.findById(id)
-        await this.cache.set(`user:${id}`, user, 3600)
+        await cache.set(`user:${id}`, user, 3600)
         return user
     }
 }
@@ -74,7 +108,7 @@ export class UserService {
 Job queue for background processing.
 
 ```typescript
-import { Queue } from '@lockness/queue'
+import { configureQueue, registerJob } from '@lockness/queue'
 
 @Service()
 export class EmailQueue {

@@ -1,37 +1,85 @@
+// Export core types (Context, ErrorHandler, etc.) from our own types module
+// Context is a type alias of Hono's Context, so it's compatible
 export * from './types.ts'
 export * from './app.ts'
 export * from './decorators.ts'
 export * from './router.ts'
 export * from './validation.ts'
 export * from './helpers.ts'
-export * from './components.tsx'
-export * from './auth.ts'
 export * from './error_formatter.ts'
 export * from './default_error_handler.tsx'
-export { Hono } from 'hono'
-export { html } from '@lockness/hono'
-export type { Child } from '@lockness/hono'
 
-// Re-export from separate libs
-export * from '@lockness/cache'
+// Re-export essential framework packages (used by core functionality)
 export * from '@lockness/container'
-export * from '@lockness/events'
-export * from '@lockness/logger'
-export * from '@lockness/mail'
-export * from '@lockness/queue'
-export * from '@lockness/session'
-export * from '@lockness/socialite'
-export * from '@lockness/validator'
 
-// Storage: export main exports only, not helpers (to avoid conflict with cache)
+/**
+ * Re-export all Hono functionalities for unified framework API.
+ *
+ * Note: We use wildcard export from '@lockness/hono' which includes all Hono exports.
+ * The Context exported from './types.ts' takes precedence as it's a compatible type alias.
+ */
 export {
-    configureStorage,
-    type FileMetadata,
-    LocalStorageDriver,
-    R2StorageDriver,
-    S3StorageDriver,
-    Storage,
-    storage,
-    type StorageConfig,
-    type StorageDriver,
-} from '@lockness/storage'
+    // All @lockness/hono re-exports (middleware, utilities, client, etc.)
+    basicAuth,
+    bearerAuth,
+    bodyLimit,
+    cache,
+    type Child,
+    compress,
+    contextStorage,
+    cors,
+    csrf,
+    css,
+    decode as jwtDecode,
+    deleteCookie,
+    denoServeStatic,
+    type Env,
+    etag,
+    type FC,
+    // Core Hono types (HonoRequest as type-only to avoid isolatedModules error)
+    Fragment,
+    getCookie,
+    getRuntimeKey,
+    getSignedCookie,
+    type Handler,
+    hc,
+    Hono,
+    type HonoRequest,
+    html,
+    HTTPException,
+    type Input,
+    ipRestriction,
+    jsx,
+    jsxRenderer,
+    jwk,
+    jwt,
+    logger,
+    methodOverride,
+    type MiddlewareHandler,
+    type Next,
+    type NotFoundHandler,
+    poweredBy,
+    prettyJSON,
+    type PropsWithChildren,
+    raw,
+    requestId,
+    type Schema,
+    secureHeaders,
+    serveStatic,
+    setCookie,
+    setSignedCookie,
+    sign as jwtSign,
+    ssgParams,
+    streamSSE,
+    streamText,
+    testClient,
+    timeout,
+    timing,
+    type ToSchema,
+    trimTrailingSlash,
+    type TypedResponse,
+    useRequestContext,
+    validator,
+    verify as jwtVerify,
+    zValidator,
+} from '@lockness/hono'

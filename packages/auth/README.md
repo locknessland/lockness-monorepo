@@ -528,11 +528,84 @@ Deno.test('protected route requires authentication', async () => {
 })
 ```
 
+## Password Hashing Utilities
+
+The package provides built-in password hashing utilities using PBKDF2 via Web
+Crypto API:
+
+```typescript
+import {
+    hashPassword,
+    type PasswordHashConfig,
+    verifyPassword,
+} from '@lockness/auth'
+
+// Hash a password (uses secure defaults)
+const hash = await hashPassword('user-password')
+// => "base64-encoded-salt+hash"
+
+// Verify a password
+const isValid = await verifyPassword('user-password', hash)
+// => true
+
+// Custom configuration for specific security requirements
+const config: PasswordHashConfig = {
+    saltLength: 16, // Salt length in bytes (default: 16)
+    keyLength: 32, // Derived key length in bytes (default: 32)
+    iterations: 100000, // PBKDF2 iterations (default: 100000)
+    hashAlgorithm: 'SHA-256', // Hash algorithm (default: 'SHA-256')
+}
+
+// Use custom config
+const customHash = await hashPassword('password', config)
+const isValidCustom = await verifyPassword('password', customHash, config)
+```
+
+### Configuration Options
+
+- **`saltLength`** (default: `16`): Random salt length in bytes. Larger values
+  provide more uniqueness but increase storage size.
+- **`keyLength`** (default: `32`): Length of the derived key in bytes. Standard
+  is 32 bytes (256 bits).
+- **`iterations`** (default: `100000`): Number of PBKDF2 iterations. This is the
+  **computational cost** that defends against brute force attacks:
+  - More iterations = slower hashing = harder to crack
+  - OWASP 2023 recommends 100,000+ iterations for PBKDF2-SHA256
+  - For testing, you can use fewer iterations (e.g., 10,000) for faster tests
+  - For high-security applications, use more iterations (e.g., 250,000+)
+- **`hashAlgorithm`** (default: `'SHA-256'`): Hash algorithm to use. Options:
+  `'SHA-1'`, `'SHA-256'`, `'SHA-384'`, `'SHA-512'`
+
+### Usage Examples
+
+```typescript
+// Testing (faster hashing)
+const testConfig = { iterations: 10000 }
+const testHash = await hashPassword('test-password', testConfig)
+
+// High security (slower, more resistant to brute force)
+const secureConfig = {
+    iterations: 250000,
+    saltLength: 32,
+    keyLength: 64,
+    hashAlgorithm: 'SHA-512',
+}
+const secureHash = await hashPassword('sensitive-data', secureConfig)
+
+// Compliance (specific algorithm requirement)
+const complianceConfig = { hashAlgorithm: 'SHA-384' }
+const complianceHash = await hashPassword('password', complianceConfig)
+```
+
+**Important**: If you hash a password with a custom configuration, you must use
+the **same configuration** when verifying it.
+
 ## Security Best Practices
 
 1. **Always use HTTPS in production** - Session/token theft via MitM
 2. **Rotate secrets regularly** - APP_KEY, token secrets
-3. **Hash passwords** - Use bcrypt, argon2, or scrypt
+3. **Hash passwords** - Built-in utilities use PBKDF2 with 100k iterations
+   (OWASP 2023)
 4. **Set secure cookies** - `secure: true`, `httpOnly: true`,
    `sameSite: 'Strict'`
 5. **Implement rate limiting** - Prevent brute force attacks

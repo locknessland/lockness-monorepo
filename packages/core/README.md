@@ -1,53 +1,146 @@
 # @lockness/core
 
-The heart of the Lockness framework. This package provides the core
-architectural components, decorators, and routing engine that power your MVC
-application.
+The heart of the Lockness framework. This package provides the essential
+framework components: MVC architecture, dependency injection, and complete Hono
+integration.
 
-## 📦 Features
+> **✨ Minimal Core**: `@lockness/core` includes only essentials. Optional
+> features like sessions, queues, and cache systems are separate packages
+> imported explicitly when needed.
 
-- **MVC Engine**: Class-based architecture for clean separation of concerns.
-- **Modern Decorators**: Native support for TC39 Stage 3 decorators.
-- **Powerful Routing**: Built on top of Hono, providing zero-configuration
-  controller discovery.
-- **Dependency Injection**: A built-in IoC container for service management.
-- **Zod Validation**: Seamless integration with Zod for type-safe request
-  validation.
-- **Named Routes**: Generate URLs dynamically without hardcoding paths.
-- **JSX Everywhere**: Native support for JSX components in views.
+## 📦 What's Included
+
+### Framework Core
+
+- **MVC Engine**: Class-based architecture for clean separation of concerns
+- **Modern Decorators**: Native TC39 Stage 3 decorator support (`@Controller`,
+  `@Get`, `@Service`, etc.)
+- **Powerful Routing**: Zero-configuration controller discovery
+- **Dependency Injection**: Built-in IoC container (`@Inject`, `@Service`)
+- **JSX Support**: Native JSX runtime for views and components
+- **Named Routes**: Dynamic URL generation
+
+### Complete Hono Integration
+
+All Hono middleware and utilities (61+ exports) included:
+
+- **HTTP Middleware**: `logger`, `cors`, `compress`, `etag`, `csrf`,
+  `secureHeaders`
+- **Authentication**: `basicAuth`, `bearerAuth`, `jwt`, `jwk`
+- **Caching & Timing**: `cache` (HTTP caching), `timeout`, `timing`
+- **Validation**: `validator`, `zValidator` (Zod integration)
+- **Client & Testing**: `hc`, `testClient`
+- **Utilities**: `getCookie`, `setCookie`, `html`, `css`, `streamSSE`
+- And many more...
+
+### What's NOT Included (Optional Packages)
+
+- `@lockness/session` - Session management (for web apps)
+- `@lockness/queue` - Background job processing
+- `@lockness/cache` - Application-level caching system (Note: Hono's HTTP
+  `cache` middleware is included in core)
+- `@lockness/logger` - Structured logging (Note: Hono's request `logger`
+  middleware is included in core)
+- `@lockness/mail` - Email sending
+- `@lockness/storage` - File storage
+- `@lockness/auth` - Authentication system
+
+Import these packages explicitly when needed.
 
 ## 🚀 Getting Started
 
 ### Create a New Project
 
 ```bash
-deno run -A jsr:@lockness/init project-name
+deno run -A jsr:@lockness/cli init project-name
 ```
 
-This scaffolds a complete Lockness application with MVC structure, ready to run.
+This scaffolds a minimal Lockness application with only `@lockness/core`
+dependency.
 
 ### Manual Setup
 
-### The App Class
+#### 1. Install Core Package
 
-The `App` class is the main entry point for your application. It manages the
-Hono instance and initializes all your modules.
+```bash
+# In deno.json
+{
+  "imports": {
+    "@lockness/core": "jsr:@lockness/core@^0.1.0"
+  }
+}
+```
+
+#### 2. Create Application Kernel
 
 ```typescript
-import { App } from 'lockness/core'
+// app/kernel.tsx
+import { App } from '@lockness/core'
+
+export const bootstrap = async () => {
+    const app = new App()
+
+    await app.init({
+        controllersDir: './app/controller',
+        staticDir: 'public',
+    })
+
+    return app
+}
+```
+
+#### 3. Start Your App
+
+```typescript
+// main.ts
+import { bootstrap } from './app/kernel.tsx'
+
+const app = await bootstrap()
+
+Deno.serve({ port: 8888 }, app.fetch)
+```
+
+### Add Optional Features
+
+#### Sessions (for web apps)
+
+```typescript
+import { App } from '@lockness/core'
+import { configureSession, sessionMiddleware } from '@lockness/session'
 
 const app = new App()
+configureSession({ driver: 'cookie', secret: 'your-secret' })
+app.useMiddleware(sessionMiddleware())
+```
 
-// Configure middlewares using fluent API
-app.useMiddleware(LoggerMiddleware)
+#### Background Jobs
+
+```typescript
+import { configureQueue, registerJob } from '@lockness/queue'
+
+configureQueue({ driver: 'deno-kv' })
+registerJob('send-email', SendEmailJob)
+```
+
+## 📚 Core Concepts
+
+### The App Class
+
+The `App` class is the main orchestrator of your application:
+
+```typescript
+import { App } from '@lockness/core'
+
+const app = new App()
 
 await app.init({
     controllersDir: './app/controller',
 })
 
-app.listen(8888)
+Deno.serve({ port: 8888 }, app.fetch)
 ```
 
+````
 ### Routing with Decorators
 
 Routes are defined using decorators on class methods.
@@ -66,14 +159,14 @@ export class UserController {
         return c.json({ id })
     }
 }
-```
+````
 
 ### Using Named Routes
 
 You can generate URLs for any named route using the `route()` helper.
 
 ```typescript
-import { route } from 'lockness/core'
+import { route } from '@lockness/core'
 
 const url = route('users.show', { id: 123 }) // "/users/123"
 ```
@@ -161,6 +254,104 @@ export class UserController {
     }
 }
 ```
+
+### Middleware & Utilities
+
+`@lockness/core` provides access to all Hono middleware and utilities through a
+unified import. No need to import from separate packages!
+
+#### Authentication
+
+```typescript
+import { basicAuth, bearerAuth, jwt } from '@lockness/core'
+
+// HTTP Basic Authentication
+app.use('/admin/*', basicAuth({ username: 'admin', password: 'secret' }))
+
+// Bearer Token Authentication
+app.use('/api/*', bearerAuth({ token: 'secret-token' }))
+
+// JWT Authentication
+app.use('/api/*', jwt({ secret: 'jwt-secret' }))
+```
+
+#### Security
+
+```typescript
+import { cors, csrf, secureHeaders } from '@lockness/core'
+
+// CORS configuration
+app.use('*', cors({ origin: 'https://example.com' }))
+
+// CSRF protection
+app.use('*', csrf())
+
+// Security headers
+app.use('*', secureHeaders())
+```
+
+#### Content Processing
+
+```typescript
+import { compress, etag, prettyJSON } from '@lockness/core'
+
+// Response compression
+app.use('*', compress())
+
+// ETag generation
+app.use('*', etag())
+
+// Pretty JSON formatting
+app.use('*', prettyJSON())
+```
+
+#### Request Handling
+
+```typescript
+import { bodyLimit, logger, requestId } from '@lockness/core'
+
+// Request logging
+app.use('*', logger())
+
+// Body size limits
+app.use('*', bodyLimit({ maxSize: 50 * 1024 }))
+
+// Request ID generation
+app.use('*', requestId())
+```
+
+#### Complete Example
+
+```typescript
+import {
+    App,
+    basicAuth,
+    compress,
+    cors,
+    csrf,
+    logger,
+    secureHeaders,
+} from '@lockness/core'
+
+const app = new App()
+
+app
+    .useMiddleware(
+        logger(),
+        cors(),
+        csrf(),
+        secureHeaders(),
+        compress(),
+    )
+    .useMiddleware(basicAuth({ username: 'admin', password: 'secret' }))
+
+await app.init({ controllersDir: './app/controller' })
+
+Deno.serve({ port: 8888 }, app.fetch)
+```
+
+For a complete list of available middleware and utilities, see the
+[Middleware Documentation](https://lockness.dev/docs/middleware).
 
 ## 🛠 Advanced Configuration
 

@@ -1,9 +1,6 @@
-import {
-    App,
-    configureSession,
-    container,
-    sessionMiddleware,
-} from '@lockness/core'
+import { App } from '@lockness/core'
+import { container } from '@lockness/container'
+import { configureSession, sessionMiddleware } from '@lockness/session'
 import { Database } from '@lockness/drizzle'
 import {
     authMiddleware,

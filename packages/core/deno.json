@@ -11,9 +11,6 @@
         "include": [
             "mod.ts",
             "app.ts",
-            "auth.ts",
-            "components.tsx",
-            "container.ts",
             "decorators.ts",
             "helpers.ts",
             "router.ts",

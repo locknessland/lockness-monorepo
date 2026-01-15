@@ -15,10 +15,13 @@ Lockness abstracts this layer to offer a complete and familiar MVC
 
 ## 🚀 Philosophy
 
-- **Solid Foundation**: Uses HonoJS under the hood for maximum performance, but
-  fully encapsulated within `@lockness/core`.
-- **Zero-Dependency Setup**: You only need `@lockness/core` in your imports;
-  Hono and its utilities are automatically provided.
+- **Solid Foundation**: Uses HonoJS under the hood for maximum performance,
+  fully integrated within `@lockness/core`.
+- **Minimal Core**: `@lockness/core` includes only essentials (DI + Hono).
+  Optional features (sessions, queues, cache) are imported explicitly when
+  needed.
+- **Modular Architecture**: Choose what you need - build lightweight APIs or
+  full-featured web apps by adding packages as required.
 - **MVC Architecture**: A clear structure separating business logic, data, and
   display.
 - **Inspiration**: Heavily inspired by the elegance of Laravel and AdonisJS.
@@ -130,6 +133,86 @@ specialized components. This approach:
 - Makes the codebase easier to understand for contributors
 - Follows the Open/Closed Principle (open for extension, closed for
   modification)
+
+#### Modular Package System
+
+Lockness follows a **modular architecture** where `@lockness/core` provides the
+essential framework features, and optional packages are imported explicitly:
+
+**Core Package (`@lockness/core`):**
+
+- Framework fundamentals (App, decorators, routing)
+- Dependency Injection system (`@lockness/container`)
+- Complete Hono re-export (middleware, utilities, client)
+- JSX runtime and components
+
+**Optional Packages (import as needed):**
+
+- `@lockness/session` - Session management (cookie, Deno KV, memory)
+- `@lockness/queue` - Background job processing
+- `@lockness/cache` - Caching system (memory, Redis, Deno KV)
+- `@lockness/logger` - Structured logging
+- `@lockness/validator` - Request validation
+- `@lockness/mail` - Email sending
+- `@lockness/storage` - File storage (local, S3, R2)
+- `@lockness/auth` - Authentication system
+- `@lockness/socialite` - OAuth providers
+
+**Benefits:**
+
+- **Lightweight**: APIs don't bundle unused session/queue code
+- **Explicit**: Clear dependencies in each project
+- **Flexible**: Mix and match packages for your use case
+- **Zero Conflicts**: Hono middleware keeps original names (cache, logger,
+  validator)
+
+#### Layered Architecture
+
+Lockness follows a clear layered architecture where `@lockness/core` serves as
+the unified public API, abstracting away the underlying Hono implementation:
+
+```
+┌─────────────────────────────────────────┐
+│  User Application Layer                 │  ← Imports only from @lockness/core
+├─────────────────────────────────────────┤
+│  Framework API (@lockness/core)         │  ← Single public API, re-exports Hono
+├─────────────────────────────────────────┤
+│  Internal Bridge (@lockness/hono)       │  ← Manages Hono versions, JSR-npm bridge
+├─────────────────────────────────────────┤
+│  External Dependency (npm:hono)         │  ← Underlying web framework
+└─────────────────────────────────────────┘
+```
+
+**Key Principles:**
+
+- **Single Entry Point**: Developers import everything from `@lockness/core`
+- **Internal Abstraction**: `@lockness/hono` is an internal package managing npm
+  dependencies
+- **Version Management**: Centralized Hono version control across the ecosystem
+- **Framework Agnostic**: Users don't need to know Hono is used under the hood
+
+**Example Usage:**
+
+```typescript
+// ✅ Unified import from @lockness/core
+import {
+    App,
+    basicAuth,
+    Context,
+    Controller,
+    cors,
+    Get,
+    logger,
+} from '@lockness/core'
+
+// Everything you need in one import!
+const app = new App()
+app.useMiddleware(
+    logger(),
+    cors(),
+    basicAuth({ username: 'admin', password: 'secret' }),
+)
+```
 
 **For the monorepo:**
 

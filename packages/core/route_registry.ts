@@ -1,7 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import type { Hono, MiddlewareHandler } from 'hono'
 import { namedRoutes } from './router.ts'
-import { createAuthMiddleware, createGuestMiddleware } from './auth.ts'
 import type { Context, ControllerClass } from './types.ts'
 import type { RouteInfo } from './app.ts'
 
@@ -90,15 +89,7 @@ export class RouteRegistry {
         const routes = Controller._routes || []
         const middlewares = Controller._middlewares || {}
         const validators = Controller._validators || {}
-        const authMethods = Controller._authMethods || {}
-        const guestMethods = Controller._guestMethods || {}
         const controllerName = Controller.name
-
-        // Check for class-level @Auth or @Guest decorators
-        const classAuthRequired = Controller._authRequired === true
-        const classAuthOptions = Controller._authOptions
-        const classGuestRequired = Controller._guestRequired === true
-        const classGuestRedirectTo = Controller._guestRedirectTo || '/'
 
         const registrations: RouteRegistration[] = []
 
@@ -114,24 +105,9 @@ export class RouteRegistry {
                 .map((m: any) => this.middlewareResolver.resolve(m))
                 .filter((h: any) => h !== null)
 
-            // Build auth middlewares
-            const authMiddlewares = this.buildAuthMiddlewares(
-                route.methodName,
-                authMethods,
-                guestMethods,
-                classAuthRequired,
-                classAuthOptions,
-                classGuestRequired,
-                classGuestRedirectTo,
-            )
-
             // Collect middleware names for display
             const middlewareNames = this.collectMiddlewareNames(
                 route.methodName,
-                authMethods,
-                guestMethods,
-                classAuthRequired,
-                classGuestRequired,
                 validators,
                 middlewares,
             )
@@ -141,7 +117,6 @@ export class RouteRegistry {
                 method: route.method.toLowerCase(),
                 handler: (c: Context) => instance[route.methodName](c),
                 middlewares: [
-                    ...authMiddlewares,
                     ...routeValidators,
                     ...routeMiddlewares,
                 ],
@@ -183,59 +158,14 @@ export class RouteRegistry {
     }
 
     /**
-     * Build authentication and guest middlewares for a route
-     */
-    private buildAuthMiddlewares(
-        methodName: string,
-        authMethods: Record<string, { required: boolean; options?: any }>,
-        guestMethods: Record<
-            string,
-            { required: boolean; redirectTo?: string }
-        >,
-        classAuthRequired: boolean,
-        classAuthOptions: any,
-        classGuestRequired: boolean,
-        classGuestRedirectTo: string,
-    ): MiddlewareHandler[] {
-        const authMiddlewares: MiddlewareHandler[] = []
-
-        // Method-level decorators take precedence
-        const methodAuth = authMethods[methodName]
-        const methodGuest = guestMethods[methodName]
-
-        if (methodAuth?.required) {
-            authMiddlewares.push(createAuthMiddleware(methodAuth.options))
-        } else if (methodGuest?.required) {
-            authMiddlewares.push(createGuestMiddleware(methodGuest.redirectTo))
-        } else if (classAuthRequired) {
-            authMiddlewares.push(createAuthMiddleware(classAuthOptions))
-        } else if (classGuestRequired) {
-            authMiddlewares.push(createGuestMiddleware(classGuestRedirectTo))
-        }
-
-        return authMiddlewares
-    }
-
-    /**
      * Collect middleware names for display purposes
      */
     private collectMiddlewareNames(
         methodName: string,
-        authMethods: Record<string, any>,
-        guestMethods: Record<string, any>,
-        classAuthRequired: boolean,
-        classGuestRequired: boolean,
         validators: Record<string, any[]>,
         middlewares: Record<string, any[]>,
     ): string[] {
         const names: string[] = []
-
-        // Auth/Guest middlewares
-        if (authMethods[methodName]?.required || classAuthRequired) {
-            names.push('@Auth')
-        } else if (guestMethods[methodName]?.required || classGuestRequired) {
-            names.push('@Guest')
-        }
 
         // Validator middlewares
         if (validators[methodName]?.length > 0) {
