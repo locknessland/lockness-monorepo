@@ -44,20 +44,18 @@ as `@lockness/hono` wrapping Hono - the validator package wraps Zod.
 
 - `/packages/validator/mod.ts` - Export Zod decorator alongside custom
   validation
-- `/packages/validator/deno.json` - Add dependencies: `@hono/zod-validator`,
-  `hono`, `zod`
-- `/packages/hono/deno.json` - Remove `@hono/zod-validator` dependency (moved to
-  validator)
+- `/packages/validator/deno.json` - Add dependency on `@lockness/hono` (uses
+  existing zod-validator bridge) and `zod`
 
 ### New Files to Create
 
 - `/packages/validator/zod-decorator.ts` - Zod validation decorator (migrated
   from core)
 
-### Files to Delete
+### Files to Keep (NO changes)
 
-- `/packages/hono/zod-validator.ts` - No longer needed (dependency moved to
-  validator)
+- `/packages/hono/zod-validator.ts` - KEEP as-is (bridge to @hono/zod-validator)
+- `/packages/hono/deno.json` - KEEP @hono/zod-validator dependency
 
 ### Test Files
 
@@ -168,9 +166,9 @@ as `@lockness/hono` wrapping Hono - the validator package wraps Zod.
 ├─────────────────────────────────────────┤
 │  Framework API Layer (@lockness/core)   │  ← Core provides routing/DI (NO validation)
 ├─────────────────────────────────────────┤
-│  Validation Layer (@lockness/validator) │  ← Optional: Zod decorator + Custom rules
+│  Validation Layer (@lockness/validator) │  ← Zod decorator + Custom rules (uses hono bridge)
 ├─────────────────────────────────────────┤
-│  Hono Bridge Layer (@lockness/hono)     │  ← Pure Hono re-exports (NO @hono/zod-validator)
+│  Hono Bridge Layer (@lockness/hono)     │  ← Hono re-exports INCLUDING @hono/zod-validator
 └─────────────────────────────────────────┘
 ```
 
@@ -178,8 +176,8 @@ as `@lockness/hono` wrapping Hono - the validator package wraps Zod.
 
 - Core MUST NOT depend on validation packages
 - Core MUST NOT import Zod types
-- Validator MAY depend on core types (Context, etc.)
-- Hono bridge MUST be validation-agnostic
+- Validator imports from `@lockness/hono` (NOT directly from npm)
+- Hono bridge provides zod-validator re-export for validator package
 
 ## 🎨 Proposed API Design
 
@@ -229,8 +227,8 @@ File: `/packages/validator/zod-decorator.ts`
 
 ````typescript
 // deno-lint-ignore-file no-explicit-any
-import { zValidator } from '@hono/zod-validator'
-import type { Context } from 'hono'
+import { zValidator } from '@lockness/hono/zod-validator'
+import type { Context } from '@lockness/hono'
 import type { ZodSchema } from 'zod'
 
 /**
@@ -406,8 +404,8 @@ File: `/packages/validator/deno.json`
     },
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
-        "@hono/zod-validator": "npm:@hono/zod-validator@0.7.6",
-        "hono": "npm:hono@4.11.1",
+        "@lockness/hono": "jsr:@lockness/hono@^0.1.22",
+        "@lockness/hono/zod-validator": "jsr:@lockness/hono@^0.1.22/zod-validator",
         "zod": "npm:zod@^3.22.0"
     },
     "description": "Advanced validation system with 30+ built-in validators, async validation, sanitizers, and Zod decorator for controllers"
@@ -470,29 +468,7 @@ Update decorators section:
 > **Note**: For request validation, use `@Validate` from `@lockness/validator`
 ```
 
-### Phase 3: Clean up @lockness/hono
-
-**Step 3.1: Remove @hono/zod-validator dependency**
-
-File: `/packages/hono/deno.json`
-
-Remove line from imports:
-
-```json
-"@hono/zod-validator": "npm:@hono/zod-validator@0.7.6"
-```
-
-**Step 3.2: Delete zod-validator.ts re-export**
-
-Delete file: `/packages/hono/zod-validator.ts`
-
-Remove from exports in `/packages/hono/deno.json`:
-
-```json
-"./zod-validator": "./zod-validator.ts"
-```
-
-### Phase 4: Update Documentation
+### Phase 3: Update Documentation
 
 **Step 4.1: Update root README**
 
@@ -710,10 +686,10 @@ deno task test
 
 ## ✅ Definition of Done
 
-- [ ] All implementation steps completed (Phases 1-4)
+- [ ] All implementation steps completed (Phases 1-3)
 - [ ] `@lockness/validator` exports `@Validate` decorator
+- [ ] `@lockness/validator` imports from `@lockness/hono` (not npm directly)
 - [ ] `@lockness/core` has zero validation code
-- [ ] `@lockness/hono` has no `@hono/zod-validator` dependency
 - [ ] validation.test.ts moved to validator package
 - [ ] All tests passing
 - [ ] Documentation updated (README, GEMINI, web docs, LLM docs)
@@ -759,17 +735,18 @@ deno task test
   - Allows framework to swap underlying engine later (e.g., VineJS)
   - User API stays stable: `import { Validate } from '@lockness/validator'`
 
-- **Why remove @hono/zod-validator from hono package?**
-  - Hono bridge should be pure framework re-exports
-  - Zod is validation concern, belongs in validator package
+- **Why keep @hono/zod-validator in hono package?**
+  - Consistent bridge pattern: all npm dependencies go through `@lockness/hono`
+  - `@lockness/validator` imports via `@lockness/hono/zod-validator`
+  - Single source of truth for Hono version management
 
 ### Architecture Pattern
 
-This follows the same internal abstraction pattern used elsewhere:
+This follows the internal bridge pattern used throughout Lockness:
 
 ```
-@lockness/core     → uses → @lockness/hono     → wraps → npm:hono
-@lockness/validator → uses → @hono/zod-validator → wraps → npm:zod
+@lockness/core      → uses → @lockness/hono              → wraps → npm:hono
+@lockness/validator → uses → @lockness/hono/zod-validator → wraps → npm:@hono/zod-validator
 ```
 
 Both bridges isolate external dependencies, enabling future swaps without
