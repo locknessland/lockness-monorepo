@@ -4,6 +4,7 @@
  */
 
 import { assertEquals, assertExists } from '@std/assert'
+import { FakeTime } from '@std/testing/time'
 import type { Context } from 'hono'
 import {
     CookieSessionDriver,
@@ -126,10 +127,11 @@ Deno.test('MemorySessionDriver - write and read session', async () => {
 })
 
 Deno.test('MemorySessionDriver - session expiration', async () => {
+    using time = new FakeTime()
     const driver = new MemorySessionDriver()
 
     await driver.write('expire-session', { userId: 789 }, 1) // 1 second
-    await new Promise((resolve) => setTimeout(resolve, 1100)) // Wait 1.1 seconds
+    time.tick(1100) // Advance 1.1 seconds
 
     const retrieved = await driver.read('expire-session')
     assertEquals(retrieved, null)
@@ -150,12 +152,13 @@ Deno.test('MemorySessionDriver - regenerate session', async () => {
 })
 
 Deno.test('MemorySessionDriver - garbage collection', async () => {
+    using time = new FakeTime()
     const driver = new MemorySessionDriver()
 
     await driver.write('session-1', { userId: 1 }, 1) // 1 second
     await driver.write('session-2', { userId: 2 }, 3600) // 1 hour
 
-    await new Promise((resolve) => setTimeout(resolve, 1100)) // Wait 1.1 seconds
+    time.tick(1100) // Advance 1.1 seconds
     await driver.gc()
 
     const expired = await driver.read('session-1')

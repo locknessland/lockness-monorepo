@@ -862,6 +862,51 @@ The tool automatically:
 4. **Version Control**: Commit before upgrading so you can revert
 5. **Incremental Updates**: Don't skip major versions if possible
 
+## Testing Best Practices
+
+Lockness uses deterministic time control and in-memory mocks for fast, reliable tests.
+
+### Time Control with FakeTime
+
+Replace `setTimeout` delays with instant time manipulation:
+
+```typescript
+import { FakeTime } from '@std/testing/time'
+
+Deno.test('session expiration', async () => {
+    using time = new FakeTime()
+    
+    await driver.write('session', { id: 1 }, 1) // 1 second TTL
+    time.tick(1100) // Advance 1.1 seconds instantly
+    
+    assertEquals(await driver.read('session'), null)
+})
+```
+
+### In-Memory Storage Mocks
+
+Use memory-based drivers for fast storage tests:
+
+```typescript
+import { createMockStorage } from '@lockness/storage/tests/support/mock_driver.ts'
+
+Deno.test('storage operations', async () => {
+    const driver = createMockStorage()
+    
+    await driver.put('file.txt', 'content')
+    assertEquals(await driver.get('file.txt'), 'content')
+    // No cleanup needed - all in memory
+})
+```
+
+**Key Principles:**
+- ✅ Use FakeTime for time-based tests (sessions, cache, queues)
+- ✅ Use in-memory mocks for storage tests (no filesystem I/O)
+- ✅ Keep tests hermetic (no side effects)
+- ✅ Target < 100ms per test
+
+See [testing.txt](./testing.txt) for detailed examples and patterns.
+
 ## Deployment
 
 ### Option 1: Deno Deploy (Recommended)

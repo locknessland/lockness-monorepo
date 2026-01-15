@@ -54,12 +54,12 @@ Deno.test('EventEmitter - async listeners', async () => {
     const results: string[] = []
 
     emitter.on('test', async (data) => {
-        await new Promise((resolve) => setTimeout(resolve, 10))
+        await new Promise((resolve) => setTimeout(resolve, 1))
         results.push(`async1: ${data}`)
     })
 
     emitter.on('test', async (data) => {
-        await new Promise((resolve) => setTimeout(resolve, 5))
+        await new Promise((resolve) => setTimeout(resolve, 1))
         results.push(`async2: ${data}`)
     })
 
@@ -209,8 +209,8 @@ Deno.test('EventEmitter - emitSync', async () => {
 
     emitter.emitSync('test', 'hello')
 
-    // Wait for async to complete
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    // Wait for async to complete (reduced delay)
+    await new Promise((resolve) => setTimeout(resolve, 1))
     assertEquals(received, 'hello')
 })
 
@@ -356,8 +356,8 @@ Deno.test('emitSync - global helper', async () => {
 
     emitSync('sync-test', 'hello')
 
-    // Wait for async to complete
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    // Wait for async to complete (reduced delay)
+    await new Promise((resolve) => setTimeout(resolve, 1))
     assertEquals(received, 'hello')
 })
 
@@ -390,8 +390,8 @@ Deno.test('waitForEvent - waits for event', async () => {
 
     const promise = waitForEvent<string>(emitter, 'delayed')
 
-    // Emit after starting wait
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    // Emit after starting wait (reduced delay)
+    await new Promise((resolve) => setTimeout(resolve, 1))
     emitter.emit('delayed', 'result')
 
     const result = await promise
@@ -416,12 +416,12 @@ Deno.test('eventStream - async iteration', async () => {
     const emitter = new EventEmitter()
     const results: number[] = []
 
-    // Emit events after a delay
+    // Emit events after a small delay
     setTimeout(() => {
         emitter.emit('stream-test', 1)
         emitter.emit('stream-test', 2)
         emitter.emit('stream-test', 3)
-    }, 10)
+    }, 1)
 
     const stream = eventStream<number>(emitter, 'stream-test')
     let count = 0

@@ -422,6 +422,41 @@ cd lockness/storage
 deno task test
 ```
 
+### Testing with Mock Driver
+
+For fast, hermetic unit tests, use the in-memory mock driver instead of
+filesystem I/O:
+
+```typescript
+import { createMockStorage } from '@lockness/storage/tests/support/mock_driver.ts'
+
+Deno.test('storage operations', async () => {
+    const driver = createMockStorage()
+
+    // All operations work in memory
+    await driver.put('file.txt', 'content')
+    assertEquals(await driver.get('file.txt'), 'content')
+
+    // No cleanup needed - everything is in memory
+})
+```
+
+**Benefits:**
+
+- Tests run 10-100x faster (no disk I/O)
+- No filesystem pollution (no `tmp/` directories)
+- Parallel-safe (no file conflicts)
+- Hermetic (no side effects)
+
+**When to use:**
+
+- Unit testing storage operations (put, get, delete, copy, move)
+- Testing file handling logic
+- Testing storage-dependent services
+
+**Note:** For integration tests that validate actual S3/R2/Local driver
+behavior, use the real drivers with appropriate test configurations.
+
 ## Best Practices
 
 1. **Use streams for large files** (>10MB)

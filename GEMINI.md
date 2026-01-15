@@ -1948,6 +1948,86 @@ The `.dockerignore` file excludes unnecessary files from the build context:
 - Test files (`*.test.ts`)
 - IDE files (`.vscode/`, `.idea/`)
 
+## 🧪 Testing Best Practices
+
+Lockness uses deterministic time control and in-memory mocks to keep tests fast
+and hermetic. Follow these guidelines when writing tests:
+
+### Time Control with FakeTime
+
+Use `@std/testing/time` to replace real time delays with instant time
+manipulation:
+
+```typescript
+import { FakeTime } from '@std/testing/time'
+
+Deno.test('session expiration', async () => {
+    using time = new FakeTime()
+
+    await driver.write('session', { id: 1 }, 1) // 1 second TTL
+    time.tick(1100) // Advance 1.1 seconds instantly
+
+    assertEquals(await driver.read('session'), null)
+})
+```
+
+**Benefits:**
+
+- Tests run in milliseconds instead of seconds
+- No race conditions from real timers
+- Deterministic test execution
+
+**When to use:**
+
+- Testing TTL/expiration logic (sessions, cache)
+- Testing time-based delays or intervals
+- Any test with `setTimeout` or `Date.now()`
+
+### In-Memory Storage Mocks
+
+Use memory-based drivers instead of filesystem I/O for storage tests:
+
+```typescript
+import { createMockStorage } from './tests/support/mock_driver.ts'
+
+Deno.test('storage operations', async () => {
+    const driver = createMockStorage()
+
+    await driver.put('file.txt', 'content')
+    assertEquals(await driver.get('file.txt'), 'content')
+    // No cleanup needed - all in memory
+})
+```
+
+**Benefits:**
+
+- No filesystem pollution (`tmp/` directories)
+- Tests run 10-100x faster
+- Parallel-safe (no file conflicts)
+
+**When to use:**
+
+- Testing storage drivers (local, S3, R2)
+- Testing file operations (put, get, delete, copy, move)
+- Any test that writes to disk
+
+### Performance Guidelines
+
+1. **Avoid Real Delays**: Never use `setTimeout` with actual time in tests
+2. **Use Memory Drivers**: Prefer in-memory mocks over filesystem/network
+3. **Minimize Micro-delays**: Reduce small delays (10ms → 1ms) where needed
+4. **Hermetic Tests**: Tests should not create side effects (files, network
+   calls)
+
+### Test Suite Performance
+
+Target metrics for the full test suite:
+
+- **Session tests**: < 1 second (down from 3+ seconds)
+- **Cache tests**: < 1 second (down from 2+ seconds)
+- **Storage tests**: < 2 seconds (down from 5+ seconds)
+- **Total suite**: < 30 seconds (down from 87+ seconds)
+
 ## 🌊 Contributing to the Monorepo
 
 Lockness is a monorepo that uses **Deno Workspaces** to manage its internal

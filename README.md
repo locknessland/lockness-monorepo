@@ -162,6 +162,21 @@ deno task test:watch
 Test files are located in the `tests/` directory. Coverage reports are generated
 in `coverage/html/`.
 
+**Testing Best Practices:**
+
+For fast, reliable tests, follow these guidelines:
+
+- **Use FakeTime for time-based tests**: Replace `setTimeout` delays with
+  `FakeTime` from `@std/testing/time` for instant time manipulation
+- **Use in-memory mocks**: Avoid filesystem I/O by using memory-based storage
+  drivers in tests
+- **Keep tests hermetic**: Tests should not create files, directories, or
+  external side effects
+- **Target speed**: The full test suite should complete in < 30 seconds
+
+See [GEMINI.md](./GEMINI.md#-testing-best-practices) for detailed examples and
+patterns.
+
 ### Nessy CLI Wrapper
 
 **Nessy** is a convenient CLI wrapper that simplifies common commands. Install

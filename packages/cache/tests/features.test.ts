@@ -1,4 +1,5 @@
 import { assertEquals } from '@std/assert'
+import { FakeTime } from '@std/testing/time'
 import {
     cache,
     configureCache,
@@ -20,10 +21,11 @@ function resetCache() {
 
 Deno.test('cache special features', async (t) => {
     await t.step('TTL causes expiration', async () => {
+        using time = new FakeTime()
         resetCache()
         await set('expiring', 'value', 0.1)
         assertEquals(await get('expiring'), 'value')
-        await new Promise((resolve) => setTimeout(resolve, 150))
+        time.tick(150) // Advance 150ms
         assertEquals(await get('expiring'), null)
     })
 
