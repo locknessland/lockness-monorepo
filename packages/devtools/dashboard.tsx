@@ -34,7 +34,8 @@ td{color:#e5e7eb}
 // HTML component helpers
 const badge = (text: string, color: string = 'gray') => {
     const colors: Record<string, string> = {
-        gray: 'bg-[#181a20] text-gray-400 border border-[rgba(255,255,255,0.08)]',
+        gray:
+            'bg-[#181a20] text-gray-400 border border-[rgba(255,255,255,0.08)]',
         blue: 'bg-indigo-900/30 text-indigo-400 border border-indigo-500/20',
         green: 'bg-green-900/30 text-green-400 border border-green-500/20',
         yellow: 'bg-yellow-900/30 text-yellow-400 border border-yellow-500/20',
@@ -60,17 +61,26 @@ const card = (
     </div>
 `
 
-const tab = (name: string, active: boolean, count?: number, iconPath?: string) => {
+const tab = (
+    name: string,
+    active: boolean,
+    count?: number,
+    iconPath?: string,
+) => {
     const countBadge = count !== undefined
         ? `<span class="ml-2.5 px-2 py-0.5 text-[10px] rounded-md font-mono transition-colors ${
-            active 
-                ? 'bg-indigo-500/20 text-indigo-300' 
+            active
+                ? 'bg-indigo-500/20 text-indigo-300'
                 : 'bg-[#0f1115] border border-[rgba(255,255,255,0.08)] text-gray-500 group-hover:bg-[#181a20] group-hover:text-gray-400'
         }">${count}</span>`
         : ''
 
-    const icon = iconPath 
-        ? `<svg class="w-4 h-4 mr-2.5 ${active ? 'text-indigo-400' : 'text-gray-500 group-hover:text-gray-400'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"/></svg>`
+    const icon = iconPath
+        ? `<svg class="w-4 h-4 mr-2.5 ${
+            active
+                ? 'text-indigo-400'
+                : 'text-gray-500 group-hover:text-gray-400'
+        }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"/></svg>`
         : ''
 
     return `
@@ -153,60 +163,78 @@ export function renderDashboard(c: Context) {
     <div class="bg-[#0f1115] border-b border-[rgba(255,255,255,0.08)] sticky top-0 z-10 backdrop-blur-md bg-opacity-95">
         <div class="max-w-7xl mx-auto px-6">
             <nav class="flex space-x-1 overflow-x-auto no-scrollbar">
-                ${tab(
-        'Overview',
-        activePanel === 'overview',
-        undefined,
-        'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z',
-    )}
-                ${tab(
-        'Routes',
-        activePanel === 'routes',
-        data.routes.length,
-        'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
-    )}
-                ${tab(
-        'Requests',
-        activePanel === 'requests',
-        data.requests.length,
-        'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
-    )}
-                ${tab(
-        'Logs',
-        activePanel === 'logs',
-        data.logs.length,
-        'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
-    )}
-                ${tab(
-        'SQL',
-        activePanel === 'sql',
-        data.queries.length,
-        'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4',
-    )}
-                ${tab(
-        'Queue',
-        activePanel === 'queue',
-        data.queue.length,
-        'M4 6h16M4 12h16M4 18h16',
-    )}
-                ${tab(
-        'Mail',
-        activePanel === 'mail',
-        data.mails.length,
-        'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
-    )}
-                ${tab(
-        'Performance',
-        activePanel === 'performance',
-        data.performance.length,
-        'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6',
-    )}
-                ${tab(
-        'Deprecations',
-        activePanel === 'deprecations',
-        data.deprecations.length,
-        'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
-    )}
+                ${
+        tab(
+            'Overview',
+            activePanel === 'overview',
+            undefined,
+            'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z',
+        )
+    }
+                ${
+        tab(
+            'Routes',
+            activePanel === 'routes',
+            data.routes.length,
+            'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
+        )
+    }
+                ${
+        tab(
+            'Requests',
+            activePanel === 'requests',
+            data.requests.length,
+            'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
+        )
+    }
+                ${
+        tab(
+            'Logs',
+            activePanel === 'logs',
+            data.logs.length,
+            'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+        )
+    }
+                ${
+        tab(
+            'SQL',
+            activePanel === 'sql',
+            data.queries.length,
+            'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4',
+        )
+    }
+                ${
+        tab(
+            'Queue',
+            activePanel === 'queue',
+            data.queue.length,
+            'M4 6h16M4 12h16M4 18h16',
+        )
+    }
+                ${
+        tab(
+            'Mail',
+            activePanel === 'mail',
+            data.mails.length,
+            'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+        )
+    }
+                ${
+        tab(
+            'Performance',
+            activePanel === 'performance',
+            data.performance.length,
+            'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6',
+        )
+    }
+                ${
+        tab(
+            'Deprecations',
+            activePanel === 'deprecations',
+            data.deprecations.length,
+            'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
+        )
+    }
             </nav>
         </div>
     </div>
@@ -240,9 +268,7 @@ export function renderDashboard(c: Context) {
                                     ${
             badge(req.method, req.method === 'GET' ? 'blue' : 'green')
         }
-                                    <span class="text-sm font-medium text-gray-300 font-mono">${
-            req.path
-        }</span>
+                                    <span class="text-sm font-medium text-gray-300 font-mono">${req.path}</span>
                                     ${
             req.routeName
                 ? `<span class="text-xs text-indigo-400/80 font-medium">(${req.routeName})</span>`
@@ -275,9 +301,7 @@ export function renderDashboard(c: Context) {
                                 ${
                 badge(log.level.toUpperCase(), colors[log.level])
             }
-                                <p class="text-sm text-gray-400 flex-1 font-mono tracking-tight">${
-                log.message
-            }</p>
+                                <p class="text-sm text-gray-400 flex-1 font-mono tracking-tight">${log.message}</p>
                             </div>
                         `
         }).join('')
@@ -311,9 +335,7 @@ export function renderDashboard(c: Context) {
             badge(route.method, route.method === 'GET' ? 'blue' : 'green')
         }
                                 </td>
-                                <td class="px-6 py-4 font-mono text-sm text-gray-300">${
-            route.path
-        }</td>
+                                <td class="px-6 py-4 font-mono text-sm text-gray-300">${route.path}</td>
                                 <td class="px-6 py-4 text-sm text-indigo-400 font-medium">${
             route.name || '-'
         }</td>
@@ -354,9 +376,7 @@ export function renderDashboard(c: Context) {
                     selectedRequest.method === 'GET' ? 'blue' : 'green',
                 )
             }
-                                    <span class="font-mono text-gray-300 border-b border-gray-700 border-dashed pb-0.5">${
-                selectedRequest.path
-            }</span>
+                                    <span class="font-mono text-gray-300 border-b border-gray-700 border-dashed pb-0.5">${selectedRequest.path}</span>
                                 </h2>
                                 <p class="text-sm text-gray-500 mt-1 flex items-center gap-2">
                                     <span class="w-2 h-2 rounded-full bg-gray-600"></span> ${
@@ -456,9 +476,7 @@ export function renderDashboard(c: Context) {
             <div class="card-bg rounded-lg shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-[rgba(255,255,255,0.08)] flex justify-between items-center bg-[#20232a]">
                     <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Request History</h2>
-                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${
-                data.requests.length
-            } total</span>
+                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${data.requests.length} total</span>
                 </div>
                 <table class="w-full">
                     <thead class="bg-[#1a1d23] border-b border-[rgba(255,255,255,0.08)]">
@@ -529,9 +547,7 @@ export function renderDashboard(c: Context) {
             <div class="card-bg rounded-lg shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a] flex justify-between items-center">
                     <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Application Logs</h2>
-                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${
-        data.logs.length
-    } entries</span>
+                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${data.logs.length} entries</span>
                 </div>
                 <!-- TODO: Implement actual logs table -->
                 <div class="p-12 text-center text-gray-500 italic">
@@ -544,9 +560,7 @@ export function renderDashboard(c: Context) {
             <div class="card-bg rounded-lg shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a] flex justify-between items-center">
                     <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">SQL Queries</h2>
-                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${
-        data.queries.length
-    } queries</span>
+                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${data.queries.length} queries</span>
                 </div>
                 <!-- TODO: Implement actual SQL table -->
                 <div class="p-12 text-center text-gray-500 italic">
@@ -561,9 +575,7 @@ export function renderDashboard(c: Context) {
             <div class="card-bg rounded-lg shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a] flex justify-between items-center">
                     <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Background Queue</h2>
-                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${
-        data.queue.length
-    } jobs</span>
+                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${data.queue.length} jobs</span>
                 </div>
                 <div class="p-12 text-center text-gray-500 italic">
                     Queue viewer implementation coming soon...
@@ -577,9 +589,7 @@ export function renderDashboard(c: Context) {
             <div class="card-bg rounded-lg shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a] flex justify-between items-center">
                     <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Mail Log</h2>
-                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${
-        data.mails.length
-    } emails</span>
+                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${data.mails.length} emails</span>
                 </div>
                 <div class="p-12 text-center text-gray-500 italic">
                     Mail viewer implementation coming soon...
@@ -593,9 +603,7 @@ export function renderDashboard(c: Context) {
             <div class="card-bg rounded-lg shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a] flex justify-between items-center">
                     <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Performance Metrics</h2>
-                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${
-        data.performance.length
-    } metrics</span>
+                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${data.performance.length} metrics</span>
                 </div>
                 <div class="p-12 text-center text-gray-500 italic">
                     Performance viewer implementation coming soon...
@@ -610,9 +618,7 @@ export function renderDashboard(c: Context) {
             <div class="card-bg rounded-lg shadow-sm overflow-hidden">
                 <div class="px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a] flex justify-between items-center">
                     <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wider">Deprecation Notices</h2>
-                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${
-        data.deprecations.length
-    } notices</span>
+                    <span class="text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800">${data.deprecations.length} notices</span>
                 </div>
                 <table class="w-full">
                     <thead class="bg-[#1a1d23] border-b border-[rgba(255,255,255,0.08)]">
@@ -627,15 +633,9 @@ export function renderDashboard(c: Context) {
                         ${
         data.deprecations.map((dep: DeprecationEntry) => `
                             <tr class="hover-row transition">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-400">${
-            dep.version
-        }</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-300">${
-            dep.pkg
-        }</td>
-                                <td class="px-6 py-4 text-sm text-gray-400">${
-            dep.message
-        }</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-400">${dep.version}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-300">${dep.pkg}</td>
+                                <td class="px-6 py-4 text-sm text-gray-400">${dep.message}</td>
                                 <td class="px-6 py-4 text-xs font-mono text-gray-500">
                                     <details class="cursor-pointer group">
                                         <summary class="hover:text-blue-400 focus:outline-none transition">View Stack</summary>
