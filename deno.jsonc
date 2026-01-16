@@ -23,7 +23,8 @@
         "./packages/init",
         "./packages/deprecation-contracts",
         "./packages/devtools",
-        "./packages/upgrade"
+        "./packages/upgrade",
+        "./packages/ui"
     ],
     "nodeModulesDir": "auto",
     "tasks": {

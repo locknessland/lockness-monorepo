@@ -4,125 +4,355 @@
 
 Implement a Command Line Interface (CLI) for the `@lockness/ui` package. This
 tool aims to provide a developer experience similar to `shadcn/ui`, allowing
-users to selectively "add" components to their projects. instead of installing
+users to selectively "add" components to their projects instead of installing
 the entire library as a dependency. The CLI will fetch component source code and
-install it directly into the user's codebase (e.g., `src/components/ui/`),
+install it directly into the user's codebase (e.g., `app/view/components/ui/`),
 giving them full ownership and customization capabilities.
 
-## 🎯 Objectives
+## ✅ Implementation Status
 
-1. **Component Registry**: Create a `registry.json` that maps component names to
-   their source files and dependencies.
-2. **CLI Entry Point**: Create a `cli.ts` script executable via `deno run`.
-3. **Add Command**: Implement the `add [component]` command to fetch and install
-   components.
-4. **Dependency Management**: Ensure the CLI handles necessary dependencies
-   (like `clsx`, `tailwind-merge`) when adding components.
-5. **Project Integration**: Update `packages/ui/deno.json` to expose the CLI
-   script.
+### Completed
 
-## 📁 Affected File Paths
+- [x] Package `@lockness/ui` created with `deno.json` configuration
+- [x] `cn` utility implemented in `lib/utils.ts`
+- [x] `Button` component with variants (primary, secondary, outline, ghost,
+      danger) and sizes (sm, md, lg)
+- [x] `Card` component system (Card, CardHeader, CardTitle, CardDescription,
+      CardContent, CardFooter)
+- [x] `RootLayout` component with Unpoly CDN integration
+- [x] All components use Tailwind CSS classes
+- [x] Tests passing for all components
+- [x] `deno check` and `deno lint` passing
+- [x] **CLI implemented in `mod.ts`** (single entry point, Deno convention)
+- [x] **Registry embedded in `mod.ts`** (no separate registry.json needed)
+- [x] **`add` command** - copies components to user's project
+- [x] **`list` command** - shows available components
+- [x] **Internal dependencies resolution** - auto-installs utils when needed
+- [x] **Import path rewriting** - fixes relative imports in copied files
+- [x] **deno.json updated** with `@std/cli`, `@std/fs`, `@std/path` imports
+- [x] **`components.ts` created** - direct library exports for quick testing
 
-### New Files to Create
+### Remaining
 
-- `/packages/ui/cli.ts` - Main CLI entry point.
-- `/packages/ui/registry.json` - JSON catalog of available components.
+- [ ] Update README.md with CLI documentation
+- [ ] Add tests for CLI functionality
+- [ ] Test remote execution from JSR (currently local only)
 
-### Files to Modify
+## 🏗️ Architecture
 
-- `/packages/ui/deno.json` - Add the `bin` task or configuration for the CLI.
-- `/packages/ui/README.md` - Document CLI usage.
+### Dual Mode: CLI + Library
 
-## 🏗️ Architecture Principles
+The package supports two usage modes:
 
-- **Zero-Dependency Runtime (for the CLI)**: Use standard library (`@std/cli`,
-  `@std/fs`) where possible to keep the CLI lightweight.
-- **Source-First**: The CLI treats the component source code as the product, not
-  the compiled output.
-- **Idempotency**: Adding a component that already exists should prompt for
-  overwrite or skip.
+**1. CLI Mode (mod.ts)** - Primary, for production use:
 
-## 📝 Detailed Implementation Steps
+```bash
+# Copy components to your project
+deno run -A jsr:@lockness/ui add button
+deno run -A jsr:@lockness/ui list
+```
+
+**2. Library Mode (components.ts)** - For quick testing/prototyping:
+
+```typescript
+import { Button, Card, cn } from '@lockness/ui/components'
+```
+
+### File Structure
+
+```
+packages/ui/
+├── mod.ts              # CLI entry point (main)
+├── components.ts       # Library exports for direct import
+├── deno.json           # Package config
+├── README.md           # Documentation
+├── components/         # Source files to copy
+│   ├── Button.tsx
+│   ├── Card.tsx
+│   └── RootLayout.tsx
+├── lib/
+│   └── utils.ts        # cn() utility to copy
+└── tests/              # Component tests
+```
+
+### Registry (embedded in mod.ts)
+
+```typescript
+const REGISTRY: Registry = {
+    utils: {
+        name: 'utils',
+        description: 'Class name utility (cn) for merging Tailwind classes',
+        files: [{ path: 'lib/utils.ts', target: 'lib/utils.ts' }],
+        dependencies: {
+            clsx: 'npm:clsx@2.1.1',
+            'tailwind-merge': 'npm:tailwind-merge@2.6.0',
+        },
+    },
+    button: {
+        name: 'button',
+        description: 'Flexible button component with variants and sizes',
+        files: [{
+            path: 'components/Button.tsx',
+            target: 'components/ui/Button.tsx',
+        }],
+        internalDependencies: ['utils'],
+    },
+    // ...
+}
+```
+
+## 📝 CLI Commands
+
+### `add <component...>`
+
+```bash
+# Add single component
+deno run -A jsr:@lockness/ui add button
+
+# Add multiple components
+deno run -A jsr:@lockness/ui add button card
+
+# Force overwrite
+deno run -A jsr:@lockness/ui add button --force
+
+# Custom directory
+deno run -A jsr:@lockness/ui add button --dir src/components
+```
+
+### `list`
+
+```bash
+deno run -A jsr:@lockness/ui list
+```
+
+Output:
+
+```
+📦 Available components:
+
+  • utils
+    Class name utility (cn) for merging Tailwind classes
+
+  • button (requires: utils)
+    Flexible button component with variants and sizes
+
+  • card (requires: utils)
+    Card component system (...)
+
+  • root-layout
+    Base HTML layout with Unpoly CDN integration
+```
+
+## ✅ Definition of Done
+
+- [x] `mod.ts` implements CLI with `add` and `list` commands
+- [x] Internal dependencies (utils) auto-installed when needed
+- [x] Import paths correctly rewritten in copied files
+- [x] CLI provides clear instructions for npm dependencies
+- [x] `deno.json` updated with CLI dependencies
+- [ ] README updated with CLI documentation
+- [ ] Tests for CLI functionality
 
 ### Phase 1: Registry & Configuration
 
 **Step 1.1: Define Registry Structure**
 
-File: `/packages/ui/registry.json` Define the schema for the registry. It should
-include the component name, source file paths, and external dependencies.
+File: `/packages/ui/registry.json`
 
 ```json
 {
+    "$schema": "./registry.schema.json",
+    "utils": {
+        "name": "utils",
+        "description": "Class name utility (cn) for merging Tailwind classes",
+        "files": [
+            {
+                "path": "lib/utils.ts",
+                "target": "lib/utils.ts"
+            }
+        ],
+        "dependencies": {
+            "clsx": "npm:clsx@2.1.1",
+            "tailwind-merge": "npm:tailwind-merge@2.6.0"
+        },
+        "devDependencies": {}
+    },
     "button": {
         "name": "button",
+        "description": "Flexible button component with variants and sizes",
         "files": [
             {
                 "path": "components/Button.tsx",
                 "target": "components/ui/Button.tsx"
             }
         ],
-        "dependencies": ["npm:clsx", "npm:tailwind-merge"]
+        "dependencies": {},
+        "internalDependencies": ["utils"]
     },
     "card": {
         "name": "card",
+        "description": "Card component system (Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter)",
         "files": [
             {
                 "path": "components/Card.tsx",
                 "target": "components/ui/Card.tsx"
             }
         ],
-        "dependencies": ["npm:clsx", "npm:tailwind-merge"]
+        "dependencies": {},
+        "internalDependencies": ["utils"]
+    },
+    "root-layout": {
+        "name": "root-layout",
+        "description": "Base HTML layout with Unpoly integration",
+        "files": [
+            {
+                "path": "components/RootLayout.tsx",
+                "target": "components/ui/RootLayout.tsx"
+            }
+        ],
+        "dependencies": {},
+        "internalDependencies": []
     }
 }
 ```
 
-**Step 1.2: CLI Entry Point**
+**Step 1.2: Update deno.json exports**
 
-File: `/packages/ui/cli.ts` Set up the basic CLI structure using `Deno.args`.
-Parse the command (e.g., `add`) and the target component(s).
+Add CLI export to `/packages/ui/deno.json`:
+
+```json
+{
+    "exports": {
+        ".": "./mod.ts",
+        "./cli": "./cli.ts"
+    },
+    "imports": {
+        "@std/cli": "jsr:@std/cli@1",
+        "@std/fs": "jsr:@std/fs@1",
+        "@std/path": "jsr:@std/path@1"
+        // ... existing imports
+    }
+}
+```
 
 ### Phase 2: The `add` Command
 
-**Step 2.1: Fetching Logic**
+**Step 2.1: CLI Entry Point**
 
-Implement logic to read the `registry.json`. Since the CLI might be run from a
-local install or remote (JSR), ensure it can resolve the registry and component
-source files correctly.
+File: `/packages/ui/cli.ts`
 
-- If running from local, read files from disk.
-- If running from JSR/remote, might need to fetch raw content from GitHub or
-  included assets.
+```typescript
+#!/usr/bin/env -S deno run -A
 
-**Step 2.2: Installation Logic**
+import { parseArgs } from '@std/cli/parse-args'
+import { ensureDir } from '@std/fs/ensure-dir'
+import { dirname, join } from '@std/path'
 
-Implement the file writing logic.
+const REGISTRY_URL = 'https://jsr.io/@lockness/ui/registry.json'
+const DEFAULT_TARGET_DIR = 'app/view'
 
-- Check if target directory exists (`src/components/ui/` by default,
-  customizable via flags?).
-- Write the component files.
-- Resolve imports if necessary (e.g., if `Button.tsx` imports `cn` from
-  `lib/utils.ts`, ensure `utils.ts` is also installed or paths are corrected).
+async function main() {
+    const args = parseArgs(Deno.args, {
+        string: ['dir'],
+        boolean: ['help', 'force'],
+        alias: { h: 'help', d: 'dir', f: 'force' },
+        default: { dir: DEFAULT_TARGET_DIR },
+    })
 
-**Step 2.3: Dependency Check**
+    const [command, ...components] = args._
 
-Check `deno.json` in the user's project to see if dependencies (like `clsx`) are
-present. If not, instruct the user to add them or add them automatically.
+    if (args.help || !command) {
+        printHelp()
+        return
+    }
+
+    switch (command) {
+        case 'add':
+            await addComponents(components as string[], args.dir, args.force)
+            break
+        case 'list':
+            await listComponents()
+            break
+        default:
+            console.error(`Unknown command: ${command}`)
+            printHelp()
+            Deno.exit(1)
+    }
+}
+
+main()
+```
+
+**Step 2.2: Add Command Implementation**
+
+- Fetch registry from JSR or local
+- Resolve internal dependencies (e.g., button requires utils)
+- Check if files exist, prompt for overwrite if not `--force`
+- Write files to target directory
+- Update imports in copied files (replace `../lib/utils.ts` with correct path)
+- Print instructions for adding npm dependencies to `deno.json`
+
+**Step 2.3: Import Path Rewriting**
+
+When copying `Button.tsx`, rewrite:
+
+```typescript
+// From (in source)
+import { cn } from '../lib/utils.ts'
+
+// To (in user project)
+import { cn } from '../lib/utils.ts' // Relative to app/view/components/ui/
+```
 
 ### Phase 3: Documentation & Polish
 
 **Step 3.1: Update README**
 
-Add a section to `/packages/ui/README.md` explaining how to use the CLI:
-`deno run -A jsr:@lockness/ui/cli add button`
+Add CLI section to `/packages/ui/README.md`:
 
+````markdown
+## CLI Usage
+
+Add individual components to your project:
+
+```bash
+# Add a single component
+deno run -A jsr:@lockness/ui/cli add button
+
+# Add multiple components
+deno run -A jsr:@lockness/ui/cli add button card
+
+# Add all components
+deno run -A jsr:@lockness/ui/cli add --all
+
+# Specify custom directory
+deno run -A jsr:@lockness/ui/cli add button --dir src/components
+
+# Force overwrite existing files
+deno run -A jsr:@lockness/ui/cli add button --force
+
+# List available components
+deno run -A jsr:@lockness/ui/cli list
+```
+````
+
+Components are copied to `app/view/components/ui/` by default.
+
+```
 ## 🧪 Testing Strategy
 
-- **Manual Testing**: Run the CLI against a mock project structure.
-- **Unit Tests**: Test the registry parsing and path resolution logic.
+- **Unit Tests**: Test registry parsing, path resolution, import rewriting
+- **Integration Tests**: Create temp project, run CLI, verify files created correctly
+- **Manual Testing**: Run against actual Lockness project
 
 ## ✅ Definition of Done
 
-- [ ] `registry.json` is populated with initial components (`button`, `card`).
-- [ ] `add` command works and copies files to `src/components/ui/`.
-- [ ] CLI correctly identifies missing dependencies.
-- [ ] Documentation updated with CLI instructions.
+- [ ] `registry.json` populated with all current components (button, card, root-layout, utils)
+- [ ] `cli.ts` implements `add` and `list` commands
+- [ ] Internal dependencies (utils) auto-installed when needed
+- [ ] Import paths correctly rewritten in copied files
+- [ ] CLI provides clear instructions for npm dependencies
+- [ ] `deno.json` updated with CLI export
+- [ ] README updated with CLI documentation
+- [ ] Tests for CLI functionality
+```

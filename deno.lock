@@ -22,10 +22,12 @@
     "npm:@aws-sdk/s3-request-presigner@^3.709.0": "3.969.0",
     "npm:@hono/zod-validator@0.7.6": "0.7.6_hono@4.11.1_zod@3.25.76",
     "npm:@tailwindcss/cli@^4.1.18": "4.1.18",
+    "npm:clsx@2.1.1": "2.1.1",
     "npm:drizzle-kit@beta": "1.0.0-beta.11-fc31a5f",
     "npm:drizzle-orm@~0.36.3": "0.36.4_postgres@3.4.8",
     "npm:hono@4.11.1": "4.11.1",
     "npm:postgres@^3.4.4": "3.4.8",
+    "npm:tailwind-merge@2.6.0": "2.6.0",
     "npm:tailwindcss@^4.1.18": "4.1.18",
     "npm:zod@^3.22.0": "3.25.76"
   },
@@ -1606,6 +1608,9 @@
     "bowser@2.13.1": {
       "integrity": "sha512-OHawaAbjwx6rqICCKgSG0SAnT05bzd7ppyKLVUITZpANBaaMFBAsaNkto3LoQ31tyFP5kNujE8Cdx85G9VzOkw=="
     },
+    "clsx@2.1.1": {
+      "integrity": "sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA=="
+    },
     "detect-libc@2.1.2": {
       "integrity": "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="
     },
@@ -1845,6 +1850,9 @@
     "strnum@2.1.2": {
       "integrity": "sha512-l63NF9y/cLROq/yqKXSLtcMeeyOfnSQlfMSlzFt/K73oIaD8DGaQWd7Z34X9GPiKqP5rbSh84Hl4bOlLcjiSrQ=="
     },
+    "tailwind-merge@2.6.0": {
+      "integrity": "sha512-P+Vu1qXfzediirmHOC3xKGAYeZtPcV9g76X+xg2FD4tYgR71ewMA35Y3sCz3zhiN/dwefRpJX0yBcgwi1fXNQA=="
+    },
     "tailwindcss@4.1.18": {
       "integrity": "sha512-4+Z+0yiYyEtUVCScyfHCxOYP06L5Ne+JiHhY2IjR2KWMIWhJOYZKLSGZaP5HkZ8+bY0cxfzwDE5uOmzFXyIwxw=="
     },
@@ -2000,6 +2008,17 @@
           "jsr:@std/path@1",
           "npm:@aws-sdk/client-s3@^3.709.0",
           "npm:@aws-sdk/s3-request-presigner@^3.709.0"
+        ]
+      },
+      "packages/ui": {
+        "dependencies": [
+          "jsr:@lockness/hono@~0.1.22",
+          "jsr:@std/assert@1",
+          "jsr:@std/cli@1",
+          "jsr:@std/fs@1",
+          "jsr:@std/path@1",
+          "npm:clsx@2.1.1",
+          "npm:tailwind-merge@2.6.0"
         ]
       },
       "packages/upgrade": {

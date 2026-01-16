@@ -157,6 +157,7 @@ essential framework features, and optional packages are imported explicitly:
 - `@lockness/storage` - File storage (local, S3, R2)
 - `@lockness/auth` - Authentication system
 - `@lockness/socialite` - OAuth providers
+- `@lockness/ui` - UI components (Hono JSX + Tailwind CSS + Unpoly)
 
 **Benefits:**
 
@@ -1137,6 +1138,7 @@ await cli.discoverCommands('./app/command')
   generation
 - **@lockness/cache**: Multi-driver caching system (Memory, Deno KV, Redis)
 - **@lockness/socialite**: OAuth2 authentication (Google, GitHub, Discord)
+- **@lockness/ui**: UI components with Hono JSX, Tailwind CSS, and Unpoly
 
 #### Creating Custom Packages
 
