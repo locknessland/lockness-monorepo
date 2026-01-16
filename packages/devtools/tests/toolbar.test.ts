@@ -43,8 +43,8 @@ Deno.test('DebugToolbar - shows request duration', () => {
 
     const html = DebugToolbar({ requestId }).toString()
 
-    assertStringIncludes(html, 'Duration')
-    assertStringIncludes(html, '123.45ms')
+    assertStringIncludes(html, 'TIME')
+    assertStringIncludes(html, '123ms')
 })
 
 Deno.test('DebugToolbar - shows error badge', () => {
