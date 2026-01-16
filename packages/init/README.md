@@ -16,7 +16,8 @@ Project scaffolding and initialization for new Lockness applications.
 ### Create a New Project
 
 ```bash
-deno run -A jsr:@lockness/init project-name
+# Latest version (default)
+deno run -A jsr:@lockness/init my-app
 ```
 
 Or using the Nessy CLI:
@@ -24,6 +25,79 @@ Or using the Nessy CLI:
 ```bash
 ./nessy init my-app
 ```
+
+### Version Control
+
+Control which version of Lockness packages your project will use:
+
+```bash
+# Use specific version
+deno run -A jsr:@lockness/init my-app --use 0.1.15
+
+# Use short flag
+deno run -A jsr:@lockness/init my-app -u 0.1.15
+
+# Use version range (caret - allows patch + minor updates)
+deno run -A jsr:@lockness/init my-app --use "^0.1.0"
+
+# Use version range (tilde - allows patch updates only)
+deno run -A jsr:@lockness/init my-app --use "~0.1.20"
+
+# Use latest version explicitly
+deno run -A jsr:@lockness/init my-app --use latest
+```
+
+### Pin Init Package Version
+
+Use JSR's native version syntax to pin the init package itself:
+
+```bash
+# Use specific init package version
+deno run -A jsr:@lockness/init@0.1.10 my-app
+
+# Combine: specific init + specific framework
+deno run -A jsr:@lockness/init@0.1.10 my-app --use 0.1.8
+```
+
+### Version Format Reference
+
+| Format   | Description   | Example   | Result in deno.json |
+| -------- | ------------- | --------- | ------------------- |
+| `X.Y.Z`  | Exact version | `0.1.15`  | `^0.1.15`           |
+| `^X.Y.Z` | Caret range   | `^0.1.0`  | `^0.1.0`            |
+| `~X.Y.Z` | Tilde range   | `~0.1.20` | `~0.1.20`           |
+| `latest` | Latest stable | `latest`  | `^0.1.22`           |
+
+**Caret (`^`)**: Allows patch and minor updates (recommended)
+
+- `^0.1.15` matches `0.1.15`, `0.1.16`, `0.1.999`
+- Won't match `0.2.0` or `1.0.0`
+
+**Tilde (`~`)**: Allows patch updates only
+
+- `~0.1.15` matches `0.1.15`, `0.1.16`
+- Won't match `0.2.0`
+
+### Why Version Control?
+
+**Use Cases:**
+
+- **Stability**: Pin to tested versions for production
+- **Compatibility**: Match existing codebases
+- **Testing**: Verify compatibility with specific versions
+- **Migration**: Gradually upgrade across projects
+
+### Getting Help
+
+```bash
+# Display help
+deno run -A jsr:@lockness/init --help
+
+# Show init package version
+deno run -A jsr:@lockness/init --version
+```
+
+### What Gets Scaffolded
 
 This will:
 

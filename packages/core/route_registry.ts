@@ -145,12 +145,12 @@ export class RouteRegistry {
      */
     private buildFullPath(basePath: string, routePath: string): string {
         let fullPath = `/${basePath}/${routePath}`.replace(/\/+/g, '/')
-        // Don't remove trailing slash if the routePath explicitly ends with '/'
-        // Only remove it if it was added by path joining
+        // Remove trailing slash unless routePath explicitly ends with '/'
+        // AND is not just '/' (the root/index route of a controller)
         if (
             fullPath.length > 1 &&
             fullPath.endsWith('/') &&
-            !routePath.endsWith('/')
+            (routePath === '/' || !routePath.endsWith('/'))
         ) {
             fullPath = fullPath.slice(0, -1)
         }

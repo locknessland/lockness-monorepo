@@ -15,7 +15,8 @@
             "types.ts",
             "dashboard.tsx",
             "ui/",
-            "components/toolbar.tsx",
+            "components/",
+            "utils/",
             "deno.json",
             "README.md"
         ],

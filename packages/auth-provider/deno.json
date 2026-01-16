@@ -1,6 +1,7 @@
 {
     "name": "@lockness/auth-provider",
     "version": "0.1.22",
+    "license": "MIT",
     "description": "ORM-agnostic user providers for @lockness/auth. Support for Drizzle, Kysely, and more.",
     "exports": {
         ".": "./mod.ts",

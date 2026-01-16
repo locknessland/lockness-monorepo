@@ -31,7 +31,7 @@ Deno.test('App refactoring - basic controller registration works', async () => {
     const routes = app.getRoutes()
     assertEquals(routes.length, 2, 'Should register 2 routes')
     assertEquals(routes[0].method, 'GET')
-    assertEquals(routes[0].path, '/test/')
+    assertEquals(routes[0].path, '/test')
     assertEquals(routes[1].path, '/test/echo/:id')
 })
 

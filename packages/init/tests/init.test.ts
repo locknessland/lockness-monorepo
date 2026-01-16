@@ -302,4 +302,181 @@ describe('init command', () => {
             Deno.chdir(originalCwd)
         }
     })
+
+    it('scaffolds with custom version via --use flag', async () => {
+        const { registerInitCommand } = await import('../mod.ts')
+
+        let capturedHandler: ((args: string[]) => Promise<void>) | null = null
+        const cliMock = {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
+                capturedHandler = handler
+            },
+        }
+
+        registerInitCommand(cliMock as never)
+
+        const originalCwd = Deno.cwd()
+        Deno.chdir(TEST_DIR)
+
+        try {
+            await capturedHandler!(['version-test', '--use', '0.1.15'])
+
+            // Verify deno.json has the specified version
+            const denoJson = JSON.parse(
+                await Deno.readTextFile('version-test/deno.json'),
+            )
+
+            expect(denoJson.imports['@lockness/core']).toBe(
+                'jsr:@lockness/core@^0.1.15',
+            )
+            expect(denoJson.imports['@lockness/cli']).toBe(
+                'jsr:@lockness/cli@^0.1.15',
+            )
+            expect(denoJson.imports['@lockness/auth']).toBe(
+                'jsr:@lockness/auth@^0.1.15',
+            )
+        } finally {
+            Deno.chdir(originalCwd)
+        }
+    })
+
+    it('scaffolds with caret version range', async () => {
+        const { registerInitCommand } = await import('../mod.ts')
+
+        let capturedHandler: ((args: string[]) => Promise<void>) | null = null
+        const cliMock = {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
+                capturedHandler = handler
+            },
+        }
+
+        registerInitCommand(cliMock as never)
+
+        const originalCwd = Deno.cwd()
+        Deno.chdir(TEST_DIR)
+
+        try {
+            await capturedHandler!(['caret-test', '--use', '^0.1.10'])
+
+            // Verify deno.json has the caret range
+            const denoJson = JSON.parse(
+                await Deno.readTextFile('caret-test/deno.json'),
+            )
+
+            expect(denoJson.imports['@lockness/core']).toBe(
+                'jsr:@lockness/core@^0.1.10',
+            )
+        } finally {
+            Deno.chdir(originalCwd)
+        }
+    })
+
+    it('scaffolds with tilde version range', async () => {
+        const { registerInitCommand } = await import('../mod.ts')
+
+        let capturedHandler: ((args: string[]) => Promise<void>) | null = null
+        const cliMock = {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
+                capturedHandler = handler
+            },
+        }
+
+        registerInitCommand(cliMock as never)
+
+        const originalCwd = Deno.cwd()
+        Deno.chdir(TEST_DIR)
+
+        try {
+            await capturedHandler!(['tilde-test', '--use', '~0.1.20'])
+
+            // Verify deno.json has the tilde range
+            const denoJson = JSON.parse(
+                await Deno.readTextFile('tilde-test/deno.json'),
+            )
+
+            expect(denoJson.imports['@lockness/core']).toBe(
+                'jsr:@lockness/core@~0.1.20',
+            )
+        } finally {
+            Deno.chdir(originalCwd)
+        }
+    })
+
+    it('scaffolds with short -u flag', async () => {
+        const { registerInitCommand } = await import('../mod.ts')
+
+        let capturedHandler: ((args: string[]) => Promise<void>) | null = null
+        const cliMock = {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
+                capturedHandler = handler
+            },
+        }
+
+        registerInitCommand(cliMock as never)
+
+        const originalCwd = Deno.cwd()
+        Deno.chdir(TEST_DIR)
+
+        try {
+            await capturedHandler!(['shortflag-test', '-u', '0.1.18'])
+
+            // Verify deno.json has the specified version
+            const denoJson = JSON.parse(
+                await Deno.readTextFile('shortflag-test/deno.json'),
+            )
+
+            expect(denoJson.imports['@lockness/core']).toBe(
+                'jsr:@lockness/core@^0.1.18',
+            )
+        } finally {
+            Deno.chdir(originalCwd)
+        }
+    })
+
+    it('uses current version when no --use flag provided', async () => {
+        const { registerInitCommand } = await import('../mod.ts')
+
+        let capturedHandler: ((args: string[]) => Promise<void>) | null = null
+        const cliMock = {
+            register: (
+                _name: string,
+                handler: (args: string[]) => Promise<void>,
+            ) => {
+                capturedHandler = handler
+            },
+        }
+
+        registerInitCommand(cliMock as never)
+
+        const originalCwd = Deno.cwd()
+        Deno.chdir(TEST_DIR)
+
+        try {
+            await capturedHandler!(['default-version-test'])
+
+            // Verify deno.json has the current version (should be ^0.1.22)
+            const denoJson = JSON.parse(
+                await Deno.readTextFile('default-version-test/deno.json'),
+            )
+
+            // Should start with ^0.1. (exact patch version may vary)
+            expect(denoJson.imports['@lockness/core']).toMatch(
+                /^jsr:@lockness\/core@\^0\.1\.\d+$/,
+            )
+        } finally {
+            Deno.chdir(originalCwd)
+        }
+    })
 })
