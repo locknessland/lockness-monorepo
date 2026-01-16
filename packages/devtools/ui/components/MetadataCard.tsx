@@ -36,7 +36,11 @@ const MetadataItem = (
     { label, value, color }: { label: string; value?: string; color: string },
 ) => {
     const displayValue = value || '-'
-    const copyToClipboard = `navigator.clipboard.writeText('${value || ''}').then(() => { const el = document.getElementById('copy-${label.replace(/\s+/g, '-')}'); if(el) { el.classList.remove('text-gray-400', 'hover:text-white'); el.classList.add('text-green-400'); setTimeout(() => { el.classList.remove('text-green-400'); el.classList.add('text-gray-400', 'hover:text-white'); }, 1000) } })`
+    const copyToClipboard = `navigator.clipboard.writeText('${
+        value || ''
+    }').then(() => { const el = document.getElementById('copy-${
+        label.replace(/\s+/g, '-')
+    }'); if(el) { el.classList.remove('text-gray-400', 'hover:text-white'); el.classList.add('text-green-400'); setTimeout(() => { el.classList.remove('text-green-400'); el.classList.add('text-gray-400', 'hover:text-white'); }, 1000) } })`
 
     return (
         <div>
