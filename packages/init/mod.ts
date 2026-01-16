@@ -75,8 +75,7 @@ export function registerInitCommand(cli: Cli) {
                         await Deno.copyFile(sourcePath, targetPath)
                     } catch (error) {
                         console.warn(
-                            `⚠️  Could not copy binary file ${file}: ${
-                                (error as Error).message
+                            `⚠️  Could not copy binary file ${file}: ${(error as Error).message
                             }`,
                         )
                     }
@@ -125,8 +124,42 @@ export function registerInitCommand(cli: Cli) {
 }
 
 if (import.meta.main) {
-    const args = parseArgs(Deno.args)
-    const name = args._[0] || 'lockness-app'
+    const parsed = parseArgs(Deno.args, {
+        boolean: ['help', 'version'],
+        alias: {
+            'h': 'help',
+            'v': 'version',
+        },
+    })
+
+    // Handle --help flag
+    if (parsed.help) {
+        console.log(`
+📦 Lockness Init - Project Scaffolding
+
+Usage:
+  deno run -A jsr:@lockness/init <project-name>
+
+Examples:
+  deno run -A jsr:@lockness/init my-app
+
+Options:
+  --help, -h     Show this help message
+  --version, -v  Show package version
+`)
+        Deno.exit(0)
+    }
+
+    // Handle --version flag
+    if (parsed.version) {
+        const denoJsonPath = new URL('./deno.json', import.meta.url).pathname
+        const denoJson = JSON.parse(Deno.readTextFileSync(denoJsonPath))
+        console.log(`@lockness/init v${denoJson.version}`)
+        Deno.exit(0)
+    }
+
+    // Normal scaffolding
+    const name = parsed._[0] || 'lockness-app'
     const cliMock = {
         register: (_name: string, handler: (args: string[]) => Promise<void>) =>
             handler([String(name)]),
