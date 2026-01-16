@@ -66,8 +66,8 @@ export const Requests = (
                         : null}
                 </div>
 
-                <div class='grid grid-cols-1 md:grid-cols-2 gap-6'>
-                    <div class='card-bg rounded-lg shadow-sm overflow-hidden'>
+                <div class='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+                    <div class='lg:col-span-2 card-bg rounded-lg shadow-sm overflow-hidden'>
                         <div class='px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a] flex justify-between items-center'>
                             <h3 class='font-medium text-gray-300 text-sm uppercase tracking-wider'>
                                 Headers
@@ -93,7 +93,9 @@ export const Requests = (
                         </div>
                     </div>
 
-                    <MetadataCard selectedRequest={selectedRequest} />
+                    <div class='lg:col-span-1'>
+                        <MetadataCard selectedRequest={selectedRequest} />
+                    </div>
                 </div>
 
                 {selectedRequest.body

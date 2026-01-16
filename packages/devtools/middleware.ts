@@ -66,12 +66,11 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
         // deno-lint-ignore no-explicit-any
         if (typeof (c as any).render === 'function') {
             // deno-lint-ignore no-explicit-any
-            const originalRender = (c as any).render.bind(c)
-                // deno-lint-ignore no-explicit-any
-                ; (c as any).render = function (content: any, ...args: any[]) {
-                    captureComponent(content)
-                    return originalRender(content, ...args)
-                }
+            const originalRender = (c as any).render.bind(c) // deno-lint-ignore no-explicit-any
+            ;(c as any).render = function (content: any, ...args: any[]) {
+                captureComponent(content)
+                return originalRender(content, ...args)
+            }
         }
 
         // Collect request info

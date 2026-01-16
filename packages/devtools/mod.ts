@@ -54,7 +54,7 @@ const DEFAULT_CONFIG: DevtoolsConfig = {
  * }
  * ```
  */
-export async function enableDevtools(
+export function enableDevtools(
     app: Hono | { getHono: () => Hono },
     config: DevtoolsConfig = {},
 ) {

@@ -7,7 +7,10 @@ export const MetadataCard = ({ selectedRequest }: { selectedRequest: any }) => {
         const sourceMatch = componentName.match(/_source="([^"]+)"/)
         if (sourceMatch) {
             componentFile = sourceMatch[1]
-            componentName = componentName.replace(` _source="${componentFile}"`, '')
+            componentName = componentName.replace(
+                ` _source="${componentFile}"`,
+                '',
+            )
         }
     }
 

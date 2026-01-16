@@ -36,7 +36,7 @@ export class DevtoolsCollector {
 
     private componentMap = new Map<string, string>()
 
-    private constructor() { }
+    private constructor() {}
 
     static getInstance(): DevtoolsCollector {
         if (!DevtoolsCollector.instance) {

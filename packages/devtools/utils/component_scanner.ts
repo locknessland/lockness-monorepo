@@ -1,4 +1,3 @@
-
 import { walk } from '@std/fs'
 import { join, relative } from '@std/path'
 
@@ -11,10 +10,12 @@ export class ComponentScanner {
             const cwd = Deno.cwd()
             const viewDir = join(cwd, ComponentScanner.SCAN_DIR)
 
-            for await (const entry of walk(viewDir, {
-                includeDirs: false,
-                exts: ['.tsx']
-            })) {
+            for await (
+                const entry of walk(viewDir, {
+                    includeDirs: false,
+                    exts: ['.tsx'],
+                })
+            ) {
                 const content = await Deno.readTextFile(entry.path)
                 this.extractComponents(content, entry.path, cwd)
             }
@@ -25,7 +26,7 @@ export class ComponentScanner {
 
     private extractComponents(content: string, filePath: string, cwd: string) {
         const relativePath = relative(cwd, filePath)
-        // const fileName = relativePath.split('/').pop() || '' 
+        // const fileName = relativePath.split('/').pop() || ''
 
         // Match export const Name = ... or export function Name ... or export class Name ...
         const simpleRegex = /export\s+(?:const|function|class)\s+(\w+)/g
