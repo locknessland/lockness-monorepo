@@ -1,68 +1,122 @@
+import { borderRadius, colors, fontSize, spacing } from '../theme.ts'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+} from '../atoms/Table.tsx'
+
 export const Deprecations = ({ data }: { data: any }) => {
+    const versionStyles = {
+        fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        color: colors.brand.indigo[400],
+    }
+
+    const pkgStyles = {
+        fontWeight: '500',
+        color: colors.text.secondary,
+    }
+
+    const messageStyles = {
+        color: colors.text.muted,
+    }
+
+    const detailsStyles = {
+        cursor: 'pointer',
+    }
+
+    const summaryStyles = {
+        fontSize: fontSize.xs,
+        fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        color: colors.text.disabled,
+        outline: 'none',
+        transition: 'color 200ms',
+    }
+
+    const stackContainerStyles = {
+        marginTop: spacing.sm,
+        padding: spacing.md,
+        backgroundColor: colors.bg.primary,
+        borderRadius: borderRadius.md,
+        border: `1px solid ${colors.border.default}`,
+        overflow: 'auto',
+        maxWidth: '32rem',
+        maxHeight: '12rem',
+    }
+
+    const stackTextStyles = {
+        whiteSpace: 'pre-wrap',
+        color: colors.text.disabled,
+        lineHeight: '1.625',
+        fontSize: fontSize.xs,
+    }
+
+    const emptyStateStyles = {
+        padding: `${spacing.xl} ${spacing.xl}`,
+        textAlign: 'center',
+        color: colors.text.disabled,
+        fontStyle: 'italic',
+    }
+
+    const hoverStyles = `
+        details summary:hover { color: ${colors.brand.indigo[400]}; }
+    `
+
     return (
-        <div class='card-bg rounded-lg shadow-sm overflow-hidden'>
-            <div class='px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a] flex justify-between items-center'>
-                <h2 class='text-sm font-semibold text-gray-300 uppercase tracking-wider'>
-                    Deprecation Notices
-                </h2>
-                <span class='text-xs text-gray-500 bg-[#0f1115] px-2 py-1 rounded-full border border-gray-800'>
-                    {data.deprecations.length} notices
-                </span>
-            </div>
-            <table class='w-full'>
-                <thead class='bg-[#1a1d23] border-b border-[rgba(255,255,255,0.08)]'>
+        <>
+            <style dangerouslySetInnerHTML={{ __html: hoverStyles }} />
+            <Table title='Deprecation Notices' count={data.deprecations.length}>
+                <TableHead>
                     <tr>
-                        <th class='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                            Since
-                        </th>
-                        <th class='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                            Package
-                        </th>
-                        <th class='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                            Message
-                        </th>
-                        <th class='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                            Stack
-                        </th>
+                        <TableHeaderCell>Since</TableHeaderCell>
+                        <TableHeaderCell>Package</TableHeaderCell>
+                        <TableHeaderCell>Message</TableHeaderCell>
+                        <TableHeaderCell>Stack</TableHeaderCell>
                     </tr>
-                </thead>
-                <tbody class='divide-y divide-[rgba(255,255,255,0.05)]'>
+                </TableHead>
+                <TableBody>
                     {data.deprecations.map((dep: any) => (
-                        <tr class='hover-row transition'>
-                            <td class='px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-400'>
-                                {dep.version}
-                            </td>
-                            <td class='px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-300'>
-                                {dep.pkg}
-                            </td>
-                            <td class='px-6 py-4 text-sm text-gray-400'>
-                                {dep.message}
-                            </td>
-                            <td class='px-6 py-4 text-xs font-mono text-gray-500'>
-                                <details class='cursor-pointer group'>
-                                    <summary class='hover:text-blue-400 focus:outline-none transition'>
+                        <tr>
+                            <TableCell style={{ whiteSpace: 'nowrap' }}>
+                                <span style={versionStyles as any}>
+                                    {dep.version}
+                                </span>
+                            </TableCell>
+                            <TableCell style={{ whiteSpace: 'nowrap' }}>
+                                <span style={pkgStyles as any}>{dep.pkg}</span>
+                            </TableCell>
+                            <TableCell>
+                                <span style={messageStyles as any}>
+                                    {dep.message}
+                                </span>
+                            </TableCell>
+                            <TableCell>
+                                <details style={detailsStyles as any}>
+                                    <summary style={summaryStyles as any}>
                                         View Stack
                                     </summary>
-                                    <div class='mt-2 p-3 bg-[#0f1115] rounded border border-[rgba(255,255,255,0.08)] overflow-auto max-w-lg max-h-48 scrollbar-thin'>
-                                        <pre class='whitespace-pre-wrap text-gray-500 leading-relaxed'>{dep.stack || 'No stack trace available'}</pre>
+                                    <div style={stackContainerStyles as any}>
+                                        <pre style={stackTextStyles as any}>
+                                            {dep.stack || 'No stack trace available'}
+                                        </pre>
                                     </div>
                                 </details>
-                            </td>
+                            </TableCell>
                         </tr>
                     ))}
                     {data.deprecations.length === 0 && (
                         <tr>
-                            <td
-                                colspan={4}
-                                class='px-6 py-12 text-center text-gray-500 italic'
-                            >
+                            <td colspan={4} style={emptyStateStyles as any}>
                                 No deprecation notices found. Your code is
                                 clean! 🎉
                             </td>
                         </tr>
                     )}
-                </tbody>
-            </table>
-        </div>
+                </TableBody>
+            </Table>
+        </>
     )
 }

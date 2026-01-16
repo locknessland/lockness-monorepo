@@ -1,59 +1,85 @@
 import { Badge } from '../components/Badge.tsx'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeaderCell,
+} from '../atoms/Table.tsx'
+import { colors, fontSize } from '../theme.ts'
 
 export const Routes = ({ data }: { data: any }) => {
+    const pathStyles = {
+        fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        fontSize: fontSize.sm,
+        color: colors.text.secondary,
+    }
+
+    const controllerStyles = {
+        fontSize: fontSize.xs,
+        color: colors.text.disabled,
+        fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    }
+
+    const nameStyles = {
+        fontSize: fontSize.sm,
+        color: colors.brand.indigo[400],
+        fontWeight: '500',
+    }
+
     return (
-        <div class='card-bg rounded-lg overflow-hidden'>
-            <table class='w-full'>
-                <thead class='bg-[#20232a] border-b border-[rgba(255,255,255,0.08)]'>
+        <Table title='Registered Routes' count={data.routes.length}>
+            <TableHead>
+                <tr>
+                    <TableHeaderCell>Method</TableHeaderCell>
+                    <TableHeaderCell>Path</TableHeaderCell>
+                    <TableHeaderCell>Name</TableHeaderCell>
+                    <TableHeaderCell>Controller</TableHeaderCell>
+                    <TableHeaderCell>Middlewares</TableHeaderCell>
+                </tr>
+            </TableHead>
+            <TableBody>
+                {data.routes.map((route: any) => (
                     <tr>
-                        <th class='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                            Method
-                        </th>
-                        <th class='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                            Path
-                        </th>
-                        <th class='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                            Name
-                        </th>
-                        <th class='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                            Controller
-                        </th>
-                        <th class='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                            Middlewares
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class='divide-y divide-[rgba(255,255,255,0.05)]'>
-                    {data.routes.map((route: any) => (
-                        <tr class='hover-row transition'>
-                            <td class='px-6 py-4 whitespace-nowrap'>
-                                <Badge
-                                    text={route.method}
-                                    color={route.method === 'GET'
-                                        ? 'blue'
-                                        : 'green'}
-                                />
-                            </td>
-                            <td class='px-6 py-4 font-mono text-sm text-gray-300'>
-                                {route.path}
-                            </td>
-                            <td class='px-6 py-4 text-sm text-indigo-400 font-medium'>
+                        <TableCell>
+                            <Badge
+                                text={route.method}
+                                color={route.method === 'GET'
+                                    ? 'blue'
+                                    : 'green'}
+                            />
+                        </TableCell>
+                        <TableCell>
+                            <span style={pathStyles as any}>{route.path}</span>
+                        </TableCell>
+                        <TableCell>
+                            <span style={nameStyles as any}>
                                 {route.name || '-'}
-                            </td>
-                            <td class='px-6 py-4 text-sm text-gray-500 font-mono text-xs'>
+                            </span>
+                        </TableCell>
+                        <TableCell>
+                            <span style={controllerStyles as any}>
                                 {route.controller || '-'}
-                            </td>
-                            <td class='px-6 py-4 text-sm'>
+                            </span>
+                        </TableCell>
+                        <TableCell>
+                            <div
+                                style={{
+                                    display: 'flex',
+                                    gap: '4px',
+                                    flexWrap: 'wrap',
+                                } as any}
+                            >
                                 {route.middlewares.map((m: string) => (
-                                    <span key={m} class='mr-1'>
-                                        <Badge text={m} color='gray' />
-                                    </span>
+                                    <Badge key={m} text={m} color='gray' />
                                 ))}
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+                            </div>
+                        </TableCell>
+                    </tr>
+                ))}
+            </TableBody>
+        </Table>
     )
 }

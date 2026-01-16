@@ -1,20 +1,64 @@
 import { Badge } from './Badge.tsx'
+import {
+    borderRadius,
+    colors,
+    fontSize,
+    fontWeight,
+    shadows,
+    spacing,
+} from '../theme.ts'
 
-export const Card = (
-    { title, value, subtitle, color = 'blue' }: {
-        title: string
-        value: number | string
-        subtitle: string
-        color?: string
-    },
-) => (
-    <div class='card-bg rounded-lg p-6 shadow-sm'>
-        <div class='flex items-center justify-between mb-2'>
-            <h3 class='text-xs font-semibold text-gray-500 uppercase tracking-wider'>
-                {title}
-            </h3>
-            <Badge text={subtitle} color={color} />
+interface CardProps {
+    title: string
+    value: number | string
+    subtitle: string
+    color?: 'blue' | 'green' | 'yellow' | 'red' | 'gray'
+}
+
+export const Card = ({
+    title,
+    value,
+    subtitle,
+    color = 'blue',
+}: CardProps) => {
+    const cardStyles = {
+        backgroundColor: colors.bg.secondary,
+        border: `1px solid ${colors.border.default}`,
+        borderRadius: borderRadius.lg,
+        padding: spacing.xl,
+        boxShadow: shadows.sm,
+    }
+
+    const headerStyles = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: spacing.sm,
+    }
+
+    const titleStyles = {
+        fontSize: fontSize.xs,
+        fontWeight: fontWeight.semibold,
+        color: colors.text.disabled,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+    }
+
+    const valueStyles = {
+        fontSize: fontSize['3xl'],
+        fontWeight: fontWeight.bold,
+        color: colors.text.primary,
+        fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+    }
+
+    return (
+        <div style={cardStyles as any}>
+            <div style={headerStyles as any}>
+                <h3 style={titleStyles as any}>{title}</h3>
+                <Badge text={subtitle} color={color} />
+            </div>
+            <div style={valueStyles as any}>{value}</div>
         </div>
-        <div class='text-3xl font-bold text-white font-mono'>{value}</div>
-    </div>
-)
+    )
+}

@@ -1,3 +1,12 @@
+import {
+    borderRadius,
+    colors,
+    fontSize,
+    fontWeight,
+    spacing,
+} from '../theme.ts'
+import { CopyButton } from './CopyButton.tsx'
+
 export const MetadataCard = ({ selectedRequest }: { selectedRequest: any }) => {
     // Parse component info
     let componentName = selectedRequest.component
@@ -14,39 +23,75 @@ export const MetadataCard = ({ selectedRequest }: { selectedRequest: any }) => {
         }
     }
 
+    // Format action with parentheses if not already present
+    const formattedAction =
+        selectedRequest.action && !selectedRequest.action.includes('(')
+            ? `${selectedRequest.action}()`
+            : selectedRequest.action
+
+    const cardStyles = {
+        backgroundColor: colors.bg.secondary,
+        border: `1px solid ${colors.border.default}`,
+        borderRadius: borderRadius.lg,
+        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+        overflow: 'hidden',
+    }
+
+    const headerStyles = {
+        padding: `${spacing.lg} ${spacing.xl}`,
+        borderBottom: `1px solid ${colors.border.default}`,
+        backgroundColor: colors.bg.elevated,
+    }
+
+    const headerTitleStyles = {
+        fontWeight: fontWeight.medium,
+        color: colors.text.secondary,
+        fontSize: fontSize.sm,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+    }
+
+    const contentStyles = {
+        padding: spacing.xl,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: spacing.lg,
+    }
+
     return (
-        <div class='card-bg rounded-lg shadow-sm overflow-hidden'>
-            <div class='px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a]'>
-                <h3 class='font-medium text-gray-300 text-sm uppercase tracking-wider'>
+        <div style={cardStyles as any}>
+            <div style={headerStyles as any}>
+                <h3 style={headerTitleStyles as any}>
                     Metadata
                 </h3>
             </div>
-            <div class='p-6 space-y-4'>
+            <div style={contentStyles as any}>
                 <MetadataItem
                     label='Controller'
                     value={selectedRequest.controller}
-                    color='text-indigo-300'
+                    color={colors.brand.indigo[300]}
                 />
                 <MetadataItem
                     label='Action'
-                    value={selectedRequest.action}
-                    color='text-indigo-300'
+                    value={formattedAction}
+                    color={colors.brand.indigo[300]}
                 />
                 <MetadataItem
                     label='Route Name'
                     value={selectedRequest.routeName}
-                    color='text-gray-400'
+                    color={colors.text.muted}
+                    italic
                 />
                 <MetadataItem
                     label='Component'
                     value={componentName}
-                    color='text-purple-300'
+                    color={colors.brand.purple[300]}
                 />
                 {componentFile && (
                     <MetadataItem
                         label='File'
                         value={componentFile}
-                        color='text-gray-400'
+                        color={colors.text.muted}
                     />
                 )}
             </div>
@@ -55,47 +100,48 @@ export const MetadataCard = ({ selectedRequest }: { selectedRequest: any }) => {
 }
 
 const MetadataItem = (
-    { label, value, color }: { label: string; value?: string; color: string },
+    { label, value, color, italic }: {
+        label: string
+        value?: string
+        color: string
+        italic?: boolean
+    },
 ) => {
     const displayValue = value || '-'
-    const copyToClipboard = `navigator.clipboard.writeText('${
-        value || ''
-    }').then(() => { const el = document.getElementById('copy-${
-        label.replace(/\s+/g, '-')
-    }'); if(el) { el.classList.remove('text-gray-400', 'hover:text-white'); el.classList.add('text-green-400'); setTimeout(() => { el.classList.remove('text-green-400'); el.classList.add('text-gray-400', 'hover:text-white'); }, 1000) } })`
+
+    const labelStyles = {
+        fontSize: '10px',
+        fontWeight: fontWeight.bold,
+        color: colors.text.subtle,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
+    }
+
+    const containerStyles = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: spacing.xs,
+    }
+
+    const valueStyles = {
+        fontSize: fontSize.sm,
+        fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        color,
+        ...(italic && { fontStyle: 'italic' }),
+    }
 
     return (
         <div>
-            <span class='text-[10px] font-bold text-gray-600 uppercase tracking-widest'>
+            <span style={labelStyles as any}>
                 {label}
             </span>
-            <div class='flex items-center justify-between mt-1'>
-                <p class={`text-sm font-mono ${color}`}>
+            <div style={containerStyles as any}>
+                <p style={valueStyles as any}>
                     {displayValue}
                 </p>
-                {value && (
-                    <button
-                        type='button'
-                        onclick={copyToClipboard}
-                        class='p-1.5 hover:bg-[#2a2d35] rounded-md transition-colors cursor-pointer group'
-                        title='Copy to clipboard'
-                    >
-                        <svg
-                            id={`copy-${label.replace(/\s+/g, '-')}`}
-                            class='w-4 h-4 text-gray-400 group-hover:text-white transition-colors'
-                            fill='none'
-                            stroke='currentColor'
-                            viewBox='0 0 24 24'
-                        >
-                            <path
-                                stroke-linecap='round'
-                                stroke-linejoin='round'
-                                stroke-width='2'
-                                d='M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z'
-                            />
-                        </svg>
-                    </button>
-                )}
+                {value && <CopyButton value={value} label={label} />}
             </div>
         </div>
     )

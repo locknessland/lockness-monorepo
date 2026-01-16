@@ -5,6 +5,7 @@ import { Routes } from './panels/Routes.tsx'
 import { Requests } from './panels/Requests.tsx'
 import { Deprecations } from './panels/Deprecations.tsx'
 import { PlaceholderPanel } from './panels/PlaceholderPanel.tsx'
+import { colors, fontSize, spacing } from './theme.ts'
 
 export const Dashboard = (
     { data, activePanel, selectedRequest }: {
@@ -13,10 +14,24 @@ export const Dashboard = (
         selectedRequest: any
     },
 ) => {
+    const mainStyles = {
+        maxWidth: '80rem',
+        margin: '0 auto',
+        padding: `${spacing.xl} ${spacing.xl}`,
+    }
+
+    const footerStyles = {
+        marginTop: '48px',
+        padding: `${spacing.xl} 0`,
+        textAlign: 'center',
+        fontSize: fontSize.sm,
+        color: colors.text.disabled,
+    }
+
     return (
         <Layout>
             <Navbar activePanel={activePanel} data={data} />
-            <main class='max-w-7xl mx-auto px-6 py-6'>
+            <main style={mainStyles as any}>
                 {activePanel === 'overview' && <Overview data={data} />}
                 {activePanel === 'routes' && <Routes data={data} />}
                 {activePanel === 'requests' && (
@@ -62,7 +77,7 @@ export const Dashboard = (
                 {activePanel === 'deprecations' && <Deprecations data={data} />}
             </main>
 
-            <footer class='mt-12 py-6 text-center text-sm text-gray-500'>
+            <footer style={footerStyles as any}>
                 <p>Lockness Devtools • Development Mode Only</p>
             </footer>
         </Layout>
