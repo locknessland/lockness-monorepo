@@ -41,7 +41,9 @@ export const LogsTab = (
     />
 )
 
-export const SQLTab = ({ active, count }: { active: boolean; count: number }) => (
+export const SQLTab = (
+    { active, count }: { active: boolean; count: number },
+) => (
     <Tab
         name='SQL'
         active={active}

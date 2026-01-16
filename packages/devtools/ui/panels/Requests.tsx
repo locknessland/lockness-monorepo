@@ -1,4 +1,5 @@
 import { Badge } from '../components/Badge.tsx'
+import { MetadataCard } from '../components/MetadataCard.tsx'
 
 export const Requests = (
     { data, selectedRequest }: { data: any; selectedRequest: any },
@@ -92,47 +93,7 @@ export const Requests = (
                         </div>
                     </div>
 
-                    <div class='card-bg rounded-lg shadow-sm overflow-hidden'>
-                        <div class='px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a]'>
-                            <h3 class='font-medium text-gray-300 text-sm uppercase tracking-wider'>
-                                Metadata
-                            </h3>
-                        </div>
-                        <div class='p-6 space-y-4'>
-                            <div>
-                                <span class='text-[10px] font-bold text-gray-600 uppercase tracking-widest'>
-                                    Controller
-                                </span>
-                                <p class='text-sm font-mono text-indigo-300 mt-1'>
-                                    {selectedRequest.controller || '-'}
-                                </p>
-                            </div>
-                            <div>
-                                <span class='text-[10px] font-bold text-gray-600 uppercase tracking-widest'>
-                                    Action
-                                </span>
-                                <p class='text-sm font-mono text-indigo-300 mt-1'>
-                                    {selectedRequest.action || '-'}
-                                </p>
-                            </div>
-                            <div>
-                                <span class='text-[10px] font-bold text-gray-600 uppercase tracking-widest'>
-                                    Route Name
-                                </span>
-                                <p class='text-sm font-mono text-gray-400 mt-1'>
-                                    {selectedRequest.routeName || '-'}
-                                </p>
-                            </div>
-                            <div>
-                                <span class='text-[10px] font-bold text-gray-600 uppercase tracking-widest'>
-                                    Component
-                                </span>
-                                <p class='text-sm font-mono text-purple-300 mt-1'>
-                                    {selectedRequest.component || '-'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <MetadataCard selectedRequest={selectedRequest} />
                 </div>
 
                 {selectedRequest.body
