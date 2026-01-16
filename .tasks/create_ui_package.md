@@ -22,13 +22,19 @@ Deno.
    structure and injects Unpoly via CDN.
 5. **Integration**: Ensure components accept standard HTML attributes
    (`h.JSX.HTMLAttributes`) to support Unpoly directives and custom attributes.
+6. **CLI Tooling**: Implement a CLI to add components to the user's project
+   (`deno run -Ar jsr:@lockness/ui add [component]`).
 
 ## 📁 Affected File Paths
 
 ### New Package Structure to Create
 
-- `/packages/ui/deno.json` - Package configuration and JSX settings.
+- `/packages/ui/deno.json` - Package configuration, JSX settings, and CLI entry
+  point.
 - `/packages/ui/mod.ts` - Main entry point exporting components and utilities.
+- `/packages/ui/cli.ts` - CLI entry point for adding components.
+- `/packages/ui/registry.json` - Registry definition mapping component names to
+  file paths/URLs.
 - `/packages/ui/README.md` - Documentation for usage.
 
 ### Core Utilities
@@ -115,15 +121,42 @@ Use the following CDN links:
 >
 ```
 
-### Phase 3: Exports & CLI Integration Preparation
+### Phase 3: Exports & CLI Tooling
 
-**Step 3.1: Public API**.md` Write usage instru
+**Step 3.1: Component Registry**
 
-File: `/packages/ui/mod.ts` Export all components and utilities.
+File: `/packages/ui/registry.json` Define the available components and their
+specific file dependencies.
 
-**Step 3.2: Documentation**
+```json
+{
+    "button": {
+        "name": "button",
+        "files": ["components/Button.tsx"],
+        "dependencies": []
+    }
+}
+```
 
-File: `/packages/ui/READMEUnpoly via CDNctions and examples for the components.
+**Step 3.2: CLI Implementation**
+
+File: `/packages/ui/cli.ts` Implement the `add` command using `@std/cli` or
+similar.
+
+- `deno run -A jsr:@lockness/ui add button`
+- Should fetch the component code (from local package or GitHub raw) and write
+  it to `src/components/ui/`.
+- Handle installing dependencies (clsx, tailwind-merge) if missing.
+
+**Step 3.3: Public API**
+
+File: `/packages/ui/mod.ts` Export all components and utilities for direct
+library usage (optional, if supporting both models).
+
+**Step 3.4: Documentation**
+
+File: `/packages/ui/README.md` Write usage instructions for both library import
+and CLI usage.
 
 ## 📚 Documentation Updates Checklist
 
@@ -142,7 +175,9 @@ Since these are UI components in a Deno/Hono environment:
 - **Snapshot Testing**: Use snapshot testing if available/feasible to track UI
   markup changes.
 - **Integration**: Validate interactivity with Unpoly in a sample route (can be
-  done via a playground or devtools integration).
+  done via a playground or devtools integration). LI `add` command successfully
+  installs a component.
+- [ ] C
 
 ## 🔍 Quality Checks
 
