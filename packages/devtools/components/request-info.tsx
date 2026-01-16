@@ -23,6 +23,26 @@ export function RequestInfoItem(
 
     const statusColor = getStatusColor(statusCode)
 
+    // Parse component string to extract name and source
+    // Format: <Name _source="file.tsx"/> or <Name />
+    let componentName = component
+    let componentFile = ''
+
+    if (component) {
+        // Simple regex to extract name and source
+        const nameMatch = component.match(/<(\w+)/)
+        const sourceMatch = component.match(/_source="([^"]+)"/)
+
+        if (nameMatch) {
+            componentName = `<${nameMatch[1]} />`
+        }
+        if (sourceMatch) {
+            // Only show filename in toolbar
+            const fullPath = sourceMatch[1]
+            componentFile = fullPath.split('/').pop() || fullPath
+        }
+    }
+
     return (
         <a
             href={`/_devtools?panel=requests&requestId=${id}`}
@@ -83,7 +103,20 @@ export function RequestInfoItem(
                                 letterSpacing: '-0.3px',
                             }}
                         >
-                            {`<${component} />`}
+                            {componentName}
+                            {componentFile && (
+                                <span
+                                    style={{
+                                        opacity: 0.5,
+                                        fontSize: '10px',
+                                        marginLeft: '6px',
+                                        color: '#9ca3af',
+                                        fontWeight: 400,
+                                    }}
+                                >
+                                    {componentFile}
+                                </span>
+                            )}
                         </span>
                     </div>
                 )}

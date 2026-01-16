@@ -34,13 +34,24 @@ export class DevtoolsCollector {
     private maxQueries = 500
     private maxRequests = 100
 
-    private constructor() {}
+    private componentMap = new Map<string, string>()
+
+    private constructor() { }
 
     static getInstance(): DevtoolsCollector {
         if (!DevtoolsCollector.instance) {
             DevtoolsCollector.instance = new DevtoolsCollector()
         }
         return DevtoolsCollector.instance
+    }
+
+    // Components
+    setComponentMap(map: Map<string, string>) {
+        this.componentMap = map
+    }
+
+    getComponentFile(name: string): string | undefined {
+        return this.componentMap.get(name)
     }
 
     // Routes

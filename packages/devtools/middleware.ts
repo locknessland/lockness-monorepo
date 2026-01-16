@@ -30,25 +30,49 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
         const requestId = crypto.randomUUID()
         const startTime = performance.now()
 
-        // Intercept c.html() to capture component name
-        const originalHtml = c.html.bind(c)
         let capturedComponent: string | undefined
 
+        // Helper to extract component name
         // deno-lint-ignore no-explicit-any
-        c.html = function (content: any, init?: any) {
-            // Try to extract component name from the JSX element
+        const captureComponent = (content: any) => {
             if (content && typeof content === 'object') {
-                // Check if it's a JSX element with a type property
                 if (content.type) {
+                    let name = ''
                     if (typeof content.type === 'function') {
-                        capturedComponent = content.type.name
+                        name = content.type.name
                     } else if (typeof content.type === 'string') {
-                        capturedComponent = content.type
+                        name = content.type
+                    }
+
+                    if (name) {
+                        const fileName = collector.getComponentFile(name)
+                        capturedComponent = `<${name} ${
+                            fileName ? `_source="${fileName}"` : ''
+                        }/>`
                     }
                 }
             }
+        }
+
+        // Intercept c.html()
+        const originalHtml = c.html.bind(c)
+        // deno-lint-ignore no-explicit-any
+        c.html = function (content: any, init?: any) {
+            captureComponent(content)
             return originalHtml(content, init)
         } as typeof c.html
+
+        // Intercept c.render() if available (from jsxRenderer)
+        // deno-lint-ignore no-explicit-any
+        if (typeof (c as any).render === 'function') {
+            // deno-lint-ignore no-explicit-any
+            const originalRender = (c as any).render.bind(c)
+                // deno-lint-ignore no-explicit-any
+                ; (c as any).render = function (content: any, ...args: any[]) {
+                    captureComponent(content)
+                    return originalRender(content, ...args)
+                }
+        }
 
         // Collect request info
         const requestInfo: RequestInfo = {

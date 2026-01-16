@@ -21,6 +21,7 @@ import { devtoolsMiddleware } from './middleware.ts'
 import { renderDashboard } from './dashboard.tsx'
 import { collector } from './collector.ts'
 import type { DevtoolsConfig, MailInfo, QueueJob, RouteInfo } from './types.ts'
+import { ComponentScanner } from './utils/component_scanner.ts'
 
 export * from './types.ts'
 export { collector } from './collector.ts'
@@ -53,7 +54,7 @@ const DEFAULT_CONFIG: DevtoolsConfig = {
  * }
  * ```
  */
-export function enableDevtools(
+export async function enableDevtools(
     app: Hono | { getHono: () => Hono },
     config: DevtoolsConfig = {},
 ) {
@@ -62,6 +63,16 @@ export function enableDevtools(
     if (!cfg.enabled) {
         return
     }
+
+    // Start component scanning in background
+    const scanner = new ComponentScanner()
+    scanner.scan().then(() => {
+        // We'll need to expose the map to collector
+        // This is a bit of a hack since scan is async and private in collector
+        // So we added setComponentMap
+        // @ts-ignore - Access private or public map
+        collector.setComponentMap(scanner['components'])
+    })
 
     // Extract Hono instance
     const honoApp = 'getHono' in app ? app.getHono() : app

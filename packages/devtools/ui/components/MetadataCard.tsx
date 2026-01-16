@@ -1,4 +1,16 @@
 export const MetadataCard = ({ selectedRequest }: { selectedRequest: any }) => {
+    // Parse component info
+    let componentName = selectedRequest.component
+    let componentFile = ''
+
+    if (componentName) {
+        const sourceMatch = componentName.match(/_source="([^"]+)"/)
+        if (sourceMatch) {
+            componentFile = sourceMatch[1]
+            componentName = componentName.replace(` _source="${componentFile}"`, '')
+        }
+    }
+
     return (
         <div class='card-bg rounded-lg shadow-sm overflow-hidden'>
             <div class='px-6 py-4 border-b border-[rgba(255,255,255,0.08)] bg-[#20232a]'>
@@ -24,9 +36,16 @@ export const MetadataCard = ({ selectedRequest }: { selectedRequest: any }) => {
                 />
                 <MetadataItem
                     label='Component'
-                    value={selectedRequest.component}
+                    value={componentName}
                     color='text-purple-300'
                 />
+                {componentFile && (
+                    <MetadataItem
+                        label='File'
+                        value={componentFile}
+                        color='text-gray-400'
+                    />
+                )}
             </div>
         </div>
     )
