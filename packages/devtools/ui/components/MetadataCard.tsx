@@ -36,16 +36,14 @@ const MetadataItem = (
     { label, value, color }: { label: string; value?: string; color: string },
 ) => {
     const displayValue = value || '-'
-    const copyToClipboard = `navigator.clipboard.writeText('${
-        value || ''
-    }').then(() => { const el = document.getElementById('copy-${label}'); el.classList.add('text-green-400'); setTimeout(() => el.classList.remove('text-green-400'), 1000) })`
+    const copyToClipboard = `navigator.clipboard.writeText('${value || ''}').then(() => { const el = document.getElementById('copy-${label.replace(/\s+/g, '-')}'); if(el) { el.classList.remove('text-gray-400', 'hover:text-white'); el.classList.add('text-green-400'); setTimeout(() => { el.classList.remove('text-green-400'); el.classList.add('text-gray-400', 'hover:text-white'); }, 1000) } })`
 
     return (
         <div>
             <span class='text-[10px] font-bold text-gray-600 uppercase tracking-widest'>
                 {label}
             </span>
-            <div class='flex items-center justify-between mt-1 group'>
+            <div class='flex items-center justify-between mt-1'>
                 <p class={`text-sm font-mono ${color}`}>
                     {displayValue}
                 </p>
@@ -53,12 +51,12 @@ const MetadataItem = (
                     <button
                         type='button'
                         onclick={copyToClipboard}
-                        class='opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-[#2a2d35] rounded'
+                        class='p-1.5 hover:bg-[#2a2d35] rounded-md transition-colors cursor-pointer group'
                         title='Copy to clipboard'
                     >
                         <svg
-                            id={`copy-${label}`}
-                            class='w-3.5 h-3.5 text-gray-500 hover:text-white transition-colors'
+                            id={`copy-${label.replace(/\s+/g, '-')}`}
+                            class='w-4 h-4 text-gray-400 group-hover:text-white transition-colors'
                             fill='none'
                             stroke='currentColor'
                             viewBox='0 0 24 24'
