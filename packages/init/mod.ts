@@ -75,7 +75,8 @@ export function registerInitCommand(cli: Cli) {
                         await Deno.copyFile(sourcePath, targetPath)
                     } catch (error) {
                         console.warn(
-                            `⚠️  Could not copy binary file ${file}: ${(error as Error).message
+                            `⚠️  Could not copy binary file ${file}: ${
+                                (error as Error).message
                             }`,
                         )
                     }
