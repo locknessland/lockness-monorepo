@@ -30,6 +30,7 @@ import { parseArgs } from '@std/cli/parse-args'
 import { ensureDir } from '@std/fs/ensure-dir'
 import { exists } from '@std/fs/exists'
 import { dirname, fromFileUrl, join } from '@std/path'
+import { parse as parseJsonc } from '@std/jsonc'
 
 // =============================================================================
 // Types
@@ -58,6 +59,8 @@ interface Registry {
 
 const DEFAULT_TARGET_DIR = 'app/view'
 const VERSION = '0.1.22'
+const JSR_PACKAGE_NAME = '@lockness/ui'
+const JSR_BASE_URL = 'https://jsr.io'
 
 // =============================================================================
 // Registry
@@ -148,24 +151,81 @@ function printList(): void {
     }
 }
 
-function getPackageDir(): string {
+/**
+ * Get the package directory for reading component source files.
+ *
+ * - For local execution (file:// URL): Returns the directory where mod.ts is located
+ * - For remote execution (JSR): Creates and returns a cache directory at
+ *   ~/.lockness/ui-cache/<version>/ for faster subsequent runs
+ *
+ * Performance note: The cache directory is created asynchronously on first remote
+ * execution. Subsequent executions reuse the same cache directory for the version.
+ *
+ * @returns The absolute path to the package directory or cache directory
+ */
+async function getPackageDir(): Promise<string> {
     // Get the directory where this script is located
     const moduleUrl = import.meta.url
     if (moduleUrl.startsWith('file://')) {
         return dirname(fromFileUrl(moduleUrl))
     }
-    // For remote execution, we need to fetch files from JSR
-    throw new Error(
-        'Remote execution not yet supported. Please install locally.',
+
+    // For remote execution (JSR), create a cache directory
+    const cacheDir = join(
+        Deno.env.get('HOME') || Deno.env.get('USERPROFILE') || '/tmp',
+        '.lockness',
+        'ui-cache',
+        VERSION,
     )
+    await ensureDir(cacheDir)
+    return cacheDir
 }
 
 async function readSourceFile(
     packageDir: string,
     filePath: string,
 ): Promise<string> {
-    const fullPath = join(packageDir, filePath)
-    return await Deno.readTextFile(fullPath)
+    const moduleUrl = import.meta.url
+
+    // Local execution: read from filesystem
+    if (moduleUrl.startsWith('file://')) {
+        const fullPath = join(packageDir, filePath)
+        return await Deno.readTextFile(fullPath)
+    }
+
+    // Remote execution: check cache first, then fetch from JSR
+    const cachedPath = join(packageDir, filePath)
+
+    // Check if cached file exists
+    if (await exists(cachedPath)) {
+        return await Deno.readTextFile(cachedPath)
+    }
+
+    // Fetch from JSR
+    const jsrUrl = `${JSR_BASE_URL}/${JSR_PACKAGE_NAME}/${VERSION}/${filePath}`
+
+    try {
+        const response = await fetch(jsrUrl)
+        if (!response.ok) {
+            throw new Error(
+                `Failed to fetch ${filePath}: ${response.status} ${response.statusText}`,
+            )
+        }
+        const content = await response.text()
+
+        // Cache the file
+        const cachedFilePath = join(packageDir, filePath)
+        await ensureDir(dirname(cachedFilePath))
+        await Deno.writeTextFile(cachedFilePath, content)
+
+        return content
+    } catch (error) {
+        throw new Error(
+            `Failed to fetch component file from JSR (${jsrUrl}): ${
+                error instanceof Error ? error.message : String(error)
+            }`,
+        )
+    }
 }
 
 function rewriteImports(content: string, _targetDir: string): string {
@@ -176,6 +236,74 @@ function rewriteImports(content: string, _targetDir: string): string {
         /from ['"]\.\.\/lib\/utils\.ts['"]/g,
         `from '../../lib/utils.ts'`,
     )
+}
+
+async function updateDenoConfig(
+    dependencies: Record<string, string>,
+): Promise<void> {
+    // Find deno.json or deno.jsonc
+    const configFiles = ['deno.jsonc', 'deno.json']
+    let configPath: string | null = null
+    let configContent = ''
+
+    for (const file of configFiles) {
+        if (await exists(file)) {
+            configPath = file
+            configContent = await Deno.readTextFile(file)
+            break
+        }
+    }
+
+    if (!configPath) {
+        console.log(
+            '\n⚠️  No deno.json or deno.jsonc found. Please add dependencies manually:',
+        )
+        console.log('\n    "imports": {')
+        for (const [name, version] of Object.entries(dependencies)) {
+            console.log(`        "${name}": "${version}",`)
+        }
+        console.log('    }')
+        return
+    }
+
+    try {
+        const config = parseJsonc(configContent) as Record<string, any>
+
+        // Ensure imports object exists
+        if (!config.imports) {
+            config.imports = {}
+        }
+
+        // Add new dependencies
+        let added = false
+        for (const [name, version] of Object.entries(dependencies)) {
+            if (!config.imports[name]) {
+                config.imports[name] = version
+                added = true
+                console.log(`📦 Added ${name} to ${configPath}`)
+            }
+        }
+
+        if (added) {
+            // Write back to file preserving JSONC format
+            const newContent = JSON.stringify(config, null, 4)
+            await Deno.writeTextFile(configPath, newContent + '\n')
+        } else {
+            console.log('\n✓ All dependencies already present in imports')
+        }
+    } catch (error) {
+        console.error(
+            `\n⚠️  Failed to update ${configPath}: ${
+                error instanceof Error ? error.message : String(error)
+            }`,
+        )
+        console.log('\n   Please add dependencies manually:')
+        console.log('\n    "imports": {')
+        for (const [name, version] of Object.entries(dependencies)) {
+            console.log(`        "${name}": "${version}",`)
+        }
+        console.log('    }')
+    }
 }
 
 async function addComponents(
@@ -190,7 +318,7 @@ async function addComponents(
         Deno.exit(1)
     }
 
-    const packageDir = getPackageDir()
+    const packageDir = await getPackageDir()
     const toInstall = new Set<string>()
     const allDependencies: Record<string, string> = {}
 
@@ -220,9 +348,10 @@ async function addComponents(
         }
     }
 
-    console.log(`\n📦 Installing ${toInstall.size} component(s)...\n`)
+    console.log(`\n📦 Processing ${toInstall.size} component(s)...\n`)
 
     // Install each component
+    let addedCount = 0
     for (const name of toInstall) {
         const entry = REGISTRY[name]
 
@@ -252,17 +381,22 @@ async function addComponents(
             // Write file
             await Deno.writeTextFile(targetPath, content)
             console.log(`✅ Added ${file.target}`)
+            addedCount++
         }
     }
 
-    // Print dependency instructions
+    // Summary
+    if (addedCount === 0) {
+        console.log('\n✓ No files were added (all already exist)')
+    } else if (addedCount === 1) {
+        console.log('\n✓ Successfully added 1 file')
+    } else {
+        console.log(`\n✓ Successfully added ${addedCount} files`)
+    }
+
+    // Update deno.json/deno.jsonc automatically
     if (Object.keys(allDependencies).length > 0) {
-        console.log('\n📝 Add these dependencies to your deno.json imports:\n')
-        console.log('    "imports": {')
-        for (const [name, version] of Object.entries(allDependencies)) {
-            console.log(`        "${name}": "${version}",`)
-        }
-        console.log('    }')
+        await updateDenoConfig(allDependencies)
     }
 
     console.log('\n✨ Done!')
@@ -301,4 +435,10 @@ async function main(): Promise<void> {
     }
 }
 
-main()
+// Run the CLI with proper error handling
+if (import.meta.main) {
+    main().catch((error) => {
+        console.error('❌ Error:', error.message)
+        Deno.exit(1)
+    })
+}

@@ -41,6 +41,64 @@ deno task cli make:controller User
 deno task cli db:migrate
 ```
 
+### @lockness/ui
+UI component library with CLI for copy-paste components (shadcn-style).
+
+**Features:**
+- Hono JSX components (Button, Card, RootLayout, etc.)
+- Tailwind CSS styling with `cn()` utility
+- Unpoly integration for SPA-like navigation
+- CLI tool for copying components to your project
+- Full ownership and customization
+
+**CLI Mode (Recommended):**
+```bash
+# List available components
+deno run -A jsr:@lockness/ui list
+
+# Add components to your project
+deno run -A jsr:@lockness/ui add button
+deno run -A jsr:@lockness/ui add button card
+
+# Force overwrite existing files
+deno run -A jsr:@lockness/ui add button --force
+
+# Custom target directory
+deno run -A jsr:@lockness/ui add button --dir src/components
+```
+
+**Library Mode (Quick testing):**
+```typescript
+import { Button, Card, RootLayout, cn } from '@lockness/ui/components'
+
+@Controller('/')
+export class HomeController {
+    @Get('/')
+    index(c: Context) {
+        return c.html(
+            <RootLayout title="Home">
+                <Card>
+                    <Button variant="primary">Click me</Button>
+                </Card>
+            </RootLayout>
+        )
+    }
+}
+```
+
+**Available Components:**
+- `Button` - Flexible button with variants (primary, secondary, outline, ghost, danger) and sizes
+- `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter` - Compound card components
+- `RootLayout` - Base HTML layout with Unpoly CDN integration
+- `cn()` - Class name utility (clsx + tailwind-merge)
+
+**Why CLI Mode?**
+- Components are copied to your project, not imported from a package
+- Full ownership - modify components directly without worrying about updates
+- No black boxes - see exactly what code is being used
+- Tree shaking - only include components you actually use
+- Internal dependencies (like utils) are auto-installed
+
 ### @lockness/drizzle
 Database integration with Drizzle ORM.
 

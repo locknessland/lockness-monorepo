@@ -87,7 +87,52 @@ files.
 
 ---
 
-## 📋 Checklist Before Commit
+## � UI Components Registry (`packages/ui/`)
+
+The `@lockness/ui` package uses a different approach - components are copied to
+user projects via CLI rather than using traditional stubs.
+
+### Component Source Files
+
+| Component     | Source File                             | Copied To                               |
+| ------------- | --------------------------------------- | --------------------------------------- |
+| `button`      | `packages/ui/components/Button.tsx`     | `app/view/components/ui/Button.tsx`     |
+| `card`        | `packages/ui/components/Card.tsx`       | `app/view/components/ui/Card.tsx`       |
+| `root-layout` | `packages/ui/components/RootLayout.tsx` | `app/view/components/ui/RootLayout.tsx` |
+| `utils` (cn)  | `packages/ui/lib/utils.ts`              | `app/view/lib/utils.ts`                 |
+
+### Registry Definition
+
+Components are registered in `packages/ui/mod.ts` with metadata:
+
+- **files**: Source and target paths
+- **dependencies**: npm packages needed (e.g., clsx, tailwind-merge)
+- **internalDependencies**: Other components/utils required (e.g., button
+  requires utils)
+
+### CLI Commands
+
+```bash
+# List components
+deno run -A jsr:@lockness/ui list
+
+# Add components (copies source files)
+deno run -A jsr:@lockness/ui add button card
+
+# Force overwrite
+deno run -A jsr:@lockness/ui add button --force
+```
+
+**Note**: Unlike traditional stubs, UI components are:
+
+- Fetched from JSR when run remotely
+- Cached in `~/.lockness/ui-cache/` for performance
+- Copied with automatic import path rewriting
+- Designed for full user ownership and customization
+
+---
+
+## �📋 Checklist Before Commit
 
 When modifying core framework files, check this list:
 

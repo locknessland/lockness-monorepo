@@ -1,0 +1,374 @@
+# Lockness Framework - Core Principles
+
+Lockness is a fullstack MVC framework for Deno, inspired by Laravel and AdonisJS, powered by HonoJS under the hood.
+
+## Philosophy
+
+**Solid Foundation**
+- Uses HonoJS for maximum performance
+- Fully integrated within `@lockness/core`
+- Users never import from `hono` directly
+
+**Minimal Core**
+- `@lockness/core` includes only essentials (DI + Hono)
+- Optional features imported explicitly when needed
+- No bloat in simple APIs
+
+**Modular Architecture**
+- Choose what you need
+- Build lightweight APIs or full-featured web apps
+- Add packages as requirements grow
+
+**MVC Architecture**
+- Clear separation of concerns
+- Business logic, data, and display are distinct
+- Familiar patterns from Laravel/AdonisJS
+
+**Deno First**
+- Native TypeScript support
+- No `node_modules` directory
+- Security and modern tooling built-in
+- TC39 Stage 3 decorators (no experimental flags)
+
+## Core Features
+
+### Controllers & Routing
+Class-based controllers with decorators for clean, expressive routing:
+
+```typescript
+@Controller('/api/users')
+export class UserController {
+    @Get('/:id', { name: 'users.show' })
+    show(c: Context) {
+        const id = c.req.param('id')
+        return c.json({ user: { id } })
+    }
+}
+```
+
+### Dependency Injection
+Built-in IoC container with TC39 standard decorators:
+
+```typescript
+@Service()
+export class UserService {
+    findById(id: number) { /* ... */ }
+}
+
+@Controller('/users')
+export class UserController {
+    @Inject(UserService)
+    accessor userService!: UserService
+}
+```
+
+### View Engine (JSX)
+Native JSX support powered by Hono's runtime:
+
+```typescript
+export const HomePage = () => {
+    return (
+        <html>
+            <body>
+                <h1>Welcome to Lockness</h1>
+            </body>
+        </html>
+    )
+}
+```
+
+### Database (Drizzle ORM)
+Type-safe PostgreSQL queries with automatic schema inference:
+
+```typescript
+export const users = pgTable('users', {
+    id: serial('id').primaryKey(),
+    email: text('email').notNull().unique(),
+    name: text('name').notNull(),
+})
+
+export type User = typeof users.$inferSelect
+export type NewUser = typeof users.$inferInsert
+```
+
+### Authentication System
+Multi-guard authentication with decorators:
+
+```typescript
+@Controller('/profile')
+export class ProfileController {
+    @Get('/')
+    @AuthRequired()
+    show(c: Context) {
+        const auth = c.get('auth')
+        return c.json({ user: auth.user })
+    }
+}
+```
+
+Guards available:
+- SessionGuard - Cookie/session-based (web apps)
+- TokenGuard - Bearer token (APIs)
+- BasicAuthGuard - HTTP Basic (development)
+
+### Request Validation
+Zod integration for type-safe validation:
+
+```typescript
+@Post('/')
+@Validate(insertUserSchema, 'json')
+async store(c: Context) {
+    const data = c.req.valid('json')
+    // data is fully typed
+}
+```
+
+### Middleware
+Class-based middleware with decorators:
+
+```typescript
+@Middleware()
+export class AuthMiddleware {
+    async handle(c: Context, next: Next) {
+        // middleware logic
+        await next()
+    }
+}
+
+@Controller('/admin')
+@UseMiddleware(AuthMiddleware)
+export class AdminController { /* ... */ }
+```
+
+### Session Management
+Multi-driver sessions (Cookie, Deno KV, Memory):
+
+```typescript
+const session = c.get('session')
+session.set('user_id', 123)
+session.flash('message', 'Success!')
+const userId = session.get('user_id')
+```
+
+## Architecture Highlights
+
+### Layered Architecture
+```
+┌─────────────────────────────────────────┐
+│  User Application Layer                 │  ← Imports only from @lockness/core
+├─────────────────────────────────────────┤
+│  Framework API (@lockness/core)         │  ← Single public API, re-exports Hono
+├─────────────────────────────────────────┤
+│  Internal Bridge (@lockness/hono)       │  ← Manages Hono versions
+├─────────────────────────────────────────┤
+│  External Dependency (npm:hono)         │  ← Underlying web framework
+└─────────────────────────────────────────┘
+```
+
+**Key Principles:**
+- Single entry point for developers
+- Internal abstraction of dependencies
+- Centralized version management
+- Framework-agnostic for users
+
+### SOLID Design
+The framework follows SOLID principles with focused components:
+
+- **App** - Main orchestrator
+- **MiddlewareResolver** - Resolves middleware types
+- **ControllerDiscovery** - Scans and loads controllers
+- **RouteRegistry** - Manages route registration
+- **ErrorHandlerRegistry** - Auto-discovers error handlers
+- **StaticFileServer** - Handles static files
+- **ServerListener** - Manages server lifecycle
+
+Each component is < 200 lines with a single responsibility.
+
+### Auto-Discovery System
+Controllers are discovered automatically at runtime:
+
+1. Scans `app/controller/` directory
+2. Imports files dynamically
+3. Detects `@Controller()` decorator
+4. Registers routes from `@Get()`, `@Post()`, etc.
+5. Maps named routes for URL generation
+
+**Development:** Auto-discovery from directory
+**Production:** Explicit imports for compilation
+
+## Optional Packages
+
+Extend functionality with official packages:
+
+- `@lockness/session` - Session management
+- `@lockness/queue` - Background jobs
+- `@lockness/cache` - Caching system
+- `@lockness/logger` - Structured logging
+- `@lockness/validator` - Request validation
+- `@lockness/mail` - Email sending
+- `@lockness/storage` - File storage (local, S3, R2)
+- `@lockness/auth` - Authentication system
+- `@lockness/socialite` - OAuth providers
+- `@lockness/ui` - UI components with CLI
+- `@lockness/drizzle` - Database integration
+
+**Benefits:**
+- Lightweight - APIs don't bundle unused code
+- Explicit - Clear dependencies
+- Flexible - Mix and match as needed
+
+## Development Workflow
+
+### Multi-Terminal Workflow
+Optimal stability with separate processes:
+
+**Terminal 1 - CSS Watcher:**
+```bash
+deno task css:watch
+```
+
+**Terminal 2 - Development Server:**
+```bash
+deno task dev
+```
+
+Routes auto-update when controllers change.
+
+### CLI Commands
+Powerful code generation:
+
+```bash
+# Scaffolding
+deno task cli make:controller User
+deno task cli make:model Post -a
+deno task cli make:middleware Auth
+deno task cli make:service Email
+
+# Database
+deno task cli db:migrate
+deno task cli db:seed
+deno task cli db:generate
+
+# Development
+deno task cli dev
+deno task cli router:list
+```
+
+## Production Ready
+
+### Deployment Options
+
+**1. Deno Deploy (Recommended)**
+- Native TypeScript execution
+- Automatic HTTPS
+- Zero configuration
+- Global edge network
+
+**2. Standalone Binary**
+```bash
+deno task compile
+```
+Creates self-contained executable (~92MB) with:
+- Deno runtime
+- All dependencies
+- Static assets
+
+**3. Direct Execution**
+```bash
+deno task start
+```
+Run TypeScript directly in production.
+
+### Compilation for Production
+```bash
+deno compile --allow-all --output=dist/app main.ts
+```
+Perfect for VPS, Docker, or traditional hosting.
+
+## Design Goals
+
+1. **Developer Experience**
+   - Familiar patterns from Laravel/AdonisJS
+   - Type-safe at every level
+   - Minimal boilerplate
+
+2. **Performance**
+   - HonoJS under the hood
+   - Efficient routing
+   - Minimal overhead
+
+3. **Flexibility**
+   - Modular package system
+   - Choose what you need
+   - Easy to extend
+
+4. **Modern Standards**
+   - TC39 standard decorators
+   - Native TypeScript
+   - Deno-first approach
+
+5. **Maintainability**
+   - Clear architecture
+   - Single responsibility components
+   - Convention over configuration
+
+## Project Structure
+
+```
+my-app/
+├── app/
+│   ├── kernel.tsx           # App bootstrap
+│   ├── routes.ts            # Auto-generated routes
+│   ├── controller/          # HTTP controllers
+│   ├── middleware/          # Custom middleware
+│   ├── service/             # Business logic
+│   ├── repository/          # Data access
+│   ├── model/               # Database schemas
+│   └── view/                # JSX components
+├── database/
+│   ├── migrations/          # SQL migrations
+│   └── seeders/             # Database seeders
+├── public/                  # Static files
+├── main.ts                  # Entry point
+└── deno.json                # Configuration
+```
+
+## Quick Start
+
+```bash
+# Initialize new project
+deno run -A jsr:@lockness/init my-app
+cd my-app
+
+# Start development
+deno task dev
+
+# Create resources
+deno task cli make:controller User
+deno task cli make:model Post -a
+```
+
+## Documentation
+
+For detailed documentation on specific topics, see:
+- /llms/installation.txt - Setup and installation
+- /llms/routing.txt - Controllers and routing
+- /llms/models.txt - Database and ORM
+- /llms/authentication.txt - Auth system
+- /llms/validation.txt - Request validation
+- /llms/middleware.txt - Middleware system
+- /llms/sessions.txt - Session management
+- /llms/ui.txt - UI components library
+- /llms/packages.txt - Official packages
+
+Complete index: /llms.txt
+
+## Community & Support
+
+- GitHub: https://github.com/locknessland/lockness
+- Documentation: https://lockness.land/docs
+- JSR: https://jsr.io/@lockness/core
+
+## License
+
+MIT License - Full freedom to use in any project.

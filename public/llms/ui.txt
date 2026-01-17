@@ -1,0 +1,558 @@
+# @lockness/ui - UI Component Library
+
+Component library for Lockness with CLI tooling, inspired by shadcn/ui.
+
+## Philosophy
+
+`@lockness/ui` provides UI components that you **own** rather than import from a package. Components are copied to your project via CLI, giving you full control to customize them.
+
+## Usage Modes
+
+### 1. CLI Mode (Recommended for Production)
+
+Copy components directly to your project:
+
+```bash
+# List available components
+deno run -A jsr:@lockness/ui list
+
+# Add single component
+deno run -A jsr:@lockness/ui add button
+
+# Add multiple components
+deno run -A jsr:@lockness/ui add button card root-layout
+
+# Force overwrite existing files
+deno run -A jsr:@lockness/ui add button --force
+
+# Custom target directory (default: app/view)
+deno run -A jsr:@lockness/ui add button --dir src/components
+```
+
+**What happens:**
+1. Component source files are copied to `app/view/components/ui/`
+2. Internal dependencies (e.g., `utils`) are auto-installed
+3. Import paths are automatically rewritten for your project structure
+4. Instructions shown for adding npm dependencies to `deno.json`
+
+**Project structure after adding components:**
+```
+app/view/
+├── components/
+│   └── ui/
+│       ├── Button.tsx
+│       ├── Card.tsx
+│       └── RootLayout.tsx
+└── lib/
+    └── utils.ts
+```
+
+### 2. Library Mode (Quick Testing/Prototyping)
+
+Import directly from the package:
+
+```typescript
+import { Button, Card, RootLayout, cn } from '@lockness/ui/components'
+```
+
+Add to `deno.json`:
+```json
+{
+    "imports": {
+        "@lockness/ui": "jsr:@lockness/ui@^0.1.22"
+    }
+}
+```
+
+## Available Components
+
+### Button
+
+Flexible button with variants and sizes.
+
+```tsx
+import { Button } from '@view/components/ui/Button.tsx'
+
+// Variants
+<Button variant="primary">Primary</Button>
+<Button variant="secondary">Secondary</Button>
+<Button variant="outline">Outline</Button>
+<Button variant="ghost">Ghost</Button>
+<Button variant="danger">Danger</Button>
+
+// Sizes
+<Button size="sm">Small</Button>
+<Button size="md">Medium (default)</Button>
+<Button size="lg">Large</Button>
+
+// States
+<Button disabled>Disabled</Button>
+
+// With Unpoly
+<Button up-target=".main" up-href="/users">Navigate</Button>
+
+// Custom styling
+<Button class="w-full" type="submit">Full Width</Button>
+```
+
+**Props:**
+- `variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'` (default: 'primary')
+- `size?: 'sm' | 'md' | 'lg'` (default: 'md')
+- `disabled?: boolean`
+- `class?: string` - Additional Tailwind classes
+- All standard HTML button attributes
+
+### Card Components
+
+Compound components for content containers.
+
+```tsx
+import {
+    Card,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardContent,
+    CardFooter,
+} from '@view/components/ui/Card.tsx'
+
+<Card>
+    <CardHeader>
+        <CardTitle>Profile Settings</CardTitle>
+        <CardDescription>Manage your account preferences</CardDescription>
+    </CardHeader>
+    <CardContent>
+        <form>
+            <input type="email" name="email" />
+            <input type="text" name="username" />
+        </form>
+    </CardContent>
+    <CardFooter>
+        <Button type="submit">Save</Button>
+        <Button variant="outline">Cancel</Button>
+    </CardFooter>
+</Card>
+```
+
+**Components:**
+- `Card` - Main container with border, shadow, and rounded corners
+- `CardHeader` - Header section with bottom spacing
+- `CardTitle` - H3 heading with proper typography
+- `CardDescription` - Muted subtitle text
+- `CardContent` - Main content area with padding
+- `CardFooter` - Footer section with flex layout for actions
+
+All components accept `class` prop and forward HTML attributes.
+
+### RootLayout
+
+Base HTML layout with Unpoly integration.
+
+```tsx
+import { RootLayout } from '@view/components/ui/RootLayout.tsx'
+
+<RootLayout
+    title="My Application"
+    meta={[
+        <meta name="description" content="App description" />,
+        <meta property="og:title" content="My App" />
+    ]}
+    styles={[
+        <link rel="stylesheet" href="/css/app.css" />
+    ]}
+    scripts={[
+        <script src="/js/analytics.js" />
+    ]}
+>
+    <div class="container mx-auto">
+        {children}
+    </div>
+</RootLayout>
+```
+
+**Props:**
+- `title?: string` - Page title (default: "Lockness App")
+- `meta?: JSX.Element[]` - Additional meta tags
+- `styles?: JSX.Element[]` - Additional stylesheets
+- `scripts?: JSX.Element[]` - Additional scripts
+- `children?: JSX.Element` - Page content
+
+**Features:**
+- Includes Unpoly CDN (v3.12.1) for progressive enhancement
+- Proper HTML5 boilerplate structure
+- Responsive viewport settings
+- UTF-8 charset declaration
+
+## Utilities
+
+### cn() - Class Name Utility
+
+Merge Tailwind classes with proper conflict resolution.
+
+```tsx
+import { cn } from '@view/lib/utils.ts'
+
+// Simple merge
+cn('px-2 py-1', 'bg-blue-500')
+// => 'px-2 py-1 bg-blue-500'
+
+// Conflict resolution (last wins)
+cn('px-2', 'px-4')
+// => 'px-4'
+
+cn('text-red-500', 'text-blue-500')
+// => 'text-blue-500'
+
+// Conditional classes
+cn('text-base', isLarge && 'text-lg')
+cn('text-base', { 'text-lg': isLarge })
+
+// In components
+type Props = { class?: string }
+<Button class={cn('base-styles', props.class)}>Text</Button>
+```
+
+**Uses:**
+- `clsx` for conditional class merging
+- `tailwind-merge` for Tailwind-specific conflict resolution
+
+**Dependencies:**
+```json
+{
+    "imports": {
+        "clsx": "npm:clsx@2.1.1",
+        "tailwind-merge": "npm:tailwind-merge@2.6.0"
+    }
+}
+```
+
+## Unpoly Integration
+
+All components support Unpoly directives for SPA-like behavior:
+
+### Navigation
+
+```tsx
+// Replace target element
+<a up-target=".main" up-href="/users">Load Users</a>
+
+// Navigate entire page
+<a up-follow up-href="/dashboard">Dashboard</a>
+
+// Preload on hover
+<a up-preload up-href="/profile">Profile</a>
+```
+
+### Layers (Modals/Overlays)
+
+```tsx
+// Open modal
+<a up-layer="new modal" up-href="/user/new">New User</a>
+
+// Open drawer
+<a up-layer="new drawer" up-href="/settings">Settings</a>
+
+// Close layer
+<Button up-dismiss>Close</Button>
+```
+
+### Forms
+
+```tsx
+// AJAX form submission
+<form up-submit up-target=".result">
+    <input type="text" name="query" />
+    <Button type="submit">Search</Button>
+</form>
+
+// Validate before submit
+<form up-submit up-validate>
+    <input type="email" name="email" required />
+    <Button type="submit">Subscribe</Button>
+</form>
+```
+
+### Transitions
+
+```tsx
+// Custom transition
+<a up-target=".content" up-transition="cross-fade">Fade In</a>
+
+// Animation duration
+<a up-target=".content" up-duration="300">Quick</a>
+```
+
+Learn more: [unpoly.com](https://unpoly.com)
+
+## Controller Examples
+
+### Basic Page with UI Components
+
+```tsx
+import { Controller, Get } from '@lockness/core'
+import type { Context } from '@lockness/core'
+import { Button } from '@view/components/ui/Button.tsx'
+import { Card, CardHeader, CardTitle, CardContent } from '@view/components/ui/Card.tsx'
+import { RootLayout } from '@view/components/ui/RootLayout.tsx'
+
+@Controller('/')
+export class HomeController {
+    @Get('/')
+    index(c: Context) {
+        return c.html(
+            <RootLayout title="Welcome">
+                <div class="container mx-auto p-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Welcome to Lockness</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p class="mb-4">Get started building your app</p>
+                            <Button variant="primary">Get Started</Button>
+                        </CardContent>
+                    </Card>
+                </div>
+            </RootLayout>
+        )
+    }
+}
+```
+
+### Interactive List with Unpoly
+
+```tsx
+@Controller('/users')
+export class UserController {
+    @Get('/')
+    list(c: Context) {
+        return c.html(
+            <RootLayout title="Users">
+                <div class="container mx-auto p-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Users</CardTitle>
+                        </CardHeader>
+                        <CardContent class="main">
+                            <div class="space-y-2">
+                                <Button
+                                    up-target=".main"
+                                    up-href="/users/active"
+                                    variant="outline"
+                                >
+                                    Active Users
+                                </Button>
+                                <Button
+                                    up-target=".main"
+                                    up-href="/users/inactive"
+                                    variant="outline"
+                                >
+                                    Inactive Users
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </RootLayout>
+        )
+    }
+
+    @Get('/active')
+    active(c: Context) {
+        // Return just the content that replaces .main
+        return c.html(
+            <div class="main">
+                <h3>Active Users</h3>
+                <ul>
+                    <li>John Doe</li>
+                    <li>Jane Smith</li>
+                </ul>
+            </div>
+        )
+    }
+}
+```
+
+### Form with Validation
+
+```tsx
+@Controller('/contact')
+export class ContactController {
+    @Get('/')
+    form(c: Context) {
+        return c.html(
+            <RootLayout title="Contact">
+                <div class="container mx-auto p-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Contact Us</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <form up-submit up-target=".result">
+                                <div class="space-y-4">
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        placeholder="Email"
+                                        required
+                                        class="w-full px-4 py-2 border rounded"
+                                    />
+                                    <textarea
+                                        name="message"
+                                        placeholder="Message"
+                                        required
+                                        class="w-full px-4 py-2 border rounded"
+                                    />
+                                    <div class="result" />
+                                    <Button type="submit" class="w-full">
+                                        Send Message
+                                    </Button>
+                                </div>
+                            </form>
+                        </CardContent>
+                    </Card>
+                </div>
+            </RootLayout>
+        )
+    }
+
+    @Post('/')
+    submit(c: Context) {
+        // Return result that replaces .result
+        return c.html(
+            <div class="result text-green-600">
+                Message sent successfully!
+            </div>
+        )
+    }
+}
+```
+
+## Customization
+
+All components are designed to be customized:
+
+```tsx
+// Extend Button component
+import { Button as BaseButton } from '@view/components/ui/Button.tsx'
+import type { ButtonProps } from '@view/components/ui/Button.tsx'
+
+export const PrimaryButton = (props: Omit<ButtonProps, 'variant'>) => {
+    return <BaseButton {...props} variant="primary" class={cn('min-w-32', props.class)} />
+}
+
+// Create custom variant
+export const IconButton = (props: ButtonProps & { icon: string }) => {
+    return (
+        <BaseButton {...props} class={cn('flex items-center gap-2', props.class)}>
+            <span>{props.icon}</span>
+            {props.children}
+        </BaseButton>
+    )
+}
+```
+
+## CLI Internals
+
+### Registry
+
+Components are registered in `mod.ts`:
+
+```typescript
+const REGISTRY = {
+    'utils': {
+        name: 'utils',
+        description: 'Class name utility (cn) for merging Tailwind classes',
+        files: [{ path: 'lib/utils.ts', target: 'lib/utils.ts' }],
+        dependencies: {
+            'clsx': 'npm:clsx@2.1.1',
+            'tailwind-merge': 'npm:tailwind-merge@2.6.0',
+        },
+    },
+    'button': {
+        name: 'button',
+        description: 'Flexible button component with variants and sizes',
+        files: [{ path: 'components/Button.tsx', target: 'components/ui/Button.tsx' }],
+        internalDependencies: ['utils'],
+    },
+    // ...
+}
+```
+
+### Component Caching
+
+When run remotely from JSR:
+- Components are fetched via HTTPS
+- Cached in `~/.lockness/ui-cache/`
+- Subsequent commands use cached files
+- Cache organized by version
+
+### Import Rewriting
+
+Imports are automatically rewritten based on target directory:
+
+```tsx
+// Source (packages/ui/components/Button.tsx)
+import { cn } from '../lib/utils.ts'
+
+// Copied to app/view/components/ui/Button.tsx
+import { cn } from '../../lib/utils.ts'
+```
+
+## Why This Approach?
+
+**Benefits:**
+1. **Full Ownership** - Modify components without package constraints
+2. **No Black Boxes** - See exactly what code you're using
+3. **Tree Shaking** - Only include what you need
+4. **No Version Lock** - Components work independently
+5. **Learning** - Study source code in your project
+6. **Customization** - Change anything without forking
+
+**Inspired by:**
+- [shadcn/ui](https://ui.shadcn.com/) - Copy-paste components philosophy
+- [Radix UI](https://www.radix-ui.com/) - Headless component patterns
+- [Laravel Breeze](https://laravel.com/docs/starter-kits) - Scaffolding approach
+
+## Testing
+
+The CLI includes comprehensive tests:
+
+```bash
+cd packages/ui
+deno test -A
+```
+
+**Test coverage:**
+- Component rendering (Button, Card, RootLayout)
+- CLI commands (list, add, help)
+- Import path rewriting
+- Dependency resolution
+- Force overwrite flag
+- Error handling
+
+## Development
+
+### Adding New Components
+
+1. Create component in `packages/ui/components/`
+2. Add to registry in `mod.ts`
+3. Export from `components.ts` for library mode
+4. Add tests in `tests/`
+5. Update README.md
+
+### Component Guidelines
+
+- Use Hono JSX (`h.JSX.HTMLAttributes`)
+- Accept `class` prop for customization
+- Forward all HTML attributes with `{...props}`
+- Support Unpoly directives
+- Use `cn()` for class merging
+- Keep styling with Tailwind CSS
+- Document props and variants
+
+## Links
+
+- Package: [jsr.io/@lockness/ui](https://jsr.io/@lockness/ui)
+- Source: [github.com/locknessland/lockness](https://github.com/locknessland/lockness)
+- Unpoly: [unpoly.com](https://unpoly.com)
+- Tailwind: [tailwindcss.com](https://tailwindcss.com)

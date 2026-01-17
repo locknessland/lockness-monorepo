@@ -1,75 +1,23 @@
-import { Context, Controller, Get } from '@lockness/core'
+import { Context, Controller, Get, Inject } from '@lockness/core'
+import { LlmSectionService } from '@service/llm_section_service.ts'
+
+@Controller('/')
+export class LlmsIndexController {
+    @Inject(LlmSectionService)
+    accessor llmSectionService!: LlmSectionService
+
+    @Get('/llms.txt', { name: 'llms.index' })
+    index(c: Context) {
+        const text = this.llmSectionService.generateIndexText()
+        return c.text(text)
+    }
+}
 
 @Controller('/llms')
 export class LlmController {
-    @Get('/')
-    index(c: Context) {
-        const sections = [
-            {
-                name: 'lockness',
-                description: 'Complete Lockness framework documentation',
-            },
-            {
-                name: 'installation',
-                description: 'Installation and setup guide',
-            },
-            {
-                name: 'getting-started',
-                description: 'First steps with Lockness',
-            },
-            {
-                name: 'routing',
-                description: 'Controllers, decorators, and routing',
-            },
-            { name: 'models', description: 'Database models with Drizzle ORM' },
-            { name: 'validation', description: 'Request validation with Zod' },
-            {
-                name: 'authentication',
-                description: 'Session-based authentication system',
-            },
-            { name: 'middleware', description: 'Class-based middleware' },
-            {
-                name: 'sessions',
-                description: 'Multi-driver session management',
-            },
-            {
-                name: 'dependency-injection',
-                description: 'Dependency injection container',
-            },
-            { name: 'cli', description: 'CLI command reference' },
-            { name: 'nessy', description: 'Nessy CLI wrapper' },
-            { name: 'components', description: 'JSX components for views' },
-            {
-                name: 'devtools',
-                description: 'Development tools and debugging',
-            },
-            {
-                name: 'deprecation',
-                description: 'Deprecation system and warnings',
-            },
-            { name: 'packages', description: 'Official Lockness packages' },
-        ]
-
-        const text = [
-            'Lockness Framework - LLM Documentation',
-            '=====================================',
-            '',
-            'Main endpoint:',
-            '- /llms/lockness.txt - Full comprehensive documentation',
-            '',
-            'Available sections:',
-            '',
-            ...sections.map((s) => `- /llms/${s.name}.txt - ${s.description}`),
-            '',
-            'Usage: Fetch any endpoint to get plain text documentation optimized for LLM consumption.',
-        ].join('\n')
-
-        return c.text(text)
-    }
-
     @Get('/lockness.txt')
     async lockness(c: Context) {
-        const text = await Deno.readTextFile('public/llms/full.txt')
+        const text = await Deno.readTextFile('public/llms/lockness.txt')
         return c.text(text)
     }
 
@@ -162,6 +110,42 @@ export class LlmController {
     @Get('/packages.txt')
     async packages(c: Context) {
         const text = await Deno.readTextFile('public/llms/packages.txt')
+        return c.text(text)
+    }
+
+    @Get('/ui.txt')
+    async ui(c: Context) {
+        const text = await Deno.readTextFile('public/llms/ui.txt')
+        return c.text(text)
+    }
+
+    @Get('/architecture.txt')
+    async architecture(c: Context) {
+        const text = await Deno.readTextFile('public/llms/architecture.txt')
+        return c.text(text)
+    }
+
+    @Get('/testing.txt')
+    async testing(c: Context) {
+        const text = await Deno.readTextFile('public/llms/testing.txt')
+        return c.text(text)
+    }
+
+    @Get('/deployment.txt')
+    async deployment(c: Context) {
+        const text = await Deno.readTextFile('public/llms/deployment.txt')
+        return c.text(text)
+    }
+
+    @Get('/error-handling.txt')
+    async errorHandling(c: Context) {
+        const text = await Deno.readTextFile('public/llms/error-handling.txt')
+        return c.text(text)
+    }
+
+    @Get('/contribution.txt')
+    async contribution(c: Context) {
+        const text = await Deno.readTextFile('public/llms/contribution.txt')
         return c.text(text)
     }
 }

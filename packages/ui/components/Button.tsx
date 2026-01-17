@@ -1,4 +1,4 @@
-import type { FC } from 'hono/jsx'
+import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 
 /**

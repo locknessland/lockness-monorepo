@@ -50,6 +50,7 @@ const navSections: NavSection[] = [
         title: 'Advanced',
         links: [
             { title: 'View Components', name: 'docs.components' },
+            { title: 'UI Components', name: 'docs.ui' },
             { title: 'Package Management', name: 'docs.packages' },
         ],
     },

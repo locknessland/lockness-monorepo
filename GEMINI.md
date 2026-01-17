@@ -157,7 +157,8 @@ essential framework features, and optional packages are imported explicitly:
 - `@lockness/storage` - File storage (local, S3, R2)
 - `@lockness/auth` - Authentication system
 - `@lockness/socialite` - OAuth providers
-- `@lockness/ui` - UI components (Hono JSX + Tailwind CSS + Unpoly)
+- `@lockness/ui` - UI components library with CLI tooling (see UI Components
+  section)
 
 **Benefits:**
 
@@ -1799,6 +1800,153 @@ configureQueue({
 seamlessly in our stack. It offers a better developer experience than query
 builders, with powerful type inference and an intuitive API similar to Laravel's
 Eloquent.
+
+### UI Components (`@lockness/ui`)
+
+Lockness provides a UI component library with CLI tooling, inspired by
+shadcn/ui. Components are **copied to your project** rather than imported from a
+package, giving you full ownership and customization.
+
+#### Philosophy
+
+Instead of importing components from a package, `@lockness/ui` copies component
+source code directly into your project. This approach:
+
+- **Full Ownership**: Modify components without worrying about package updates
+- **No Black Boxes**: See exactly what code you're using
+- **Tree Shaking**: Only include components you actually use
+- **Zero Lock-in**: Components work independently of package versions
+- **Learning**: Study component source code in your project
+
+#### Adding Components via CLI
+
+```bash
+# List available components
+deno run -A jsr:@lockness/ui list
+
+# Add single component
+deno run -A jsr:@lockness/ui add button
+
+# Add multiple components
+deno run -A jsr:@lockness/ui add button card root-layout
+
+# Force overwrite existing files
+deno run -A jsr:@lockness/ui add button --force
+
+# Custom target directory (default: app/view)
+deno run -A jsr:@lockness/ui add button --dir src/components
+```
+
+Components are copied to `app/view/components/ui/` by default. Internal
+dependencies (like the `cn()` utility) are automatically installed.
+
+#### Available Components
+
+**Button** - Flexible button with variants and sizes:
+
+```tsx
+import { Button } from '@view/components/ui/Button.tsx'
+
+<Button variant="primary" size="md">Submit</Button>
+<Button variant="outline">Cancel</Button>
+<Button variant="danger">Delete</Button>
+
+// With Unpoly navigation
+<Button up-target=".main" up-href="/users">Load Users</Button>
+```
+
+**Card Components** - Compound components for content containers:
+
+```tsx
+import {
+    Card,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardContent,
+    CardFooter,
+} from '@view/components/ui/Card.tsx'
+
+<Card>
+    <CardHeader>
+        <CardTitle>User Profile</CardTitle>
+        <CardDescription>Manage your account</CardDescription>
+    </CardHeader>
+    <CardContent>
+        <form>...</form>
+    </CardContent>
+    <CardFooter>
+        <Button type="submit">Save</Button>
+    </CardFooter>
+</Card>
+```
+
+**RootLayout** - Base HTML layout with Unpoly integration:
+
+```tsx
+import { RootLayout } from '@view/components/ui/RootLayout.tsx'
+
+<RootLayout
+    title="My App"
+    meta={[<meta name="description" content="My app" />]}
+    styles={[<link rel="stylesheet" href="/css/app.css" />]}
+>
+    {children}
+</RootLayout>
+```
+
+**cn() Utility** - Class name merging with Tailwind conflict resolution:
+
+```tsx
+import { cn } from '@view/lib/utils.ts'
+
+// Merge classes with conflict resolution
+cn('px-2', 'px-4') // => 'px-4'
+cn('text-base', isLarge && 'text-lg')
+
+// In components
+<Button class={cn('w-full', props.class)}>Submit</Button>
+```
+
+#### Unpoly Integration
+
+All components support Unpoly directives for SPA-like navigation without heavy
+client-side hydration:
+
+```tsx
+// Partial page updates
+<a up-target=".main" up-href="/users">Load Users</a>
+
+// Open in modal layer
+<a up-layer="new modal" up-href="/user/new">New User</a>
+
+// AJAX form submission
+<form up-submit up-target=".result">
+    <input type="text" name="query" />
+    <Button type="submit">Search</Button>
+</form>
+
+// Preload on hover
+<a up-preload up-href="/dashboard">Dashboard</a>
+```
+
+#### Library Mode (Alternative)
+
+For quick prototyping, you can also import components directly:
+
+```typescript
+import { Button, Card, RootLayout, cn } from '@lockness/ui/components'
+
+// Add to deno.json
+{
+    "imports": {
+        "@lockness/ui": "jsr:@lockness/ui@^0.1.22"
+    }
+}
+```
+
+**Note**: CLI mode is recommended for production as it gives you full control
+over the component code.
 
 ## 📂 Repository Structure
 

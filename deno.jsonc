@@ -1,7 +1,6 @@
 {
     "description": "Lockness Project Monorepo which contains all packages",
     "license": "MIT",
-    "version": "0.1.22",
     "workspace": [
         "./packages/core",
         "./packages/hono",
@@ -42,7 +41,8 @@
         "routes:watch": "deno run -A scripts/watch_routes.ts",
         "bump": "deno run -A ./scripts/bump.ts",
         "hooks:install": "deno run -A scripts/install_hooks.ts",
-        "init": "deno run -Ar packages/init/mod.ts _lockness_app"
+        "init": "deno run -Ar packages/init/mod.ts _lockness_app",
+        "ui": "deno run -Ar packages/ui/mod.ts"
     },
     "imports": {
         "@/": "./",
@@ -62,10 +62,12 @@
         "postgres": "npm:postgres@^3.4.4",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "drizzle-kit": "npm:drizzle-kit@beta",
-        "@lockness/core": "jsr:@lockness/core@^0.1.22",
-        "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.22",
+        "@lockness/core": "jsr:@lockness/core@^0.1.24",
+        "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.24",
         "tailwindcss": "npm:tailwindcss@^4.1.18",
-        "@tailwindcss/cli": "npm:@tailwindcss/cli@^4.1.18"
+        "@tailwindcss/cli": "npm:@tailwindcss/cli@^4.1.18",
+        "clsx": "npm:clsx@2.1.1",
+        "tailwind-merge": "npm:tailwind-merge@2.6.0"
     },
     "unstable": [
         "kv"

@@ -2,6 +2,129 @@
 
 Reusable JSX components for server-side rendered views.
 
+## @lockness/ui Components
+
+Lockness provides a UI component library via `@lockness/ui` inspired by shadcn/ui. Components can be added via CLI (recommended) or imported as a library.
+
+### Adding Components via CLI
+
+```bash
+# List all available components
+deno run -A jsr:@lockness/ui list
+
+# Add components to your project
+deno run -A jsr:@lockness/ui add button card
+```
+
+Components are copied to `app/view/components/ui/` by default. This gives you full ownership and customization capabilities.
+
+### Button Component
+
+```tsx
+import { Button } from '@view/components/ui/Button.tsx'
+// Or from library: import { Button } from '@lockness/ui/components'
+
+// Variants: primary (default), secondary, outline, ghost, danger
+<Button variant="primary" size="md">Submit</Button>
+<Button variant="outline" size="sm">Cancel</Button>
+<Button variant="danger">Delete</Button>
+
+// With Unpoly navigation
+<Button up-target=".main" up-href="/users">Load Users</Button>
+
+// Custom styling
+<Button class="w-full" type="submit">Sign In</Button>
+```
+
+### Card Components
+
+```tsx
+import {
+    Card,
+    CardHeader,
+    CardTitle,
+    CardDescription,
+    CardContent,
+    CardFooter,
+} from '@view/components/ui/Card.tsx'
+
+<Card>
+    <CardHeader>
+        <CardTitle>User Profile</CardTitle>
+        <CardDescription>Manage your account settings</CardDescription>
+    </CardHeader>
+    <CardContent>
+        <form>
+            <input type="email" name="email" />
+        </form>
+    </CardContent>
+    <CardFooter>
+        <Button type="submit">Save Changes</Button>
+        <Button variant="outline">Cancel</Button>
+    </CardFooter>
+</Card>
+```
+
+### RootLayout Component
+
+```tsx
+import { RootLayout } from '@view/components/ui/RootLayout.tsx'
+
+<RootLayout
+    title="My App"
+    meta={[<meta name="description" content="My app description" />]}
+    styles={[<link rel="stylesheet" href="/css/app.css" />]}
+>
+    {children}
+</RootLayout>
+```
+
+**Features:**
+- Includes Unpoly CDN for progressive enhancement
+- Proper HTML5 boilerplate structure
+- Customizable meta tags, styles, and scripts
+
+### Class Name Utility (cn)
+
+```tsx
+import { cn } from '@view/lib/utils.ts'
+// Or from library: import { cn } from '@lockness/ui'
+
+// Merge classes with conflict resolution
+const buttonClass = cn(
+    'px-4 py-2',
+    'bg-blue-500 hover:bg-blue-600',
+    isLarge && 'text-lg',
+    className // User-provided classes
+)
+
+// In components
+<Button class={cn('w-full', props.class)}>Submit</Button>
+```
+
+The `cn()` utility uses clsx + tailwind-merge to properly handle Tailwind class conflicts.
+
+### Unpoly Integration
+
+All components support Unpoly directives for SPA-like navigation:
+
+```tsx
+// Partial page updates
+<a up-target=".main" up-href="/users">Users</a>
+
+// Open in modal
+<a up-layer="new modal" up-href="/user/new">New User</a>
+
+// Form submission
+<form up-submit up-target=".result">
+    <input type="text" name="query" />
+    <Button type="submit">Search</Button>
+</form>
+
+// Preload on hover
+<a up-preload up-href="/dashboard">Dashboard</a>
+```
+
 ## Basic Component
 
 ```tsx
