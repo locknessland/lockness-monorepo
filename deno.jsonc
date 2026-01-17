@@ -64,6 +64,7 @@
         "drizzle-kit": "npm:drizzle-kit@beta",
         "@lockness/core": "jsr:@lockness/core@^0.1.26",
         "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.26",
+        "@lockness/ui": "jsr:@lockness/ui@^0.1.26",
         "tailwindcss": "npm:tailwindcss@^4.1.18",
         "@tailwindcss/cli": "npm:@tailwindcss/cli@^4.1.18",
         "clsx": "npm:clsx@2.1.1",

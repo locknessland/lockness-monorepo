@@ -1881,6 +1881,7 @@
     "dependencies": [
       "jsr:@lockness/core@~0.1.26",
       "jsr:@lockness/drizzle@~0.1.26",
+      "jsr:@lockness/ui@~0.1.26",
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
