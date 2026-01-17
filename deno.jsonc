@@ -85,6 +85,9 @@
         "jsx": "precompile",
         "jsxImportSource": "@lockness/core"
     },
+    "exclude": [
+        ".shadcn-ui/"
+    ],
     "lockness": {
         "packages": [
             "drizzle",
@@ -102,6 +105,9 @@
         ]
     },
     "lint": {
+        "exclude": [
+            ".shadcn-ui/"
+        ],
         "rules": {
             "exclude": [
                 "no-explicit-any"
