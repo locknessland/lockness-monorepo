@@ -31,6 +31,7 @@ import { ensureDir } from '@std/fs/ensure-dir'
 import { exists } from '@std/fs/exists'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { parse as parseJsonc } from '@std/jsonc'
+import config from './deno.json' with { type: 'json' }
 
 // =============================================================================
 // Types
@@ -58,7 +59,7 @@ interface Registry {
 // =============================================================================
 
 const DEFAULT_TARGET_DIR = 'app/view'
-const VERSION = '0.1.22'
+const VERSION = config.version
 const JSR_PACKAGE_NAME = '@lockness/ui'
 const JSR_BASE_URL = 'https://jsr.io'
 
@@ -221,8 +222,7 @@ async function readSourceFile(
         return content
     } catch (error) {
         throw new Error(
-            `Failed to fetch component file from JSR (${jsrUrl}): ${
-                error instanceof Error ? error.message : String(error)
+            `Failed to fetch component file from JSR (${jsrUrl}): ${error instanceof Error ? error.message : String(error)
             }`,
         )
     }
@@ -293,8 +293,7 @@ async function updateDenoConfig(
         }
     } catch (error) {
         console.error(
-            `\n⚠️  Failed to update ${configPath}: ${
-                error instanceof Error ? error.message : String(error)
+            `\n⚠️  Failed to update ${configPath}: ${error instanceof Error ? error.message : String(error)
             }`,
         )
         console.log('\n   Please add dependencies manually:')
