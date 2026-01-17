@@ -222,21 +222,27 @@ async function readSourceFile(
         return content
     } catch (error) {
         throw new Error(
-            `Failed to fetch component file from JSR (${jsrUrl}): ${
-                error instanceof Error ? error.message : String(error)
+            `Failed to fetch component file from JSR (${jsrUrl}): ${error instanceof Error ? error.message : String(error)
             }`,
         )
     }
 }
 
 function rewriteImports(content: string, _targetDir: string): string {
-    // Rewrite import paths from ../lib/utils.ts to correct relative path
-    // Components are in components/ui/, utils is in lib/
-    // So from components/ui/Button.tsx to lib/utils.ts is ../../lib/utils.ts
-    return content.replace(
-        /from ['"]\.\.\/lib\/utils\.ts['"]/g,
-        `from '../../lib/utils.ts'`,
-    )
+    return content
+        // Rewrite import paths from ../lib/utils.ts to correct relative path
+        // From components/ui/Button.tsx to lib/utils.ts is ../../lib/utils.ts
+        .replace(
+            /from ['"]\.\.\/lib\/utils\.ts['"]/g,
+            `from '../../lib/utils.ts'`,
+        )
+        // Normalize npm imports to use import map aliases
+        // npm:clsx@2.1.1 -> clsx
+        .replace(/from ['"]npm:clsx(@[^'"]+)?['"]/g, "from 'clsx'")
+        .replace(
+            /from ['"]npm:tailwind-merge(@[^'"]+)?['"]/g,
+            "from 'tailwind-merge'",
+        )
 }
 
 async function updateDenoConfig(
@@ -294,8 +300,7 @@ async function updateDenoConfig(
         }
     } catch (error) {
         console.error(
-            `\n⚠️  Failed to update ${configPath}: ${
-                error instanceof Error ? error.message : String(error)
+            `\n⚠️  Failed to update ${configPath}: ${error instanceof Error ? error.message : String(error)
             }`,
         )
         console.log('\n   Please add dependencies manually:')
@@ -371,10 +376,8 @@ async function addComponents(
             // Read source file
             let content = await readSourceFile(packageDir, file.path)
 
-            // Rewrite imports if needed
-            if (file.path.startsWith('components/')) {
-                content = rewriteImports(content, targetDir)
-            }
+            // Rewrite imports to normalize dependencies and fix paths
+            content = rewriteImports(content, targetDir)
 
             // Ensure target directory exists
             await ensureDir(targetDirPath)
