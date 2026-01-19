@@ -76,8 +76,7 @@ const MoonIcon = ({ class: className }: { class?: string }) => (
 /**
  * Script used to toggle theme
  */
-const toggleThemeJs =
-    "const isDark = document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark ? 'dark' : 'light'); window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: isDark ? 'dark' : 'light' } }));"
+const toggleThemeJs = 'window.toggleTheme()'
 
 /**
  * ThemeSwitch Component
@@ -233,6 +232,14 @@ export const ThemeSwitchScript: FC = () => (
         dangerouslySetInnerHTML={{
             __html: `
                 (function() {
+                    window.toggleTheme = function() {
+                        const isDark = document.documentElement.classList.toggle('dark');
+                        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                        window.dispatchEvent(new CustomEvent('theme-change', { 
+                            detail: { theme: isDark ? 'dark' : 'light' } 
+                        }));
+                    };
+
                     const syncSwitches = () => {
                         const isDark = document.documentElement.classList.contains('dark');
                         document.querySelectorAll('.theme-switch-input').forEach(i => {

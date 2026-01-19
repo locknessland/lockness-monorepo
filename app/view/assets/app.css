@@ -8,6 +8,12 @@
 @source '../../**/*.tsx';
 
 /**
+ * Enable class-based dark mode
+ * This allows dark: variants to work with the .dark class on <html>
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/**
  * Lockness UI - Zinc Theme Variables
  * Default theme for @lockness/ui components
  * Uses OKLCH color space for perceptually uniform colors
