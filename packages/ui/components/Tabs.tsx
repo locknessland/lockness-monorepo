@@ -15,6 +15,11 @@ export interface TabsProps {
      */
     name?: string
     /**
+     * Orientation of the tabs
+     * @default 'horizontal'
+     */
+    orientation?: 'horizontal' | 'vertical'
+    /**
      * Tabs content
      */
     children?: unknown
@@ -32,6 +37,11 @@ export interface TabsProps {
  * TabsList component props
  */
 export interface TabsListProps {
+    /**
+     * Orientation of the tabs list
+     * @default 'horizontal'
+     */
+    orientation?: 'horizontal' | 'vertical'
     /**
      * Tab triggers
      */
@@ -130,15 +140,21 @@ export interface TabsContentProps {
 export const Tabs: FC<TabsProps> = ({
     defaultValue: _defaultValue,
     name = 'tab',
+    orientation = 'horizontal',
     class: className,
     children,
     ...props
 }) => {
     return (
         <div
-            class={cn('w-full', className)}
+            class={cn(
+                'w-full',
+                orientation === 'vertical' && 'flex gap-4',
+                className,
+            )}
             up-switch={`.tab-content-${name}`}
             data-tab-name={name}
+            data-orientation={orientation}
             {...props}
         >
             {children}
@@ -150,6 +166,7 @@ export const Tabs: FC<TabsProps> = ({
  * TabsList Component
  */
 export const TabsList: FC<TabsListProps> = ({
+    orientation = 'horizontal',
     class: className,
     children,
     ...props
@@ -157,10 +174,13 @@ export const TabsList: FC<TabsListProps> = ({
     return (
         <div
             role='tablist'
+            aria-orientation={orientation}
             class={cn(
-                'inline-flex h-10 items-center justify-center',
+                'inline-flex items-center justify-center',
                 'rounded-(--radius) bg-(--muted)',
                 'p-1 text-(--muted-foreground)',
+                orientation === 'horizontal' && 'h-10 flex-row',
+                orientation === 'vertical' && 'h-auto flex-col w-fit',
                 className,
             )}
             {...props}

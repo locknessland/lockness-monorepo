@@ -134,6 +134,144 @@ export const NavigationPage = () => {
                     </Card>
                 </section>
 
+                {/* Vertical Tabs */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        VERTICAL TABS
+                    </h2>
+                    <p class='text-sm text-muted-foreground'>
+                        Tabs with vertical orientation for sidebar-style
+                        navigation.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <Tabs name='vertical-tabs' orientation='vertical'>
+                                <TabsList orientation='vertical'>
+                                    <TabsTrigger
+                                        value='profile'
+                                        name='vertical-tabs'
+                                        checked
+                                    >
+                                        Profile
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value='settings'
+                                        name='vertical-tabs'
+                                    >
+                                        Settings
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value='billing'
+                                        name='vertical-tabs'
+                                    >
+                                        Billing
+                                    </TabsTrigger>
+                                    <TabsTrigger
+                                        value='security'
+                                        name='vertical-tabs'
+                                    >
+                                        Security
+                                    </TabsTrigger>
+                                </TabsList>
+                                <div class='flex-1'>
+                                    <TabsContent
+                                        value='profile'
+                                        name='vertical-tabs'
+                                        class='mt-0'
+                                    >
+                                        <div class='p-4 space-y-2 border border-border rounded-(--radius)'>
+                                            <h3 class='font-pixel text-sm'>
+                                                Profile Settings
+                                            </h3>
+                                            <p class='text-sm text-muted-foreground'>
+                                                Manage your public profile
+                                                information.
+                                            </p>
+                                            <Input placeholder='Display name' />
+                                        </div>
+                                    </TabsContent>
+                                    <TabsContent
+                                        value='settings'
+                                        name='vertical-tabs'
+                                        class='mt-0'
+                                    >
+                                        <div class='p-4 space-y-2 border border-border rounded-(--radius)'>
+                                            <h3 class='font-pixel text-sm'>
+                                                General Settings
+                                            </h3>
+                                            <p class='text-sm text-muted-foreground'>
+                                                Configure your application
+                                                preferences.
+                                            </p>
+                                        </div>
+                                    </TabsContent>
+                                    <TabsContent
+                                        value='billing'
+                                        name='vertical-tabs'
+                                        class='mt-0'
+                                    >
+                                        <div class='p-4 space-y-2 border border-border rounded-(--radius)'>
+                                            <h3 class='font-pixel text-sm'>
+                                                Billing Information
+                                            </h3>
+                                            <p class='text-sm text-muted-foreground'>
+                                                Manage your subscription and
+                                                payment methods.
+                                            </p>
+                                        </div>
+                                    </TabsContent>
+                                    <TabsContent
+                                        value='security'
+                                        name='vertical-tabs'
+                                        class='mt-0'
+                                    >
+                                        <div class='p-4 space-y-2 border border-border rounded-(--radius)'>
+                                            <h3 class='font-pixel text-sm'>
+                                                Security Settings
+                                            </h3>
+                                            <p class='text-sm text-muted-foreground'>
+                                                Configure two-factor
+                                                authentication and security
+                                                options.
+                                            </p>
+                                            <Button variant='primary'>
+                                                Enable 2FA
+                                            </Button>
+                                        </div>
+                                    </TabsContent>
+                                </div>
+                            </Tabs>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Tabs name="vertical-tabs" orientation="vertical">
+  <TabsList orientation="vertical">
+    <TabsTrigger value="profile" name="vertical-tabs" checked>
+      Profile
+    </TabsTrigger>
+    <TabsTrigger value="settings" name="vertical-tabs">
+      Settings
+    </TabsTrigger>
+    <TabsTrigger value="billing" name="vertical-tabs">
+      Billing
+    </TabsTrigger>
+  </TabsList>
+  <div class="flex-1">
+    <TabsContent value="profile" name="vertical-tabs" class="mt-0">
+      <div class="p-4 border rounded-(--radius)">
+        Profile content here
+      </div>
+    </TabsContent>
+    <TabsContent value="settings" name="vertical-tabs" class="mt-0">
+      <div class="p-4 border rounded-(--radius)">
+        Settings content here
+      </div>
+    </TabsContent>
+  </div>
+</Tabs>`}
+                    </CodeBlock>
+                </section>
+
                 {/* Tabs Advanced */}
                 <section class='space-y-4'>
                     <h2 class='font-pixel text-sm text-foreground'>
