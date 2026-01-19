@@ -405,7 +405,8 @@ async function readSourceFile(
         return content
     } catch (error) {
         throw new Error(
-            `Failed to fetch component file from JSR (${jsrUrl}): ${error instanceof Error ? error.message : String(error)
+            `Failed to fetch component file from JSR (${jsrUrl}): ${
+                error instanceof Error ? error.message : String(error)
             }`,
         )
     }
@@ -492,7 +493,8 @@ async function updateDenoConfig(
         }
     } catch (error) {
         console.error(
-            `\n⚠️  Failed to update ${configPath}: ${error instanceof Error ? error.message : String(error)
+            `\n⚠️  Failed to update ${configPath}: ${
+                error instanceof Error ? error.message : String(error)
             }`,
         )
         console.log('\n   Please add dependencies manually:')

@@ -12,7 +12,7 @@ import { cn } from '../lib/utils.ts'
 export interface ThemeSwitchProps {
     /** Additional CSS classes for the container */
     class?: string
-    /** 
+    /**
      * Visual variant:
      * - 'classic': Two buttons (Light/Dark)
      * - 'toggle': Single button swapping icons
@@ -76,7 +76,8 @@ const MoonIcon = ({ class: className }: { class?: string }) => (
 /**
  * Script used to toggle theme
  */
-const toggleThemeJs = "const isDark = document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark ? 'dark' : 'light'); window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: isDark ? 'dark' : 'light' } }));"
+const toggleThemeJs =
+    "const isDark = document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark ? 'dark' : 'light'); window.dispatchEvent(new CustomEvent('theme-change', { detail: { theme: isDark ? 'dark' : 'light' } }));"
 
 /**
  * ThemeSwitch Component
@@ -113,7 +114,13 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
             sizeClasses[size],
         )
         return (
-            <div class={cn('flex items-center gap-2 theme-switch-classic', className)} {...props}>
+            <div
+                class={cn(
+                    'flex items-center gap-2 theme-switch-classic',
+                    className,
+                )}
+                {...props}
+            >
                 <button
                     type='button'
                     class={cn(btnClasses, 'dark:hidden')}
@@ -150,8 +157,12 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
                 aria-label='Toggle theme'
                 {...props}
             >
-                <SunIcon class={cn(iconSizeClasses[size], 'hidden dark:block')} />
-                <MoonIcon class={cn(iconSizeClasses[size], 'block dark:hidden')} />
+                <SunIcon
+                    class={cn(iconSizeClasses[size], 'hidden dark:block')}
+                />
+                <MoonIcon
+                    class={cn(iconSizeClasses[size], 'block dark:hidden')}
+                />
             </button>
         )
     }
@@ -199,11 +210,11 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
                         knobSizes[size],
                     )}
                 >
-                    <span class="absolute inset-0 flex items-center justify-center dark:opacity-0 transition-opacity">
-                         <SunIcon class="size-3 text-amber-500" />
+                    <span class='absolute inset-0 flex items-center justify-center dark:opacity-0 transition-opacity'>
+                        <SunIcon class='size-3 text-amber-500' />
                     </span>
-                    <span class="absolute inset-0 flex items-center justify-center opacity-0 dark:opacity-100 transition-opacity">
-                         <MoonIcon class="size-3 text-blue-500" />
+                    <span class='absolute inset-0 flex items-center justify-center opacity-0 dark:opacity-100 transition-opacity'>
+                        <MoonIcon class='size-3 text-blue-500' />
                     </span>
                 </span>
             </label>
