@@ -14,6 +14,7 @@ import { PaginationDemo } from '@view/pages/ui/pagination-demo.tsx'
 import { ProgressPage } from '@view/pages/ui/progress.tsx'
 import { UploadZonePage } from '@view/pages/ui/upload-zone.tsx'
 import { ChartPage } from '@view/pages/ui/chart.tsx'
+import { SpinnerPage } from '@view/pages/ui/spinner.tsx'
 
 @Controller('/ui')
 export class UiController {
@@ -90,5 +91,10 @@ export class UiController {
     @Get('/chart', { name: 'ui.chart' })
     chart(c: Context) {
         return c.render(<ChartPage />)
+    }
+
+    @Get('/spinner', { name: 'ui.spinner' })
+    spinner(c: Context) {
+        return c.render(<SpinnerPage />)
     }
 }

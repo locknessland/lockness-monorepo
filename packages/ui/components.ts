@@ -111,6 +111,8 @@ export type {
 } from './components/UploadZone.tsx'
 export { Separator } from './components/Separator.tsx'
 export { Skeleton } from './components/Skeleton.tsx'
+export { Spinner } from './components/Spinner.tsx'
+export type { SpinnerProps } from './components/Spinner.tsx'
 export { Alert, AlertDescription, AlertTitle } from './components/Alert.tsx'
 export { Kbd } from './components/Kbd.tsx'
 
