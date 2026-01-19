@@ -175,10 +175,9 @@ export const GaugeProgress: FC<GaugeProgressProps> = ({
     const rotation = type === 'gauge' ? 'rotate-[135deg]' : 'rotate-180'
 
     // Value text positioning
-    const valuePosition =
-        type === 'gauge'
-            ? 'top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2'
-            : 'top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/4'
+    const valuePosition = type === 'gauge'
+        ? 'top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2'
+        : 'top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/4'
 
     // Determine track stroke width (defaults to strokeWidth if not specified)
     const effectiveTrackStrokeWidth = trackStrokeWidth ?? strokeWidth
