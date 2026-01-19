@@ -218,7 +218,9 @@ export const ProgressPage = () => {
                         <CardContent class='p-6'>
                             <div class='space-y-3'>
                                 <div class='flex justify-between text-sm'>
-                                    <span class='font-medium'>Storage Used</span>
+                                    <span class='font-medium'>
+                                        Storage Used
+                                    </span>
                                     <span class='text-muted-foreground'>
                                         8.5 GB / 10 GB
                                     </span>
