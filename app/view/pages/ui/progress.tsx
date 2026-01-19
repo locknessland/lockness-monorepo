@@ -105,6 +105,47 @@ export const ProgressPage = () => {
                     </CodeBlock>
                 </section>
 
+                {/* Inner Label */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        INNER LABEL
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        Display the percentage inside the progress bar itself.
+                        Works best with larger sizes.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-6'>
+                            <Progress value={25} innerLabel />
+                            <Progress value={50} innerLabel />
+                            <Progress value={75} innerLabel />
+                            <Progress value={100} innerLabel />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={50} innerLabel />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Inner labels with different variants:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-6'>
+                            <Progress value={60} innerLabel />
+                            <Progress value={80} innerLabel variant='success' />
+                            <Progress value={45} innerLabel variant='warning' />
+                            <Progress
+                                value={30}
+                                innerLabel
+                                variant='destructive'
+                            />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={80} innerLabel variant="success" />`}
+                    </CodeBlock>
+                </section>
+
                 {/* Variants */}
                 <section class='space-y-4'>
                     <h2 class='font-pixel text-sm text-foreground'>VARIANTS</h2>
@@ -392,6 +433,20 @@ export const ProgressPage = () => {
                                     <td class='py-3 px-4 text-muted-foreground'>
                                         Show floating label that follows
                                         progress
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        innerLabel
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        false
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Show label inside the progress bar
                                     </td>
                                 </tr>
                             </tbody>

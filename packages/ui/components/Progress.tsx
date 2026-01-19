@@ -36,6 +36,11 @@ export interface ProgressProps {
      */
     floatingLabel?: boolean
     /**
+     * Show label inside the progress bar
+     * @default false
+     */
+    innerLabel?: boolean
+    /**
      * Additional CSS class names
      */
     class?: string
@@ -64,8 +69,10 @@ const variantStyles = {
 
 const floatingLabelVariantStyles = {
     default: 'bg-primary/10 border-primary/20 text-primary',
-    success: 'bg-green-50 border-green-200 text-green-600 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400',
-    warning: 'bg-yellow-50 border-yellow-200 text-yellow-600 dark:bg-yellow-500/10 dark:border-yellow-500/20 dark:text-yellow-400',
+    success:
+        'bg-green-50 border-green-200 text-green-600 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400',
+    warning:
+        'bg-yellow-50 border-yellow-200 text-yellow-600 dark:bg-yellow-500/10 dark:border-yellow-500/20 dark:text-yellow-400',
     destructive: 'bg-destructive/10 border-destructive/20 text-destructive',
 }
 
@@ -92,6 +99,9 @@ const floatingLabelVariantStyles = {
  *
  * // Floating label
  * <Progress value={50} floatingLabel />
+ *
+ * // Inner label (inside the bar)
+ * <Progress value={50} innerLabel size="lg" />
  * ```
  */
 export const Progress: FC<ProgressProps> = ({
@@ -101,6 +111,7 @@ export const Progress: FC<ProgressProps> = ({
     size = 'default',
     showLabel = false,
     floatingLabel = false,
+    innerLabel = false,
     class: className,
     id,
     ...props
@@ -111,7 +122,11 @@ export const Progress: FC<ProgressProps> = ({
 
     return (
         <div
-            class={cn('w-full', (showLabel || floatingLabel) && 'space-y-1', className)}
+            class={cn(
+                'w-full',
+                (showLabel || floatingLabel) && 'space-y-1',
+                className,
+            )}
             {...props}
         >
             {showLabel && !floatingLabel && (
@@ -138,18 +153,21 @@ export const Progress: FC<ProgressProps> = ({
                 aria-valuemin={0}
                 aria-valuemax={max}
                 class={cn(
-                    'w-full overflow-hidden bg-secondary',
-                    sizeStyles[size],
+                    'flex w-full overflow-hidden bg-secondary',
+                    innerLabel ? 'h-4' : sizeStyles[size],
                 )}
                 style='border-radius: var(--radius)'
             >
                 <div
                     class={cn(
-                        'h-full transition-all duration-300 ease-in-out',
+                        'flex flex-col justify-center overflow-hidden transition-all duration-300 ease-in-out',
                         variantStyles[variant],
+                        innerLabel && 'text-xs text-white text-center whitespace-nowrap',
                     )}
                     style={`width: ${percentage}%; border-radius: var(--radius)`}
-                />
+                >
+                    {innerLabel && percentage > 5 && `${percentage}%`}
+                </div>
             </div>
         </div>
     )
