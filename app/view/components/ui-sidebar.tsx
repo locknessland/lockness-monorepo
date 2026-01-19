@@ -38,6 +38,7 @@ const navSections = [
             { title: 'Spinner', href: '/ui/spinner' },
             { title: 'Newsletter', href: '/ui/newsletter' },
             { title: 'Hero', href: '/ui/hero' },
+            { title: 'Gallery', href: '/ui/gallery' },
             { title: 'Upload Zone', href: '/ui/upload-zone' },
             { title: 'Chart', href: '/ui/chart' },
         ],

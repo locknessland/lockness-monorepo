@@ -145,6 +145,25 @@ export type {
     HeroSubtitleProps,
     HeroTitleProps,
 } from './components/Hero.tsx'
+export {
+    Gallery,
+    GalleryGrid,
+    GalleryImage,
+    GalleryItem,
+    GalleryLightboxItem,
+    GalleryLightboxScript,
+    GalleryMasonry,
+    GalleryMasonryColumn,
+} from './components/Gallery.tsx'
+export type {
+    GalleryGridProps,
+    GalleryImageProps,
+    GalleryItemProps,
+    GalleryLightboxItemProps,
+    GalleryMasonryColumnProps,
+    GalleryMasonryProps,
+    GalleryProps,
+} from './components/Gallery.tsx'
 export { Alert, AlertDescription, AlertTitle } from './components/Alert.tsx'
 export { Kbd } from './components/Kbd.tsx'
 
