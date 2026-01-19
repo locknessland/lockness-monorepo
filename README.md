@@ -37,7 +37,7 @@ public/             # Static assets
 
 ### Setup
 
-```bash
+````bash
 # Clone the repository
 git clone https://github.com/locknessland/lockness.git
 cd lockness
@@ -55,7 +55,7 @@ deno task css:watch
 
 # Terminal 2: Development Server
 deno task dev
-```
+````
 
 ### Common Commands
 
