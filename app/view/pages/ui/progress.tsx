@@ -3,6 +3,7 @@ import {
     CardContent,
     CircularProgress,
     CodeBlock,
+    GaugeProgress,
     Progress,
     SteppedProgress,
 } from '@lockness/ui/components'
@@ -601,6 +602,321 @@ export const ProgressPage = () => {
                     </Card>
                     <CodeBlock lang='tsx'>
                         {`<SteppedProgress value={2} steps={4} thickness={4} />`}
+                    </CodeBlock>
+                </section>
+
+                {/* Gauge Progress */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        GAUGE PROGRESS
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        A gauge/dial progress component for displaying metrics
+                        like scores, performance indicators, or completion
+                        status.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-center justify-center'>
+                                <GaugeProgress value={25} label='Score' />
+                                <GaugeProgress value={50} label='Score' />
+                                <GaugeProgress value={75} label='Score' />
+                                <GaugeProgress value={100} label='Score' />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`import { GaugeProgress } from '@lockness/ui/components'
+
+<GaugeProgress value={50} label="Score" />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Half circle gauge (180°):
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-center justify-center'>
+                                <GaugeProgress
+                                    value={25}
+                                    type='half'
+                                    label='Score'
+                                />
+                                <GaugeProgress
+                                    value={50}
+                                    type='half'
+                                    label='Score'
+                                />
+                                <GaugeProgress
+                                    value={75}
+                                    type='half'
+                                    label='Score'
+                                />
+                                <GaugeProgress
+                                    value={100}
+                                    type='half'
+                                    label='Score'
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<GaugeProgress value={75} type="half" label="Score" />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Different variants:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-center justify-center'>
+                                <GaugeProgress
+                                    value={60}
+                                    label='Default'
+                                />
+                                <GaugeProgress
+                                    value={90}
+                                    variant='success'
+                                    label='Health'
+                                />
+                                <GaugeProgress
+                                    value={45}
+                                    variant='warning'
+                                    label='Warning'
+                                />
+                                <GaugeProgress
+                                    value={25}
+                                    variant='destructive'
+                                    label='Risk'
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<GaugeProgress value={90} variant="success" label="Health" />
+<GaugeProgress value={25} variant="destructive" label="Risk" />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Different sizes:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-end justify-center'>
+                                <div class='text-center'>
+                                    <GaugeProgress
+                                        value={60}
+                                        size='sm'
+                                        label='SM'
+                                    />
+                                </div>
+                                <div class='text-center'>
+                                    <GaugeProgress
+                                        value={60}
+                                        size='default'
+                                        label='Default'
+                                    />
+                                </div>
+                                <div class='text-center'>
+                                    <GaugeProgress
+                                        value={60}
+                                        size='lg'
+                                        label='LG'
+                                    />
+                                </div>
+                                <div class='text-center'>
+                                    <GaugeProgress
+                                        value={60}
+                                        size='xl'
+                                        label='XL'
+                                    />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<GaugeProgress value={60} size="sm" />
+<GaugeProgress value={60} size="lg" />
+<GaugeProgress value={60} size="xl" />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Custom stroke width:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-center justify-center'>
+                                <GaugeProgress
+                                    value={70}
+                                    strokeWidth={1}
+                                    label='Thin'
+                                />
+                                <GaugeProgress
+                                    value={70}
+                                    strokeWidth={2}
+                                    label='Medium'
+                                />
+                                <GaugeProgress
+                                    value={70}
+                                    strokeWidth={3}
+                                    label='Thick'
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<GaugeProgress value={70} strokeWidth={3} />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Without label:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-center justify-center'>
+                                <GaugeProgress value={50} showLabel={false} />
+                                <GaugeProgress
+                                    value={75}
+                                    type='half'
+                                    showLabel={false}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<GaugeProgress value={50} showLabel={false} />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Half circle variants:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-center justify-center'>
+                                <GaugeProgress
+                                    value={60}
+                                    type='half'
+                                    label='Default'
+                                />
+                                <GaugeProgress
+                                    value={90}
+                                    type='half'
+                                    variant='success'
+                                    label='Health'
+                                />
+                                <GaugeProgress
+                                    value={45}
+                                    type='half'
+                                    variant='warning'
+                                    label='Warning'
+                                />
+                                <GaugeProgress
+                                    value={25}
+                                    type='half'
+                                    variant='destructive'
+                                    label='Risk'
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<GaugeProgress value={90} type="half" variant="success" label="Health" />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Stroke line cap (rounded vs flat ends):
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-center justify-center'>
+                                <GaugeProgress
+                                    value={25}
+                                    strokeLinecap='butt'
+                                    strokeWidth={2}
+                                    label='Flat'
+                                />
+                                <GaugeProgress
+                                    value={25}
+                                    strokeLinecap='round'
+                                    strokeWidth={2}
+                                    label='Round'
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<GaugeProgress value={25} strokeLinecap="butt" />
+<GaugeProgress value={25} strokeLinecap="round" />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Independent track stroke width:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-center justify-center'>
+                                <GaugeProgress
+                                    value={50}
+                                    type='half'
+                                    strokeWidth={1}
+                                    trackStrokeWidth={3}
+                                    label='Thick track'
+                                />
+                                <GaugeProgress
+                                    value={75}
+                                    strokeWidth={2}
+                                    trackStrokeWidth={1}
+                                    label='Thin track'
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<GaugeProgress value={50} strokeWidth={1} trackStrokeWidth={3} />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Custom colors (override variant):
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex flex-wrap gap-8 items-center justify-center'>
+                                <GaugeProgress
+                                    value={25}
+                                    strokeWidth={2}
+                                    trackStrokeWidth={1}
+                                    strokeLinecap='butt'
+                                    progressColor='text-purple-600 dark:text-purple-500'
+                                    trackColor='text-purple-200 dark:text-neutral-700'
+                                    label='mph'
+                                />
+                                <GaugeProgress
+                                    value={75}
+                                    strokeWidth={2}
+                                    trackStrokeWidth={1}
+                                    progressColor='text-green-500 dark:text-green-500'
+                                    trackColor='text-green-200 dark:text-neutral-700'
+                                    label='Score'
+                                />
+                                <GaugeProgress
+                                    value={50}
+                                    type='half'
+                                    strokeWidth={1}
+                                    trackStrokeWidth={3}
+                                    progressColor='text-orange-600 dark:text-orange-500'
+                                    trackColor='text-orange-100 dark:text-neutral-700'
+                                    label='Average'
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<GaugeProgress
+  value={75}
+  progressColor="text-purple-600 dark:text-purple-500"
+  trackColor="text-purple-200 dark:text-neutral-700"
+  label="Score"
+/>`}
                     </CodeBlock>
                 </section>
 
@@ -1285,6 +1601,202 @@ export const ProgressPage = () => {
                                     </td>
                                     <td class='py-3 px-4 text-muted-foreground'>
                                         Show checkmark when complete
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class='font-pixel text-xs text-foreground mt-6'>
+                        GaugeProgress Props
+                    </h3>
+                    <div class='overflow-x-auto'>
+                        <table class='w-full text-sm'>
+                            <thead>
+                                <tr class='border-b'>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Prop
+                                    </th>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Type
+                                    </th>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Default
+                                    </th>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Description
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        value
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        0
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Current progress value (0-100)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        max
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        100
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Maximum value
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        type
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'gauge' | 'half'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'gauge'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Gauge type: 270° or 180° arc
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        variant
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'default' | 'success' | 'warning' |
+                                        'destructive'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'default'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Color variant
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        size
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'sm' | 'default' | 'lg' | 'xl'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'default'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Size of the gauge
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        strokeWidth
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        1.5
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Stroke width of the progress arc
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        trackStrokeWidth
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        strokeWidth
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Stroke width of the background track
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        strokeLinecap
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'round' | 'butt' | 'square'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'round'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Shape of stroke ends
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        progressColor
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        string
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        -
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Custom color class for progress arc
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        trackColor
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        string
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        -
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Custom color class for background track
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        showLabel
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        true
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Show the value in the center
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        label
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        string
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        -
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Custom label below the value (e.g.
+                                        "Score")
                                     </td>
                                 </tr>
                             </tbody>
