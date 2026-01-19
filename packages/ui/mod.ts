@@ -77,6 +77,12 @@ const REGISTRY: Registry = {
             'tailwind-merge': 'npm:tailwind-merge@2.6.0',
         },
     },
+    icons: {
+        name: 'icons',
+        description:
+            'SVG icon components (CheckCircleIcon, XCircleIcon, ArrowRightIcon, etc.)',
+        files: [{ path: 'icons.tsx', target: 'lib/icons.tsx' }],
+    },
     button: {
         name: 'button',
         description: 'Flexible button component with variants and sizes',
@@ -260,6 +266,18 @@ const REGISTRY: Registry = {
         ],
         internalDependencies: ['utils'],
     },
+    pricing: {
+        name: 'pricing',
+        description:
+            'Pricing components (PricingCard, PricingCardHeader, PricingCardPrice, PricingCardFeatures, PricingToggle, PricingComparison)',
+        files: [
+            {
+                path: 'components/Pricing.tsx',
+                target: 'components/ui/Pricing.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'icons', 'button', 'card', 'badge'],
+    },
 }
 
 // =============================================================================
@@ -390,6 +408,15 @@ function rewriteImports(content: string, _targetDir: string): string {
             /from ['"]\.\.\/lib\/utils\.ts['"]/g,
             `from '../../lib/utils.ts'`,
         )
+        // Rewrite imports from ../icons.tsx to ../../lib/icons.tsx
+        // From components/ui/Pricing.tsx to lib/icons.tsx
+        .replace(
+            /from ['"]\.\.\/icons\.tsx['"]/g,
+            `from '../../lib/icons.tsx'`,
+        )
+        // Rewrite relative component imports to stay in same directory
+        // ./Button.tsx, ./Card.tsx, ./Badge.tsx stay as-is (same components/ui/ folder)
+        // No change needed for these as they remain relative within components/ui/
         // Normalize npm imports to use import map aliases
         // npm:clsx@2.1.1 -> clsx
         .replace(/from ['"]npm:clsx(@[^'"]+)?['"]/g, "from 'clsx'")

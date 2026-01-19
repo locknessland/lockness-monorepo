@@ -196,6 +196,125 @@ import { RootLayout } from '@view/components/ui/RootLayout.tsx'
 - Responsive viewport settings
 - UTF-8 charset declaration
 
+### Pricing Components
+
+Complete pricing section components for SaaS landing pages.
+
+```bash
+# Install pricing component and all its dependencies
+deno run -A jsr:@lockness/ui add pricing
+```
+
+**This installs 6 files automatically:**
+
+- `components/ui/Pricing.tsx` - Main pricing components
+- `components/ui/Button.tsx` - CTA buttons
+- `components/ui/Card.tsx` - Card containers
+- `components/ui/Badge.tsx` - Promotional badges
+- `lib/utils.ts` - Class name utility
+- `lib/icons.tsx` - Check/X icons for features
+
+```tsx
+import {
+    PricingSection,
+    PricingCard,
+    PricingCardHeader,
+    PricingCardPrice,
+    PricingCardDescription,
+    PricingCardFeatures,
+    PricingCardFeature,
+    PricingCardAction,
+    PricingToggle,
+    PricingComparison,
+} from '@view/components/ui/Pricing.tsx'
+
+// Two-tier layout
+<PricingSection columns={2}>
+    <PricingCard>
+        <PricingCardHeader title="Starter" />
+        <PricingCardPrice price={0} description="Free forever" />
+        <PricingCardDescription>
+            Perfect for individuals and small projects
+        </PricingCardDescription>
+        <PricingCardFeatures>
+            <PricingCardFeature>Up to 3 projects</PricingCardFeature>
+            <PricingCardFeature>1 GB storage</PricingCardFeature>
+            <PricingCardFeature included={false}>Priority support</PricingCardFeature>
+        </PricingCardFeatures>
+        <PricingCardAction href="/signup" variant="outline">
+            Get Started Free
+        </PricingCardAction>
+    </PricingCard>
+
+    <PricingCard featured>
+        <PricingCardHeader title="Pro" badge="Popular" />
+        <PricingCardPrice price={29} period="month" />
+        <PricingCardDescription>
+            For professionals and growing teams
+        </PricingCardDescription>
+        <PricingCardFeatures>
+            <PricingCardFeature>Unlimited projects</PricingCardFeature>
+            <PricingCardFeature>50 GB storage</PricingCardFeature>
+            <PricingCardFeature>Priority support</PricingCardFeature>
+        </PricingCardFeatures>
+        <PricingCardAction href="/signup">
+            Start Free Trial
+        </PricingCardAction>
+    </PricingCard>
+</PricingSection>
+```
+
+**Available Components:**
+
+| Component                | Description                                              |
+| ------------------------ | -------------------------------------------------------- |
+| `PricingSection`         | Grid container (2 or 3 columns)                          |
+| `PricingCard`            | Main card container, supports `featured` prop            |
+| `PricingCardHeader`      | Title with optional `badge`                              |
+| `PricingCardPrice`       | Price display with `currency`, `period`, `originalPrice` |
+| `PricingCardDescription` | Short tier description                                   |
+| `PricingCardFeatures`    | Feature list container                                   |
+| `PricingCardFeature`     | Feature item with check/cross icon                       |
+| `PricingCardAction`      | CTA button (always at bottom)                            |
+| `PricingToggle`          | Monthly/Yearly billing toggle                            |
+| `PricingComparison`      | Feature comparison table                                 |
+
+**Typesafe Props:**
+
+```tsx
+// Currency symbols with autocomplete
+type CurrencySymbol = '$' | '€' | '£' | '¥' | '₹' | '₽' | 'Fr' | 'kr' | 'R$' | string
+
+// Billing periods with autocomplete
+type BillingPeriod = 'month' | 'year' | 'week' | 'day' | 'one-time' | 'lifetime' | string
+
+// Examples
+<PricingCardPrice price={29} currency="€" period="month" />
+<PricingCardPrice price={290} period="year" originalPrice={348} description="Save 17%" />
+<PricingCardPrice price="Custom" description="Contact us for pricing" />
+```
+
+**Feature Comparison Table:**
+
+```tsx
+<PricingComparison
+    tiers={['Free', 'Pro', 'Enterprise']}
+    features={[
+        ['Projects', '3', '10', 'Unlimited'],
+        ['Storage', '1 GB', '10 GB', '100 GB'],
+        ['Support', false, true, true],
+        ['Custom Domain', false, true, true],
+        ['SSO', false, false, true],
+    ]}
+/>
+```
+
+**Billing Toggle:**
+
+```tsx
+<PricingToggle selected='yearly' yearlyBadge='Save 20%' />
+```
+
 ## Utilities
 
 ### cn() - Class Name Utility
@@ -509,6 +628,56 @@ export const Button = (
 
     // ... rest of component
 }
+```
+
+## Components with Dependencies
+
+Some components depend on other components. The CLI automatically resolves and
+installs all dependencies:
+
+```bash
+# Adding pricing installs 6 files:
+# - pricing (main component)
+# - button (for CTA buttons)
+# - card (for card containers)
+# - badge (for promotional badges)
+# - icons (for check/cross icons)
+# - utils (class name utility)
+deno run -A jsr:@lockness/ui add pricing
+```
+
+**Components and their dependencies:**
+
+| Component   | Dependencies                      |
+| ----------- | --------------------------------- |
+| `button`    | utils                             |
+| `card`      | utils                             |
+| `badge`     | utils                             |
+| `pricing`   | utils, icons, button, card, badge |
+| `accordion` | utils                             |
+| `tabs`      | utils                             |
+| `alert`     | utils                             |
+
+When you run `add`, the CLI:
+
+1. Resolves all internal dependencies recursively
+2. Copies each component to the correct location
+3. Rewrites import paths automatically
+4. Shows npm dependencies to add to `deno.json`
+
+**Project structure after adding `pricing`:**
+
+```plaintext
+app/view/
+├── components/
+│   └── ui/
+│       ├── Pricing.tsx     # Main pricing components
+│       ├── Button.tsx      # Dependency
+│       ├── Card.tsx        # Dependency
+│       └── Badge.tsx       # Dependency
+└── lib/
+    ├── utils.ts            # Class name utility
+    └── icons.tsx           # SVG icons
 ```
 
 ## Project Structure

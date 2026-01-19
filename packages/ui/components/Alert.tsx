@@ -74,9 +74,12 @@ export const Alert: FC<AlertProps> = ({
         <div
             role={role}
             class={cn(
-                'relative w-full rounded-(--radius) border p-4',
+                'relative w-full p-(--alert-padding)',
+                'rounded-(--alert-border-radius)',
+                'border-[length:--alert-border-width]',
                 '[&>svg~*]:pl-7 [&>svg+div]:-translate-y-0.75',
                 '[&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4',
+                '[&>svg]:w-(--alert-icon-size) [&>svg]:h-(--alert-icon-size)',
                 '[&>svg]:text-(--foreground)',
                 variant === 'default' &&
                     'bg-(--background) text-(--foreground) border-(--border)',
@@ -123,7 +126,9 @@ export const AlertTitle: FC<AlertTitleProps> = ({
     return (
         <h5
             class={cn(
-                'mb-1 font-medium leading-none tracking-tight',
+                'mb-1 leading-none tracking-tight',
+                'text-(length:--alert-title-font-size)',
+                'font-[--alert-title-font-weight]',
                 className,
             )}
             {...props}
@@ -163,7 +168,11 @@ export const AlertDescription: FC<AlertDescriptionProps> = ({
 }) => {
     return (
         <div
-            class={cn('text-sm [&_p]:leading-relaxed', className)}
+            class={cn(
+                'text-(length:--alert-description-font-size)',
+                '[&_p]:leading-relaxed',
+                className,
+            )}
             {...props}
         >
             {children}

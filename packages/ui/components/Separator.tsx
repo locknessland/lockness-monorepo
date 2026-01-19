@@ -65,10 +65,10 @@ export const Separator: FC<SeparatorProps> = ({
             role={decorative ? 'none' : 'separator'}
             aria-orientation={orientation}
             class={cn(
-                'shrink-0 bg-(--border)',
+                'shrink-0 bg-(--separator-color)',
                 orientation === 'horizontal'
-                    ? 'h-[1px] w-full'
-                    : 'h-full w-[1px]',
+                    ? 'h-(--separator-thickness) w-full'
+                    : 'h-full w-(--separator-thickness)',
                 className,
             )}
             {...props}

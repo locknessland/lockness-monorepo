@@ -179,7 +179,7 @@ export const NavigationPage = () => {
                                         name='vertical-tabs'
                                         class='mt-0'
                                     >
-                                        <div class='p-4 space-y-2 border border-border rounded-(--radius)'>
+                                        <div class='p-4 space-y-2'>
                                             <h3 class='font-pixel text-sm'>
                                                 Profile Settings
                                             </h3>
@@ -195,7 +195,7 @@ export const NavigationPage = () => {
                                         name='vertical-tabs'
                                         class='mt-0'
                                     >
-                                        <div class='p-4 space-y-2 border border-border rounded-(--radius)'>
+                                        <div class='p-4 space-y-2'>
                                             <h3 class='font-pixel text-sm'>
                                                 General Settings
                                             </h3>
@@ -210,7 +210,7 @@ export const NavigationPage = () => {
                                         name='vertical-tabs'
                                         class='mt-0'
                                     >
-                                        <div class='p-4 space-y-2 border border-border rounded-(--radius)'>
+                                        <div class='p-4 space-y-2'>
                                             <h3 class='font-pixel text-sm'>
                                                 Billing Information
                                             </h3>
@@ -225,7 +225,7 @@ export const NavigationPage = () => {
                                         name='vertical-tabs'
                                         class='mt-0'
                                     >
-                                        <div class='p-4 space-y-2 border border-border rounded-(--radius)'>
+                                        <div class='p-4 space-y-2'>
                                             <h3 class='font-pixel text-sm'>
                                                 Security Settings
                                             </h3>
@@ -258,12 +258,12 @@ export const NavigationPage = () => {
   </TabsList>
   <div class="flex-1">
     <TabsContent value="profile" name="vertical-tabs" class="mt-0">
-      <div class="p-4 border rounded-(--radius)">
+      <div class="p-4">
         Profile content here
       </div>
     </TabsContent>
     <TabsContent value="settings" name="vertical-tabs" class="mt-0">
-      <div class="p-4 border rounded-(--radius)">
+      <div class="p-4">
         Settings content here
       </div>
     </TabsContent>

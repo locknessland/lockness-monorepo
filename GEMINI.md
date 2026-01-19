@@ -1908,6 +1908,67 @@ cn('text-base', isLarge && 'text-lg')
 <Button class={cn('w-full', props.class)}>Submit</Button>
 ```
 
+**Pricing Components** - Complete pricing section for SaaS landing pages:
+
+```bash
+# Install pricing and all dependencies (6 files)
+deno run -A jsr:@lockness/ui add pricing
+```
+
+```tsx
+import {
+    PricingSection,
+    PricingCard,
+    PricingCardHeader,
+    PricingCardPrice,
+    PricingCardFeatures,
+    PricingCardFeature,
+    PricingCardAction,
+} from '@view/components/ui/Pricing.tsx'
+
+<PricingSection columns={2}>
+    <PricingCard>
+        <PricingCardHeader title="Starter" />
+        <PricingCardPrice price={0} description="Free forever" />
+        <PricingCardFeatures>
+            <PricingCardFeature>Up to 3 projects</PricingCardFeature>
+            <PricingCardFeature included={false}>Priority support</PricingCardFeature>
+        </PricingCardFeatures>
+        <PricingCardAction href="/signup" variant="outline">
+            Get Started
+        </PricingCardAction>
+    </PricingCard>
+
+    <PricingCard featured>
+        <PricingCardHeader title="Pro" badge="Popular" />
+        <PricingCardPrice price={29} currency="$" period="month" />
+        <PricingCardFeatures>
+            <PricingCardFeature>Unlimited projects</PricingCardFeature>
+            <PricingCardFeature>Priority support</PricingCardFeature>
+        </PricingCardFeatures>
+        <PricingCardAction href="/signup">Start Free Trial</PricingCardAction>
+    </PricingCard>
+</PricingSection>
+```
+
+#### Components with Dependencies
+
+Some components depend on others. The CLI automatically resolves and installs
+all dependencies:
+
+```bash
+# Adding pricing installs 6 files automatically:
+# - pricing, button, card, badge, icons, utils
+deno run -A jsr:@lockness/ui add pricing
+```
+
+| Component | Dependencies                      |
+| --------- | --------------------------------- |
+| `button`  | utils                             |
+| `card`    | utils                             |
+| `badge`   | utils                             |
+| `pricing` | utils, icons, button, card, badge |
+
 #### Unpoly Integration
 
 All components support Unpoly directives for SPA-like navigation without heavy

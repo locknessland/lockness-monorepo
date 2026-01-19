@@ -21,26 +21,61 @@ const navSections = [
         ],
     },
     {
-        title: 'COMPONENTS',
+        title: 'BASIC',
         links: [
             { title: 'Buttons', href: '/ui/buttons' },
-            { title: 'Cards', href: '/ui/cards' },
+            { title: 'Badges', href: '/ui/badges' },
+            { title: 'Alerts', href: '/ui/alerts' },
+            { title: 'Separators', href: '/ui/separators' },
+            { title: 'Keyboards', href: '/ui/keyboards' },
+        ],
+    },
+    {
+        title: 'FORMS',
+        links: [
             { title: 'Form Components', href: '/ui/forms' },
-            { title: 'Display Components', href: '/ui/display' },
-            { title: 'Navigation', href: '/ui/navigation' },
+            { title: 'Upload Zone', href: '/ui/upload-zone' },
+        ],
+    },
+    {
+        title: 'LAYOUT',
+        links: [
+            { title: 'Cards', href: '/ui/cards' },
             { title: 'Accordion', href: '/ui/accordion' },
-            { title: 'Sidebar', href: '/ui/sidebar' },
             { title: 'Modal', href: '/ui/modal' },
-            { title: 'Navbar', href: '/ui/navbar' },
             { title: 'Table', href: '/ui/table' },
+        ],
+    },
+    {
+        title: 'NAVIGATION',
+        links: [
+            { title: 'Navigation', href: '/ui/navigation' },
+            { title: 'Navbar', href: '/ui/navbar' },
+            { title: 'Sidebar', href: '/ui/sidebar' },
             { title: 'Pagination', href: '/ui/pagination' },
+        ],
+    },
+    {
+        title: 'FEEDBACK',
+        links: [
             { title: 'Progress', href: '/ui/progress' },
             { title: 'Spinner', href: '/ui/spinner' },
-            { title: 'Newsletter', href: '/ui/newsletter' },
-            { title: 'Hero', href: '/ui/hero' },
-            { title: 'Gallery', href: '/ui/gallery' },
-            { title: 'Upload Zone', href: '/ui/upload-zone' },
+            { title: 'Skeletons', href: '/ui/skeletons' },
+        ],
+    },
+    {
+        title: 'DATA',
+        links: [
             { title: 'Chart', href: '/ui/chart' },
+            { title: 'Gallery', href: '/ui/gallery' },
+        ],
+    },
+    {
+        title: 'MARKETING',
+        links: [
+            { title: 'Hero', href: '/ui/hero' },
+            { title: 'Newsletter', href: '/ui/newsletter' },
+            { title: 'Pricing', href: '/ui/pricing' },
         ],
     },
 ]

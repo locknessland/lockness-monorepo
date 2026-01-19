@@ -133,6 +133,43 @@
     --inline-code-foreground: var(--foreground);
     --inline-code-border-color: var(--border);
 
+    /* Badge customization */
+    --badge-padding-x: 0.625rem;
+    --badge-padding-y: 0.125rem;
+    --badge-font-size: 0.75rem;
+    --badge-font-weight: 600;
+    --badge-border-width: 1px;
+
+    /* Alert customization */
+    --alert-padding: 1rem;
+    --alert-border-radius: var(--radius);
+    --alert-border-width: 1px;
+    --alert-icon-size: 1rem;
+    --alert-title-font-size: 0.875rem;
+    --alert-title-font-weight: 500;
+    --alert-description-font-size: 0.875rem;
+
+    /* Separator customization */
+    --separator-thickness: 1px;
+    --separator-color: var(--border);
+
+    /* Skeleton customization */
+    --skeleton-border-radius: var(--radius);
+    --skeleton-background: var(--muted);
+    --skeleton-animation-duration: 2s;
+
+    /* Kbd customization */
+    --kbd-padding-x: 0.375rem;
+    --kbd-padding-y: 0;
+    --kbd-height: 1.25rem;
+    --kbd-font-size: 0.625rem;
+    --kbd-font-weight: 500;
+    --kbd-border-radius: calc(var(--radius) - 2px);
+    --kbd-border-width: 1px;
+    --kbd-background: var(--muted);
+    --kbd-foreground: var(--muted-foreground);
+    --kbd-border-color: var(--border);
+
     /* Title customization - h1 is the base, others are calculated */
     --title-h1-font-size: 2.25rem;
     --title-h1-font-size-md: 3rem;

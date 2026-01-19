@@ -61,8 +61,11 @@ export const Badge: FC<BadgeProps> = ({
     return (
         <span
             class={cn(
-                'inline-flex items-center rounded-[calc((--radius)*2)] px-2.5 py-0.5',
-                'text-xs font-semibold transition-colors',
+                'inline-flex items-center justify-center',
+                'px-(--badge-padding-x) py-(--badge-padding-y)',
+                'rounded-[calc(var(--radius))]',
+                'text-(length:--badge-font-size) font-[--badge-font-weight]',
+                'transition-colors',
                 'focus:outline-none focus:ring-2 focus:ring-(--ring)',
                 'focus:ring-offset-(--ring-offset)',
                 variant === 'default' &&

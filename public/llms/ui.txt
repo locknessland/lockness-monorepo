@@ -183,6 +183,105 @@ import { RootLayout } from '@view/components/ui/RootLayout.tsx'
 - Responsive viewport settings
 - UTF-8 charset declaration
 
+### Pricing Components
+
+Complete pricing section components for SaaS landing pages.
+
+```bash
+# Install pricing and all dependencies (6 files)
+deno run -A jsr:@lockness/ui add pricing
+```
+
+**Installs automatically:**
+- `components/ui/Pricing.tsx` - Main pricing components
+- `components/ui/Button.tsx` - CTA buttons
+- `components/ui/Card.tsx` - Card containers
+- `components/ui/Badge.tsx` - Promotional badges
+- `lib/utils.ts` - Class name utility
+- `lib/icons.tsx` - Check/X icons
+
+```tsx
+import {
+    PricingSection,
+    PricingCard,
+    PricingCardHeader,
+    PricingCardPrice,
+    PricingCardDescription,
+    PricingCardFeatures,
+    PricingCardFeature,
+    PricingCardAction,
+    PricingToggle,
+    PricingComparison,
+} from '@view/components/ui/Pricing.tsx'
+
+// Two-tier pricing
+<PricingSection columns={2}>
+    <PricingCard>
+        <PricingCardHeader title="Starter" />
+        <PricingCardPrice price={0} description="Free forever" />
+        <PricingCardDescription>
+            Perfect for individuals and small projects
+        </PricingCardDescription>
+        <PricingCardFeatures>
+            <PricingCardFeature>Up to 3 projects</PricingCardFeature>
+            <PricingCardFeature included={false}>Priority support</PricingCardFeature>
+        </PricingCardFeatures>
+        <PricingCardAction href="/signup" variant="outline">
+            Get Started Free
+        </PricingCardAction>
+    </PricingCard>
+
+    <PricingCard featured>
+        <PricingCardHeader title="Pro" badge="Popular" />
+        <PricingCardPrice price={29} period="month" />
+        <PricingCardFeatures>
+            <PricingCardFeature>Unlimited projects</PricingCardFeature>
+            <PricingCardFeature>Priority support</PricingCardFeature>
+        </PricingCardFeatures>
+        <PricingCardAction href="/signup">
+            Start Free Trial
+        </PricingCardAction>
+    </PricingCard>
+</PricingSection>
+```
+
+**Components:**
+- `PricingSection` - Grid container (2 or 3 columns)
+- `PricingCard` - Card container, `featured` prop for emphasis
+- `PricingCardHeader` - Title with optional `badge`
+- `PricingCardPrice` - Price with `currency`, `period`, `originalPrice`
+- `PricingCardDescription` - Short tier description
+- `PricingCardFeatures` - Feature list container
+- `PricingCardFeature` - Feature with check/cross icon
+- `PricingCardAction` - CTA button (always at bottom)
+- `PricingToggle` - Monthly/Yearly toggle
+- `PricingComparison` - Feature comparison table
+
+**Typesafe Props:**
+```tsx
+// Currency with autocomplete
+type CurrencySymbol = '$' | '€' | '£' | '¥' | '₹' | string
+
+// Billing period with autocomplete
+type BillingPeriod = 'month' | 'year' | 'one-time' | 'lifetime' | string
+
+// Examples
+<PricingCardPrice price={29} currency="€" period="month" />
+<PricingCardPrice price={290} originalPrice={348} description="Save 17%" />
+```
+
+**Feature Comparison:**
+```tsx
+<PricingComparison
+    tiers={['Free', 'Pro', 'Enterprise']}
+    features={[
+        ['Projects', '3', '10', 'Unlimited'],
+        ['Storage', '1 GB', '10 GB', '100 GB'],
+        ['Support', false, true, true],
+    ]}
+/>
+```
+
 ## Utilities
 
 ### cn() - Class Name Utility
@@ -468,15 +567,31 @@ const REGISTRY = {
             'tailwind-merge': 'npm:tailwind-merge@2.6.0',
         },
     },
+    'icons': {
+        name: 'icons',
+        description: 'SVG icon components (CheckCircleIcon, XCircleIcon, etc.)',
+        files: [{ path: 'icons.tsx', target: 'lib/icons.tsx' }],
+    },
     'button': {
         name: 'button',
         description: 'Flexible button component with variants and sizes',
         files: [{ path: 'components/Button.tsx', target: 'components/ui/Button.tsx' }],
         internalDependencies: ['utils'],
     },
+    'pricing': {
+        name: 'pricing',
+        description: 'Pricing components for SaaS landing pages',
+        files: [{ path: 'components/Pricing.tsx', target: 'components/ui/Pricing.tsx' }],
+        internalDependencies: ['utils', 'icons', 'button', 'card', 'badge'],
+    },
     // ...
 }
 ```
+
+**Dependencies are resolved automatically:**
+- `internalDependencies` lists other registry components
+- CLI installs all dependencies recursively
+- Import paths are rewritten for target structure
 
 ### Component Caching
 
@@ -496,7 +611,18 @@ import { cn } from '../lib/utils.ts'
 
 // Copied to app/view/components/ui/Button.tsx
 import { cn } from '../../lib/utils.ts'
+
+// Source (packages/ui/components/Pricing.tsx)
+import { CheckCircleIcon } from '../icons.tsx'
+
+// Copied to app/view/components/ui/Pricing.tsx
+import { CheckCircleIcon } from '../../lib/icons.tsx'
 ```
+
+**Rewriting rules:**
+- `../lib/utils.ts` → `../../lib/utils.ts`
+- `../icons.tsx` → `../../lib/icons.tsx`
+- `./Button.tsx`, `./Card.tsx` → unchanged (same folder)
 
 ## Why This Approach?
 

@@ -54,11 +54,13 @@ export const Kbd: FC<KbdProps> = ({ class: className, children, ...props }) => {
     return (
         <kbd
             class={cn(
-                'pointer-events-none inline-flex h-5 select-none items-center',
-                'gap-1 rounded-[calc((--radius)-2px)] border border-(--border)',
-                'bg-(--muted) px-1.5 font-mono text-[10px] font-medium',
-                'text-(--muted-foreground)',
-                'opacity-100',
+                'pointer-events-none inline-flex select-none items-center',
+                'h-(--kbd-height) gap-1',
+                'px-(--kbd-padding-x) py-(--kbd-padding-y)',
+                'rounded-(--kbd-border-radius)',
+                'border-[length:--kbd-border-width] border-(--kbd-border-color)',
+                'bg-(--kbd-background) text-(--kbd-foreground)',
+                'font-mono text-(length:--kbd-font-size) font-[--kbd-font-weight]',
                 className,
             )}
             {...props}

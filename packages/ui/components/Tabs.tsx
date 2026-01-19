@@ -208,7 +208,7 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({
         <label
             class={cn(
                 'inline-flex items-center justify-center whitespace-nowrap',
-                'rounded-[calc((--radius)-2px)] px-3 py-1.5 text-sm font-medium cursor-pointer',
+                'rounded-[calc(var(--radius)-2px)] px-3 py-1.5 text-sm font-medium cursor-pointer',
                 'ring-offset-(--background) transition-all',
                 'focus-visible:outline-none focus-visible:ring-2',
                 'focus-visible:ring-(--ring) focus-visible:ring-offset-(--ring-offset)',

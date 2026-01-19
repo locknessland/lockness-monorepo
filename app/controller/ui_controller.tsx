@@ -3,7 +3,11 @@ import { UiIndex } from '@view/pages/ui/getting-started.tsx'
 import { ButtonsPage } from '@view/pages/ui/buttons.tsx'
 import { CardsPage } from '@view/pages/ui/cards.tsx'
 import { FormsPage } from '@view/pages/ui/forms.tsx'
-import { DisplayPage } from '@view/pages/ui/display.tsx'
+import { BadgesPage } from '@view/pages/ui/badges.tsx'
+import { AlertsPage } from '@view/pages/ui/alerts.tsx'
+import { SeparatorsPage } from '@view/pages/ui/separators.tsx'
+import { SkeletonsPage } from '@view/pages/ui/skeletons.tsx'
+import { KeyboardsPage } from '@view/pages/ui/keyboards.tsx'
 import { NavigationPage } from '@view/pages/ui/navigation.tsx'
 import { AccordionPage } from '@view/pages/ui/accordion.tsx'
 import { SidebarPage } from '@view/pages/ui/sidebar.tsx'
@@ -18,6 +22,7 @@ import { SpinnerPage } from '@view/pages/ui/spinner.tsx'
 import { NewsletterPage } from '@view/pages/ui/newsletter.tsx'
 import { HeroPage } from '@view/pages/ui/hero.tsx'
 import { GalleryPage } from '@view/pages/ui/gallery.tsx'
+import { PricingPage } from '@view/pages/ui/pricing.tsx'
 
 @Controller('/ui')
 export class UiController {
@@ -41,9 +46,29 @@ export class UiController {
         return c.render(<FormsPage />)
     }
 
-    @Get('/display', { name: 'ui.display' })
-    display(c: Context) {
-        return c.render(<DisplayPage />)
+    @Get('/badges', { name: 'ui.badges' })
+    badges(c: Context) {
+        return c.render(<BadgesPage />)
+    }
+
+    @Get('/alerts', { name: 'ui.alerts' })
+    alerts(c: Context) {
+        return c.render(<AlertsPage />)
+    }
+
+    @Get('/separators', { name: 'ui.separators' })
+    separators(c: Context) {
+        return c.render(<SeparatorsPage />)
+    }
+
+    @Get('/skeletons', { name: 'ui.skeletons' })
+    skeletons(c: Context) {
+        return c.render(<SkeletonsPage />)
+    }
+
+    @Get('/keyboards', { name: 'ui.keyboards' })
+    keyboards(c: Context) {
+        return c.render(<KeyboardsPage />)
     }
 
     @Get('/navigation', { name: 'ui.navigation' })
@@ -114,5 +139,10 @@ export class UiController {
     @Get('/gallery', { name: 'ui.gallery' })
     gallery(c: Context) {
         return c.render(<GalleryPage />)
+    }
+
+    @Get('/pricing', { name: 'ui.pricing' })
+    pricing(c: Context) {
+        return c.render(<PricingPage />)
     }
 }

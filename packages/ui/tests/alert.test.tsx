@@ -66,7 +66,7 @@ Deno.test('AlertTitle component', async (t) => {
     await t.step('renders with content', () => {
         const html = renderToString(<AlertTitle>Title</AlertTitle>)
         assertStringIncludes(html, 'Title')
-        assertStringIncludes(html, 'font-medium')
+        assertStringIncludes(html, '--alert-title-font-size')
     })
 })
 
@@ -76,6 +76,6 @@ Deno.test('AlertDescription component', async (t) => {
             <AlertDescription>Description</AlertDescription>,
         )
         assertStringIncludes(html, 'Description')
-        assertStringIncludes(html, 'text-sm')
+        assertStringIncludes(html, '--alert-description-font-size')
     })
 })
