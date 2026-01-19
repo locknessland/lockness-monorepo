@@ -209,7 +209,12 @@ export type GalleryJustifiedItemRatio =
  * | `md`      | Medium border radius                     |
  * | `lg`      | Large border radius                      |
  */
-export type GalleryJustifiedItemRounded = 'none' | 'default' | 'sm' | 'md' | 'lg'
+export type GalleryJustifiedItemRounded =
+    | 'none'
+    | 'default'
+    | 'sm'
+    | 'md'
+    | 'lg'
 
 /**
  * Props for the {@link GalleryJustifiedItem} component.

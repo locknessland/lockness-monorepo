@@ -154,11 +154,11 @@ export type {
 } from './components/Hero.tsx'
 export {
     Gallery,
-    GalleryJustified,
-    GalleryJustifiedItem,
     GalleryGrid,
     GalleryImage,
     GalleryItem,
+    GalleryJustified,
+    GalleryJustifiedItem,
     GalleryLightboxItem,
     GalleryLightboxScript,
     GalleryMasonry,

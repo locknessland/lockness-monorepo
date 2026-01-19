@@ -2,11 +2,11 @@ import {
     Card,
     CardContent,
     CodeBlock,
-    GalleryJustified,
-    GalleryJustifiedItem,
     GalleryGrid,
     GalleryImage,
     GalleryItem,
+    GalleryJustified,
+    GalleryJustifiedItem,
     GalleryLightboxItem,
     GalleryMasonry,
     GalleryMasonryColumn,
@@ -294,10 +294,10 @@ export const GalleryPage = () => {
                         JUSTIFIED LAYOUT
                     </h2>
                     <p class='text-muted-foreground'>
-                        Justified gallery layout (like Flickr/Google Photos). Images with
-                        variable aspect ratios stretch to fill each row completely, then
-                        wrap to the next line. Each image grows proportionally based on
-                        its ratio.
+                        Justified gallery layout (like Flickr/Google Photos).
+                        Images with variable aspect ratios stretch to fill each
+                        row completely, then wrap to the next line. Each image
+                        grows proportionally based on its ratio.
                     </p>
                     <Card>
                         <CardContent class='p-6'>
