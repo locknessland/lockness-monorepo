@@ -486,8 +486,11 @@ export const ProgressPage = () => {
                         CUSTOM THICKNESS
                     </h2>
                     <p class='text-muted-foreground'>
-                        Use the <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>thickness</code> prop
-                        with a numeric value representing Tailwind spacing
+                        Use the{' '}
+                        <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                            thickness
+                        </code>{' '}
+                        prop with a numeric value representing Tailwind spacing
                         units (1 = 0.25rem).
                     </p>
                     <Card>

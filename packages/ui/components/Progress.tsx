@@ -170,7 +170,9 @@ export const Progress: FC<ProgressProps> = ({
                     !thickness && verticalSizeStyles[size],
                     className,
                 )}
-                style={`border-radius: var(--radius)${thicknessStyle ? `; width: ${thicknessStyle}` : ''}`}
+                style={`border-radius: var(--radius)${
+                    thicknessStyle ? `; width: ${thicknessStyle}` : ''
+                }`}
                 {...props}
             >
                 <div
@@ -196,7 +198,9 @@ export const Progress: FC<ProgressProps> = ({
                 !thickness && !innerLabel && sizeStyles[size],
                 innerLabel && !thickness && 'h-4',
             )}
-            style={`border-radius: var(--radius)${thicknessStyle ? `; height: ${thicknessStyle}` : ''}`}
+            style={`border-radius: var(--radius)${
+                thicknessStyle ? `; height: ${thicknessStyle}` : ''
+            }`}
         >
             <div
                 class={cn(
