@@ -23,6 +23,7 @@ import { NewsletterPage } from '@view/pages/ui/newsletter.tsx'
 import { HeroPage } from '@view/pages/ui/hero.tsx'
 import { GalleryPage } from '@view/pages/ui/gallery.tsx'
 import { PricingPage } from '@view/pages/ui/pricing.tsx'
+import { ThemeSwitchPage } from '@view/pages/ui/theme-switch.tsx'
 
 @Controller('/ui')
 export class UiController {
@@ -144,5 +145,10 @@ export class UiController {
     @Get('/pricing', { name: 'ui.pricing' })
     pricing(c: Context) {
         return c.render(<PricingPage />)
+    }
+
+    @Get('/theme-switch', { name: 'ui.theme-switch' })
+    themeSwitch(c: Context) {
+        return c.render(<ThemeSwitchPage />)
     }
 }

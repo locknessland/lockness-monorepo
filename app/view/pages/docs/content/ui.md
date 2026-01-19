@@ -360,6 +360,35 @@ type Props = { class?: string }
 }
 ```
 
+## Theme Components
+
+### ThemeSwitch
+
+A versatile theme switcher with multiple visual styles and native JavaScript
+logic.
+
+```tsx
+import { ThemeSwitch, ThemeSwitchScript } from '@view/components/ui/ThemeSwitch.tsx'
+
+// Basic usage (classic style)
+<ThemeSwitch />
+
+// Single button toggle
+<ThemeSwitch variant="toggle" />
+
+// Checkbox-style switch
+<ThemeSwitch variant="switch" />
+```
+
+**Props:**
+
+- `variant?: 'classic' | 'toggle' | 'switch'` (default: 'classic')
+- `size?: 'sm' | 'md' | 'lg'` (default: 'md')
+- `class?: string` - Additional Tailwind classes
+
+**Note:** Add `<ThemeSwitchScript />` to your `RootLayout` to initialize the
+theme and keep components synchronized.
+
 ## Unpoly Integration
 
 All components support Unpoly directives for SPA-like navigation without heavy

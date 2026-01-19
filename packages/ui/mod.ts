@@ -278,6 +278,18 @@ const REGISTRY: Registry = {
         ],
         internalDependencies: ['utils', 'icons', 'button', 'card', 'badge'],
     },
+    'theme-switch': {
+        name: 'theme-switch',
+        description:
+            'Dual-button theme switcher optimized for Preline UI dark mode system',
+        files: [
+            {
+                path: 'components/ThemeSwitch.tsx',
+                target: 'components/ui/ThemeSwitch.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
 }
 
 // =============================================================================
@@ -393,8 +405,7 @@ async function readSourceFile(
         return content
     } catch (error) {
         throw new Error(
-            `Failed to fetch component file from JSR (${jsrUrl}): ${
-                error instanceof Error ? error.message : String(error)
+            `Failed to fetch component file from JSR (${jsrUrl}): ${error instanceof Error ? error.message : String(error)
             }`,
         )
     }
@@ -481,8 +492,7 @@ async function updateDenoConfig(
         }
     } catch (error) {
         console.error(
-            `\n⚠️  Failed to update ${configPath}: ${
-                error instanceof Error ? error.message : String(error)
+            `\n⚠️  Failed to update ${configPath}: ${error instanceof Error ? error.message : String(error)
             }`,
         )
         console.log('\n   Please add dependencies manually:')

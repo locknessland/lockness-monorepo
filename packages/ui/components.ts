@@ -327,8 +327,8 @@ export type {
 } from './components/table.tsx'
 
 // Theme Components
-export { ThemeToggle, ThemeToggleScript } from './components/ThemeToggle.tsx'
-export type { ThemeToggleProps } from './components/ThemeToggle.tsx'
+export { ThemeSwitch, ThemeSwitchScript } from './components/ThemeSwitch.tsx'
+export type { ThemeSwitchProps } from './components/ThemeSwitch.tsx'
 
 // Pricing Components
 export {

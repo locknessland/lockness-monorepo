@@ -7,8 +7,8 @@ import {
     SidebarInset,
     SidebarProvider,
     SidebarTrigger,
-    ThemeToggle,
-    ThemeToggleScript,
+    ThemeSwitch,
+    ThemeSwitchScript,
     Title,
 } from '@lockness/ui/components'
 import { UiSidebar } from '../components/ui-sidebar.tsx'
@@ -52,7 +52,7 @@ export const PageUiLayout = (
                     >
                         GitHub
                     </NavbarMenuItem>
-                    <ThemeToggle />
+                    <ThemeSwitch variant='toggle' />
                 </NavbarContent>
             </Navbar>
 
@@ -85,7 +85,7 @@ export const PageUiLayout = (
                 </SidebarInset>
             </SidebarProvider>
 
-            <ThemeToggleScript />
+            <ThemeSwitchScript />
             <ThemeCustomizerScript />
         </RootLayout>
     )

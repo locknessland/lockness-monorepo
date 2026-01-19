@@ -28,6 +28,7 @@ const navSections = [
             { title: 'Alerts', href: '/ui/alerts' },
             { title: 'Separators', href: '/ui/separators' },
             { title: 'Keyboards', href: '/ui/keyboards' },
+            { title: 'Theme Switch', href: '/ui/theme-switch' },
         ],
     },
     {

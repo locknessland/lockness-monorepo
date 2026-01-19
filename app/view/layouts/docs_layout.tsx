@@ -20,8 +20,8 @@ import {
     SidebarMenuItem,
     SidebarProvider,
     SidebarTrigger,
-    ThemeToggle,
-    ThemeToggleScript,
+    ThemeSwitch,
+    ThemeSwitchScript,
     Title,
 } from '@lockness/ui/components'
 
@@ -89,11 +89,11 @@ export const DocsLayout = (
                     >
                         GitHub
                     </NavbarLink>
-                    <ThemeToggle />
+                    <ThemeSwitch variant='toggle' />
                 </NavbarContent>
             </Navbar>
 
-            <ThemeToggleScript />
+            <ThemeSwitchScript />
             <SidebarProvider>
                 {/* Sidebar */}
                 <DocsSidebar currentPath={props.currentPath} />

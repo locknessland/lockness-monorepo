@@ -23,8 +23,8 @@ import {
     SectionDescription,
     SectionHeader,
     SectionTitle,
-    ThemeToggle,
-    ThemeToggleScript,
+    ThemeSwitch,
+    ThemeSwitchScript,
     Title,
 } from '@lockness/ui/components'
 
@@ -161,7 +161,7 @@ export const Home = () => {
                     </NavbarContent>
 
                     <NavbarContent position='right'>
-                        <ThemeToggle />
+                        <ThemeSwitch variant='toggle' />
                         <a
                             href='https://github.com/locknessjs/core'
                             class='hidden md:inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
@@ -174,7 +174,7 @@ export const Home = () => {
                     </NavbarContent>
                 </Navbar>
 
-                <ThemeToggleScript />
+                <ThemeSwitchScript />
 
                 {/* Hero Section */}
                 <section class='pt-32 pb-20 px-6 relative overflow-hidden'>

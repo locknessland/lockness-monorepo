@@ -102,6 +102,30 @@ import { Button } from '@view/components/ui/Button.tsx'
 - `class?: string` - Additional Tailwind classes
 - All standard HTML button attributes
 
+### ThemeSwitch
+
+Versatile theme switcher with multiple styles and native JS logic.
+
+```tsx
+import { ThemeSwitch, ThemeSwitchScript } from '@view/components/ui/ThemeSwitch.tsx'
+
+// Classic (dual buttons)
+<ThemeSwitch variant="classic" />
+
+// Toggle (single button swapping icons)
+<ThemeSwitch variant="toggle" />
+
+// Switch (checkbox style)
+<ThemeSwitch variant="switch" />
+```
+
+**Props:**
+- `variant?: 'classic' | 'toggle' | 'switch'` (default: 'classic')
+- `size?: 'sm' | 'md' | 'lg'` (default: 'md')
+- `class?: string` - Additional Tailwind classes
+
+**Note:** Include `<ThemeSwitchScript />` in your layout for initialization.
+
 ### Card Components
 
 Compound components for content containers.
