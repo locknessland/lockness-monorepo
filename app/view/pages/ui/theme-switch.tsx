@@ -32,6 +32,38 @@ export const ThemeSwitchPage = () => {
                     </CodeBlock>
                 </section>
 
+                {/* Classic Variant with custom labels */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        CLASSIC WITH CUSTOM LABELS
+                    </h2>
+                    <p class='text-sm text-muted-foreground'>
+                        Customize the button labels.
+                    </p>
+                    <div class='flex flex-wrap gap-4 items-center py-6 px-6 bg-card rounded-lg'>
+                        <ThemeSwitch variant='classic' darkLabel='Moon' lightLabel='Sun' />
+                    </div>
+                    <CodeBlock lang='tsx'>
+                        {`<ThemeSwitch variant="classic" darkLabel="Moon" lightLabel="Sun" />`}
+                    </CodeBlock>
+                </section>
+
+                {/* Classic Variant with colored icons */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        CLASSIC WITH COLORED ICONS
+                    </h2>
+                    <p class='text-sm text-muted-foreground'>
+                        Add colors to the icons via props.
+                    </p>
+                    <div class='flex flex-wrap gap-4 items-center py-6 px-6 bg-card rounded-lg'>
+                        <ThemeSwitch variant='classic' sunIconClass='text-amber-500' moonIconClass='text-blue-500' />
+                    </div>
+                    <CodeBlock lang='tsx'>
+                        {`<ThemeSwitch variant="classic" sunIconClass="text-amber-500" moonIconClass="text-blue-500" />`}
+                    </CodeBlock>
+                </section>
+
                 {/* Toggle Variant */}
                 <section class='space-y-4'>
                     <h2 class='font-pixel text-sm text-foreground'>
@@ -49,13 +81,30 @@ export const ThemeSwitchPage = () => {
                     </CodeBlock>
                 </section>
 
+                {/* Toggle Variant with colored icons */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        TOGGLE WITH COLORED ICONS
+                    </h2>
+                    <p class='text-sm text-muted-foreground'>
+                        Add colors to the toggle icons.
+                    </p>
+                    <div class='flex flex-wrap gap-4 items-center py-6 px-6 bg-card rounded-lg'>
+                        <ThemeSwitch variant='toggle' sunIconClass='text-amber-500' moonIconClass='text-indigo-500' />
+                        <ThemeSwitch variant='toggle' size='lg' sunIconClass='text-orange-400' moonIconClass='text-purple-500' />
+                    </div>
+                    <CodeBlock lang='tsx'>
+                        {`<ThemeSwitch variant="toggle" sunIconClass="text-amber-500" moonIconClass="text-indigo-500" />`}
+                    </CodeBlock>
+                </section>
+
                 {/* Switch Variant */}
                 <section class='space-y-4'>
                     <h2 class='font-pixel text-sm text-foreground'>
                         SWITCH VARIANT
                     </h2>
                     <p class='text-sm text-muted-foreground'>
-                        Checkbox-style toggle with integrated Sun/Moon icons.
+                        Checkbox-style toggle with Sun/Moon icons.
                     </p>
                     <div class='flex flex-wrap gap-4 items-center py-6 px-6 bg-card rounded-lg'>
                         <div class='flex items-center gap-6'>
@@ -66,6 +115,25 @@ export const ThemeSwitchPage = () => {
                     </div>
                     <CodeBlock lang='tsx'>
                         {`<ThemeSwitch variant="switch" />`}
+                    </CodeBlock>
+                </section>
+
+                {/* Switch with colored icons */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        SWITCH WITH COLORED ICONS
+                    </h2>
+                    <p class='text-sm text-muted-foreground'>
+                        Add colors to the switch icons via props.
+                    </p>
+                    <div class='flex flex-wrap gap-4 items-center py-6 px-6 bg-card rounded-lg'>
+                        <div class='flex items-center gap-6'>
+                            <ThemeSwitch variant='switch' sunIconClass='text-amber-500' moonIconClass='text-blue-500' />
+                            <ThemeSwitch variant='switch' size='lg' sunIconClass='text-orange-400' moonIconClass='text-indigo-400' />
+                        </div>
+                    </div>
+                    <CodeBlock lang='tsx'>
+                        {`<ThemeSwitch variant="switch" sunIconClass="text-amber-500" moonIconClass="text-blue-500" />`}
                     </CodeBlock>
                 </section>
 
@@ -130,6 +198,58 @@ export const ThemeSwitchPage = () => {
                                     <td class='py-2 px-3'>-</td>
                                     <td class='py-2 px-3'>
                                         Additional CSS classes
+                                    </td>
+                                </tr>
+                                <tr class='border-b border-border/50'>
+                                    <td class='py-2 px-3'>
+                                        <code>darkLabel</code>
+                                    </td>
+                                    <td class='py-2 px-3'>
+                                        <code>string</code>
+                                    </td>
+                                    <td class='py-2 px-3'>
+                                        <code>'Dark'</code>
+                                    </td>
+                                    <td class='py-2 px-3'>
+                                        Label shown in light mode (classic variant)
+                                    </td>
+                                </tr>
+                                <tr class='border-b border-border/50'>
+                                    <td class='py-2 px-3'>
+                                        <code>lightLabel</code>
+                                    </td>
+                                    <td class='py-2 px-3'>
+                                        <code>string</code>
+                                    </td>
+                                    <td class='py-2 px-3'>
+                                        <code>'Light'</code>
+                                    </td>
+                                    <td class='py-2 px-3'>
+                                        Label shown in dark mode (classic variant)
+                                    </td>
+                                </tr>
+                                <tr class='border-b border-border/50'>
+                                    <td class='py-2 px-3'>
+                                        <code>sunIconClass</code>
+                                    </td>
+                                    <td class='py-2 px-3'>
+                                        <code>string</code>
+                                    </td>
+                                    <td class='py-2 px-3'>-</td>
+                                    <td class='py-2 px-3'>
+                                        Custom class for the sun icon (e.g. color)
+                                    </td>
+                                </tr>
+                                <tr class='border-b border-border/50'>
+                                    <td class='py-2 px-3'>
+                                        <code>moonIconClass</code>
+                                    </td>
+                                    <td class='py-2 px-3'>
+                                        <code>string</code>
+                                    </td>
+                                    <td class='py-2 px-3'>-</td>
+                                    <td class='py-2 px-3'>
+                                        Custom class for the moon icon (e.g. color)
                                     </td>
                                 </tr>
                             </tbody>

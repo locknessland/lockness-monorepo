@@ -176,6 +176,22 @@
     --kbd-foreground: var(--muted-foreground);
     --kbd-border-color: var(--border);
 
+    /* ThemeSwitch customization */
+    --theme-switch-border-radius: var(--radius);
+    --theme-switch-sun-color: oklch(0.4 0 0);
+    --theme-switch-moon-color: oklch(0.4 0 0);
+    --theme-switch-knob-bg: oklch(1 0 0);
+    --theme-switch-track-bg: oklch(0.9 0 0);
+    --theme-switch-track-bg-dark: oklch(0.3 0 0);
+    /* Classic variant */
+    --theme-switch-classic-padding-x: 1rem;
+    --theme-switch-classic-padding-y: 0.5rem;
+    --theme-switch-classic-gap: 0.5rem;
+    /* Toggle variant */
+    --theme-switch-toggle-padding: 0.5rem;
+    /* Switch variant */
+    --theme-switch-switch-padding: 0.125rem;
+
     /* Title customization - h1 is the base, others are calculated */
     --title-h1-font-size: 2.25rem;
     --title-h1-font-size-md: 3rem;
