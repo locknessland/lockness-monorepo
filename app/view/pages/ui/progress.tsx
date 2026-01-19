@@ -56,6 +56,55 @@ export const ProgressPage = () => {
                     </CodeBlock>
                 </section>
 
+                {/* Floating Label */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        FLOATING LABEL
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        A label that floats above the progress bar, following
+                        the current progress position.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-6'>
+                            <Progress value={25} floatingLabel />
+                            <Progress value={50} floatingLabel />
+                            <Progress value={75} floatingLabel />
+                            <Progress value={100} floatingLabel />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={50} floatingLabel />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Floating labels also support variants:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-6'>
+                            <Progress value={60} floatingLabel />
+                            <Progress
+                                value={80}
+                                floatingLabel
+                                variant='success'
+                            />
+                            <Progress
+                                value={45}
+                                floatingLabel
+                                variant='warning'
+                            />
+                            <Progress
+                                value={30}
+                                floatingLabel
+                                variant='destructive'
+                            />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={80} floatingLabel variant="success" />`}
+                    </CodeBlock>
+                </section>
+
                 {/* Variants */}
                 <section class='space-y-4'>
                     <h2 class='font-pixel text-sm text-foreground'>VARIANTS</h2>
@@ -326,7 +375,23 @@ export const ProgressPage = () => {
                                         false
                                     </td>
                                     <td class='py-3 px-4 text-muted-foreground'>
-                                        Show percentage label
+                                        Show percentage label (left-right
+                                        layout)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        floatingLabel
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        false
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Show floating label that follows
+                                        progress
                                     </td>
                                 </tr>
                             </tbody>

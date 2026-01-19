@@ -26,10 +26,15 @@ export interface ProgressProps {
      */
     size?: 'sm' | 'default' | 'lg'
     /**
-     * Show percentage label
+     * Show percentage label above the bar (left-right layout)
      * @default false
      */
     showLabel?: boolean
+    /**
+     * Show floating label that follows the progress
+     * @default false
+     */
+    floatingLabel?: boolean
     /**
      * Additional CSS class names
      */
@@ -57,6 +62,13 @@ const variantStyles = {
     destructive: 'bg-destructive',
 }
 
+const floatingLabelVariantStyles = {
+    default: 'bg-primary/10 border-primary/20 text-primary',
+    success: 'bg-green-50 border-green-200 text-green-600 dark:bg-green-500/10 dark:border-green-500/20 dark:text-green-400',
+    warning: 'bg-yellow-50 border-yellow-200 text-yellow-600 dark:bg-yellow-500/10 dark:border-yellow-500/20 dark:text-yellow-400',
+    destructive: 'bg-destructive/10 border-destructive/20 text-destructive',
+}
+
 /**
  * Progress Component
  *
@@ -77,6 +89,9 @@ const variantStyles = {
  * // Different sizes
  * <Progress value={30} size="sm" />
  * <Progress value={60} size="lg" />
+ *
+ * // Floating label
+ * <Progress value={50} floatingLabel />
  * ```
  */
 export const Progress: FC<ProgressProps> = ({
@@ -85,6 +100,7 @@ export const Progress: FC<ProgressProps> = ({
     variant = 'default',
     size = 'default',
     showLabel = false,
+    floatingLabel = false,
     class: className,
     id,
     ...props
@@ -95,13 +111,24 @@ export const Progress: FC<ProgressProps> = ({
 
     return (
         <div
-            class={cn('w-full', showLabel && 'space-y-1', className)}
+            class={cn('w-full', (showLabel || floatingLabel) && 'space-y-1', className)}
             {...props}
         >
-            {showLabel && (
+            {showLabel && !floatingLabel && (
                 <div class='flex justify-between text-sm text-muted-foreground'>
                     <span>Progress</span>
                     <span>{percentage}%</span>
+                </div>
+            )}
+            {floatingLabel && (
+                <div
+                    class={cn(
+                        'inline-block py-0.5 px-1.5 border text-xs font-medium',
+                        floatingLabelVariantStyles[variant],
+                    )}
+                    style={`margin-left: calc(${percentage}% - 20px); border-radius: var(--radius)`}
+                >
+                    {percentage}%
                 </div>
             )}
             <div
