@@ -44,6 +44,12 @@ export interface TableProps {
     class?: string
     /** Table content */
     children?: unknown
+    /** Add zebra-striping to table rows */
+    striped?: boolean
+    /** Add hover effect to table rows */
+    hoverable?: boolean
+    /** Add borders on all sides of the table and cells */
+    bordered?: boolean
     /** Additional HTML attributes */
     [key: string]: unknown
 }
@@ -55,15 +61,26 @@ export interface TableProps {
 export const Table: FC<TableProps> = ({
     class: className,
     children,
+    striped = false,
+    hoverable = false,
+    bordered = false,
     ...props
 }) => {
     return (
-        <div class='relative w-full overflow-auto'>
+        <div
+            class={cn(
+                'relative w-full overflow-auto',
+                bordered && 'border border-border rounded-(--radius)',
+            )}
+        >
             <table
                 class={cn(
                     'w-full caption-bottom text-sm',
                     className,
                 )}
+                data-striped={striped ? 'true' : undefined}
+                data-hoverable={hoverable ? 'true' : undefined}
+                data-bordered={bordered ? 'true' : undefined}
                 {...props}
             >
                 {children}
@@ -95,7 +112,12 @@ export const TableHeader: FC<TableHeaderProps> = ({
 }) => {
     return (
         <thead
-            class={cn('[&_tr]:border-b', className)}
+            class={cn(
+                '[&_tr]:border-b',
+                // Bordered cells (when parent table has data-bordered)
+                '[[data-bordered=true]_&_th]:border [[data-bordered=true]_&_th]:border-border',
+                className,
+            )}
             {...props}
         >
             {children}
@@ -126,7 +148,16 @@ export const TableBody: FC<TableBodyProps> = ({
 }) => {
     return (
         <tbody
-            class={cn('[&_tr:last-child]:border-0', className)}
+            class={cn(
+                '[&_tr:last-child]:border-0',
+                // Striped rows (when parent table has data-striped)
+                '[[data-striped=true]_&_tr:nth-child(odd)]:bg-muted/50',
+                // Hoverable rows (when parent table has data-hoverable)
+                '[[data-hoverable=true]_&_tr]:hover:bg-muted',
+                // Bordered cells (when parent table has data-bordered)
+                '[[data-bordered=true]_&_td]:border [[data-bordered=true]_&_td]:border-border',
+                className,
+            )}
             {...props}
         >
             {children}

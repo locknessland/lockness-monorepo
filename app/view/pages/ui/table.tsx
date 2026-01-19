@@ -10,7 +10,10 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    Checkbox,
     CodeBlock,
+    Input,
+    Pagination,
     Table,
     TableBody,
     TableCaption,
@@ -218,6 +221,911 @@ export const TablePage = () => {
   <TableCell>{payment.email}</TableCell>
   <TableCell class="text-right">\${payment.amount}</TableCell>
 </TableRow>`}
+                        </CodeBlock>
+                    </CardContent>
+                </Card>
+
+                {/* Striped Rows */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Striped Rows</CardTitle>
+                        <CardDescription>
+                            Add zebra-striping to table rows for better
+                            readability.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class='space-y-4'>
+                        <Table striped>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Name</TableHead>
+                                    <TableHead>Age</TableHead>
+                                    <TableHead>Address</TableHead>
+                                    <TableHead class='text-right'>
+                                        Action
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        John Brown
+                                    </TableCell>
+                                    <TableCell>45</TableCell>
+                                    <TableCell>
+                                        New York No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        Jim Green
+                                    </TableCell>
+                                    <TableCell>27</TableCell>
+                                    <TableCell>
+                                        London No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        Joe Black
+                                    </TableCell>
+                                    <TableCell>31</TableCell>
+                                    <TableCell>
+                                        Sidney No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        Edward King
+                                    </TableCell>
+                                    <TableCell>16</TableCell>
+                                    <TableCell>LA No. 1 Lake Park</TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+
+                        <CodeBlock lang='tsx'>
+                            {`<Table striped>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Name</TableHead>
+      <TableHead>Age</TableHead>
+      <TableHead>Address</TableHead>
+      <TableHead class="text-right">Action</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>John Brown</TableCell>
+      <TableCell>45</TableCell>
+      <TableCell>New York No. 1 Lake Park</TableCell>
+      <TableCell class="text-right">Delete</TableCell>
+    </TableRow>
+    {/* ... more rows */}
+  </TableBody>
+</Table>`}
+                        </CodeBlock>
+                    </CardContent>
+                </Card>
+
+                {/* Hoverable Rows */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Hoverable Rows</CardTitle>
+                        <CardDescription>
+                            Add hover effect to table rows for better
+                            interactivity.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class='space-y-4'>
+                        <Table hoverable>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Name</TableHead>
+                                    <TableHead>Age</TableHead>
+                                    <TableHead>Address</TableHead>
+                                    <TableHead class='text-right'>
+                                        Action
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        John Brown
+                                    </TableCell>
+                                    <TableCell>45</TableCell>
+                                    <TableCell>
+                                        New York No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        Jim Green
+                                    </TableCell>
+                                    <TableCell>27</TableCell>
+                                    <TableCell>
+                                        London No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        Joe Black
+                                    </TableCell>
+                                    <TableCell>31</TableCell>
+                                    <TableCell>
+                                        Sidney No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+
+                        <CodeBlock lang='tsx'>
+                            {`<Table hoverable>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Name</TableHead>
+      <TableHead>Age</TableHead>
+      <TableHead>Address</TableHead>
+      <TableHead class="text-right">Action</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>John Brown</TableCell>
+      <TableCell>45</TableCell>
+      <TableCell>New York No. 1 Lake Park</TableCell>
+      <TableCell class="text-right">Delete</TableCell>
+    </TableRow>
+    {/* ... more rows */}
+  </TableBody>
+</Table>`}
+                        </CodeBlock>
+                    </CardContent>
+                </Card>
+
+                {/* Bordered Table */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Bordered Table</CardTitle>
+                        <CardDescription>
+                            Add borders on all sides of the table and cells.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class='space-y-4'>
+                        <Table bordered>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Name</TableHead>
+                                    <TableHead>Age</TableHead>
+                                    <TableHead>Address</TableHead>
+                                    <TableHead class='text-right'>
+                                        Action
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        John Brown
+                                    </TableCell>
+                                    <TableCell>45</TableCell>
+                                    <TableCell>
+                                        New York No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        Jim Green
+                                    </TableCell>
+                                    <TableCell>27</TableCell>
+                                    <TableCell>
+                                        London No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell class='font-medium'>
+                                        Joe Black
+                                    </TableCell>
+                                    <TableCell>31</TableCell>
+                                    <TableCell>
+                                        Sidney No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+
+                        <CodeBlock lang='tsx'>
+                            {`<Table bordered>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Name</TableHead>
+      <TableHead>Age</TableHead>
+      <TableHead>Address</TableHead>
+      <TableHead class="text-right">Action</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>John Brown</TableCell>
+      <TableCell>45</TableCell>
+      <TableCell>New York No. 1 Lake Park</TableCell>
+      <TableCell class="text-right">Delete</TableCell>
+    </TableRow>
+    {/* ... more rows */}
+  </TableBody>
+</Table>`}
+                        </CodeBlock>
+                    </CardContent>
+                </Card>
+
+                {/* Selection Table */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Selection</CardTitle>
+                        <CardDescription>
+                            Rows can be selectable by adding checkboxes as the
+                            first column.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class='space-y-4'>
+                        <Table bordered>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead class='w-12'>
+                                        <div class='flex items-center justify-center'>
+                                            <Checkbox id='select-all' />
+                                        </div>
+                                    </TableHead>
+                                    <TableHead>Name</TableHead>
+                                    <TableHead>Age</TableHead>
+                                    <TableHead>Address</TableHead>
+                                    <TableHead class='text-right'>
+                                        Action
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow>
+                                    <TableCell>
+                                        <div class='flex items-center justify-center'>
+                                            <Checkbox id='select-1' />
+                                        </div>
+                                    </TableCell>
+                                    <TableCell class='font-medium'>
+                                        John Brown
+                                    </TableCell>
+                                    <TableCell>45</TableCell>
+                                    <TableCell>
+                                        New York No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell>
+                                        <div class='flex items-center justify-center'>
+                                            <Checkbox id='select-2' />
+                                        </div>
+                                    </TableCell>
+                                    <TableCell class='font-medium'>
+                                        Jim Green
+                                    </TableCell>
+                                    <TableCell>27</TableCell>
+                                    <TableCell>
+                                        London No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell>
+                                        <div class='flex items-center justify-center'>
+                                            <Checkbox id='select-3' />
+                                        </div>
+                                    </TableCell>
+                                    <TableCell class='font-medium'>
+                                        Joe Black
+                                    </TableCell>
+                                    <TableCell>31</TableCell>
+                                    <TableCell>
+                                        Sidney No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell>
+                                        <div class='flex items-center justify-center'>
+                                            <Checkbox id='select-4' />
+                                        </div>
+                                    </TableCell>
+                                    <TableCell class='font-medium'>
+                                        Edward King
+                                    </TableCell>
+                                    <TableCell>16</TableCell>
+                                    <TableCell>LA No. 1 Lake Park</TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                                <TableRow>
+                                    <TableCell>
+                                        <div class='flex items-center justify-center'>
+                                            <Checkbox id='select-5' />
+                                        </div>
+                                    </TableCell>
+                                    <TableCell class='font-medium'>
+                                        Jim Red
+                                    </TableCell>
+                                    <TableCell>45</TableCell>
+                                    <TableCell>
+                                        Melbourne No. 1 Lake Park
+                                    </TableCell>
+                                    <TableCell class='text-right'>
+                                        <button
+                                            type='button'
+                                            class='text-sm font-semibold text-primary hover:text-primary/80'
+                                        >
+                                            Delete
+                                        </button>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+
+                        <CodeBlock lang='tsx'>
+                            {`<Table bordered>
+  <TableHeader>
+    <TableRow>
+      <TableHead class="w-12">
+        <div class="flex items-center justify-center">
+          <Checkbox id="select-all" />
+        </div>
+      </TableHead>
+      <TableHead>Name</TableHead>
+      <TableHead>Age</TableHead>
+      <TableHead>Address</TableHead>
+      <TableHead class="text-right">Action</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>
+        <div class="flex items-center justify-center">
+          <Checkbox id="select-1" />
+        </div>
+      </TableCell>
+      <TableCell>John Brown</TableCell>
+      <TableCell>45</TableCell>
+      <TableCell>New York No. 1 Lake Park</TableCell>
+      <TableCell class="text-right">Delete</TableCell>
+    </TableRow>
+    {/* ... more rows */}
+  </TableBody>
+</Table>`}
+                        </CodeBlock>
+                    </CardContent>
+                </Card>
+
+                {/* Search Input */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Search Input</CardTitle>
+                        <CardDescription>
+                            Add a search input to filter table rows. Uses Unpoly
+                            for server-side filtering.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class='space-y-4'>
+                        <div class='border border-border rounded-(--radius) divide-y divide-border'>
+                            <div class='py-3 px-4'>
+                                <form
+                                    up-target='#search-table-results'
+                                    up-autosubmit
+                                    up-delay='300'
+                                    class='relative max-w-xs'
+                                >
+                                    <label
+                                        for='table-search'
+                                        class='sr-only'
+                                    >
+                                        Search
+                                    </label>
+                                    <Input
+                                        type='text'
+                                        name='q'
+                                        id='table-search'
+                                        placeholder='Search for items'
+                                        class='ps-9'
+                                    />
+                                    <div class='absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3'>
+                                        <svg
+                                            class='size-4 text-muted-foreground'
+                                            xmlns='http://www.w3.org/2000/svg'
+                                            width='24'
+                                            height='24'
+                                            viewBox='0 0 24 24'
+                                            fill='none'
+                                            stroke='currentColor'
+                                            stroke-width='2'
+                                            stroke-linecap='round'
+                                            stroke-linejoin='round'
+                                        >
+                                            <circle cx='11' cy='11' r='8' />
+                                            <path d='m21 21-4.3-4.3' />
+                                        </svg>
+                                    </div>
+                                </form>
+                            </div>
+                            <div id='search-table-results'>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead class='w-12'>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='search-select-all' />
+                                                </div>
+                                            </TableHead>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Age</TableHead>
+                                            <TableHead>Address</TableHead>
+                                            <TableHead class='text-right'>
+                                                Action
+                                            </TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableCell>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='search-1' />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell class='font-medium'>
+                                                John Brown
+                                            </TableCell>
+                                            <TableCell>45</TableCell>
+                                            <TableCell>
+                                                New York No. 1 Lake Park
+                                            </TableCell>
+                                            <TableCell class='text-right'>
+                                                <button
+                                                    type='button'
+                                                    class='text-sm font-semibold text-primary hover:text-primary/80'
+                                                >
+                                                    Delete
+                                                </button>
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='search-2' />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell class='font-medium'>
+                                                Jim Green
+                                            </TableCell>
+                                            <TableCell>27</TableCell>
+                                            <TableCell>
+                                                London No. 1 Lake Park
+                                            </TableCell>
+                                            <TableCell class='text-right'>
+                                                <button
+                                                    type='button'
+                                                    class='text-sm font-semibold text-primary hover:text-primary/80'
+                                                >
+                                                    Delete
+                                                </button>
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='search-3' />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell class='font-medium'>
+                                                Joe Black
+                                            </TableCell>
+                                            <TableCell>31</TableCell>
+                                            <TableCell>
+                                                Sidney No. 1 Lake Park
+                                            </TableCell>
+                                            <TableCell class='text-right'>
+                                                <button
+                                                    type='button'
+                                                    class='text-sm font-semibold text-primary hover:text-primary/80'
+                                                >
+                                                    Delete
+                                                </button>
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+
+                        <CodeBlock lang='tsx'>
+                            {`<div class="border border-border rounded-(--radius) divide-y divide-border">
+  <div class="py-3 px-4">
+    <form up-target="#search-results" up-autosubmit up-delay="300" class="relative max-w-xs">
+      <label for="table-search" class="sr-only">Search</label>
+      <Input
+        type="text"
+        name="q"
+        id="table-search"
+        placeholder="Search for items"
+        class="ps-9"
+      />
+      <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3">
+        <SearchIcon class="size-4 text-muted-foreground" />
+      </div>
+    </form>
+  </div>
+  <div id="search-results">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>Age</TableHead>
+          <TableHead>Address</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {filteredData.map((item) => (
+          <TableRow key={item.id}>
+            <TableCell>{item.name}</TableCell>
+            <TableCell>{item.age}</TableCell>
+            <TableCell>{item.address}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </div>
+</div>`}
+                        </CodeBlock>
+                    </CardContent>
+                </Card>
+
+                {/* With Pagination */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>With Pagination</CardTitle>
+                        <CardDescription>
+                            Table with search and pagination controls.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent class='space-y-4'>
+                        <div class='border border-border rounded-(--radius) divide-y divide-border'>
+                            <div class='py-3 px-4'>
+                                <form
+                                    up-target='#pagination-table-results'
+                                    up-autosubmit
+                                    up-delay='300'
+                                    class='relative max-w-xs'
+                                >
+                                    <label
+                                        for='pagination-search'
+                                        class='sr-only'
+                                    >
+                                        Search
+                                    </label>
+                                    <Input
+                                        type='text'
+                                        name='q'
+                                        id='pagination-search'
+                                        placeholder='Search for items'
+                                        class='ps-9'
+                                    />
+                                    <div class='absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3'>
+                                        <svg
+                                            class='size-4 text-muted-foreground'
+                                            xmlns='http://www.w3.org/2000/svg'
+                                            width='24'
+                                            height='24'
+                                            viewBox='0 0 24 24'
+                                            fill='none'
+                                            stroke='currentColor'
+                                            stroke-width='2'
+                                            stroke-linecap='round'
+                                            stroke-linejoin='round'
+                                        >
+                                            <circle cx='11' cy='11' r='8' />
+                                            <path d='m21 21-4.3-4.3' />
+                                        </svg>
+                                    </div>
+                                </form>
+                            </div>
+                            <div id='pagination-table-results'>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead class='w-12'>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='page-select-all' />
+                                                </div>
+                                            </TableHead>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Age</TableHead>
+                                            <TableHead>Address</TableHead>
+                                            <TableHead class='text-right'>
+                                                Action
+                                            </TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableCell>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='page-1' />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell class='font-medium'>
+                                                John Brown
+                                            </TableCell>
+                                            <TableCell>45</TableCell>
+                                            <TableCell>
+                                                New York No. 1 Lake Park
+                                            </TableCell>
+                                            <TableCell class='text-right'>
+                                                <button
+                                                    type='button'
+                                                    class='text-sm font-semibold text-primary hover:text-primary/80'
+                                                >
+                                                    Delete
+                                                </button>
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='page-2' />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell class='font-medium'>
+                                                Jim Green
+                                            </TableCell>
+                                            <TableCell>27</TableCell>
+                                            <TableCell>
+                                                London No. 1 Lake Park
+                                            </TableCell>
+                                            <TableCell class='text-right'>
+                                                <button
+                                                    type='button'
+                                                    class='text-sm font-semibold text-primary hover:text-primary/80'
+                                                >
+                                                    Delete
+                                                </button>
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='page-3' />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell class='font-medium'>
+                                                Joe Black
+                                            </TableCell>
+                                            <TableCell>31</TableCell>
+                                            <TableCell>
+                                                Sidney No. 1 Lake Park
+                                            </TableCell>
+                                            <TableCell class='text-right'>
+                                                <button
+                                                    type='button'
+                                                    class='text-sm font-semibold text-primary hover:text-primary/80'
+                                                >
+                                                    Delete
+                                                </button>
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='page-4' />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell class='font-medium'>
+                                                Edward King
+                                            </TableCell>
+                                            <TableCell>16</TableCell>
+                                            <TableCell>
+                                                LA No. 1 Lake Park
+                                            </TableCell>
+                                            <TableCell class='text-right'>
+                                                <button
+                                                    type='button'
+                                                    class='text-sm font-semibold text-primary hover:text-primary/80'
+                                                >
+                                                    Delete
+                                                </button>
+                                            </TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell>
+                                                <div class='flex items-center justify-center'>
+                                                    <Checkbox id='page-5' />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell class='font-medium'>
+                                                Jim Red
+                                            </TableCell>
+                                            <TableCell>45</TableCell>
+                                            <TableCell>
+                                                Melbourne No. 1 Lake Park
+                                            </TableCell>
+                                            <TableCell class='text-right'>
+                                                <button
+                                                    type='button'
+                                                    class='text-sm font-semibold text-primary hover:text-primary/80'
+                                                >
+                                                    Delete
+                                                </button>
+                                            </TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
+                            </div>
+                            <div class='py-2 px-4'>
+                                <Pagination
+                                    currentPage={1}
+                                    totalPages={3}
+                                    baseUrl='#'
+                                />
+                            </div>
+                        </div>
+
+                        <CodeBlock lang='tsx'>
+                            {`<div class="border border-border rounded-(--radius) divide-y divide-border">
+  {/* Search */}
+  <div class="py-3 px-4">
+    <form up-target="#table-results" up-autosubmit up-delay="300" class="relative max-w-xs">
+      <Input type="text" name="q" placeholder="Search for items" class="ps-9" />
+      <div class="absolute inset-y-0 start-0 flex items-center pointer-events-none ps-3">
+        <SearchIcon class="size-4 text-muted-foreground" />
+      </div>
+    </form>
+  </div>
+
+  {/* Table */}
+  <div id="table-results">
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead class="w-12">
+            <Checkbox id="select-all" />
+          </TableHead>
+          <TableHead>Name</TableHead>
+          <TableHead>Age</TableHead>
+          <TableHead>Address</TableHead>
+          <TableHead class="text-right">Action</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data.map((item) => (
+          <TableRow key={item.id}>
+            <TableCell><Checkbox id={item.id} /></TableCell>
+            <TableCell>{item.name}</TableCell>
+            <TableCell>{item.age}</TableCell>
+            <TableCell>{item.address}</TableCell>
+            <TableCell class="text-right">Delete</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </div>
+
+  {/* Pagination */}
+  <div class="py-2 px-4">
+    <Pagination currentPage={1} totalPages={10} baseUrl="/users" />
+  </div>
+</div>`}
                         </CodeBlock>
                     </CardContent>
                 </Card>
