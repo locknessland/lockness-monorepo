@@ -480,6 +480,88 @@ export const ProgressPage = () => {
                     </CodeBlock>
                 </section>
 
+                {/* Custom Thickness */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        CUSTOM THICKNESS
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        Use the <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>thickness</code> prop
+                        with a numeric value representing Tailwind spacing
+                        units (1 = 0.25rem).
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <div class='space-y-2'>
+                                <p class='text-sm text-muted-foreground'>
+                                    thickness={1.5} (0.375rem)
+                                </p>
+                                <Progress value={25} thickness={1.5} />
+                            </div>
+                            <div class='space-y-2'>
+                                <p class='text-sm text-muted-foreground'>
+                                    thickness={4} (1rem)
+                                </p>
+                                <Progress value={50} thickness={4} />
+                            </div>
+                            <div class='space-y-2'>
+                                <p class='text-sm text-muted-foreground'>
+                                    thickness={6} (1.5rem)
+                                </p>
+                                <Progress value={75} thickness={6} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={25} thickness={1.5} />
+<Progress value={50} thickness={4} />
+<Progress value={75} thickness={6} />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Same numeric values work for vertical progress bars:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex gap-x-8 items-end'>
+                                <div class='text-center'>
+                                    <Progress
+                                        value={60}
+                                        vertical
+                                        thickness={1}
+                                    />
+                                    <p class='text-xs text-muted-foreground mt-2'>
+                                        1
+                                    </p>
+                                </div>
+                                <div class='text-center'>
+                                    <Progress
+                                        value={60}
+                                        vertical
+                                        thickness={3}
+                                    />
+                                    <p class='text-xs text-muted-foreground mt-2'>
+                                        3
+                                    </p>
+                                </div>
+                                <div class='text-center'>
+                                    <Progress
+                                        value={60}
+                                        vertical
+                                        thickness={6}
+                                    />
+                                    <p class='text-xs text-muted-foreground mt-2'>
+                                        6
+                                    </p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={60} vertical thickness={3} />`}
+                    </CodeBlock>
+                </section>
+
                 {/* Custom Max Value */}
                 <section class='space-y-4'>
                     <h2 class='font-pixel text-sm text-foreground'>
@@ -661,6 +743,21 @@ export const ProgressPage = () => {
                                     </td>
                                     <td class='py-3 px-4 text-muted-foreground'>
                                         Height of the progress bar
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        thickness
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        -
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Custom thickness in spacing units (1 =
+                                        0.25rem)
                                     </td>
                                 </tr>
                                 <tr>

@@ -1,10 +1,12 @@
 import type { FC } from '@lockness/core'
+import type { JSX } from '@lockness/core/jsx-runtime'
 import { cn } from '../lib/utils.ts'
 
 /**
  * Progress component props
  */
-export interface ProgressProps {
+export interface ProgressProps
+    extends Omit<JSX.IntrinsicElements['div'], 'class' | 'id'> {
     /**
      * Current progress value (0-100)
      * @default 0
@@ -51,6 +53,11 @@ export interface ProgressProps {
      */
     vertical?: boolean
     /**
+     * Custom thickness in Tailwind spacing units (1 = 0.25rem)
+     * Overrides the size prop. Examples: 1.5, 4, 6
+     */
+    thickness?: number
+    /**
      * Additional CSS class names
      */
     class?: string
@@ -58,10 +65,6 @@ export interface ProgressProps {
      * Element id attribute
      */
     id?: string
-    /**
-     * Additional HTML attributes
-     */
-    [key: string]: unknown
 }
 
 const sizeStyles = {
@@ -124,6 +127,10 @@ const floatingLabelVariantStyles = {
  *
  * // Vertical progress
  * <Progress value={50} vertical />
+ *
+ * // Custom thickness (in Tailwind spacing units)
+ * <Progress value={50} thickness={6} />
+ * <Progress value={50} vertical thickness={4} />
  * ```
  */
 export const Progress: FC<ProgressProps> = ({
@@ -136,6 +143,7 @@ export const Progress: FC<ProgressProps> = ({
     innerLabel = false,
     endLabel = false,
     vertical = false,
+    thickness,
     class: className,
     id,
     ...props
@@ -143,6 +151,9 @@ export const Progress: FC<ProgressProps> = ({
     // Clamp value between 0 and max
     const clampedValue = Math.min(Math.max(0, value), max)
     const percentage = Math.round((clampedValue / max) * 100)
+
+    // Convert thickness to rem (Tailwind spacing: 1 = 0.25rem)
+    const thicknessStyle = thickness ? `${thickness * 0.25}rem` : undefined
 
     // Vertical progress bar
     if (vertical) {
@@ -156,10 +167,10 @@ export const Progress: FC<ProgressProps> = ({
                 aria-orientation='vertical'
                 class={cn(
                     'flex flex-col flex-nowrap justify-end h-32 overflow-hidden bg-secondary',
-                    verticalSizeStyles[size],
+                    !thickness && verticalSizeStyles[size],
                     className,
                 )}
-                style='border-radius: var(--radius)'
+                style={`border-radius: var(--radius)${thicknessStyle ? `; width: ${thicknessStyle}` : ''}`}
                 {...props}
             >
                 <div
@@ -182,9 +193,10 @@ export const Progress: FC<ProgressProps> = ({
             aria-valuemax={max}
             class={cn(
                 'flex w-full overflow-hidden bg-secondary',
-                innerLabel ? 'h-4' : sizeStyles[size],
+                !thickness && !innerLabel && sizeStyles[size],
+                innerLabel && !thickness && 'h-4',
             )}
-            style='border-radius: var(--radius)'
+            style={`border-radius: var(--radius)${thicknessStyle ? `; height: ${thicknessStyle}` : ''}`}
         >
             <div
                 class={cn(

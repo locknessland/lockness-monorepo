@@ -1,10 +1,12 @@
 import type { FC } from '@lockness/core'
+import type { JSX } from '@lockness/core/jsx-runtime'
 import { cn } from '../lib/utils.ts'
 
 /**
  * CircularProgress component props
  */
-export interface CircularProgressProps {
+export interface CircularProgressProps
+    extends Omit<JSX.IntrinsicElements['div'], 'class' | 'id'> {
     /**
      * Current progress value (0-100)
      * @default 0
@@ -43,10 +45,6 @@ export interface CircularProgressProps {
      * Element id attribute
      */
     id?: string
-    /**
-     * Additional HTML attributes
-     */
-    [key: string]: unknown
 }
 
 const sizeStyles = {
