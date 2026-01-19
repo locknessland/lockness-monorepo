@@ -53,48 +53,119 @@ export const GalleryGrid: FC<PropsWithChildren<GalleryGridProps>> = ({
 }
 
 // ============================================================================
-// Gallery Flow
+// Gallery Justified
 // ============================================================================
 
-export interface GalleryFlowProps {
-    /** Row height for the flow layout */
-    rowHeight?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
-    /** Gap between items */
-    gap?: 'none' | 'sm' | 'md' | 'lg'
-    /** Justify items to fill the full width of each row */
-    justify?: boolean
-    /** Additional class names */
-    class?: string
+/**
+ * Available row heights for the justified gallery layout.
+ * Controls the fixed height of each row - width is determined by aspect ratios.
+ *
+ * | Value | Height |
+ * |-------|--------|
+ * | `xs`  | 80px   |
+ * | `sm`  | 112px  |
+ * | `md`  | 144px  |
+ * | `lg`  | 192px  |
+ * | `xl`  | 256px  |
+ */
+export type GalleryJustifiedRowHeight = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+
+/**
+ * Available gap sizes between gallery items.
+ *
+ * | Value  | Gap   |
+ * |--------|-------|
+ * | `none` | 0     |
+ * | `sm`   | 4px   |
+ * | `md`   | 8px   |
+ * | `lg`   | 16px  |
+ */
+export type GalleryJustifiedGap = 'none' | 'sm' | 'md' | 'lg'
+
+/**
+ * Props for the {@link GalleryJustified} component.
+ *
+ * @example
+ * ```tsx
+ * <GalleryJustified rowHeight="lg" gap="md">
+ *   <GalleryJustifiedItem src="/photo.jpg" ratio="wide" />
+ * </GalleryJustified>
+ * ```
+ */
+export interface GalleryJustifiedProps {
+    /**
+     * Height of each row in the gallery.
+     * Images will maintain their aspect ratio while fitting this height.
+     * @default 'md'
+     */
+    readonly rowHeight?: GalleryJustifiedRowHeight
+
+    /**
+     * Gap between items in the gallery.
+     * @default 'md'
+     */
+    readonly gap?: GalleryJustifiedGap
+
+    /**
+     * Additional CSS class names to apply to the container.
+     */
+    readonly class?: string
 }
 
-const flowRowHeightVariants = {
+/** @internal CSS classes for each row height variant */
+const justifiedRowHeightVariants = {
     xs: '[&>*]:h-20',
     sm: '[&>*]:h-28',
     md: '[&>*]:h-36',
     lg: '[&>*]:h-48',
     xl: '[&>*]:h-64',
-}
+} as const satisfies Record<GalleryJustifiedRowHeight, string>
 
 /**
- * GalleryFlow - A horizontal flow layout with variable width images
- * Images maintain their aspect ratio and flow left-to-right, wrapping to new lines
- * Use with GalleryFlowItem for best results
- * Set justify={true} to make items stretch to fill each row
+ * A justified gallery layout component inspired by Flickr and Google Photos.
+ *
+ * Images with variable aspect ratios are arranged horizontally and stretch
+ * proportionally to fill each row completely. When items don't fit on a row,
+ * they wrap to the next line.
+ *
+ * @remarks
+ * - Use with {@link GalleryJustifiedItem} for best results
+ * - Each row has a fixed height, widths are calculated from aspect ratios
+ * - Items grow proportionally to fill the available width
+ *
+ * @example Basic usage
+ * ```tsx
+ * import { GalleryJustified, GalleryJustifiedItem } from '@lockness/ui/components'
+ *
+ * <GalleryJustified rowHeight="lg" gap="md">
+ *   <GalleryJustifiedItem src="/photo1.jpg" ratio="wide" />
+ *   <GalleryJustifiedItem src="/photo2.jpg" ratio="portrait" />
+ *   <GalleryJustifiedItem src="/photo3.jpg" ratio="square" />
+ * </GalleryJustified>
+ * ```
+ *
+ * @example Different row heights
+ * ```tsx
+ * <GalleryJustified rowHeight="xs">...</GalleryJustified>  // 80px rows
+ * <GalleryJustified rowHeight="xl">...</GalleryJustified>  // 256px rows
+ * ```
+ *
+ * @see {@link GalleryJustifiedItem} - Image item component for this layout
+ * @see {@link GalleryGrid} - For uniform grid layouts
+ * @see {@link GalleryMasonry} - For Pinterest-style column layouts
  */
-export const GalleryFlow: FC<PropsWithChildren<GalleryFlowProps>> = ({
+export const GalleryJustified: FC<PropsWithChildren<GalleryJustifiedProps>> = ({
     rowHeight = 'md',
     gap = 'md',
-    justify = false,
     class: className,
     children,
 }) => {
     return (
         <div
             class={cn(
-                'flex flex-wrap',
+                'flex flex-wrap *:grow',
                 gapVariants[gap],
-                flowRowHeightVariants[rowHeight],
-                justify && '*:grow',
+                justifiedRowHeightVariants[rowHeight],
                 className,
             )}
         >
@@ -104,35 +175,140 @@ export const GalleryFlow: FC<PropsWithChildren<GalleryFlowProps>> = ({
 }
 
 // ============================================================================
-// Gallery Flow Item
+// Gallery Justified Item
 // ============================================================================
 
-export interface GalleryFlowItemProps {
-    /** Image source URL */
-    src: string
-    /** Image alt text */
-    alt?: string
-    /** Aspect ratio of the image */
-    ratio?: 'landscape' | 'portrait' | 'wide' | 'ultrawide' | 'square' | 'tall'
-    /** Border radius */
-    rounded?: 'none' | 'default' | 'sm' | 'md' | 'lg'
-    /** Additional class names */
-    class?: string
+/**
+ * Available aspect ratios for gallery items.
+ *
+ * | Value       | Ratio | Description            |
+ * |-------------|-------|------------------------|
+ * | `tall`      | 2:3   | Vertical/portrait      |
+ * | `portrait`  | 3:4   | Standard portrait      |
+ * | `square`    | 1:1   | Square                 |
+ * | `landscape` | 4:3   | Standard landscape     |
+ * | `wide`      | 16:9  | Widescreen             |
+ * | `ultrawide` | 21:9  | Cinematic/ultrawide    |
+ */
+export type GalleryJustifiedItemRatio =
+    | 'tall'
+    | 'portrait'
+    | 'square'
+    | 'landscape'
+    | 'wide'
+    | 'ultrawide'
+
+/**
+ * Available border radius options for gallery items.
+ *
+ * | Value     | Description                              |
+ * |-----------|------------------------------------------|
+ * | `none`    | No border radius                         |
+ * | `default` | Uses the global `--radius` CSS variable  |
+ * | `sm`      | Small border radius                      |
+ * | `md`      | Medium border radius                     |
+ * | `lg`      | Large border radius                      |
+ */
+export type GalleryJustifiedItemRounded = 'none' | 'default' | 'sm' | 'md' | 'lg'
+
+/**
+ * Props for the {@link GalleryJustifiedItem} component.
+ *
+ * @example
+ * ```tsx
+ * <GalleryJustifiedItem
+ *   src="/photo.jpg"
+ *   alt="Mountain landscape"
+ *   ratio="wide"
+ *   rounded="md"
+ * />
+ * ```
+ */
+export interface GalleryJustifiedItemProps {
+    /**
+     * Image source URL.
+     * @required
+     */
+    readonly src: string
+
+    /**
+     * Alternative text for the image.
+     * Important for accessibility and SEO.
+     * @default 'Gallery image'
+     */
+    readonly alt?: string
+
+    /**
+     * Aspect ratio of the image container.
+     * Determines the proportional width based on the row height.
+     * @default 'landscape'
+     */
+    readonly ratio?: GalleryJustifiedItemRatio
+
+    /**
+     * Border radius of the image container.
+     * Use `'default'` to follow the global `--radius` CSS variable.
+     * @default 'default'
+     */
+    readonly rounded?: GalleryJustifiedItemRounded
+
+    /**
+     * Additional CSS class names to apply to the container.
+     */
+    readonly class?: string
 }
 
-const flowItemRatioVariants = {
+/** @internal CSS classes for each aspect ratio variant */
+const justifiedItemRatioVariants = {
     portrait: 'aspect-[3/4]',
     tall: 'aspect-[2/3]',
     square: 'aspect-square',
     landscape: 'aspect-[4/3]',
     wide: 'aspect-[16/9]',
     ultrawide: 'aspect-[21/9]',
-}
+} as const satisfies Record<GalleryJustifiedItemRatio, string>
 
 /**
- * GalleryFlowItem - An image item for GalleryFlow with configurable aspect ratio
+ * An image item component for use within {@link GalleryJustified}.
+ *
+ * Displays an image with a configurable aspect ratio. The image is
+ * lazy-loaded and uses `object-cover` to fill its container while
+ * maintaining its natural proportions.
+ *
+ * @remarks
+ * - Images are lazy-loaded by default for performance
+ * - The container height is inherited from the parent {@link GalleryJustified}
+ * - Width is calculated based on the `ratio` prop
+ *
+ * @example Basic usage
+ * ```tsx
+ * <GalleryJustifiedItem src="/photo.jpg" ratio="wide" />
+ * ```
+ *
+ * @example With all props
+ * ```tsx
+ * <GalleryJustifiedItem
+ *   src="/landscape.jpg"
+ *   alt="Beautiful mountain view"
+ *   ratio="ultrawide"
+ *   rounded="lg"
+ *   class="shadow-lg"
+ * />
+ * ```
+ *
+ * @example Different ratios
+ * ```tsx
+ * <GalleryJustifiedItem ratio="tall" />       // 2:3 vertical
+ * <GalleryJustifiedItem ratio="portrait" />   // 3:4 portrait
+ * <GalleryJustifiedItem ratio="square" />     // 1:1 square
+ * <GalleryJustifiedItem ratio="landscape" />  // 4:3 landscape
+ * <GalleryJustifiedItem ratio="wide" />       // 16:9 widescreen
+ * <GalleryJustifiedItem ratio="ultrawide" />  // 21:9 cinematic
+ * ```
+ *
+ * @see {@link GalleryJustified} - Parent container component
  */
-export const GalleryFlowItem: FC<GalleryFlowItemProps> = ({
+export const GalleryJustifiedItem: FC<GalleryJustifiedItemProps> = ({
     src,
     alt = 'Gallery image',
     ratio = 'landscape',
@@ -143,7 +319,7 @@ export const GalleryFlowItem: FC<GalleryFlowItemProps> = ({
         <div
             class={cn(
                 'relative overflow-hidden h-full',
-                flowItemRatioVariants[ratio],
+                justifiedItemRatioVariants[ratio],
                 roundedVariants[rounded],
                 className,
             )}
@@ -511,13 +687,13 @@ export const Gallery: FC<PropsWithChildren<GalleryProps>> = ({
 }) => {
     if (variant === 'flow') {
         return (
-            <GalleryFlow
+            <GalleryJustified
                 rowHeight={rowHeight}
                 gap={gap}
                 class={className}
             >
                 {children}
-            </GalleryFlow>
+            </GalleryJustified>
         )
     }
 

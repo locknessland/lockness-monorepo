@@ -154,8 +154,8 @@ export type {
 } from './components/Hero.tsx'
 export {
     Gallery,
-    GalleryFlow,
-    GalleryFlowItem,
+    GalleryJustified,
+    GalleryJustifiedItem,
     GalleryGrid,
     GalleryImage,
     GalleryItem,
@@ -165,11 +165,15 @@ export {
     GalleryMasonryColumn,
 } from './components/Gallery.tsx'
 export type {
-    GalleryFlowItemProps,
-    GalleryFlowProps,
     GalleryGridProps,
     GalleryImageProps,
     GalleryItemProps,
+    GalleryJustifiedGap,
+    GalleryJustifiedItemProps,
+    GalleryJustifiedItemRatio,
+    GalleryJustifiedItemRounded,
+    GalleryJustifiedProps,
+    GalleryJustifiedRowHeight,
     GalleryLightboxItemProps,
     GalleryMasonryColumnProps,
     GalleryMasonryProps,
