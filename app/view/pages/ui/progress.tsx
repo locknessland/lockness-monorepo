@@ -4,6 +4,7 @@ import {
     CircularProgress,
     CodeBlock,
     Progress,
+    SteppedProgress,
 } from '@lockness/ui/components'
 import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
@@ -401,6 +402,205 @@ export const ProgressPage = () => {
                     </Card>
                     <CodeBlock lang='tsx'>
                         {`<CircularProgress value={60} strokeWidth={4} showLabel />`}
+                    </CodeBlock>
+                </section>
+
+                {/* Stepped Progress */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        STEPPED PROGRESS
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        A segmented progress bar showing discrete steps. Useful
+                        for multi-step forms, onboarding flows, or displaying
+                        progress in stages.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <SteppedProgress value={2} steps={4} />
+                            <SteppedProgress value={3} steps={4} />
+                            <SteppedProgress value={4} steps={4} />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`import { SteppedProgress } from '@lockness/ui/components'
+
+<SteppedProgress value={2} steps={4} />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Different number of steps:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <div class='space-y-2'>
+                                <p class='text-sm text-muted-foreground'>
+                                    3 steps
+                                </p>
+                                <SteppedProgress value={2} steps={3} />
+                            </div>
+                            <div class='space-y-2'>
+                                <p class='text-sm text-muted-foreground'>
+                                    5 steps
+                                </p>
+                                <SteppedProgress value={3} steps={5} />
+                            </div>
+                            <div class='space-y-2'>
+                                <p class='text-sm text-muted-foreground'>
+                                    7 steps
+                                </p>
+                                <SteppedProgress value={5} steps={7} />
+                            </div>
+                            <div class='space-y-2'>
+                                <p class='text-sm text-muted-foreground'>
+                                    10 steps
+                                </p>
+                                <SteppedProgress value={7} steps={10} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<SteppedProgress value={2} steps={3} />
+<SteppedProgress value={3} steps={5} />
+<SteppedProgress value={5} steps={7} />
+<SteppedProgress value={7} steps={10} />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        With end label (percentage at the right):
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <SteppedProgress value={1} steps={4} endLabel />
+                            <SteppedProgress value={2} steps={4} endLabel />
+                            <SteppedProgress value={3} steps={4} endLabel />
+                            <SteppedProgress value={4} steps={4} endLabel />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<SteppedProgress value={2} steps={4} endLabel />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        With inner label (step count inside the bar):
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <SteppedProgress value={1} steps={4} innerLabel />
+                            <SteppedProgress value={2} steps={4} innerLabel />
+                            <SteppedProgress value={3} steps={4} innerLabel />
+                            <SteppedProgress value={4} steps={4} innerLabel />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<SteppedProgress value={2} steps={4} innerLabel />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Inner label with custom thickness:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <SteppedProgress
+                                value={3}
+                                steps={5}
+                                innerLabel
+                                thickness={8}
+                            />
+                            <SteppedProgress
+                                value={7}
+                                steps={10}
+                                innerLabel
+                                thickness={8}
+                                variant='success'
+                            />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<SteppedProgress value={3} steps={5} innerLabel thickness={8} />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        With checkmark when complete:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <SteppedProgress
+                                value={10}
+                                steps={10}
+                                variant='success'
+                                showCheck
+                            />
+                            <SteppedProgress
+                                value={4}
+                                steps={4}
+                                variant='success'
+                                showCheck
+                            />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<SteppedProgress value={10} steps={10} variant="success" showCheck />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Different variants:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <SteppedProgress
+                                value={2}
+                                steps={4}
+                                endLabel
+                            />
+                            <SteppedProgress
+                                value={1}
+                                steps={4}
+                                variant='destructive'
+                                endLabel
+                            />
+                            <SteppedProgress
+                                value={3}
+                                steps={4}
+                                variant='warning'
+                                endLabel
+                            />
+                            <SteppedProgress
+                                value={4}
+                                steps={4}
+                                variant='success'
+                                showCheck
+                            />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<SteppedProgress value={1} steps={4} variant="destructive" endLabel />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Custom thickness:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <SteppedProgress
+                                value={2}
+                                steps={4}
+                                thickness={1}
+                            />
+                            <SteppedProgress
+                                value={2}
+                                steps={4}
+                                thickness={2.5}
+                            />
+                            <SteppedProgress
+                                value={2}
+                                steps={4}
+                                thickness={4}
+                            />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<SteppedProgress value={2} steps={4} thickness={4} />`}
                     </CodeBlock>
                 </section>
 
@@ -944,6 +1144,147 @@ export const ProgressPage = () => {
                                     </td>
                                     <td class='py-3 px-4 text-muted-foreground'>
                                         Show percentage in the center
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class='font-pixel text-xs text-foreground mt-6'>
+                        SteppedProgress Props
+                    </h3>
+                    <div class='overflow-x-auto'>
+                        <table class='w-full text-sm'>
+                            <thead>
+                                <tr class='border-b'>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Prop
+                                    </th>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Type
+                                    </th>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Default
+                                    </th>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Description
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        value
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        0
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Current step (1-based index)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        steps
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        4
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Total number of steps
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        variant
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'default' | 'success' | 'warning' |
+                                        'destructive'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'default'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Color variant
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        thickness
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        2.5
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Custom thickness (1 = 0.25rem)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        endLabel
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        false
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Show percentage label at the end (right
+                                        side)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        innerLabel
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        false
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Show step count inside the bar (e.g. "2
+                                        of 4")
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        showLabel
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        false
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Deprecated, use endLabel instead
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        showCheck
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        false
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Show checkmark when complete
                                     </td>
                                 </tr>
                             </tbody>
