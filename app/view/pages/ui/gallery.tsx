@@ -2,6 +2,8 @@ import {
     Card,
     CardContent,
     CodeBlock,
+    GalleryFlow,
+    GalleryFlowItem,
     GalleryGrid,
     GalleryImage,
     GalleryItem,
@@ -51,6 +53,25 @@ const gridImages = [
     'https://images.unsplash.com/photo-1669824774762-65ddf29bee56?w=560&auto=format&fit=crop',
     'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=560&auto=format&fit=crop',
     'https://images.unsplash.com/photo-1586232702178-f044c5f4d4b7?w=560&auto=format&fit=crop',
+]
+
+// Flow images with their ratios
+const flowImages: Array<{
+    src: string
+    ratio: 'landscape' | 'portrait' | 'wide' | 'ultrawide' | 'square' | 'tall'
+}> = [
+    { src: gridImages[0], ratio: 'wide' },
+    { src: gridImages[1], ratio: 'portrait' },
+    { src: gridImages[2], ratio: 'landscape' },
+    { src: gridImages[3], ratio: 'square' },
+    { src: gridImages[4], ratio: 'ultrawide' },
+    { src: gridImages[5], ratio: 'tall' },
+    { src: gridImages[6], ratio: 'landscape' },
+    { src: gridImages[7], ratio: 'wide' },
+    { src: sampleImages[0], ratio: 'portrait' },
+    { src: sampleImages[1], ratio: 'square' },
+    { src: sampleImages[2], ratio: 'landscape' },
+    { src: sampleImages[3], ratio: 'wide' },
 ]
 
 export const GalleryPage = () => {
@@ -264,6 +285,174 @@ export const GalleryPage = () => {
   </GalleryMasonryColumn>
   {/* ... more columns */}
 </GalleryMasonry>`}
+                    </CodeBlock>
+                </section>
+
+                {/* Flow Layout */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        FLOW LAYOUT
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        Horizontal flow layout with variable aspect ratios. Images flow
+                        left-to-right and wrap to new lines. Each image can have a different
+                        ratio (landscape, portrait, wide, ultrawide, square, tall).
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <GalleryFlow rowHeight='lg' gap='md'>
+                                {flowImages.map((img, i) => (
+                                    <GalleryFlowItem
+                                        key={i}
+                                        src={img.src}
+                                        ratio={img.ratio}
+                                        alt={`Flow image ${i + 1}`}
+                                    />
+                                ))}
+                            </GalleryFlow>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`import { GalleryFlow, GalleryFlowItem } from '@lockness/ui/components'
+
+<GalleryFlow rowHeight="lg" gap="md">
+  <GalleryFlowItem src="/photo1.jpg" ratio="wide" />
+  <GalleryFlowItem src="/photo2.jpg" ratio="portrait" />
+  <GalleryFlowItem src="/photo3.jpg" ratio="landscape" />
+  <GalleryFlowItem src="/photo4.jpg" ratio="square" />
+  <GalleryFlowItem src="/photo5.jpg" ratio="ultrawide" />
+  <GalleryFlowItem src="/photo6.jpg" ratio="tall" />
+  {/* Images wrap naturally to the next line */}
+</GalleryFlow>`}
+                    </CodeBlock>
+                </section>
+
+                {/* Flow Justified */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        FLOW JUSTIFIED
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        With <code>justify=&#123;true&#125;</code>, images stretch to fill
+                        the full width of each row. Each image grows proportionally based
+                        on its aspect ratio.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <GalleryFlow rowHeight='lg' gap='md' justify>
+                                {flowImages.map((img, i) => (
+                                    <GalleryFlowItem
+                                        key={i}
+                                        src={img.src}
+                                        ratio={img.ratio}
+                                        alt={`Justified image ${i + 1}`}
+                                    />
+                                ))}
+                            </GalleryFlow>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`// Add justify prop to fill the container width
+<GalleryFlow rowHeight="lg" gap="md" justify>
+  <GalleryFlowItem src="/photo1.jpg" ratio="wide" />
+  <GalleryFlowItem src="/photo2.jpg" ratio="portrait" />
+  <GalleryFlowItem src="/photo3.jpg" ratio="landscape" />
+  {/* Images stretch to fill each row */}
+</GalleryFlow>`}
+                    </CodeBlock>
+                </section>
+
+                {/* Flow Row Height Variants */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        FLOW ROW HEIGHT VARIANTS
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        Control the height of each row. Width adapts based on aspect ratio.
+                    </p>
+
+                    <h3 class='font-medium text-foreground'>Extra Small (xs) - 80px</h3>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <GalleryFlow rowHeight='xs' gap='sm'>
+                                {flowImages.map((img, i) => (
+                                    <GalleryFlowItem
+                                        key={i}
+                                        src={img.src}
+                                        ratio={img.ratio}
+                                    />
+                                ))}
+                            </GalleryFlow>
+                        </CardContent>
+                    </Card>
+
+                    <h3 class='font-medium text-foreground mt-6'>Medium (md) - 144px</h3>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <GalleryFlow rowHeight='md' gap='md'>
+                                {flowImages.slice(0, 8).map((img, i) => (
+                                    <GalleryFlowItem
+                                        key={i}
+                                        src={img.src}
+                                        ratio={img.ratio}
+                                    />
+                                ))}
+                            </GalleryFlow>
+                        </CardContent>
+                    </Card>
+
+                    <h3 class='font-medium text-foreground mt-6'>Extra Large (xl) - 256px</h3>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <GalleryFlow rowHeight='xl' gap='lg'>
+                                {flowImages.slice(0, 4).map((img, i) => (
+                                    <GalleryFlowItem
+                                        key={i}
+                                        src={img.src}
+                                        ratio={img.ratio}
+                                    />
+                                ))}
+                            </GalleryFlow>
+                        </CardContent>
+                    </Card>
+
+                    <CodeBlock lang='tsx'>
+                        {`<GalleryFlow rowHeight="xs" />  {/* 80px row height */}
+<GalleryFlow rowHeight="sm" />  {/* 112px row height */}
+<GalleryFlow rowHeight="md" />  {/* 144px row height (default) */}
+<GalleryFlow rowHeight="lg" />  {/* 192px row height */}
+<GalleryFlow rowHeight="xl" />  {/* 256px row height */}`}
+                    </CodeBlock>
+                </section>
+
+                {/* Flow Aspect Ratios */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        FLOW ASPECT RATIOS
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        Available aspect ratios for GalleryFlowItem.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <GalleryFlow rowHeight='md' gap='md'>
+                                <GalleryFlowItem src={gridImages[0]} ratio='tall' />
+                                <GalleryFlowItem src={gridImages[1]} ratio='portrait' />
+                                <GalleryFlowItem src={gridImages[2]} ratio='square' />
+                                <GalleryFlowItem src={gridImages[3]} ratio='landscape' />
+                                <GalleryFlowItem src={gridImages[4]} ratio='wide' />
+                                <GalleryFlowItem src={gridImages[5]} ratio='ultrawide' />
+                            </GalleryFlow>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`// Available ratios:
+<GalleryFlowItem ratio="tall" />       {/* 2:3 - Vertical */}
+<GalleryFlowItem ratio="portrait" />   {/* 3:4 - Portrait */}
+<GalleryFlowItem ratio="square" />     {/* 1:1 - Square */}
+<GalleryFlowItem ratio="landscape" />  {/* 4:3 - Landscape (default) */}
+<GalleryFlowItem ratio="wide" />       {/* 16:9 - Wide */}
+<GalleryFlowItem ratio="ultrawide" />  {/* 21:9 - Ultrawide */}`}
                     </CodeBlock>
                 </section>
 

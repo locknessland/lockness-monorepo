@@ -53,6 +53,112 @@ export const GalleryGrid: FC<PropsWithChildren<GalleryGridProps>> = ({
 }
 
 // ============================================================================
+// Gallery Flow
+// ============================================================================
+
+export interface GalleryFlowProps {
+    /** Row height for the flow layout */
+    rowHeight?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+    /** Gap between items */
+    gap?: 'none' | 'sm' | 'md' | 'lg'
+    /** Justify items to fill the full width of each row */
+    justify?: boolean
+    /** Additional class names */
+    class?: string
+}
+
+const flowRowHeightVariants = {
+    xs: '[&>*]:h-20',
+    sm: '[&>*]:h-28',
+    md: '[&>*]:h-36',
+    lg: '[&>*]:h-48',
+    xl: '[&>*]:h-64',
+}
+
+/**
+ * GalleryFlow - A horizontal flow layout with variable width images
+ * Images maintain their aspect ratio and flow left-to-right, wrapping to new lines
+ * Use with GalleryFlowItem for best results
+ * Set justify={true} to make items stretch to fill each row
+ */
+export const GalleryFlow: FC<PropsWithChildren<GalleryFlowProps>> = ({
+    rowHeight = 'md',
+    gap = 'md',
+    justify = false,
+    class: className,
+    children,
+}) => {
+    return (
+        <div
+            class={cn(
+                'flex flex-wrap',
+                gapVariants[gap],
+                flowRowHeightVariants[rowHeight],
+                justify && '*:grow',
+                className,
+            )}
+        >
+            {children}
+        </div>
+    )
+}
+
+// ============================================================================
+// Gallery Flow Item
+// ============================================================================
+
+export interface GalleryFlowItemProps {
+    /** Image source URL */
+    src: string
+    /** Image alt text */
+    alt?: string
+    /** Aspect ratio of the image */
+    ratio?: 'landscape' | 'portrait' | 'wide' | 'ultrawide' | 'square' | 'tall'
+    /** Border radius */
+    rounded?: 'none' | 'default' | 'sm' | 'md' | 'lg'
+    /** Additional class names */
+    class?: string
+}
+
+const flowItemRatioVariants = {
+    portrait: 'aspect-[3/4]',
+    tall: 'aspect-[2/3]',
+    square: 'aspect-square',
+    landscape: 'aspect-[4/3]',
+    wide: 'aspect-[16/9]',
+    ultrawide: 'aspect-[21/9]',
+}
+
+/**
+ * GalleryFlowItem - An image item for GalleryFlow with configurable aspect ratio
+ */
+export const GalleryFlowItem: FC<GalleryFlowItemProps> = ({
+    src,
+    alt = 'Gallery image',
+    ratio = 'landscape',
+    rounded = 'default',
+    class: className,
+}) => {
+    return (
+        <div
+            class={cn(
+                'relative overflow-hidden h-full',
+                flowItemRatioVariants[ratio],
+                roundedVariants[rounded],
+                className,
+            )}
+        >
+            <img
+                class='absolute inset-0 w-full h-full object-cover'
+                src={src}
+                alt={alt}
+                loading='lazy'
+            />
+        </div>
+    )
+}
+
+// ============================================================================
 // Gallery Masonry
 // ============================================================================
 
@@ -381,9 +487,11 @@ export const GalleryImage: FC<GalleryImageProps> = ({
 
 export interface GalleryProps {
     /** Gallery variant */
-    variant?: 'grid' | 'masonry'
-    /** Number of columns */
+    variant?: 'grid' | 'masonry' | 'flow'
+    /** Number of columns (for grid/masonry) */
     cols?: 2 | 3 | 4 | 5 | 6
+    /** Row height (for flow variant) */
+    rowHeight?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
     /** Gap between items */
     gap?: 'none' | 'sm' | 'md' | 'lg'
     /** Additional class names */
@@ -396,10 +504,23 @@ export interface GalleryProps {
 export const Gallery: FC<PropsWithChildren<GalleryProps>> = ({
     variant = 'grid',
     cols = 3,
+    rowHeight = 'md',
     gap = 'md',
     class: className,
     children,
 }) => {
+    if (variant === 'flow') {
+        return (
+            <GalleryFlow
+                rowHeight={rowHeight}
+                gap={gap}
+                class={className}
+            >
+                {children}
+            </GalleryFlow>
+        )
+    }
+
     if (variant === 'masonry') {
         return (
             <GalleryMasonry
