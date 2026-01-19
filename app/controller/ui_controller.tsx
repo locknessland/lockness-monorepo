@@ -11,6 +11,7 @@ import { ModalPage } from '@view/pages/ui/modal.tsx'
 import { NavbarDemoPage } from '@view/pages/ui/navbar-demo.tsx'
 import { TablePage } from '@view/pages/ui/table.tsx'
 import { PaginationDemo } from '@view/pages/ui/pagination-demo.tsx'
+import { ProgressPage } from '@view/pages/ui/progress.tsx'
 
 @Controller('/ui')
 export class UiController {
@@ -72,5 +73,10 @@ export class UiController {
     @Get('/pagination', { name: 'ui.pagination' })
     pagination(c: Context) {
         return c.render(<PaginationDemo />)
+    }
+
+    @Get('/progress', { name: 'ui.progress' })
+    progress(c: Context) {
+        return c.render(<ProgressPage />)
     }
 }

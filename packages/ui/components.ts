@@ -55,6 +55,8 @@ export {
     CardTitle,
 } from './components/Card.tsx'
 export { Badge } from './components/Badge.tsx'
+export { Progress } from './components/Progress.tsx'
+export type { ProgressProps } from './components/Progress.tsx'
 export { Separator } from './components/Separator.tsx'
 export { Skeleton } from './components/Skeleton.tsx'
 export { Alert, AlertDescription, AlertTitle } from './components/Alert.tsx'

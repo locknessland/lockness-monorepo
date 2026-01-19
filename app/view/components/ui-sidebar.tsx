@@ -33,6 +33,7 @@ const navSections = [
             { title: 'Navbar', href: '/ui/navbar' },
             { title: 'Table', href: '/ui/table' },
             { title: 'Pagination', href: '/ui/pagination' },
+            { title: 'Progress', href: '/ui/progress' },
         ],
     },
 ]
