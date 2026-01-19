@@ -162,7 +162,8 @@ export const Progress: FC<ProgressProps> = ({
                     class={cn(
                         'flex flex-col justify-center overflow-hidden transition-all duration-300 ease-in-out',
                         variantStyles[variant],
-                        innerLabel && 'text-xs text-white text-center whitespace-nowrap',
+                        innerLabel &&
+                            'text-xs text-white text-center whitespace-nowrap',
                     )}
                     style={`width: ${percentage}%; border-radius: var(--radius)`}
                 >
