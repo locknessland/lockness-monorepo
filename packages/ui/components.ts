@@ -81,6 +81,21 @@ export type {
     LineChartProps,
 } from './components/Chart.tsx'
 export {
+    BubbleChart,
+    PieChart,
+    Sparkline,
+    SparklinePie,
+} from './components/ChartExtras.tsx'
+export type {
+    BubbleChartDataItem,
+    BubbleChartDataset,
+    BubbleChartProps,
+    PieChartDataItem,
+    PieChartProps,
+    SparklinePieProps,
+    SparklineProps,
+} from './components/ChartExtras.tsx'
+export {
     InputFile,
     SingleImageUpload,
     UploadFileList,

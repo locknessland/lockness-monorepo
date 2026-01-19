@@ -690,7 +690,7 @@ export const LineChart: FC<LineChartProps> = ({
     id,
     ...props
 }) => {
-    // Build datasets configuration
+    // Build datasets configuration - LineChart
     const chartDatasets = datasets
         ? datasets.map((ds) => ({
             label: ds.name,
