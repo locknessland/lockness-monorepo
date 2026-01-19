@@ -118,6 +118,33 @@ export type {
     NewsletterProps,
     NewsletterSectionProps,
 } from './components/Newsletter.tsx'
+export {
+    Hero,
+    HeroActions,
+    HeroAnnouncement,
+    HeroBadge,
+    HeroCommand,
+    HeroCTA,
+    HeroFooter,
+    HeroImage,
+    HeroLink,
+    HeroSeparator,
+    HeroSubtitle,
+    HeroTitle,
+} from './components/Hero.tsx'
+export type {
+    HeroActionsProps,
+    HeroAnnouncementProps,
+    HeroBadgeProps,
+    HeroCommandProps,
+    HeroCTAProps,
+    HeroFooterProps,
+    HeroImageProps,
+    HeroLinkProps,
+    HeroProps,
+    HeroSubtitleProps,
+    HeroTitleProps,
+} from './components/Hero.tsx'
 export { Alert, AlertDescription, AlertTitle } from './components/Alert.tsx'
 export { Kbd } from './components/Kbd.tsx'
 

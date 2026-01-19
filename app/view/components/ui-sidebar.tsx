@@ -37,6 +37,7 @@ const navSections = [
             { title: 'Progress', href: '/ui/progress' },
             { title: 'Spinner', href: '/ui/spinner' },
             { title: 'Newsletter', href: '/ui/newsletter' },
+            { title: 'Hero', href: '/ui/hero' },
             { title: 'Upload Zone', href: '/ui/upload-zone' },
             { title: 'Chart', href: '/ui/chart' },
         ],
