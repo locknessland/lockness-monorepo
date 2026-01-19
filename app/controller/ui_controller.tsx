@@ -13,6 +13,7 @@ import { TablePage } from '@view/pages/ui/table.tsx'
 import { PaginationDemo } from '@view/pages/ui/pagination-demo.tsx'
 import { ProgressPage } from '@view/pages/ui/progress.tsx'
 import { UploadZonePage } from '@view/pages/ui/upload-zone.tsx'
+import { ChartPage } from '@view/pages/ui/chart.tsx'
 
 @Controller('/ui')
 export class UiController {
@@ -84,5 +85,10 @@ export class UiController {
     @Get('/upload-zone', { name: 'ui.upload-zone' })
     uploadZone(c: Context) {
         return c.render(<UploadZonePage />)
+    }
+
+    @Get('/chart', { name: 'ui.chart' })
+    chart(c: Context) {
+        return c.render(<ChartPage />)
     }
 }

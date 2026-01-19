@@ -64,6 +64,23 @@ export type { SteppedProgressProps } from './components/SteppedProgress.tsx'
 export { GaugeProgress } from './components/GaugeProgress.tsx'
 export type { GaugeProgressProps } from './components/GaugeProgress.tsx'
 export {
+    AreaChart,
+    BarChart,
+    ChartLegend,
+    ChartLegendItem,
+    ChartScript,
+    LineChart,
+} from './components/Chart.tsx'
+export type {
+    AreaChartProps,
+    BarChartProps,
+    ChartDataPoint,
+    ChartDataset,
+    ChartLegendItemProps,
+    ChartLegendProps,
+    LineChartProps,
+} from './components/Chart.tsx'
+export {
     InputFile,
     SingleImageUpload,
     UploadFileList,
