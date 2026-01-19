@@ -12,6 +12,7 @@ import { NavbarDemoPage } from '@view/pages/ui/navbar-demo.tsx'
 import { TablePage } from '@view/pages/ui/table.tsx'
 import { PaginationDemo } from '@view/pages/ui/pagination-demo.tsx'
 import { ProgressPage } from '@view/pages/ui/progress.tsx'
+import { UploadZonePage } from '@view/pages/ui/upload-zone.tsx'
 
 @Controller('/ui')
 export class UiController {
@@ -78,5 +79,10 @@ export class UiController {
     @Get('/progress', { name: 'ui.progress' })
     progress(c: Context) {
         return c.render(<ProgressPage />)
+    }
+
+    @Get('/upload-zone', { name: 'ui.upload-zone' })
+    uploadZone(c: Context) {
+        return c.render(<UploadZonePage />)
     }
 }

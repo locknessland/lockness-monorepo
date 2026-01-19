@@ -63,6 +63,20 @@ export { SteppedProgress } from './components/SteppedProgress.tsx'
 export type { SteppedProgressProps } from './components/SteppedProgress.tsx'
 export { GaugeProgress } from './components/GaugeProgress.tsx'
 export type { GaugeProgressProps } from './components/GaugeProgress.tsx'
+export {
+    InputFile,
+    SingleImageUpload,
+    UploadFileList,
+    UploadFilePreview,
+    UploadZone,
+} from './components/UploadZone.tsx'
+export type {
+    InputFileProps,
+    SingleImageUploadProps,
+    UploadFileListProps,
+    UploadFilePreviewProps,
+    UploadZoneProps,
+} from './components/UploadZone.tsx'
 export { Separator } from './components/Separator.tsx'
 export { Skeleton } from './components/Skeleton.tsx'
 export { Alert, AlertDescription, AlertTitle } from './components/Alert.tsx'
