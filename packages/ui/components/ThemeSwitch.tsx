@@ -21,6 +21,14 @@ export interface ThemeSwitchProps {
     variant?: 'classic' | 'toggle' | 'switch'
     /** Size variant */
     size?: 'sm' | 'md' | 'lg'
+    /** Label shown when in light mode (button to switch to dark) */
+    darkLabel?: string
+    /** Label shown when in dark mode (button to switch to light) */
+    lightLabel?: string
+    /** Custom class for the sun icon (variant="switch" only) */
+    sunIconClass?: string
+    /** Custom class for the moon icon (variant="switch" only) */
+    moonIconClass?: string
     /** Additional HTML attributes */
     [key: string]: unknown
 }
@@ -85,12 +93,16 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
     class: className,
     variant = 'classic',
     size = 'md',
+    darkLabel = 'Dark',
+    lightLabel = 'Light',
+    sunIconClass,
+    moonIconClass,
     ...props
 }) => {
     const sizeClasses = {
-        sm: 'py-1 px-2 text-xs h-7 w-auto',
-        md: 'py-2 px-3 text-sm h-9 w-auto',
-        lg: 'py-2.5 px-4 text-base h-11 w-auto',
+        sm: 'py-1.5 px-3 text-xs h-7 w-auto',
+        md: 'py-2.5 px-4 text-sm h-9 w-auto',
+        lg: 'py-3 px-5 text-base h-11 w-auto',
     }
 
     const iconOnlySizeClasses = {
@@ -108,7 +120,7 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
     // --- Classic Variant (Two buttons) ---
     if (variant === 'classic') {
         const btnClasses = cn(
-            'flex items-center gap-x-2 rounded-full font-medium transition-colors border border-border shadow-xs',
+            'flex items-center gap-x-2 rounded-[var(--radius)] font-medium transition-colors border border-border shadow-xs',
             'bg-background text-foreground hover:bg-accent focus:outline-hidden',
             sizeClasses[size],
         )
@@ -126,7 +138,7 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
                     onclick={toggleThemeJs}
                 >
                     <MoonIcon class={iconSizeClasses[size]} />
-                    <span>Dark</span>
+                    <span>{darkLabel}</span>
                 </button>
                 <button
                     type='button'
@@ -134,7 +146,7 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
                     onclick={toggleThemeJs}
                 >
                     <SunIcon class={iconSizeClasses[size]} />
-                    <span>Light</span>
+                    <span>{lightLabel}</span>
                 </button>
             </div>
         )
@@ -146,7 +158,7 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
             <button
                 type='button'
                 class={cn(
-                    'inline-flex items-center justify-center rounded-md transition-colors theme-switch-toggle',
+                    'inline-flex items-center justify-center rounded-[var(--radius)] transition-colors theme-switch-toggle',
                     'text-foreground/80 hover:text-foreground hover:bg-accent',
                     'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring',
                     iconOnlySizeClasses[size],
@@ -169,25 +181,25 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
     // --- Switch Variant (Checkbox style) ---
     if (variant === 'switch') {
         const switchSizes = {
-            sm: 'h-5 w-9',
-            md: 'h-6 w-11',
-            lg: 'h-7 w-14',
+            sm: 'h-6 w-11',
+            md: 'h-7 w-14',
+            lg: 'h-8 w-16',
         }
         const knobSizes = {
-            sm: 'h-4 w-4',
-            md: 'h-5 w-5',
-            lg: 'h-6 w-6',
+            sm: 'h-5 w-5',
+            md: 'h-6 w-6',
+            lg: 'h-7 w-7',
         }
         const translateClasses = {
-            sm: 'peer-checked:translate-x-[1rem]',
-            md: 'peer-checked:translate-x-[1.375rem]',
-            lg: 'peer-checked:translate-x-[1.75rem]',
+            sm: 'peer-checked:translate-x-[1.25rem]',
+            md: 'peer-checked:translate-x-[1.75rem]',
+            lg: 'peer-checked:translate-x-[2rem]',
         }
 
         return (
             <label
                 class={cn(
-                    'relative inline-flex shrink-0 cursor-pointer items-center rounded-full transition-colors theme-switch-wrapper',
+                    'relative inline-flex shrink-0 cursor-pointer items-center rounded-[var(--radius)] transition-colors theme-switch-wrapper',
                     'bg-slate-200 dark:bg-slate-700',
                     'focus-within:outline-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
                     switchSizes[size],
@@ -203,17 +215,17 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
                 />
                 <span
                     class={cn(
-                        'pointer-events-none block rounded-full bg-white shadow-lg ring-0 transition-transform text-slate-600',
+                        'pointer-events-none block rounded-[var(--radius)] bg-white shadow-lg ring-0 transition-transform text-slate-600',
                         'translate-x-0.5',
                         translateClasses[size],
                         knobSizes[size],
                     )}
                 >
                     <span class='absolute inset-0 flex items-center justify-center dark:opacity-0 transition-opacity'>
-                        <SunIcon class='size-3 text-amber-500' />
+                        <SunIcon class={cn('size-3', sunIconClass)} />
                     </span>
                     <span class='absolute inset-0 flex items-center justify-center opacity-0 dark:opacity-100 transition-opacity'>
-                        <MoonIcon class='size-3 text-blue-500' />
+                        <MoonIcon class={cn('size-3', moonIconClass)} />
                     </span>
                 </span>
             </label>
