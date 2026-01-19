@@ -138,7 +138,9 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
                     class={cn(btnClasses, 'dark:hidden')}
                     onclick={toggleThemeJs}
                 >
-                    <MoonIcon class={cn(iconSizeClasses[size], moonIconClass)} />
+                    <MoonIcon
+                        class={cn(iconSizeClasses[size], moonIconClass)}
+                    />
                     <span>{darkLabel}</span>
                 </button>
                 <button
@@ -171,10 +173,18 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
                 {...props}
             >
                 <SunIcon
-                    class={cn(iconSizeClasses[size], 'hidden dark:block', sunIconClass)}
+                    class={cn(
+                        iconSizeClasses[size],
+                        'hidden dark:block',
+                        sunIconClass,
+                    )}
                 />
                 <MoonIcon
-                    class={cn(iconSizeClasses[size], 'block dark:hidden', moonIconClass)}
+                    class={cn(
+                        iconSizeClasses[size],
+                        'block dark:hidden',
+                        moonIconClass,
+                    )}
                 />
             </button>
         )
@@ -225,10 +235,20 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
                     )}
                 >
                     <span class='absolute inset-0 flex items-center justify-center opacity-0 dark:opacity-100 transition-opacity'>
-                        <SunIcon class={cn('size-3 text-(--theme-switch-sun-color)', sunIconClass)} />
+                        <SunIcon
+                            class={cn(
+                                'size-3 text-(--theme-switch-sun-color)',
+                                sunIconClass,
+                            )}
+                        />
                     </span>
                     <span class='absolute inset-0 flex items-center justify-center dark:opacity-0 transition-opacity'>
-                        <MoonIcon class={cn('size-3 text-(--theme-switch-moon-color)', moonIconClass)} />
+                        <MoonIcon
+                            class={cn(
+                                'size-3 text-(--theme-switch-moon-color)',
+                                moonIconClass,
+                            )}
+                        />
                     </span>
                 </span>
             </label>
