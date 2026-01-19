@@ -38,7 +38,21 @@ requiring tier-based pricing displays.
 ### Files to Modify
 
 - `/app/controller/ui_controller.tsx` - Add route for `/ui/pricing`
+  ```typescript
+  // Add import
+  import { PricingPage } from '@view/pages/ui/pricing.tsx'
+
+  // Add route method
+  @Get('/pricing', { name: 'ui.pricing' })
+  pricing(c: Context) {
+      return c.render(<PricingPage />)
+  }
+  ```
 - `/app/view/components/ui-sidebar.tsx` - Add Pricing link to navigation
+  ```typescript
+  // Add to navSections COMPONENTS links array
+  { title: 'Pricing', href: '/ui/pricing' },
+  ```
 
 ### Test Files
 
