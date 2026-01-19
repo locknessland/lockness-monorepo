@@ -111,16 +111,17 @@ export const Progress: FC<ProgressProps> = ({
                 aria-valuemin={0}
                 aria-valuemax={max}
                 class={cn(
-                    'w-full overflow-hidden rounded-full bg-secondary',
+                    'w-full overflow-hidden bg-secondary',
                     sizeStyles[size],
                 )}
+                style='border-radius: var(--radius)'
             >
                 <div
                     class={cn(
-                        'h-full rounded-full transition-all duration-300 ease-in-out',
+                        'h-full transition-all duration-300 ease-in-out',
                         variantStyles[variant],
                     )}
-                    style={`width: ${percentage}%`}
+                    style={`width: ${percentage}%; border-radius: var(--radius)`}
                 />
             </div>
         </div>
