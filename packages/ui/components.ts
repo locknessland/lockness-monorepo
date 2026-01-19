@@ -113,6 +113,11 @@ export { Separator } from './components/Separator.tsx'
 export { Skeleton } from './components/Skeleton.tsx'
 export { Spinner } from './components/Spinner.tsx'
 export type { SpinnerProps } from './components/Spinner.tsx'
+export { Newsletter, NewsletterSection } from './components/Newsletter.tsx'
+export type {
+    NewsletterProps,
+    NewsletterSectionProps,
+} from './components/Newsletter.tsx'
 export { Alert, AlertDescription, AlertTitle } from './components/Alert.tsx'
 export { Kbd } from './components/Kbd.tsx'
 

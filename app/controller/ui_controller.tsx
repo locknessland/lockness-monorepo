@@ -15,6 +15,7 @@ import { ProgressPage } from '@view/pages/ui/progress.tsx'
 import { UploadZonePage } from '@view/pages/ui/upload-zone.tsx'
 import { ChartPage } from '@view/pages/ui/chart.tsx'
 import { SpinnerPage } from '@view/pages/ui/spinner.tsx'
+import { NewsletterPage } from '@view/pages/ui/newsletter.tsx'
 
 @Controller('/ui')
 export class UiController {
@@ -96,5 +97,10 @@ export class UiController {
     @Get('/spinner', { name: 'ui.spinner' })
     spinner(c: Context) {
         return c.render(<SpinnerPage />)
+    }
+
+    @Get('/newsletter', { name: 'ui.newsletter' })
+    newsletter(c: Context) {
+        return c.render(<NewsletterPage />)
     }
 }
