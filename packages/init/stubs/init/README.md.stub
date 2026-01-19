@@ -1,37 +1,8 @@
 # 🌊 {{ projectName }}
 
-**Lockness JS** is a high-performance, fullstack MVC web framework built natively for **Deno**. Heavily inspired by the elegance of Laravel and AdonisJS, it leverages the speed of **HonoJS** fully encapsulated within `@lockness/core`, providing a structured and ergonomic development experience.
+A [Lockness JS](https://lockness.land) application.
 
-## 📁 Project Structure
-
-This project starts with a minimal, unopinionated structure:
-
-```
-{{ projectName }}/
-├── app/
-│   ├── controller/       # HTTP request handlers
-│   └── view/            # JSX components & assets
-│       ├── assets/      # CSS source files
-│       ├── components/  # Reusable UI components
-│       ├── layouts/     # Page layouts
-│       └── pages/       # Page components
-├── database/
-│   └── migrations/      # Drizzle ORM migrations
-├── public/
-│   ├── css/            # Compiled CSS output
-│   └── img/            # Static images
-└── scripts/            # Development scripts
-```
-
-**Note**: Additional folders like `service/`, `model/`, `repository/`, and `middleware/` 
-are not created by default. You can scaffold them as needed using CLI commands like:
-- `./nessy make:model User -a` (creates model, repository, service, controller)
-- `./nessy make:middleware Auth`
-- `./nessy make:service Email`
-
-### Development
-
-Lockness uses a multi-process development workflow. For optimal performance, run each watcher in a separate terminal:
+## 🚀 Quick Start
 
 ```bash
 # Terminal 1: CSS Watcher
@@ -41,511 +12,56 @@ deno task css:watch
 deno task dev
 ```
 
-The `dev` task runs the main server with hot-reload. The CSS watcher rebuilds styles automatically when files change.
+Open [http://localhost:8888](http://localhost:8888)
 
-**Routes are automatically updated** when you create or modify controllers - no separate watcher needed. The `deno task routes:watch` command exists but is optional.
+## 📁 Project Structure
 
-**Why separate terminals?** Each watcher needs its own process to function properly. Running them concurrently in a single script can cause conflicts in terminal I/O handling.
-
-### Build for Production
-Build production assets (CSS):
-```bash
-deno task build
+```
+{{ projectName }}/
+├── app/
+│   ├── controller/      # HTTP handlers
+│   └── view/            # JSX pages & components
+├── public/              # Static assets (CSS, images)
+└── main.ts              # Application entry point
 ```
 
-### Running in Production
-Run the production server directly from source:
-```bash
-deno task start
-```
+## 🛠️ Common Commands
 
-This runs `main.ts` directly with production environment variables. For Deno
-Deploy, simply point to `main.ts` as the entry point.
+| Command                        | Description                    |
+| ------------------------------ | ------------------------------ |
+| `deno task dev`                | Start development server       |
+| `deno task css:watch`          | Watch & compile CSS            |
+| `deno task cli make:controller User` | Create a controller      |
+| `deno task cli router:list`    | Display all routes             |
 
-### Compile to Binary
-Create a standalone executable for VPS or self-hosted environments:
-```bash
-deno task compile
-```
+## 📦 Adding Features
 
-This generates `_dist/{{ projectName }}` (~83MB) - a fully self-contained binary that
-includes the Deno runtime and all dependencies. Not needed for Deno Deploy.
-
-### Deno Deploy
-
-Deploy to Deno Deploy cloud platform:
-
-1. Connect your GitHub repository
-2. Set entry point to `main.ts`
-3. Add build command: `deno task routes:generate`
-4. Configure environment variables (`APP_ENV=production`, `DATABASE_URL`, etc.)
-
-Deno Deploy runs TypeScript directly with native TC39 decorators support - no
-compilation or bundling needed.
-
-### Docker
-
-Build and run in a container:
+Install additional packages as needed:
 
 ```bash
-# Build the image
-docker build -t {{ projectName }} .
+# Add Drizzle ORM for database
+deno task cli package:install drizzle
 
-# Run the container
-docker run -p 8888:8888 --env-file .env.production {{ projectName }}
-```
+# Add authentication
+deno task cli package:install auth
 
-### Testing
-
-Run the test suite:
-
-```bash
-deno task test
-```
-
-Run tests with coverage:
-
-```bash
-deno task test:coverage
-```
-
-### Styling & CSS
-
-The project comes with **PostCSS** pre-configured as a neutral CSS processor. 
-By default, no CSS framework is included - you're free to choose your preferred approach.
-
-**Source file**: `app/view/assets/app.css`  
-**Output file**: `public/css/app.css`
-
-**Build CSS once**:
-```bash
-deno task css:build
-```
-
-**Watch CSS changes** (auto-runs with `deno task dev`):
-```bash
-deno task css:watch
-```
-
-#### Styling Options
-
-The project is intentionally **framework-agnostic**. Choose the approach that fits your needs:
-
-**Option 1: Plain CSS (Default)**
-Edit `app/view/assets/app.css` with vanilla CSS. The starter includes CSS variables 
-and basic resets:
-
-```css
-:root {
-    --primary-color: #007bff;
-    --text-color: #333;
-    --bg-color: #fff;
-}
-```
-
-**Option 2: Add Tailwind CSS**
-```bash
-# 1. Add Tailwind to postcss.config.js
-cat > postcss.config.js << 'EOF'
-export default {
-    plugins: {
-        tailwindcss: {},
-    },
-}
-EOF
-
-# 2. Create tailwind.config.ts
-cat > tailwind.config.ts << 'EOF'
-export default {
-    content: ['./app/**/*.{ts,tsx}'],
-    theme: { extend: {} },
-    plugins: [],
-}
-EOF
-
-# 3. Update app/view/assets/app.css
-cat > app/view/assets/app.css << 'EOF'
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-EOF
-
-# 4. Add tailwindcss to deno.json imports
-# Add this line to the "imports" section:
-# "tailwindcss": "npm:tailwindcss@3"
-
-# 5. Build CSS
-deno task css:build
-```
-
-**Option 3: Add other PostCSS plugins**
-Install any PostCSS plugin and add it to `postcss.config.js`:
-```javascript
-export default {
-    plugins: {
-        'autoprefixer': {},
-        'postcss-preset-env': {},
-        'cssnano': {},
-    },
-}
-```
-
-Then add the corresponding npm packages to your `deno.json` imports:
-```json
-{
-  "imports": {
-    "autoprefixer": "npm:autoprefixer@^10.4",
-    "cssnano": "npm:cssnano@^7"
-  }
-}
-```
-
-
-### Nessy CLI Wrapper
-
-**Nessy** is a convenient CLI wrapper for faster development. Install it:
-
-```bash
-deno task cli nessy:install
-```
-
-Then use `./nessy` instead of `deno task cli`:
-
-```bash
-# Scaffolding
-./nessy make:controller User
-./nessy make:model Post -a
-
-# Database
-./nessy db:migrate
-./nessy db:studio
-
-# Development
-./nessy dev          # Start dev server
-./nessy test User    # Run tests
-./nessy check        # Type-check files
-./nessy router:list  # Show all routes
-
-# Maintenance
-./nessy clean        # Remove build artifacts
-./nessy fresh        # Clean all + reinstall
-./nessy status       # Project health
-```
-
-**DX Commands:** `dev`, `build`, `start`, `compile`, `test`, `check`, `fresh`, `clean`, `status`, `install`, `--version`, `--help`
-
-### Database Management (Drizzle ORM)
-
-Lockness uses **Drizzle ORM** for type-safe database operations.
-
-```bash
-# Generate migrations from schema
-deno task cli db:generate
-
-# Apply pending migrations
-deno task cli db:migrate
-
-# Push schema directly (dev)
-deno task cli db:push
-
-# Launch Drizzle Studio
-deno task cli db:studio
-
-# Create a seeder
-deno task cli make:seeder User
-
-# Run seeders
-deno task cli db:seed
-
-# Scaffold a complete entity
-deno task cli make:model Post -a
-```
-
-The `make:model` command supports flags:
-- `-r` generate repository
-- `-s` generate seeder  
-- `-c` generate controller (with CRUD actions)
-- `-a` generate all (model + repository + service + controller + seeder)
-
-### Complete CRUD Scaffolding
-
-Generate a complete CRUD feature with views in one command:
-
-```bash
-deno task cli make:crud Post
-```
-
-This creates a full-stack feature including:
-
-- `app/model/post.ts` - Drizzle schema definition
-- `app/repository/post_repository.ts` - Data access layer
-- `app/service/post_service.ts` - Business logic layer
-- `app/controller/post_controller.tsx` - HTTP request handlers
-- `app/view/pages/post/index.tsx` - List view
-- `app/view/pages/post/show.tsx` - Detail view
-
-All layers follow the repository pattern for clean architecture.
-
-### Scaffolding & Code Generation
-
-Lockness provides powerful scaffolding commands to generate boilerplate code:
-
-```bash
-# Generate individual components
-./nessy make:controller User
-./nessy make:model Post
-./nessy make:service Email
-./nessy make:repository User
-./nessy make:middleware Auth
-./nessy make:component Button
-
-# Generate complete entity (model + repository + service + controller)
-./nessy make:model Post -a
-```
-
-The `-a` flag creates all layers for a complete entity:
-- Model (Drizzle schema)
-- Repository (data access)
-- Service (business logic)
-- Controller (HTTP handlers)
-
-**Available flags for `make:model`**:
-- `-r` repository only
-- `-s` seeder only
-- `-c` controller only (CRUD)
-- `-a` all of the above
-
-### Request Validation
-
-Use **drizzle-zod** to generate validation schemas from your models:
-
-```typescript
-// app/model/user.ts
-import { createInsertSchema } from 'drizzle-zod'
-
-export const insertUserSchema = createInsertSchema(users, {
-    email: z.string().email(),
-    password: z.string().min(8),
-})
-```
-
-```typescript
-// app/controller/user_controller.ts
-import { Validate } from '@lockness/validator'
-import { insertUserSchema } from '../model/user.ts'
-
-@Post('/')
-@Validate('json', insertUserSchema)
-create(c: Context) {
-    const data = c.req.valid('json') // Typed!
-    return c.json({ success: true, data })
-}
-```
-
-### Dependency Injection
-
-Lockness uses **TC39 standard decorators** (no `experimentalDecorators` needed). When using `@Inject`, use the `accessor` keyword:
-
-```typescript
-@Service()
-export class UserRepository {
-    @Inject(Database)
-    accessor database!: Database  // Use 'accessor'
-
-    async findAll() {
-        return await this.database.db.select().from(users)
-    }
-}
-```
-
-### Middleware
-
-Create and use middlewares:
-
-```bash
-deno task cli make:middleware Auth
-```
-
-```typescript
-// app/kernel.ts
-await app.init({
-    controllers,
-    globalMiddlewares: [LoggerMiddleware],  // Applied to all routes
-    middlewares: { auth: AuthMiddleware },  // Named middlewares
-})
-```
-
-```typescript
-// In controllers
-@Get('/protected')
-@Use('auth')  // or @Use(AuthMiddleware)
-protected(c: Context) { ... }
-```
-
-### Sessions
-
-```typescript
-import { session } from '@lockness/core'
-
-session(c).set('user_id', 123)
-session(c).get('user_id')
-session(c).flash('success', 'Done!')  // For next request only
-```
-
-### Authentication
-
-Scaffold auth system:
-
-```bash
-deno task cli make:auth
-```
-
-Use auth guards:
-
-```typescript
-import { Auth, Guest, auth } from '@lockness/core'
-
-@Auth()  // Require authentication
-@Controller('/dashboard')
-export class DashboardController { ... }
-
-@Guest('/dashboard')  // Redirect if already logged in
-@Get('/login')
-showLogin(c: Context) { ... }
-
-// Login/logout
-await auth(c).attempt(email, password)
-await auth(c).logout()
-const user = await auth(c).user()
-```
-
-### Social Authentication (OAuth2)
-
-Add social login with Google, GitHub, Discord:
-
-```bash
-deno task cli make:auth --social
-```
-
-```typescript
-import { configureSocialite, socialite } from '@lockness/core'
-
-// Configure in kernel.ts
-configureSocialite({
-    google: {
-        clientId: Deno.env.get('GOOGLE_CLIENT_ID')!,
-        clientSecret: Deno.env.get('GOOGLE_CLIENT_SECRET')!,
-        redirectUri: Deno.env.get('APP_URL') + '/auth/google/callback',
-    },
-})
-
-// In controller
-@Get('/auth/google')
-google(c: Context) {
-    return socialite('google').redirect()
-}
-
-@Get('/auth/google/callback')
-async callback(c: Context) {
-    const user = await socialite('google').user(c)
-    // { id, email, name, avatar, accessToken }
-}
-```
-
-### Mail
-
-```typescript
-import { mail } from '@lockness/core'
-
-await mail()
-    .to('user@example.com')
-    .subject('Welcome!')
-    .html('<h1>Hello!</h1>')
-    .send()
-```
-
-### Background Jobs
-
-```bash
-deno task cli make:job SendWelcomeEmail
-```
-
-```typescript
-import { dispatch } from '@lockness/core'
-import { SendWelcomeEmailJob } from './job/send_welcome_email_job.ts'
-
-// Dispatch immediately
-await dispatch(new SendWelcomeEmailJob({ userId: 1 }))
-
-// Dispatch with delay
-await dispatch(new SendWelcomeEmailJob({ userId: 1 }), { delay: 60000 })
-
-// Start worker
-deno task cli queue:work
-```
-
-### Interactive REPL
-
-```bash
-deno task cli tinker
-```
-
-### Display All Routes
-
-List all registered routes with their details:
-
-```bash
-deno task cli router:list
-```
-
-Shows a formatted table with HTTP methods (color-coded), paths, controllers,
-actions, and middlewares for easy debugging and API overview.
-
-### Package Management
-
-Lockness provides a powerful package management system that automatically
-configures and integrates additional features into your application.
-
-#### Installing Packages
-
-Use the `package:install` command for fully automated setup:
-
-```bash
+# Add OpenAPI documentation
 deno task cli package:install openapi
 ```
 
-This command will:
+## 🚢 Production
 
-- Add the package to `deno.json`
-- Run the package's install script (if available)
-- Create necessary files and configurations
-- Display next steps and documentation links
+```bash
+# Build assets
+deno task build
 
-#### Configuration
+# Run production server
+deno task start
 
-Packages are declared in the `lockness` section of your `deno.json`:
-
-```json
-{
-  "lockness": {
-    "packages": [
-      "drizzle",
-      "openapi",
-      "cache"
-    ]
-  }
-}
+# Or compile to binary
+deno task compile
 ```
 
-#### Available Commands
+## 📖 Documentation
 
-- `package:install <name>` - Install and configure a package with automated setup
-- `package:add <name>` - Add package to configuration only (no setup)
-- `package:remove <name>` - Remove package from configuration
-
-#### Official Packages
-
-- **@lockness/drizzle**: Drizzle ORM integration
-- **@lockness/openapi**: OpenAPI/Swagger documentation
-- **@lockness/cache**: Multi-driver caching system
-- **@lockness/socialite**: OAuth2 authentication
+Full documentation: [lockness.land/docs](https://lockness.land/docs)
