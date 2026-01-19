@@ -12,6 +12,7 @@ import {
     Title,
 } from '@lockness/ui/components'
 import { UiSidebar } from '../components/ui-sidebar.tsx'
+import { ThemeCustomizerScript } from '../components/theme-customizer.tsx'
 
 interface PageUiLayoutProps {
     title: string
@@ -85,6 +86,7 @@ export const PageUiLayout = (
             </SidebarProvider>
 
             <ThemeToggleScript />
+            <ThemeCustomizerScript />
         </RootLayout>
     )
 }

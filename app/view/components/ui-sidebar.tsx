@@ -10,6 +10,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@lockness/ui/components'
+import { ThemeCustomizer } from './theme-customizer.tsx'
 
 // Navigation data for UI sidebar
 const navSections = [
@@ -84,12 +85,15 @@ export const UiSidebar = () => {
             </SidebarContent>
 
             <SidebarFooter>
-                <div class='px-2 py-2 text-xs text-sidebar-foreground/50'>
-                    Press{' '}
-                    <kbd class='px-1 py-0.5 bg-sidebar-accent rounded text-sidebar-foreground'>
-                        ⌘B
-                    </kbd>{' '}
-                    to toggle
+                <div class='space-y-2 px-2 py-2'>
+                    <ThemeCustomizer />
+                    <div class='text-xs text-sidebar-foreground/50'>
+                        Press{' '}
+                        <kbd class='px-1 py-0.5 bg-sidebar-accent rounded text-sidebar-foreground'>
+                            ⌘B
+                        </kbd>{' '}
+                        to toggle
+                    </div>
                 </div>
             </SidebarFooter>
         </Sidebar>
