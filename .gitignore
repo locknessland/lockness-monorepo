@@ -30,8 +30,3 @@ public/css/
 
 # Initialize a new Lockness project (Only for development purposes)
 _lockness_app
-verify_unified_api.ts
-
-# shadcn-ui repository folder # For exemple and dev purposes
-.shadcn-ui
-
