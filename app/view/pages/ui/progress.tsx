@@ -1,4 +1,10 @@
-import { Card, CardContent, CodeBlock, Progress } from '@lockness/ui/components'
+import {
+    Card,
+    CardContent,
+    CircularProgress,
+    CodeBlock,
+    Progress,
+} from '@lockness/ui/components'
 import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const ProgressPage = () => {
@@ -143,6 +149,258 @@ export const ProgressPage = () => {
                     </Card>
                     <CodeBlock lang='tsx'>
                         {`<Progress value={80} innerLabel variant="success" />`}
+                    </CodeBlock>
+                </section>
+
+                {/* End Label */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        END LABEL
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        Place the percentage label at the end (right side) of
+                        the progress bar.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <Progress value={25} endLabel />
+                            <Progress value={50} endLabel />
+                            <Progress value={75} endLabel />
+                            <Progress value={100} endLabel />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={50} endLabel />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        End labels with different variants:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6 space-y-4'>
+                            <Progress value={60} endLabel />
+                            <Progress value={80} endLabel variant='success' />
+                            <Progress value={45} endLabel variant='warning' />
+                            <Progress
+                                value={30}
+                                endLabel
+                                variant='destructive'
+                            />
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={80} endLabel variant="success" />`}
+                    </CodeBlock>
+                </section>
+
+                {/* Vertical */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        VERTICAL
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        Display progress bars vertically.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex gap-x-8'>
+                                <Progress value={25} vertical />
+                                <Progress value={50} vertical />
+                                <Progress value={75} vertical />
+                                <Progress value={90} vertical />
+                                <Progress value={17} vertical />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<div class="flex gap-x-8">
+  <Progress value={25} vertical />
+  <Progress value={50} vertical />
+  <Progress value={75} vertical />
+</div>`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Vertical progress bars with different variants:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex gap-x-8'>
+                                <Progress value={60} vertical />
+                                <Progress
+                                    value={80}
+                                    vertical
+                                    variant='success'
+                                />
+                                <Progress
+                                    value={45}
+                                    vertical
+                                    variant='warning'
+                                />
+                                <Progress
+                                    value={30}
+                                    vertical
+                                    variant='destructive'
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={80} vertical variant="success" />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Different sizes for vertical progress:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex gap-x-8 items-end'>
+                                <Progress value={60} vertical size='sm' />
+                                <Progress value={60} vertical />
+                                <Progress value={60} vertical size='lg' />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<Progress value={60} vertical size="lg" />`}
+                    </CodeBlock>
+                </section>
+
+                {/* Circular Progress */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        CIRCULAR PROGRESS
+                    </h2>
+                    <p class='text-muted-foreground'>
+                        A circular progress indicator using SVG. Great for
+                        dashboards and compact displays.
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex gap-8 items-center'>
+                                <CircularProgress value={25} />
+                                <CircularProgress value={50} />
+                                <CircularProgress value={75} />
+                                <CircularProgress value={100} />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`import { CircularProgress } from '@lockness/ui/components'
+
+<CircularProgress value={50} />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        With percentage label in the center:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex gap-8 items-center'>
+                                <CircularProgress value={25} showLabel />
+                                <CircularProgress value={50} showLabel />
+                                <CircularProgress value={75} showLabel />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<CircularProgress value={75} showLabel />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Different sizes (sm, default, lg, xl):
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex gap-8 items-end'>
+                                <CircularProgress
+                                    value={60}
+                                    size='sm'
+                                    showLabel
+                                />
+                                <CircularProgress value={60} showLabel />
+                                <CircularProgress
+                                    value={60}
+                                    size='lg'
+                                    showLabel
+                                />
+                                <CircularProgress
+                                    value={60}
+                                    size='xl'
+                                    showLabel
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<CircularProgress value={60} size="xl" showLabel />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Variants with labels:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex gap-8 items-center'>
+                                <CircularProgress
+                                    value={60}
+                                    size='lg'
+                                    showLabel
+                                />
+                                <CircularProgress
+                                    value={80}
+                                    size='lg'
+                                    variant='success'
+                                    showLabel
+                                />
+                                <CircularProgress
+                                    value={45}
+                                    size='lg'
+                                    variant='warning'
+                                    showLabel
+                                />
+                                <CircularProgress
+                                    value={30}
+                                    size='lg'
+                                    variant='destructive'
+                                    showLabel
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<CircularProgress value={80} variant="success" showLabel />`}
+                    </CodeBlock>
+
+                    <p class='text-muted-foreground'>
+                        Custom stroke width:
+                    </p>
+                    <Card>
+                        <CardContent class='p-6'>
+                            <div class='flex gap-8 items-center'>
+                                <CircularProgress
+                                    value={60}
+                                    size='lg'
+                                    strokeWidth={1}
+                                    showLabel
+                                />
+                                <CircularProgress
+                                    value={60}
+                                    size='lg'
+                                    strokeWidth={2}
+                                    showLabel
+                                />
+                                <CircularProgress
+                                    value={60}
+                                    size='lg'
+                                    strokeWidth={4}
+                                    showLabel
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <CodeBlock lang='tsx'>
+                        {`<CircularProgress value={60} strokeWidth={4} showLabel />`}
                     </CodeBlock>
                 </section>
 
@@ -447,6 +705,145 @@ export const ProgressPage = () => {
                                     </td>
                                     <td class='py-3 px-4 text-muted-foreground'>
                                         Show label inside the progress bar
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        endLabel
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        false
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Show label at the end (right side)
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        vertical
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        false
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Display progress bar vertically
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h3 class='font-pixel text-xs text-foreground mt-6'>
+                        CircularProgress Props
+                    </h3>
+                    <div class='overflow-x-auto'>
+                        <table class='w-full text-sm'>
+                            <thead>
+                                <tr class='border-b'>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Prop
+                                    </th>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Type
+                                    </th>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Default
+                                    </th>
+                                    <th class='py-3 px-4 text-left font-medium'>
+                                        Description
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        value
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        0
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Current progress value
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        max
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        100
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Maximum value
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        variant
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'default' | 'success' | 'warning' |
+                                        'destructive'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'default'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Color variant
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        size
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'sm' | 'default' | 'lg' | 'xl'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        'default'
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Size of the circular progress
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        strokeWidth
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        number
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        2
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Thickness of the progress circle
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class='py-3 px-4 font-mono text-xs'>
+                                        showLabel
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        boolean
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        false
+                                    </td>
+                                    <td class='py-3 px-4 text-muted-foreground'>
+                                        Show percentage in the center
                                     </td>
                                 </tr>
                             </tbody>
