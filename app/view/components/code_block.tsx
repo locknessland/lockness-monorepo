@@ -174,7 +174,7 @@ export const CodeBlock = (
 
     return (
         <>
-            <div class='my-6 pixel-code overflow-hidden'>
+            <div class='my-6 pixel-code overflow-hidden max-w-full'>
                 <div class='flex items-center gap-2 px-4 py-2 bg-card/50 border-b-3 border-border'>
                     <div class='flex gap-2'>
                         <div class='w-3 h-3 bg-red-500/80'></div>
@@ -185,8 +185,8 @@ export const CodeBlock = (
                         {lang}
                     </span>
                 </div>
-                <pre class='p-6 overflow-x-auto'>
-                    <code id={id} class={`language-${lang}`}>{children}</code>
+                <pre class='p-6 overflow-x-auto max-w-full'>
+                    <code id={id} class={`language-${lang} block`}>{children}</code>
                 </pre>
             </div>
 

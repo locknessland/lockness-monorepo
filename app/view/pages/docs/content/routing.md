@@ -179,11 +179,11 @@ Example output:
 📋 Registered Routes (11 total)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ METHOD ┃ PATH           ┃ NAME       ┃ CONTROLLER     ┃ ACTION ┃ MIDDLEWARES
+┃ METHOD ┃ PATH           ┃ NAME        ┃ CONTROLLER      ┃ ACTION  ┃ MIDDLEWARES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-┃ GET    ┃ /              ┃ home       ┃ AppController  ┃ index  ┃ -
-┃ POST   ┃ /api/users     ┃ users.store ┃ UserController ┃ create ┃ @Auth, @Validate
-┃ GET    ┃ /api/users/:id ┃ users.show  ┃ UserController ┃ show   ┃ auth
+┃ GET    ┃ /              ┃ home        ┃ AppController   ┃ index   ┃ -
+┃ POST   ┃ /api/users     ┃ users.store ┃ UserController  ┃ create  ┃ @Auth, @Validate
+┃ GET    ┃ /api/users/:id ┃ users.show  ┃ UserController  ┃ show    ┃ auth
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 

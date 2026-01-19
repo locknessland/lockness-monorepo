@@ -48,7 +48,7 @@ export const Card: FC<CardProps> = ({
     return (
         <div
             class={cn(
-                'rounded-lg border border-gray-200 bg-white shadow-sm',
+                'rounded-(--radius) border bg-card text-card-foreground shadow-sm',
                 className,
             )}
             {...props}
@@ -61,27 +61,69 @@ export const Card: FC<CardProps> = ({
 /**
  * CardHeader
  *
- * Header section of the card, typically contains the title.
+ * Header section of the card, typically contains the title and optional icon.
  *
  * @example
  * ```tsx
- * <CardHeader>
+ * <CardHeader icon="🎨">
  *   <CardTitle>Title</CardTitle>
- *   <p class="text-sm text-gray-500">Subtitle</p>
+ * </CardHeader>
+ *
+ * <CardHeader icon="🎨" iconPosition="top">
+ *   <CardTitle>Title</CardTitle>
  * </CardHeader>
  * ```
  */
-export const CardHeader: FC<CardProps> = ({
+export interface CardHeaderProps extends CardProps {
+    /**
+     * Optional icon or emoji to display with the content
+     */
+    icon?: string
+    /**
+     * Position of the icon relative to the content
+     * @default 'left'
+     */
+    iconPosition?: 'left' | 'top' | 'right'
+}
+
+export const CardHeader: FC<CardHeaderProps> = ({
     class: className,
+    icon,
+    iconPosition = 'left',
     children,
     ...props
 }) => {
+    const iconElement = icon && (
+        <div class='text-2xl'>
+            {icon}
+        </div>
+    )
+
+    const layoutClasses = {
+        left: 'flex-row items-center gap-3',
+        top: 'flex-col',
+        right: 'flex-row-reverse items-center gap-3',
+    }
+
     return (
         <div
-            class={cn('flex flex-col space-y-1.5 p-6', className)}
+            class={cn(
+                'flex space-y-1.5 p-(--card-header-padding)',
+                icon ? layoutClasses[iconPosition] : 'flex-col',
+                className,
+            )}
             {...props}
         >
-            {children}
+            {(iconPosition === 'left' || iconPosition === 'right') &&
+                iconElement}
+            {iconPosition === 'top' && iconElement && (
+                <div class='mb-2'>
+                    {iconElement}
+                </div>
+            )}
+            <div class='flex flex-col space-y-1.5 flex-1'>
+                {children}
+            </div>
         </div>
     )
 }
@@ -104,7 +146,7 @@ export const CardTitle: FC<CardProps> = ({
     return (
         <h3
             class={cn(
-                'text-2xl font-semibold leading-none tracking-tight',
+                'text-(length:--card-title-font-size) font-semibold leading-none tracking-tight',
                 className,
             )}
             {...props}
@@ -130,7 +172,7 @@ export const CardDescription: FC<CardProps> = ({
     ...props
 }) => {
     return (
-        <p class={cn('text-sm text-gray-500', className)} {...props}>
+        <p class={cn('text-sm text-muted-foreground', className)} {...props}>
             {children}
         </p>
     )
@@ -154,7 +196,10 @@ export const CardContent: FC<CardProps> = ({
     ...props
 }) => {
     return (
-        <div class={cn('p-6 pt-0', className)} {...props}>
+        <div
+            class={cn('p-(--card-content-padding) pt-0', className)}
+            {...props}
+        >
             {children}
         </div>
     )
@@ -180,7 +225,10 @@ export const CardFooter: FC<CardProps> = ({
 }) => {
     return (
         <div
-            class={cn('flex items-center p-6 pt-0', className)}
+            class={cn(
+                'flex items-center p-(--card-footer-padding) pt-0',
+                className,
+            )}
             {...props}
         >
             {children}

@@ -23,7 +23,9 @@ Deno.test('Card components', async (t) => {
                 <div>Content</div>
             </Card>,
         )
-        assertStringIncludes(html, 'rounded-lg')
+        assertStringIncludes(html, 'rounded-(--radius)')
+        assertStringIncludes(html, 'bg-card')
+        assertStringIncludes(html, 'text-card-foreground')
         assertStringIncludes(html, 'border')
         assertStringIncludes(html, 'Content')
     })
@@ -42,14 +44,14 @@ Deno.test('Card components', async (t) => {
             </CardHeader>,
         )
         assertStringIncludes(html, 'flex')
-        assertStringIncludes(html, 'p-6')
+        assertStringIncludes(html, 'p-(--card-header-padding)')
         assertStringIncludes(html, 'Header')
     })
 
     await t.step('CardTitle renders as h3 with font styles', () => {
         const html = renderToString(<CardTitle>My Title</CardTitle>)
         assertStringIncludes(html, '<h3')
-        assertStringIncludes(html, 'text-2xl')
+        assertStringIncludes(html, 'text-(length:--card-title-font-size)')
         assertStringIncludes(html, 'font-semibold')
         assertStringIncludes(html, 'My Title')
     })
@@ -60,7 +62,7 @@ Deno.test('Card components', async (t) => {
         )
         assertStringIncludes(html, '<p')
         assertStringIncludes(html, 'text-sm')
-        assertStringIncludes(html, 'text-gray-500')
+        assertStringIncludes(html, 'text-muted-foreground')
         assertStringIncludes(html, 'Description text')
     })
 
@@ -70,7 +72,7 @@ Deno.test('Card components', async (t) => {
                 <p>Main content</p>
             </CardContent>,
         )
-        assertStringIncludes(html, 'p-6')
+        assertStringIncludes(html, 'p-(--card-content-padding)')
         assertStringIncludes(html, 'pt-0')
         assertStringIncludes(html, 'Main content')
     })

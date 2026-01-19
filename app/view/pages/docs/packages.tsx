@@ -1,3 +1,24 @@
+import {
+    Alert,
+    AlertDescription,
+    AlertTitle,
+    Badge,
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+    CodeBlock,
+    Command,
+    Link,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+    Title,
+} from '@lockness/ui/components'
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 
 export const PackagesPage = () => {
@@ -7,55 +28,63 @@ export const PackagesPage = () => {
             currentPath='/docs/packages'
             llmPath='packages'
         >
-            <h1 class='text-4xl font-bold mb-6'>Package Management</h1>
-
-            <p class='text-lg text-gray-600 mb-8'>
-                Lockness provides a powerful package management system that
-                automatically configures and integrates additional features into
-                your application. Packages are registered in{' '}
-                <code class='bg-gray-100 px-2 py-1 rounded'>deno.json</code>
-                {' '}
-                and loaded dynamically at runtime.
-            </p>
-
-            <section class='mb-12'>
-                <h2 class='text-3xl font-bold mb-4'>Overview</h2>
-                <p class='mb-4'>
-                    The package system allows you to add functionality to your
-                    Lockness application with zero configuration. Packages
-                    automatically register their CLI commands, services, and
-                    configurations when listed in your{' '}
-                    <code class='bg-gray-100 px-2 py-1 rounded'>
+            <div class='space-y-8'>
+                {/* Introduction */}
+                <p class='text-lg text-muted-foreground'>
+                    Lockness provides a powerful package management system that
+                    automatically configures and integrates additional features
+                    into your application. Packages are registered in{' '}
+                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
                         deno.json
-                    </code>.
+                    </code>{' '}
+                    and loaded dynamically at runtime.
                 </p>
 
-                <div class='bg-blue-50 border-l-4 border-blue-500 p-4 mb-6'>
-                    <p class='font-semibold mb-2'>🎯 Key Benefits</p>
-                    <ul class='list-disc list-inside space-y-1'>
-                        <li>Zero configuration - just install and use</li>
-                        <li>Automatic CLI command registration</li>
-                        <li>Install scripts for automated setup</li>
-                        <li>Declarative package configuration</li>
-                        <li>Clean uninstallation</li>
-                    </ul>
-                </div>
-            </section>
+                {/* Overview Section */}
+                <section class='space-y-4'>
+                    <Title level={2}>Overview</Title>
+                    <p class='text-muted-foreground'>
+                        The package system allows you to add functionality to
+                        your Lockness application with zero configuration.
+                        Packages automatically register their CLI commands,
+                        services, and configurations when listed in your{' '}
+                        <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                            deno.json
+                        </code>.
+                    </p>
 
-            <section class='mb-12'>
-                <h2 class='text-3xl font-bold mb-4'>Configuration</h2>
-                <p class='mb-4'>
-                    Packages are declared in the{' '}
-                    <code class='bg-gray-100 px-2 py-1 rounded'>lockness</code>
-                    {' '}
-                    section of your{' '}
-                    <code class='bg-gray-100 px-2 py-1 rounded'>
-                        deno.json
-                    </code>:
-                </p>
+                    <Alert>
+                        <AlertTitle>🎯 Key Benefits</AlertTitle>
+                        <AlertDescription>
+                            <ul class='list-disc list-inside space-y-1 mt-2'>
+                                <li>
+                                    Zero configuration - just install and use
+                                </li>
+                                <li>Automatic CLI command registration</li>
+                                <li>Install scripts for automated setup</li>
+                                <li>Declarative package configuration</li>
+                                <li>Clean uninstallation</li>
+                            </ul>
+                        </AlertDescription>
+                    </Alert>
+                </section>
 
-                <pre class='bg-gray-900 text-white p-4 rounded-lg mb-4 overflow-x-auto'>
-                    <code>{`{
+                {/* Configuration Section */}
+                <section class='space-y-4'>
+                    <Title level={2}>Configuration</Title>
+                    <p class='text-muted-foreground'>
+                        Packages are declared in the{' '}
+                        <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                            lockness
+                        </code>{' '}
+                        section of your{' '}
+                        <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                            deno.json
+                        </code>:
+                    </p>
+
+                    <CodeBlock lang='json'>
+                        {`{
   "lockness": {
     "packages": [
       "drizzle",
@@ -64,56 +93,61 @@ export const PackagesPage = () => {
       "socialite"
     ]
   }
-}`}</code>
-                </pre>
+}`}
+                    </CodeBlock>
 
-                <p class='mb-4'>
-                    When your application starts, Lockness automatically:
-                </p>
-                <ul class='list-disc list-inside space-y-2 mb-4'>
-                    <li>Loads each package from the list</li>
-                    <li>Registers their CLI commands</li>
-                    <li>Makes their services available via DI</li>
-                </ul>
-            </section>
-
-            <section class='mb-12'>
-                <h2 class='text-3xl font-bold mb-4'>Installing Packages</h2>
-
-                <h3 class='text-2xl font-semibold mb-3'>
-                    Option 1: Automated Installation (Recommended)
-                </h3>
-                <p class='mb-4'>
-                    Use the{' '}
-                    <code class='bg-gray-100 px-2 py-1 rounded'>
-                        package:install
-                    </code>{' '}
-                    command for fully automated setup:
-                </p>
-
-                <pre class='bg-gray-900 text-white p-4 rounded-lg mb-4'>
-                    <code>deno task cli package:install openapi</code>
-                </pre>
-
-                <p class='mb-4'>This command will:</p>
-                <ul class='list-disc list-inside space-y-2 mb-6'>
-                    <li>
-                        Add the package to{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            deno.json
-                        </code>
-                    </li>
-                    <li>Run the package's install script (if available)</li>
-                    <li>Create necessary files and configurations</li>
-                    <li>Display next steps and documentation links</li>
-                </ul>
-
-                <div class='bg-green-50 border-l-4 border-green-500 p-4 mb-6'>
-                    <p class='font-semibold mb-2'>
-                        ✅ Example: Installing OpenAPI
+                    <p class='text-muted-foreground'>
+                        When your application starts, Lockness automatically:
                     </p>
-                    <pre class='bg-gray-900 text-white p-3 rounded mt-2 text-sm overflow-x-auto'>
-                        <code>{`$ deno task cli package:install openapi
+                    <ul class='list-disc list-inside space-y-2 text-muted-foreground'>
+                        <li>Loads each package from the list</li>
+                        <li>Registers their CLI commands</li>
+                        <li>Makes their services available via DI</li>
+                    </ul>
+                </section>
+
+                {/* Installing Packages Section */}
+                <section class='space-y-6'>
+                    <Title level={2}>Installing Packages</Title>
+
+                    <div class='space-y-4'>
+                        <Title level={3}>
+                            Option 1: Automated Installation (Recommended)
+                        </Title>
+                        <p class='text-muted-foreground'>
+                            Use the{' '}
+                            <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                package:install
+                            </code>{' '}
+                            command for fully automated setup:
+                        </p>
+
+                        <Command>deno task cli package:install openapi</Command>
+
+                        <p class='text-muted-foreground'>
+                            This command will:
+                        </p>
+                        <ul class='list-disc list-inside space-y-2 text-muted-foreground'>
+                            <li>
+                                Add the package to{' '}
+                                <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                    deno.json
+                                </code>
+                            </li>
+                            <li>
+                                Run the package's install script (if available)
+                            </li>
+                            <li>Create necessary files and configurations</li>
+                            <li>Display next steps and documentation links</li>
+                        </ul>
+
+                        <Alert>
+                            <AlertTitle>
+                                ✅ Example: Installing OpenAPI
+                            </AlertTitle>
+                            <AlertDescription>
+                                <CodeBlock lang='bash'>
+                                    {`$ deno task cli package:install openapi
 
 🌊 Installing @lockness/openapi...
 
@@ -128,180 +162,190 @@ export const PackagesPage = () => {
 📖 Next steps:
    1. Start your dev server: deno task dev
    2. Visit: http://localhost:8888/docs
-   3. Document your routes with @ApiDoc decorator`}</code>
-                    </pre>
-                </div>
+   3. Document your routes with @ApiDoc decorator`}
+                                </CodeBlock>
+                            </AlertDescription>
+                        </Alert>
+                    </div>
 
-                <h3 class='text-2xl font-semibold mb-3 mt-8'>
-                    Option 2: Manual Configuration
-                </h3>
-                <p class='mb-4'>
-                    Add the package manually and configure it yourself:
-                </p>
+                    <div class='space-y-4'>
+                        <Title level={3}>Option 2: Manual Configuration</Title>
+                        <p class='text-muted-foreground'>
+                            Add the package manually and configure it yourself:
+                        </p>
+                        <Command>deno task cli package:add openapi</Command>
+                        <p class='text-muted-foreground'>
+                            This only adds the package to your configuration.
+                            You'll need to follow the package's documentation
+                            for manual setup.
+                        </p>
+                    </div>
 
-                <pre class='bg-gray-900 text-white p-4 rounded-lg mb-4'>
-                    <code>deno task cli package:add openapi</code>
-                </pre>
+                    <div class='space-y-4'>
+                        <Title level={3}>
+                            Option 3: Direct Script Execution
+                        </Title>
+                        <p class='text-muted-foreground'>
+                            Run a package's install script directly from JSR:
+                        </p>
+                        <Command>
+                            deno run -A jsr:@lockness/openapi/install
+                        </Command>
+                    </div>
+                </section>
 
-                <p class='mb-4'>
-                    This only adds the package to your configuration. You'll
-                    need to follow the package's documentation for manual setup.
-                </p>
-
-                <h3 class='text-2xl font-semibold mb-3 mt-8'>
-                    Option 3: Direct Script Execution
-                </h3>
-                <p class='mb-4'>
-                    Run a package's install script directly from JSR:
-                </p>
-
-                <pre class='bg-gray-900 text-white p-4 rounded-lg mb-4'>
-                    <code>
-                        deno run -A jsr:@lockness/openapi/install
-                    </code>
-                </pre>
-            </section>
-
-            <section class='mb-12'>
-                <h2 class='text-3xl font-bold mb-4'>Removing Packages</h2>
-                <p class='mb-4'>Remove a package from your configuration:</p>
-
-                <pre class='bg-gray-900 text-white p-4 rounded-lg mb-4'>
-                    <code>deno task cli package:remove openapi</code>
-                </pre>
-
-                <div class='bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6'>
-                    <p class='font-semibold mb-2'>⚠️ Note</p>
-                    <p>
-                        This only removes the package from{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            deno.json
-                        </code>
-                        . You'll need to manually delete any generated files
-                        (controllers, configs, etc.) if desired.
+                {/* Removing Packages Section */}
+                <section class='space-y-4'>
+                    <Title level={2}>Removing Packages</Title>
+                    <p class='text-muted-foreground'>
+                        Remove a package from your configuration:
                     </p>
-                </div>
-            </section>
+                    <Command>deno task cli package:remove openapi</Command>
 
-            <section class='mb-12'>
-                <h2 class='text-3xl font-bold mb-4'>Available Commands</h2>
-                <div class='overflow-x-auto'>
-                    <table class='min-w-full bg-white border border-gray-300'>
-                        <thead class='bg-gray-50'>
-                            <tr>
-                                <th class='px-6 py-3 text-left text-sm font-semibold text-gray-700'>
-                                    Command
-                                </th>
-                                <th class='px-6 py-3 text-left text-sm font-semibold text-gray-700'>
-                                    Description
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class='divide-y divide-gray-200'>
-                            <tr>
-                                <td class='px-6 py-4'>
-                                    <code class='bg-gray-100 px-2 py-1 rounded'>
+                    <Alert variant='destructive'>
+                        <AlertTitle>⚠️ Note</AlertTitle>
+                        <AlertDescription>
+                            This only removes the package from{' '}
+                            <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                deno.json
+                            </code>
+                            . You'll need to manually delete any generated files
+                            (controllers, configs, etc.) if desired.
+                        </AlertDescription>
+                    </Alert>
+                </section>
+
+                {/* Available Commands Section */}
+                <section class='space-y-4'>
+                    <Title level={2}>Available Commands</Title>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Command</TableHead>
+                                <TableHead>Description</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow>
+                                <TableCell>
+                                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
                                         package:install {'<name>'}
                                     </code>
-                                </td>
-                                <td class='px-6 py-4'>
+                                </TableCell>
+                                <TableCell>
                                     Install and configure a package with
                                     automated setup
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class='px-6 py-4'>
-                                    <code class='bg-gray-100 px-2 py-1 rounded'>
+                                </TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell>
+                                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
                                         package:add {'<name>'}
                                     </code>
-                                </td>
-                                <td class='px-6 py-4'>
+                                </TableCell>
+                                <TableCell>
                                     Add package to configuration only (no setup)
-                                </td>
-                            </tr>
-                            <tr>
-                                <td class='px-6 py-4'>
-                                    <code class='bg-gray-100 px-2 py-1 rounded'>
+                                </TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell>
+                                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
                                         package:remove {'<name>'}
                                     </code>
-                                </td>
-                                <td class='px-6 py-4'>
+                                </TableCell>
+                                <TableCell>
                                     Remove package from configuration
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </section>
 
-            <section class='mb-12'>
-                <h2 class='text-3xl font-bold mb-4'>Official Packages</h2>
-                <div class='grid md:grid-cols-2 gap-6'>
-                    <div class='border border-gray-200 rounded-lg p-6'>
-                        <h3 class='text-xl font-semibold mb-2'>
-                            @lockness/drizzle
-                        </h3>
-                        <p class='text-gray-600 mb-3'>
-                            Drizzle ORM integration with migrations, seeders,
-                            and CLI commands
-                        </p>
-                        <code class='text-sm bg-gray-100 px-2 py-1 rounded'>
-                            package:install drizzle
-                        </code>
+                {/* Official Packages Section */}
+                <section class='space-y-4'>
+                    <Title level={2}>Official Packages</Title>
+                    <div class='grid md:grid-cols-2 gap-4'>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle class='flex items-center gap-2'>
+                                    @lockness/drizzle
+                                    <Badge variant='secondary'>Database</Badge>
+                                </CardTitle>
+                                <CardDescription>
+                                    Drizzle ORM integration with migrations,
+                                    seeders, and CLI commands
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Command>package:install drizzle</Command>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle class='flex items-center gap-2'>
+                                    @lockness/openapi
+                                    <Badge variant='secondary'>API</Badge>
+                                </CardTitle>
+                                <CardDescription>
+                                    OpenAPI/Swagger documentation with automatic
+                                    spec generation
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Command>package:install openapi</Command>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle class='flex items-center gap-2'>
+                                    @lockness/cache
+                                    <Badge variant='secondary'>
+                                        Performance
+                                    </Badge>
+                                </CardTitle>
+                                <CardDescription>
+                                    Multi-driver caching system (Memory, Deno
+                                    KV, Redis)
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Command>package:install cache</Command>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle class='flex items-center gap-2'>
+                                    @lockness/socialite
+                                    <Badge variant='secondary'>Auth</Badge>
+                                </CardTitle>
+                                <CardDescription>
+                                    OAuth2 authentication (Google, GitHub,
+                                    Discord)
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Command>package:install socialite</Command>
+                            </CardContent>
+                        </Card>
                     </div>
+                </section>
 
-                    <div class='border border-gray-200 rounded-lg p-6'>
-                        <h3 class='text-xl font-semibold mb-2'>
-                            @lockness/openapi
-                        </h3>
-                        <p class='text-gray-600 mb-3'>
-                            OpenAPI/Swagger documentation with automatic spec
-                            generation
-                        </p>
-                        <code class='text-sm bg-gray-100 px-2 py-1 rounded'>
-                            package:install openapi
-                        </code>
-                    </div>
+                {/* How It Works Section */}
+                <section class='space-y-4'>
+                    <Title level={2}>How It Works</Title>
+                    <p class='text-muted-foreground'>
+                        When you start your application, the{' '}
+                        <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                            cli.ts
+                        </code>{' '}
+                        file loads packages automatically:
+                    </p>
 
-                    <div class='border border-gray-200 rounded-lg p-6'>
-                        <h3 class='text-xl font-semibold mb-2'>
-                            @lockness/cache
-                        </h3>
-                        <p class='text-gray-600 mb-3'>
-                            Multi-driver caching system (Memory, Deno KV, Redis)
-                        </p>
-                        <code class='text-sm bg-gray-100 px-2 py-1 rounded'>
-                            package:install cache
-                        </code>
-                    </div>
-
-                    <div class='border border-gray-200 rounded-lg p-6'>
-                        <h3 class='text-xl font-semibold mb-2'>
-                            @lockness/socialite
-                        </h3>
-                        <p class='text-gray-600 mb-3'>
-                            OAuth2 authentication (Google, GitHub, Discord)
-                        </p>
-                        <code class='text-sm bg-gray-100 px-2 py-1 rounded'>
-                            package:install socialite
-                        </code>
-                    </div>
-                </div>
-            </section>
-
-            <section class='mb-12'>
-                <h2 class='text-3xl font-bold mb-4'>
-                    How It Works
-                </h2>
-                <p class='mb-4'>
-                    When you start your application, the{' '}
-                    <code class='bg-gray-100 px-2 py-1 rounded'>cli.ts</code>
-                    {' '}
-                    file loads packages automatically:
-                </p>
-
-                <pre class='bg-gray-900 text-white p-4 rounded-lg mb-4 overflow-x-auto'>
-                    <code>{`import { Cli, loadPackageCommands, registerCoreCommands } from '@lockness/cli'
+                    <CodeBlock lang='tsx'>
+                        {`import { Cli, loadPackageCommands, registerCoreCommands } from '@lockness/cli'
 
 const cli = new Cli()
 
@@ -312,69 +356,68 @@ registerCoreCommands(cli)
 await loadPackageCommands(cli)
 
 // Discover user commands
-await cli.discoverCommands('./app/command')`}</code>
-                </pre>
+await cli.discoverCommands('./app/command')`}
+                    </CodeBlock>
 
-                <p class='mb-4'>
-                    The{' '}
-                    <code class='bg-gray-100 px-2 py-1 rounded'>
-                        loadPackageCommands()
-                    </code>{' '}
-                    function:
-                </p>
-                <ol class='list-decimal list-inside space-y-2 mb-4'>
-                    <li>
-                        Reads the{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            lockness.packages
+                    <p class='text-muted-foreground'>
+                        The{' '}
+                        <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                            loadPackageCommands()
                         </code>{' '}
-                        array from{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            deno.json
-                        </code>
-                    </li>
-                    <li>Dynamically imports each package</li>
-                    <li>
-                        Looks for a{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            register*Commands
-                        </code>{' '}
-                        function
-                    </li>
-                    <li>Calls the function to register CLI commands</li>
-                </ol>
-
-                <div class='bg-gray-50 border-l-4 border-gray-400 p-4'>
-                    <p class='font-semibold mb-2'>💡 Convention</p>
-                    <p>
-                        Packages export a function named{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            register[Name]Commands
-                        </code>{' '}
-                        or{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            register[Name]Command
-                        </code>{' '}
-                        from their main entry point. This function receives the
-                        Cli instance and registers the package's commands.
+                        function:
                     </p>
-                </div>
-            </section>
+                    <ol class='list-decimal list-inside space-y-2 text-muted-foreground'>
+                        <li>
+                            Reads the{' '}
+                            <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                lockness.packages
+                            </code>{' '}
+                            array from{' '}
+                            <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                deno.json
+                            </code>
+                        </li>
+                        <li>Dynamically imports each package</li>
+                        <li>
+                            Looks for a{' '}
+                            <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                register*Commands
+                            </code>{' '}
+                            function
+                        </li>
+                        <li>Calls the function to register CLI commands</li>
+                    </ol>
 
-            <section class='mb-12'>
-                <h2 class='text-3xl font-bold mb-4'>
-                    Creating Your Own Package
-                </h2>
-                <p class='mb-4'>
-                    You can create custom Lockness packages that integrate
-                    seamlessly with the package management system.
-                </p>
+                    <Alert variant='default'>
+                        <AlertTitle>💡 Convention</AlertTitle>
+                        <AlertDescription>
+                            Packages export a function named{' '}
+                            <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                register[Name]Commands
+                            </code>{' '}
+                            or{' '}
+                            <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                register[Name]Command
+                            </code>{' '}
+                            from their main entry point. This function receives
+                            the Cli instance and registers the package's
+                            commands.
+                        </AlertDescription>
+                    </Alert>
+                </section>
 
-                <h3 class='text-2xl font-semibold mb-3'>
-                    1. Export Register Function
-                </h3>
-                <pre class='bg-gray-900 text-white p-4 rounded-lg mb-4 overflow-x-auto'>
-                    <code>{`// my-package/index.ts
+                {/* Creating Your Own Package Section */}
+                <section class='space-y-6'>
+                    <Title level={2}>Creating Your Own Package</Title>
+                    <p class='text-muted-foreground'>
+                        You can create custom Lockness packages that integrate
+                        seamlessly with the package management system.
+                    </p>
+
+                    <div class='space-y-4'>
+                        <Title level={3}>1. Export Register Function</Title>
+                        <CodeBlock lang='tsx'>
+                            {`// my-package/index.ts
 import type { Cli } from '@lockness/cli'
 
 export function registerMyPackageCommands(cli: Cli) {
@@ -383,14 +426,16 @@ export function registerMyPackageCommands(cli: Cli) {
     }, 'My custom command')
 }
 
-export { myPackageFunction } from './lib.ts'`}</code>
-                </pre>
+export { myPackageFunction } from './lib.ts'`}
+                        </CodeBlock>
+                    </div>
 
-                <h3 class='text-2xl font-semibold mb-3 mt-6'>
-                    2. Create Install Script (Optional)
-                </h3>
-                <pre class='bg-gray-900 text-white p-4 rounded-lg mb-4 overflow-x-auto'>
-                    <code>{`// my-package/install.ts
+                    <div class='space-y-4'>
+                        <Title level={3}>
+                            2. Create Install Script (Optional)
+                        </Title>
+                        <CodeBlock lang='tsx'>
+                            {`// my-package/install.ts
 import { addPackage } from '@lockness/cli'
 
 async function main() {
@@ -410,93 +455,95 @@ async function main() {
 
 if (import.meta.main) {
     await main()
-}`}</code>
-                </pre>
+}`}
+                        </CodeBlock>
+                    </div>
 
-                <h3 class='text-2xl font-semibold mb-3 mt-6'>
-                    3. Update Package Configuration
-                </h3>
-                <pre class='bg-gray-900 text-white p-4 rounded-lg mb-4 overflow-x-auto'>
-                    <code>{`// deno.json
+                    <div class='space-y-4'>
+                        <Title level={3}>3. Update Package Configuration</Title>
+                        <CodeBlock lang='json'>
+                            {`// deno.json
 {
   "name": "@myorg/my-package",
   "exports": {
     ".": "./index.ts",
     "./install": "./install.ts"
   }
-}`}</code>
-                </pre>
+}`}
+                        </CodeBlock>
+                    </div>
 
-                <h3 class='text-2xl font-semibold mb-3 mt-8'>
-                    4. Development Standards
-                </h3>
-                <p class='mb-4'>
-                    To maintain consistency and ensure compatibility across the
-                    Lockness ecosystem, all packages should follow these
-                    standards:
-                </p>
-                <ul class='list-disc list-inside space-y-4 mb-6'>
-                    <li>
-                        <span class='font-semibold text-gray-900'>
-                            Standard Entry Point:
-                        </span>
-                        Always use{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            mod.ts
-                        </code>{' '}
-                        as the main entry point for your package.
-                    </li>
-                    <li>
-                        <span class='font-semibold text-gray-900'>
-                            Test Organization:
-                        </span>
-                        Place all test files in a dedicated{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            tests/
-                        </code>{' '}
-                        directory and use the{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            *.test.ts
-                        </code>{' '}
-                        naming convention.
-                    </li>
-                    <li>
-                        <span class='font-semibold text-gray-900'>
-                            Workspace Imports:
-                        </span>
-                        Use named workspace imports (e.g.,{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            @lockness/core
-                        </code>) for cross-package dependencies instead of
-                        relative paths.
-                    </li>
-                    <li>
-                        <span class='font-semibold text-gray-900'>
-                            JSR Ready:
-                        </span>
-                        Configure the{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            publish
-                        </code>{' '}
-                        field in your{' '}
-                        <code class='bg-gray-100 px-2 py-1 rounded'>
-                            deno.json
-                        </code>{' '}
-                        to include only source files and exclude tests.
-                    </li>
-                </ul>
+                    <div class='space-y-4'>
+                        <Title level={3}>4. Development Standards</Title>
+                        <p class='text-muted-foreground'>
+                            To maintain consistency and ensure compatibility
+                            across the Lockness ecosystem, all packages should
+                            follow these standards:
+                        </p>
+                        <ul class='space-y-3'>
+                            <li class='flex gap-2'>
+                                <Badge>mod.ts</Badge>
+                                <span class='text-muted-foreground'>
+                                    Always use{' '}
+                                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                        mod.ts
+                                    </code>{' '}
+                                    as the main entry point for your package.
+                                </span>
+                            </li>
+                            <li class='flex gap-2'>
+                                <Badge>tests/</Badge>
+                                <span class='text-muted-foreground'>
+                                    Place all test files in a dedicated{' '}
+                                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                        tests/
+                                    </code>{' '}
+                                    directory and use the{' '}
+                                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                        *.test.ts
+                                    </code>{' '}
+                                    naming convention.
+                                </span>
+                            </li>
+                            <li class='flex gap-2'>
+                                <Badge>Imports</Badge>
+                                <span class='text-muted-foreground'>
+                                    Use named workspace imports (e.g.,{' '}
+                                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                        @lockness/core
+                                    </code>
+                                    ) for cross-package dependencies.
+                                </span>
+                            </li>
+                            <li class='flex gap-2'>
+                                <Badge>JSR</Badge>
+                                <span class='text-muted-foreground'>
+                                    Configure the{' '}
+                                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                        publish
+                                    </code>{' '}
+                                    field in your{' '}
+                                    <code class='bg-muted px-1.5 py-0.5 rounded text-sm'>
+                                        deno.json
+                                    </code>{' '}
+                                    to include only source files.
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
 
-                <p class='mt-6'>
-                    See{' '}
-                    <a
-                        href='https://github.com/locknessland/lockness/tree/main/lockness/cli/INSTALL_SCRIPTS.md'
-                        class='text-blue-600 hover:underline'
-                    >
-                        INSTALL_SCRIPTS.md
-                    </a>{' '}
-                    for complete documentation on creating install scripts.
-                </p>
-            </section>
+                    <p class='text-muted-foreground'>
+                        See{' '}
+                        <Link
+                            href='https://github.com/locknessland/lockness/tree/main/lockness/cli/INSTALL_SCRIPTS.md'
+                            target='_blank'
+                        >
+                            INSTALL_SCRIPTS.md
+                        </Link>{' '}
+                        for complete documentation on creating install scripts.
+                    </p>
+                </section>
+            </div>
         </DocsLayout>
     )
 }

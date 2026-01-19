@@ -1,4 +1,5 @@
 import type { FC } from '@lockness/core'
+import { raw } from '@lockness/core'
 
 /**
  * RootLayout component props
@@ -68,42 +69,45 @@ export const RootLayout: FC<RootLayoutProps> = ({
     children,
 }) => {
     return (
-        <html lang='en'>
-            <head>
-                <meta charset='UTF-8' />
-                <meta
-                    name='viewport'
-                    content='width=device-width, initial-scale=1.0'
-                />
-                <title>{title}</title>
+        <>
+            {raw('<!DOCTYPE html>')}
+            <html lang='en'>
+                <head>
+                    <meta charset='UTF-8' />
+                    <meta
+                        name='viewport'
+                        content='width=device-width, initial-scale=1.0'
+                    />
+                    <title>{title}</title>
 
-                {/* Unpoly CSS - Progressive enhancement styles */}
-                <link
-                    rel='stylesheet'
-                    href={'https://cdn.jsdelivr.net/npm/unpoly@3.12.1/' +
-                        'unpoly.min.css'}
-                />
+                    {/* Unpoly CSS - Progressive enhancement styles */}
+                    <link
+                        rel='stylesheet'
+                        href={'https://cdn.jsdelivr.net/npm/unpoly@3.12.1/' +
+                            'unpoly.min.css'}
+                    />
 
-                {/* Custom meta tags */}
-                {meta}
+                    {/* Custom meta tags */}
+                    {meta}
 
-                {/* Custom styles */}
-                {styles}
-            </head>
-            <body>
-                {/* Main content */}
-                {children}
+                    {/* Custom styles */}
+                    {styles}
+                </head>
+                <body>
+                    {/* Main content */}
+                    {children}
 
-                {/* Unpoly JS - Progressive enhancement & SPA navigation */}
-                <script
-                    src={'https://cdn.jsdelivr.net/npm/unpoly@3.12.1/' +
-                        'unpoly.min.js'}
-                >
-                </script>
+                    {/* Unpoly JS - Progressive enhancement & SPA navigation */}
+                    <script
+                        src={'https://cdn.jsdelivr.net/npm/unpoly@3.12.1/' +
+                            'unpoly.min.js'}
+                    >
+                    </script>
 
-                {/* Custom scripts */}
-                {scripts}
-            </body>
-        </html>
+                    {/* Custom scripts */}
+                    {scripts}
+                </body>
+            </html>
+        </>
     )
 }

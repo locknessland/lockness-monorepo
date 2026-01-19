@@ -71,24 +71,35 @@ export const Requests = (
         }
 
         const metaInfoStyles = {
-            fontSize: fontSize.sm,
-            color: colors.text.disabled,
-            marginTop: spacing.xs,
+            marginTop: spacing.md,
             display: 'flex',
             alignItems: 'center',
-            gap: spacing.sm,
+            gap: spacing.md,
+            flexWrap: 'wrap',
         }
 
-        const dotStyles = {
-            width: '8px',
-            height: '8px',
+        const metaPillStyles = {
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: spacing.xs,
+            padding: `${spacing.xs} ${spacing.md}`,
+            backgroundColor: colors.bg.elevated,
+            border: `1px solid ${colors.border.default}`,
             borderRadius: borderRadius.full,
-            backgroundColor: colors.text.subtle,
+            fontSize: fontSize.xs,
+            color: colors.text.secondary,
+            fontFamily:
+                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        }
+
+        const metaIconStyles = {
+            width: '14px',
+            height: '14px',
+            color: colors.text.muted,
         }
 
         const gridStyles = {
             display: 'grid',
-            gridTemplateColumns: '1fr',
             gap: spacing.xl,
         }
 
@@ -117,10 +128,7 @@ export const Requests = (
             letterSpacing: '0.05em',
         }
 
-        const tableContainerStyles = {
-            maxHeight: '384px',
-            overflowY: 'auto',
-        }
+        const tableContainerStyles = {}
 
         const headerKeyStyles = {
             fontWeight: fontWeight.medium,
@@ -164,8 +172,9 @@ export const Requests = (
             .back-btn:hover { background-color: ${colors.bg.hover}; }
             .headers-table tbody tr { border-bottom: 1px solid ${colors.border.light}; transition: background-color 200ms; }
             .headers-table tbody tr:hover { background-color: rgba(255, 255, 255, 0.03); }
+            .requests-grid { grid-template-columns: 1fr; }
             @media (min-width: 1024px) {
-                .requests-grid { grid-template-columns: 2fr 1fr; }
+                .requests-grid { grid-template-columns: 1fr 1fr; }
             }
         `
 
@@ -211,29 +220,95 @@ export const Requests = (
                                     </span>
                                 </h2>
                                 <p style={metaInfoStyles as any}>
-                                    <span style={dotStyles as any}></span>
-                                    {new Date(selectedRequest.timestamp)
-                                        .toLocaleString()}
-                                    <span style={dotStyles as any}></span>
-                                    {selectedRequest.duration?.toFixed(2)}ms
-                                    <span style={dotStyles as any}></span>
-                                    Status {selectedRequest.statusCode || '-'}
+                                    <span style={metaPillStyles as any}>
+                                        <svg
+                                            style={metaIconStyles as any}
+                                            fill='none'
+                                            stroke='currentColor'
+                                            viewBox='0 0 24 24'
+                                        >
+                                            <path
+                                                stroke-linecap='round'
+                                                stroke-linejoin='round'
+                                                stroke-width='2'
+                                                d='M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'
+                                            />
+                                        </svg>
+                                        {new Date(selectedRequest.timestamp)
+                                            .toLocaleString()}
+                                    </span>
+                                    <span style={metaPillStyles as any}>
+                                        <svg
+                                            style={metaIconStyles as any}
+                                            fill='none'
+                                            stroke='currentColor'
+                                            viewBox='0 0 24 24'
+                                        >
+                                            <path
+                                                stroke-linecap='round'
+                                                stroke-linejoin='round'
+                                                stroke-width='2'
+                                                d='M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+                                            />
+                                        </svg>
+                                        {selectedRequest.duration?.toFixed(2)}ms
+                                    </span>
+                                    <span
+                                        style={{
+                                            ...metaPillStyles,
+                                            backgroundColor:
+                                                selectedRequest.statusCode >=
+                                                        400
+                                                    ? 'rgba(239, 68, 68, 0.1)'
+                                                    : 'rgba(34, 197, 94, 0.1)',
+                                            borderColor:
+                                                selectedRequest.statusCode >=
+                                                        400
+                                                    ? 'rgba(239, 68, 68, 0.3)'
+                                                    : 'rgba(34, 197, 94, 0.3)',
+                                            color: selectedRequest.statusCode >=
+                                                    400
+                                                ? '#ef4444'
+                                                : '#22c55e',
+                                        } as any}
+                                    >
+                                        <svg
+                                            style={{
+                                                ...metaIconStyles,
+                                                color: 'currentColor',
+                                            } as any}
+                                            fill='none'
+                                            stroke='currentColor'
+                                            viewBox='0 0 24 24'
+                                        >
+                                            {selectedRequest.statusCode >= 400
+                                                ? (
+                                                    <path
+                                                        stroke-linecap='round'
+                                                        stroke-linejoin='round'
+                                                        stroke-width='2'
+                                                        d='M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                                                    />
+                                                )
+                                                : (
+                                                    <path
+                                                        stroke-linecap='round'
+                                                        stroke-linejoin='round'
+                                                        stroke-width='2'
+                                                        d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'
+                                                    />
+                                                )}
+                                        </svg>
+                                        {selectedRequest.statusCode || '-'}
+                                    </span>
                                 </p>
                             </div>
                         </div>
-                        {selectedRequest.statusCode
-                            ? (
-                                <Badge
-                                    text={selectedRequest.statusCode.toString()}
-                                    color={selectedRequest.statusCode >= 400
-                                        ? 'red'
-                                        : 'green'}
-                                />
-                            )
-                            : null}
                     </div>
 
                     <div style={gridStyles as any} class='requests-grid'>
+                        <MetadataCard selectedRequest={selectedRequest} />
+
                         <div style={cardStyles as any}>
                             <div style={cardHeaderStyles as any}>
                                 <h3 style={cardTitleStyles as any}>
@@ -274,8 +349,6 @@ export const Requests = (
                                 </table>
                             </div>
                         </div>
-
-                        <MetadataCard selectedRequest={selectedRequest} />
                     </div>
 
                     {selectedRequest.body && (

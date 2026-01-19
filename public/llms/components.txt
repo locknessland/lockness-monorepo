@@ -184,37 +184,51 @@ export const Card = (props: CardProps) => {
 </Card>
 ```
 
-## Reusable Components (Navbar Example)
+## Reusable Components (Using @lockness/ui)
+
+Lockness provides a UI component library with pre-built, themeable components:
 
 ```tsx
-// app/view/components/navbar.tsx
-export const Navbar = () => {
+import {
+    Navbar,
+    NavbarBrand,
+    NavbarContent,
+    NavbarMenuItem,
+} from '@lockness/ui/components'
+
+// Navbar with brand and menu items
+export const AppNavbar = () => {
     return (
-        <nav class="navbar bg-background border-b border-border">
-            <div class="navbar-content">
-                <div class="navbar-brand">
-                    <a href="/" class="logo">Lockness</a>
-                </div>
-                
-                <div class="navbar-links">
-                    <a href="/" class="nav-link">Home</a>
-                    <a href="/docs" class="nav-link">Docs</a>
-                    <a href="/auth/profile" class="nav-link">Profile</a>
-                </div>
-            </div>
-        </nav>
+        <Navbar>
+            <NavbarBrand href='/'>Lockness</NavbarBrand>
+            <NavbarContent position='right'>
+                <NavbarMenuItem href='/'>Home</NavbarMenuItem>
+                <NavbarMenuItem href='/docs'>Docs</NavbarMenuItem>
+                <NavbarMenuItem href='/auth/profile'>Profile</NavbarMenuItem>
+            </NavbarContent>
+        </Navbar>
     )
 }
 ```
 
 **Usage in layouts:**
 ```tsx
-import { Navbar } from '@view/components/navbar.tsx'
+import {
+    Navbar,
+    NavbarBrand,
+    NavbarContent,
+    NavbarMenuItem,
+} from '@lockness/ui/components'
 
 export const AppLayout = (props: { children: any }) => {
     return (
         <div>
-            <Navbar />
+            <Navbar>
+                <NavbarBrand href='/'>Lockness</NavbarBrand>
+                <NavbarContent position='right'>
+                    <NavbarMenuItem href='/docs'>Docs</NavbarMenuItem>
+                </NavbarContent>
+            </Navbar>
             <main>{props.children}</main>
         </div>
     )
@@ -225,7 +239,12 @@ export const AppLayout = (props: { children: any }) => {
 
 ```tsx
 // app/view/layouts/auth_layout.tsx
-import { Navbar } from '@view/components/navbar.tsx'
+import {
+    Navbar,
+    NavbarBrand,
+    NavbarContent,
+    NavbarMenuItem,
+} from '@lockness/ui/components'
 
 export const AuthLayout = (props: { 
     title: string
@@ -240,9 +259,14 @@ export const AuthLayout = (props: {
                 <link rel="stylesheet" href="/css/app.css" />
             </head>
             <body>
-                <Navbar />
+                <Navbar position='fixed'>
+                    <NavbarBrand href='/'>Lockness</NavbarBrand>
+                    <NavbarContent position='right'>
+                        <NavbarMenuItem href='/docs'>Docs</NavbarMenuItem>
+                    </NavbarContent>
+                </Navbar>
                 
-                <main>
+                <main class='pt-16'>
                     {props.children}
                 </main>
             </body>

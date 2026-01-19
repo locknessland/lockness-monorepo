@@ -244,20 +244,24 @@ Error response format:
 
 Create reusable JSX components and page layouts:
 
-**Reusable Component (Navbar):**
+**Using @lockness/ui Components (Navbar):**
 ```typescript
-// app/view/components/navbar.tsx
-export const Navbar = () => {
+import {
+    Navbar,
+    NavbarBrand,
+    NavbarContent,
+    NavbarMenuItem,
+} from '@lockness/ui/components'
+
+export const AppNavbar = () => {
     return (
-        <nav class="navbar bg-background border-b border-border">
-            <div class="navbar-content">
-                <a href="/" class="logo">Lockness</a>
-                <div class="navbar-links">
-                    <a href="/docs">Docs</a>
-                    <a href="/auth/profile">Profile</a>
-                </div>
-            </div>
-        </nav>
+        <Navbar>
+            <NavbarBrand href='/'>Lockness</NavbarBrand>
+            <NavbarContent position='right'>
+                <NavbarMenuItem href='/docs'>Docs</NavbarMenuItem>
+                <NavbarMenuItem href='/auth/profile'>Profile</NavbarMenuItem>
+            </NavbarContent>
+        </Navbar>
     )
 }
 ```
@@ -265,7 +269,12 @@ export const Navbar = () => {
 **Page Layout with Navbar:**
 ```typescript
 // app/view/layouts/auth_layout.tsx
-import { Navbar } from '@view/components/navbar.tsx'
+import {
+    Navbar,
+    NavbarBrand,
+    NavbarContent,
+    NavbarMenuItem,
+} from '@lockness/ui/components'
 
 export const AuthLayout = ({
     title,
@@ -282,8 +291,13 @@ export const AuthLayout = ({
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             </head>
             <body>
-                <Navbar />
-                <main>{children}</main>
+                <Navbar position='fixed'>
+                    <NavbarBrand href='/'>Lockness</NavbarBrand>
+                    <NavbarContent position='right'>
+                        <NavbarMenuItem href='/docs'>Docs</NavbarMenuItem>
+                    </NavbarContent>
+                </Navbar>
+                <main class='pt-16'>{children}</main>
             </body>
         </>
     )

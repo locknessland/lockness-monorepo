@@ -301,28 +301,26 @@ export const LoginPage = () => (
 )
 ```
 
-**Reusable Components** - Extract common UI patterns:
+**Reusable Components** - Use the UI component library from `@lockness/ui`:
 
 ```typescript
-// app/view/components/navbar.tsx
-export const Navbar = () => {
-    return (
-        <nav class='navbar'>
-            <a href='/' class='logo'>Lockness</a>
-            <div class='nav-links'>
-                <a href='/docs'>Docs</a>
-                <a href='/auth/profile'>Profile</a>
-            </div>
-        </nav>
-    )
-}
+import {
+    Navbar,
+    NavbarBrand,
+    NavbarContent,
+    NavbarMenuItem,
+} from '@lockness/ui/components'
 
-// Usage across layouts
-import { Navbar } from '@view/components/navbar.tsx'
-
+// Usage in layouts
 export const DocsLayout = ({ children }: { children: JSX.Element }) => (
     <div>
-        <Navbar />
+        <Navbar>
+            <NavbarBrand href='/'>Lockness</NavbarBrand>
+            <NavbarContent position='right'>
+                <NavbarMenuItem href='/docs'>Docs</NavbarMenuItem>
+                <NavbarMenuItem href='/auth/profile'>Profile</NavbarMenuItem>
+            </NavbarContent>
+        </Navbar>
         <aside>{/* Sidebar */}</aside>
         <main>{children}</main>
     </div>

@@ -15,15 +15,17 @@ Deno.test('Button component', async (t) => {
     await t.step('renders with default props', () => {
         const html = renderToString(<Button>Click me</Button>)
         assertStringIncludes(html, 'Click me')
-        assertStringIncludes(html, 'bg-blue-600') // primary variant
-        assertStringIncludes(html, 'px-4 py-2') // md size
+        assertStringIncludes(html, 'bg-primary') // primary variant
+        assertStringIncludes(html, 'text-primary-foreground')
+        assertStringIncludes(html, 'px-(--button-padding-x-md)') // md size with CSS var
     })
 
     await t.step('renders primary variant', () => {
         const html = renderToString(
             <Button variant='primary'>Primary</Button>,
         )
-        assertStringIncludes(html, 'bg-blue-600')
+        assertStringIncludes(html, 'bg-primary')
+        assertStringIncludes(html, 'text-primary-foreground')
         assertStringIncludes(html, 'Primary')
     })
 
@@ -31,7 +33,8 @@ Deno.test('Button component', async (t) => {
         const html = renderToString(
             <Button variant='secondary'>Secondary</Button>,
         )
-        assertStringIncludes(html, 'bg-gray-600')
+        assertStringIncludes(html, 'bg-secondary')
+        assertStringIncludes(html, 'text-secondary-foreground')
         assertStringIncludes(html, 'Secondary')
     })
 
@@ -39,7 +42,10 @@ Deno.test('Button component', async (t) => {
         const html = renderToString(
             <Button variant='outline'>Outline</Button>,
         )
-        assertStringIncludes(html, 'border-2')
+        assertStringIncludes(
+            html,
+            'border-(length:--button-border-width-outline)',
+        )
         assertStringIncludes(html, 'Outline')
     })
 
@@ -50,25 +56,26 @@ Deno.test('Button component', async (t) => {
 
     await t.step('renders danger variant', () => {
         const html = renderToString(<Button variant='danger'>Delete</Button>)
-        assertStringIncludes(html, 'bg-red-600')
+        assertStringIncludes(html, 'bg-destructive')
+        assertStringIncludes(html, 'text-destructive-foreground')
         assertStringIncludes(html, 'Delete')
     })
 
     await t.step('renders small size', () => {
         const html = renderToString(<Button size='sm'>Small</Button>)
-        assertStringIncludes(html, 'px-3')
-        assertStringIncludes(html, 'py-1.5')
+        assertStringIncludes(html, 'px-(--button-padding-x-sm)')
+        assertStringIncludes(html, 'py-(--button-padding-y-sm)')
     })
 
     await t.step('renders medium size', () => {
         const html = renderToString(<Button size='md'>Medium</Button>)
-        assertStringIncludes(html, 'px-4 py-2')
+        assertStringIncludes(html, 'px-(--button-padding-x-md)')
     })
 
     await t.step('renders large size', () => {
         const html = renderToString(<Button size='lg'>Large</Button>)
-        assertStringIncludes(html, 'px-6')
-        assertStringIncludes(html, 'py-3')
+        assertStringIncludes(html, 'px-(--button-padding-x-lg)')
+        assertStringIncludes(html, 'py-(--button-padding-y-lg)')
     })
 
     await t.step('handles disabled state', () => {

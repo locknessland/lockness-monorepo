@@ -1,89 +1,90 @@
 import { AuthLayout } from '@view/layouts/auth_layout.tsx'
+import {
+    Button,
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+    Checkbox,
+    Input,
+    Label,
+    Link,
+} from '@lockness/ui/components'
 
 export const LoginPage = () => {
     return (
         <AuthLayout title='Login'>
             <div class='min-h-screen flex items-center justify-center p-4'>
-                <div class='w-full max-w-md'>
-                    <div class='bg-card border border-border rounded-lg shadow-lg p-8'>
-                        <h1 class='text-3xl font-bold text-center mb-6'>
-                            Login
-                        </h1>
+                <Card class='w-full max-w-md'>
+                    <CardHeader class='text-center'>
+                        <CardTitle class='text-2xl'>Welcome back</CardTitle>
+                        <CardDescription>
+                            Enter your credentials to access your account
+                        </CardDescription>
+                    </CardHeader>
 
+                    <CardContent>
                         <form
                             method='post'
                             action='/auth/login'
                             class='space-y-4'
                         >
-                            <div>
-                                <label
-                                    for='email'
-                                    class='block text-sm font-medium mb-2'
-                                >
-                                    Email
-                                </label>
-                                <input
+                            <div class='space-y-2'>
+                                <Label for='email'>Email</Label>
+                                <Input
                                     type='email'
                                     id='email'
                                     name='email'
                                     required
-                                    class='w-full px-4 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary'
                                     placeholder='you@example.com'
                                 />
                             </div>
 
-                            <div>
-                                <label
-                                    for='password'
-                                    class='block text-sm font-medium mb-2'
-                                >
-                                    Password
-                                </label>
-                                <input
+                            <div class='space-y-2'>
+                                <Label for='password'>Password</Label>
+                                <Input
                                     type='password'
                                     id='password'
                                     name='password'
                                     required
-                                    class='w-full px-4 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary'
                                     placeholder='••••••••'
                                 />
                             </div>
 
-                            <div class='flex items-center'>
-                                <input
-                                    type='checkbox'
+                            <div class='flex items-center space-x-2'>
+                                <Checkbox
                                     id='remember'
                                     name='remember'
                                     value='1'
-                                    class='w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary'
                                 />
-                                <label
+                                <Label
                                     for='remember'
-                                    class='ml-2 text-sm text-muted-foreground'
+                                    class='text-muted-foreground font-normal'
                                 >
                                     Remember me
-                                </label>
+                                </Label>
                             </div>
 
-                            <button
-                                type='submit'
-                                class='w-full py-2 px-4 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium'
-                            >
-                                Login
-                            </button>
+                            <Button type='submit' class='w-full'>
+                                Sign in
+                            </Button>
                         </form>
+                    </CardContent>
 
-                        <p class='text-center text-sm text-muted-foreground mt-6'>
+                    <CardFooter class='flex justify-center'>
+                        <p class='text-sm text-muted-foreground'>
                             Don't have an account?{' '}
-                            <a
+                            <Link
                                 href='/auth/register'
                                 class='text-primary hover:underline'
                             >
                                 Register
-                            </a>
+                            </Link>
                         </p>
-                    </div>
-                </div>
+                    </CardFooter>
+                </Card>
             </div>
         </AuthLayout>
     )

@@ -56,6 +56,105 @@ Or add to your `deno.json`:
 - **📱 Responsive** - Mobile-first design patterns
 - **♿ Accessible** - Semantic HTML with proper ARIA attributes
 - **🎭 Server-Side** - Hono JSX components for SSR
+- **🌈 Themeable** - Full CSS variable system with 5 built-in themes
+- **🎨 OKLCH Colors** - Perceptually uniform color system
+
+## 🎨 Design System
+
+### CSS Variables & Themes
+
+Lockness UI uses a comprehensive CSS variable system for theming, allowing you
+to customize the entire look and feel without touching component code.
+
+**5 Built-in Themes:**
+
+- **Stone** - Neutral gray with warm undertones
+- **Zinc** - Cool gray tones (default)
+- **Neutral** - Balanced gray tones
+- **Gray** - Classic gray tones
+- **Slate** - Blue-tinted gray tones
+
+**Using themes in your project:**
+
+```css
+/* app/view/assets/app.css */
+/* Option 1: Use default (zinc) */
+@import '@lockness/ui/styles/base.css';
+
+/* Option 2: Use a specific theme */
+@import '@lockness/ui/styles/themes/stone.css';
+
+/* Option 3: Override variables */
+@import '@lockness/ui/styles/base.css';
+
+:root {
+    --radius: 1rem; /* More rounded */
+    --primary: oklch(0.5 0.3 240); /* Custom blue */
+}
+```
+
+**Dark mode:** Add `data-theme="dark"` attribute to your HTML or body element.
+
+### Color Tokens
+
+All components use standardized color tokens:
+
+```css
+--background          /* Page background */
+--foreground          /* Default text color */
+--card                /* Card background */
+--card-foreground     /* Card text color */
+--popover             /* Popover background */
+--popover-foreground  /* Popover text */
+--primary             /* Primary action color */
+--primary-foreground  /* Primary text on primary bg */
+--secondary           /* Secondary elements */
+--secondary-foreground /* Secondary text */
+--muted               /* Muted backgrounds */
+--muted-foreground    /* Muted text */
+--accent              /* Accent elements */
+--accent-foreground   /* Accent text */
+--destructive         /* Danger/error color */
+--destructive-foreground /* Destructive text */
+--border              /* Border color */
+--input               /* Input border color */
+--ring                /* Focus ring color */
+--radius              /* Border radius (0.625rem default) */
+```
+
+## 📦 Available Components
+
+### Form Components
+
+- **Label** - Form labels with consistent typography
+- **Input** - Text inputs supporting all HTML input types
+- **Textarea** - Multi-line text input
+- **Checkbox** - Styled checkbox input
+- **Switch** - Modern toggle switch
+
+### Display Components
+
+- **Button** - Flexible button with 5 variants and 3 sizes
+- **Card** - Card system with Header, Title, Description, Content, Footer
+- **Badge** - Inline badges with 4 variants
+- **Separator** - Horizontal/vertical divider lines
+- **Skeleton** - Loading placeholders with pulse animation
+- **Alert** - Alert messages with title and description
+- **Kbd** - Keyboard shortcut display
+
+### Navigation Components
+
+- **Breadcrumb** - Hierarchical breadcrumb navigation
+- **Tabs** - Tabbed interface for content organization
+
+### Layout Components
+
+- **RootLayout** - Base HTML layout with Unpoly CDN
+- **Accordion** - Collapsible sections using HTML details/summary
+
+### Utility
+
+- **cn()** - Class name utility for merging Tailwind classes
 
 ## 🛠️ CLI Usage
 
@@ -372,6 +471,250 @@ Compound components for content containers.
 - `CardFooter` - Footer section for actions
 
 All card components support the `class` prop for custom styling.
+
+### Form Components
+
+#### Label
+
+Form label with consistent typography:
+
+```tsx
+<Label for='email'>Email Address</Label>
+```
+
+#### Input
+
+Text input supporting all HTML input types:
+
+```tsx
+<Input type="email" placeholder="you@example.com" />
+<Input type="password" placeholder="Password" />
+<Input type="number" placeholder="Age" />
+```
+
+#### Textarea
+
+Multi-line text input:
+
+```tsx
+<Textarea rows={5} placeholder='Enter your message...' />
+```
+
+#### Checkbox
+
+Styled checkbox input:
+
+```tsx
+<div class='flex items-center space-x-2'>
+    <Checkbox id='terms' />
+    <Label for='terms'>Accept terms and conditions</Label>
+</div>
+```
+
+#### Switch
+
+Modern toggle switch:
+
+```tsx
+<div class='flex items-center space-x-2'>
+    <Switch id='notifications' />
+    <Label for='notifications'>Enable notifications</Label>
+</div>
+```
+
+### Display Components
+
+#### Badge
+
+Inline badges with 4 variants:
+
+```tsx
+<Badge>New</Badge>
+<Badge variant="secondary">Beta</Badge>
+<Badge variant="destructive">Error</Badge>
+<Badge variant="outline">Draft</Badge>
+```
+
+#### Separator
+
+Visual divider:
+
+```tsx
+<Separator />
+<Separator orientation="vertical" class="h-4" />
+```
+
+#### Skeleton
+
+Loading placeholders:
+
+```tsx
+<Skeleton class="h-12 w-12 rounded-full" />
+<Skeleton class="h-4 w-[250px]" />
+```
+
+#### Alert
+
+Alert messages with title and description:
+
+```tsx
+<Alert>
+  <AlertTitle>Heads up!</AlertTitle>
+  <AlertDescription>
+    You can add components using the CLI.
+  </AlertDescription>
+</Alert>
+
+<Alert variant="destructive">
+  <AlertTitle>Error</AlertTitle>
+  <AlertDescription>
+    Your session has expired.
+  </AlertDescription>
+</Alert>
+```
+
+#### Kbd
+
+Keyboard shortcuts:
+
+```tsx
+<div class='flex items-center gap-1'>
+    <Kbd>⌘</Kbd>
+    <span>+</span>
+    <Kbd>K</Kbd>
+</div>
+```
+
+### Navigation Components
+
+#### Breadcrumb
+
+Hierarchical navigation:
+
+```tsx
+<Breadcrumb>
+    <BreadcrumbList>
+        <BreadcrumbItem>
+            <BreadcrumbLink href='/'>Home</BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+            <BreadcrumbLink href='/products'>Products</BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+            <BreadcrumbPage>Current Page</BreadcrumbPage>
+        </BreadcrumbItem>
+    </BreadcrumbList>
+</Breadcrumb>
+```
+
+#### Tabs
+
+Tabbed interface with two modes: static (client-side) and Unpoly (server-side):
+
+**Static Mode** (all content pre-rendered):
+
+```tsx
+<Tabs defaultValue='account'>
+    <TabsList>
+        <TabsTrigger value='account'>Account</TabsTrigger>
+        <TabsTrigger value='password'>Password</TabsTrigger>
+    </TabsList>
+    <TabsContent value='account'>
+        <p>Account settings content</p>
+    </TabsContent>
+    <TabsContent value='password'>
+        <p>Password settings content</p>
+    </TabsContent>
+</Tabs>
+```
+
+**Unpoly Mode** (content loaded from server):
+
+```tsx
+<Tabs>
+    <TabsList>
+        <TabsTrigger value='account' href='/settings?tab=account'>
+            Account
+        </TabsTrigger>
+        <TabsTrigger value='password' href='/settings?tab=password'>
+            Password
+        </TabsTrigger>
+    </TabsList>
+
+    <div id='tab-content' class='mt-2'>
+        {/* Content loaded dynamically from server */}
+    </div>
+</Tabs>
+```
+
+With Unpoly mode:
+
+- Each tab loads content via AJAX when clicked
+- Uses `up-nav` for automatic "current" styling
+- Supports `up-transition` for smooth animations
+- Perfect for content-heavy tabs or dynamic data
+
+**Controller example for Unpoly tabs:**
+
+```tsx
+@Controller('/settings')
+export class SettingsController {
+    @Get('/')
+    index(c: Context) {
+        const tab = c.req.query('tab') || 'account'
+        return c.html(
+            <Page>
+                <Tabs>
+                    <TabsList>
+                        <TabsTrigger
+                            value='account'
+                            href='/settings?tab=account'
+                        >
+                            Account
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value='password'
+                            href='/settings?tab=password'
+                        >
+                            Password
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <div id='tab-content'>
+                        {tab === 'account' && <AccountSettings />}
+                        {tab === 'password' && <PasswordSettings />}
+                    </div>
+                </Tabs>
+            </Page>,
+        )
+    }
+}
+```
+
+### Layout Components
+
+#### Accordion
+
+Collapsible sections:
+
+```tsx
+<Accordion>
+    <AccordionItem value='item-1'>
+        <AccordionTrigger>Is it accessible?</AccordionTrigger>
+        <AccordionContent>
+            Yes. It adheres to WAI-ARIA design patterns.
+        </AccordionContent>
+    </AccordionItem>
+    <AccordionItem value='item-2'>
+        <AccordionTrigger>Is it styled?</AccordionTrigger>
+        <AccordionContent>
+            Yes. It uses CSS variables for theming.
+        </AccordionContent>
+    </AccordionItem>
+</Accordion>
+```
 
 ## 🎨 Utilities
 

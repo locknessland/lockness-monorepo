@@ -1,126 +1,58 @@
-import { DocsSidebar } from '@view/components/docs_sidebar.tsx'
-import { Navbar } from '@view/components/navbar.tsx'
-
-const RobotIcon = () => (
-    <svg
-        xmlns='http://www.w3.org/2000/svg'
-        width='18'
-        height='18'
-        viewBox='0 0 24 24'
-        fill='none'
-        stroke='currentColor'
-        stroke-width='2'
-        stroke-linecap='round'
-        stroke-linejoin='round'
-    >
-        <path d='M12 8V4H8'></path>
-        <rect width='16' height='12' x='4' y='8' rx='2'></rect>
-        <path d='M2 14h2'></path>
-        <path d='M20 14h2'></path>
-        <path d='M15 13v2'></path>
-        <path d='M9 13v2'></path>
-    </svg>
-)
-
-const CopyIcon = () => (
-    <svg
-        xmlns='http://www.w3.org/2000/svg'
-        width='16'
-        height='16'
-        viewBox='0 0 24 24'
-        fill='none'
-        stroke='currentColor'
-        stroke-width='2'
-        stroke-linecap='round'
-        stroke-linejoin='round'
-    >
-        <rect width='14' height='14' x='8' y='8' rx='2' ry='2'></rect>
-        <path d='M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'>
-        </path>
-    </svg>
-)
-
-const CheckIcon = () => (
-    <svg
-        xmlns='http://www.w3.org/2000/svg'
-        width='16'
-        height='16'
-        viewBox='0 0 24 24'
-        fill='none'
-        stroke='currentColor'
-        stroke-width='2'
-        stroke-linecap='round'
-        stroke-linejoin='round'
-    >
-        <path d='M20 6 9 17l-5-5'></path>
-    </svg>
-)
+import { route } from '@lockness/core'
+import {
+    Button,
+    CopyLink,
+    Navbar,
+    NavbarBrand,
+    NavbarContent,
+    NavbarMenuItem as NavbarLink,
+    RobotIcon,
+    RootLayout,
+    Sidebar,
+    SidebarContent,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarGroupLabel,
+    SidebarHeader,
+    SidebarInset,
+    SidebarMenu,
+    SidebarMenuButton,
+    SidebarMenuItem,
+    SidebarProvider,
+    SidebarTrigger,
+    ThemeToggle,
+    ThemeToggleScript,
+    Title,
+} from '@lockness/ui/components'
 
 const LlmLinks = (props: { llmPath?: string }) => {
     if (!props.llmPath) return null
 
     return (
-        <div class='flex items-center justify-end gap-2 mb-6 pb-4 border-b-2 border-border/50'>
-            <span class='text-muted-foreground font-pixel text-[10px]'>
+        <div class='flex items-center gap-2'>
+            <span class='text-muted-foreground font-pixel text-[10px] hidden sm:inline'>
                 LLM DOCS:
             </span>
-            <a
+            <Button
                 href={`/llms/${props.llmPath}.txt`}
                 target='_blank'
-                class='flex items-center gap-1.5 px-2 py-1 bg-primary/10 hover:bg-primary/20 border-2 border-primary/30 text-primary transition-colors'
+                variant='outline'
+                size='sm'
+                class='gap-1.5 h-8'
                 title='View LLM-optimized documentation'
-                style='box-shadow: 2px 2px 0 0 rgba(34, 211, 238, 0.2);'
             >
-                <RobotIcon />
-                <span class='font-pixel text-[9px] mt-0.5'>VIEW</span>
-            </a>
-            <button
-                type='button'
-                onclick={`
-                    const btn = event.currentTarget;
-                    const icon = btn.querySelector('.copy-icon');
-                    const check = btn.querySelector('.check-icon');
-                    const text = btn.querySelector('.copy-text');
-                    const url = window.location.origin + '/llms/${props.llmPath}.txt';
-                    
-                    navigator.clipboard.writeText(url).then(() => {
-                        // Bounce animation
-                        btn.style.animation = 'none';
-                        setTimeout(() => {
-                            btn.style.animation = 'bounce 0.5s ease';
-                        }, 10);
-                        
-                        // Switch icons
-                        icon.style.display = 'none';
-                        check.style.display = 'block';
-                        text.textContent = 'COPIED!';
-                        btn.style.backgroundColor = 'rgba(34, 211, 238, 0.2)';
-                        btn.style.borderColor = 'rgba(34, 211, 238, 0.5)';
-                        btn.style.color = 'rgb(34, 211, 238)';
-                        
-                        setTimeout(() => {
-                            icon.style.display = 'block';
-                            check.style.display = 'none';
-                            text.textContent = 'COPY';
-                            btn.style.backgroundColor = '';
-                            btn.style.borderColor = '';
-                            btn.style.color = '';
-                            btn.style.animation = '';
-                        }, 2000);
-                    });
-                `}
-                class='flex items-center gap-1.5 px-2 py-1 bg-muted/30 hover:bg-muted/50 border-2 border-muted-foreground/30 text-muted-foreground hover:text-foreground transition-all cursor-pointer'
-                title='Copy link to clipboard'
-                style='box-shadow: 2px 2px 0 0 rgba(0, 0, 0, 0.2);'
-            >
-                <span class='copy-icon'>
-                    <CopyIcon />
-                </span>
-                <span class='check-icon' style='display: none;'>
-                    <CheckIcon />
-                </span>
-                <span class='font-pixel text-[9px] mt-0.5 copy-text'>COPY</span>
-            </button>
+                <RobotIcon size={14} />
+                <span class='font-pixel text-[9px]'>VIEW</span>
+            </Button>
+            <CopyLink
+                path={`/llms/${props.llmPath}.txt`}
+                variant='outline'
+                size='sm'
+                showLabel
+                label='COPY'
+                copiedLabel='COPIED!'
+                class='gap-1.5 h-8'
+            />
         </div>
     )
 }
@@ -134,184 +66,154 @@ export const DocsLayout = (
     },
 ) => {
     return (
-        <html lang='en' class='dark'>
-            <head>
-                <meta charset='UTF-8' />
-                <meta
-                    name='viewport'
-                    content='width=device-width, initial-scale=1.0'
-                />
-                <title>{props.title} | Lockness Documentation</title>
-                <meta
-                    name='description'
-                    content='Complete documentation for Lockness JS - The fullstack MVC framework for Deno'
-                />
+        <RootLayout
+            title={`${props.title} | Lockness Documentation`}
+            styles={[
+                <link key='app-css' rel='stylesheet' href='/css/app.css' />,
+            ]}
+        >
+            <Navbar position='sticky'>
+                <NavbarBrand href='/'>
+                    <span class='text-xl'>🦕</span>
+                    <span class='font-pixel'>Lockness</span>
+                </NavbarBrand>
+                <NavbarContent position='center' class='hidden md:flex'>
+                    <NavbarLink href='/'>Home</NavbarLink>
+                    <NavbarLink href='/docs' active>Docs</NavbarLink>
+                    <NavbarLink href='/ui'>UI Components</NavbarLink>
+                </NavbarContent>
+                <NavbarContent position='right' class='hidden md:flex'>
+                    <NavbarLink
+                        href='https://github.com/locknessland/lockness'
+                        target='_blank'
+                    >
+                        GitHub
+                    </NavbarLink>
+                    <ThemeToggle />
+                </NavbarContent>
+            </Navbar>
 
-                {/* Favicons */}
-                <link rel='icon' type='image/x-icon' href='/favicon.ico' />
-                <link
-                    rel='icon'
-                    type='image/png'
-                    sizes='16x16'
-                    href='/favicon-16x16.png'
-                />
-                <link
-                    rel='icon'
-                    type='image/png'
-                    sizes='32x32'
-                    href='/favicon-32x32.png'
-                />
-                <link
-                    rel='apple-touch-icon'
-                    sizes='180x180'
-                    href='/apple-touch-icon.png'
-                />
-                <link
-                    rel='icon'
-                    type='image/png'
-                    sizes='192x192'
-                    href='/android-chrome-192x192.png'
-                />
-                <link
-                    rel='icon'
-                    type='image/png'
-                    sizes='512x512'
-                    href='/android-chrome-512x512.png'
-                />
+            <ThemeToggleScript />
+            <SidebarProvider>
+                {/* Sidebar */}
+                <DocsSidebar currentPath={props.currentPath} />
 
-                {/* Automatic asset resolution & dependency injection */}
-                {/* Pure SSR - No client-side JS needed */}
+                <SidebarInset class='ml-0 md:ml-64 transition-all duration-200 overflow-x-hidden'>
+                    {/* Mobile sidebar trigger */}
+                    <div class='flex md:hidden h-12 items-center gap-2 border-b border-border px-4 sticky top-16 bg-background z-10'>
+                        <SidebarTrigger />
+                        <span class='font-semibold text-foreground text-sm'>
+                            {props.title}
+                        </span>
+                    </div>
 
-                {/* Static CSS */}
-                <link rel='stylesheet' href='/css/app.css' />
-
-                {/* Fonts */}
-                <link rel='preconnect' href='https://fonts.googleapis.com' />
-                <link
-                    rel='preconnect'
-                    href='https://fonts.gstatic.com'
-                    crossorigin='anonymous'
-                />
-                <link
-                    href='https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap'
-                    rel='stylesheet'
-                />
-
-                {/* Prism.js for syntax highlighting */}
-                <link
-                    href='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css'
-                    rel='stylesheet'
-                />
-                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js'>
-                </script>
-                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js'>
-                </script>
-                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js'>
-                </script>
-                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js'>
-                </script>
-                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js'>
-                </script>
-                <script src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js'>
-                </script>
-
-                <style
-                    dangerouslySetInnerHTML={{
-                        __html: `
-                    /* Text selection colors */
-                    ::selection {
-                        background-color: rgba(34, 211, 238, 0.3);
-                        color: #ffffff;
-                    }
-                    
-                    ::-moz-selection {
-                        background-color: rgba(34, 211, 238, 0.3);
-                        color: #ffffff;
-                    }
-                    
-                    /* Monokai theme colors for Prism */
-                    .token.comment,
-                    .token.prolog,
-                    .token.doctype,
-                    .token.cdata { color: #75715e; font-style: italic; }
-                    
-                    .token.punctuation { color: #f8f8f2; }
-                    
-                    .token.property,
-                    .token.tag,
-                    .token.constant,
-                    .token.symbol,
-                    .token.deleted { color: #f92672; }
-                    
-                    .token.boolean,
-                    .token.number { color: #ae81ff; }
-                    
-                    .token.selector,
-                    .token.attr-name,
-                    .token.string,
-                    .token.char,
-                    .token.builtin,
-                    .token.inserted { color: #e6db74; }
-                    
-                    .token.operator,
-                    .token.entity,
-                    .token.url,
-                    .language-css .token.string,
-                    .style .token.string { color: #f92672; }
-                    
-                    .token.atrule,
-                    .token.attr-value,
-                    .token.keyword { color: #f92672; font-style: italic; }
-                    
-                    .token.function { color: #66d9ef; }
-                    
-                    .token.class-name { color: #a6e22e; }
-                    
-                    .token.regex,
-                    .token.important,
-                    .token.variable { color: #f8f8f2; }
-                    
-                    pre[class*="language-"] {
-                        background: transparent !important;
-                        margin: 0 !important;
-                        padding: 0 !important;
-                    }
-                    
-                    code[class*="language-"] {
-                        background: transparent !important;
-                        color: #f8f8f2;
-                        font-family: 'VT323', monospace !important;
-                        font-size: 1.125rem;
-                        line-height: 1.8;
-                    }
-                    
-                    /* Bounce animation for copy button */
-                    @keyframes bounce {
-                        0%, 100% { transform: translateY(0); }
-                        25% { transform: translateY(-8px); }
-                        50% { transform: translateY(-4px); }
-                        75% { transform: translateY(-6px); }
-                    }
-                `,
-                    }}
-                />
-            </head>
-            <body class='bg-background text-foreground min-h-screen antialiased overflow-x-hidden'>
-                {/* Navbar */}
-                <Navbar />
-
-                {/* Main Layout */}
-                <div class='pt-16 md:flex'>
-                    {/* Sidebar */}
-                    <DocsSidebar currentPath={props.currentPath} />
-
-                    {/* Content */}
-                    <main class='flex-1 p-6 md:p-12 max-w-4xl'>
-                        <LlmLinks llmPath={props.llmPath} />
+                    {/* Page content */}
+                    <main class='flex-1 p-4 md:p-8 max-w-4xl'>
+                        {/* Header with Title and LLM Links */}
+                        <div class='flex items-center justify-between gap-4 mb-6 pb-4 border-b-2 border-border/50'>
+                            <Title level={1} class='mb-0'>
+                                {props.title}
+                            </Title>
+                            <LlmLinks llmPath={props.llmPath} />
+                        </div>
                         {props.children}
                     </main>
-                </div>
-            </body>
-        </html>
+                </SidebarInset>
+            </SidebarProvider>
+        </RootLayout>
+    )
+}
+
+// Navigation sections for docs sidebar
+const navSections = [
+    {
+        title: 'Getting Started',
+        links: [
+            { title: 'Installation', name: 'docs.installation' },
+            { title: 'Introduction', name: 'docs.getting-started' },
+        ],
+    },
+    {
+        title: 'Core Concepts',
+        links: [
+            { title: 'Routing & Controllers', name: 'docs.routing' },
+            {
+                title: 'Dependency Injection',
+                name: 'docs.dependency-injection',
+            },
+            { title: 'Middleware', name: 'docs.middleware' },
+            { title: 'Validation', name: 'docs.validation' },
+        ],
+    },
+    {
+        title: 'Database & State',
+        links: [
+            { title: 'Models & Database', name: 'docs.models' },
+            { title: 'Session Management', name: 'docs.sessions' },
+        ],
+    },
+    {
+        title: 'Development Tools',
+        links: [
+            { title: 'Lockness Devtools', name: 'docs.devtools' },
+            { title: 'Deprecation Contracts', name: 'docs.deprecation' },
+            { title: 'CLI Engine', name: 'docs.cli' },
+            { title: 'Nessy CLI', name: 'docs.nessy' },
+        ],
+    },
+    {
+        title: 'Advanced',
+        links: [
+            { title: 'View Components', name: 'docs.components' },
+            { title: 'UI Components', name: 'docs.ui' },
+            { title: 'Table Component', name: 'docs.table' },
+            { title: 'Package Management', name: 'docs.packages' },
+        ],
+    },
+    {
+        title: 'Contributing',
+        links: [
+            { title: 'Framework Contribution', name: 'docs.contribution' },
+        ],
+    },
+]
+
+// Docs Sidebar using @lockness/ui Sidebar components
+const DocsSidebar = (props: { currentPath: string }) => {
+    return (
+        <Sidebar topOffset='16'>
+            <SidebarHeader class='p-4'>
+                <span class='text-sm font-semibold text-sidebar-foreground'>
+                    Documentation
+                </span>
+            </SidebarHeader>
+            <SidebarContent>
+                {navSections.map((section) => (
+                    <SidebarGroup key={section.title}>
+                        <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+                        <SidebarGroupContent>
+                            <SidebarMenu>
+                                {section.links.map((link) => {
+                                    const href = route(link.name)
+                                    const isActive = props.currentPath === href
+                                    return (
+                                        <SidebarMenuItem key={link.name}>
+                                            <SidebarMenuButton
+                                                href={href}
+                                                isActive={isActive}
+                                                up-preload
+                                                up-transition='move-left'
+                                            >
+                                                {link.title}
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                    )
+                                })}
+                            </SidebarMenu>
+                        </SidebarGroupContent>
+                    </SidebarGroup>
+                ))}
+            </SidebarContent>
+        </Sidebar>
     )
 }

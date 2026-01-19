@@ -107,6 +107,159 @@ const REGISTRY: Registry = {
             },
         ],
     },
+    label: {
+        name: 'label',
+        description: 'Form label component with consistent styling',
+        files: [
+            {
+                path: 'components/Label.tsx',
+                target: 'components/ui/Label.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    input: {
+        name: 'input',
+        description: 'Text input component with variants',
+        files: [
+            {
+                path: 'components/Input.tsx',
+                target: 'components/ui/Input.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    textarea: {
+        name: 'textarea',
+        description: 'Multi-line text input component',
+        files: [
+            {
+                path: 'components/Textarea.tsx',
+                target: 'components/ui/Textarea.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    badge: {
+        name: 'badge',
+        description: 'Badge/label component for tags and status',
+        files: [
+            {
+                path: 'components/Badge.tsx',
+                target: 'components/ui/Badge.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    separator: {
+        name: 'separator',
+        description: 'Visual divider line component',
+        files: [
+            {
+                path: 'components/Separator.tsx',
+                target: 'components/ui/Separator.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    skeleton: {
+        name: 'skeleton',
+        description: 'Loading placeholder with animated pulse',
+        files: [
+            {
+                path: 'components/Skeleton.tsx',
+                target: 'components/ui/Skeleton.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    alert: {
+        name: 'alert',
+        description:
+            'Alert message component (Alert, AlertTitle, AlertDescription)',
+        files: [
+            {
+                path: 'components/Alert.tsx',
+                target: 'components/ui/Alert.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    kbd: {
+        name: 'kbd',
+        description: 'Keyboard shortcut display component',
+        files: [
+            { path: 'components/Kbd.tsx', target: 'components/ui/Kbd.tsx' },
+        ],
+        internalDependencies: ['utils'],
+    },
+    checkbox: {
+        name: 'checkbox',
+        description: 'Checkbox input with custom styling',
+        files: [
+            {
+                path: 'components/Checkbox.tsx',
+                target: 'components/ui/Checkbox.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    switch: {
+        name: 'switch',
+        description: 'Toggle switch component',
+        files: [
+            {
+                path: 'components/Switch.tsx',
+                target: 'components/ui/Switch.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    breadcrumb: {
+        name: 'breadcrumb',
+        description:
+            'Breadcrumb navigation (Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage)',
+        files: [
+            {
+                path: 'components/Breadcrumb.tsx',
+                target: 'components/ui/Breadcrumb.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    tabs: {
+        name: 'tabs',
+        description:
+            'Tabbed interface (Tabs, TabsList, TabsTrigger, TabsContent)',
+        files: [
+            { path: 'components/Tabs.tsx', target: 'components/ui/Tabs.tsx' },
+        ],
+        internalDependencies: ['utils'],
+    },
+    accordion: {
+        name: 'accordion',
+        description:
+            'Collapsible sections (Accordion, AccordionItem, AccordionTrigger, AccordionContent)',
+        files: [
+            {
+                path: 'components/Accordion.tsx',
+                target: 'components/ui/Accordion.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    title: {
+        name: 'title',
+        description:
+            'Typography heading component with CSS variable sizing (h1-h6)',
+        files: [
+            {
+                path: 'components/Title.tsx',
+                target: 'components/ui/Title.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
 }
 
 // =============================================================================

@@ -17,6 +17,7 @@
             "components.ts",
             "lib/**/*.ts",
             "components/**/*.tsx",
+            "styles/**/*.css",
             "deno.json",
             "README.md"
         ],

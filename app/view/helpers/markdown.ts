@@ -131,14 +131,22 @@ export function loadMarkdownContent(filename: string): MarkdownBlock[] {
 }
 
 /**
- * Process inline markdown syntax (bold, italic, code)
+ * Process inline markdown syntax (bold, italic, code, links)
  */
 export function processInlineMarkdown(text: string): string {
     return text
+        // Links [text](url)
+        .replace(
+            /\[([^\]]+)\]\(([^)]+)\)/g,
+            '<a href="$2" class="text-primary hover:underline">$1</a>',
+        )
+        // Inline code
         .replace(
             /`([^`]+)`/g,
-            '<code class="px-2 py-1 bg-primary/20 text-primary font-pixel-body text-sm border border-primary/30 rounded">$1</code>',
+            '<code class="px-1.5 py-0.5 bg-muted text-foreground font-mono text-sm rounded">$1</code>',
         )
+        // Bold
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        // Italic
         .replace(/\*([^*]+)\*/g, '<em>$1</em>')
 }

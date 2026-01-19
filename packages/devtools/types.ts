@@ -25,6 +25,13 @@ export interface SQLQuery {
     bindings?: unknown[]
 }
 
+export interface ComponentNode {
+    name: string
+    file?: string
+    props?: string[]
+    children: ComponentNode[]
+}
+
 export interface RequestInfo {
     id: string
     method: string
@@ -39,6 +46,7 @@ export interface RequestInfo {
     action?: string
     routeName?: string
     component?: string
+    componentTree?: ComponentNode[]
 }
 
 export interface SessionData {

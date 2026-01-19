@@ -137,22 +137,40 @@ export const LoginPage = () => {
 
 ## Using Components
 
-Import and use components in your pages and layouts:
+Import and use components from `@lockness/ui/components` in your pages and
+layouts:
 
 ```typescript
-import { Button } from '@view/components/button.tsx'
-import { Card } from '@view/components/ui/card.tsx'
-import { Navbar } from '@view/components/navbar.tsx'
+import {
+    Button,
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle,
+    Navbar,
+    NavbarBrand,
+    NavbarContent,
+    NavbarMenuItem,
+} from '@lockness/ui/components'
 
 export const HomePage = () => {
     return (
         <div>
-            <Navbar />
+            <Navbar>
+                <NavbarBrand href='/'>Lockness</NavbarBrand>
+                <NavbarContent position='right'>
+                    <NavbarMenuItem href='/docs'>Docs</NavbarMenuItem>
+                </NavbarContent>
+            </Navbar>
             <Card>
-                <h1>Welcome</h1>
-                <Button variant='primary' size='lg'>
-                    Get Started
-                </Button>
+                <CardHeader>
+                    <CardTitle>Welcome</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Button variant='primary' size='lg'>
+                        Get Started
+                    </Button>
+                </CardContent>
             </Card>
         </div>
     )

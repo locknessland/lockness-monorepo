@@ -21,11 +21,15 @@ import { devtoolsMiddleware } from './middleware.ts'
 import { renderDashboard } from './dashboard.tsx'
 import { collector } from './collector.ts'
 import type { DevtoolsConfig, MailInfo, QueueJob, RouteInfo } from './types.ts'
-import { ComponentScanner } from './utils/component_scanner.ts'
+import { ComponentDependencyAnalyzer } from './utils/component_dependency_analyzer.ts'
 
 export * from './types.ts'
 export { collector } from './collector.ts'
 export { devtoolsMiddleware } from './middleware.ts'
+export { ComponentDependencyAnalyzer } from './utils/component_dependency_analyzer.ts'
+
+// Global analyzer instance for component tree building
+let componentAnalyzer: ComponentDependencyAnalyzer | null = null
 
 const DEFAULT_CONFIG: DevtoolsConfig = {
     enabled: true,
@@ -64,14 +68,13 @@ export function enableDevtools(
         return
     }
 
-    // Start component scanning in background
-    const scanner = new ComponentScanner()
-    scanner.scan().then(() => {
-        // We'll need to expose the map to collector
-        // This is a bit of a hack since scan is async and private in collector
-        // So we added setComponentMap
-        // @ts-ignore - Access private or public map
-        collector.setComponentMap(scanner['components'])
+    // Start component scanning with dependency analysis
+    const analyzer = new ComponentDependencyAnalyzer()
+    analyzer.scan().then(() => {
+        // Store analyzer globally for tree building
+        componentAnalyzer = analyzer
+        // Set component map for backward compatibility
+        collector.setComponentMap(analyzer.getComponentMap())
     })
 
     // Extract Hono instance
@@ -89,6 +92,16 @@ export function enableDevtools(
     // API endpoints
     honoApp.get(`${cfg.basePath}/api/data`, (c) => {
         return c.json(collector.getAllData())
+    })
+
+    // New endpoint: get component tree for a component
+    honoApp.get(`${cfg.basePath}/api/component-tree/:name`, (c) => {
+        const componentName = c.req.param('name')
+        if (!componentAnalyzer) {
+            return c.json({ error: 'Analyzer not ready' }, 503)
+        }
+        const tree = componentAnalyzer.buildTree(componentName)
+        return c.json(tree)
     })
 
     honoApp.post(`${cfg.basePath}/clear`, (c) => {

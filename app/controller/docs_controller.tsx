@@ -16,6 +16,7 @@ import { SessionsPage } from '@view/pages/docs/sessions.tsx'
 import { DevtoolsPage } from '@view/pages/docs/devtools.tsx'
 import { ContributionPage } from '@view/pages/docs/contribution.tsx'
 import { UiPage } from '@view/pages/docs/ui.tsx'
+import { TableDocsPage } from '@view/pages/docs/table.tsx'
 
 @Controller('/docs')
 export class DocsController {
@@ -107,5 +108,10 @@ export class DocsController {
     @Get('/ui', { name: 'docs.ui' })
     ui(c: Context) {
         return c.html(<UiPage />)
+    }
+
+    @Get('/table', { name: 'docs.table' })
+    table(c: Context) {
+        return c.html(<TableDocsPage />)
     }
 }
