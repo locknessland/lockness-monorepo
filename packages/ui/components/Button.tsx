@@ -212,18 +212,23 @@ export const Button: FC<ButtonProps> = ({
     )
 
     if (isAnchor) {
+        // For external links (target="_blank"), don't use Unpoly
+        const isExternalLink = target === '_blank'
+
         return (
             <a
                 href={disabled ? undefined : href}
                 class={classes}
                 aria-disabled={disabled}
-                up-follow
-                up-preload={preload ? '' : undefined}
-                up-transition={transition}
-                up-target={target}
-                up-duration={duration}
-                up-easing={easing}
-                up-fail-transition={failTransition}
+                target={isExternalLink ? '_blank' : undefined}
+                rel={isExternalLink ? 'noopener noreferrer' : undefined}
+                up-follow={isExternalLink ? undefined : ''}
+                up-preload={preload && !isExternalLink ? '' : undefined}
+                up-transition={isExternalLink ? undefined : transition}
+                up-target={isExternalLink ? undefined : target}
+                up-duration={isExternalLink ? undefined : duration}
+                up-easing={isExternalLink ? undefined : easing}
+                up-fail-transition={isExternalLink ? undefined : failTransition}
                 {...props}
             >
                 {children}

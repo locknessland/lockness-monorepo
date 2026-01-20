@@ -2,19 +2,34 @@
 
 ## 📋 Task Overview
 
-Implement a "Dual Layer" routing architecture in the `@lockness/core` package to support **Multiple Mount Points**. Currently, the `App` class directly exposes a single Hono instance (`this.hono`) where controllers are registered. This refactoring enables mounting the same application on multiple URL patterns (e.g., `/:languageId/:countryId` AND `/api/:apiVersionId`) with specific context extraction logic for each mount point.
+Implement a "Dual Layer" routing architecture in the `@lockness/core` package to
+support **Multiple Mount Points**. Currently, the `App` class directly exposes a
+single Hono instance (`this.hono`) where controllers are registered. This
+refactoring enables mounting the same application on multiple URL patterns
+(e.g., `/:languageId/:countryId` AND `/api/:apiVersionId`) with specific context
+extraction logic for each mount point.
 
 **Framework Philosophy:**
 
-This feature embodies Lockness's core principle: **provide powerful, flexible primitives that empower developers to build their own patterns**. Rather than imposing a specific i18n library or API versioning strategy, we're providing the foundational routing infrastructure that allows framework users to implement any URL-based context extraction pattern they need.
+This feature embodies Lockness's core principle: **provide powerful, flexible
+primitives that empower developers to build their own patterns**. Rather than
+imposing a specific i18n library or API versioning strategy, we're providing the
+foundational routing infrastructure that allows framework users to implement any
+URL-based context extraction pattern they need.
 
 **What We're Building:**
-- A **framework-level capability** that exposes mount points as a first-class configuration option
-- **Middleware hooks** at the mount-point level for users to inject their own context extraction logic
-- **Zero-opinion architecture**: the framework doesn't dictate how users validate locales, versions, or tenants—it simply provides the routing layer
+
+- A **framework-level capability** that exposes mount points as a first-class
+  configuration option
+- **Middleware hooks** at the mount-point level for users to inject their own
+  context extraction logic
+- **Zero-opinion architecture**: the framework doesn't dictate how users
+  validate locales, versions, or tenants—it simply provides the routing layer
 
 **Use Cases Framework Users Can Implement:**
-- Internationalized applications with language/country-specific URLs (e.g., `/fr/ca/products`)
+
+- Internationalized applications with language/country-specific URLs (e.g.,
+  `/fr/ca/products`)
 - API versioning with shared controller logic (e.g., `/v1/users`, `/v2/users`)
 - Multi-tenant SaaS applications with tenant-specific URLs
 - E-commerce platforms with localized routing
@@ -22,13 +37,19 @@ This feature embodies Lockness's core principle: **provide powerful, flexible pr
 
 ## 🎯 Objectives
 
-1. **Primary Objective**: Implement dual-layer routing with `rootHono` (public) and `hono` (internal) layers
-2. **Framework Extensibility**: Provide a flexible `MountPoint` interface that empowers users to define their own routing patterns
+1. **Primary Objective**: Implement dual-layer routing with `rootHono` (public)
+   and `hono` (internal) layers
+2. **Framework Extensibility**: Provide a flexible `MountPoint` interface that
+   empowers users to define their own routing patterns
 3. **Type Safety**: Create `MountPoint` interface and update `AppConfig` type
-4. **Middleware Support**: Allow mount-point-specific middleware for user-defined context extraction
-5. **Documentation Objective**: Update GEMINI.md, README, and create LLM documentation
+4. **Middleware Support**: Allow mount-point-specific middleware for
+   user-defined context extraction
+5. **Documentation Objective**: Update GEMINI.md, README, and create LLM
+   documentation
 
-> 💡 **Development Phase**: This framework is not yet published. Breaking changes are acceptable—we prioritize clean architecture over backward compatibility.
+> 💡 **Development Phase**: This framework is not yet published. Breaking
+> changes are acceptable—we prioritize clean architecture over backward
+> compatibility.
 
 ## 📁 Affected File Paths
 
@@ -44,11 +65,13 @@ This feature embodies Lockness's core principle: **provide powerful, flexible pr
 ### Test Files
 
 - `/packages/core/tests/app.test.ts` - Unit tests for multi-mount routing
-- `/packages/core/tests/mount_points.test.ts` - Integration tests for mount points
+- `/packages/core/tests/mount_points.test.ts` - Integration tests for mount
+  points
 
 ### Documentation Files to Update
 
-> ⚠️ **Important**: Follow the architecture and conventions documented in [GEMINI.md](../GEMINI.md)
+> ⚠️ **Important**: Follow the architecture and conventions documented in
+> [GEMINI.md](../GEMINI.md)
 
 #### Core Documentation
 
@@ -87,7 +110,8 @@ This feature embodies Lockness's core principle: **provide powerful, flexible pr
 
 **1. Single Responsibility Principle (SRP)**
 
-- **Current Problem**: `App.hono` handles both URL pattern matching and controller routing
+- **Current Problem**: `App.hono` handles both URL pattern matching and
+  controller routing
 - **Solution**: Separate concerns into two layers
   - `rootHono`: URL pattern matching, mount-specific middleware, static files
   - `hono`: Controller registration, business logic routing
@@ -96,7 +120,7 @@ This feature embodies Lockness's core principle: **provide powerful, flexible pr
 class App {
     // Public layer - handles mount points and static files
     private rootHono = new Hono({ strict: false })
-    
+
     // Internal layer - handles controller logic (unchanged)
     private hono = new Hono({ strict: false })
 }
@@ -120,7 +144,8 @@ await app.init({
 
 **3. Liskov Substitution Principle (LSP)**
 
-- **Solution**: Mount points are interchangeable - any MountPoint with valid pattern works
+- **Solution**: Mount points are interchangeable - any MountPoint with valid
+  pattern works
 - All mount points share the same internal controller layer
 
 **4. Interface Segregation Principle (ISP)**
@@ -136,7 +161,8 @@ interface MountPoint {
 
 **5. Dependency Inversion Principle (DIP)**
 
-- **Solution**: App depends on `MountPoint` abstraction, not concrete implementations
+- **Solution**: App depends on `MountPoint` abstraction, not concrete
+  implementations
 - Middleware is injected via configuration
 
 ### DRY Principle (Don't Repeat Yourself)
@@ -144,7 +170,8 @@ interface MountPoint {
 **Current Duplication Risk:**
 
 - Without this pattern, users would duplicate controllers for each mount point
-- Route definitions would be repeated per language/country combination or API version
+- Route definitions would be repeated per language/country combination or API
+  version
 
 **Solution:**
 
@@ -171,7 +198,8 @@ interface MountPoint {
 - Controllers on internal layer (shared across mount points)
 - Clean, intuitive API takes priority over preserving legacy patterns
 
-> ⚠️ **Breaking changes are acceptable** — framework is in active development, not yet published.
+> ⚠️ **Breaking changes are acceptable** — framework is in active development,
+> not yet published.
 
 ## 🎨 Proposed API Design
 
@@ -202,13 +230,13 @@ import { App, type Context, type Next } from '@lockness/core'
 const i18nMiddleware = async (c: Context, next: Next) => {
     const langId = c.req.param('langId')
     const countryId = c.req.param('countryId')
-    
+
     // Validate language/country combination
     const locale = await LocaleService.resolve(langId, countryId)
     if (!locale) {
         return c.notFound()
     }
-    
+
     c.set('locale', locale)
     c.set('langId', langId)
     c.set('countryId', countryId)
@@ -218,12 +246,12 @@ const i18nMiddleware = async (c: Context, next: Next) => {
 // Mount-specific middleware for API versioning
 const apiVersionMiddleware = async (c: Context, next: Next) => {
     const version = c.req.param('version')
-    
+
     // Validate API version
     if (!['v1', 'v2'].includes(version)) {
         return c.json({ error: 'Unsupported API version' }, 400)
     }
-    
+
     c.set('apiVersion', version)
     return next()
 }
@@ -232,14 +260,14 @@ const app = new App()
 
 app.useMiddleware(
     sessionMiddleware(),
-    initializeAuthMiddleware({ /* ... */ }),
+    initializeAuthMiddleware({/* ... */}),
 )
 
 await app.init({
     controllersDir: app.isDevelopment ? './app/controller' : undefined,
     controllers: app.isDevelopment ? undefined : controllers,
     staticDir: 'public',
-    
+
     // NEW: Mount points configuration
     mountPoints: [
         { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
@@ -260,16 +288,16 @@ app.listen(3000)
 class UserController {
     @Inject(UserService)
     accessor userService!: UserService
-    
+
     @Get('/')
     async list(c: Context) {
         // Context values from mount middleware are available
-        const locale = c.get('locale')      // From i18n middleware
+        const locale = c.get('locale') // From i18n middleware
         const apiVersion = c.get('apiVersion') // From API version middleware
-        
+
         return c.json(await this.userService.findAll())
     }
-    
+
     @Get('/:id')
     async show(c: Context) {
         const id = c.req.param('id')
@@ -286,15 +314,15 @@ class UserController {
 
 File: `/packages/core/types.ts`
 
-```typescript
+````typescript
 import type { Context, Next } from 'hono'
 
 /**
  * Configuration for a single mount point.
- * 
+ *
  * A mount point defines a URL pattern where the application will be mounted,
  * along with optional middleware for context extraction.
- * 
+ *
  * @example
  * ```typescript
  * // Internationalization mount point
@@ -307,7 +335,7 @@ import type { Context, Next } from 'hono'
  *         return next()
  *     }
  * }
- * 
+ *
  * // API versioning mount point
  * const apiMount: MountPoint = {
  *     pattern: '/api/:version',
@@ -322,7 +350,7 @@ export interface MountPoint {
     /**
      * The URL pattern to mount the application on.
      * Supports Hono path parameters (e.g., `:langId`, `:countryId`, `:version`).
-     * 
+     *
      * @example '/:langId/:countryId'
      * @example '/api/:version'
      * @example '/tenant/:tenantId'
@@ -332,39 +360,39 @@ export interface MountPoint {
     /**
      * Optional middleware specific to this mount point.
      * Executed before any controller logic for requests matching this pattern.
-     * 
+     *
      * Common use cases:
      * - Extract path parameters and hydrate context (locale, version)
      * - Validate path parameters (language codes, API versions)
      * - Load localized resources or tenant data
      * - Set up request-scoped dependencies
-     * 
+     *
      * @param c - Hono Context object
      * @param next - Next middleware function
      * @returns Promise resolving to void or a Response
      */
     readonly middleware?: (c: Context, next: Next) => Promise<void | Response>
 }
-```
+````
 
 **Step 1.2: Update AppConfig Interface**
 
 File: `/packages/core/types.ts`
 
-```typescript
+````typescript
 export interface AppConfig {
     controllersDir?: string
     staticDir?: string
 
     /**
      * Configuration for mounting the app on multiple URL patterns.
-     * 
+     *
      * When defined, the application will be accessible under each mount point's pattern.
      * Controllers registered with decorators like `@Get('/users')` will be available
      * under all mount points (e.g., `/:langId/:countryId/users`, `/api/:version/users`).
-     * 
+     *
      * If not defined, the application mounts at root `/` (default behavior).
-     * 
+     *
      * @example
      * ```typescript
      * await app.init({
@@ -379,7 +407,7 @@ export interface AppConfig {
      */
     readonly mountPoints?: readonly MountPoint[]
 }
-```
+````
 
 **Step 1.3: Export Types**
 
@@ -397,7 +425,7 @@ export type { MountPoint } from './types.ts'
 File: `/packages/core/app.ts`
 
 ```typescript
-import { Hono, type Context, type Next } from 'hono'
+import { type Context, Hono, type Next } from 'hono'
 
 export class App {
     /**
@@ -413,7 +441,7 @@ export class App {
      * @internal
      */
     private hono = new Hono({ strict: false })
-    
+
     // ... rest of existing properties
 }
 ```
@@ -573,18 +601,18 @@ class TestController {
 
 Deno.test('App - mounts at root when no mountPoints defined', async () => {
     const app = new App()
-    
+
     await app.init({
         controllers: [TestController],
     })
-    
+
     const res = await app.fetch(new Request('http://localhost/users'))
     assertEquals(res.status, 200)
 })
 
 Deno.test('App - mounts controllers under each mount point pattern', async () => {
     const app = new App()
-    
+
     await app.init({
         controllers: [TestController],
         mountPoints: [
@@ -592,11 +620,11 @@ Deno.test('App - mounts controllers under each mount point pattern', async () =>
             { pattern: '/api/:version' },
         ],
     })
-    
+
     // Both mount points should work
     const i18nRes = await app.fetch(new Request('http://localhost/fr/ca/users'))
     assertEquals(i18nRes.status, 200)
-    
+
     const apiRes = await app.fetch(new Request('http://localhost/api/v1/users'))
     assertEquals(apiRes.status, 200)
 })
@@ -605,7 +633,7 @@ Deno.test('App - executes mount-specific middleware', async () => {
     let middlewareCalled = false
     let extractedLang: string | undefined
     let extractedCountry: string | undefined
-    
+
     const i18nMiddleware = async (c: Context, next: Next) => {
         middlewareCalled = true
         extractedLang = c.req.param('langId')
@@ -614,18 +642,18 @@ Deno.test('App - executes mount-specific middleware', async () => {
         c.set('countryId', extractedCountry)
         return next()
     }
-    
+
     const app = new App()
-    
+
     await app.init({
         controllers: [TestController],
         mountPoints: [
             { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
         ],
     })
-    
+
     await app.fetch(new Request('http://localhost/fr/ca/users'))
-    
+
     assertEquals(middlewareCalled, true)
     assertEquals(extractedLang, 'fr')
     assertEquals(extractedCountry, 'ca')
@@ -633,7 +661,7 @@ Deno.test('App - executes mount-specific middleware', async () => {
 
 Deno.test('App - static files work globally with mount points', async () => {
     const app = new App()
-    
+
     await app.init({
         controllers: [TestController],
         staticDir: './public',
@@ -641,7 +669,7 @@ Deno.test('App - static files work globally with mount points', async () => {
             { pattern: '/:langId/:countryId' },
         ],
     })
-    
+
     // Static files should work at root, not under mount points
     const res = await app.fetch(new Request('http://localhost/css/app.css'))
     // Note: Returns 404 if file doesn't exist, but route should be registered
@@ -650,16 +678,18 @@ Deno.test('App - static files work globally with mount points', async () => {
 
 Deno.test('App - 404 handler works with mount points', async () => {
     const app = new App()
-    
+
     await app.init({
         controllers: [TestController],
         mountPoints: [
             { pattern: '/:langId/:countryId' },
         ],
     })
-    
+
     // Route outside mount points should return 404
-    const res = await app.fetch(new Request('http://localhost/nonexistent/route/here'))
+    const res = await app.fetch(
+        new Request('http://localhost/nonexistent/route/here'),
+    )
     assertEquals(res.status, 404)
 })
 
@@ -671,22 +701,26 @@ Deno.test('App - middleware can reject invalid parameters', async () => {
         }
         return next()
     }
-    
+
     const app = new App()
-    
+
     await app.init({
         controllers: [TestController],
         mountPoints: [
             { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
         ],
     })
-    
+
     // Valid language
-    const validRes = await app.fetch(new Request('http://localhost/fr/ca/users'))
+    const validRes = await app.fetch(
+        new Request('http://localhost/fr/ca/users'),
+    )
     assertEquals(validRes.status, 200)
-    
+
     // Invalid language
-    const invalidRes = await app.fetch(new Request('http://localhost/de/de/users'))
+    const invalidRes = await app.fetch(
+        new Request('http://localhost/de/de/users'),
+    )
     assertEquals(invalidRes.status, 404)
 })
 ```
@@ -792,7 +826,8 @@ app.listen(3000)
 
 - [ ] Test full request lifecycle through mount points
 - [ ] Test context values set by middleware accessible in controllers
-- [ ] Test multiple mount points with different middleware (i18n + API versioning)
+- [ ] Test multiple mount points with different middleware (i18n + API
+      versioning)
 
 ### Manual Testing
 
@@ -818,7 +853,7 @@ deno test packages/core/tests/
 **Before marking task complete:**
 
 - ✅ `deno check` passes on modified files
-- ✅ `deno lint` passes on modified files  
+- ✅ `deno lint` passes on modified files
 - ✅ `deno test` passes with 100% success rate
 
 ## ✅ Definition of Done
@@ -855,10 +890,14 @@ deno test packages/core/tests/
 
 ### Design Decisions
 
-1. **Dual Layer vs Single Layer**: Chosen to maintain separation between URL pattern matching and business logic routing
-2. **Mount-specific middleware**: Allows flexible context extraction (i18n params, API version) without modifying controllers
-3. **Static files on rootHono**: Assets should be global, not duplicated under each mount point
-4. **Default behavior**: Empty/undefined `mountPoints` mounts at root `/` for simplicity
+1. **Dual Layer vs Single Layer**: Chosen to maintain separation between URL
+   pattern matching and business logic routing
+2. **Mount-specific middleware**: Allows flexible context extraction (i18n
+   params, API version) without modifying controllers
+3. **Static files on rootHono**: Assets should be global, not duplicated under
+   each mount point
+4. **Default behavior**: Empty/undefined `mountPoints` mounts at root `/` for
+   simplicity
 
 ### Performance Considerations
 
@@ -868,7 +907,8 @@ deno test packages/core/tests/
 
 ### Security Considerations
 
-- Mount-specific middleware should validate path parameters (e.g., valid language codes, API versions)
+- Mount-specific middleware should validate path parameters (e.g., valid
+  language codes, API versions)
 - Consider rate limiting per mount point for different API versions
 - Ensure proper locale validation to prevent injection attacks
 

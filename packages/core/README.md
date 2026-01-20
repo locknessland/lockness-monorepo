@@ -365,8 +365,132 @@ The `app.init()` method accepts a configuration object:
 - `controllers`: Array of controller classes (for production/compilation).
 - `controllersDir`: Directory for auto-discovery (for development).
 - `staticDir`: Directory for serving static files.
+- `mountPoints`: Array of mount point configurations for multi-pattern routing.
 - `middlewares`: Named middlewares for use with `@Use('name')`.
 - Note: `globalMiddlewares` and `errorHandler` are now configured via fluent API
+
+### Multi-Mount Routing
+
+Mount points allow you to serve the same controllers under different URL
+patterns, enabling powerful patterns like internationalization, API versioning,
+and multi-tenancy.
+
+#### Basic Usage
+
+```typescript
+import { App, type Context, type Next } from '@lockness/core'
+
+const app = new App()
+
+await app.init({
+    controllersDir: './app/controller',
+    staticDir: 'public',
+    mountPoints: [
+        { pattern: '/:langId/:countryId' },
+        { pattern: '/api/:version' },
+    ],
+})
+
+// Controllers now accessible at:
+// - /fr/ca/users (i18n pattern)
+// - /api/v1/users (versioned API pattern)
+```
+
+#### Mount Point Interface
+
+```typescript
+interface MountPoint {
+    /** URL pattern with Hono path parameters */
+    readonly pattern: string
+    /** Optional middleware for context extraction/validation */
+    readonly middleware?: (c: Context, next: Next) => Promise<void | Response>
+}
+```
+
+#### With Middleware (i18n Example)
+
+```typescript
+const i18nMiddleware = async (c: Context, next: Next) => {
+    const langId = c.req.param('langId')
+    const countryId = c.req.param('countryId')
+
+    // Validate locale
+    const locale = await LocaleService.resolve(langId, countryId)
+    if (!locale) {
+        return c.notFound()
+    }
+
+    // Set context for controllers
+    c.set('locale', locale)
+    c.set('langId', langId)
+    c.set('countryId', countryId)
+
+    return next()
+}
+
+await app.init({
+    controllersDir: './app/controller',
+    mountPoints: [
+        { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
+    ],
+})
+```
+
+#### API Versioning Example
+
+```typescript
+const apiVersionMiddleware = async (c: Context, next: Next) => {
+    const version = c.req.param('version')
+
+    // Validate version
+    if (!['v1', 'v2', 'v3'].includes(version)) {
+        return c.json({ error: 'Unsupported API version' }, 400)
+    }
+
+    c.set('apiVersion', version)
+    return next()
+}
+
+await app.init({
+    controllersDir: './app/controller',
+    mountPoints: [
+        { pattern: '/api/:version', middleware: apiVersionMiddleware },
+    ],
+})
+```
+
+#### Accessing Mount Context in Controllers
+
+```typescript
+@Controller('/users')
+export class UserController {
+    @Get('/')
+    async list(c: Context) {
+        // Access values set by mount middleware
+        const locale = c.get('locale') // From i18n middleware
+        const version = c.get('apiVersion') // From API version middleware
+
+        return c.json({ users: [], locale, version })
+    }
+}
+```
+
+#### Key Features
+
+- **Zero Controller Changes**: Controllers work under all mount points
+  automatically
+- **Context Extraction**: Mount middleware can extract/validate path parameters
+- **Multiple Patterns**: Same app accessible via different URL structures
+- **Static Files**: Served globally, not under mount points
+- **Default Behavior**: Omitting `mountPoints` mounts at root `/` (backward
+  compatible)
+
+#### Common Use Cases
+
+1. **Internationalization**: `/en/us/products`, `/fr/ca/products`
+2. **API Versioning**: `/api/v1/users`, `/api/v2/users`
+3. **Multi-Tenancy**: `/tenant/:tenantId/dashboard`
+4. **Hybrid Apps**: Web UI at `/:lang/:region/*` and API at `/api/:version/*`
 
 ## 📚 Technical Reference
 
@@ -374,6 +498,32 @@ The `app.init()` method accepts a configuration object:
 
 The `@lockness/core` package is built with maintainability and SOLID principles
 in mind. The framework is composed of focused, single-responsibility components:
+
+#### Dual-Layer Routing Architecture
+
+The framework uses a dual-layer routing architecture to enable mount points:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  rootHono (Public Layer)                                         │
+│  ├── Mount Points: /:langId/:countryId/*, /api/:version/*       │
+│  ├── Mount-specific middleware (i18n, versioning, etc.)         │
+│  ├── Static Files (/css, /js, /img) - served globally           │
+│  └── 404 Not Found Handler                                      │
+├─────────────────────────────────────────────────────────────────┤
+│  hono (Internal Layer)                                           │
+│  ├── Controllers registered here                                │
+│  ├── Business logic and route handlers                          │
+│  └── Available under ALL mount points                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Benefits:**
+
+- **Separation of Concerns**: URL pattern matching (public) vs business logic
+  (internal)
+- **DRY Principle**: Controllers defined once, work under all mount points
+- **Flexibility**: Easy to add/remove mount points without touching controllers
 
 #### Core Components
 

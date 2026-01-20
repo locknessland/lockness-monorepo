@@ -1,15 +1,66 @@
 /**
- * Format error for console output with colors and context
- * Provides better DX by showing clean, readable error messages
+ * @fileoverview Error Formatter Module
+ *
+ * Provides formatted console output for errors during development.
+ * Displays clean, colorized error messages with relevant context.
+ *
+ * @module @lockness/core/error_formatter
+ */
+
+/**
+ * Options for formatting error output.
+ */
+export interface FormatErrorOptions {
+    /** Whether to show stack trace (default: true) */
+    readonly showStackTrace?: boolean
+    /** Whether running in development mode (default: based on APP_ENV) */
+    readonly isDevelopment?: boolean
+}
+
+/**
+ * Formats and logs an error to the console with colors and context.
+ *
+ * Provides better developer experience by showing clean, readable error messages.
+ * Behavior varies based on error type:
+ * - **404**: Simple warning with path
+ * - **401/403**: Minimal info with appropriate emoji
+ * - **500+**: Full error with condensed stack trace
+ *
+ * @param error - The error object to format
+ * @param status - HTTP status code
+ * @param path - Request path that caused the error
+ * @param options - Formatting options
+ *
+ * @example
+ * ```typescript
+ * formatErrorForConsole(
+ *     new Error('User not found'),
+ *     404,
+ *     '/users/999',
+ *     { isDevelopment: true }
+ * )
+ * // Output: ⚠️  404 Not Found: /users/999
+ * ```
+ *
+ * @example Server error with stack trace
+ * ```typescript
+ * formatErrorForConsole(
+ *     new Error('Database connection failed'),
+ *     500,
+ *     '/api/users'
+ * )
+ * // Output:
+ * // ❌ 500 Error: Database connection failed
+ * // Path: /api/users
+ * // Stack:
+ * //   at DatabaseService.connect (...)
+ * ```
  */
 export function formatErrorForConsole(
     error: Error,
     status: number,
     path: string,
-    options: {
-        showStackTrace?: boolean
-        isDevelopment?: boolean
-    } = {},
+    options: FormatErrorOptions = {},
 ): void {
     const isDev = options.isDevelopment ??
         Deno.env.get('APP_ENV') === 'development'

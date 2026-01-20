@@ -111,11 +111,16 @@ export const Link: FC<LinkProps> = ({
         className,
     )
 
+    // For external links (target="_blank"), don't use Unpoly
+    const isExternalLink = target === '_blank'
+
     return (
         <a
             href={href}
-            up-follow
-            up-target={target}
+            target={isExternalLink ? '_blank' : undefined}
+            rel={isExternalLink ? 'noopener noreferrer' : undefined}
+            up-follow={isExternalLink ? undefined : ''}
+            up-target={isExternalLink ? undefined : target}
             class={classes}
             {...props}
         >

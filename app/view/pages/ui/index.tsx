@@ -40,8 +40,8 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
  * Hero Section Component
  */
 const HeroSection = () => (
-    <div class='relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-secondary/5 border-b border-border'>
-        <div class='absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent' />
+    <div class='relative overflow-hidden bg-linear-to-br from-primary/5 via-background to-secondary/5 border-b border-border'>
+        <div class='absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent' />
         <div class='relative px-6 py-12 md:py-16 lg:py-20'>
             <div class='max-w-4xl'>
                 {/* Badge */}
@@ -491,11 +491,11 @@ export const UiIndex = () => {
                                 <div class='flex items-center space-x-4'>
                                     <Skeleton class='h-12 w-12 rounded-full' />
                                     <div class='space-y-2'>
-                                        <Skeleton class='h-4 w-[250px]' />
-                                        <Skeleton class='h-4 w-[200px]' />
+                                        <Skeleton class='h-4 w-62.5' />
+                                        <Skeleton class='h-4 w-50' />
                                     </div>
                                 </div>
-                                <Skeleton class='h-[125px] w-full rounded-xl' />
+                                <Skeleton class='h-31.25 w-full rounded-xl' />
                             </CardContent>
                         </Card>
                     </div>

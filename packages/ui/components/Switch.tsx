@@ -76,8 +76,8 @@ export const Switch: FC<SwitchProps> = ({ class: className, ...props }) => {
                 'focus-within:ring-(--ring) focus-within:ring-offset-(--ring-offset)',
                 'focus-within:ring-offset-(--background)',
                 'bg-(--input)',
-                'has-[:checked]:bg-(--primary)',
-                'has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50',
+                'has-checked:bg-(--primary)',
+                'has-disabled:cursor-not-allowed has-disabled:opacity-50',
                 className,
             )}
         >
@@ -93,7 +93,7 @@ export const Switch: FC<SwitchProps> = ({ class: className, ...props }) => {
                     'bg-(--background) shadow-lg ring-0',
                     'transition-transform',
                     'translate-x-0.5',
-                    'peer-checked:translate-x-[1.375rem]',
+                    'peer-checked:translate-x-5.5',
                 )}
             />
         </label>

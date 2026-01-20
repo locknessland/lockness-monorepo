@@ -60,7 +60,7 @@ export const Kbd: FC<KbdProps> = ({ class: className, children, ...props }) => {
                 'rounded-(--kbd-border-radius)',
                 'border-[length:--kbd-border-width] border-(--kbd-border-color)',
                 'bg-(--kbd-background) text-(--kbd-foreground)',
-                'font-mono text-(length:--kbd-font-size) font-[--kbd-font-weight]',
+                'font-mono text-(length:--kbd-font-size) font-weight-(--kbd-font-weight)',
                 className,
             )}
             {...props}

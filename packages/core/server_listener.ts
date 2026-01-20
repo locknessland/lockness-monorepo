@@ -1,31 +1,58 @@
-// deno-lint-ignore-file no-explicit-any
+/**
+ * @fileoverview Server Listener Module
+ *
+ * Manages HTTP server startup, port management, and console output.
+ * Provides helpful error messages for common issues like port conflicts.
+ *
+ * @module @lockness/core/server_listener
+ */
+
 import type { Hono } from 'hono'
 
 /**
- * Configuration for the server listener
+ * Configuration options for the server listener.
  */
 export interface ServerListenerConfig {
-    /** Port number to listen on */
-    port: number
-    /** Framework version to display */
-    version: string
+    /** Port number to listen on (e.g., 8888) */
+    readonly port: number
+    /** Framework version to display in banner */
+    readonly version: string
 }
 
 /**
  * Manages server startup, port management, and console output.
- * Handles port conflict detection and provides helpful error messages.
+ *
+ * Features:
+ * - Displays a branded banner on startup
+ * - Detects and handles port conflicts
+ * - Supports `--force` flag to kill processes using the port
+ * - Provides helpful error messages
+ *
+ * @example
+ * ```typescript
+ * const listener = new ServerListener()
+ * const server = listener.listen(hono, { port: 8888, version: '1.0.0' })
+ * ```
  */
 export class ServerListener {
     /**
-     * Start the server and listen on the specified port
+     * Starts the HTTP server and listens on the specified port.
+     *
+     * Displays the Lockness banner and attempts to start the server.
+     * If the port is in use and `--force` is passed, attempts to kill
+     * the blocking process.
      *
      * @param hono - The Hono application instance
      * @param config - Server configuration
      * @returns A Deno HTTP server instance
      *
      * @example
-     * const listener = new ServerListener()
-     * const server = listener.listen(hono, { port: 8000, version: '1.0.0' })
+     * ```typescript
+     * const server = listener.listen(hono, { port: 8888, version: '1.0.0' })
+     *
+     * // Graceful shutdown
+     * Deno.addSignalListener('SIGINT', () => server.shutdown())
+     * ```
      */
     listen(
         hono: Hono,
@@ -33,11 +60,20 @@ export class ServerListener {
     ): Deno.HttpServer<Deno.NetAddr> {
         this.displayBanner(config.version)
 
-        return this.tryServe(hono, config.port) as any
+        // Return type assertion needed as tryServe is async but we want sync return
+        return this.tryServe(hono, config.port) as unknown as Deno.HttpServer<
+            Deno.NetAddr
+        >
     }
 
     /**
-     * Display the Lockness banner
+     * Displays the Lockness ASCII art banner.
+     *
+     * Shows version number and environment label (PRODUCTION/DEVELOPMENT).
+     *
+     * @param version - Framework version to display
+     *
+     * @internal
      */
     private displayBanner(version: string): void {
         const env = Deno.env.get('DENO_ENV') || Deno.env.get('APP_ENV') ||
@@ -57,7 +93,15 @@ export class ServerListener {
     }
 
     /**
-     * Attempt to start the server, with retry logic for port conflicts
+     * Attempts to start the HTTP server.
+     *
+     * Handles port conflicts by delegating to `handlePortConflict`.
+     *
+     * @param hono - The Hono application instance
+     * @param port - Port number to listen on
+     * @returns Promise resolving to the HTTP server instance
+     *
+     * @internal
      */
     private async tryServe(
         hono: Hono,
@@ -84,7 +128,16 @@ export class ServerListener {
     }
 
     /**
-     * Handle port conflict - attempt force release if --force flag is present
+     * Handles port conflict by optionally force-releasing the port.
+     *
+     * If `--force` flag is present in `Deno.args`, attempts to kill
+     * the process using the port and retry.
+     *
+     * @param hono - The Hono application instance
+     * @param port - Port number that's in use
+     * @returns Promise resolving to the HTTP server instance
+     *
+     * @internal
      */
     private async handlePortConflict(
         hono: Hono,
@@ -106,7 +159,15 @@ export class ServerListener {
     }
 
     /**
-     * Attempt to force release a port by killing the process using it
+     * Forcefully releases a port by killing processes using it.
+     *
+     * Uses `lsof` to find PIDs and `kill -9` to terminate them.
+     * Only works on Unix-like systems (macOS, Linux).
+     *
+     * @param port - Port number to release
+     * @returns Promise resolving to `true` if successful, `false` otherwise
+     *
+     * @internal
      */
     private async forceReleasePort(port: number): Promise<boolean> {
         try {
@@ -144,7 +205,14 @@ export class ServerListener {
     }
 
     /**
-     * Display helpful error message for port conflicts
+     * Displays a helpful error message for port conflicts.
+     *
+     * Provides solutions including manual kill command, --force flag,
+     * and using a different port.
+     *
+     * @param port - Port number that's in use
+     *
+     * @internal
      */
     private displayPortConflictError(port: number): void {
         console.error(`\x1b[31m

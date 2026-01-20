@@ -236,6 +236,160 @@ app.useMiddleware(
 }
 ```
 
+### Multi-Mount Routing Strategy
+
+Lockness supports a dual-layer routing architecture that enables mounting the
+same application on multiple URL patterns. This powerful feature allows for
+internationalization, API versioning, multi-tenancy, and other URL-based context
+extraction patterns.
+
+#### Dual-Layer Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  rootHono (Public Layer)                                         │
+│  ├── GET /:langId/:countryId/* → i18nMiddleware → internal hono │
+│  ├── GET /api/:version/* → apiVersionMiddleware → internal hono │
+│  ├── Static Files (/css, /js, /img)                             │
+│  └── 404 Not Found Handler                                       │
+├─────────────────────────────────────────────────────────────────┤
+│  hono (Internal Layer)                                           │
+│  ├── Controllers registered here                                 │
+│  ├── @Get('/users') → works under ALL mount points              │
+│  └── Business logic unchanged                                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### SOLID Principles Application
+
+**1. Single Responsibility Principle (SRP)**
+
+- `rootHono`: Handles URL pattern matching, mount-specific middleware, static
+  files
+- `hono`: Handles controller registration and business logic routing
+
+**2. Open/Closed Principle (OCP)**
+
+- Users extend behavior via configuration, not code changes
+- Mount points are added/removed through `AppConfig.mountPoints`
+
+**3. Liskov Substitution Principle (LSP)**
+
+- All mount points are interchangeable with valid patterns
+- Controllers work identically under any mount point
+
+**4. Interface Segregation Principle (ISP)**
+
+- `MountPoint` interface is minimal and focused
+
+**5. Dependency Inversion Principle (DIP)**
+
+- App depends on `MountPoint` abstraction
+- Middleware is injected via configuration
+
+#### DRY Principle Benefits
+
+Without mount points, users would need to:
+
+- Duplicate controllers for each URL pattern
+- Repeat route definitions for each language/version combination
+
+With mount points:
+
+- Controllers defined once, automatically available under all mount points
+- Mount-specific logic isolated to middleware
+
+#### API Design
+
+**Simple Setup (No Mount Points):**
+
+```typescript
+const app = new App()
+
+await app.init({
+    controllersDir: './app/controller',
+    staticDir: 'public',
+})
+
+// Controllers available at root: /users, /products
+app.listen(8888)
+```
+
+**Multi-Mount Setup (i18n Example):**
+
+```typescript
+import { App, type Context, type Next } from '@lockness/core'
+
+const i18nMiddleware = async (c: Context, next: Next) => {
+    const langId = c.req.param('langId')
+    const countryId = c.req.param('countryId')
+
+    // Validate and load locale
+    const locale = await LocaleService.resolve(langId, countryId)
+    if (!locale) {
+        return c.notFound()
+    }
+
+    c.set('locale', locale)
+    c.set('langId', langId)
+    c.set('countryId', countryId)
+    return next()
+}
+
+const app = new App()
+
+await app.init({
+    controllersDir: './app/controller',
+    staticDir: 'public',
+    mountPoints: [
+        { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
+        { pattern: '/api/:version', middleware: apiVersionMiddleware },
+    ],
+})
+
+// Controllers now available at:
+// - /fr/ca/users, /en/us/products (i18n routes)
+// - /api/v1/users, /api/v2/products (versioned API)
+app.listen(3000)
+```
+
+**Controller Example (Unchanged):**
+
+```typescript
+@Controller('/users')
+class UserController {
+    @Get('/')
+    async list(c: Context) {
+        // Context values from mount middleware are available
+        const locale = c.get('locale')
+        const apiVersion = c.get('apiVersion')
+
+        return c.json(await this.userService.findAll())
+    }
+}
+```
+
+#### Use Cases
+
+Framework users can implement:
+
+1. **Internationalized Applications**: `/fr/ca/products`, `/en/us/products`
+2. **API Versioning**: `/v1/users`, `/v2/users` with shared controller logic
+3. **Multi-Tenant SaaS**: `/tenant/:tenantId/dashboard`
+4. **E-commerce with Localization**: `/:lang/:region/checkout`
+5. **Custom URL Patterns**: Any URL-based context extraction pattern
+
+#### Type Definition
+
+```typescript
+interface MountPoint {
+    /** URL pattern with Hono path parameters */
+    readonly pattern: string
+    /** Optional middleware for context extraction/validation */
+    readonly middleware?: (c: Context, next: Next) => Promise<void | Response>
+}
+```
+
 ### Modern Development Workflow
 
 Lockness uses a pure Deno workflow with automatic route generation for

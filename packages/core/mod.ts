@@ -1,3 +1,35 @@
+/**
+ * @fileoverview Lockness Core Module
+ *
+ * Main entry point for the `@lockness/core` package.
+ * Re-exports all public APIs including:
+ *
+ * - **App**: Main application class for bootstrapping
+ * - **Decorators**: `@Controller`, `@Get`, `@Post`, etc.
+ * - **Types**: `Context`, `Next`, `MiddlewareHandler`, etc.
+ * - **Helpers**: `asset()`, `route()`, `formatErrorForConsole()`
+ * - **Hono Re-exports**: All Hono middleware and utilities
+ *
+ * @module @lockness/core
+ *
+ * @example
+ * ```typescript
+ * import { App, Controller, Get, Context } from '@lockness/core'
+ *
+ * @Controller('/users')
+ * class UserController {
+ *     @Get('/')
+ *     list(c: Context) {
+ *         return c.json({ users: [] })
+ *     }
+ * }
+ *
+ * const app = new App()
+ * await app.init({ controllers: [UserController] })
+ * app.listen(8888)
+ * ```
+ */
+
 // Export core types (Context, ErrorHandler, etc.) from our own types module
 // Context is a type alias of Hono's Context, so it's compatible
 export * from './types.ts'

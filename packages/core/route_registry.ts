@@ -1,41 +1,114 @@
-// deno-lint-ignore-file no-explicit-any
+/**
+ * @fileoverview Route Registry Module
+ *
+ * Manages route registration, sorting, and Hono integration.
+ * Handles route metadata extraction from decorated controllers,
+ * middleware resolution, and route registration with the Hono router.
+ *
+ * @module @lockness/core/route_registry
+ */
+
 import type { Hono, MiddlewareHandler } from 'hono'
 import { namedRoutes } from './router.ts'
-import type { Context, ControllerClass } from './types.ts'
+import type { Context, ControllerClass, Route } from './types.ts'
 import type { RouteInfo } from './app.ts'
 
+/** HTTP methods supported by the router */
+type HttpMethod =
+    | 'get'
+    | 'post'
+    | 'put'
+    | 'patch'
+    | 'delete'
+    | 'options'
+    | 'head'
+
 /**
- * Interface for a route with its full registration data
+ * Internal representation of a route ready for registration.
+ * Contains the resolved path, method, handler, and middleware chain.
+ *
+ * @internal
  */
 interface RouteRegistration {
-    fullPath: string
-    method: string
-    handler: (c: Context) => any
-    middlewares: MiddlewareHandler[]
+    /** Full URL path including controller base path */
+    readonly fullPath: string
+    /** HTTP method in lowercase */
+    readonly method: HttpMethod
+    /** Route handler function */
+    readonly handler: (c: Context) => unknown
+    /** Resolved middleware handlers */
+    readonly middlewares: readonly MiddlewareHandler[]
 }
 
 /**
+ * Validator metadata attached to controller methods by `@Validate` decorator.
+ * @internal
+ */
+interface ValidatorEntry {
+    readonly middleware: MiddlewareHandler
+}
+
+/**
+ * Interface for middleware resolver dependency.
+ * @internal
+ */
+interface MiddlewareResolverLike {
+    resolve: (
+        middleware: MiddlewareHandler | MiddlewareClass | string,
+    ) => MiddlewareHandler | null
+}
+
+/** Middleware class type (duplicated to avoid circular import) */
+type MiddlewareClass = new () => { handle: MiddlewareHandler }
+
+/**
  * Manages route registration, sorting, and Hono integration.
- * Handles route metadata extraction, middleware resolution, and registration with Hono.
+ *
+ * Responsible for:
+ * - Extracting route metadata from decorated controller classes
+ * - Resolving and chaining middlewares for each route
+ * - Sorting routes by specificity to ensure correct matching
+ * - Registering routes with the Hono router
+ * - Maintaining a registry of named routes
+ *
+ * @example
+ * ```typescript
+ * const registry = new RouteRegistry(middlewareResolver)
+ * registry.registerControllers(hono, [UserController, ProductController])
+ *
+ * // Get all registered routes for debugging
+ * const routes = registry.getRoutes()
+ * ```
  */
 export class RouteRegistry {
+    /** Registered routes for introspection */
     private routes: RouteInfo[] = []
 
+    /**
+     * Creates a new RouteRegistry instance.
+     *
+     * @param middlewareResolver - Resolver for converting middleware inputs to handlers
+     */
     constructor(
-        private middlewareResolver: {
-            resolve: (m: any) => MiddlewareHandler | null
-        },
+        private readonly middlewareResolver: MiddlewareResolverLike,
     ) {}
 
     /**
-     * Register controllers and their routes with Hono
+     * Registers all routes from the provided controllers with Hono.
+     *
+     * This method:
+     * 1. Extracts route metadata from each controller
+     * 2. Resolves middlewares for each route
+     * 3. Sorts routes by specificity (static paths before parameterized)
+     * 4. Registers routes with Hono
      *
      * @param hono - The Hono application instance
-     * @param controllers - Array of controller classes to register
+     * @param controllers - Array of controller classes decorated with `@Controller`
      *
      * @example
-     * const registry = new RouteRegistry(middlewareResolver)
-     * await registry.registerControllers(hono, [UserController, PostController])
+     * ```typescript
+     * registry.registerControllers(hono, [UserController, ProductController])
+     * ```
      */
     registerControllers(hono: Hono, controllers: ControllerClass[]): void {
         const allRoutes = this.buildRouteRegistrations(controllers)
@@ -44,14 +117,20 @@ export class RouteRegistry {
     }
 
     /**
-     * Get all registered routes information
+     * Returns all registered routes with their metadata.
+     *
+     * Useful for route listing, documentation generation, and devtools.
+     *
+     * @returns Array of route information objects
      */
     getRoutes(): RouteInfo[] {
         return this.routes
     }
 
     /**
-     * Clear all registered routes
+     * Clears all registered routes and named routes.
+     *
+     * Primarily used in testing to reset state between tests.
      */
     clear(): void {
         this.routes = []
@@ -59,7 +138,15 @@ export class RouteRegistry {
     }
 
     /**
-     * Build route registrations from controller classes
+     * Builds route registrations from controller classes.
+     *
+     * Creates controller instances and extracts route metadata
+     * from each decorated method.
+     *
+     * @param controllers - Array of controller classes
+     * @returns Array of route registrations ready for Hono
+     *
+     * @internal
      */
     private buildRouteRegistrations(
         controllers: ControllerClass[],
@@ -67,7 +154,10 @@ export class RouteRegistry {
         const registrations: RouteRegistration[] = []
 
         for (const Controller of controllers) {
-            const instance = new Controller()
+            const instance = new Controller() as Record<
+                string,
+                (c: Context) => unknown
+            >
             const controllerRoutes = this.extractControllerRoutes(
                 Controller,
                 instance,
@@ -79,16 +169,27 @@ export class RouteRegistry {
     }
 
     /**
-     * Extract all route registrations from a single controller
+     * Extracts all route registrations from a single controller.
+     *
+     * Processes each decorated method in the controller, resolving
+     * validators and middlewares, and building the full route path.
+     *
+     * @param Controller - The controller class with route metadata
+     * @param instance - An instance of the controller
+     * @returns Array of route registrations for this controller
+     *
+     * @internal
      */
     private extractControllerRoutes(
         Controller: ControllerClass,
-        instance: any,
+        instance: Record<string, (c: Context) => unknown>,
     ): RouteRegistration[] {
         const basePath = Controller._basePath || ''
-        const routes = Controller._routes || []
-        const middlewares = Controller._middlewares || {}
-        const validators = Controller._validators || {}
+        const routes: Route[] = Controller._routes || []
+        const middlewares: Record<string, unknown[]> =
+            Controller._middlewares || {}
+        const validators: Record<string, ValidatorEntry[]> =
+            Controller._validators || {}
         const controllerName = Controller.name
 
         const registrations: RouteRegistration[] = []
@@ -98,12 +199,16 @@ export class RouteRegistry {
 
             // Get validator middlewares (run first)
             const routeValidators = (validators[route.methodName] || [])
-                .map((v: { middleware: any }) => v.middleware)
+                .map((v) => v.middleware)
 
             // Get regular middlewares (support both class and named string)
             const routeMiddlewares = (middlewares[route.methodName] || [])
-                .map((m: any) => this.middlewareResolver.resolve(m))
-                .filter((h: any) => h !== null)
+                .map((m) =>
+                    this.middlewareResolver.resolve(
+                        m as MiddlewareHandler | MiddlewareClass | string,
+                    )
+                )
+                .filter((h): h is MiddlewareHandler => h !== null)
 
             // Collect middleware names for display
             const middlewareNames = this.collectMiddlewareNames(
@@ -114,7 +219,7 @@ export class RouteRegistry {
 
             registrations.push({
                 fullPath,
-                method: route.method.toLowerCase(),
+                method: route.method.toLowerCase() as HttpMethod,
                 handler: (c: Context) => instance[route.methodName](c),
                 middlewares: [
                     ...routeValidators,
@@ -141,7 +246,21 @@ export class RouteRegistry {
     }
 
     /**
-     * Build a full path from base path and route path
+     * Builds the full URL path from controller base path and route path.
+     *
+     * Normalizes slashes and handles edge cases like trailing slashes.
+     *
+     * @param basePath - Controller's base path from `@Controller` decorator
+     * @param routePath - Route's path from method decorator
+     * @returns Normalized full path
+     *
+     * @example
+     * ```typescript
+     * buildFullPath('users', '/:id') // => '/users/:id'
+     * buildFullPath('/api/', '/items/') // => '/api/items'
+     * ```
+     *
+     * @internal
      */
     private buildFullPath(basePath: string, routePath: string): string {
         let fullPath = `/${basePath}/${routePath}`.replace(/\/+/g, '/')
@@ -158,12 +277,19 @@ export class RouteRegistry {
     }
 
     /**
-     * Collect middleware names for display purposes
+     * Collects middleware names for display in route listings.
+     *
+     * @param methodName - Controller method name
+     * @param validators - Validator metadata from controller
+     * @param middlewares - Middleware metadata from controller
+     * @returns Array of middleware names for display
+     *
+     * @internal
      */
     private collectMiddlewareNames(
         methodName: string,
-        validators: Record<string, any[]>,
-        middlewares: Record<string, any[]>,
+        validators: Record<string, ValidatorEntry[]>,
+        middlewares: Record<string, unknown[]>,
     ): string[] {
         const names: string[] = []
 
@@ -186,7 +312,21 @@ export class RouteRegistry {
     }
 
     /**
-     * Sort routes by specificity (non-parameterized routes first, then by length)
+     * Sorts routes by specificity for correct matching order.
+     *
+     * Static routes (without parameters) come before parameterized routes.
+     * Within each group, longer paths come first.
+     *
+     * @param routes - Unsorted route registrations
+     * @returns Sorted route registrations
+     *
+     * @example
+     * ```
+     * // Before: ['/users/:id', '/users/me', '/users']
+     * // After:  ['/users/me', '/users', '/users/:id']
+     * ```
+     *
+     * @internal
      */
     private sortRoutes(routes: RouteRegistration[]): RouteRegistration[] {
         return routes.sort((a, b) => {
@@ -200,17 +340,26 @@ export class RouteRegistry {
     }
 
     /**
-     * Apply route registrations to the Hono instance
+     * Applies route registrations to the Hono instance.
+     *
+     * Registers each route with its method, path, middlewares, and handler.
+     *
+     * @param hono - The Hono application instance
+     * @param routes - Sorted route registrations
+     *
+     * @internal
      */
     private applyRoutesToHono(
         hono: Hono,
         routes: RouteRegistration[],
     ): void {
         for (const route of routes) {
-            ;(hono as any)[route.method](
-                route.fullPath,
+            // Use Hono's on() method which accepts any HTTP method
+            hono.on(
+                [route.method.toUpperCase()],
+                [route.fullPath],
                 ...route.middlewares,
-                route.handler,
+                route.handler as MiddlewareHandler,
             )
         }
     }
