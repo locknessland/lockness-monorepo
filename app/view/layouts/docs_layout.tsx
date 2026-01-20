@@ -1,12 +1,18 @@
+import type { FC } from '@lockness/core'
 import { route } from '@lockness/core'
 import {
     Button,
     CopyLink,
+    DatabaseIcon,
+    GitBranchIcon,
+    LayersIcon,
     Navbar,
     NavbarBrand,
     NavbarContent,
     NavbarMenuItem as NavbarLink,
+    PuzzleIcon,
     RobotIcon,
+    RocketIcon,
     RootLayout,
     Sidebar,
     SidebarContent,
@@ -23,6 +29,7 @@ import {
     ThemeSwitch,
     ThemeSwitchScript,
     Title,
+    WrenchIcon,
 } from '@lockness/ui/components'
 
 const LlmLinks = (props: { llmPath?: string }) => {
@@ -124,10 +131,33 @@ export const DocsLayout = (
     )
 }
 
+/**
+ * Icon component type for sidebar navigation
+ */
+type IconComponent = FC<{ size?: number; class?: string }>
+
+/**
+ * Navigation link with route name
+ */
+interface NavLink {
+    readonly title: string
+    readonly name: string
+}
+
+/**
+ * Navigation section with icon and links
+ */
+interface NavSection {
+    readonly title: string
+    readonly icon: IconComponent
+    readonly links: readonly NavLink[]
+}
+
 // Navigation sections for docs sidebar
-const navSections = [
+const navSections: readonly NavSection[] = [
     {
         title: 'Getting Started',
+        icon: RocketIcon,
         links: [
             { title: 'Installation', name: 'docs.installation' },
             { title: 'Introduction', name: 'docs.getting-started' },
@@ -135,6 +165,7 @@ const navSections = [
     },
     {
         title: 'Core Concepts',
+        icon: PuzzleIcon,
         links: [
             { title: 'Routing & Controllers', name: 'docs.routing' },
             {
@@ -147,6 +178,7 @@ const navSections = [
     },
     {
         title: 'Database & State',
+        icon: DatabaseIcon,
         links: [
             { title: 'Models & Database', name: 'docs.models' },
             { title: 'Session Management', name: 'docs.sessions' },
@@ -154,6 +186,7 @@ const navSections = [
     },
     {
         title: 'Development Tools',
+        icon: WrenchIcon,
         links: [
             { title: 'Lockness Devtools', name: 'docs.devtools' },
             { title: 'Deprecation Contracts', name: 'docs.deprecation' },
@@ -163,6 +196,7 @@ const navSections = [
     },
     {
         title: 'Advanced',
+        icon: LayersIcon,
         links: [
             { title: 'View Components', name: 'docs.components' },
             { title: 'UI Components', name: 'docs.ui' },
@@ -172,6 +206,7 @@ const navSections = [
     },
     {
         title: 'Contributing',
+        icon: GitBranchIcon,
         links: [
             { title: 'Framework Contribution', name: 'docs.contribution' },
         ],
@@ -190,7 +225,13 @@ const DocsSidebar = (props: { currentPath: string }) => {
             <SidebarContent>
                 {navSections.map((section) => (
                     <SidebarGroup key={section.title}>
-                        <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+                        <SidebarGroupLabel>
+                            <section.icon
+                                size={14}
+                                class='mr-2 text-sidebar-foreground/70'
+                            />
+                            {section.title}
+                        </SidebarGroupLabel>
                         <SidebarGroupContent>
                             <SidebarMenu>
                                 {section.links.map((link) => {

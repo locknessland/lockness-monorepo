@@ -1,4 +1,11 @@
 import {
+    BarChartIcon,
+    BoxIcon,
+    FormInputIcon,
+    LayoutGridIcon,
+    MegaphoneIcon,
+    NavigationIcon,
+    PlayIcon,
     Sidebar,
     SidebarContent,
     SidebarFooter,
@@ -9,19 +16,46 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SparklesIcon,
 } from '@lockness/ui/components'
+import type { FC } from '@lockness/core'
 import { ThemeCustomizer } from './theme-customizer.tsx'
 
+/**
+ * Icon component type for sidebar navigation
+ */
+type IconComponent = FC<{ size?: number; class?: string }>
+
+/**
+ * Navigation link with optional icon
+ */
+interface NavLink {
+    readonly title: string
+    readonly href: string
+    readonly icon?: IconComponent
+}
+
+/**
+ * Navigation section with links
+ */
+interface NavSection {
+    readonly title: string
+    readonly icon?: IconComponent
+    readonly links: readonly NavLink[]
+}
+
 // Navigation data for UI sidebar
-const navSections = [
+const navSections: readonly NavSection[] = [
     {
         title: 'OVERVIEW',
+        icon: PlayIcon,
         links: [
-            { title: 'Getting Started', href: '/ui' },
+            { title: 'Getting Started', href: '/ui', icon: PlayIcon },
         ],
     },
     {
         title: 'BASIC',
+        icon: BoxIcon,
         links: [
             { title: 'Buttons', href: '/ui/buttons' },
             { title: 'Badges', href: '/ui/badges' },
@@ -33,6 +67,7 @@ const navSections = [
     },
     {
         title: 'FORMS',
+        icon: FormInputIcon,
         links: [
             { title: 'Form Components', href: '/ui/forms' },
             { title: 'Upload Zone', href: '/ui/upload-zone' },
@@ -40,6 +75,7 @@ const navSections = [
     },
     {
         title: 'LAYOUT',
+        icon: LayoutGridIcon,
         links: [
             { title: 'Cards', href: '/ui/cards' },
             { title: 'Accordion', href: '/ui/accordion' },
@@ -49,6 +85,7 @@ const navSections = [
     },
     {
         title: 'NAVIGATION',
+        icon: NavigationIcon,
         links: [
             { title: 'Navigation', href: '/ui/navigation' },
             { title: 'Navbar', href: '/ui/navbar' },
@@ -58,6 +95,7 @@ const navSections = [
     },
     {
         title: 'FEEDBACK',
+        icon: SparklesIcon,
         links: [
             { title: 'Progress', href: '/ui/progress' },
             { title: 'Spinner', href: '/ui/spinner' },
@@ -66,6 +104,7 @@ const navSections = [
     },
     {
         title: 'DATA',
+        icon: BarChartIcon,
         links: [
             { title: 'Chart', href: '/ui/chart' },
             { title: 'Gallery', href: '/ui/gallery' },
@@ -73,6 +112,7 @@ const navSections = [
     },
     {
         title: 'MARKETING',
+        icon: MegaphoneIcon,
         links: [
             { title: 'Hero', href: '/ui/hero' },
             { title: 'Newsletter', href: '/ui/newsletter' },
@@ -103,7 +143,15 @@ export const UiSidebar = () => {
                 {/* Navigation Sections */}
                 {navSections.map((section) => (
                     <SidebarGroup key={section.title}>
-                        <SidebarGroupLabel>{section.title}</SidebarGroupLabel>
+                        <SidebarGroupLabel>
+                            {section.icon && (
+                                <section.icon
+                                    size={14}
+                                    class='mr-2 text-sidebar-foreground/70'
+                                />
+                            )}
+                            {section.title}
+                        </SidebarGroupLabel>
                         <SidebarGroupContent>
                             <SidebarMenu>
                                 {section.links.map((link) => (
