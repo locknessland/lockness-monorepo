@@ -2,19 +2,30 @@
 
 ## 📋 Task Overview
 
-Create a new package `@lockness/inertia` that provides full Inertia.js protocol support for the Lockness framework. This adapter enables developers to build modern single-page applications (SPAs) using classic server-side routing patterns—the "Monolith" approach popularized by Laravel + Inertia.
+Create a new package `@lockness/inertia` that provides full Inertia.js protocol
+support for the Lockness framework. This adapter enables developers to build
+modern single-page applications (SPAs) using classic server-side routing
+patterns—the "Monolith" approach popularized by Laravel + Inertia.
 
 **Framework Philosophy:**
 
-This package embodies Lockness's principle of **providing powerful primitives that empower developers**. Rather than forcing a specific frontend framework, we provide the protocol layer that works with React, Vue, Svelte, or any Inertia.js client adapter. The framework handles the server-side protocol; users bring their own frontend stack.
+This package embodies Lockness's principle of **providing powerful primitives
+that empower developers**. Rather than forcing a specific frontend framework, we
+provide the protocol layer that works with React, Vue, Svelte, or any Inertia.js
+client adapter. The framework handles the server-side protocol; users bring
+their own frontend stack.
 
 **What We're Building:**
-- A **middleware** that handles the Inertia protocol (asset versioning, redirect handling, context injection)
-- A **renderer class** (`Inertia`) that constructs proper responses (JSON for AJAX, HTML for first load)
+
+- A **middleware** that handles the Inertia protocol (asset versioning, redirect
+  handling, context injection)
+- A **renderer class** (`Inertia`) that constructs proper responses (JSON for
+  AJAX, HTML for first load)
 - **Shared props** system for global data (auth user, flash messages, etc.)
 - **Configurable root view** for HTML shell customization
 
 **Key Benefits for Framework Users:**
+
 - Build SPAs without client-side routing complexity
 - Use server-side controllers for all navigation logic
 - Leverage existing Lockness features (auth, validation, sessions) seamlessly
@@ -23,12 +34,16 @@ This package embodies Lockness's principle of **providing powerful primitives th
 ## 🎯 Objectives
 
 1. **Primary Objective**: Implement the complete Inertia.js server-side protocol
-2. **Middleware Layer**: Create middleware for version checking, redirect handling, and context injection
-3. **Renderer Service**: Build the `Inertia` class with `render()` and `share()` methods
+2. **Middleware Layer**: Create middleware for version checking, redirect
+   handling, and context injection
+3. **Renderer Service**: Build the `Inertia` class with `render()` and `share()`
+   methods
 4. **Type Safety**: Provide full TypeScript types for all public APIs
-5. **Documentation Objective**: Document the package with examples for React/Vue integration
+5. **Documentation Objective**: Document the package with examples for React/Vue
+   integration
 
-> 💡 **Development Phase**: This framework is not yet published. We prioritize clean architecture over backward compatibility with any existing patterns.
+> 💡 **Development Phase**: This framework is not yet published. We prioritize
+> clean architecture over backward compatibility with any existing patterns.
 
 ## 📁 Affected File Paths
 
@@ -62,11 +77,13 @@ packages/inertia/
 
 - `/packages/inertia/tests/middleware.test.ts` - Middleware unit tests
 - `/packages/inertia/tests/inertia.test.ts` - Renderer unit tests
-- `/packages/inertia/tests/integration.test.ts` - Full protocol integration tests
+- `/packages/inertia/tests/integration.test.ts` - Full protocol integration
+  tests
 
 ### Documentation Files to Create/Update
 
-> ⚠️ **Important**: Follow the architecture and conventions documented in [GEMINI.md](../GEMINI.md)
+> ⚠️ **Important**: Follow the architecture and conventions documented in
+> [GEMINI.md](../GEMINI.md)
 
 #### Core Documentation
 
@@ -111,7 +128,8 @@ packages/inertia/
 
 **1. Single Responsibility Principle (SRP)**
 
-- **Middleware**: Handles protocol concerns (versioning, redirects, context injection)
+- **Middleware**: Handles protocol concerns (versioning, redirects, context
+  injection)
 - **Inertia Class**: Handles response rendering (JSON/HTML construction)
 - **Helpers**: Handle utility functions (HTML escaping, serialization)
 
@@ -134,7 +152,8 @@ export class Inertia {
 
 - **Root View**: Users provide their own HTML template via configuration
 - **Props Resolution**: Props can be lazy (functions) for deferred evaluation
-- **Version Strategy**: Configurable version function (file hash, build ID, etc.)
+- **Version Strategy**: Configurable version function (file hash, build ID,
+  etc.)
 
 ```typescript
 // Users extend via configuration, not code changes
@@ -173,11 +192,13 @@ interface PageObject {
 ### DRY Principle (Don't Repeat Yourself)
 
 **Shared Logic:**
+
 - Page object construction is centralized in Inertia class
 - Response headers are set once in a helper
 - HTML escaping is handled by a single utility function
 
 **Reusable Patterns:**
+
 - Middleware follows Lockness middleware conventions
 - Types follow framework type patterns
 - Tests follow framework test patterns
@@ -230,14 +251,14 @@ app.listen(3000)
 
 ```typescript
 // app/controller/dashboard_controller.tsx
-import { Controller, Get, type Context } from '@lockness/core'
+import { type Context, Controller, Get } from '@lockness/core'
 
 @Controller('/')
 export class DashboardController {
     @Get('/dashboard')
     async show(c: Context) {
         const inertia = c.get('inertia')
-        
+
         return inertia.render('Dashboard', {
             user: await getCurrentUser(c),
             stats: await getDashboardStats(),
@@ -251,14 +272,14 @@ export class DashboardController {
 ```typescript
 // kernel.tsx
 import { App } from '@lockness/core'
-import { inertiaMiddleware, type InertiaConfig } from '@lockness/inertia'
+import { type InertiaConfig, inertiaMiddleware } from '@lockness/inertia'
 import { renderToString } from 'react-dom/server'
 import { App as ReactApp } from './app/view/App.tsx'
 
 const inertiaConfig: InertiaConfig = {
     // Dynamic version based on build hash
     version: () => Deno.env.get('BUILD_HASH') ?? '1.0.0',
-    
+
     // Custom root view with React SSR
     rootView: (page) => {
         const appHtml = renderToString(<ReactApp initialPage={page} />)
@@ -271,7 +292,9 @@ const inertiaConfig: InertiaConfig = {
                     <link rel="stylesheet" href="/css/app.css" />
                 </head>
                 <body>
-                    <div id="app" data-page='${JSON.stringify(page)}'>${appHtml}</div>
+                    <div id="app" data-page='${
+            JSON.stringify(page)
+        }'>${appHtml}</div>
                     <script type="module" src="/js/app.js"></script>
                 </body>
             </html>
@@ -288,18 +311,18 @@ app.useMiddleware(
 // Share global props (available in all responses)
 app.useMiddleware(async (c, next) => {
     const inertia = c.get('inertia')
-    
+
     inertia.share({
         auth: {
             user: await getCurrentUser(c),
         },
         flash: c.get('session')?.flash ?? {},
     })
-    
+
     return next()
 })
 
-await app.init({ /* ... */ })
+await app.init({/* ... */})
 ```
 
 ### Controller Examples
@@ -362,7 +385,7 @@ File: `/packages/inertia/deno.json`
 
 File: `/packages/inertia/types.ts`
 
-```typescript
+````typescript
 import type { Context, Next } from 'hono'
 
 /**
@@ -452,7 +475,10 @@ export interface PageObject {
  * Props that can be passed to inertia.render().
  * Values can be raw data or lazy functions.
  */
-export type InertiaProps = Record<string, unknown | (() => unknown) | (() => Promise<unknown>)>
+export type InertiaProps = Record<
+    string,
+    unknown | (() => unknown) | (() => Promise<unknown>)
+>
 
 /**
  * Inertia context key for type-safe context access.
@@ -460,7 +486,7 @@ export type InertiaProps = Record<string, unknown | (() => unknown) | (() => Pro
 export interface InertiaContextVariables {
     inertia: Inertia
 }
-```
+````
 
 ### Phase 2: Middleware Implementation
 
@@ -468,7 +494,7 @@ export interface InertiaContextVariables {
 
 File: `/packages/inertia/middleware.ts`
 
-```typescript
+````typescript
 import type { Context, MiddlewareHandler, Next } from 'hono'
 import type { InertiaConfig } from './types.ts'
 import { Inertia } from './inertia.ts'
@@ -495,7 +521,9 @@ import { Inertia } from './inertia.ts'
  * )
  * ```
  */
-export function inertiaMiddleware(config: InertiaConfig = {}): MiddlewareHandler {
+export function inertiaMiddleware(
+    config: InertiaConfig = {},
+): MiddlewareHandler {
     return async (c: Context, next: Next) => {
         // Resolve current version
         const currentVersion = resolveVersion(config.version)
@@ -509,7 +537,10 @@ export function inertiaMiddleware(config: InertiaConfig = {}): MiddlewareHandler
 
         // Check for version mismatch on Inertia requests
         const clientVersion = c.req.header('X-Inertia-Version')
-        if (isInertiaRequest(c) && clientVersion && clientVersion !== currentVersion) {
+        if (
+            isInertiaRequest(c) && clientVersion &&
+            clientVersion !== currentVersion
+        ) {
             // Force full page reload via 409 Conflict
             c.header('X-Inertia-Location', c.req.url)
             return c.body(null, 409)
@@ -548,7 +579,7 @@ function resolveVersion(version: InertiaConfig['version']): string {
     }
     return version ?? '1.0'
 }
-```
+````
 
 ### Phase 3: Inertia Renderer Implementation
 
@@ -556,10 +587,10 @@ function resolveVersion(version: InertiaConfig['version']): string {
 
 File: `/packages/inertia/inertia.ts`
 
-```typescript
+````typescript
 import type { Context } from 'hono'
 import type { InertiaProps, PageObject, RootViewRenderer } from './types.ts'
-import { escapeHtml, defaultRootView } from './helpers.ts'
+import { defaultRootView, escapeHtml } from './helpers.ts'
 
 /**
  * Internal configuration for Inertia instance.
@@ -634,7 +665,10 @@ export class Inertia {
      * })
      * ```
      */
-    async render(component: string, props: InertiaProps = {}): Promise<Response> {
+    async render(
+        component: string,
+        props: InertiaProps = {},
+    ): Promise<Response> {
         // Resolve lazy props
         const resolvedProps = await this.resolveProps(props)
 
@@ -668,7 +702,9 @@ export class Inertia {
     /**
      * Resolve lazy props (functions) to their values.
      */
-    private async resolveProps(props: InertiaProps): Promise<Record<string, unknown>> {
+    private async resolveProps(
+        props: InertiaProps,
+    ): Promise<Record<string, unknown>> {
         const resolved: Record<string, unknown> = {}
 
         for (const [key, value] of Object.entries(props)) {
@@ -682,7 +718,7 @@ export class Inertia {
         return resolved
     }
 }
-```
+````
 
 **Step 3.2: Create Helper Functions**
 
@@ -747,7 +783,7 @@ export function defaultRootView(page: PageObject): string {
 
 File: `/packages/inertia/mod.ts`
 
-```typescript
+````typescript
 /**
  * @fileoverview Inertia.js adapter for the Lockness framework.
  *
@@ -766,7 +802,7 @@ File: `/packages/inertia/mod.ts`
 
 export { inertiaMiddleware } from './middleware.ts'
 export { Inertia } from './inertia.ts'
-export { escapeHtml, serializePageForHtml, defaultRootView } from './helpers.ts'
+export { defaultRootView, escapeHtml, serializePageForHtml } from './helpers.ts'
 
 export type {
     InertiaConfig,
@@ -775,7 +811,7 @@ export type {
     PageObject,
     RootViewRenderer,
 } from './types.ts'
-```
+````
 
 ### Phase 4: Testing
 
@@ -809,12 +845,14 @@ Deno.test('inertiaMiddleware - returns 409 on version mismatch', async () => {
     app.use(inertiaMiddleware({ version: '2.0' }))
     app.get('/test', (c) => c.text('ok'))
 
-    const res = await app.fetch(new Request('http://localhost/test', {
-        headers: {
-            'X-Inertia': 'true',
-            'X-Inertia-Version': '1.0', // Mismatch!
-        },
-    }))
+    const res = await app.fetch(
+        new Request('http://localhost/test', {
+            headers: {
+                'X-Inertia': 'true',
+                'X-Inertia-Version': '1.0', // Mismatch!
+            },
+        }),
+    )
 
     assertEquals(res.status, 409)
     assertEquals(res.headers.get('X-Inertia-Location'), 'http://localhost/test')
@@ -826,12 +864,14 @@ Deno.test('inertiaMiddleware - passes through when versions match', async () => 
     app.use(inertiaMiddleware({ version: '1.0' }))
     app.get('/test', (c) => c.text('ok'))
 
-    const res = await app.fetch(new Request('http://localhost/test', {
-        headers: {
-            'X-Inertia': 'true',
-            'X-Inertia-Version': '1.0',
-        },
-    }))
+    const res = await app.fetch(
+        new Request('http://localhost/test', {
+            headers: {
+                'X-Inertia': 'true',
+                'X-Inertia-Version': '1.0',
+            },
+        }),
+    )
 
     assertEquals(res.status, 200)
 })
@@ -842,10 +882,12 @@ Deno.test('inertiaMiddleware - converts 302 to 303 for PUT requests', async () =
     app.use(inertiaMiddleware({ version: '1.0' }))
     app.put('/test', (c) => c.redirect('/other', 302))
 
-    const res = await app.fetch(new Request('http://localhost/test', {
-        method: 'PUT',
-        headers: { 'X-Inertia': 'true' },
-    }))
+    const res = await app.fetch(
+        new Request('http://localhost/test', {
+            method: 'PUT',
+            headers: { 'X-Inertia': 'true' },
+        }),
+    )
 
     assertEquals(res.status, 303)
 })
@@ -886,9 +928,11 @@ Deno.test('Inertia.render - returns JSON for Inertia requests', async () => {
         return inertia.render('TestComponent', { message: 'Hello' })
     })
 
-    const res = await app.fetch(new Request('http://localhost/test', {
-        headers: { 'X-Inertia': 'true' },
-    }))
+    const res = await app.fetch(
+        new Request('http://localhost/test', {
+            headers: { 'X-Inertia': 'true' },
+        }),
+    )
 
     assertEquals(res.headers.get('Content-Type'), 'application/json')
     assertEquals(res.headers.get('X-Inertia'), 'true')
@@ -932,9 +976,11 @@ Deno.test('Inertia.share - merges shared props into all renders', async () => {
         return inertia.render('TestComponent', { message: 'Hello' })
     })
 
-    const res = await app.fetch(new Request('http://localhost/test', {
-        headers: { 'X-Inertia': 'true' },
-    }))
+    const res = await app.fetch(
+        new Request('http://localhost/test', {
+            headers: { 'X-Inertia': 'true' },
+        }),
+    )
 
     const json = await res.json()
     assertEquals(json.props.auth.user, 'John')
@@ -954,9 +1000,11 @@ Deno.test('Inertia.render - resolves lazy props', async () => {
         })
     })
 
-    const res = await app.fetch(new Request('http://localhost/test', {
-        headers: { 'X-Inertia': 'true' },
-    }))
+    const res = await app.fetch(
+        new Request('http://localhost/test', {
+            headers: { 'X-Inertia': 'true' },
+        }),
+    )
 
     const json = await res.json()
     assertEquals(json.props.eager, 'immediate')
@@ -1052,7 +1100,9 @@ app.useMiddleware(inertiaMiddleware({
                     <script type="module" src="/assets/app.js"></script>
                 </head>
                 <body>
-                    <div id="app" data-page='${JSON.stringify(page)}'>${appHtml}</div>
+                    <div id="app" data-page='${
+            JSON.stringify(page)
+        }'>${appHtml}</div>
                 </body>
             </html>
         `
@@ -1074,7 +1124,7 @@ class DashboardController {
     @Get('/')
     async index(c: Context) {
         const inertia = c.get('inertia')
-        
+
         return inertia.render('Dashboard/Index', {
             user: await this.userService.current(c),
             stats: await this.getStats(),
@@ -1085,7 +1135,7 @@ class DashboardController {
     async updateSettings(c: Context) {
         const data = await c.req.json()
         await this.userService.updateSettings(data)
-        
+
         // Inertia will handle the redirect properly
         return c.redirect('/dashboard')
     }
@@ -1189,7 +1239,8 @@ deno test packages/inertia/tests/
 
 ### Design Decisions
 
-1. **Middleware + Class separation**: Middleware handles protocol, class handles rendering
+1. **Middleware + Class separation**: Middleware handles protocol, class handles
+   rendering
 2. **Lazy props**: Deferred execution for expensive operations
 3. **Configurable rootView**: Framework doesn't impose frontend choices
 4. **Default version**: Falls back to '1.0' for simplicity
