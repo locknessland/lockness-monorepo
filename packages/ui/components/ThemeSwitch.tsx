@@ -328,7 +328,9 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
                     onclick={TOGGLE_THEME_JS}
                     aria-label={`Current theme: Dark. Switch to ${lightLabel} mode`}
                 >
-                    <SunIcon class={cn(ICON_SIZE_CLASSES[size], sunIconClass)} />
+                    <SunIcon
+                        class={cn(ICON_SIZE_CLASSES[size], sunIconClass)}
+                    />
                     <span>{lightLabel}</span>
                 </button>
             </div>
