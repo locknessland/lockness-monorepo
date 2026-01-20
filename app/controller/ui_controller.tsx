@@ -24,6 +24,7 @@ import { HeroPage } from '@view/pages/ui/hero.tsx'
 import { GalleryPage } from '@view/pages/ui/gallery.tsx'
 import { PricingPage } from '@view/pages/ui/pricing.tsx'
 import { ThemeSwitchPage } from '@view/pages/ui/theme-switch.tsx'
+import { TreeViewPage } from '@view/pages/ui/treeview.tsx'
 
 @Controller('/ui')
 export class UiController {
@@ -150,5 +151,10 @@ export class UiController {
     @Get('/theme-switch', { name: 'ui.theme-switch' })
     themeSwitch(c: Context) {
         return c.render(<ThemeSwitchPage />)
+    }
+
+    @Get('/treeview', { name: 'ui.treeview' })
+    treeview(c: Context) {
+        return c.render(<TreeViewPage />)
     }
 }

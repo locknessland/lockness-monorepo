@@ -268,6 +268,25 @@ export {
     SidebarTrigger,
 } from './components/sidebar.tsx'
 
+export {
+    TreeView,
+    TreeViewContent,
+    TreeViewIcon,
+    TreeViewItem,
+    TreeViewLabel,
+    TreeViewScript,
+    TreeViewTrigger,
+} from './components/TreeView.tsx'
+export type {
+    TreeViewContentProps,
+    TreeViewDataItem,
+    TreeViewIconProps,
+    TreeViewItemProps,
+    TreeViewLabelProps,
+    TreeViewProps,
+    TreeViewTriggerProps,
+} from './components/TreeView.tsx'
+
 // Landing Page Components
 export { FeatureCard } from './components/FeatureCard.tsx'
 export type { FeatureCardProps } from './components/FeatureCard.tsx'

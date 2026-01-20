@@ -81,6 +81,7 @@ const navSections: readonly NavSection[] = [
             { title: 'Accordion', href: '/ui/accordion' },
             { title: 'Modal', href: '/ui/modal' },
             { title: 'Table', href: '/ui/table' },
+            { title: 'TreeView', href: '/ui/treeview' },
         ],
     },
     {

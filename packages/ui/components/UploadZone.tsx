@@ -393,7 +393,7 @@ export const UploadFilePreview: FC<UploadFilePreviewProps> = ({
                     </span>
                     <div>
                         <p class='text-sm font-medium text-foreground'>
-                            <span class='truncate inline-block max-w-[200px] align-bottom'>
+                            <span class='truncate inline-block max-w-50 align-bottom'>
                                 {fileName}
                             </span>
                             .{fileExtension}

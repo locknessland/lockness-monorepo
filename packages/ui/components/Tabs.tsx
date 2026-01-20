@@ -212,9 +212,9 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({
                 'ring-offset-(--background) transition-all',
                 'focus-visible:outline-none focus-visible:ring-2',
                 'focus-visible:ring-(--ring) focus-visible:ring-offset-(--ring-offset)',
-                'has-[:checked]:bg-(--background)',
-                'has-[:checked]:text-(--foreground)',
-                'has-[:checked]:shadow-sm',
+                'has-checked:bg-(--background)',
+                'has-checked:text-(--foreground)',
+                'has-checked:shadow-sm',
                 className,
             )}
             {...props}
