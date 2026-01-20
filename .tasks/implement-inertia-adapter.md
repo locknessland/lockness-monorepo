@@ -135,13 +135,13 @@ packages/inertia/
 
 ### SOLID Principles
 
-| Principle | Application |
-| --------- | ----------- |
-| **SRP** | Middleware: protocol • Inertia class: rendering • Helpers: utilities |
-| **OCP** | Root view, version strategy, and props are configurable |
-| **ISP** | Minimal interfaces: `InertiaConfig`, `PageObject`, `InertiaProps` |
-| **DIP** | Depends on Hono `Context` abstraction; root view is injectable |
-| **DRY** | Page object construction, headers, HTML escaping centralized |
+| Principle | Application                                                          |
+| --------- | -------------------------------------------------------------------- |
+| **SRP**   | Middleware: protocol • Inertia class: rendering • Helpers: utilities |
+| **OCP**   | Root view, version strategy, and props are configurable              |
+| **ISP**   | Minimal interfaces: `InertiaConfig`, `PageObject`, `InertiaProps`    |
+| **DIP**   | Depends on Hono `Context` abstraction; root view is injectable       |
+| **DRY**   | Page object construction, headers, HTML escaping centralized         |
 
 ### Layered Architecture
 
