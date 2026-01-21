@@ -20,8 +20,9 @@ export interface CacheConfig {
      * The cache driver to use.
      * - `'memory'`: Fast in-process cache (default)
      * - `'deno-kv'`: Persistent Deno KV storage
+     * - `'redis'`: Distributed Redis cache (requires manual driver setup)
      */
-    driver: 'memory' | 'deno-kv'
+    driver: 'memory' | 'deno-kv' | 'redis'
 
     /**
      * Default time-to-live in seconds.

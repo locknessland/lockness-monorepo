@@ -1,5 +1,9 @@
 /**
  * @fileoverview Fluent cache store API with tag support.
+ *
+ * Provides a chainable interface for cache operations with automatic tagging.
+ * Use the {@link cache} factory function to create tagged cache stores.
+ *
  * @module @lockness/cache/store
  */
 
@@ -9,14 +13,18 @@ import { DenoKvCacheDriver } from './drivers/deno_kv_driver.ts'
 import { MemoryCacheDriver } from './drivers/memory_driver.ts'
 
 /**
- * Global cache driver instance.
+ * Global cache driver instance (lazy-initialized).
  * @internal
  */
 let cacheDriver: CacheDriver | null = null
 
 /**
  * Get the active cache driver, creating it if necessary.
- * @returns The active cache driver
+ *
+ * Uses the configuration set via {@link configureCache} to determine
+ * which driver to instantiate.
+ *
+ * @returns The active cache driver instance
  * @internal
  */
 export function getDriver(): CacheDriver {
@@ -26,6 +34,10 @@ export function getDriver(): CacheDriver {
             case 'deno-kv':
                 cacheDriver = new DenoKvCacheDriver(config.kvPath)
                 break
+            case 'redis':
+                throw new Error(
+                    'Redis driver requires manual setup. Use setCacheDriver(new RedisCacheDriver(client))',
+                )
             case 'memory':
             default:
                 cacheDriver = new MemoryCacheDriver()
@@ -56,6 +68,8 @@ export function setCacheDriver(driver: CacheDriver): void {
  * Fluent cache API with tag support.
  *
  * Provides a chainable interface for cache operations with automatic tagging.
+ * All operations performed through a CacheStore instance will use the
+ * configured tags for grouped invalidation.
  *
  * @example
  * ```ts
@@ -71,40 +85,90 @@ export function setCacheDriver(driver: CacheDriver): void {
  * ```
  */
 export class CacheStore {
-    /**
-     * Create a new cache store with optional tags.
-     * @param tags - Tags to apply to all operations
-     */
-    constructor(private readonly tags: string[] = []) {}
+    /** @internal Tags applied to all operations */
+    private readonly tags: readonly string[]
 
     /**
-     * Tag the cache entries
+     * Create a new cache store with optional tags.
+     *
+     * @param tags - Tags to apply to all cache operations
+     */
+    constructor(tags: readonly string[] = []) {
+        this.tags = tags
+    }
+
+    /**
+     * Create a new CacheStore with additional tags.
+     *
+     * @param tags - Additional tags to apply
+     * @returns A new CacheStore instance with combined tags
+     *
+     * @example
+     * ```ts
+     * const apiCache = cache('api')
+     * const userApiCache = apiCache.tag('users')
+     * // userApiCache has both 'api' and 'users' tags
+     * ```
      */
     tag(...tags: string[]): CacheStore {
         return new CacheStore([...this.tags, ...tags])
     }
 
     /**
-     * Get a value from cache
+     * Retrieve a value from the cache.
+     *
+     * @typeParam T - The expected type of the cached value
+     * @param key - The cache key
+     * @returns The cached value or null if not found/expired
+     *
+     * @example
+     * ```ts
+     * const user = await cache('users').get<User>('user:1')
+     * ```
      */
     async get<T = unknown>(key: string): Promise<T | null> {
         return await getDriver().get<T>(key)
     }
 
     /**
-     * Set a value in cache with tags
+     * Store a value in the cache with the store's tags.
+     *
+     * @typeParam T - The type of the value to cache
+     * @param key - The cache key
+     * @param value - The value to store
+     * @param ttl - Time-to-live in seconds (uses default if not provided)
+     *
+     * @example
+     * ```ts
+     * await cache('users').set('user:1', { name: 'John' }, 3600)
+     * ```
      */
     async set<T = unknown>(key: string, value: T, ttl?: number): Promise<void> {
         return await getDriver().set(
             key,
             value,
             ttl,
-            this.tags.length ? this.tags : undefined,
+            this.tags.length ? [...this.tags] : undefined,
         )
     }
 
     /**
-     * Remember with tags
+     * Get value from cache or compute and store it if not cached.
+     *
+     * This is the recommended pattern for caching expensive operations.
+     *
+     * @typeParam T - The type of the cached/computed value
+     * @param key - The cache key
+     * @param callback - Function to compute value if not cached
+     * @param ttl - Time-to-live in seconds (uses default if not provided)
+     * @returns The cached or newly computed value
+     *
+     * @example
+     * ```ts
+     * const users = await cache('users').remember('all', async () => {
+     *   return await db.query.users.findMany()
+     * }, 300)
+     * ```
      */
     async remember<T = unknown>(
         key: string,
@@ -124,7 +188,18 @@ export class CacheStore {
     }
 
     /**
-     * Flush all entries with these tags
+     * Flush all cache entries with the store's tags.
+     *
+     * If no tags are configured, flushes all cache entries.
+     *
+     * @example
+     * ```ts
+     * // Flush all entries tagged with 'users'
+     * await cache('users').flush()
+     *
+     * // Flush entire cache
+     * await cache().flush()
+     * ```
      */
     async flush(): Promise<void> {
         if (this.tags.length === 0) {

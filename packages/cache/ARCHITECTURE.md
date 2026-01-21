@@ -30,7 +30,7 @@ of concerns:
                       │              │      │              │
                       │ - get()      │      │ - memory     │
                       │ - set()      │      │ - deno-kv    │
-                      │ - remember() │      │ - (future)   │
+                      │ - remember() │      │ - redis      │
                       │ - etc.       │      │              │
                       └──────────────┘      └──────────────┘
 ```
@@ -44,8 +44,9 @@ config.ts ──→ types.ts
   ↓
 drivers/memory_driver.ts ──→ types.ts, config.ts
 drivers/deno_kv_driver.ts ──→ types.ts, config.ts
+drivers/redis_driver.ts ──→ types.ts, config.ts
   ↓
-drivers/mod.ts ──→ memory_driver.ts, deno_kv_driver.ts
+drivers/mod.ts ──→ memory_driver.ts, deno_kv_driver.ts, redis_driver.ts
   ↓
 store.ts ──→ types.ts, config.ts, drivers/mod.ts
   ↓
@@ -120,18 +121,64 @@ Each module has one clear responsibility:
 - Tests run without modification
 - Public API remains unchanged
 
+## Available Drivers
+
+The package includes three cache drivers:
+
+### Memory Driver
+
+Fast in-memory cache, ideal for development and single-instance deployments.
+
+```typescript
+import { configureCache } from '@lockness/cache'
+
+configureCache({ driver: 'memory' })
+```
+
+### Deno KV Driver
+
+Persistent cache using Deno's built-in KV store.
+
+```typescript
+import { configureCache } from '@lockness/cache'
+
+configureCache({
+    driver: 'deno-kv',
+    kvPath: './data/cache.db',
+})
+```
+
+### Redis Driver
+
+Distributed cache for multi-instance deployments.
+
+```typescript
+import { createClient } from 'npm:redis'
+import { RedisCacheDriver, setCacheDriver } from '@lockness/cache'
+
+const redis = createClient({ url: 'redis://localhost:6379' })
+await redis.connect()
+
+setCacheDriver(
+    new RedisCacheDriver(redis, {
+        keyPrefix: 'myapp:cache',
+        tagPrefix: 'myapp:tag',
+    }),
+)
+```
+
 ## Example: Adding a New Driver
 
-To add a Redis driver:
+To add a custom driver (e.g., Memcached):
 
-1. Create `drivers/redis_driver.ts`:
+1. Create `drivers/memcached_driver.ts`:
 
 ```typescript
 import type { CacheDriver, CacheItem } from '../types.ts'
 import { getCacheKey, getExpiresAt, isExpired } from '../config.ts'
 
-export class RedisCacheDriver implements CacheDriver {
-    constructor(private redis: RedisClient) {}
+export class MemcachedCacheDriver implements CacheDriver {
+    constructor(private client: MemcachedClient) {}
 
     async get<T>(key: string): Promise<T | null> {
         // Implementation
@@ -144,29 +191,16 @@ export class RedisCacheDriver implements CacheDriver {
 2. Export from `drivers/mod.ts`:
 
 ```typescript
-export { RedisCacheDriver } from './redis_driver.ts'
+export { MemcachedCacheDriver } from './memcached_driver.ts'
 ```
 
-3. Update factory in `store.ts`:
+3. Use with `setCacheDriver()`:
 
 ```typescript
-function getDriver(): CacheDriver {
-    const config = getCacheConfig()
-    switch (config.driver) {
-        case 'redis':
-            return new RedisCacheDriver(config.redisClient)
-            // ... other cases
-    }
-}
-```
+import { MemcachedCacheDriver, setCacheDriver } from '@lockness/cache'
 
-4. Update types in `types.ts`:
-
-```typescript
-export interface CacheConfig {
-    driver: 'memory' | 'deno-kv' | 'redis'
-    // ... other fields
-}
+const memcached = new MemcachedClient()
+setCacheDriver(new MemcachedCacheDriver(memcached))
 ```
 
 That's it! The new driver is now available to all users.

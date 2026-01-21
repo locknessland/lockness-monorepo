@@ -5,7 +5,7 @@ High-performance caching system with multiple driver support.
 ## Features
 
 - 🚀 Simple API: get, set, remember, forget, flush
-- 🎨 Multiple drivers: Memory, Deno KV
+- 🎨 Multiple drivers: Memory, Deno KV, Redis
 - ⏱️ TTL (Time To Live) support with automatic expiration
 - 🏷️ Tags for grouping and batch invalidation
 - 📦 Automatic serialization
@@ -230,6 +230,58 @@ configureCache({
 
 - Slightly slower than memory
 - Requires file system access
+
+### Redis Driver
+
+Distributed cache using Redis for multi-instance deployments:
+
+```typescript
+import { createClient } from 'npm:redis'
+import { RedisCacheDriver, setCacheDriver } from '@lockness/cache'
+
+// Connect to Redis
+const redis = createClient({ url: 'redis://localhost:6379' })
+await redis.connect()
+
+// Set the Redis driver
+setCacheDriver(new RedisCacheDriver(redis))
+```
+
+**With Deno's Redis library:**
+
+```typescript
+import { connect } from 'https://deno.land/x/redis/mod.ts'
+import { RedisCacheDriver, setCacheDriver } from '@lockness/cache'
+
+const redis = await connect({ hostname: 'localhost', port: 6379 })
+setCacheDriver(new RedisCacheDriver(redis))
+```
+
+**With custom options:**
+
+```typescript
+setCacheDriver(
+    new RedisCacheDriver(redis, {
+        keyPrefix: 'myapp:cache', // Custom key prefix
+        tagPrefix: 'myapp:tag', // Custom tag prefix
+        serialize: JSON.stringify, // Custom serializer
+        deserialize: JSON.parse, // Custom deserializer
+    }),
+)
+```
+
+**Pros:**
+
+- Shared across multiple instances
+- High performance
+- Persistent (with Redis persistence)
+- Rich data structure support
+
+**Cons:**
+
+- Requires Redis server
+- Network latency
+- Additional infrastructure
 
 ## Advanced Example
 

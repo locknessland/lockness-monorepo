@@ -1,13 +1,13 @@
 # Lockness Cache
 
-High-performance caching system with multiple driver support (Memory, Deno KV) and tagging capabilities.
+High-performance caching system with multiple driver support (Memory, Deno KV, Redis) and tagging capabilities.
 
 ## Overview
 
 @lockness/cache provides a unified caching API with:
 
 - **Simple API** - get, set, remember, forget, flush
-- **Multiple Drivers** - Memory (fast, volatile) and Deno KV (persistent)
+- **Multiple Drivers** - Memory (fast, volatile), Deno KV (persistent), Redis (distributed)
 - **TTL Support** - Automatic expiration with time-to-live
 - **Tagging** - Group cache entries for batch invalidation
 - **Auto Serialization** - Transparent JSON serialization/deserialization
@@ -296,6 +296,61 @@ configureCache({
 - Persistent cache data
 - Multi-worker setups
 
+### Redis Driver
+
+Distributed cache using Redis for multi-instance deployments:
+
+```typescript
+import { createClient } from 'npm:redis'
+import { RedisCacheDriver, setCacheDriver } from '@lockness/cache'
+
+// Connect to Redis
+const redis = createClient({ url: 'redis://localhost:6379' })
+await redis.connect()
+
+// Set the Redis driver
+setCacheDriver(new RedisCacheDriver(redis))
+```
+
+**With Deno's Redis library:**
+
+```typescript
+import { connect } from 'https://deno.land/x/redis/mod.ts'
+import { RedisCacheDriver, setCacheDriver } from '@lockness/cache'
+
+const redis = await connect({ hostname: 'localhost', port: 6379 })
+setCacheDriver(new RedisCacheDriver(redis))
+```
+
+**With custom options:**
+
+```typescript
+setCacheDriver(new RedisCacheDriver(redis, {
+    keyPrefix: 'myapp:cache',  // Custom key prefix (default: 'cache')
+    tagPrefix: 'myapp:tag',    // Custom tag prefix (default: 'tag')
+    serialize: JSON.stringify,  // Custom serializer
+    deserialize: JSON.parse,    // Custom deserializer
+}))
+```
+
+**Pros:**
+- Shared across multiple instances
+- High performance (in-memory)
+- Persistent (with Redis persistence)
+- Rich data structure support
+- Cluster support for scaling
+
+**Cons:**
+- Requires Redis server
+- Network latency
+- Additional infrastructure
+
+**Best for:**
+- Multi-instance deployments
+- Microservices architecture
+- High-traffic applications
+- Shared session storage
+
 ## Complete Usage Example
 
 ```typescript
@@ -334,7 +389,7 @@ async function checkRateLimit(userId: string): Promise<boolean> {
 }
 
 // Invalidate related caches
-async function updatePost(id: number, data: any) {
+async function updatePost(id: number, data: Partial<Post>) {
     await db.update(posts).set(data).where(eq(posts.id, id))
     
     // Invalidate all post caches

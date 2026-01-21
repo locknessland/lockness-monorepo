@@ -49,7 +49,13 @@ export { configureCache, getCacheConfig } from './config.ts'
 // Driver Exports
 // =============================================================================
 
-export { DenoKvCacheDriver, MemoryCacheDriver } from './drivers/mod.ts'
+export {
+    DenoKvCacheDriver,
+    MemoryCacheDriver,
+    RedisCacheDriver,
+    type RedisClient,
+    type RedisCacheDriverOptions,
+} from './drivers/mod.ts'
 
 // =============================================================================
 // Store Exports (Fluent API)
