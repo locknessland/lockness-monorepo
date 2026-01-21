@@ -1,10 +1,36 @@
 /**
- * Lockness Cache System
+ * @fileoverview High-performance caching system with multiple driver support.
  *
- * High-performance caching with multiple driver support.
+ * Provides a unified API for caching with support for:
+ * - Memory driver (fast, in-process)
+ * - Deno KV driver (persistent, distributed)
+ * - Tag-based cache invalidation
+ * - Fluent API via CacheStore
+ *
  * Inspired by Laravel's cache system.
  *
- * Note: Some methods are async for interface consistency even if they don't await
+ * @module @lockness/cache
+ *
+ * @example
+ * ```ts
+ * import { cache, set, get, remember } from '@lockness/cache'
+ *
+ * // Simple get/set
+ * await set('user:1', { name: 'John' }, 3600)
+ * const user = await get('user:1')
+ *
+ * // Remember pattern
+ * const data = await remember('expensive:query', async () => {
+ *   return await db.query.users.findMany()
+ * }, 300)
+ *
+ * // Fluent API with tags
+ * await cache('users', 'api').set('all', users, 3600)
+ * await cache('users').flush()
+ * ```
+ *
+ * @remarks
+ * Some methods are async for interface consistency even if they don't await.
  */
 
 // deno-lint-ignore-file require-await
@@ -13,53 +39,166 @@
 // Types & Interfaces
 // =============================================================================
 
+/**
+ * Configuration options for the cache system.
+ *
+ * @example
+ * ```ts
+ * configureCache({
+ *   driver: 'deno-kv',
+ *   ttl: 3600,
+ *   prefix: 'myapp'
+ * })
+ * ```
+ */
 export interface CacheConfig {
-    /** Default cache driver */
+    /**
+     * The cache driver to use.
+     * - `'memory'`: Fast in-process cache (default)
+     * - `'deno-kv'`: Persistent Deno KV storage
+     */
     driver: 'memory' | 'deno-kv'
-    /** Default TTL in seconds (0 = no expiration) */
+
+    /**
+     * Default time-to-live in seconds.
+     * Set to `0` for no expiration.
+     * @defaultValue 3600 (1 hour)
+     */
     ttl: number
-    /** Deno KV path (optional) */
+
+    /**
+     * Path to the Deno KV database file.
+     * Only used with the `'deno-kv'` driver.
+     * @example ':memory:' for in-memory KV
+     */
     kvPath?: string
-    /** Cache key prefix */
+
+    /**
+     * Prefix for all cache keys.
+     * Helps avoid collisions in shared storage.
+     * @defaultValue 'lockness'
+     */
     prefix?: string
 }
 
+/**
+ * Internal representation of a cached item.
+ *
+ * @typeParam T - The type of the cached value
+ * @internal
+ */
 export interface CacheItem<T = unknown> {
-    value: T
-    expiresAt: number | null
-    tags?: string[]
+    /** The cached value */
+    readonly value: T
+    /** Unix timestamp when item expires, or null for no expiration */
+    readonly expiresAt: number | null
+    /** Tags associated with this cache entry */
+    readonly tags?: string[]
 }
 
+/**
+ * Contract for cache driver implementations.
+ *
+ * Implement this interface to create custom cache drivers.
+ *
+ * @example
+ * ```ts
+ * class RedisCacheDriver implements CacheDriver {
+ *   async get<T>(key: string): Promise<T | null> {
+ *     const value = await redis.get(key)
+ *     return value ? JSON.parse(value) : null
+ *   }
+ *   // ... implement other methods
+ * }
+ * ```
+ */
 export interface CacheDriver {
-    /** Get a value from cache */
+    /**
+     * Retrieve a value from the cache.
+     * @typeParam T - The expected type of the cached value
+     * @param key - The cache key
+     * @returns The cached value or null if not found/expired
+     */
     get<T = unknown>(key: string): Promise<T | null>
-    /** Set a value in cache */
+
+    /**
+     * Store a value in the cache.
+     * @typeParam T - The type of the value to cache
+     * @param key - The cache key
+     * @param value - The value to store
+     * @param ttl - Time-to-live in seconds (optional)
+     * @param tags - Tags for grouped invalidation (optional)
+     */
     set<T = unknown>(
         key: string,
         value: T,
         ttl?: number,
         tags?: string[],
     ): Promise<void>
-    /** Check if key exists */
+
+    /**
+     * Check if a key exists in the cache.
+     * @param key - The cache key
+     * @returns True if key exists and is not expired
+     */
     has(key: string): Promise<boolean>
-    /** Delete a key */
+
+    /**
+     * Remove a key from the cache.
+     * @param key - The cache key to delete
+     */
     forget(key: string): Promise<void>
-    /** Clear all cache */
+
+    /**
+     * Clear all entries from the cache.
+     */
     flush(): Promise<void>
-    /** Get multiple keys */
+
+    /**
+     * Retrieve multiple values at once.
+     * @typeParam T - The expected type of the cached values
+     * @param keys - Array of cache keys
+     * @returns Record mapping keys to values (null if not found)
+     */
     many<T = unknown>(keys: string[]): Promise<Record<string, T | null>>
-    /** Set multiple keys */
+
+    /**
+     * Store multiple values at once.
+     * @typeParam T - The type of the values to cache
+     * @param values - Record of key-value pairs
+     * @param ttl - Time-to-live in seconds (optional)
+     */
     putMany<T = unknown>(
         values: Record<string, T>,
         ttl?: number,
     ): Promise<void>
-    /** Increment a numeric value */
+
+    /**
+     * Increment a numeric value.
+     * @param key - The cache key
+     * @param value - Amount to increment by (default: 1)
+     * @returns The new value after incrementing
+     */
     increment(key: string, value?: number): Promise<number>
-    /** Decrement a numeric value */
+
+    /**
+     * Decrement a numeric value.
+     * @param key - The cache key
+     * @param value - Amount to decrement by (default: 1)
+     * @returns The new value after decrementing
+     */
     decrement(key: string, value?: number): Promise<number>
-    /** Delete keys by tag */
+
+    /**
+     * Delete all cache entries with a specific tag.
+     * @param tag - The tag to match
+     */
     forgetByTag(tag: string): Promise<void>
-    /** Flush keys by tag */
+
+    /**
+     * Flush cache entries by tag (alias for forgetByTag).
+     * @param tag - The tag to match
+     */
     flushByTag(tag: string): Promise<void>
 }
 
@@ -75,10 +214,30 @@ const defaultConfig: CacheConfig = {
 
 let globalCacheConfig: CacheConfig = { ...defaultConfig }
 
+/**
+ * Configure the global cache settings.
+ *
+ * Call this early in your application startup to set the cache driver and options.
+ *
+ * @param config - Partial configuration to merge with defaults
+ *
+ * @example
+ * ```ts
+ * configureCache({
+ *   driver: 'deno-kv',
+ *   ttl: 7200, // 2 hours
+ *   prefix: 'myapp'
+ * })
+ * ```
+ */
 export function configureCache(config: Partial<CacheConfig>): void {
     globalCacheConfig = { ...globalCacheConfig, ...config }
 }
 
+/**
+ * Get the current cache configuration.
+ * @returns The active cache configuration
+ */
 export function getCacheConfig(): CacheConfig {
     return globalCacheConfig
 }
@@ -87,16 +246,34 @@ export function getCacheConfig(): CacheConfig {
 // Helper Functions
 // =============================================================================
 
+/**
+ * Build the full cache key with prefix.
+ * @param key - The original cache key
+ * @returns The prefixed cache key
+ * @internal
+ */
 function getCacheKey(key: string): string {
     const prefix = globalCacheConfig.prefix || ''
     return prefix ? `${prefix}:${key}` : key
 }
 
+/**
+ * Check if a cache item has expired.
+ * @param expiresAt - The expiration timestamp or null
+ * @returns True if expired, false otherwise
+ * @internal
+ */
 function isExpired(expiresAt: number | null): boolean {
     if (expiresAt === null) return false
     return Date.now() > expiresAt
 }
 
+/**
+ * Calculate the expiration timestamp from TTL.
+ * @param ttl - Time-to-live in seconds (uses default if not provided)
+ * @returns Unix timestamp or null for no expiration
+ * @internal
+ */
 function getExpiresAt(ttl?: number): number | null {
     const seconds = ttl ?? globalCacheConfig.ttl
     if (seconds === 0) return null
@@ -107,9 +284,26 @@ function getExpiresAt(ttl?: number): number | null {
 // Memory Driver
 // =============================================================================
 
+/** @internal In-memory cache storage */
 const memoryStore = new Map<string, CacheItem>()
-const tagStore = new Map<string, Set<string>>() // tag -> keys
+/** @internal Tag to keys mapping for invalidation */
+const tagStore = new Map<string, Set<string>>()
 
+/**
+ * In-memory cache driver implementation.
+ *
+ * Fast, process-local cache suitable for development and single-instance deployments.
+ * Data is lost when the process exits.
+ *
+ * @implements {CacheDriver}
+ *
+ * @example
+ * ```ts
+ * import { setCacheDriver, MemoryCacheDriver } from '@lockness/cache'
+ *
+ * setCacheDriver(new MemoryCacheDriver())
+ * ```
+ */
 export class MemoryCacheDriver implements CacheDriver {
     async get<T = unknown>(key: string): Promise<T | null> {
         const cacheKey = getCacheKey(key)
@@ -236,10 +430,35 @@ export class MemoryCacheDriver implements CacheDriver {
 // Deno KV Driver
 // =============================================================================
 
+/**
+ * Deno KV cache driver implementation.
+ *
+ * Persistent, distributed cache using Deno's built-in KV store.
+ * Suitable for production deployments with data persistence requirements.
+ *
+ * @implements {CacheDriver}
+ *
+ * @example
+ * ```ts
+ * import { setCacheDriver, DenoKvCacheDriver } from '@lockness/cache'
+ *
+ * // Use default path
+ * setCacheDriver(new DenoKvCacheDriver())
+ *
+ * // Or specify a custom path
+ * setCacheDriver(new DenoKvCacheDriver('./cache.db'))
+ * ```
+ */
 export class DenoKvCacheDriver implements CacheDriver {
+    /** @internal KV instance (lazy-loaded) */
     private kv: Deno.Kv | null = null
-    private kvPath?: string
+    /** @internal Path to KV database */
+    private readonly kvPath?: string
 
+    /**
+     * Create a new Deno KV cache driver.
+     * @param kvPath - Optional path to the KV database file
+     */
     constructor(kvPath?: string) {
         this.kvPath = kvPath
     }
@@ -411,7 +630,17 @@ function getDriver(): CacheDriver {
 }
 
 /**
- * Set a custom cache driver
+ * Set a custom cache driver.
+ *
+ * Use this to inject your own driver implementation (e.g., Redis, Memcached).
+ *
+ * @param driver - The driver instance to use
+ *
+ * @example
+ * ```ts
+ * const redisDriver = new RedisCacheDriver(redisClient)
+ * setCacheDriver(redisDriver)
+ * ```
  */
 export function setCacheDriver(driver: CacheDriver): void {
     cacheDriver = driver
@@ -422,7 +651,19 @@ export function setCacheDriver(driver: CacheDriver): void {
 // =============================================================================
 
 /**
- * Get a value from cache
+ * Retrieve a value from the cache.
+ *
+ * @typeParam T - The expected type of the cached value
+ * @param key - The cache key
+ * @returns The cached value or null if not found/expired
+ *
+ * @example
+ * ```ts
+ * const user = await get<User>('user:123')
+ * if (user) {
+ *   console.log(user.name)
+ * }
+ * ```
  */
 export function get<T = unknown>(key: string): Promise<T | null> {
     return getDriver().get<T>(key)
@@ -446,12 +687,23 @@ export function set<T = unknown>(
 }
 
 /**
- * Get value from cache or set it if not exists
+ * Get value from cache or compute and store it if not cached.
  *
- * @param key Cache key
- * @param callback Function to generate value if not cached
- * @param ttl Time to live in seconds
- * @param tags Optional tags
+ * This is the recommended pattern for caching expensive operations.
+ *
+ * @typeParam T - The type of the cached/computed value
+ * @param key - The cache key
+ * @param callback - Function to compute value if not cached
+ * @param ttl - Time-to-live in seconds (uses default if not provided)
+ * @param tags - Optional tags for grouped invalidation
+ * @returns The cached or newly computed value
+ *
+ * @example
+ * ```ts
+ * const users = await remember('all-users', async () => {
+ *   return await db.query.users.findMany()
+ * }, 300) // Cache for 5 minutes
+ * ```
  */
 export async function remember<T = unknown>(
     key: string,
@@ -604,8 +856,30 @@ export function flushByTag(tag: string): Promise<void> {
 // Cache Store (Fluent API)
 // =============================================================================
 
+/**
+ * Fluent cache API with tag support.
+ *
+ * Provides a chainable interface for cache operations with automatic tagging.
+ *
+ * @example
+ * ```ts
+ * // Create tagged cache
+ * const userCache = cache('users', 'api')
+ *
+ * // All operations use these tags
+ * await userCache.set('user:1', user, 3600)
+ * await userCache.remember('all', () => db.users.findMany())
+ *
+ * // Invalidate all entries with 'users' tag
+ * await cache('users').flush()
+ * ```
+ */
 export class CacheStore {
-    constructor(private tags: string[] = []) {}
+    /**
+     * Create a new cache store with optional tags.
+     * @param tags - Tags to apply to all operations
+     */
+    constructor(private readonly tags: string[] = []) { }
 
     /**
      * Tag the cache entries
@@ -654,13 +928,31 @@ export class CacheStore {
 
         // Flush by each tag
         return Promise.all(this.tags.map((tag) => flushByTag(tag))).then(
-            () => {},
+            () => { },
         )
     }
 }
 
 /**
- * Create a cache store instance
+ * Create a fluent cache store instance with optional tags.
+ *
+ * This is the main entry point for the fluent cache API.
+ *
+ * @param tags - Tags to apply to all cache operations
+ * @returns A new CacheStore instance
+ *
+ * @example
+ * ```ts
+ * // Without tags
+ * await cache().set('key', 'value')
+ *
+ * // With tags for grouped invalidation
+ * await cache('users').set('user:1', user)
+ * await cache('users', 'api').set('user:2', user)
+ *
+ * // Flush all 'users' entries
+ * await cache('users').flush()
+ * ```
  */
 export function cache(...tags: string[]): CacheStore {
     return new CacheStore(tags)
