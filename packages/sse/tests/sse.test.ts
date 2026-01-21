@@ -39,8 +39,8 @@ Deno.test('SSEChannel - should track client count', () => {
 
     // Mock controller
     const controller = {
-        enqueue: () => { },
-        close: () => { },
+        enqueue: () => {},
+        close: () => {},
     } as unknown as ReadableStreamDefaultController<Uint8Array>
 
     channel.addClient('client1', controller)
@@ -63,8 +63,8 @@ Deno.test('SSEChannel - should respect maxClients', () => {
     })
 
     const controller = {
-        enqueue: () => { },
-        close: () => { },
+        enqueue: () => {},
+        close: () => {},
     } as unknown as ReadableStreamDefaultController<Uint8Array>
 
     assertEquals(channel.addClient('c1', controller), true)
@@ -79,8 +79,8 @@ Deno.test('SSEChannel - should check client existence', () => {
     const channel = new SSEChannel('test', { heartbeatInterval: 0 })
 
     const controller = {
-        enqueue: () => { },
-        close: () => { },
+        enqueue: () => {},
+        close: () => {},
     } as unknown as ReadableStreamDefaultController<Uint8Array>
 
     channel.addClient('client1', controller, { userId: 123 })
@@ -100,8 +100,8 @@ Deno.test('SSEChannel - should return client IDs', () => {
     const channel = new SSEChannel('test', { heartbeatInterval: 0 })
 
     const controller = {
-        enqueue: () => { },
-        close: () => { },
+        enqueue: () => {},
+        close: () => {},
     } as unknown as ReadableStreamDefaultController<Uint8Array>
 
     channel.addClient('a', controller)
@@ -125,7 +125,7 @@ Deno.test('SSEChannel - broadcast should return sent count', () => {
         enqueue: (data: Uint8Array) => {
             messages.push(new TextDecoder().decode(data))
         },
-        close: () => { },
+        close: () => {},
     } as unknown as ReadableStreamDefaultController<Uint8Array>
 
     channel.addClient('c1', controller)
@@ -147,13 +147,14 @@ Deno.test('SSEChannel - broadcastTo should filter clients', () => {
     const channel = new SSEChannel('test', { heartbeatInterval: 0 })
     const messages = new Map<string, string[]>()
 
-    const createController = (id: string) => ({
-        enqueue: (data: Uint8Array) => {
-            if (!messages.has(id)) messages.set(id, [])
-            messages.get(id)!.push(new TextDecoder().decode(data))
-        },
-        close: () => { },
-    }) as unknown as ReadableStreamDefaultController<Uint8Array>
+    const createController = (id: string) =>
+        ({
+            enqueue: (data: Uint8Array) => {
+                if (!messages.has(id)) messages.set(id, [])
+                messages.get(id)!.push(new TextDecoder().decode(data))
+            },
+            close: () => {},
+        }) as unknown as ReadableStreamDefaultController<Uint8Array>
 
     channel.addClient('admin1', createController('admin1'), { role: 'admin' })
     channel.addClient('user1', createController('user1'), { role: 'user' })
