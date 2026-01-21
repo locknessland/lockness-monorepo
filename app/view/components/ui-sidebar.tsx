@@ -123,10 +123,18 @@ const navSections: readonly NavSection[] = [
 ]
 
 /**
+ * UiSidebar props
+ */
+interface UiSidebarProps {
+    /** Current page path for active state highlighting */
+    currentPath?: string
+}
+
+/**
  * UI Sidebar Component
  * Reusable sidebar navigation for UI documentation pages
  */
-export const UiSidebar = () => {
+export const UiSidebar = ({ currentPath = '' }: UiSidebarProps) => {
     return (
         <Sidebar topOffset='16' class='fixed hidden z-50'>
             <SidebarHeader>
@@ -159,6 +167,7 @@ export const UiSidebar = () => {
                                     <SidebarMenuItem key={link.href}>
                                         <SidebarMenuButton
                                             href={link.href}
+                                            isActive={currentPath === link.href}
                                             up-preload
                                             up-transition='move-left'
                                         >
