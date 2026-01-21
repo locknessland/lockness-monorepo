@@ -48,8 +48,8 @@ import type {
  */
 export abstract class SessionProviderBase<User extends Authenticatable>
     implements
-    SessionUserProviderContract<User>,
-    SessionWithRememberMeProviderContract<User> {
+        SessionUserProviderContract<User>,
+        SessionWithRememberMeProviderContract<User> {
     /**
      * Symbol to access real user type
      */
