@@ -290,6 +290,18 @@ const REGISTRY: Registry = {
         ],
         internalDependencies: ['utils'],
     },
+    'search-bar': {
+        name: 'search-bar',
+        description:
+            'Customizable search bar with variants, sizes, and Unpoly integration',
+        files: [
+            {
+                path: 'components/SearchBar.tsx',
+                target: 'components/ui/SearchBar.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'icons'],
+    },
 }
 
 // =============================================================================

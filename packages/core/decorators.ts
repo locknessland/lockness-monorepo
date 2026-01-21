@@ -41,6 +41,8 @@ export interface RouteMetadata {
     readonly methodName: string
     /** Optional route name for named routing */
     readonly name?: string
+    /** File extension to strip from route parameters */
+    readonly extension?: string
 }
 
 /**
@@ -117,11 +119,81 @@ export function Controller(path: string): TC39ClassDecorator {
 }
 
 /**
+ * Supported file extensions for route parameters.
+ * These are automatically stripped from route parameters when using the `extension` option.
+ */
+export type FileExtension =
+    // Text & Documents
+    | '.txt'
+    | '.md'
+    | '.html'
+    | '.htm'
+    | '.xml'
+    | '.csv'
+    | '.pdf'
+    // Data
+    | '.json'
+    | '.yaml'
+    | '.yml'
+    | '.toml'
+    // Code
+    | '.js'
+    | '.ts'
+    | '.jsx'
+    | '.tsx'
+    | '.css'
+    | '.scss'
+    | '.less'
+    // Images
+    | '.png'
+    | '.jpg'
+    | '.jpeg'
+    | '.gif'
+    | '.svg'
+    | '.webp'
+    | '.ico'
+    // Fonts
+    | '.woff'
+    | '.woff2'
+    | '.ttf'
+    | '.otf'
+    | '.eot'
+    // Archives
+    | '.zip'
+    | '.tar'
+    | '.gz'
+    // Media
+    | '.mp3'
+    | '.mp4'
+    | '.webm'
+    | '.ogg'
+    | '.wav'
+    // Other
+    | '.rss'
+    | '.atom'
+    | '.map'
+    | `.${string}` // Fallback for custom extensions
+
+/**
  * Options for route decorators.
  */
 export interface RouteOptions {
     /** Optional name for the route (used for named routing) */
     name?: string
+    /**
+     * File extension to append to the route path.
+     * The extension is automatically stripped from route parameters.
+     *
+     * @example
+     * ```ts
+     * // Route: /llms/:name.txt
+     * @Get('/:name', { extension: '.txt' })
+     * async serve(c: Context) {
+     *     const name = c.req.param('name') // 'installation' (not 'installation.txt')
+     * }
+     * ```
+     */
+    extension?: FileExtension
 }
 
 /**
@@ -159,6 +231,21 @@ function createRouteDecorator(method: string): RouteDecorator {
             // Store route metadata directly on the constructor (not instance)
             const methodName = String(context.name)
 
+            // Build the route path with optional extension
+            // If extension is provided, transform /:name to /:name{.+\.ext}
+            // This creates a Hono regex pattern that matches the extension
+            let routePath = path
+            if (options.extension) {
+                // Escape the dot in the extension for regex
+                const escapedExt = options.extension.replace('.', '\\.')
+                // Transform last parameter to include regex pattern
+                // e.g., '/:name' + '.txt' becomes '/:name{.+\.txt}'
+                routePath = path.replace(
+                    /\/:([^/]+)$/,
+                    `/:$1{.+${escapedExt}}`,
+                )
+            }
+
             // We need to get the constructor, but context doesn't give it directly
             // So we use addInitializer to run on first instance creation
             let initialized = false
@@ -171,9 +258,10 @@ function createRouteDecorator(method: string): RouteDecorator {
                     if (!constructor._routes) constructor._routes = []
                     constructor._routes.push({
                         method,
-                        path,
+                        path: routePath,
                         methodName,
                         name: options.name,
+                        extension: options.extension,
                     })
                 }
             })

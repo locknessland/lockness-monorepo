@@ -137,6 +137,55 @@ export class UserController {
 }
 ```
 
+### File Extension Routes
+
+The `extension` option allows you to create routes that match file extensions
+while automatically stripping the extension from parameters. This is perfect for
+serving static-like content (RSS feeds, sitemaps, documentation files, etc.).
+
+```typescript
+@Controller('/llms')
+export class LlmController {
+    @Get('/:name', { extension: '.txt' })
+    async serve(c: Context) {
+        // URL: /llms/installation.txt
+        const name = c.req.param('name') // 'installation' (not 'installation.txt')
+        return c.text(await loadDoc(name))
+    }
+}
+```
+
+**How it works:**
+
+1. The decorator transforms `/:name` to a Hono regex pattern `/:name{.+\.txt}`
+2. The framework automatically strips the extension from all route parameters
+3. Your handler receives clean parameter values
+
+**Supported extensions (with autocompletion):**
+
+- **Text**: `.txt`, `.md`, `.html`, `.xml`, `.csv`
+- **Data**: `.json`, `.yaml`, `.yml`, `.toml`
+- **Code**: `.js`, `.ts`, `.jsx`, `.tsx`, `.css`
+- **Images**: `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`
+- **Feeds**: `.rss`, `.atom`
+- **Custom**: Any `.{extension}` format
+
+```typescript
+// RSS feed
+@Get('/:category', { extension: '.rss' })
+async feed(c: Context) {
+    const category = c.req.param('category')
+    return c.body(generateRSS(category), { headers: { 'Content-Type': 'application/rss+xml' }})
+}
+
+// JSON API with explicit extension
+@Get('/:resource', { extension: '.json' })
+async api(c: Context) {
+    const resource = c.req.param('resource')
+    return c.json(await loadResource(resource))
+}
+```
+
 ### Generating URLs
 
 Use the `route()` helper to generate a URL from a route name:

@@ -31,21 +31,14 @@ export class LlmController {
      * - /llms/routing.txt → packages/core/llms/routing.txt
      * - /llms/lockness.txt → docs/llms/lockness.txt
      */
-    @Get('/*')
+    @Get('/:name', { extension: '.txt', name: 'llms.txt' })
     async serve(c: Context) {
-        // Get the full path after /llms/ (e.g., "authentication.txt")
-        const fullPath = c.req.param('*')
-
-        // Remove .txt extension if present
-        const name = fullPath.endsWith('.txt')
-            ? fullPath.slice(0, -4)
-            : fullPath
+        const name = c.req.param('name')
 
         try {
             const text = await this.loader.load(name)
             return c.text(text)
         } catch (error) {
-            // Log error for debugging
             console.error(`Failed to load LLM doc '${name}':`, error)
             return c.notFound()
         }

@@ -25,6 +25,7 @@ import { GalleryPage } from '@view/pages/ui/gallery.tsx'
 import { PricingPage } from '@view/pages/ui/pricing.tsx'
 import { ThemeSwitchPage } from '@view/pages/ui/theme-switch.tsx'
 import { TreeViewPage } from '@view/pages/ui/treeview.tsx'
+import { SearchBarPage } from '@view/pages/ui/search-bar.tsx'
 
 @Controller('/ui')
 export class UiController {
@@ -156,5 +157,10 @@ export class UiController {
     @Get('/treeview', { name: 'ui.treeview' })
     treeview(c: Context) {
         return c.render(<TreeViewPage />)
+    }
+
+    @Get('/search-bar', { name: 'ui.search-bar' })
+    searchBar(c: Context) {
+        return c.render(<SearchBarPage />)
     }
 }

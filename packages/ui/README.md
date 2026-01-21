@@ -522,6 +522,70 @@ Modern toggle switch:
 </div>
 ```
 
+#### SearchBar
+
+Customizable search bar with variants, sizes, icons, and Unpoly integration:
+
+```tsx
+// Basic usage
+<SearchBar placeholder="Search products..." />
+
+// Variants
+<SearchBar variant="default" placeholder="Default" />
+<SearchBar variant="ghost" placeholder="Ghost" />
+<SearchBar variant="outline" placeholder="Outline" />
+<SearchBar variant="filled" placeholder="Filled" />
+
+// Sizes
+<SearchBar size="sm" placeholder="Small" />
+<SearchBar size="md" placeholder="Medium (default)" />
+<SearchBar size="lg" placeholder="Large" />
+<SearchBar size="xl" placeholder="Extra Large" />
+
+// With features
+<SearchBar showClear placeholder="With clear button" />
+<SearchBar shortcut="⌘K" showShortcut placeholder="With shortcut" />
+<SearchBar loading placeholder="Loading state" />
+<SearchBar fullWidth placeholder="Full width" />
+
+// Icon positioning
+<SearchBar iconPosition="left" placeholder="Icon on left (default)" />
+<SearchBar iconPosition="right" placeholder="Icon on right" />
+
+// Unpoly real-time search
+<form up-submit up-target=".results">
+    <SearchBar
+        name="q"
+        up-autosubmit
+        up-delay="300"
+        placeholder="Real-time search..."
+    />
+</form>
+
+// SearchBar with filters
+<SearchBarGroup>
+    <SearchBar placeholder="Search products..." />
+    <SearchBarFilter name="category">
+        <option value="all">All Categories</option>
+        <option value="electronics">Electronics</option>
+        <option value="clothing">Clothing</option>
+    </SearchBarFilter>
+</SearchBarGroup>
+```
+
+**Props:**
+
+- `variant?: 'default' | 'ghost' | 'outline' | 'filled'` (default: 'default')
+- `size?: 'sm' | 'md' | 'lg' | 'xl'` (default: 'md')
+- `showIcon?: boolean` (default: true)
+- `iconPosition?: 'left' | 'right'` (default: 'left')
+- `showClear?: boolean` (default: false)
+- `shortcut?: string` - Keyboard shortcut to display
+- `showShortcut?: boolean` (default: false)
+- `loading?: boolean` (default: false)
+- `disabled?: boolean` (default: false)
+- `fullWidth?: boolean` (default: false)
+
 ### Display Components
 
 #### Badge

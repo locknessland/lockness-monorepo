@@ -131,6 +131,12 @@ export const SearchIcon: FC<IconProps> = (props) => (
     </IconBase>
 )
 
+export const LoaderIcon: FC<IconProps> = (props) => (
+    <IconBase {...props}>
+        <path d='M21 12a9 9 0 1 1-6.219-8.56' />
+    </IconBase>
+)
+
 // Development Icons
 
 export const CodeIcon: FC<IconProps> = (props) => (

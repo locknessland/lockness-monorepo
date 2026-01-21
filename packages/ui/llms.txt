@@ -680,6 +680,106 @@ deno test -A
 - Force overwrite flag
 - Error handling
 
+## SearchBar Component
+
+Customizable search bar with variants, sizes, and Unpoly integration for real-time search.
+
+**Installation:**
+```bash
+deno run -A jsr:@lockness/ui add search-bar
+```
+
+**Dependencies:** utils, icons (SearchIcon, XIcon, LoaderIcon)
+
+**Basic Usage:**
+```tsx
+import { SearchBar } from '@view/components/ui/SearchBar.tsx'
+
+<SearchBar placeholder="Search..." />
+```
+
+**Variants:**
+- `default` - Border with focus ring
+- `ghost` - Transparent, shows background on focus
+- `outline` - 2px border, no background
+- `filled` - Muted background, changes on focus
+
+```tsx
+<SearchBar variant="default" />
+<SearchBar variant="ghost" />
+<SearchBar variant="outline" />
+<SearchBar variant="filled" />
+```
+
+**Sizes:**
+- `sm` - Height 32px, text-xs
+- `md` - Height 40px, text-sm (default)
+- `lg` - Height 48px, text-base
+- `xl` - Height 56px, text-lg
+
+**Features:**
+```tsx
+// With icon positioning
+<SearchBar showIcon iconPosition="left" />
+<SearchBar showIcon iconPosition="right" />
+
+// With clear button
+<SearchBar showClear />
+
+// With keyboard shortcut badge
+<SearchBar shortcut="⌘K" showShortcut />
+
+// Loading state
+<SearchBar loading />
+
+// Full width
+<SearchBar fullWidth />
+```
+
+**Unpoly Integration:**
+```tsx
+<form up-submit up-target=".results">
+    <SearchBar
+        name="q"
+        up-autosubmit
+        up-delay="300"
+        placeholder="Search products..."
+    />
+</form>
+```
+
+**SearchBarGroup with Filters:**
+```tsx
+import {
+    SearchBar,
+    SearchBarGroup,
+    SearchBarFilter,
+} from '@view/components/ui/SearchBar.tsx'
+
+<SearchBarGroup>
+    <SearchBar placeholder="Search..." />
+    <SearchBarFilter name="category">
+        <option value="all">All</option>
+        <option value="electronics">Electronics</option>
+    </SearchBarFilter>
+</SearchBarGroup>
+```
+
+**Props:**
+- `variant?: 'default' | 'ghost' | 'outline' | 'filled'` (default: 'default')
+- `size?: 'sm' | 'md' | 'lg' | 'xl'` (default: 'md')
+- `placeholder?: string` (default: 'Search...')
+- `showIcon?: boolean` (default: true)
+- `iconPosition?: 'left' | 'right'` (default: 'left')
+- `showClear?: boolean` (default: false)
+- `shortcut?: string` - Keyboard shortcut to display
+- `showShortcut?: boolean` (default: false)
+- `loading?: boolean` (default: false)
+- `disabled?: boolean` (default: false)
+- `fullWidth?: boolean` (default: false)
+- `class?: string` - Input class names
+- `containerClass?: string` - Container class names
+
 ## Development
 
 ### Adding New Components

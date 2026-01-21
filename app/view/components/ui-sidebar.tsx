@@ -70,6 +70,7 @@ const navSections: readonly NavSection[] = [
         icon: FormInputIcon,
         links: [
             { title: 'Form Components', href: '/ui/forms' },
+            { title: 'Search Bar', href: '/ui/search-bar' },
             { title: 'Upload Zone', href: '/ui/upload-zone' },
         ],
     },

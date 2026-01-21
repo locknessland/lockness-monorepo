@@ -20,6 +20,8 @@ export interface Route {
     path: string
     methodName: string
     name?: string
+    /** File extension to strip from route parameters */
+    extension?: string
 }
 
 export interface ControllerMetadata {

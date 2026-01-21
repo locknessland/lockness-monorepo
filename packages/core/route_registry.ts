@@ -217,10 +217,19 @@ export class RouteRegistry {
                 middlewares,
             )
 
+            // Create handler, wrapping with extension stripping if needed
+            const handler = route.extension
+                ? this.createExtensionStrippingHandler(
+                    instance,
+                    route.methodName,
+                    route.extension,
+                )
+                : (c: Context) => instance[route.methodName](c)
+
             registrations.push({
                 fullPath,
                 method: route.method.toLowerCase() as HttpMethod,
-                handler: (c: Context) => instance[route.methodName](c),
+                handler,
                 middlewares: [
                     ...routeValidators,
                     ...routeMiddlewares,
@@ -274,6 +283,56 @@ export class RouteRegistry {
             fullPath = fullPath.slice(0, -1)
         }
         return fullPath
+    }
+
+    /**
+     * Creates a handler that strips the file extension from route parameters.
+     *
+     * When a route uses the `extension` option (e.g., `@Get('/:name', { extension: '.txt' })`),
+     * this wrapper ensures `c.req.param('name')` returns 'installation' instead of 'installation.txt'.
+     *
+     * @param instance - Controller instance
+     * @param methodName - Name of the handler method
+     * @param extension - Extension to strip (e.g., '.txt')
+     * @returns Wrapped handler function
+     *
+     * @example
+     * ```typescript
+     * // Route: @Get('/:name', { extension: '.txt' })
+     * // URL: /llms/installation.txt
+     * // c.req.param('name') returns 'installation' (not 'installation.txt')
+     * ```
+     *
+     * @internal
+     */
+    private createExtensionStrippingHandler(
+        instance: Record<string, (c: Context) => unknown>,
+        methodName: string,
+        extension: string,
+    ): (c: Context) => unknown {
+        const extensionRegex = new RegExp(`${extension.replace('.', '\\.')}$`)
+
+        return (c: Context) => {
+            // Override c.req.param to strip extension from all params
+            const originalParam = c.req.param.bind(c.req)
+
+            c.req.param = ((name?: string) => {
+                if (name === undefined) {
+                    // Return all params with extension stripped
+                    const params = originalParam() as Record<string, string>
+                    const strippedParams: Record<string, string> = {}
+                    for (const [key, value] of Object.entries(params)) {
+                        strippedParams[key] = value.replace(extensionRegex, '')
+                    }
+                    return strippedParams
+                }
+                // Return single param with extension stripped
+                const value = originalParam(name) as string
+                return value?.replace(extensionRegex, '')
+            }) as typeof c.req.param
+
+            return instance[methodName](c)
+        }
     }
 
     /**

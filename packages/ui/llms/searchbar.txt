@@ -1,0 +1,297 @@
+# SearchBar Component
+
+Customizable search bar for @lockness/ui with multiple variants, sizes, and Unpoly integration.
+
+## Installation
+
+deno run -A jsr:@lockness/ui add search-bar
+
+## Dependencies
+
+- utils (cn utility)
+- icons (SearchIcon, XIcon, LoaderIcon)
+
+## Basic Usage
+
+import { SearchBar } from '@view/components/ui/SearchBar.tsx'
+
+<SearchBar placeholder="Search..." />
+
+## Variants
+
+- default: Standard border with focus ring
+- ghost: Transparent, shows background on focus
+- outline: 2px border, no background
+- filled: Muted background, changes on focus
+
+<SearchBar variant="default" placeholder="Default" />
+<SearchBar variant="ghost" placeholder="Ghost" />
+<SearchBar variant="outline" placeholder="Outline" />
+<SearchBar variant="filled" placeholder="Filled" />
+
+## Sizes
+
+- sm: Height 32px, text-xs
+- md: Height 40px, text-sm (default)
+- lg: Height 48px, text-base
+- xl: Height 56px, text-lg
+
+<SearchBar size="sm" />
+<SearchBar size="md" />
+<SearchBar size="lg" />
+<SearchBar size="xl" />
+
+## Features
+
+### Search Icon
+
+<SearchBar showIcon iconPosition="left" />
+<SearchBar showIcon iconPosition="right" />
+<SearchBar showIcon={false} />
+
+### Clear Button
+
+<SearchBar showClear />
+
+The clear button appears and clears the input value when clicked.
+
+### Keyboard Shortcut
+
+<SearchBar shortcut="⌘K" showShortcut />
+<SearchBar shortcut="Ctrl+K" showShortcut />
+
+Displays a styled kbd badge showing the keyboard shortcut.
+
+### Loading State
+
+<SearchBar loading />
+
+Shows an animated spinner icon instead of the search icon.
+
+### Full Width
+
+<SearchBar fullWidth />
+
+Makes the search bar take the full width of its container.
+
+### Disabled
+
+<SearchBar disabled />
+
+Disables the input with reduced opacity.
+
+## Unpoly Integration
+
+### Auto-submit with Debounce
+
+<form up-submit up-target=".results">
+    <SearchBar
+        name="q"
+        up-autosubmit
+        up-delay="300"
+        placeholder="Search products..."
+    />
+</form>
+
+### Instant Search
+
+<SearchBar
+    name="query"
+    up-autosubmit
+    up-target="#search-results"
+    up-watch-delay="200"
+/>
+
+### Search with Suggestions Popup
+
+<a up-layer="popup" up-href="/suggestions?q=">
+    <SearchBar placeholder="Search with suggestions..." />
+</a>
+
+## SearchBarGroup
+
+Combine search bar with filters:
+
+import { SearchBar, SearchBarGroup, SearchBarFilter } from '@view/components/ui/SearchBar.tsx'
+
+<SearchBarGroup>
+    <SearchBar placeholder="Search products..." />
+    <SearchBarFilter name="category">
+        <option value="all">All Categories</option>
+        <option value="electronics">Electronics</option>
+        <option value="clothing">Clothing</option>
+    </SearchBarFilter>
+</SearchBarGroup>
+
+## Props Reference
+
+### SearchBarProps
+
+- variant: 'default' | 'ghost' | 'outline' | 'filled' (default: 'default')
+- size: 'sm' | 'md' | 'lg' | 'xl' (default: 'md')
+- placeholder: string (default: 'Search...')
+- name: string
+- value: string
+- showIcon: boolean (default: true)
+- iconPosition: 'left' | 'right' (default: 'left')
+- showClear: boolean (default: false)
+- shortcut: string
+- showShortcut: boolean (default: false)
+- loading: boolean (default: false)
+- disabled: boolean (default: false)
+- fullWidth: boolean (default: false)
+- class: string
+- containerClass: string
+- id: string
+- autocomplete: string (default: 'off')
+
+### SearchBarGroupProps
+
+- children: SearchBar + SearchBarFilter components
+- class: string
+
+### SearchBarFilterProps
+
+- name: string
+- children: option elements
+- class: string
+
+## Styling with CSS Variables
+
+The component uses these CSS variables:
+
+- --background
+- --foreground
+- --muted
+- --muted-foreground
+- --border
+- --input
+- --ring
+- --radius
+
+## Controller Example
+
+@Controller('/products')
+export class ProductController {
+    @Get('/')
+    async search(c: Context) {
+        const query = c.req.query('q') || ''
+        const category = c.req.query('category') || 'all'
+
+        const products = await this.productService.search(query, category)
+
+        return c.render(
+            <Layout>
+                <form up-submit up-target=".products-grid">
+                    <SearchBarGroup>
+                        <SearchBar
+                            name="q"
+                            value={query}
+                            up-autosubmit
+                            up-delay="300"
+                            placeholder="Search products..."
+                        />
+                        <SearchBarFilter name="category">
+                            <option value="all">All</option>
+                            <option value="electronics">Electronics</option>
+                        </SearchBarFilter>
+                    </SearchBarGroup>
+                </form>
+                <div class="products-grid">
+                    {products.map(p => <ProductCard product={p} />)}
+                </div>
+            </Layout>
+        )
+    }
+}
+
+## Real-time Search Example
+
+<form up-submit up-target=".search-results">
+    <SearchBar
+        name="query"
+        placeholder="Search users..."
+        up-autosubmit
+        up-delay="500"
+        showClear
+        variant="filled"
+    />
+    <div class="search-results">
+        {/* Results will be loaded here */}
+    </div>
+</form>
+
+## Advanced Example with All Features
+
+<SearchBarGroup>
+    <SearchBar
+        variant="outline"
+        size="lg"
+        placeholder="Search documentation..."
+        name="q"
+        showIcon
+        iconPosition="left"
+        showClear
+        shortcut="⌘K"
+        showShortcut
+        up-autosubmit
+        up-delay="300"
+        up-target=".docs-results"
+    />
+    <SearchBarFilter name="section">
+        <option value="all">All Sections</option>
+        <option value="guides">Guides</option>
+        <option value="api">API Reference</option>
+    </SearchBarFilter>
+</SearchBarGroup>
+
+## Accessibility
+
+The SearchBar component includes proper ARIA attributes:
+
+- Clear button has aria-label="Clear search"
+- Input type="search" for semantic HTML
+- Keyboard navigation support
+- Focus states with ring indicators
+
+## Styling Examples
+
+### Custom Container Styling
+
+<SearchBar
+    containerClass="max-w-md mx-auto shadow-lg"
+    placeholder="Centered search with shadow"
+/>
+
+### Custom Input Styling
+
+<SearchBar
+    class="font-semibold"
+    placeholder="Bold text input"
+/>
+
+### Combine with Other Components
+
+<div class="flex gap-2">
+    <SearchBar fullWidth placeholder="Search..." />
+    <Button>Search</Button>
+</div>
+
+## Testing
+
+The SearchBar component includes comprehensive tests for:
+
+- All variants (default, ghost, outline, filled)
+- All sizes (sm, md, lg, xl)
+- Icon visibility and positioning
+- Clear button functionality
+- Keyboard shortcut badge
+- Loading states
+- Disabled states
+- Full width mode
+- Unpoly directives
+- CSS variables usage
+
+Run tests with:
+
+deno test -A packages/ui/tests/searchbar.test.tsx

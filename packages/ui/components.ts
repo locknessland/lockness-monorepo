@@ -210,7 +210,7 @@ export {
     ModalHeader,
     ModalTitle,
     ModalTrigger,
-} from './components/modal.tsx'
+} from './components/Modal.tsx'
 
 // Navigation Components
 export {
@@ -267,7 +267,7 @@ export {
     SidebarProvider,
     SidebarRail,
     SidebarTrigger,
-} from './components/sidebar.tsx'
+} from './components/Sidebar.tsx'
 
 export {
     TreeView,
@@ -333,7 +333,7 @@ export {
     TableHead,
     TableHeader,
     TableRow,
-} from './components/table.tsx'
+} from './components/Table.tsx'
 export type {
     TableBodyProps,
     TableCaptionProps,
@@ -344,7 +344,7 @@ export type {
     TableHeadProps,
     TableProps,
     TableRowProps,
-} from './components/table.tsx'
+} from './components/Table.tsx'
 
 // Theme Components
 export { ThemeSwitch, ThemeSwitchScript } from './components/ThemeSwitch.tsx'
@@ -382,3 +382,16 @@ export type {
 
 // Icons
 export * from './icons.tsx'
+
+// SearchBar Components
+export {
+    type IconPosition,
+    SearchBar,
+    SearchBarFilter,
+    type SearchBarFilterProps,
+    SearchBarGroup,
+    type SearchBarGroupProps,
+    type SearchBarProps,
+    type SearchBarSize,
+    type SearchBarVariant,
+} from './components/SearchBar.tsx'

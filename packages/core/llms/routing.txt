@@ -87,6 +87,41 @@ const url = route('users.show', { id: 123 }) // "/users/123"
 return c.redirect(route('auth.login'))
 ```
 
+## File Extension Routes
+
+The `extension` option creates routes that match file extensions and automatically
+strips the extension from route parameters:
+
+```typescript
+@Controller('/llms')
+export class LlmController {
+    @Get('/:name', { extension: '.txt' })
+    async serve(c: Context) {
+        // URL: /llms/installation.txt
+        const name = c.req.param('name') // 'installation' (not 'installation.txt')
+        return c.text(await loadDoc(name))
+    }
+}
+```
+
+**How it works:**
+1. Transforms `/:name` to Hono regex pattern `/:name{.+\.txt}`
+2. Framework automatically strips extension from all route parameters
+3. Handler receives clean parameter values
+
+**Supported extensions:** `.txt`, `.md`, `.html`, `.xml`, `.json`, `.yaml`, `.rss`, `.atom`, `.css`, `.js`, `.ts`, `.png`, `.jpg`, `.svg`, and any custom `.{ext}` format.
+
+```typescript
+// RSS feed
+@Get('/:category', { extension: '.rss' })
+async feed(c: Context) {
+    const category = c.req.param('category') // Clean value
+    return c.body(generateRSS(category), { 
+        headers: { 'Content-Type': 'application/rss+xml' }
+    })
+}
+```
+
 ## CLI Commands
 
 ```bash
