@@ -35,10 +35,10 @@ export class LlmController {
     async serve(c: Context) {
         // Get the full path after /llms/ (e.g., "authentication.txt")
         const fullPath = c.req.param('*')
-        
+
         // Remove .txt extension if present
-        const name = fullPath.endsWith('.txt') 
-            ? fullPath.slice(0, -4) 
+        const name = fullPath.endsWith('.txt')
+            ? fullPath.slice(0, -4)
             : fullPath
 
         try {

@@ -53,8 +53,8 @@ export {
     DenoKvCacheDriver,
     MemoryCacheDriver,
     RedisCacheDriver,
-    type RedisClient,
     type RedisCacheDriverOptions,
+    type RedisClient,
 } from './drivers/mod.ts'
 
 // =============================================================================
