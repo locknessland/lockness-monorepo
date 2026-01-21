@@ -70,7 +70,7 @@ const StatusBadge = ({ status }: { status: string }) => {
 
 export const TablePage = () => {
     return (
-        <PageUiLayout title='Table - Lockness UI'>
+        <PageUiLayout title='Table - Lockness UI' currentPath='/ui/table'>
             <div class='space-y-8'>
                 {/* Header */}
                 <div class='space-y-2'>

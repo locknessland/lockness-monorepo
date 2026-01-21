@@ -23,7 +23,7 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const PricingPage = () => {
     return (
-        <PageUiLayout title='Pricing - Lockness UI'>
+        <PageUiLayout title='Pricing - Lockness UI' currentPath='/ui/pricing'>
             <div class='space-y-12 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

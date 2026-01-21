@@ -4,7 +4,7 @@ import { CodeBlock } from '@lockness/ui/components'
 
 export const ThemeSwitchPage = () => {
     return (
-        <PageUiLayout title='Theme Switch - Lockness UI'>
+        <PageUiLayout title='Theme Switch - Lockness UI' currentPath='/ui/theme-switch'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

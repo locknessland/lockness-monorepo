@@ -22,7 +22,7 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const PaginationDemo = () => {
     return (
-        <PageUiLayout title='Pagination - Lockness UI'>
+        <PageUiLayout title='Pagination - Lockness UI' currentPath='/ui/pagination'>
             <div class='space-y-8'>
                 {/* Header */}
                 <div class='space-y-2'>

@@ -14,7 +14,7 @@ import { CodeBlock } from '@lockness/ui/components'
 
 export const CardsPage = () => {
     return (
-        <PageUiLayout title='Cards - Lockness UI'>
+        <PageUiLayout title='Cards - Lockness UI' currentPath='/ui/cards'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

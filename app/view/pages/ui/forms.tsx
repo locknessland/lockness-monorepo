@@ -14,7 +14,7 @@ import { CodeBlock } from '@lockness/ui/components'
 
 export const FormsPage = () => {
     return (
-        <PageUiLayout title='Form Components - Lockness UI'>
+        <PageUiLayout title='Form Components - Lockness UI' currentPath='/ui/forms'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

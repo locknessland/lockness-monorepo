@@ -4,7 +4,7 @@ import { CodeBlock } from '@lockness/ui/components'
 
 export const ButtonsPage = () => {
     return (
-        <PageUiLayout title='Buttons - Lockness UI'>
+        <PageUiLayout title='Buttons - Lockness UI' currentPath='/ui/buttons'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>
