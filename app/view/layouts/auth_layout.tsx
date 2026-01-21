@@ -88,8 +88,12 @@ export const AuthLayout: FC<AuthLayoutProps> = ({ title, children }) => {
                         </span>
                     </NavbarBrand>
 
-                    <NavbarContent position='right'>
+                    <NavbarContent position='center' class='hidden md:flex'>
                         <NavbarMenuItem href='/docs'>Docs</NavbarMenuItem>
+                        <NavbarMenuItem href='/ui'>UI Components</NavbarMenuItem>
+                    </NavbarContent>
+
+                    <NavbarContent position='right'>
                         <a
                             href={route('auth.profile')}
                             class='inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
