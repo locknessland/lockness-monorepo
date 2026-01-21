@@ -14,6 +14,13 @@ import {
     Footer,
     FooterSection,
     FooterSectionItem,
+    Hero,
+    HeroActions,
+    HeroAnnouncement,
+    HeroCommand,
+    HeroCTA,
+    HeroSubtitle,
+    HeroTitle,
     Navbar,
     NavbarBrand,
     NavbarContent,
@@ -25,7 +32,6 @@ import {
     SectionTitle,
     ThemeSwitch,
     ThemeSwitchScript,
-    Title,
 } from '@lockness/ui/components'
 
 // Import icons from @lockness/ui
@@ -33,7 +39,6 @@ import {
     BoxIcon,
     CheckIcon,
     ClockIcon,
-    CopyIcon,
     DatabaseIcon,
     GithubIcon,
     LayersIcon,
@@ -43,59 +48,6 @@ import {
     UsersIcon,
     ZapIcon,
 } from '@lockness/ui/components'
-
-// Copy command helper component
-const CopyCommand = () => {
-    const id = 'install-cmd'
-    const copyBtnId = 'copy-btn'
-    const copyIconId = 'copy-icon'
-    const checkIconId = 'check-icon'
-    const command = 'deno run -Ar jsr:@lockness/init'
-
-    return (
-        <>
-            <div class='flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-(--radius) group'>
-                <span class='text-primary font-mono'>$</span>
-                <code id={id} class='text-foreground font-mono flex-1'>
-                    {command}
-                </code>
-                <button
-                    type='button'
-                    id={copyBtnId}
-                    class='p-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer'
-                    title='Copy to clipboard'
-                >
-                    <span id={copyIconId}>
-                        <CopyIcon size={14} />
-                    </span>
-                    <span id={checkIconId} class='hidden text-green-500'>
-                        <CheckIcon size={14} />
-                    </span>
-                </button>
-            </div>
-            <script
-                dangerouslySetInnerHTML={{
-                    __html: `
-                document.getElementById('${copyBtnId}').addEventListener('click', async function() {
-                    const text = document.getElementById('${id}').textContent;
-                    try {
-                        await navigator.clipboard.writeText(text);
-                        document.getElementById('${copyIconId}').classList.add('hidden');
-                        document.getElementById('${checkIconId}').classList.remove('hidden');
-                        setTimeout(() => {
-                            document.getElementById('${copyIconId}').classList.remove('hidden');
-                            document.getElementById('${checkIconId}').classList.add('hidden');
-                        }, 2000);
-                    } catch (err) {
-                        console.error('Failed to copy:', err);
-                    }
-                });
-            `,
-                }}
-            />
-        </>
-    )
-}
 
 // Stats item component
 const StatItem = (
@@ -177,85 +129,34 @@ export const Home = () => {
                 <ThemeSwitchScript />
 
                 {/* Hero Section */}
-                <section class='pt-32 pb-20 px-6 relative overflow-hidden'>
-                    {/* Background gradient */}
-                    <div class='absolute top-20 left-1/4 w-72 h-72 bg-primary/20 blur-[100px] opacity-50' />
-                    <div class='absolute bottom-20 right-1/4 w-96 h-96 bg-secondary/20 blur-[120px] opacity-50' />
+                <Hero background='gradient' size='xl' class='pt-32'>
+                    <HeroAnnouncement badge={`v${pkg.version}`}>
+                        Now available on JSR
+                    </HeroAnnouncement>
 
-                    <div class='max-w-7xl mx-auto relative z-10'>
-                        <div class='flex flex-col lg:flex-row items-center gap-12 lg:gap-16'>
-                            {/* Left side - Text content */}
-                            <div class='flex-1 text-center lg:text-left space-y-6'>
-                                {/* Badge */}
-                                <div class='inline-flex'>
-                                    <Badge variant='outline' class='gap-2'>
-                                        <span class='relative flex h-2 w-2'>
-                                            <span class='animate-ping absolute inline-flex h-full w-full bg-primary opacity-75 rounded-full' />
-                                            <span class='relative inline-flex h-2 w-2 bg-primary rounded-full' />
-                                        </span>
-                                        v{pkg.version} on JSR
-                                    </Badge>
-                                </div>
+                    <HeroTitle size='lg' gradient='at monster speed.'>
+                        Build fullstack apps
+                    </HeroTitle>
 
-                                {/* Title */}
-                                <Title level={1} size='hero'>
-                                    Build fullstack apps<br />
-                                    <span class='text-primary'>
-                                        at monster speed.
-                                    </span>
-                                </Title>
+                    <HeroSubtitle maxWidth='lg'>
+                        The MVC framework that combines{' '}
+                        <strong class='text-primary'>Laravel's</strong>{' '}
+                        elegance with{' '}
+                        <strong class='text-primary'>HonoJS</strong> speed.
+                        Native to Deno.
+                    </HeroSubtitle>
 
-                                {/* Description */}
-                                <p class='text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed'>
-                                    The MVC framework that combines{' '}
-                                    <strong class='text-primary'>
-                                        Laravel's
-                                    </strong>{' '}
-                                    elegance with{' '}
-                                    <strong class='text-primary'>HonoJS</strong>
-                                    {' '}
-                                    speed. Native to Deno.
-                                </p>
-
-                                {/* CTA Buttons */}
-                                <div class='flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start pt-2'>
-                                    <Button
-                                        as='a'
-                                        href={route('docs.installation')}
-                                        size='lg'
-                                    >
-                                        Get Started
-                                    </Button>
-                                    <CopyCommand />
-                                </div>
-                            </div>
-
-                            {/* Right side - Code Preview */}
-                            <div class='flex-1 w-full max-w-lg lg:max-w-xl'>
-                                <div class='relative'>
-                                    {/* Glow effect */}
-                                    <div class='absolute -inset-4 bg-primary/10 blur-2xl opacity-50 rounded-(--radius)' />
-                                    <CodeBlock lang='typescript'>
-                                        {`@Controller('/')
-export class HomeController {
-
-    @Get('/')
-    @Use(AuthMiddleware)
-    async index(c: Context) {
-        const user = await auth(c).user()
-
-        return c.json({
-            monster: true,
-            message: "Hello from the Deep"
-        })
-    }
-}`}
-                                    </CodeBlock>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                    <HeroActions>
+                        <HeroCTA
+                            href={route('docs.installation')}
+                            variant='primary'
+                            size='lg'
+                        >
+                            Get Started
+                        </HeroCTA>
+                        <HeroCommand command='deno run -Ar jsr:@lockness/init' />
+                    </HeroActions>
+                </Hero>
 
                 {/* Stats Section */}
                 <Section variant='card' size='sm'>
