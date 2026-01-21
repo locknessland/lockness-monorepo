@@ -2,11 +2,15 @@
 
 ## 📋 Task Overview
 
-Déplacer les fichiers `llm.txt` du dossier `public/llms/` vers leurs packages
-respectifs pour améliorer la maintenabilité. Quand on modifie un package, on ne
-doit pas oublier de mettre à jour sa documentation LLM correspondante. Le
-contrôleur sera refactorisé pour charger dynamiquement ces fichiers depuis les
-packages.
+Déplacer les fichiers de documentation LLM du dossier `public/llms/` vers leurs
+packages respectifs pour améliorer la maintenabilité. Quand on modifie un
+package, on ne doit pas oublier de mettre à jour sa documentation LLM
+correspondante. Le contrôleur sera refactorisé pour charger dynamiquement ces
+fichiers depuis les packages.
+
+> **Convention de nommage**: Chaque package contient un fichier `llms.txt` (avec
+> un 's'). Ce nom suit la convention standard [llms.txt](https://llmstxt.org/).
+> Les URLs exposées restent `/llms/*.txt` pour maintenir la compatibilité.
 
 ### Problème actuel
 
@@ -17,7 +21,7 @@ packages.
 
 ### Solution proposée
 
-- Chaque package contient son propre `llm.txt`
+- Chaque package contient son propre `llms.txt` (avec un 's')
 - Le contrôleur charge dynamiquement les fichiers depuis les packages
 - Les fichiers généraux (lockness, getting-started, etc.) restent dans
   `public/llms/` ou un dossier `docs/llms/`
@@ -36,22 +40,26 @@ packages.
 
 ### Fichiers LLM à déplacer vers packages
 
-| Fichier actuel                         | Destination                              |
-| -------------------------------------- | ---------------------------------------- |
-| `public/llms/authentication.txt`       | `packages/auth/llm.txt`                  |
-| `public/llms/cli.txt`                  | `packages/cli/llm.txt`                   |
-| `public/llms/dependency-injection.txt` | `packages/container/llm.txt`             |
-| `public/llms/devtools.txt`             | `packages/devtools/llm.txt`              |
-| `public/llms/deprecation.txt`          | `packages/deprecation-contracts/llm.txt` |
-| `public/llms/inertia.txt`              | `packages/inertia/llm.txt`               |
-| `public/llms/middleware.txt`           | `packages/core/llms/middleware.txt`      |
-| `public/llms/routing.txt`              | `packages/core/llms/routing.txt`         |
-| `public/llms/error-handling.txt`       | `packages/core/llms/error-handling.txt`  |
-| `public/llms/sessions.txt`             | `packages/session/llm.txt`               |
-| `public/llms/ui.txt`                   | `packages/ui/llm.txt`                    |
-| `public/llms/ui-treeview.txt`          | `packages/ui/llms/treeview.txt`          |
-| `public/llms/components.txt`           | `packages/core/llms/components.txt`      |
-| `public/llms/validation.txt`           | `packages/validator/llm.txt`             |
+> **Note**: Le fichier s'appelle `llms.txt` (avec un 's') dans chaque package.
+> Pour les sous-fichiers, on utilise le dossier `llms/` avec des noms
+> descriptifs.
+
+| Fichier actuel                         | Destination                               |
+| -------------------------------------- | ----------------------------------------- |
+| `public/llms/authentication.txt`       | `packages/auth/llms.txt`                  |
+| `public/llms/cli.txt`                  | `packages/cli/llms.txt`                   |
+| `public/llms/dependency-injection.txt` | `packages/container/llms.txt`             |
+| `public/llms/devtools.txt`             | `packages/devtools/llms.txt`              |
+| `public/llms/deprecation.txt`          | `packages/deprecation-contracts/llms.txt` |
+| `public/llms/inertia.txt`              | `packages/inertia/llms.txt`               |
+| `public/llms/middleware.txt`           | `packages/core/llms/middleware.txt`       |
+| `public/llms/routing.txt`              | `packages/core/llms/routing.txt`          |
+| `public/llms/error-handling.txt`       | `packages/core/llms/error-handling.txt`   |
+| `public/llms/sessions.txt`             | `packages/session/llms.txt`               |
+| `public/llms/ui.txt`                   | `packages/ui/llms.txt`                    |
+| `public/llms/ui-treeview.txt`          | `packages/ui/llms/treeview.txt`           |
+| `public/llms/components.txt`           | `packages/core/llms/components.txt`       |
+| `public/llms/validation.txt`           | `packages/validator/llms.txt`             |
 
 ### Fichiers LLM généraux (restent centralisés)
 
@@ -112,7 +120,7 @@ export class LlmLoader {
 - **Solution**: Discovery automatique, pas besoin de modifier le code
 
 ```typescript
-// Convention: packages/{name}/llm.txt -> /llms/{name}.txt
+// Convention: packages/{name}/llms.txt -> /llms/{name}.txt
 // Convention: packages/{name}/llms/{sub}.txt -> /llms/{name}-{sub}.txt
 ```
 
@@ -165,20 +173,22 @@ export class LlmLoader {
 
     /**
      * Mapping des noms de route vers les chemins de fichiers
-     * Ex: 'authentication' -> 'packages/auth/llm.txt'
+     * Ex: 'authentication' -> 'packages/auth/llms.txt'
      * Ex: 'ui-treeview' -> 'packages/ui/llms/treeview.txt'
+     *
+     * Note: Le fichier s'appelle llms.txt (avec 's') dans les packages
      */
     private readonly routeToPath: Record<string, string> = {
-        // Package-specific (1 package = 1 fichier principal)
-        'authentication': 'packages/auth/llm.txt',
-        'cli': 'packages/cli/llm.txt',
-        'dependency-injection': 'packages/container/llm.txt',
-        'devtools': 'packages/devtools/llm.txt',
-        'deprecation': 'packages/deprecation-contracts/llm.txt',
-        'inertia': 'packages/inertia/llm.txt',
-        'sessions': 'packages/session/llm.txt',
-        'ui': 'packages/ui/llm.txt',
-        'validation': 'packages/validator/llm.txt',
+        // Package-specific (1 package = 1 fichier principal llms.txt)
+        'authentication': 'packages/auth/llms.txt',
+        'cli': 'packages/cli/llms.txt',
+        'dependency-injection': 'packages/container/llms.txt',
+        'devtools': 'packages/devtools/llms.txt',
+        'deprecation': 'packages/deprecation-contracts/llms.txt',
+        'inertia': 'packages/inertia/llms.txt',
+        'sessions': 'packages/session/llms.txt',
+        'ui': 'packages/ui/llms.txt',
+        'validation': 'packages/validator/llms.txt',
 
         // Core sub-files (core a plusieurs fichiers)
         'middleware': 'packages/core/llms/middleware.txt',
@@ -282,16 +292,16 @@ mkdir -p docs/llms
 mkdir -p packages/core/llms
 mkdir -p packages/ui/llms
 
-# Déplacer vers packages
-mv public/llms/authentication.txt packages/auth/llm.txt
-mv public/llms/cli.txt packages/cli/llm.txt
-mv public/llms/dependency-injection.txt packages/container/llm.txt
-mv public/llms/devtools.txt packages/devtools/llm.txt
-mv public/llms/deprecation.txt packages/deprecation-contracts/llm.txt
-mv public/llms/inertia.txt packages/inertia/llm.txt
-mv public/llms/sessions.txt packages/session/llm.txt
-mv public/llms/ui.txt packages/ui/llm.txt
-mv public/llms/validation.txt packages/validator/llm.txt
+# Déplacer vers packages (convention: llms.txt avec 's')
+mv public/llms/authentication.txt packages/auth/llms.txt
+mv public/llms/cli.txt packages/cli/llms.txt
+mv public/llms/dependency-injection.txt packages/container/llms.txt
+mv public/llms/devtools.txt packages/devtools/llms.txt
+mv public/llms/deprecation.txt packages/deprecation-contracts/llms.txt
+mv public/llms/inertia.txt packages/inertia/llms.txt
+mv public/llms/sessions.txt packages/session/llms.txt
+mv public/llms/ui.txt packages/ui/llms.txt
+mv public/llms/validation.txt packages/validator/llms.txt
 
 # Déplacer vers packages/core/llms/
 mv public/llms/middleware.txt packages/core/llms/middleware.txt
@@ -351,13 +361,15 @@ export class LlmSectionService {
 ## ✅ Acceptance Criteria
 
 1. [ ] Toutes les URLs `/llms/*.txt` existantes fonctionnent toujours
-2. [ ] Chaque package a son fichier `llm.txt` colocalisé
+2. [ ] Chaque package a son fichier `llms.txt` colocalisé (convention
+       llmstxt.org)
 3. [ ] Le contrôleur utilise le chargement dynamique
 4. [ ] Ajouter un nouveau fichier LLM ne nécessite que :
    - Créer le fichier dans le package
    - Ajouter l'entrée dans `routeToPath`
 5. [ ] Tests unitaires pour `LlmLoader`
-6. [ ] Test de validation de structure des packages (llm.txt, README.md, mod.ts)
+6. [ ] Test de validation de structure des packages (llms.txt, README.md,
+       mod.ts)
 7. [ ] Documentation mise à jour
 
 ## 🧪 Testing Requirements
@@ -365,7 +377,7 @@ export class LlmSectionService {
 ### Test de validation de la structure des packages
 
 Ce test à la racine du projet vérifie que chaque package du monorepo possède les
-fichiers requis : `llm.txt`, `README.md` et `mod.ts`. Il échoue en CI si un
+fichiers requis : `llms.txt`, `README.md` et `mod.ts`. Il échoue en CI si un
 package ne respecte pas la structure standard.
 
 ```typescript
@@ -379,8 +391,8 @@ import { join } from '@std/path'
  * Required files for each package
  */
 const REQUIRED_FILES = {
-    'llm.txt': {
-        description: 'LLM documentation file',
+    'llms.txt': {
+        description: 'LLM documentation file (llmstxt.org convention)',
         minLength: 100,
     },
     'README.md': {
@@ -430,30 +442,30 @@ const PACKAGES: string[] = [
  * Key: package name, Value: array of files to exempt
  */
 const EXEMPTIONS: Record<string, RequiredFile[]> = {
-    // Example: 'some-package': ['llm.txt'], // Package doesn't need LLM doc
+    // Example: 'some-package': ['llms.txt'], // Package doesn't need LLM doc
 }
 
 // =============================================================================
 // Test: All packages should have required files
 // =============================================================================
 
-Deno.test('Package Structure - all packages should have llm.txt', async (t) => {
+Deno.test('Package Structure - all packages should have llms.txt', async (t) => {
     const missing: string[] = []
 
     for (const pkg of PACKAGES) {
-        if (EXEMPTIONS[pkg]?.includes('llm.txt')) continue
+        if (EXEMPTIONS[pkg]?.includes('llms.txt')) continue
 
-        await t.step(`checking ${pkg}/llm.txt`, async () => {
-            const filePath = join('packages', pkg, 'llm.txt')
+        await t.step(`checking ${pkg}/llms.txt`, async () => {
+            const filePath = join('packages', pkg, 'llms.txt')
             const hasFile = await exists(filePath)
 
             if (!hasFile) missing.push(pkg)
 
-            assert(hasFile, `Package "${pkg}" is missing llm.txt`)
+            assert(hasFile, `Package "${pkg}" is missing llms.txt`)
         })
     }
 
-    assertEquals(missing.length, 0, `Missing llm.txt: ${missing.join(', ')}`)
+    assertEquals(missing.length, 0, `Missing llms.txt: ${missing.join(', ')}`)
 })
 
 Deno.test('Package Structure - all packages should have README.md', async (t) => {
@@ -498,18 +510,18 @@ Deno.test('Package Structure - all packages should have mod.ts', async (t) => {
 // Test: Files should not be empty
 // =============================================================================
 
-Deno.test('Package Structure - llm.txt files should not be empty', async (t) => {
+Deno.test('Package Structure - llms.txt files should not be empty', async (t) => {
     const tooShort: string[] = []
 
     for (const pkg of PACKAGES) {
-        if (EXEMPTIONS[pkg]?.includes('llm.txt')) continue
+        if (EXEMPTIONS[pkg]?.includes('llms.txt')) continue
 
-        await t.step(`checking ${pkg}/llm.txt content`, async () => {
-            const filePath = join('packages', pkg, 'llm.txt')
+        await t.step(`checking ${pkg}/llms.txt content`, async () => {
+            const filePath = join('packages', pkg, 'llms.txt')
 
             if (await exists(filePath)) {
                 const content = await Deno.readTextFile(filePath)
-                const minLength = REQUIRED_FILES['llm.txt'].minLength
+                const minLength = REQUIRED_FILES['llms.txt'].minLength
 
                 if (content.trim().length < minLength) {
                     tooShort.push(pkg)
@@ -517,7 +529,7 @@ Deno.test('Package Structure - llm.txt files should not be empty', async (t) => 
 
                 assert(
                     content.trim().length >= minLength,
-                    `Package "${pkg}" llm.txt is too short (${content.trim().length} chars, min ${minLength})`,
+                    `Package "${pkg}" llms.txt is too short (${content.trim().length} chars, min ${minLength})`,
                 )
             }
         })
@@ -602,7 +614,7 @@ Deno.test('Package Structure - generate summary report', async () => {
 
     for (const pkg of PACKAGES) {
         report[pkg] = {
-            llm: await exists(join('packages', pkg, 'llm.txt')),
+            llm: await exists(join('packages', pkg, 'llms.txt')),
             readme: await exists(join('packages', pkg, 'README.md')),
             mod: await exists(join('packages', pkg, 'mod.ts')),
         }
@@ -645,20 +657,20 @@ Deno.test('Package Structure - generate summary report', async () => {
 ### New Files to Create
 
 - `tests/package_structure.test.ts` - Test de validation de la structure des
-  packages (llm.txt, README.md, mod.ts)
+  packages (llms.txt, README.md, mod.ts)
 
 ### Tests pour LlmLoader
 
 ```typescript
 // packages/core/tests/llm_loader.test.ts
 
-Deno.test('LlmLoader - should load package llm.txt', async () => {
+Deno.test('LlmLoader - should load package llms.txt', async () => {
     const loader = new LlmLoader()
     const content = await loader.load('cli')
     assert(content.includes('CLI'))
 })
 
-Deno.test('LlmLoader - should load general llm.txt', async () => {
+Deno.test('LlmLoader - should load general llms.txt', async () => {
     const loader = new LlmLoader()
     const content = await loader.load('lockness')
     assert(content.includes('Lockness'))
@@ -698,7 +710,7 @@ Deno.test('LlmLoader - should cache loaded content', async () => {
 ## 📝 Future Enhancements
 
 - **Auto-discovery**: Scanner automatiquement les packages pour les fichiers
-  `llm.txt`
+  `llms.txt`
 - **Validation**: Vérifier que chaque package a sa documentation LLM
 - **Generation**: Générer `full.txt` à partir de tous les fichiers LLM
 - **Hot reload**: Recharger les fichiers en mode dev sans redémarrer
