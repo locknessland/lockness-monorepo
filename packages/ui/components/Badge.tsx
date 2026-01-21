@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Badge component for labels and status indicators.
+ *
+ * Inline badge with multiple visual variants for tags, labels,
+ * and status displays.
+ *
+ * @module @lockness/ui/components/badge
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

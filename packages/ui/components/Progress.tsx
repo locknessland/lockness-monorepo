@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Progress bar component for completion status.
+ *
+ * Pure CSS implementation with multiple variants, sizes, and
+ * label positioning options.
+ *
+ * @module @lockness/ui/components/progress
+ */
+
 import type { FC } from '@lockness/core'
 import type { JSX } from '@lockness/core/jsx-runtime'
 import { cn } from '../lib/utils.ts'

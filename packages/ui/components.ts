@@ -1,14 +1,15 @@
 /**
- * @lockness/ui - Component exports for direct usage
+ * @fileoverview Component re-exports for direct usage.
  *
  * Use this for quick prototyping or testing. For production,
  * consider using the CLI to copy components into your project:
  *
+ * @example
  * ```bash
  * deno run -A jsr:@lockness/ui add button card
  * ```
  *
- * @module
+ * @module @lockness/ui/components
  */
 
 // Utility

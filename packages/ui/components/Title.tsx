@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Responsive heading component.
+ *
+ * Typography heading component with CSS variable-driven sizing.
+ *
+ * @module @lockness/ui/components/title
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

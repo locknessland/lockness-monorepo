@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Syntax-highlighted code block component.
+ *
+ * Code display with optional copy button and language indicator.
+ *
+ * @module @lockness/ui/components/code-block
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

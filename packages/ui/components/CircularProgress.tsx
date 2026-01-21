@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Circular progress indicator component.
+ *
+ * SVG-based circular progress bar with label and multiple sizes.
+ *
+ * @module @lockness/ui/components/circular-progress
+ */
+
 import type { FC } from '@lockness/core'
 import type { JSX } from '@lockness/core/jsx-runtime'
 import { cn } from '../lib/utils.ts'

@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Root HTML document layout component.
+ *
+ * Base HTML structure with head, body, and script injection.
+ *
+ * @module @lockness/ui/components/root-layout
+ */
+
 import type { FC } from '@lockness/core'
 import { raw } from '@lockness/core'
 

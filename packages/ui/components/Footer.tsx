@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Footer components for site-wide navigation.
+ *
+ * Provides footer layout with sections, links, and brand display.
+ *
+ * @module @lockness/ui/components/footer
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

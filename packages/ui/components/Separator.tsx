@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Visual separator component.
+ *
+ * Horizontal or vertical divider line with accessibility support.
+ *
+ * @module @lockness/ui/components/separator
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

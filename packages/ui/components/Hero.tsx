@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Hero section component for landing pages.
+ *
+ * Full-width hero with background patterns, announcement badges,
+ * and call-to-action elements.
+ *
+ * @module @lockness/ui/components/hero
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

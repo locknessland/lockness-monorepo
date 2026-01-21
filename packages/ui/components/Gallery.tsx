@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Image gallery component with grid and masonry layouts.
+ *
+ * Responsive gallery with lightbox support and multiple layout options.
+ *
+ * @module @lockness/ui/components/gallery
+ */
+
 import type { FC, PropsWithChildren } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run -A
 /**
- * @lockness/ui - CLI for adding UI components to your project
+ * @fileoverview CLI for adding UI components to your project.
  *
  * Inspired by shadcn/ui, this CLI copies component source code directly
  * into your project, giving you full ownership and customization capabilities.
@@ -23,7 +23,7 @@
  * deno run -A jsr:@lockness/ui add button --dir src/components
  * ```
  *
- * @module
+ * @module @lockness/ui
  */
 
 import { parseArgs } from '@std/cli/parse-args'

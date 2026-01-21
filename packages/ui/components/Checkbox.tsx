@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Checkbox input component with custom styling.
+ *
+ * Native checkbox element with consistent theming using CSS variables.
+ *
+ * @module @lockness/ui/components/checkbox
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

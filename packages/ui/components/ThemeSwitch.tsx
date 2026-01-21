@@ -1,11 +1,10 @@
 /**
- * ThemeSwitch Component
+ * @fileoverview Versatile theme switcher component.
  *
- * A versatile theme switcher with multiple visual styles, native logic, and no external dependencies.
+ * A theme switcher with multiple visual styles, native logic, and no external dependencies.
  * Provides three distinct variants for different use cases and UI preferences.
  *
- * @module ThemeSwitch
- * @packageDocumentation
+ * @module @lockness/ui/components/theme-switch
  */
 
 import type { FC } from '@lockness/core'

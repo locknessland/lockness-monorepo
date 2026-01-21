@@ -11,14 +11,31 @@ const _SIDEBAR_KEYBOARD_SHORTCUT = 'b'
 /**
  * Sidebar Provider - Root wrapper for sidebar functionality
  * Handles collapsible state via data attributes and localStorage
+ *
+ * @example
+ * ```tsx
+ * <SidebarProvider defaultOpen={true}>
+ *   <Sidebar>
+ *     <SidebarHeader>...</SidebarHeader>
+ *     <SidebarContent>...</SidebarContent>
+ *   </Sidebar>
+ *   <SidebarInset>Main content</SidebarInset>
+ * </SidebarProvider>
+ * ```
  */
 export interface SidebarProviderProps {
+    /** Whether the sidebar is open by default */
     defaultOpen?: boolean
+    /** Which side the sidebar appears on */
     side?: 'left' | 'right'
+    /** Additional CSS class names */
     class?: string
+    /** Inline styles (including CSS custom properties) */
     style?: Record<string, string | number>
-    children?: any
-    [key: string]: any
+    /** Provider content (Sidebar and SidebarInset) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarProvider: FC<SidebarProviderProps> = ({
@@ -54,16 +71,33 @@ export const SidebarProvider: FC<SidebarProviderProps> = ({
 
 /**
  * Main Sidebar Component
+ *
+ * @example
+ * ```tsx
+ * <Sidebar side="left" variant="sidebar">
+ *   <SidebarHeader>Logo</SidebarHeader>
+ *   <SidebarContent>
+ *     <SidebarMenu>...</SidebarMenu>
+ *   </SidebarContent>
+ *   <SidebarFooter>User info</SidebarFooter>
+ * </Sidebar>
+ * ```
  */
 export interface SidebarProps {
+    /** Which side the sidebar appears on */
     side?: 'left' | 'right'
+    /** Visual style variant */
     variant?: 'sidebar' | 'floating' | 'inset'
+    /** Collapse behavior */
     collapsible?: 'offcanvas' | 'icon' | 'none'
     /** Top offset for navbar (e.g., '16' for 4rem/64px navbar) */
     topOffset?: string
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Sidebar content */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const Sidebar: FC<SidebarProps> = ({
@@ -150,12 +184,21 @@ export const Sidebar: FC<SidebarProps> = ({
 }
 
 /**
- * Sidebar Trigger - Toggle button
+ * Sidebar Trigger - Toggle button for opening/closing sidebar
+ *
+ * @example
+ * ```tsx
+ * <SidebarTrigger />
+ * <SidebarTrigger>Custom Icon</SidebarTrigger>
+ * ```
  */
 export interface SidebarTriggerProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Custom trigger content (defaults to sidebar icon) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarTrigger: FC<SidebarTriggerProps> = ({
@@ -196,11 +239,13 @@ export const SidebarTrigger: FC<SidebarTriggerProps> = ({
 }
 
 /**
- * Sidebar Rail - Visual element on the edge
+ * Sidebar Rail - Visual element on the edge for resize/collapse
  */
 export interface SidebarRailProps {
+    /** Additional CSS class names */
     class?: string
-    [key: string]: any
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarRail: FC<SidebarRailProps> = ({
@@ -223,12 +268,15 @@ export const SidebarRail: FC<SidebarRailProps> = ({
 }
 
 /**
- * Sidebar Inset - Content wrapper with proper spacing
+ * Sidebar Inset - Main content wrapper with proper spacing
  */
 export interface SidebarInsetProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Main page content */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarInset: FC<SidebarInsetProps> = ({
@@ -251,12 +299,15 @@ export const SidebarInset: FC<SidebarInsetProps> = ({
 }
 
 /**
- * Sidebar Header
+ * Sidebar Header - Top section for branding/logo
  */
 export interface SidebarHeaderProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Header content (logo, brand name) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarHeader: FC<SidebarHeaderProps> = ({
@@ -275,12 +326,15 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 }
 
 /**
- * Sidebar Footer
+ * Sidebar Footer - Bottom section for user info/actions
  */
 export interface SidebarFooterProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Footer content (user menu, settings) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarFooter: FC<SidebarFooterProps> = ({
@@ -302,9 +356,12 @@ export const SidebarFooter: FC<SidebarFooterProps> = ({
  * Sidebar Content - Main scrollable area
  */
 export interface SidebarContentProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Content elements (groups, menus) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarContent: FC<SidebarContentProps> = ({
@@ -327,12 +384,15 @@ export const SidebarContent: FC<SidebarContentProps> = ({
 }
 
 /**
- * Sidebar Group
+ * Sidebar Group - Container for related menu items
  */
 export interface SidebarGroupProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Group content (label, action, content) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarGroup: FC<SidebarGroupProps> = ({
@@ -354,12 +414,15 @@ export const SidebarGroup: FC<SidebarGroupProps> = ({
 }
 
 /**
- * Sidebar Group Label
+ * Sidebar Group Label - Section heading
  */
 export interface SidebarGroupLabelProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Label text */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarGroupLabel: FC<SidebarGroupLabelProps> = ({
@@ -382,12 +445,15 @@ export const SidebarGroupLabel: FC<SidebarGroupLabelProps> = ({
 }
 
 /**
- * Sidebar Group Action - Button for group actions
+ * Sidebar Group Action - Button for group-level actions (e.g., add new item)
  */
 export interface SidebarGroupActionProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Action button content (icon) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarGroupAction: FC<SidebarGroupActionProps> = ({
@@ -411,12 +477,15 @@ export const SidebarGroupAction: FC<SidebarGroupActionProps> = ({
 }
 
 /**
- * Sidebar Group Content
+ * Sidebar Group Content - Container for menu items
  */
 export interface SidebarGroupContentProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Menu and menu items */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarGroupContent: FC<SidebarGroupContentProps> = ({
@@ -432,12 +501,15 @@ export const SidebarGroupContent: FC<SidebarGroupContentProps> = ({
 }
 
 /**
- * Sidebar Menu
+ * Sidebar Menu - List container for menu items
  */
 export interface SidebarMenuProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Menu items */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarMenu: FC<SidebarMenuProps> = ({
@@ -456,12 +528,15 @@ export const SidebarMenu: FC<SidebarMenuProps> = ({
 }
 
 /**
- * Sidebar Menu Item
+ * Sidebar Menu Item - Individual menu entry container
  */
 export interface SidebarMenuItemProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Menu button and optional actions */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarMenuItem: FC<SidebarMenuItemProps> = ({
@@ -480,14 +555,19 @@ export const SidebarMenuItem: FC<SidebarMenuItemProps> = ({
 }
 
 /**
- * Sidebar Menu Button
+ * Sidebar Menu Button - Clickable menu item
  */
 export interface SidebarMenuButtonProps {
+    /** Whether this item is currently active */
     isActive?: boolean
+    /** Additional CSS class names */
     class?: string
-    children?: any
+    /** Button content (icon and label) */
+    children?: unknown
+    /** Navigation URL (renders as anchor) */
     href?: string
-    [key: string]: any
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarMenuButton: FC<SidebarMenuButtonProps> = ({
@@ -527,12 +607,15 @@ export const SidebarMenuButton: FC<SidebarMenuButtonProps> = ({
 }
 
 /**
- * Sidebar Menu Action - Action button within menu item
+ * Sidebar Menu Action - Secondary action button within menu item
  */
 export interface SidebarMenuActionProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Action button content (icon) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarMenuAction: FC<SidebarMenuActionProps> = ({
@@ -560,12 +643,15 @@ export const SidebarMenuAction: FC<SidebarMenuActionProps> = ({
 }
 
 /**
- * Sidebar Menu Sub - Nested menu
+ * Sidebar Menu Sub - Nested submenu container
  */
 export interface SidebarMenuSubProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Submenu items */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarMenuSub: FC<SidebarMenuSubProps> = ({
@@ -588,12 +674,15 @@ export const SidebarMenuSub: FC<SidebarMenuSubProps> = ({
 }
 
 /**
- * Sidebar Menu Sub Item
+ * Sidebar Menu Sub Item - Individual submenu entry
  */
 export interface SidebarMenuSubItemProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Submenu button */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarMenuSubItem: FC<SidebarMenuSubItemProps> = ({
@@ -609,14 +698,19 @@ export const SidebarMenuSubItem: FC<SidebarMenuSubItemProps> = ({
 }
 
 /**
- * Sidebar Menu Sub Button
+ * Sidebar Menu Sub Button - Clickable submenu item
  */
 export interface SidebarMenuSubButtonProps {
+    /** Whether this item is currently active */
     isActive?: boolean
+    /** Additional CSS class names */
     class?: string
-    children?: any
+    /** Button content (label) */
+    children?: unknown
+    /** Navigation URL (renders as anchor) */
     href?: string
-    [key: string]: any
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarMenuSubButton: FC<SidebarMenuSubButtonProps> = ({
@@ -655,12 +749,15 @@ export const SidebarMenuSubButton: FC<SidebarMenuSubButtonProps> = ({
 }
 
 /**
- * Sidebar Menu Badge
+ * Sidebar Menu Badge - Count or status indicator
  */
 export interface SidebarMenuBadgeProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Badge content (number or status) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const SidebarMenuBadge: FC<SidebarMenuBadgeProps> = ({
@@ -692,7 +789,7 @@ export const SidebarMenuBadge: FC<SidebarMenuBadgeProps> = ({
 export interface SidebarMenuSkeletonProps {
     class?: string
     showIcon?: boolean
-    [key: string]: any
+    [key: string]: unknown
 }
 
 export const SidebarMenuSkeleton: FC<SidebarMenuSkeletonProps> = ({

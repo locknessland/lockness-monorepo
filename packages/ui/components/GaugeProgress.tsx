@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Gauge-style progress indicator component.
+ *
+ * Circular gauge with SVG-based rendering and multiple arc types.
+ *
+ * @module @lockness/ui/components/gauge-progress
+ */
+
 import type { FC } from '@lockness/core'
 import type { JSX } from '@lockness/core/jsx-runtime'
 import { cn } from '../lib/utils.ts'

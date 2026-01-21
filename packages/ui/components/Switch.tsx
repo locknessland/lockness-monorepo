@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Toggle switch component.
+ *
+ * Modern switch control styled as a sliding toggle.
+ *
+ * @module @lockness/ui/components/switch
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

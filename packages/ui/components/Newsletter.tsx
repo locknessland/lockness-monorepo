@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Newsletter subscription form component.
+ *
+ * Customizable email capture form with multiple layout variants.
+ *
+ * @module @lockness/ui/components/newsletter
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

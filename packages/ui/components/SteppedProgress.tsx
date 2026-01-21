@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Stepped progress indicator component.
+ *
+ * Multi-step progress bar for wizards and multi-stage processes.
+ *
+ * @module @lockness/ui/components/stepped-progress
+ */
+
 import type { FC } from '@lockness/core'
 import type { JSX } from '@lockness/core/jsx-runtime'
 import { cn } from '../lib/utils.ts'

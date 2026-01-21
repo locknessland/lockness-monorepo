@@ -1,7 +1,24 @@
 /**
- * Navbar Component
- * A responsive navigation bar component inspired by shadcn/ui Navigation Menu
- * Fully theme-aware using CSS variables from app.css
+ * @fileoverview Responsive navigation bar component.
+ *
+ * A fully theme-aware navigation component using CSS variables.
+ * Supports sticky/fixed positioning, responsive menus, and Unpoly integration.
+ *
+ * @module @lockness/ui/components/navbar
+ *
+ * @example Basic navbar
+ * ```tsx
+ * <Navbar position="fixed">
+ *   <NavbarBrand href="/">Logo</NavbarBrand>
+ *   <NavbarContent>
+ *     <NavbarMenuItem href="/features">Features</NavbarMenuItem>
+ *     <NavbarMenuItem href="/pricing">Pricing</NavbarMenuItem>
+ *   </NavbarContent>
+ *   <NavbarContent position="right">
+ *     <Button href="/login">Login</Button>
+ *   </NavbarContent>
+ * </Navbar>
+ * ```
  */
 
 import type { FC } from '@lockness/core'

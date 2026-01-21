@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Accordion component for collapsible content sections.
+ *
+ * Uses native HTML details/summary elements for accessibility
+ * and zero-JavaScript functionality.
+ *
+ * @module @lockness/ui/components/accordion
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

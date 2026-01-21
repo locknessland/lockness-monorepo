@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Feature card component for showcasing features.
+ *
+ * Styled card with icon, title, and description for feature lists.
+ *
+ * @module @lockness/ui/components/feature-card
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 import {

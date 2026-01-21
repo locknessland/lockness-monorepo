@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Styled anchor link component.
+ *
+ * Link variants with button-like styling options and icon support.
+ *
+ * @module @lockness/ui/components/link
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

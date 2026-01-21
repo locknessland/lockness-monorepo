@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Breadcrumb navigation component.
+ *
+ * Hierarchical navigation trail with customizable separators.
+ *
+ * @module @lockness/ui/components/breadcrumb
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

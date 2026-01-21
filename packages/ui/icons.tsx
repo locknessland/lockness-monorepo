@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Icon components for Lockness UI.
+ *
+ * SVG icon components with consistent sizing and styling.
+ *
+ * @module @lockness/ui/icons
+ */
+
 import type { FC } from '@lockness/core'
 
 /**

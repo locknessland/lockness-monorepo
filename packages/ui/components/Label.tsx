@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Form label component with consistent styling.
+ *
+ * Accessible label element that works with peer-disabled states.
+ *
+ * @module @lockness/ui/components/label
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

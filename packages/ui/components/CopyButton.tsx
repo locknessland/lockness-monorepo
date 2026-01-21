@@ -1,6 +1,9 @@
 /**
- * CopyButton Component
- * A reusable button to copy text to clipboard with visual feedback
+ * @fileoverview Copy to clipboard button component.
+ *
+ * A reusable button to copy text to clipboard with visual feedback.
+ *
+ * @module @lockness/ui/components/copy-button
  */
 
 import type { FC } from '@lockness/core'

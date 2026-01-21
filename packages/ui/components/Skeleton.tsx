@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Skeleton loading placeholder component.
+ *
+ * Animated pulse placeholders for content loading states
+ * with multiple preset variants.
+ *
+ * @module @lockness/ui/components/skeleton
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

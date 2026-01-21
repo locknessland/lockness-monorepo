@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Pricing cards and tables component.
+ *
+ * Pricing display components for subscription and product pricing.
+ *
+ * @module @lockness/ui/components/pricing
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 import { Button } from './Button.tsx'

@@ -8,12 +8,18 @@ import { cn } from '../lib/utils.ts'
 
 /**
  * Modal Root - Uses HTML dialog element
+ *
+ * @see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/dialog
  */
 export interface ModalProps {
+    /** Unique identifier for the modal dialog */
     id: string
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Modal content (header, body, footer) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const Modal: FC<ModalProps> = ({
@@ -52,14 +58,29 @@ export const Modal: FC<ModalProps> = ({
 /**
  * Modal Trigger - Opens the modal
  * Works with both CSS :target and Unpoly layers
+ *
+ * @example
+ * ```tsx
+ * // Native dialog trigger
+ * <ModalTrigger targetId="my-modal">Open Modal</ModalTrigger>
+ *
+ * // Unpoly layer trigger
+ * <ModalTrigger href="/modal-content" variant="outline">Open</ModalTrigger>
+ * ```
  */
 export interface ModalTriggerProps {
+    /** ID of the target modal dialog (for native dialog) */
     targetId?: string
+    /** URL to load in Unpoly layer (for Unpoly mode) */
     href?: string
+    /** Additional CSS class names */
     class?: string
+    /** Visual style variant */
     variant?: 'primary' | 'secondary' | 'outline' | 'ghost'
-    children?: any
-    [key: string]: any
+    /** Button content */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const ModalTrigger: FC<ModalTriggerProps> = ({
@@ -126,9 +147,12 @@ export const ModalTrigger: FC<ModalTriggerProps> = ({
  * Modal Content - Wrapper for modal sections
  */
 export interface ModalContentProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Modal sections (header, body, footer) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const ModalContent: FC<ModalContentProps> = ({
@@ -147,12 +171,15 @@ export const ModalContent: FC<ModalContentProps> = ({
 }
 
 /**
- * Modal Header
+ * Modal Header - Top section with title and close button
  */
 export interface ModalHeaderProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Header content (title, description, close button) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const ModalHeader: FC<ModalHeaderProps> = ({
@@ -174,12 +201,15 @@ export const ModalHeader: FC<ModalHeaderProps> = ({
 }
 
 /**
- * Modal Title
+ * Modal Title - Main heading text
  */
 export interface ModalTitleProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Title text content */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const ModalTitle: FC<ModalTitleProps> = ({
@@ -201,12 +231,15 @@ export const ModalTitle: FC<ModalTitleProps> = ({
 }
 
 /**
- * Modal Description
+ * Modal Description - Subtitle or additional context text
  */
 export interface ModalDescriptionProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Description text content */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const ModalDescription: FC<ModalDescriptionProps> = ({
@@ -225,12 +258,15 @@ export const ModalDescription: FC<ModalDescriptionProps> = ({
 }
 
 /**
- * Modal Body
+ * Modal Body - Main content area with scrolling support
  */
 export interface ModalBodyProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Body content */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const ModalBody: FC<ModalBodyProps> = ({
@@ -252,12 +288,15 @@ export const ModalBody: FC<ModalBodyProps> = ({
 }
 
 /**
- * Modal Footer
+ * Modal Footer - Bottom section with action buttons
  */
 export interface ModalFooterProps {
+    /** Additional CSS class names */
     class?: string
-    children?: any
-    [key: string]: any
+    /** Footer content (buttons, links) */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const ModalFooter: FC<ModalFooterProps> = ({
@@ -279,13 +318,23 @@ export const ModalFooter: FC<ModalFooterProps> = ({
 }
 
 /**
- * Modal Close - Closes the modal
+ * Modal Close - Button that closes the modal
+ *
+ * @example
+ * ```tsx
+ * <ModalClose>Cancel</ModalClose>
+ * <ModalClose size="md" variant="primary">Confirm</ModalClose>
+ * ```
  */
 export interface ModalCloseProps {
+    /** Additional CSS class names */
     class?: string
+    /** Button size */
     size?: 'sm' | 'md' | 'lg'
-    children?: any
-    [key: string]: any
+    /** Button content */
+    children?: unknown
+    /** Additional HTML attributes */
+    [key: string]: unknown
 }
 
 export const ModalClose: FC<ModalCloseProps> = ({
@@ -324,7 +373,7 @@ export const ModalClose: FC<ModalCloseProps> = ({
  */
 export interface ModalCloseIconProps {
     class?: string
-    [key: string]: any
+    [key: string]: unknown
 }
 
 export const ModalCloseIcon: FC<ModalCloseIconProps> = ({

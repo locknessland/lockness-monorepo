@@ -1,6 +1,9 @@
 /**
- * Pagination Component
- * A flexible pagination component with Unpoly navigation support
+ * @fileoverview Pagination navigation component.
+ *
+ * A flexible pagination component with Unpoly navigation support.
+ *
+ * @module @lockness/ui/components/pagination
  */
 
 import type { FC } from '@lockness/core'

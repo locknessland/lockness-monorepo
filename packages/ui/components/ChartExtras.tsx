@@ -1,9 +1,9 @@
 /**
- * Additional Chart Components
+ * @fileoverview Additional chart components (Pie, Doughnut, Sparkline).
  *
  * Pie, Doughnut, Bubble, and Sparkline charts using Chart.js via CDN.
  *
- * @module
+ * @module @lockness/ui/components/chart-extras
  */
 
 import type { FC } from '@lockness/core'

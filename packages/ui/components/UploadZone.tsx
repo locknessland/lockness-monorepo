@@ -1,3 +1,11 @@
+/**
+ * @fileoverview File upload dropzone component.
+ *
+ * Drag-and-drop file upload area with preview and progress support.
+ *
+ * @module @lockness/ui/components/upload-zone
+ */
+
 import type { FC } from '@lockness/core'
 import type { JSX } from '@lockness/core/jsx-runtime'
 import { cn } from '../lib/utils.ts'

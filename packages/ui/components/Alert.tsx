@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Alert component for notifications and messages.
+ *
+ * Provides alert containers with title and description for
+ * displaying important information to users.
+ *
+ * @module @lockness/ui/components/alert
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

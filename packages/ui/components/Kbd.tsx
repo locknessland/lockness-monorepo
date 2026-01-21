@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Keyboard key indicator component.
+ *
+ * Styled keyboard shortcut display element.
+ *
+ * @module @lockness/ui/components/kbd
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

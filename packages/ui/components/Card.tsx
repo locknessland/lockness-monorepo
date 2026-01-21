@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Card components for content containers.
+ *
+ * Compound components for building flexible card layouts with
+ * header, title, description, content, and footer sections.
+ *
+ * @module @lockness/ui/components/card
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

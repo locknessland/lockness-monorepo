@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Tabbed interface component.
+ *
+ * Uses Unpoly's up-switch directive with hidden radio buttons
+ * for zero-JavaScript tab switching.
+ *
+ * @module @lockness/ui/components/tabs
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

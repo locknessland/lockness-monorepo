@@ -1,12 +1,12 @@
 /**
- * Design tokens for Lockness UI
+ * @fileoverview Design tokens for Lockness UI.
  *
  * Centralized theme definitions using OKLCH color space for consistent,
  * perceptually uniform colors across light and dark modes.
  *
  * Based on shadcn-ui themes adapted for server-side Hono JSX.
  *
- * @module
+ * @module @lockness/ui/lib/design-tokens
  */
 
 export interface ColorTokens {

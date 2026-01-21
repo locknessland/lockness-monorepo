@@ -1,10 +1,10 @@
 /**
- * Chart Components
+ * @fileoverview Area chart components using Chart.js.
  *
- * Area chart components using Chart.js via CDN.
- * Supports single area, multiple area, and curved area charts.
+ * Supports single area, multiple area, and curved area charts
+ * with responsive sizing and theme integration.
  *
- * @module
+ * @module @lockness/ui/components/chart
  */
 
 import type { FC } from '@lockness/core'

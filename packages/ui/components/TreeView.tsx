@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Hierarchical tree view component.
+ *
+ * Collapsible tree structure with support for icons, selection,
+ * and both declarative and data-driven rendering.
+ *
+ * @module @lockness/ui/components/tree-view
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

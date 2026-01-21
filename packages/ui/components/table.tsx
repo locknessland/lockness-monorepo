@@ -1,9 +1,12 @@
 /**
- * Table Component
- * A responsive table component inspired by shadcn/ui
- * Uses CSS variables from the design system for theming
+ * @fileoverview Table component for displaying tabular data.
  *
- * @example
+ * A responsive table component inspired by shadcn/ui with support for
+ * sorting, striping, hover effects, and borders.
+ *
+ * @module @lockness/ui/components/table
+ *
+ * @example Basic table
  * ```tsx
  * <Table>
  *   <TableCaption>A list of your recent invoices.</TableCaption>
@@ -29,6 +32,13 @@
  *       <TableCell class="text-right">$2,500.00</TableCell>
  *     </TableRow>
  *   </TableFooter>
+ * </Table>
+ * ```
+ *
+ * @example With options
+ * ```tsx
+ * <Table striped hoverable bordered>
+ *   ...
  * </Table>
  * ```
  */

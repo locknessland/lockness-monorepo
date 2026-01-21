@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Loading spinner component.
+ *
+ * Animated spinner indicator with multiple sizes and color variants.
+ *
+ * @module @lockness/ui/components/spinner
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

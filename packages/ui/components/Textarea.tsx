@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Multi-line text input component.
+ *
+ * Textarea element with consistent styling and focus states.
+ *
+ * @module @lockness/ui/components/textarea
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

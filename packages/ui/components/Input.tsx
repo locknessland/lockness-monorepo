@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Text input component with consistent styling.
+ *
+ * Supports all standard HTML input types with focus states
+ * and accessibility features.
+ *
+ * @module @lockness/ui/components/input
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

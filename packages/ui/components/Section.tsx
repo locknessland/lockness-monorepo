@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Page section components for landing pages.
+ *
+ * Provides consistent layout structure with configurable backgrounds,
+ * padding sizes, and container widths.
+ *
+ * @module @lockness/ui/components/section
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 

@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Button component with multiple variants and sizes.
+ *
+ * Supports rendering as button or anchor, with full Unpoly integration
+ * for SPA-like navigation and transitions.
+ *
+ * @module @lockness/ui/components/button
+ */
+
 import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 
