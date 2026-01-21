@@ -879,7 +879,7 @@ export class CacheStore {
      * Create a new cache store with optional tags.
      * @param tags - Tags to apply to all operations
      */
-    constructor(private readonly tags: string[] = []) { }
+    constructor(private readonly tags: string[] = []) {}
 
     /**
      * Tag the cache entries
@@ -928,7 +928,7 @@ export class CacheStore {
 
         // Flush by each tag
         return Promise.all(this.tags.map((tag) => flushByTag(tag))).then(
-            () => { },
+            () => {},
         )
     }
 }
