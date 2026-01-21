@@ -1,8 +1,10 @@
 /**
- * @lockness/auth - Basic Auth Guard
+ * @fileoverview HTTP Basic Authentication guard.
  *
- * HTTP Basic Authentication guard using the Authorization header.
- * Suitable for temporary authentication during development or simple API endpoints.
+ * Uses the Authorization header with base64-encoded credentials.
+ * Suitable for simple API endpoints or development environments.
+ *
+ * @module @lockness/auth/guards/basic-auth
  */
 
 import type { Context } from 'hono'

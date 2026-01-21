@@ -1,7 +1,9 @@
 /**
- * @lockness/auth - Decorators
+ * @fileoverview Authentication decorators.
  *
- * Auth decorators for dependency injection and guard access.
+ * TC39 Stage 3 decorators for dependency injection and guard access.
+ *
+ * @module @lockness/auth/decorators
  */
 
 import type { Context } from 'hono'

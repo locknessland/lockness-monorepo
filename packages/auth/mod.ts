@@ -1,10 +1,34 @@
 /**
- * @lockness/auth
+ * @fileoverview Authentication system for Lockness.
  *
- * Robust authentication system with multiple guards and providers.
+ * Robust authentication with multiple guards and providers.
  * Inspired by AdonisJS authentication architecture.
  *
- * @module
+ * @example
+ * ```typescript
+ * import {
+ *   initializeAuthMiddleware,
+ *   SessionGuard,
+ *   authRequired,
+ *   getAuth,
+ * } from '@lockness/auth'
+ *
+ * // Setup guards
+ * app.useMiddleware(initializeAuthMiddleware({
+ *   default: 'web',
+ *   guards: {
+ *     web: (c) => new SessionGuard('web', c, userProvider),
+ *   },
+ * }))
+ *
+ * // Protect routes
+ * app.get('/profile', authRequired('web'), (c) => {
+ *   const auth = getAuth(c)
+ *   return c.json({ user: auth.user })
+ * })
+ * ```
+ *
+ * @module @lockness/auth
  */
 
 // Core

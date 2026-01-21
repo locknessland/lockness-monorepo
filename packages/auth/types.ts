@@ -1,9 +1,11 @@
 // deno-lint-ignore-file no-slow-types
 /**
- * @lockness/auth - Types & Interfaces
+ * @fileoverview Authentication type definitions.
  *
- * Core type definitions for the authentication system.
+ * Core interfaces and types for the authentication system.
  * Inspired by AdonisJS auth architecture.
+ *
+ * @module @lockness/auth/types
  */
 
 import type { Context } from 'hono'
@@ -24,22 +26,50 @@ export const GUARD_KNOWN_EVENTS = Symbol('GUARD_KNOWN_EVENTS')
 
 /**
  * Authenticatable user interface.
- * Your User model should implement this.
+ *
+ * Your User model should implement this interface.
+ * The `id` field is required for session persistence.
+ *
+ * @example
+ * ```typescript
+ * interface User extends Authenticatable {
+ *   id: number
+ *   email: string
+ *   password: string
+ *   name: string
+ * }
+ * ```
  */
 export interface Authenticatable {
+    /** Unique user identifier (used for session storage) */
     id: number | string
+    /** User email address (used for credential lookup) */
     email?: string
+    /** Hashed password (never expose in responses) */
     password?: string
+    /** Additional user properties */
     [key: string]: unknown
 }
 
 /**
  * Authentication response for testing clients.
+ *
  * Used by testing utilities to simulate authentication.
+ * Contains headers, cookies, and session data needed to
+ * authenticate subsequent requests in tests.
+ *
+ * @example
+ * ```typescript
+ * const response = await guard.authenticateAsClient(user)
+ * // Use response.cookies in test requests
+ * ```
  */
 export interface AuthClientResponse {
+    /** HTTP headers to include in authenticated requests */
     headers?: Record<string, string>
+    /** Cookies to set for authenticated session */
     cookies?: Record<string, string>
+    /** Session data to persist */
     session?: Record<string, unknown>
 }
 
@@ -49,22 +79,41 @@ export interface AuthClientResponse {
 
 /**
  * Core contract that all authentication guards must implement.
+ *
  * A guard is responsible for authenticating HTTP requests using
  * a specific authentication method (session, tokens, basic auth, etc.)
+ *
+ * @typeParam User - The user type this guard authenticates
+ *
+ * @example
+ * ```typescript
+ * class CustomGuard implements GuardContract<User> {
+ *   readonly driverName = 'custom'
+ *   user?: User
+ *   isAuthenticated = false
+ *   authenticationAttempted = false
+ *
+ *   async authenticate(): Promise<User> {
+ *     // Custom authentication logic
+ *   }
+ * }
+ * ```
  */
 export interface GuardContract<User extends Authenticatable> {
     /**
-     * Unique name for the guard driver
+     * Unique name for the guard driver.
+     * Used for identification in logs and events.
      */
     readonly driverName: string
 
     /**
-     * Reference to the currently authenticated user
+     * Reference to the currently authenticated user.
+     * Undefined until `authenticate()` or `check()` succeeds.
      */
     user?: User
 
     /**
-     * Whether the current request has been authenticated
+     * Whether the current request has been authenticated.
      */
     isAuthenticated: boolean
 
@@ -79,17 +128,22 @@ export interface GuardContract<User extends Authenticatable> {
     getUserOrFail(): User
 
     /**
-     * Authenticates the current request and throws if not authenticated
+     * Authenticates the current request and throws if not authenticated.
+     * @throws {UnauthorizedAccessError} When authentication fails
      */
     authenticate(): Promise<User>
 
     /**
-     * Check if request is authenticated without throwing
+     * Check if request is authenticated without throwing.
+     * @returns True if authenticated, false otherwise
      */
     check(): Promise<boolean>
 
     /**
-     * Authenticate a user as a client (for testing)
+     * Authenticate a user as a client (for testing).
+     * @param user - The user to authenticate as
+     * @param args - Additional arguments specific to the guard
+     * @returns Authentication response with headers/cookies
      */
     authenticateAsClient(
         user: User,
@@ -97,9 +151,47 @@ export interface GuardContract<User extends Authenticatable> {
     ): Promise<AuthClientResponse>
 
     /**
-     * Symbol for inferring guard events
+     * Symbol for inferring guard events.
+     * @internal
      */
     [GUARD_KNOWN_EVENTS]?: unknown
+}
+
+/**
+ * Session guard contract with login/logout methods.
+ *
+ * Extends the base guard contract with session-specific operations.
+ *
+ * @typeParam User - The user type this guard authenticates
+ *
+ * @example
+ * ```typescript
+ * const guard = auth.use('web') as SessionGuardContract<User>\n * await guard.login('user@example.com', 'password')\n * await guard.logout()\n * ```
+ */
+export interface SessionGuardContract<User extends Authenticatable>
+    extends GuardContract<User> {
+    /**
+     * Login a user with credentials.
+     * @param email - User email address
+     * @param password - User password (plain text)
+     * @param remember - Whether to persist session with remember-me token
+     * @throws {InvalidCredentialsError} When credentials are invalid
+     */
+    login(email: string, password: string, remember?: boolean): Promise<User>
+
+    /**
+     * Login a user by their ID.
+     * @param id - User unique identifier
+     * @param remember - Whether to persist session with remember-me token
+     * @throws {InvalidCredentialsError} When user not found
+     */
+    loginById(id: number | string, remember?: boolean): Promise<User>
+
+    /**
+     * Logout the current user.
+     * Clears session and remember-me tokens.
+     */
+    logout(): Promise<void>
 }
 
 // =============================================================================
@@ -107,20 +199,41 @@ export interface GuardContract<User extends Authenticatable> {
 // =============================================================================
 
 /**
- * Factory function to create a guard instance for an HTTP request
+ * Factory function to create a guard instance for an HTTP request.
+ *
+ * @typeParam User - The user type this guard authenticates
+ *
+ * @example
+ * ```typescript
+ * const sessionGuardFactory: GuardFactory<User> = (ctx) =>
+ *   new SessionGuard('web', ctx, userProvider)
+ * ```
  */
 export type GuardFactory<User extends Authenticatable = Authenticatable> = (
     ctx: Context,
 ) => GuardContract<User>
 
 /**
- * Configuration for multiple guards
+ * Configuration for multiple guards.
+ *
+ * @typeParam Guards - Record of guard name to factory function
+ *
+ * @example
+ * ```typescript
+ * const config: AuthConfig<typeof guards> = {
+ *   default: 'web',
+ *   guards: {
+ *     web: sessionGuardFactory,
+ *     api: tokenGuardFactory,
+ *   },
+ * }
+ * ```
  */
 export interface AuthConfig<
     Guards extends Record<string, GuardFactory> = Record<string, GuardFactory>,
 > {
     /**
-     * Default guard name
+     * Default guard name.
      */
     default: keyof Guards
 

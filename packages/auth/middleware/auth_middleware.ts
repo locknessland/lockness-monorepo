@@ -1,14 +1,20 @@
 /**
- * @lockness/auth - Auth Middleware
+ * @fileoverview Route protection middleware.
  *
  * Middleware to protect routes by requiring authentication.
  * Use this middleware on routes that need authentication.
+ *
+ * @module @lockness/auth/middleware/auth
  */
 
 import type { Context } from 'hono'
 import type { MiddlewareHandler } from 'hono'
 import { getAuth } from './initialize_auth_middleware.ts'
-import type { AuthContext } from '../types.ts'
+import type {
+    AuthContext,
+    Authenticatable,
+    SessionGuardContract,
+} from '../types.ts'
 
 /**
  * Auth middleware options
@@ -48,9 +54,10 @@ function createAuthContext(guardName: string = 'web'): MiddlewareHandler {
                 password: string,
                 remember = false,
             ) => {
-                // Type assertion to access guard-specific methods
-                // deno-lint-ignore no-explicit-any
-                const sessionGuard = guard as any
+                // Type guard to check for session guard methods
+                const sessionGuard = guard as SessionGuardContract<
+                    Authenticatable
+                >
                 if (typeof sessionGuard.login !== 'function') {
                     throw new Error(
                         `Guard "${guardName}" does not support login method`,
@@ -60,9 +67,10 @@ function createAuthContext(guardName: string = 'web'): MiddlewareHandler {
             },
 
             loginById: async (id: number | string, remember = false) => {
-                // Type assertion to access guard-specific methods
-                // deno-lint-ignore no-explicit-any
-                const sessionGuard = guard as any
+                // Type guard to check for session guard methods
+                const sessionGuard = guard as SessionGuardContract<
+                    Authenticatable
+                >
                 if (typeof sessionGuard.loginById !== 'function') {
                     throw new Error(
                         `Guard "${guardName}" does not support loginById method`,
@@ -72,9 +80,10 @@ function createAuthContext(guardName: string = 'web'): MiddlewareHandler {
             },
 
             logout: async () => {
-                // Type assertion to access guard-specific methods
-                // deno-lint-ignore no-explicit-any
-                const sessionGuard = guard as any
+                // Type guard to check for session guard methods
+                const sessionGuard = guard as SessionGuardContract<
+                    Authenticatable
+                >
                 if (typeof sessionGuard.logout !== 'function') {
                     throw new Error(
                         `Guard "${guardName}" does not support logout method`,

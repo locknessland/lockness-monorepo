@@ -1,11 +1,26 @@
 /**
- * @lockness/auth - Authentication Errors
+ * @fileoverview Authentication error classes.
  *
  * Custom error classes for authentication failures.
+ *
+ * @module @lockness/auth/errors
  */
 
 /**
- * Base authentication error
+ * Base authentication error.
+ *
+ * All authentication-related errors extend this class.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await auth.authenticate()
+ * } catch (error) {
+ *   if (error instanceof AuthenticationError) {
+ *     console.log('Auth failed:', error.message)
+ *   }
+ * }
+ * ```
  */
 export class AuthenticationError extends Error {
     constructor(message: string, options?: ErrorOptions) {
@@ -15,11 +30,26 @@ export class AuthenticationError extends Error {
 }
 
 /**
- * Error thrown when authentication fails due to invalid credentials
+ * Error thrown when authentication fails due to invalid credentials.
+ *
+ * Returned when email/password combination doesn't match.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await guard.login('user@example.com', 'wrongpassword')
+ * } catch (error) {
+ *   if (error instanceof InvalidCredentialsError) {
+ *     return c.json(error.toJSON(), 401)
+ *   }
+ * }
+ * ```
  */
 export class InvalidCredentialsError extends AuthenticationError {
-    status = 401
-    code = 'E_INVALID_CREDENTIALS'
+    /** HTTP status code */
+    readonly status = 401
+    /** Error code for client handling */
+    readonly code = 'E_INVALID_CREDENTIALS'
 
     constructor(message = 'Invalid user credentials', options?: ErrorOptions) {
         super(message, options)
@@ -39,11 +69,24 @@ export class InvalidCredentialsError extends AuthenticationError {
 }
 
 /**
- * Error thrown when accessing protected routes without authentication
+ * Error thrown when accessing protected routes without authentication.
+ *
+ * Indicates the user needs to authenticate before accessing the resource.
+ *
+ * @example
+ * ```typescript
+ * app.onError((err, c) => {
+ *   if (err instanceof UnauthorizedAccessError) {
+ *     return c.redirect('/login')
+ *   }
+ * })
+ * ```
  */
 export class UnauthorizedAccessError extends AuthenticationError {
-    status = 401
-    code = 'E_UNAUTHORIZED_ACCESS'
+    /** HTTP status code */
+    readonly status = 401
+    /** Error code for client handling */
+    readonly code = 'E_UNAUTHORIZED_ACCESS'
 
     constructor(message = 'Unauthorized access', options?: ErrorOptions) {
         super(message, options)
@@ -63,11 +106,15 @@ export class UnauthorizedAccessError extends AuthenticationError {
 }
 
 /**
- * Error thrown when a session has expired
+ * Error thrown when a session has expired.
+ *
+ * User needs to re-authenticate to continue.
  */
 export class SessionExpiredError extends AuthenticationError {
-    status = 401
-    code = 'E_SESSION_EXPIRED'
+    /** HTTP status code */
+    readonly status = 401
+    /** Error code for client handling */
+    readonly code = 'E_SESSION_EXPIRED'
 
     constructor(message = 'Session has expired', options?: ErrorOptions) {
         super(message, options)
@@ -84,11 +131,15 @@ export class SessionExpiredError extends AuthenticationError {
 }
 
 /**
- * Error thrown when a token is invalid or expired
+ * Error thrown when a token is invalid or expired.
+ *
+ * The API token provided is not valid or has expired.
  */
 export class InvalidTokenError extends AuthenticationError {
-    status = 401
-    code = 'E_INVALID_TOKEN'
+    /** HTTP status code */
+    readonly status = 401
+    /** Error code for client handling */
+    readonly code = 'E_INVALID_TOKEN'
 
     constructor(message = 'Invalid or expired token', options?: ErrorOptions) {
         super(message, options)
@@ -105,11 +156,15 @@ export class InvalidTokenError extends AuthenticationError {
 }
 
 /**
- * Error thrown when attempting operations that require authentication
+ * Error thrown when attempting operations that require authentication.
+ *
+ * Thrown when calling `getUserOrFail()` before `authenticate()`.
  */
 export class AuthenticationRequiredError extends AuthenticationError {
-    status = 401
-    code = 'E_AUTHENTICATION_REQUIRED'
+    /** HTTP status code */
+    readonly status = 401
+    /** Error code for client handling */
+    readonly code = 'E_AUTHENTICATION_REQUIRED'
 
     constructor(
         message =
@@ -130,7 +185,9 @@ export class AuthenticationRequiredError extends AuthenticationError {
 }
 
 /**
- * Error thrown when guard configuration is invalid
+ * Error thrown when guard configuration is invalid.
+ *
+ * Check that all required options are provided for the guard type.
  */
 export class InvalidGuardConfigError extends Error {
     constructor(message: string, options?: ErrorOptions) {

@@ -1,8 +1,10 @@
 /**
- * @lockness/auth - Initialize Auth Middleware
+ * @fileoverview Auth initialization middleware.
  *
  * Middleware to initialize the authenticator and attach it to the context.
  * This middleware should be registered globally in your application.
+ *
+ * @module @lockness/auth/middleware/initialize
  */
 
 import type { Context } from 'hono'

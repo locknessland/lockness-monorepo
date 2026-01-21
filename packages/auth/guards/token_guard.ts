@@ -1,8 +1,10 @@
 /**
- * @lockness/auth - Token Guard
+ * @fileoverview Token-based authentication guard.
  *
- * Token-based authentication for API requests using Bearer tokens.
- * Suitable for mobile apps, SPAs on different domains, or third-party integrations.
+ * API authentication using Bearer tokens in the Authorization header.
+ * Suitable for mobile apps, SPAs, and third-party integrations.
+ *
+ * @module @lockness/auth/guards/token
  */
 
 import type { Context } from 'hono'

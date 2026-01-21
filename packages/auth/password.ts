@@ -1,7 +1,10 @@
 /**
- * Password Hashing Utilities
+ * @fileoverview Password hashing utilities.
  *
  * Provides secure password hashing and verification using PBKDF2.
+ * Follows OWASP 2023 recommendations for iteration counts.
+ *
+ * @module @lockness/auth/password
  */
 
 /**

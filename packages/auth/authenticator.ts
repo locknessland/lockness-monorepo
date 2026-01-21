@@ -1,8 +1,10 @@
 /**
- * @lockness/auth - Authenticator
+ * @fileoverview Main authenticator class.
  *
- * Main authenticator class that manages multiple authentication guards.
- * Inspired by AdonisJS authenticator architecture.
+ * Manages multiple authentication guards and provides
+ * a unified interface for authentication across different methods.
+ *
+ * @module @lockness/auth/authenticator
  */
 
 import type { Context } from 'hono'
@@ -36,23 +38,26 @@ import {
  */
 export class Authenticator<Guards extends Record<string, GuardFactory>> {
     /**
-     * Configuration with default guard and available guards
+     * Configuration with default guard and available guards.
+     * @readonly
      */
-    #config: AuthConfig<Guards>
+    readonly #config: AuthConfig<Guards>
 
     /**
-     * HTTP context for the current request
+     * HTTP context for the current request.
+     * @readonly
      */
-    #ctx: Context
+    readonly #ctx: Context
 
     /**
-     * Cache of instantiated guards for the current request
+     * Cache of instantiated guards for the current request.
+     * Guards are lazily instantiated and cached per request.
      */
     // deno-lint-ignore no-explicit-any
     #guardsCache: Partial<Record<keyof Guards, GuardContract<any>>> = {}
 
     /**
-     * Name of the guard that was used for the last authentication attempt
+     * Name of the guard that was used for the last authentication attempt.
      */
     #authenticationAttemptedViaGuard?: keyof Guards
 

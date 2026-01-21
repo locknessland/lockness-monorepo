@@ -1,8 +1,10 @@
 /**
- * @lockness/auth - Session Guard
+ * @fileoverview Session-based authentication guard.
  *
- * Session-based authentication using cookies and session storage.
- * Supports "Remember Me" functionality for persistent login.
+ * Uses cookies and session storage for persistent authentication.
+ * Supports "Remember Me" functionality for extended sessions.
+ *
+ * @module @lockness/auth/guards/session
  */
 
 import type { Context } from 'hono'
