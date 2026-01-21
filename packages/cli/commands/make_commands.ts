@@ -94,7 +94,8 @@ export function registerMakeCommands(cli: Cli): void {
                     viewCreated = true
                 } catch (error) {
                     console.error(
-                        `⚠️  Failed to create view: ${(error as Error).message
+                        `⚠️  Failed to create view: ${
+                            (error as Error).message
                         }`,
                     )
                 }
@@ -607,8 +608,9 @@ app.init({
             let body = ''
             if (withView) {
                 // Create view if it doesn't exist
-                const viewClassName = `${className}${actionName.charAt(0).toUpperCase() + actionName.slice(1)
-                    }`
+                const viewClassName = `${className}${
+                    actionName.charAt(0).toUpperCase() + actionName.slice(1)
+                }`
                 const viewFileName =
                     `${controllerName.toLowerCase()}/${actionName.toLowerCase()}`
                 const viewDirPath =
@@ -702,16 +704,18 @@ app.init({
                         if (!importList.includes(decoratorName)) {
                             importList.push(decoratorName)
                         }
-                        return `import { ${importList.join(', ')
-                            } } from 'lockness/core'`
+                        return `import { ${
+                            importList.join(', ')
+                        } } from 'lockness/core'`
                     },
                 )
             }
 
             // Add view import if needed
             if (withView) {
-                const viewClassName = `${className}${actionName.charAt(0).toUpperCase() + actionName.slice(1)
-                    }`
+                const viewClassName = `${className}${
+                    actionName.charAt(0).toUpperCase() + actionName.slice(1)
+                }`
                 const viewImport =
                     `import { ${viewClassName} } from '@view/pages/${controllerName.toLowerCase()}/${actionName.toLowerCase()}.tsx'\n`
 

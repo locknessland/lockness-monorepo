@@ -71,14 +71,16 @@ export async function loadPackageCommands(cli: Cli): Promise<void> {
                 }
             } catch (error) {
                 console.error(
-                    `❌ Failed to load commands from @lockness/${packageName.replace('@lockness/', '')
+                    `❌ Failed to load commands from @lockness/${
+                        packageName.replace('@lockness/', '')
                     }:`,
                 )
                 console.error(
                     `   The package is listed in "lockness.packages" in your deno.json but could not be imported.`,
                 )
                 console.error(
-                    `   - Error: ${error instanceof Error ? error.message : error
+                    `   - Error: ${
+                        error instanceof Error ? error.message : error
                     }`,
                 )
                 console.error(
@@ -150,7 +152,8 @@ export async function addPackage(packageName: string): Promise<void> {
         console.log(`✓ Added ${normalizedName} to lockness.packages`)
     } catch (error) {
         throw new Error(
-            `Failed to add package: ${error instanceof Error ? error.message : error
+            `Failed to add package: ${
+                error instanceof Error ? error.message : error
             }`,
         )
     }
@@ -202,7 +205,8 @@ export async function removePackage(packageName: string): Promise<void> {
         console.log(`✓ Removed ${normalizedName} from lockness.packages`)
     } catch (error) {
         throw new Error(
-            `Failed to remove package: ${error instanceof Error ? error.message : error
+            `Failed to remove package: ${
+                error instanceof Error ? error.message : error
             }`,
         )
     }

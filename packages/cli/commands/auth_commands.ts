@@ -92,7 +92,8 @@ export function registerAuthCommands(cli: Cli): void {
                     console.log(`✅ ${file.name} created at ${file.output}`)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create ${file.name}: ${(error as Error).message
+                        `❌ Failed to create ${file.name}: ${
+                            (error as Error).message
                         }`,
                     )
                 }

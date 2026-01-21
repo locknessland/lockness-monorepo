@@ -47,7 +47,9 @@ export async function scanControllers(
     const controllers: ControllerInfo[] = []
 
     try {
-        for await (const entry of walk(controllerDir, { exts: [...extensions] })) {
+        for await (
+            const entry of walk(controllerDir, { exts: [...extensions] })
+        ) {
             if (entry.isFile) {
                 const fileName = basename(entry.path)
                 const fileNameWithoutExt = fileName.replace(

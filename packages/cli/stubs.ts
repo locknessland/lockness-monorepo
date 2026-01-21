@@ -100,7 +100,8 @@ export class Stub {
             return content
         } catch (error) {
             throw new Error(
-                `Could not find stub at ${stubPath}: ${(error as Error).message
+                `Could not find stub at ${stubPath}: ${
+                    (error as Error).message
                 }`,
             )
         }
@@ -157,7 +158,8 @@ export class Stub {
             return content
         } catch (error) {
             throw new Error(
-                `Could not find stub at ${stubPath}: ${(error as Error).message
+                `Could not find stub at ${stubPath}: ${
+                    (error as Error).message
                 }`,
             )
         }
@@ -224,7 +226,8 @@ export class Stub {
                     await Deno.writeTextFile(targetPath, content)
                 } catch (error) {
                     console.warn(
-                        `⚠️  Could not process ${file}: ${(error as Error).message
+                        `⚠️  Could not process ${file}: ${
+                            (error as Error).message
                         }`,
                     )
                 }
