@@ -123,7 +123,7 @@ export const Home = () => {
                         >
                             <GithubIcon size={20} />
                         </a>
-                        <Button href={route('docs.installation')}>
+                        <Button href='/docs/getting-started'>
                             Get Started
                         </Button>
                     </NavbarContent>
@@ -151,7 +151,7 @@ export const Home = () => {
 
                     <HeroActions>
                         <HeroCTA
-                            href={route('docs.installation')}
+                            href='/docs/getting-started'
                             variant='primary'
                             size='lg'
                         >
@@ -389,7 +389,7 @@ export class AuthController {
                     <SectionContent class='flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10'>
                         <Button
                             as='a'
-                            href={route('docs.installation')}
+                            href='/docs/getting-started'
                             size='lg'
                         >
                             Get Started Now
