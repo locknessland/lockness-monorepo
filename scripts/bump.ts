@@ -13,6 +13,17 @@ console.log('')
 // deno-lint-ignore no-explicit-any
 const rootConfig = parse(await Deno.readTextFile('./deno.jsonc')) as any
 
+// Étape 0: Met à jour la version du monorepo racine
+console.log('🏠 Mise à jour de la version du monorepo racine...')
+rootConfig.version = newVersion
+await Deno.writeTextFile(
+    './deno.jsonc',
+    JSON.stringify(rootConfig, null, 4) + '\n',
+)
+console.log(`   ✅ deno.jsonc → ${newVersion}`)
+
+console.log('')
+
 // Étape 1: Met à jour la version de chaque package
 console.log('📦 Mise à jour des versions des packages...')
 for (const member of rootConfig.workspace) {
