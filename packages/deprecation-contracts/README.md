@@ -7,8 +7,8 @@ Inspired by
 ## 🚀 Installation
 
 ```bash
-# Using Nessy
-./nessy package:install deprecation-contracts
+# Using cli
+deno task cli package:install deprecation-contracts
 
 # Or manual installation via Deno
 deno add jsr:@lockness/deprecation-contracts
@@ -72,8 +72,8 @@ For Lockness applications, deprecations can be automatically tracked in the
 Install both packages:
 
 ```bash
-./nessy package:install deprecation-contracts
-./nessy package:install devtools
+deno task cli package:install deprecation-contracts
+deno task cli package:install devtools
 ```
 
 ### Automatic Integration

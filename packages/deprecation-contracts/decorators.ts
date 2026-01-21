@@ -20,49 +20,14 @@
  * ```
  */
 
-import { triggerDeprecation } from './mod.ts'
+import { triggerDeprecation } from './trigger.ts'
+import type { DeprecationOptions } from './types.ts'
 
 // =============================================================================
-// Types
+// Type Re-export
 // =============================================================================
 
-/**
- * Options for the `@Deprecated` decorator.
- *
- * @example
- * ```typescript
- * const options: DeprecationOptions = {
- *     version: '1.2.0',
- *     message: 'Use NewService instead',
- *     package: 'my-package'
- * }
- *
- * @Deprecated(options)
- * class OldService {}
- * ```
- */
-export interface DeprecationOptions {
-    /**
-     * The version when the deprecation was introduced.
-     *
-     * @example '1.2.0'
-     */
-    readonly version: string
-
-    /**
-     * The deprecation message explaining what to use instead.
-     *
-     * @example 'Use NewService instead'
-     */
-    readonly message: string
-
-    /**
-     * The package name. Defaults to 'app' if not provided.
-     *
-     * @example 'my-package'
-     */
-    readonly package?: string
-}
+export type { DeprecationOptions } from './types.ts'
 
 // =============================================================================
 // Decorator
