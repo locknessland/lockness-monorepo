@@ -358,17 +358,27 @@ async function handleMakeModel(args: string[]): Promise<void> {
     // Create optional files based on flags
     if (flags.repository) {
         const created = await createRepositoryFile(naming)
-        if (created) createdFiles.push(`./app/repository/${naming.fileName}_repository.ts`)
+        if (created) {
+            createdFiles.push(
+                `./app/repository/${naming.fileName}_repository.ts`,
+            )
+        }
     }
 
     if (flags.seeder) {
         const created = await createSeederFile(naming)
-        if (created) createdFiles.push(`./database/seeders/${naming.fileName}_seeder.ts`)
+        if (created) {
+            createdFiles.push(`./database/seeders/${naming.fileName}_seeder.ts`)
+        }
     }
 
     if (flags.controller) {
         const created = await createControllerFile(naming)
-        if (created) createdFiles.push(`./app/controller/${naming.fileName}_controller.ts`)
+        if (created) {
+            createdFiles.push(
+                `./app/controller/${naming.fileName}_controller.ts`,
+            )
+        }
     }
 
     // Print summary
@@ -394,7 +404,9 @@ function printMakeModelUsage(): void {
     console.log('  -r, --repository    Create a repository')
     console.log('  -s, --seeder        Create a seeder')
     console.log('  -c, --controller    Create a CRUD controller')
-    console.log('  -a, --all           Create all (repository, seeder, controller)')
+    console.log(
+        '  -a, --all           Create all (repository, seeder, controller)',
+    )
 }
 
 /**
@@ -431,10 +443,15 @@ async function createRepositoryFile(naming: ModelNaming): Promise<boolean> {
             fileName: naming.fileName,
             RepositoryName: naming.repositoryName,
         })
-        await createFile(`./app/repository/${naming.fileName}_repository.ts`, content)
+        await createFile(
+            `./app/repository/${naming.fileName}_repository.ts`,
+            content,
+        )
         return true
     } catch (error) {
-        console.error(`❌ Failed to create repository: ${getErrorMessage(error)}`)
+        console.error(
+            `❌ Failed to create repository: ${getErrorMessage(error)}`,
+        )
         return false
     }
 }
@@ -450,7 +467,10 @@ async function createSeederFile(naming: ModelNaming): Promise<boolean> {
         const content = await processStub('seeder', {
             className: naming.modelName,
         })
-        await createFile(`./database/seeders/${naming.fileName}_seeder.ts`, content)
+        await createFile(
+            `./database/seeders/${naming.fileName}_seeder.ts`,
+            content,
+        )
         return true
     } catch (error) {
         console.error(`❌ Failed to create seeder: ${getErrorMessage(error)}`)
@@ -474,10 +494,15 @@ async function createControllerFile(naming: ModelNaming): Promise<boolean> {
             RepositoryName: naming.repositoryName,
             repositoryVar: naming.repositoryVar,
         })
-        await createFile(`./app/controller/${naming.fileName}_controller.ts`, content)
+        await createFile(
+            `./app/controller/${naming.fileName}_controller.ts`,
+            content,
+        )
         return true
     } catch (error) {
-        console.error(`❌ Failed to create controller: ${getErrorMessage(error)}`)
+        console.error(
+            `❌ Failed to create controller: ${getErrorMessage(error)}`,
+        )
         return false
     }
 }
@@ -599,7 +624,8 @@ export function registerDrizzleCommands(cli: Cli): void {
             console.log('🔍 Checking database connection...')
             try {
                 const db = await initDatabase()
-                await (db as unknown as { client: postgres.Sql }).client`SELECT 1`
+                await (db as unknown as { client: postgres.Sql })
+                    .client`SELECT 1`
                 console.log('✅ Database connection successful')
             } catch (error) {
                 console.error(
@@ -640,7 +666,11 @@ export function registerDrizzleCommands(cli: Cli): void {
 
     cli.register('db:seed', handleSeed, 'Seed the database with test data')
 
-    cli.register('make:seeder', handleMakeSeeder, 'Create a new database seeder')
+    cli.register(
+        'make:seeder',
+        handleMakeSeeder,
+        'Create a new database seeder',
+    )
 
     // -------------------------------------------------------------------------
     // Model Generation Command
