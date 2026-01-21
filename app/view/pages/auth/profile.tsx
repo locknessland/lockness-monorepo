@@ -1,4 +1,4 @@
-import { LandingLayout } from '@view/layouts/landing_layout.tsx'
+import { AuthLayout } from '@view/layouts/auth_layout.tsx'
 import {
     Button,
     Card,
@@ -14,7 +14,7 @@ import {
 // deno-lint-ignore no-explicit-any
 export const ProfilePage = (props: { user: any }) => {
     return (
-        <LandingLayout title='Profile - Lockness JS'>
+        <AuthLayout title='Profile'>
             <div class='min-h-screen flex items-center justify-center p-4'>
                 <Card class='w-full max-w-2xl'>
                     <CardHeader>
@@ -91,6 +91,6 @@ export const ProfilePage = (props: { user: any }) => {
                     </CardFooter>
                 </Card>
             </div>
-        </LandingLayout>
+        </AuthLayout>
     )
 }

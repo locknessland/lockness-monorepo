@@ -1,4 +1,6 @@
+import { route } from '@lockness/core'
 import {
+    GithubIcon,
     Navbar,
     NavbarBrand,
     NavbarContent,
@@ -10,6 +12,7 @@ import {
     ThemeSwitch,
     ThemeSwitchScript,
     Title,
+    UserIcon,
 } from '@lockness/ui/components'
 import { UiSidebar } from '../components/ui-sidebar.tsx'
 import { ThemeCustomizerScript } from '../components/theme-customizer.tsx'
@@ -37,7 +40,6 @@ export const PageUiLayout = (
                     <span class='font-pixel'>Lockness</span>
                 </NavbarBrand>
                 <NavbarContent position='center' class='hidden md:flex'>
-                    <NavbarMenuItem href='/'>Home</NavbarMenuItem>
                     <NavbarMenuItem href='/docs' active={false}>
                         Docs
                     </NavbarMenuItem>
@@ -46,12 +48,20 @@ export const PageUiLayout = (
                     </NavbarMenuItem>
                 </NavbarContent>
                 <NavbarContent position='right' class='hidden md:flex'>
-                    <NavbarMenuItem
+                    <a
+                        href={route('auth.profile')}
+                        class='inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
+                        title='Profile'
+                    >
+                        <UserIcon size={20} />
+                    </a>
+                    <a
                         href='https://github.com/locknessland/lockness'
                         target='_blank'
+                        class='inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
                     >
-                        GitHub
-                    </NavbarMenuItem>
+                        <GithubIcon size={20} />
+                    </a>
                     <ThemeSwitch variant='toggle' />
                 </NavbarContent>
             </Navbar>

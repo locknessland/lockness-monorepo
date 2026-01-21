@@ -5,6 +5,7 @@ import {
     CopyLink,
     DatabaseIcon,
     GitBranchIcon,
+    GithubIcon,
     LayersIcon,
     Navbar,
     NavbarBrand,
@@ -29,6 +30,7 @@ import {
     ThemeSwitch,
     ThemeSwitchScript,
     Title,
+    UserIcon,
     WrenchIcon,
 } from '@lockness/ui/components'
 
@@ -85,17 +87,24 @@ export const DocsLayout = (
                     <span class='font-pixel'>Lockness</span>
                 </NavbarBrand>
                 <NavbarContent position='center' class='hidden md:flex'>
-                    <NavbarLink href='/'>Home</NavbarLink>
                     <NavbarLink href='/docs' active>Docs</NavbarLink>
                     <NavbarLink href='/ui'>UI Components</NavbarLink>
                 </NavbarContent>
                 <NavbarContent position='right' class='hidden md:flex'>
-                    <NavbarLink
+                    <a
+                        href={route('auth.profile')}
+                        class='inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
+                        title='Profile'
+                    >
+                        <UserIcon size={20} />
+                    </a>
+                    <a
                         href='https://github.com/locknessland/lockness'
                         target='_blank'
+                        class='inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
                     >
-                        GitHub
-                    </NavbarLink>
+                        <GithubIcon size={20} />
+                    </a>
                     <ThemeSwitch variant='toggle' />
                 </NavbarContent>
             </Navbar>

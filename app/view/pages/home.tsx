@@ -44,6 +44,7 @@ import {
     MailIcon,
     ShieldIcon,
     TerminalIcon,
+    UserIcon,
     UsersIcon,
     ZapIcon,
 } from '@lockness/ui/components'
@@ -108,6 +109,13 @@ export const Home = () => {
                     </NavbarContent>
 
                     <NavbarContent position='right'>
+                        <a
+                            href={route('auth.profile')}
+                            class='hidden md:inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
+                            title='Profile'
+                        >
+                            <UserIcon size={20} />
+                        </a>
                         <ThemeSwitch variant='toggle' />
                         <a
                             href='https://github.com/locknessjs/core'
