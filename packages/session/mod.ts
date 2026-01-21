@@ -1,10 +1,30 @@
 /**
- * Lockness Session - Session Management System
+ * @fileoverview Session Management System for Lockness.
  *
  * Multi-driver session handling with Cookie, Memory, DenoKV, and Redis support.
  * Provides encrypted sessions, flash data, and automatic garbage collection.
  *
- * Note: Some methods are async for driver consistency
+ * @example
+ * ```typescript
+ * import { sessionMiddleware, getSession, configureSession } from '@lockness/session'
+ *
+ * // Configure globally
+ * configureSession({
+ *   driver: 'deno-kv',
+ *   secret: Deno.env.get('SESSION_SECRET')!,
+ *   lifetime: 3600,
+ * })
+ *
+ * // Use middleware
+ * app.useMiddleware(sessionMiddleware())
+ *
+ * // Access in controller
+ * const session = getSession(c)
+ * session.set('userId', 123)
+ * const userId = session.get<number>('userId')
+ * ```
+ *
+ * @module @lockness/session
  */
 
 // deno-lint-ignore-file require-await
@@ -16,79 +36,277 @@ import { deleteCookie, getCookie, setCookie } from '@lockness/hono'
 // Types & Interfaces
 // =============================================================================
 
+/**
+ * Session data container type.
+ *
+ * A flexible record type allowing any string keys with unknown values.
+ * Use type assertions or generics when retrieving values.
+ *
+ * @example
+ * ```typescript
+ * const data: SessionData = {
+ *   userId: 123,
+ *   preferences: { theme: 'dark' },
+ * }
+ * ```
+ */
 export interface SessionData {
+    /** Session data key-value pairs */
     [key: string]: unknown
 }
 
+/**
+ * Session configuration options.
+ *
+ * Controls session behavior, storage driver, cookie settings, and encryption.
+ *
+ * @example
+ * ```typescript
+ * const config: SessionConfig = {
+ *   driver: 'deno-kv',
+ *   cookieName: 'app_session',
+ *   lifetime: 3600,
+ *   secret: 'your-32-char-secret-key-here!!!',
+ *   path: '/',
+ *   secure: true,
+ *   httpOnly: true,
+ *   sameSite: 'Strict',
+ * }
+ * ```
+ */
 export interface SessionConfig {
-    /** Session driver: 'cookie' | 'deno-kv' | 'memory' | 'redis' */
+    /**
+     * Session storage driver.
+     * - `cookie`: Stores encrypted data directly in cookie (stateless)
+     * - `memory`: In-memory storage (development/testing only)
+     * - `deno-kv`: Deno KV persistent storage
+     * - `redis`: Redis server storage
+     * @default 'cookie'
+     */
     driver: 'cookie' | 'deno-kv' | 'memory' | 'redis'
-    /** Cookie name for session ID or data */
+    /**
+     * Cookie name for session ID or data.
+     * @default 'lockness_session'
+     */
     cookieName: string
-    /** Session lifetime in seconds (default: 7200 = 2 hours) */
+    /**
+     * Session lifetime in seconds.
+     * @default 7200 (2 hours)
+     */
     lifetime: number
-    /** Secret key for signing cookies */
+    /**
+     * Secret key for signing/encrypting cookies.
+     * Should be at least 32 characters for AES-256-GCM encryption.
+     * @required
+     */
     secret: string
-    /** Cookie path */
+    /**
+     * Cookie path attribute.
+     * @default '/'
+     */
     path: string
-    /** Cookie domain (optional) */
+    /**
+     * Cookie domain attribute.
+     * Leave undefined to use the current domain.
+     */
     domain?: string
-    /** Secure cookie (HTTPS only) */
+    /**
+     * Secure cookie flag (HTTPS only).
+     * Should be `true` in production.
+     * @default false
+     */
     secure: boolean
-    /** HTTP only cookie */
+    /**
+     * HTTP-only cookie flag.
+     * Prevents JavaScript access to the cookie.
+     * @default true
+     */
     httpOnly: boolean
-    /** SameSite attribute */
+    /**
+     * SameSite cookie attribute.
+     * Controls cross-origin cookie behavior.
+     * @default 'Lax'
+     */
     sameSite: 'Strict' | 'Lax' | 'None'
-    /** Deno KV path (for deno-kv driver) */
+    /**
+     * Deno KV database path.
+     * Only used when `driver` is `'deno-kv'`.
+     * Leave undefined to use the default KV store.
+     */
     kvPath?: string
-    /** Redis configuration (for redis driver) */
-    redis?: {
-        hostname: string
-        port?: number
-        password?: string
-        db?: number
-    }
+    /**
+     * Redis connection configuration.
+     * Required when `driver` is `'redis'`.
+     */
+    redis?: RedisConfig
 }
 
+/**
+ * Redis connection configuration.
+ */
+export interface RedisConfig {
+    /** Redis server hostname */
+    hostname: string
+    /**
+     * Redis server port.
+     * @default 6379
+     */
+    port?: number
+    /** Redis password for authentication */
+    password?: string
+    /**
+     * Redis database index.
+     * @default 0
+     */
+    db?: number
+}
+
+/**
+ * Session storage driver interface.
+ *
+ * Implement this interface to create custom session storage backends.
+ * All methods are async for consistency across different storage types.
+ *
+ * @example
+ * ```typescript
+ * class CustomDriver implements SessionDriver {
+ *   async read(sessionId: string): Promise<SessionData | null> {
+ *     // Fetch from your storage
+ *     return myStorage.get(sessionId)
+ *   }
+ *   // ... implement other methods
+ * }
+ * ```
+ */
 export interface SessionDriver {
-    /** Read session data by ID */
+    /**
+     * Read session data by ID.
+     * @param sessionId - The unique session identifier
+     * @returns Session data or null if not found/expired
+     */
     read(sessionId: string): Promise<SessionData | null>
-    /** Write session data */
+    /**
+     * Write session data to storage.
+     * @param sessionId - The unique session identifier
+     * @param data - Session data to persist
+     * @param lifetime - Session lifetime in seconds
+     */
     write(sessionId: string, data: SessionData, lifetime: number): Promise<void>
-    /** Destroy session */
+    /**
+     * Destroy/delete a session.
+     * @param sessionId - The session identifier to destroy
+     */
     destroy(sessionId: string): Promise<void>
-    /** Regenerate session ID */
+    /**
+     * Regenerate session ID (transfer data to new ID).
+     * Used for security purposes after authentication.
+     * @param oldId - The current session identifier
+     * @param newId - The new session identifier
+     */
     regenerate(oldId: string, newId: string): Promise<void>
-    /** Garbage collection (optional) */
+    /**
+     * Garbage collection - remove expired sessions.
+     * Optional: only implement for drivers that need manual cleanup.
+     */
     gc?(): Promise<void>
-    /** Close connection (optional) */
+    /**
+     * Close any open connections.
+     * Optional: only implement for drivers with persistent connections.
+     */
     close?(): Promise<void>
 }
 
+/**
+ * Session instance interface.
+ *
+ * Provides methods to read, write, and manage session data.
+ * Supports flash messages for one-time data transfer between requests.
+ *
+ * @example
+ * ```typescript
+ * const session = getSession(c)
+ *
+ * // Store data
+ * session.set('cart', [{ id: 1, qty: 2 }])
+ *
+ * // Retrieve with type
+ * const cart = session.get<CartItem[]>('cart', [])
+ *
+ * // Flash message (available only on next request)
+ * session.flash('success', 'Item added to cart')
+ *
+ * // On next request
+ * const message = session.getFlash<string>('success')
+ * ```
+ */
 export interface Session {
-    /** Get session ID */
+    /**
+     * Get the current session ID.
+     * @returns The unique session identifier
+     */
     getId(): string
-    /** Get a value from session */
+    /**
+     * Get a value from the session.
+     * @typeParam T - Expected return type
+     * @param key - The key to retrieve
+     * @param defaultValue - Default value if key doesn't exist
+     * @returns The stored value or default
+     */
     get<T = unknown>(key: string, defaultValue?: T): T | undefined
-    /** Set a value in session */
+    /**
+     * Set a value in the session.
+     * @param key - The key to store under
+     * @param value - The value to store (must be JSON-serializable)
+     */
     set(key: string, value: unknown): void
-    /** Check if key exists */
+    /**
+     * Check if a key exists in the session.
+     * @param key - The key to check
+     * @returns True if the key exists
+     */
     has(key: string): boolean
-    /** Remove a key */
+    /**
+     * Remove a key from the session.
+     * @param key - The key to remove
+     */
     forget(key: string): void
-    /** Get all session data */
+    /**
+     * Get all session data.
+     * @returns A copy of all session data
+     */
     all(): SessionData
-    /** Clear all session data */
+    /**
+     * Clear all session data.
+     * Keeps the session ID but removes all stored values.
+     */
     flush(): void
-    /** Regenerate session ID (for security, e.g., after login) */
+    /**
+     * Regenerate the session ID.
+     * Use after authentication to prevent session fixation attacks.
+     */
     regenerate(): Promise<void>
-    /** Destroy the session */
+    /**
+     * Destroy the session completely.
+     * Removes all data and invalidates the session.
+     */
     destroy(): Promise<void>
-    /** Flash data (available only for next request) */
+    /**
+     * Set flash data (available only for the next request).
+     * @param key - The flash key
+     * @param value - The flash value (must be JSON-serializable)
+     */
     flash(key: string, value: unknown): void
-    /** Get flash data */
+    /**
+     * Get flash data from the previous request.
+     * @typeParam T - Expected return type
+     * @param key - The flash key to retrieve
+     * @returns The flash value or undefined
+     */
     getFlash<T = unknown>(key: string): T | undefined
-    /** Check if session was modified */
+    /**
+     * Check if the session has been modified.
+     * @returns True if any data has been changed
+     */
     isDirty(): boolean
 }
 
@@ -109,10 +327,33 @@ const defaultConfig: SessionConfig = {
 
 let globalConfig: SessionConfig = { ...defaultConfig }
 
+/**
+ * Configure global session settings.
+ *
+ * Call this once at application startup to set default session options.
+ * These can be overridden per-middleware instance.
+ *
+ * @param config - Partial configuration to merge with defaults
+ *
+ * @example
+ * ```typescript
+ * configureSession({
+ *   driver: 'deno-kv',
+ *   secret: Deno.env.get('SESSION_SECRET')!,
+ *   secure: true,
+ *   lifetime: 86400, // 24 hours
+ * })
+ * ```
+ */
 export function configureSession(config: Partial<SessionConfig>): void {
     globalConfig = { ...defaultConfig, ...config }
 }
 
+/**
+ * Get the current session configuration.
+ *
+ * @returns The merged global session configuration
+ */
 export function getSessionConfig(): SessionConfig {
     return globalConfig
 }
@@ -121,6 +362,14 @@ export function getSessionConfig(): SessionConfig {
 // Session ID Generation
 // =============================================================================
 
+/**
+ * Generate a cryptographically secure session ID.
+ *
+ * Uses Web Crypto API for random bytes generation.
+ *
+ * @returns A 64-character hexadecimal session ID
+ * @internal
+ */
 function generateSessionId(): string {
     const array = new Uint8Array(32)
     crypto.getRandomValues(array)
@@ -133,9 +382,23 @@ function generateSessionId(): string {
 // Cookie Session Driver (stores data in encrypted cookie)
 // =============================================================================
 
+/**
+ * Cookie-based session driver.
+ *
+ * Stores session data directly in an encrypted cookie (stateless).
+ * Best for small session data sizes (< 4KB after encryption).
+ *
+ * **Security:** Uses AES-256-GCM encryption when a secret is provided.
+ *
+ * @example
+ * ```typescript
+ * const driver = new CookieSessionDriver(context, config)
+ * await driver.write('session-id', { userId: 123 }, 3600)
+ * ```
+ */
 export class CookieSessionDriver implements SessionDriver {
-    private context: Context
-    private config: SessionConfig
+    private readonly context: Context
+    private readonly config: SessionConfig
 
     constructor(context: Context, config: SessionConfig) {
         this.context = context
@@ -259,8 +522,26 @@ export class CookieSessionDriver implements SessionDriver {
 // Memory Session Driver (for development/testing)
 // =============================================================================
 
+/**
+ * In-memory session driver.
+ *
+ * Stores sessions in a Map. Data is lost on server restart.
+ * **Use only for development and testing.**
+ *
+ * @example
+ * ```typescript
+ * const driver = new MemorySessionDriver()
+ * await driver.write('session-id', { userId: 123 }, 3600)
+ *
+ * // For testing: clear all sessions
+ * driver.clear()
+ * ```
+ */
 export class MemorySessionDriver implements SessionDriver {
-    private sessions = new Map<string, { data: SessionData; expires: number }>()
+    private readonly sessions = new Map<
+        string,
+        { data: SessionData; expires: number }
+    >()
 
     async read(sessionId: string): Promise<SessionData | null> {
         const session = this.sessions.get(sessionId)
@@ -317,9 +598,24 @@ export class MemorySessionDriver implements SessionDriver {
 // Deno KV Session Driver
 // =============================================================================
 
+/**
+ * Deno KV session driver.
+ *
+ * Persistent session storage using Deno's built-in KV store.
+ * Supports automatic expiration via KV's `expireIn` option.
+ *
+ * @example
+ * ```typescript
+ * // Use default KV store
+ * const driver = new DenoKvSessionDriver()
+ *
+ * // Or specify a custom path
+ * const driver = new DenoKvSessionDriver('./sessions.db')
+ * ```
+ */
 export class DenoKvSessionDriver implements SessionDriver {
     private kv: Deno.Kv | null = null
-    private kvPath?: string
+    private readonly kvPath?: string
 
     constructor(kvPath?: string) {
         this.kvPath = kvPath
@@ -375,9 +671,25 @@ export class DenoKvSessionDriver implements SessionDriver {
 // Redis Session Driver
 // =============================================================================
 
+/**
+ * Redis session driver.
+ *
+ * Persistent session storage using Redis server.
+ * Implements RESP protocol directly without external dependencies.
+ *
+ * @example
+ * ```typescript
+ * const driver = new RedisSessionDriver({
+ *   hostname: 'localhost',
+ *   port: 6379,
+ *   password: 'secret',
+ *   db: 1,
+ * })
+ * ```
+ */
 export class RedisSessionDriver implements SessionDriver {
     private connection: Deno.Conn | null = null
-    private config: {
+    private readonly config: {
         hostname: string
         port: number
         password?: string
@@ -511,13 +823,21 @@ export class RedisSessionDriver implements SessionDriver {
 // SessionStore Class
 // =============================================================================
 
+/**
+ * Session store implementation.
+ *
+ * Manages session data, flash messages, and persistence.
+ * Created automatically by the session middleware.
+ *
+ * @internal Use `getSession(c)` to access the session in controllers.
+ */
 export class SessionStore implements Session {
     private sessionId: string
-    private driver: SessionDriver
+    private readonly driver: SessionDriver
     private data: SessionData
     private flashData: SessionData = {}
     private dirty = false
-    private config: SessionConfig
+    private readonly config: SessionConfig
 
     constructor(
         sessionId: string,
@@ -586,7 +906,7 @@ export class SessionStore implements Session {
         if (!this.data._flash) {
             this.data._flash = {}
         }
-        ;(this.data._flash as SessionData)[key] = value
+        ; (this.data._flash as SessionData)[key] = value
         this.dirty = true
     }
 
@@ -614,6 +934,29 @@ export class SessionStore implements Session {
 // Session Middleware
 // =============================================================================
 
+/**
+ * Session middleware factory.
+ *
+ * Creates a Hono middleware that initializes session handling for each request.
+ * Automatically loads, saves, and manages session lifecycle.
+ *
+ * @param config - Optional configuration overrides
+ * @returns Hono middleware function
+ *
+ * @example
+ * ```typescript
+ * import { sessionMiddleware } from '@lockness/session'
+ *
+ * // Use with global config
+ * app.useMiddleware(sessionMiddleware())
+ *
+ * // Or with inline config
+ * app.useMiddleware(sessionMiddleware({
+ *   driver: 'deno-kv',
+ *   lifetime: 86400,
+ * }))
+ * ```
+ */
 export function sessionMiddleware(
     config?: Partial<SessionConfig>,
 ): (c: Context, next: () => Promise<void>) => Promise<void> {
@@ -681,7 +1024,29 @@ export function sessionMiddleware(
 }
 
 /**
- * Get session from context
+ * Get session from Hono context.
+ *
+ * Retrieves the session instance attached by the session middleware.
+ * Throws if called before the middleware has run.
+ *
+ * @param c - Hono context object
+ * @returns The session instance
+ * @throws {Error} If session middleware is not configured
+ *
+ * @example
+ * ```typescript
+ * import { getSession } from '@lockness/session'
+ *
+ * @Controller('/user')
+ * class UserController {
+ *   @Get('/profile')
+ *   profile(c: Context) {
+ *     const session = getSession(c)
+ *     const userId = session.get<number>('userId')
+ *     // ...
+ *   }
+ * }
+ * ```
  */
 export function getSession(c: Context): Session {
     const session = c.get('session') as Session | undefined
