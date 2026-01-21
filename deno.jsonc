@@ -17,6 +17,7 @@
         "./packages/queue",
         "./packages/session",
         "./packages/socialite",
+        "./packages/sse",
         "./packages/storage",
         "./packages/validator",
         "./packages/cli",
