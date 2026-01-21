@@ -1,8 +1,9 @@
 /**
- * @lockness/auth-provider - Base Token Provider
+ * @fileoverview Abstract base class for token-based (API) authentication providers.
  *
- * Abstract base class for token-based (API) authentication providers.
  * Implements shared logic for token generation, verification, and management.
+ *
+ * @module @lockness/auth-provider/base/token
  */
 
 import type {
@@ -13,20 +14,32 @@ import type {
 } from '@lockness/auth'
 
 /**
- * Abstract base class for token user providers
+ * Abstract base class for token user providers.
  *
  * Provides shared implementation of:
  * - Token generation (cryptographically secure)
- * - Token hashing
+ * - Token hashing using SHA-256
  * - Token lifecycle management
  *
  * Subclasses must implement:
- * - findUserById()
- * - findByCredentials()
- * - createToken()
- * - verifyToken()
- * - deleteToken()
- * - deleteAllTokens()
+ * - `findUserById()` - Find user by unique identifier
+ * - `findByCredentials()` - Find user by email/password
+ * - `createToken()` - Create a new access token
+ * - `verifyToken()` - Verify and retrieve token
+ * - `deleteToken()` - Delete a specific token
+ * - `deleteAllTokens()` - Revoke all tokens for a user
+ *
+ * @typeParam User - The user entity type extending {@link Authenticatable}
+ *
+ * @example
+ * ```ts
+ * class MyTokenProvider extends TokenProviderBase<User> {
+ *   async findById(id: string | number): Promise<User | null> {
+ *     return await db.users.findFirst({ where: { id } })
+ *   }
+ *   // ... implement other abstract methods
+ * }
+ * ```
  */
 export abstract class TokenProviderBase<User extends Authenticatable>
     implements TokenUserProviderContract<User> {

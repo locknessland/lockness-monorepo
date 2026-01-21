@@ -1,8 +1,9 @@
 /**
- * @lockness/auth-provider/drizzle - Drizzle Token Provider
+ * @fileoverview Token-based (API) authentication provider using Drizzle ORM.
  *
- * Token-based (API) authentication provider using Drizzle ORM.
- * Extends TokenProviderBase to inherit shared token generation and hashing logic.
+ * Extends {@link TokenProviderBase} to inherit shared token generation and hashing logic.
+ *
+ * @module @lockness/auth-provider/drizzle/token
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -10,7 +11,9 @@ import type { AccessToken, Authenticatable } from '@lockness/auth'
 import { TokenProviderBase } from '../base/token_provider_base.ts'
 
 /**
- * Options for Drizzle Token User Provider
+ * Configuration options for Drizzle token user provider.
+ *
+ * @typeParam User - The user entity type extending {@link Authenticatable}
  */
 export interface DrizzleTokenProviderOptions<User extends Authenticatable> {
     /**
@@ -70,7 +73,8 @@ export interface DrizzleTokenProviderOptions<User extends Authenticatable> {
  */
 export class DrizzleTokenProvider<User extends Authenticatable>
     extends TokenProviderBase<User> {
-    #options: Required<DrizzleTokenProviderOptions<User>>
+    /** @internal Provider configuration */
+    readonly #options: Required<DrizzleTokenProviderOptions<User>>
 
     constructor(options: DrizzleTokenProviderOptions<User>) {
         super()

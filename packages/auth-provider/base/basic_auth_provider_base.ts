@@ -1,8 +1,9 @@
 /**
- * @lockness/auth-provider - Base Basic Auth Provider
+ * @fileoverview Abstract base class for HTTP Basic Authentication providers.
  *
- * Abstract base class for HTTP Basic Authentication providers.
  * Implements shared logic for credential verification.
+ *
+ * @module @lockness/auth-provider/base/basic-auth
  */
 
 import type {
@@ -12,15 +13,27 @@ import type {
 } from '@lockness/auth'
 
 /**
- * Abstract base class for basic auth user providers
+ * Abstract base class for basic auth user providers.
  *
  * Provides shared implementation of:
  * - Password hashing and verification
  *
  * Subclasses must implement:
- * - findUserById()
- * - findByCredentials()
- * - verifyPassword()
+ * - `findUserById()` - Find user by unique identifier
+ * - `findByCredentials()` - Find user by email/password
+ * - `verifyPassword()` - Verify password hash
+ *
+ * @typeParam User - The user entity type extending {@link Authenticatable}
+ *
+ * @example
+ * ```ts
+ * class MyBasicAuthProvider extends BasicAuthProviderBase<User> {
+ *   async findById(id: string | number): Promise<User | null> {
+ *     return await db.users.findFirst({ where: { id } })
+ *   }
+ *   // ... implement other abstract methods
+ * }
+ * ```
  */
 export abstract class BasicAuthProviderBase<User extends Authenticatable>
     implements BasicAuthUserProviderContract<User> {

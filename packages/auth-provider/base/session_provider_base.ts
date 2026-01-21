@@ -1,9 +1,10 @@
 /**
- * @lockness/auth-provider - Base Session Provider
+ * @fileoverview Abstract base class for session-based authentication providers.
  *
- * Abstract base class for session-based authentication providers.
  * Implements shared logic for password verification, remember tokens, and user lookup.
  * ORM-specific implementations extend this class.
+ *
+ * @module @lockness/auth-provider/base/session
  */
 
 import type {
@@ -15,7 +16,7 @@ import type {
 } from '@lockness/auth'
 
 /**
- * Abstract base class for session user providers
+ * Abstract base class for session user providers.
  *
  * Provides shared implementation of:
  * - Password hashing and verification
@@ -23,20 +24,32 @@ import type {
  * - Token recycling for security
  *
  * Subclasses must implement:
- * - findUserById()
- * - findByCredentials()
- * - verifyPassword()
+ * - `findUserById()` - Find user by unique identifier
+ * - `findByCredentials()` - Find user by email/password
+ * - `verifyPassword()` - Verify password hash
  *
  * If remember tokens are enabled, subclasses should also implement:
- * - createRememberToken()
- * - verifyRememberToken()
- * - deleteRememberToken()
- * - recycleRememberToken()
+ * - `createRememberToken()` - Create a new remember token
+ * - `verifyRememberToken()` - Verify and retrieve token
+ * - `deleteRememberToken()` - Delete a specific token
+ * - `recycleRememberToken()` - Rotate token for security
+ *
+ * @typeParam User - The user entity type extending {@link Authenticatable}
+ *
+ * @example
+ * ```ts
+ * class MySessionProvider extends SessionProviderBase<User> {
+ *   async findById(id: string | number): Promise<User | null> {
+ *     return await db.users.findFirst({ where: { id } })
+ *   }
+ *   // ... implement other abstract methods
+ * }
+ * ```
  */
 export abstract class SessionProviderBase<User extends Authenticatable>
     implements
-        SessionUserProviderContract<User>,
-        SessionWithRememberMeProviderContract<User> {
+    SessionUserProviderContract<User>,
+    SessionWithRememberMeProviderContract<User> {
     /**
      * Symbol to access real user type
      */

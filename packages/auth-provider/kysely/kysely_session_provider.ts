@@ -1,13 +1,15 @@
 /**
- * @lockness/auth-provider/kysely - Kysely Session Provider
+ * @fileoverview Session-based authentication provider using Kysely ORM.
  *
- * Session-based authentication provider using Kysely ORM.
- * Extends SessionProviderBase to inherit shared token and password logic.
+ * Extends {@link SessionProviderBase} to inherit shared token and password logic.
  *
  * Note: Kysely is an optional peer dependency.
- * Install it separately: deno add npm:kysely
+ * Install it separately: `deno add npm:kysely`
+ *
+ * @module @lockness/auth-provider/kysely/session
  *
  * @example
+ * ```ts
  * import { Kysely, PostgresDialect } from 'kysely'
  * import { KyselySessionProvider } from '@lockness/auth-provider/kysely'
  *
@@ -35,34 +37,65 @@
  *   },
  *   enableRememberTokens: true
  * })
+ * ```
  */
 
-// Note: Kysely is an optional peer dependency
-// Type imports don't require the package to be installed, so we use `any` to avoid import errors
 import type { Authenticatable, RememberMeToken } from '@lockness/auth'
 import { SessionProviderBase } from '../base/session_provider_base.ts'
 
 /**
- * Options for Kysely Session User Provider
- * Note: Uses `any` type for db parameter to avoid Kysely peer dependency
+ * Kysely database instance type.
+ *
+ * Uses `any` because Kysely is an optional peer dependency. The actual type
+ * is `Kysely<Database>` where Database is your schema type.
+ *
+ * Users should cast to their specific `Kysely<Database>` type in callbacks
+ * for full type safety.
+ *
+ * @remarks
+ * We use `any` here intentionally as a trade-off between:
+ * - Avoiding a hard dependency on Kysely
+ * - Allowing the internal implementation to call Kysely methods
+ * - Letting users provide properly typed callbacks
+ */
+// deno-lint-ignore no-explicit-any
+export type KyselyDatabase = any
+
+/**
+ * Configuration options for Kysely session user provider.
+ *
+ * Note: Uses {@link KyselyDatabase} type for db parameter to avoid Kysely peer dependency.
+ * In your implementation, you can use the full `Kysely<Database>` type.
+ *
+ * @typeParam User - The user entity type extending {@link Authenticatable}
  */
 export interface KyselySessionProviderOptions<User extends Authenticatable> {
     /**
-     * Kysely database instance
-     * Type is `any` to avoid peer dependency issues - use Kysely<Database> in your code
+     * Kysely database instance.
+     * Uses {@link KyselyDatabase} type - cast to your specific `Kysely<Database>` in callbacks.
      */
-    db: any
+    db: KyselyDatabase
 
     /**
-     * Function to find user by ID
+     * Function to find user by ID.
+     * @param db - The Kysely database instance
+     * @param id - The user's unique identifier
+     * @returns The user or null if not found
      */
-    findUserById: (db: any, id: string | number) => Promise<User | null>
+    findUserById: (
+        db: KyselyDatabase,
+        id: string | number,
+    ) => Promise<User | null>
 
     /**
-     * Function to find user by email and verify password
+     * Function to find user by email and verify password.
+     * @param db - The Kysely database instance
+     * @param email - The user's email address
+     * @param password - The plain text password to verify
+     * @returns The user if credentials are valid, null otherwise
      */
     findUserByCredentials: (
-        db: any,
+        db: KyselyDatabase,
         email: string,
         password: string,
     ) => Promise<User | null>
@@ -84,12 +117,28 @@ export interface KyselySessionProviderOptions<User extends Authenticatable> {
 }
 
 /**
- * Kysely-based user provider for session authentication
+ * Kysely-based user provider for session authentication.
+ *
+ * @typeParam User - The user entity type extending {@link Authenticatable}
+ *
+ * @example
+ * ```ts
+ * const provider = new KyselySessionProvider<User>({
+ *   db,
+ *   findUserById: async (db, id) => {
+ *     const kysely = db as Kysely<Database>
+ *     return await kysely.selectFrom('users').selectAll().where('id', '=', id).executeTakeFirst()
+ *   },
+ *   findUserByCredentials: async (db, email, password) => { ... }
+ * })
+ * ```
  */
 export class KyselySessionProvider<User extends Authenticatable>
     extends SessionProviderBase<User> {
-    #options: Required<KyselySessionProviderOptions<User>>
-    #enableRememberTokens: boolean
+    /** @internal Provider configuration */
+    readonly #options: Required<KyselySessionProviderOptions<User>>
+    /** @internal Whether remember tokens are enabled */
+    readonly #enableRememberTokens: boolean
 
     constructor(options: KyselySessionProviderOptions<User>) {
         super()

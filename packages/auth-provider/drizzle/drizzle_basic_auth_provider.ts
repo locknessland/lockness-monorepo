@@ -1,8 +1,9 @@
 /**
- * @lockness/auth-provider/drizzle - Drizzle Basic Auth Provider
+ * @fileoverview HTTP Basic Authentication provider using Drizzle ORM.
  *
- * HTTP Basic Authentication provider using Drizzle ORM.
- * Extends BasicAuthProviderBase to inherit shared password verification logic.
+ * Extends {@link BasicAuthProviderBase} to inherit shared password verification logic.
+ *
+ * @module @lockness/auth-provider/drizzle/basic-auth
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -10,7 +11,9 @@ import type { Authenticatable } from '@lockness/auth'
 import { BasicAuthProviderBase } from '../base/basic_auth_provider_base.ts'
 
 /**
- * Options for Drizzle Basic Auth User Provider
+ * Configuration options for Drizzle basic auth user provider.
+ *
+ * @typeParam User - The user entity type extending {@link Authenticatable}
  */
 export interface DrizzleBasicAuthProviderOptions<User extends Authenticatable> {
     /**
@@ -65,7 +68,8 @@ export interface DrizzleBasicAuthProviderOptions<User extends Authenticatable> {
  */
 export class DrizzleBasicAuthProvider<User extends Authenticatable>
     extends BasicAuthProviderBase<User> {
-    #options: Required<DrizzleBasicAuthProviderOptions<User>>
+    /** @internal Provider configuration */
+    readonly #options: Required<DrizzleBasicAuthProviderOptions<User>>
 
     constructor(options: DrizzleBasicAuthProviderOptions<User>) {
         super()

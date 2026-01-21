@@ -1,5 +1,10 @@
 /**
- * @lockness/auth-provider/drizzle - Public exports
+ * @fileoverview Drizzle ORM authentication provider implementations.
+ *
+ * Provides ready-to-use authentication providers for Drizzle ORM.
+ * Supports session-based, token-based, and basic authentication.
+ *
+ * @module @lockness/auth-provider/drizzle
  */
 
 export type { DrizzleSessionProviderOptions } from './drizzle_session_provider.ts'

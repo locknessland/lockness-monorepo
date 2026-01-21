@@ -1,8 +1,9 @@
 /**
- * @lockness/auth-provider/drizzle - Drizzle Session Provider
+ * @fileoverview Session-based authentication provider using Drizzle ORM.
  *
- * Session-based authentication provider using Drizzle ORM.
- * Extends SessionProviderBase to inherit shared token and password logic.
+ * Extends {@link SessionProviderBase} to inherit shared token and password logic.
+ *
+ * @module @lockness/auth-provider/drizzle/session
  */
 
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
@@ -10,7 +11,9 @@ import type { Authenticatable, RememberMeToken } from '@lockness/auth'
 import { SessionProviderBase } from '../base/session_provider_base.ts'
 
 /**
- * Options for Drizzle Session User Provider
+ * Configuration options for Drizzle session user provider.
+ *
+ * @typeParam User - The user entity type extending {@link Authenticatable}
  */
 export interface DrizzleSessionProviderOptions<User extends Authenticatable> {
     /**
@@ -75,8 +78,10 @@ export interface DrizzleSessionProviderOptions<User extends Authenticatable> {
  */
 export class DrizzleSessionProvider<User extends Authenticatable>
     extends SessionProviderBase<User> {
-    #options: Required<DrizzleSessionProviderOptions<User>>
-    #enableRememberTokens: boolean
+    /** @internal Provider configuration */
+    readonly #options: Required<DrizzleSessionProviderOptions<User>>
+    /** @internal Whether remember tokens are enabled */
+    readonly #enableRememberTokens: boolean
 
     constructor(options: DrizzleSessionProviderOptions<User>) {
         super()
