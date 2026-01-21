@@ -6,7 +6,7 @@ export const ThemeSwitchPage = () => {
     return (
         <PageUiLayout
             title='Theme Switch - Lockness UI'
-            currentPath='/ui/theme-switch'
+           
         >
             <div class='space-y-8 max-w-full'>
                 <header>

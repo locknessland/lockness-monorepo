@@ -24,7 +24,7 @@ export const PaginationDemo = () => {
     return (
         <PageUiLayout
             title='Pagination - Lockness UI'
-            currentPath='/ui/pagination'
+           
         >
             <div class='space-y-8'>
                 {/* Header */}

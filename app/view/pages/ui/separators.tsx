@@ -10,7 +10,7 @@ export const SeparatorsPage = () => {
     return (
         <PageUiLayout
             title='Separators - Lockness UI'
-            currentPath='/ui/separators'
+           
         >
             <div class='space-y-12 max-w-full'>
                 <header>

@@ -11,7 +11,7 @@ export const AccordionPage = () => {
     return (
         <PageUiLayout
             title='Accordion - Lockness UI'
-            currentPath='/ui/accordion'
+           
         >
             <div class='space-y-8 max-w-full'>
                 <header>

@@ -112,7 +112,7 @@ export const DocsLayout = (
             <ThemeSwitchScript />
             <SidebarProvider>
                 {/* Sidebar */}
-                <DocsSidebar currentPath={props.currentPath} />
+                <DocsSidebar />
 
                 <SidebarInset class='ml-0 md:ml-64 transition-all duration-200 overflow-x-hidden'>
                     {/* Mobile sidebar trigger */}
@@ -223,7 +223,7 @@ const navSections: readonly NavSection[] = [
 ]
 
 // Docs Sidebar using @lockness/ui Sidebar components
-const DocsSidebar = (props: { currentPath: string }) => {
+const DocsSidebar = () => {
     return (
         <Sidebar topOffset='16'>
             <SidebarHeader class='p-4'>
@@ -245,12 +245,10 @@ const DocsSidebar = (props: { currentPath: string }) => {
                             <SidebarMenu>
                                 {section.links.map((link) => {
                                     const href = route(link.name)
-                                    const isActive = props.currentPath === href
                                     return (
                                         <SidebarMenuItem key={link.name}>
                                             <SidebarMenuButton
                                                 href={href}
-                                                isActive={isActive}
                                                 up-preload
                                                 up-transition='move-left'
                                             >

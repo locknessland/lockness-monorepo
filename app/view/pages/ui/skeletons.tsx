@@ -13,7 +13,7 @@ export const SkeletonsPage = () => {
     return (
         <PageUiLayout
             title='Skeletons - Lockness UI'
-            currentPath='/ui/skeletons'
+           
         >
             <div class='space-y-12 max-w-full'>
                 <header>

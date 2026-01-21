@@ -13,7 +13,7 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const AlertsPage = () => {
     return (
-        <PageUiLayout title='Alerts - Lockness UI' currentPath='/ui/alerts'>
+        <PageUiLayout title='Alerts - Lockness UI'>
             <div class='space-y-12 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

@@ -60,7 +60,7 @@ export const ChartPage: FC = () => {
     const sparklineData = [5, 10, 5, 20, 8, 15, 12, 18, 6, 14]
 
     return (
-        <PageUiLayout title='Chart - Lockness UI' currentPath='/ui/chart'>
+        <PageUiLayout title='Chart - Lockness UI'>
             <ChartScript />
             <div class='space-y-8 max-w-full'>
                 <header>

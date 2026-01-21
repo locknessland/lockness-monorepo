@@ -21,7 +21,7 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const NavbarDemoPage = () => {
     return (
-        <PageUiLayout title='Navbar - Lockness UI' currentPath='/ui/navbar'>
+        <PageUiLayout title='Navbar - Lockness UI'>
             <div class='space-y-8'>
                 {/* Header */}
                 <div class='space-y-2'>

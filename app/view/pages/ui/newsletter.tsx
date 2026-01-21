@@ -11,7 +11,7 @@ export const NewsletterPage = () => {
     return (
         <PageUiLayout
             title='Newsletter - Lockness UI'
-            currentPath='/ui/newsletter'
+           
         >
             <div class='space-y-8 max-w-full'>
                 <header>

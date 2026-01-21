@@ -14,7 +14,7 @@ export const UploadZonePage = () => {
     return (
         <PageUiLayout
             title='UploadZone - Lockness UI'
-            currentPath='/ui/upload-zone'
+           
         >
             <div class='space-y-8 max-w-full'>
                 <header>

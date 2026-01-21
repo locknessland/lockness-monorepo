@@ -16,7 +16,7 @@ export const FormsPage = () => {
     return (
         <PageUiLayout
             title='Form Components - Lockness UI'
-            currentPath='/ui/forms'
+           
         >
             <div class='space-y-8 max-w-full'>
                 <header>

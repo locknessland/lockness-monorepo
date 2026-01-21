@@ -20,7 +20,7 @@ import { CodeBlock } from '@lockness/ui/components'
 
 export const ModalPage = () => {
     return (
-        <PageUiLayout title='Modal - Lockness UI' currentPath='/ui/modal'>
+        <PageUiLayout title='Modal - Lockness UI'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

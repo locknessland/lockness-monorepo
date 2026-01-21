@@ -5,7 +5,7 @@ export const KeyboardsPage = () => {
     return (
         <PageUiLayout
             title='Keyboards - Lockness UI'
-            currentPath='/ui/keyboards'
+           
         >
             <div class='space-y-12 max-w-full'>
                 <header>

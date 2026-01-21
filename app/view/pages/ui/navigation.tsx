@@ -24,7 +24,7 @@ export const NavigationPage = () => {
     return (
         <PageUiLayout
             title='Navigation Components - Lockness UI'
-            currentPath='/ui/navigation'
+           
         >
             <div class='space-y-8 max-w-full'>
                 <header>

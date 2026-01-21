@@ -30,7 +30,7 @@ import { CodeBlock } from '@lockness/ui/components'
 
 export const SidebarPage = () => {
     return (
-        <PageUiLayout title='Sidebar - Lockness UI' currentPath='/ui/sidebar'>
+        <PageUiLayout title='Sidebar - Lockness UI'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

@@ -4,7 +4,7 @@ export const UiIndex = () => {
     return (
         <PageUiLayout
             title='UI Showcase - Lockness Components'
-            currentPath='/ui'
+           
         >
             <div class='space-y-8 max-w-4xl'>
                 <header>

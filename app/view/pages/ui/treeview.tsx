@@ -130,7 +130,7 @@ const fileSystemData: TreeViewDataItem[] = [
 
 export const TreeViewPage = () => {
     return (
-        <PageUiLayout title='TreeView - Lockness UI' currentPath='/ui/treeview'>
+        <PageUiLayout title='TreeView - Lockness UI'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

@@ -22,7 +22,7 @@ export const HeroPage = () => {
         <PageUiLayout
             title='Hero - Lockness UI'
             noPadding
-            currentPath='/ui/hero'
+           
         >
             <div class='p-4 md:p-8 space-y-8 max-w-full'>
                 <header>

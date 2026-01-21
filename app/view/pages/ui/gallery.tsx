@@ -76,7 +76,7 @@ const justifiedImages: Array<{
 
 export const GalleryPage = () => {
     return (
-        <PageUiLayout title='Gallery - Lockness UI' currentPath='/ui/gallery'>
+        <PageUiLayout title='Gallery - Lockness UI'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

@@ -11,7 +11,7 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const SpinnerPage = () => {
     return (
-        <PageUiLayout title='Spinner - Lockness UI' currentPath='/ui/spinner'>
+        <PageUiLayout title='Spinner - Lockness UI'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

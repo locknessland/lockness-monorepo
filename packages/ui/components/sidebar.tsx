@@ -580,6 +580,8 @@ export const SidebarMenuButton: FC<SidebarMenuButtonProps> = ({
     const classes = cn(
         'peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-(--radius) p-2 text-left text-sm outline-none transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8',
         'group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2',
+        // Unpoly .up-current styling (when link matches current URL)
+        '[&.up-current]:bg-sidebar-accent [&.up-current]:font-medium [&.up-current]:text-sidebar-accent-foreground',
         isActive &&
             'bg-sidebar-accent font-medium text-sidebar-accent-foreground',
         className,

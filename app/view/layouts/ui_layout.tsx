@@ -22,12 +22,10 @@ interface PageUiLayoutProps {
     children: any
     /** Remove default padding from main content area */
     noPadding?: boolean
-    /** Current page path for sidebar active state */
-    currentPath?: string
 }
 
 export const PageUiLayout = (
-    { title, children, noPadding = false, currentPath = '' }: PageUiLayoutProps,
+    { title, children, noPadding = false }: PageUiLayoutProps,
 ) => {
     return (
         <RootLayout
@@ -69,7 +67,7 @@ export const PageUiLayout = (
             </Navbar>
 
             <SidebarProvider>
-                <UiSidebar currentPath={currentPath} />
+                <UiSidebar />
 
                 <SidebarInset class='ml-0 md:ml-64 transition-all duration-200 overflow-x-hidden'>
                     {/* Mobile sidebar trigger */}
