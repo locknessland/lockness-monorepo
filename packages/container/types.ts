@@ -106,6 +106,7 @@ export interface ContainerWriter {
      * @typeParam T - The service type
      * @param token - The service token
      * @param instance - The instance to register
+     * @returns void
      */
     set<T>(token: Constructor<T> | ServiceToken<T>, instance: T): void
 
@@ -113,12 +114,14 @@ export interface ContainerWriter {
      * Remove a service from the container.
      *
      * @param token - The service token to remove
-     * @returns True if the service was removed
+     * @returns True if the service was removed, false otherwise
      */
     delete(token: ServiceToken): boolean
 
     /**
      * Remove all services from the container.
+     *
+     * @returns void
      */
     clear(): void
 }

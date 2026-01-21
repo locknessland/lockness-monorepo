@@ -16,6 +16,8 @@ import type { Constructor, IContainer, ServiceToken } from './types.ts'
  * Manages service instances with automatic singleton creation.
  * Services are lazily instantiated on first access.
  *
+ * @implements {IContainer}
+ *
  * @example
  * ```ts
  * const container = new Container()
@@ -74,6 +76,7 @@ export class Container implements IContainer {
      * @typeParam T - The service type
      * @param token - The token (class, symbol, or string) to register
      * @param instance - The instance to register
+     * @returns void
      *
      * @example
      * ```ts
@@ -110,7 +113,7 @@ export class Container implements IContainer {
      * Remove a service from the container.
      *
      * @param token - The service token to remove (class, symbol, or string)
-     * @returns True if the service was registered and has been removed, false if not found
+     * @returns `true` if the service was registered and removed, `false` if not found
      *
      * @example
      * ```typescript
@@ -130,6 +133,8 @@ export class Container implements IContainer {
      *
      * Removes all registered service instances. Useful for testing
      * or resetting application state between test cases.
+     *
+     * @returns void
      *
      * @example
      * ```typescript

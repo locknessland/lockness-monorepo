@@ -19,6 +19,9 @@ import type { Constructor } from './types.ts'
  *
  * @returns A new Container instance with empty registry
  *
+ * @see {@link Container} for the container class
+ * @see {@link container} for the global singleton instance
+ *
  * @example
  * ```typescript
  * // Create isolated container for testing
@@ -44,6 +47,7 @@ export function createContainer(): Container {
  * @typeParam T - The service instance type
  * @param ServiceClass - The service class constructor
  * @param instance - Optional pre-created instance to register
+ * @returns void
  *
  * @example Pre-instantiate service
  * ```typescript
@@ -75,6 +79,9 @@ export function bind<T>(ServiceClass: Constructor<T>, instance?: T): void {
  * @typeParam T - The service instance type
  * @param ServiceClass - The service class to resolve
  * @returns The singleton service instance
+ *
+ * @see {@link container} for the global container instance
+ * @see {@link bind} for registering services
  *
  * @example
  * ```typescript

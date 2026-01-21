@@ -19,6 +19,9 @@ import type { Constructor, ServiceToken } from './types.ts'
  *
  * @returns A class decorator that returns the class unchanged
  *
+ * @see {@link Container.get} for how services are resolved
+ * @see {@link Inject} for property injection
+ *
  * @example
  * ```typescript
  * @Service()
@@ -53,6 +56,9 @@ export function Service(): <T extends Constructor>(target: T) => T {
  * @param ServiceClass - The service class or token to inject
  * @returns A decorator that handles lazy service injection
  *
+ * @see {@link Service} for marking classes as services
+ * @see {@link container} for the global container instance
+ *
  * @example Using with accessor (recommended)
  * ```typescript
  * @Service()
@@ -81,6 +87,7 @@ export function Inject<T>(ServiceClass: Constructor<T> | ServiceToken<T>): any {
         _value: ClassAccessorDecoratorTarget<unknown, T> | undefined,
         context: ClassFieldDecoratorContext | ClassAccessorDecoratorContext,
     ): ClassAccessorDecoratorResult<unknown, T> | ((initialValue: T) => T) {
+        /** @internal Cache key for storing the injected instance */
         const cacheKeyPrefix = `_${String(context.name)}_injected`
 
         if (context.kind === 'accessor') {

@@ -12,6 +12,8 @@
  * This error is thrown when attempting to resolve a token (symbol or string)
  * that has not been registered in the container.
  *
+ * @extends {Error}
+ *
  * @example
  * ```typescript
  * import { container, ServiceNotFoundError } from '@lockness/container'
