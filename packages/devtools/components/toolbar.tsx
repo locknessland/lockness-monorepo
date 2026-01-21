@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Debug toolbar component for Lockness Devtools.
+ *
+ * This component renders a fixed bottom toolbar that displays real-time
+ * debugging information including request status, timing, and metrics.
+ *
+ * @module @lockness/devtools/components/toolbar
+ */
+
 import { collector } from '../collector.ts'
 import type { RequestInfo } from '../types.ts'
 import { icons } from './icons.ts'
@@ -5,10 +14,44 @@ import { LogoButton } from './logo-button.tsx'
 import { Metrics } from './metrics.tsx'
 import { RequestInfoItem } from './request-info.tsx'
 
+// =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Props for the DebugToolbar component.
+ */
 interface DebugToolbarProps {
-    requestId?: string
+    /**
+     * Optional request ID to display.
+     * If not provided, displays the most recent request.
+     */
+    readonly requestId?: string
 }
 
+// =============================================================================
+// Component
+// =============================================================================
+
+/**
+ * Debug toolbar component injected into HTML pages.
+ *
+ * Displays a fixed bottom bar with:
+ * - Logo/dashboard link
+ * - HTTP status badge
+ * - Request method and path
+ * - Response timing
+ * - Query count and total time
+ * - Log count
+ *
+ * @param props - The component props
+ * @returns The toolbar JSX element
+ *
+ * @example
+ * ```tsx
+ * <DebugToolbar requestId="abc-123" />
+ * ```
+ */
 export function DebugToolbar({ requestId }: DebugToolbarProps) {
     const data = collector.getAllData()
     const currentRequest = requestId

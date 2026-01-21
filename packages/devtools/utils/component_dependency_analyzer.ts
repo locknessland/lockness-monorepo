@@ -1,29 +1,97 @@
 /**
- * Component Dependency Analyzer
- * Analyzes TSX files to build component dependency trees
+ * @fileoverview Component dependency analyzer for TSX files.
  *
- * This uses static analysis to determine which components are used
- * within other components by parsing imports and JSX usage.
+ * Performs static analysis on TSX files to build component dependency trees.
+ * This enables visualization of component hierarchies in the devtools dashboard.
+ *
+ * @module @lockness/devtools/utils/component_dependency_analyzer
+ *
+ * @example
+ * ```typescript
+ * const analyzer = new ComponentDependencyAnalyzer()
+ * await analyzer.scan()
+ *
+ * // Get the dependency tree for a component
+ * const tree = analyzer.buildTree('UserProfile')
+ * console.log(tree.children) // Child components used by UserProfile
+ * ```
  */
 
 import { walk } from '@std/fs'
 import { dirname, join, relative, resolve } from '@std/path'
 
+// =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Information about a scanned component.
+ *
+ * Contains metadata extracted from static analysis of the component's source.
+ */
 export interface ComponentInfo {
-    name: string
-    file: string
-    imports: Map<string, string> // componentName -> importSource
-    usedComponents: Set<string> // components used in this component's JSX
+    /** The component name (e.g., 'UserProfile') */
+    readonly name: string
+    /** Relative path to the component file */
+    readonly file: string
+    /** Map of imported component names to their source paths */
+    readonly imports: Map<string, string>
+    /** Set of component names used in this component's JSX */
+    readonly usedComponents: Set<string>
 }
 
+/**
+ * A node in the component dependency tree.
+ *
+ * Used for visualizing component hierarchies.
+ */
 export interface ComponentTreeNode {
-    name: string
-    file?: string
-    children: ComponentTreeNode[]
+    /** The component name */
+    readonly name: string
+    /** The source file path (if known) */
+    readonly file?: string
+    /** Child components used by this component */
+    readonly children: ComponentTreeNode[]
 }
 
+// =============================================================================
+// Analyzer Class
+// =============================================================================
+
+// =============================================================================
+// Analyzer Class
+// =============================================================================
+
+/**
+ * Analyzes TSX files to build component dependency trees.
+ *
+ * The analyzer scans configured directories for TSX files and performs
+ * static analysis to determine:
+ * - Which components are exported from each file
+ * - Which components are imported and used within other components
+ *
+ * This information is used to build dependency trees for visualization.
+ *
+ * @example
+ * ```typescript
+ * const analyzer = new ComponentDependencyAnalyzer()
+ *
+ * // Scan all TSX files in configured directories
+ * await analyzer.scan()
+ *
+ * // Get a component name to file path mapping
+ * const componentMap = analyzer.getComponentMap()
+ *
+ * // Build dependency tree for a component
+ * const tree = analyzer.buildTree('Dashboard')
+ * ```
+ */
 export class ComponentDependencyAnalyzer {
-    private static SCAN_DIRS = ['app/view', 'packages/ui']
+    /**
+     * Directories to scan for components.
+     * @internal
+     */
+    private static readonly SCAN_DIRS = ['app/view', 'packages/ui'] as const
     private components = new Map<string, ComponentInfo>()
     private fileToComponents = new Map<string, string[]>()
     private cwd = ''

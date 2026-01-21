@@ -1,6 +1,18 @@
 /**
- * Devtools Middleware
- * Intercepts requests and collects debugging data
+ * @fileoverview Devtools middleware for request interception.
+ *
+ * This middleware intercepts all HTTP requests to collect debugging data
+ * such as request/response info, timing, and rendered components. It also
+ * injects the debug toolbar into HTML responses.
+ *
+ * @module @lockness/devtools/middleware
+ *
+ * @example
+ * ```typescript
+ * import { devtoolsMiddleware } from '@lockness/devtools'
+ *
+ * app.use('*', devtoolsMiddleware(true))
+ * ```
  */
 
 import type { Context, MiddlewareHandler } from 'hono'
@@ -8,9 +20,26 @@ import { collector } from './collector.ts'
 import { DebugToolbar } from './components/toolbar.tsx'
 import type { RequestInfo } from './types.ts'
 
+// =============================================================================
+// Route Matching
+// =============================================================================
+
 /**
- * Simple route pattern matcher for dynamic routes
- * Matches patterns like /users/:id with /users/123
+ * Matches a route pattern against a request path.
+ *
+ * Supports dynamic segments like `:id` which match any value.
+ *
+ * @param pattern - The route pattern (e.g., '/users/:id')
+ * @param path - The actual request path (e.g., '/users/123')
+ * @returns True if the pattern matches the path
+ *
+ * @example
+ * ```typescript
+ * matchRoutePattern('/users/:id', '/users/123') // true
+ * matchRoutePattern('/users/:id', '/posts/123') // false
+ * ```
+ *
+ * @internal
  */
 function matchRoutePattern(pattern: string, path: string): boolean {
     const patternParts = pattern.split('/')
@@ -25,6 +54,34 @@ function matchRoutePattern(pattern: string, path: string): boolean {
     })
 }
 
+// =============================================================================
+// Middleware
+// =============================================================================
+
+/**
+ * Creates the devtools middleware for request interception.
+ *
+ * This middleware:
+ * - Tracks request timing and metadata
+ * - Captures rendered component information
+ * - Logs request/response details
+ * - Records performance metrics
+ * - Injects the debug toolbar into HTML responses
+ *
+ * @param showToolbar - Whether to inject the debug toolbar into HTML responses
+ * @returns A Hono middleware handler
+ *
+ * @example
+ * ```typescript
+ * import { devtoolsMiddleware } from '@lockness/devtools'
+ *
+ * // Add to all routes
+ * app.use('*', devtoolsMiddleware())
+ *
+ * // Or disable toolbar injection
+ * app.use('*', devtoolsMiddleware(false))
+ * ```
+ */
 export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
     return async (c: Context, next: () => Promise<void>) => {
         const requestId = crypto.randomUUID()
@@ -46,9 +103,8 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
 
                     if (name) {
                         const fileName = collector.getComponentFile(name)
-                        capturedComponent = `<${name} ${
-                            fileName ? `_source="${fileName}"` : ''
-                        }/>`
+                        capturedComponent = `<${name} ${fileName ? `_source="${fileName}"` : ''
+                            }/>`
                     }
                 }
             }
@@ -67,10 +123,10 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
         if (typeof (c as any).render === 'function') {
             // deno-lint-ignore no-explicit-any
             const originalRender = (c as any).render.bind(c) // deno-lint-ignore no-explicit-any
-            ;(c as any).render = function (content: any, ...args: any[]) {
-                captureComponent(content)
-                return originalRender(content, ...args)
-            }
+                ; (c as any).render = function (content: any, ...args: any[]) {
+                    captureComponent(content)
+                    return originalRender(content, ...args)
+                }
         }
 
         // Collect request info
