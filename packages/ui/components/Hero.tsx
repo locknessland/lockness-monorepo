@@ -166,7 +166,7 @@ export const HeroAnnouncement: FC<HeroAnnouncementProps> = ({
         <>
             {children}
             {badge && (
-                <span class='py-1.5 px-2.5 inline-flex justify-center items-center gap-x-2 rounded-full bg-muted font-semibold text-sm text-muted-foreground'>
+                <span class='py-2 px-3 inline-flex justify-center items-center gap-x-2 rounded-(--radius) bg-muted font-semibold text-sm text-muted-foreground'>
                     {badge}
                     <svg
                         class='shrink-0 size-4'
@@ -188,7 +188,7 @@ export const HeroAnnouncement: FC<HeroAnnouncementProps> = ({
     )
 
     const classes = cn(
-        'inline-flex items-center gap-x-2 bg-card border border-border text-sm text-foreground p-1 ps-3 rounded-full transition hover:border-ring focus:outline-none focus:border-ring',
+        'inline-flex items-center gap-x-2 bg-card border border-border text-sm text-foreground p-1.5 ps-4 rounded-(--radius) transition hover:border-ring focus:outline-none focus:border-ring',
         className,
     )
 
