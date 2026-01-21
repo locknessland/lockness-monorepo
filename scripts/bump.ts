@@ -66,10 +66,14 @@ interface UpdateResult {
 const ROOT_CONFIG_PATH = './deno.jsonc' as const
 
 /** Regex pattern for matching JSR Lockness imports with versions */
-const LOCKNESS_VERSION_PATTERN = /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/g
+export const LOCKNESS_VERSION_PATTERN =
+    /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/g
 
 /** Regex pattern for extracting version parts from an import */
-const VERSION_EXTRACT_PATTERN = /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/
+export const VERSION_EXTRACT_PATTERN = /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/
+
+/** Regex pattern for validating semver format */
+export const SEMVER_PATTERN = /^\d+\.\d+\.\d+$/
 
 // =============================================================================
 // Helper Functions
@@ -81,7 +85,7 @@ const VERSION_EXTRACT_PATTERN = /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/
  * @param error - The error to extract message from
  * @returns The error message string
  */
-function getErrorMessage(error: unknown): string {
+export function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error)
 }
 
@@ -92,7 +96,7 @@ function getErrorMessage(error: unknown): string {
  * @param value - The import value
  * @returns True if this is a Lockness package import
  */
-function isLocknessImport(key: string, value: unknown): value is string {
+export function isLocknessImport(key: string, value: unknown): value is string {
     return (
         typeof value === 'string' &&
         (key.startsWith('@lockness/') || value.includes('jsr:@lockness/'))
@@ -106,7 +110,7 @@ function isLocknessImport(key: string, value: unknown): value is string {
  * @param newVersion - The new version to set
  * @returns The updated import string, or null if no match
  */
-function updateImportVersion(
+export function updateImportVersion(
     importValue: string,
     newVersion: string,
 ): string | null {
@@ -281,7 +285,9 @@ async function updateStubFile(
  */
 function printSummary(newVersion: string): void {
     console.log('')
-    console.log(`✨ Bump terminé ! Tous les packages sont en version ${newVersion}`)
+    console.log(
+        `✨ Bump terminé ! Tous les packages sont en version ${newVersion}`,
+    )
     console.log('')
     console.log('📝 Prochaines étapes:')
     console.log('   1. Vérifier les changements: git diff')
@@ -299,13 +305,17 @@ async function main(): Promise<void> {
     const newVersion = Deno.args[0]
 
     if (!newVersion) {
-        console.error('❌ Merci de spécifier une version. Ex: deno task bump 0.2.0')
+        console.error(
+            '❌ Merci de spécifier une version. Ex: deno task bump 0.2.0',
+        )
         Deno.exit(1)
     }
 
     // Validate version format
-    if (!/^\d+\.\d+\.\d+$/.test(newVersion)) {
-        console.error('❌ Format de version invalide. Utilisez le format semver: X.Y.Z')
+    if (!SEMVER_PATTERN.test(newVersion)) {
+        console.error(
+            '❌ Format de version invalide. Utilisez le format semver: X.Y.Z',
+        )
         Deno.exit(1)
     }
 
@@ -336,7 +346,9 @@ async function main(): Promise<void> {
 
     for await (const entry of Deno.readDir('packages')) {
         if (entry.isDirectory) {
-            const packageStubs = await collectStubFiles(`packages/${entry.name}/stubs`)
+            const packageStubs = await collectStubFiles(
+                `packages/${entry.name}/stubs`,
+            )
             stubFiles.push(...packageStubs)
         }
     }
@@ -346,7 +358,10 @@ async function main(): Promise<void> {
         const result = await updateStubFile(stubPath, newVersion)
         if (result.success) {
             const content = await Deno.readTextFile(stubPath)
-            if (content.includes(`@^${newVersion}`) || content.includes(`@~${newVersion}`)) {
+            if (
+                content.includes(`@^${newVersion}`) ||
+                content.includes(`@~${newVersion}`)
+            ) {
                 console.log(`   ✅ ${stubPath}`)
                 stubUpdates++
             }
