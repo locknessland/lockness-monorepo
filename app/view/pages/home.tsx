@@ -4,7 +4,6 @@ import pkg from '../../../packages/core/deno.json' with { type: 'json' }
 
 // Import @lockness/ui components
 import {
-    Badge,
     Button,
     Card,
     CardContent,
@@ -103,13 +102,9 @@ export const Home = () => {
                         <NavbarMenuItem href='#features'>
                             Features
                         </NavbarMenuItem>
-                        <NavbarMenuItem href='#getting-started'>
-                            Getting Started
+                        <NavbarMenuItem href={route('docs.ui')}>
+                            UI Components
                         </NavbarMenuItem>
-                        <NavbarMenuItem href='#examples'>
-                            Examples
-                        </NavbarMenuItem>
-                        <Badge variant='outline'>v{pkg.version}</Badge>
                     </NavbarContent>
 
                     <NavbarContent position='right'>
