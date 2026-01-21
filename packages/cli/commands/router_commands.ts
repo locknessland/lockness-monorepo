@@ -1,8 +1,42 @@
+/**
+ * @fileoverview Router inspection commands.
+ *
+ * Provides commands to list and inspect registered routes.
+ *
+ * @module @lockness/cli/commands/router
+ */
+
 // deno-lint-ignore-file no-explicit-any
 import type { Cli } from '../mod.ts'
 import { join } from '@std/path'
 
-export function registerRouterCommands(cli: Cli) {
+/**
+ * Information about a registered route.
+ * @internal
+ */
+interface RouteInfo {
+    readonly method: string
+    readonly path: string
+    readonly name?: string
+    readonly controller: string
+    readonly action: string
+    readonly middlewares: ReadonlyArray<string>
+}
+
+/**
+ * Register router inspection commands.
+ *
+ * Commands registered:
+ * - router:list - Display all registered routes with metadata
+ *
+ * @param cli - The CLI instance to register commands on
+ *
+ * @example
+ * ```bash
+ * deno task cli router:list
+ * ```
+ */
+export function registerRouterCommands(cli: Cli): void {
     cli.register('router:list', async () => {
         try {
             // Load controllers from app/controller directory
@@ -16,9 +50,8 @@ export function registerRouterCommands(cli: Cli) {
                         (entry.name.endsWith('.ts') ||
                             entry.name.endsWith('.tsx'))
                     ) {
-                        const filePath = `file://${
-                            join(controllerDir, entry.name)
-                        }`
+                        const filePath = `file://${join(controllerDir, entry.name)
+                            }`
                         try {
                             const module = await import(
                                 /* @vite-ignore */ filePath
@@ -47,8 +80,7 @@ export function registerRouterCommands(cli: Cli) {
                             }
                         } catch (importError) {
                             console.warn(
-                                `⚠️  Could not import ${entry.name}: ${
-                                    (importError as Error).message
+                                `⚠️  Could not import ${entry.name}: ${(importError as Error).message
                                 }`,
                             )
                         }
@@ -66,15 +98,6 @@ export function registerRouterCommands(cli: Cli) {
             }
 
             // Collect all routes from controllers
-            interface RouteInfo {
-                method: string
-                path: string
-                name?: string
-                controller: string
-                action: string
-                middlewares: string[]
-            }
-
             const routes: RouteInfo[] = []
 
             for (const Controller of controllers) {
@@ -165,11 +188,9 @@ export function registerRouterCommands(cli: Cli) {
             )
 
             // Print header
-            const header = `┃ ${'METHOD'.padEnd(methodWidth)} ┃ ${
-                'PATH'.padEnd(pathWidth)
-            } ┃ ${'NAME'.padEnd(nameWidth)} ┃ ${
-                'CONTROLLER'.padEnd(controllerWidth)
-            } ┃ ${'ACTION'.padEnd(actionWidth)} ┃ MIDDLEWARES`
+            const header = `┃ ${'METHOD'.padEnd(methodWidth)} ┃ ${'PATH'.padEnd(pathWidth)
+                } ┃ ${'NAME'.padEnd(nameWidth)} ┃ ${'CONTROLLER'.padEnd(controllerWidth)
+                } ┃ ${'ACTION'.padEnd(actionWidth)} ┃ MIDDLEWARES`
             const separator = '━'.repeat(header.length)
 
             console.log(separator)

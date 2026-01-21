@@ -1,6 +1,41 @@
+/**
+ * @fileoverview Stub template rendering and scaffolding utilities.
+ *
+ * Provides tools for loading stub templates and replacing placeholders
+ * with dynamic values. Supports both local filesystem and remote URLs (JSR).
+ *
+ * @module @lockness/cli/stubs
+ *
+ * @example
+ * ```ts
+ * import { Stub } from '@lockness/cli'
+ *
+ * const content = await Stub.render('make', 'controller', {
+ *   className: 'UserController',
+ *   route: 'users'
+ * })
+ * ```
+ */
+
 import { dirname, fromFileUrl, join } from '@std/path'
 
+/**
+ * Stub template data for placeholder replacement.
+ */
+export type StubData = Record<string, string>
+
+/**
+ * Stub template rendering and scaffolding utility class.
+ *
+ * Supports loading templates from both local filesystem and remote URLs,
+ * with placeholder replacement using `{{ key }}` syntax.
+ */
 export class Stub {
+    /**
+     * Get the path to the stubs directory.
+     * @returns Path or URL to stubs directory
+     * @internal
+     */
     private static getStubsDir(): string {
         // Handle both local file:// and remote https:// URLs
         if (import.meta.url.startsWith('file://')) {
@@ -13,13 +48,30 @@ export class Stub {
     }
 
     /**
-     * Renders a stub file from a specific base directory.
+     * Render a stub file from a specific base directory.
+     *
+     * @param baseDir - Base directory path or URL containing stub folders
+     * @param type - The stub category (e.g., 'make', 'auth')
+     * @param name - The stub name without extension (e.g., 'controller')
+     * @param data - Key-value pairs for `{{ key }}` placeholder replacement
+     * @returns The rendered stub content
+     * @throws {Error} When stub file cannot be found or fetched
+     *
+     * @example
+     * ```ts
+     * const content = await Stub.renderFrom(
+     *   '/path/to/stubs',
+     *   'make',
+     *   'controller',
+     *   { className: 'User' }
+     * )
+     * ```
      */
     static async renderFrom(
         baseDir: string,
         type: string,
         name: string,
-        data: Record<string, string> = {},
+        data: StubData = {},
     ): Promise<string> {
         const stubPath = baseDir.startsWith('http')
             ? `${baseDir}/${type}/${name}.stub`
@@ -48,23 +100,33 @@ export class Stub {
             return content
         } catch (error) {
             throw new Error(
-                `Could not find stub at ${stubPath}: ${
-                    (error as Error).message
+                `Could not find stub at ${stubPath}: ${(error as Error).message
                 }`,
             )
         }
     }
 
     /**
-     * Renders a stub file with the provided data.
-     * @param type - The category (e.g., 'make', 'init')
-     * @param name - The name of the stub (e.g., 'controller')
-     * @param data - Key-value pairs matching {{ key }} in the stub
+     * Render a stub file from the default stubs directory.
+     *
+     * @param type - The stub category (e.g., 'make', 'auth', 'nessy')
+     * @param name - The stub name without extension (e.g., 'controller')
+     * @param data - Key-value pairs for `{{ key }}` placeholder replacement
+     * @returns The rendered stub content
+     * @throws {Error} When stub file cannot be found
+     *
+     * @example
+     * ```ts
+     * const content = await Stub.render('make', 'controller', {
+     *   className: 'UserController',
+     *   route: 'users'
+     * })
+     * ```
      */
     static async render(
         type: string,
         name: string,
-        data: Record<string, string> = {},
+        data: StubData = {},
     ): Promise<string> {
         const stubsDir = this.getStubsDir()
         const stubPath = stubsDir.startsWith('http')
@@ -95,22 +157,40 @@ export class Stub {
             return content
         } catch (error) {
             throw new Error(
-                `Could not find stub at ${stubPath}: ${
-                    (error as Error).message
+                `Could not find stub at ${stubPath}: ${(error as Error).message
                 }`,
             )
         }
     }
 
     /**
-     * Scaffolds a whole directory structure from stubs in a custom directory.
+     * Scaffold a directory structure from stubs in a custom directory.
+     *
+     * Recursively copies and processes all stub files from source to target,
+     * replacing placeholders and removing `.stub` extensions.
+     *
+     * @param sourceDir - Source directory path or URL containing stubs
+     * @param targetDir - Target directory path to create files in
+     * @param data - Key-value pairs for placeholder replacement
+     * @param fileList - Required for remote URLs: explicit list of files to fetch
+     * @throws {Error} When scaffolding from URL without fileList
+     *
+     * @example
+     * ```ts
+     * await Stub.scaffoldFrom(
+     *   '/path/to/stubs/init',
+     *   './my-project',
+     *   { projectName: 'my-app' },
+     *   ['main.ts.stub', 'deno.json.stub']
+     * )
+     * ```
      */
     static async scaffoldFrom(
         sourceDir: string,
         targetDir: string,
-        data: Record<string, string> = {},
-        fileList?: string[],
-    ) {
+        data: StubData = {},
+        fileList?: ReadonlyArray<string>,
+    ): Promise<void> {
         // For remote URLs, we need an explicit file list
         if (sourceDir.startsWith('http')) {
             if (!fileList || fileList.length === 0) {
@@ -144,8 +224,7 @@ export class Stub {
                     await Deno.writeTextFile(targetPath, content)
                 } catch (error) {
                     console.warn(
-                        `⚠️  Could not process ${file}: ${
-                            (error as Error).message
+                        `⚠️  Could not process ${file}: ${(error as Error).message
                         }`,
                     )
                 }
@@ -188,14 +267,27 @@ export class Stub {
     }
 
     /**
-     * Scaffolds a whole directory structure from stubs.
-     * Useful for initializing a new project.
+     * Scaffold a directory structure from the default stubs directory.
+     *
+     * Useful for initializing a new project with template files.
+     *
+     * @param type - The stub category containing the files
+     * @param targetDir - Target directory path to create files in
+     * @param data - Key-value pairs for placeholder replacement
+     *
+     * @example
+     * ```ts
+     * await Stub.scaffold('init', './my-project', {
+     *   projectName: 'my-app',
+     *   author: 'John Doe'
+     * })
+     * ```
      */
     static async scaffold(
         type: string,
         targetDir: string,
-        data: Record<string, string> = {},
-    ) {
+        data: StubData = {},
+    ): Promise<void> {
         const sourceDir = join(this.getStubsDir(), type)
         await this.scaffoldFrom(sourceDir, targetDir, data)
     }

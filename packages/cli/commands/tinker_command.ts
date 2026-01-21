@@ -1,6 +1,38 @@
+/**
+ * @fileoverview Interactive REPL command for exploring the application.
+ *
+ * Provides a tinker command that starts an interactive session with
+ * auto-loaded models, services, and database connections.
+ *
+ * @module @lockness/cli/commands/tinker
+ */
+
 import type { Cli } from '../mod.ts'
 
-export function registerTinkerCommand(cli: Cli) {
+/**
+ * Register the tinker REPL command.
+ *
+ * Commands registered:
+ * - tinker - Start an interactive REPL session
+ *
+ * Auto-loads:
+ * - Models from app/model/
+ * - Services from app/service/
+ * - Repositories from app/repository/
+ * - Database connection from kernel.ts
+ *
+ * @param cli - The CLI instance to register commands on
+ *
+ * @example
+ * ```bash
+ * deno task cli tinker
+ *
+ * # In REPL:
+ * > const user = await db.query.users.findFirst()
+ * > User.findById(1)
+ * ```
+ */
+export function registerTinkerCommand(cli: Cli): void {
     cli.register('tinker', async () => {
         console.log('\n🔮 Lockness Tinker - Interactive REPL')
         console.log('Type ".help" for commands, ".exit" to quit\n')
@@ -28,9 +60,8 @@ async function loadTinkerContext(context: Record<string, unknown>) {
             for await (const entry of Deno.readDir(path)) {
                 if (entry.isFile && entry.name.endsWith('.ts')) {
                     try {
-                        const modulePath = `${Deno.cwd()}${
-                            path.slice(1)
-                        }/${entry.name}`
+                        const modulePath = `${Deno.cwd()}${path.slice(1)
+                            }/${entry.name}`
                         const module = await import(modulePath)
 
                         // Import all named exports
@@ -148,7 +179,7 @@ async function startRepl(context: Record<string, unknown>) {
 
             if (line === '.context') {
                 if (context.help && typeof context.help === 'function') {
-                    ;(context.help as () => void)()
+                    ; (context.help as () => void)()
                 }
                 prompt()
                 continue

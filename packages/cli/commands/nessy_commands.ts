@@ -1,7 +1,19 @@
+/**
+ * @fileoverview Nessy CLI wrapper installation commands.
+ *
+ * Provides commands to install the Nessy shell wrapper for
+ * faster CLI access without typing `deno task cli` every time.
+ *
+ * @module @lockness/cli/commands/nessy
+ */
+
 import { type Cli, Stub } from '../mod.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
 
-// Handle both local file:// and remote https:// URLs
+/**
+ * Path to CLI stubs directory.
+ * @internal
+ */
 let STUBS_PATH: string
 
 if (import.meta.url.startsWith('file://')) {
@@ -12,7 +24,24 @@ if (import.meta.url.startsWith('file://')) {
     STUBS_PATH = new URL('../stubs', import.meta.url).href
 }
 
-export function registerNessyCommands(cli: Cli) {
+/**
+ * Register Nessy CLI wrapper commands.
+ *
+ * Commands registered:
+ * - nessy:install - Install the Nessy shell wrapper script
+ *
+ * @param cli - The CLI instance to register commands on
+ *
+ * @example
+ * ```bash
+ * # Install Nessy wrapper
+ * deno task cli nessy:install
+ *
+ * # Then use Nessy directly
+ * ./nessy make:controller User
+ * ```
+ */
+export function registerNessyCommands(cli: Cli): void {
     cli.register('nessy:install', async () => {
         console.log('')
         console.log('🦕 Installing Nessy - Your Lockness CLI companion!')

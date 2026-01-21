@@ -1,3 +1,12 @@
+/**
+ * @fileoverview Core CLI commands registration.
+ *
+ * Registers built-in commands for package management and delegates
+ * to specialized command modules for make, auth, router, queue, etc.
+ *
+ * @module @lockness/cli/core-commands
+ */
+
 import type { Cli } from './mod.ts'
 import { addPackage, removePackage } from './package_loader.ts'
 import { registerMakeCommands } from './commands/make_commands.ts'
@@ -7,7 +16,27 @@ import { registerRouterCommands } from './commands/router_commands.ts'
 import { registerQueueCommands } from './commands/queue_commands.ts'
 import { registerTinkerCommand } from './commands/tinker_command.ts'
 
-export function registerCoreCommands(cli: Cli) {
+/**
+ * Register all core CLI commands.
+ *
+ * Includes package management commands and delegates to specialized modules:
+ * - make:* commands (controllers, services, etc.)
+ * - auth commands (make:auth)
+ * - router commands (router:list)
+ * - queue commands (queue:work, queue:clear)
+ * - nessy:install command
+ * - tinker REPL command
+ *
+ * @param cli - The CLI instance to register commands on
+ *
+ * @example
+ * ```ts
+ * const cli = new Cli()
+ * registerCoreCommands(cli)
+ * await cli.run(Deno.args)
+ * ```
+ */
+export function registerCoreCommands(cli: Cli): void {
     // Package management commands
     cli.register(
         'package:add',

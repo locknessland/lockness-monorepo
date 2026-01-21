@@ -1,10 +1,27 @@
+/**
+ * @fileoverview Package management utilities for Lockness CLI.
+ *
+ * Provides functions to dynamically load, add, and remove packages
+ * from the project's deno.json configuration.
+ *
+ * @module @lockness/cli/package-loader
+ */
+
 import type { Cli } from './mod.ts'
 
 /**
- * Load and register commands from packages listed in deno.json
+ * Load and register commands from packages listed in deno.json.
  *
- * Reads the "lockness" section from deno.json and dynamically imports
- * the register functions from each package.
+ * Reads the `lockness.packages` section from deno.json and dynamically
+ * imports the register functions from each package.
+ *
+ * @param cli - The CLI instance to register commands on
+ *
+ * @example
+ * ```ts
+ * const cli = new Cli()
+ * await loadPackageCommands(cli)
+ * ```
  */
 export async function loadPackageCommands(cli: Cli): Promise<void> {
     try {
@@ -54,16 +71,14 @@ export async function loadPackageCommands(cli: Cli): Promise<void> {
                 }
             } catch (error) {
                 console.error(
-                    `❌ Failed to load commands from @lockness/${
-                        packageName.replace('@lockness/', '')
+                    `❌ Failed to load commands from @lockness/${packageName.replace('@lockness/', '')
                     }:`,
                 )
                 console.error(
                     `   The package is listed in "lockness.packages" in your deno.json but could not be imported.`,
                 )
                 console.error(
-                    `   - Error: ${
-                        error instanceof Error ? error.message : error
+                    `   - Error: ${error instanceof Error ? error.message : error
                     }`,
                 )
                 console.error(
@@ -82,7 +97,19 @@ export async function loadPackageCommands(cli: Cli): Promise<void> {
 }
 
 /**
- * Add a package to the deno.json lockness.packages list
+ * Add a package to the deno.json lockness.packages list.
+ *
+ * Normalizes package names and prevents duplicates.
+ *
+ * @param packageName - Package name (with or without @lockness/ prefix)
+ * @throws {Error} When deno.json cannot be read or written
+ *
+ * @example
+ * ```ts
+ * await addPackage('openapi')
+ * // or
+ * await addPackage('@lockness/openapi')
+ * ```
  */
 export async function addPackage(packageName: string): Promise<void> {
     const denoJsonPath = 'deno.json'
@@ -123,15 +150,22 @@ export async function addPackage(packageName: string): Promise<void> {
         console.log(`✓ Added ${normalizedName} to lockness.packages`)
     } catch (error) {
         throw new Error(
-            `Failed to add package: ${
-                error instanceof Error ? error.message : error
+            `Failed to add package: ${error instanceof Error ? error.message : error
             }`,
         )
     }
 }
 
 /**
- * Remove a package from the deno.json lockness.packages list
+ * Remove a package from the deno.json lockness.packages list.
+ *
+ * @param packageName - Package name (with or without @lockness/ prefix)
+ * @throws {Error} When deno.json cannot be read or written
+ *
+ * @example
+ * ```ts
+ * await removePackage('openapi')
+ * ```
  */
 export async function removePackage(packageName: string): Promise<void> {
     const denoJsonPath = 'deno.json'
@@ -168,8 +202,7 @@ export async function removePackage(packageName: string): Promise<void> {
         console.log(`✓ Removed ${normalizedName} from lockness.packages`)
     } catch (error) {
         throw new Error(
-            `Failed to remove package: ${
-                error instanceof Error ? error.message : error
+            `Failed to remove package: ${error instanceof Error ? error.message : error
             }`,
         )
     }

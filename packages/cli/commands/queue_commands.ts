@@ -1,6 +1,39 @@
+/**
+ * @fileoverview Queue worker and management commands.
+ *
+ * Provides commands to run queue workers and manage job queues.
+ *
+ * @module @lockness/cli/commands/queue
+ */
+
 import type { Cli } from '../mod.ts'
 
-export function registerQueueCommands(cli: Cli) {
+/**
+ * Register queue management commands.
+ *
+ * Commands registered:
+ * - queue:work - Start a queue worker to process jobs
+ *   - --queue=name - Queue name(s) to process (comma-separated)
+ *   - --sleep=ms - Sleep time between job polls (default: 1000)
+ *   - --max-jobs=n - Maximum jobs to process (0 = unlimited)
+ *   - --once - Process one job and exit
+ * - queue:clear - Clear all jobs from a queue
+ *
+ * @param cli - The CLI instance to register commands on
+ *
+ * @example
+ * ```bash
+ * # Start worker for default queue
+ * deno task cli queue:work
+ *
+ * # Start worker for specific queues
+ * deno task cli queue:work --queue=emails,notifications
+ *
+ * # Clear a queue
+ * deno task cli queue:clear emails
+ * ```
+ */
+export function registerQueueCommands(cli: Cli): void {
     cli.register('queue:work', async (args) => {
         // Dynamic import to avoid loading queue module at CLI startup
         const { QueueWorker, configureQueue, registerJob } = await import(

@@ -1,7 +1,19 @@
+/**
+ * @fileoverview Authentication scaffolding commands.
+ *
+ * Provides the make:auth command to scaffold authentication system
+ * including controllers and providers.
+ *
+ * @module @lockness/cli/commands/auth
+ */
+
 import { type Cli, Stub } from '../mod.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
 
-// Handle both local file:// and remote https:// URLs
+/**
+ * Path to CLI stubs directory.
+ * @internal
+ */
 let STUBS_PATH: string
 
 if (import.meta.url.startsWith('file://')) {
@@ -12,7 +24,25 @@ if (import.meta.url.startsWith('file://')) {
     STUBS_PATH = new URL('../stubs', import.meta.url).href
 }
 
-export function registerAuthCommands(cli: Cli) {
+/**
+ * Register authentication scaffolding commands.
+ *
+ * Commands registered:
+ * - make:auth - Scaffold authentication system (controller + provider)
+ *   - Use --social flag to include OAuth provider support
+ *
+ * @param cli - The CLI instance to register commands on
+ *
+ * @example
+ * ```bash
+ * # Basic auth scaffolding
+ * deno task cli make:auth
+ *
+ * # With OAuth support
+ * deno task cli make:auth --social
+ * ```
+ */
+export function registerAuthCommands(cli: Cli): void {
     cli.register(
         'make:auth',
         async (args) => {
@@ -62,8 +92,7 @@ export function registerAuthCommands(cli: Cli) {
                     console.log(`✅ ${file.name} created at ${file.output}`)
                 } catch (error) {
                     console.error(
-                        `❌ Failed to create ${file.name}: ${
-                            (error as Error).message
+                        `❌ Failed to create ${file.name}: ${(error as Error).message
                         }`,
                     )
                 }

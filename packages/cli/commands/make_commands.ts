@@ -1,9 +1,27 @@
+/**
+ * @fileoverview Make commands for scaffolding application components.
+ *
+ * Provides commands to generate controllers, middleware, services, views,
+ * components, jobs, error handlers, and actions from stub templates.
+ *
+ * @module @lockness/cli/commands/make
+ */
+
 import { type Cli, Stub } from '../mod.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { generateRoutesFile } from '../routes_generator.ts'
 
-// Handle both local file:// and remote https:// URLs
+/**
+ * Path to CLI stubs directory.
+ * Handles both local file:// and remote https:// URLs (JSR).
+ * @internal
+ */
 let STUBS_PATH: string
+
+/**
+ * Path to Drizzle stubs directory.
+ * @internal
+ */
 let DRIZZLE_STUBS_PATH: string
 
 if (import.meta.url.startsWith('file://')) {
@@ -16,7 +34,25 @@ if (import.meta.url.startsWith('file://')) {
     DRIZZLE_STUBS_PATH = new URL('../../drizzle/stubs', import.meta.url).href
 }
 
-export function registerMakeCommands(cli: Cli) {
+/**
+ * Register all make:* commands.
+ *
+ * Commands registered:
+ * - make:controller - Create a new controller
+ * - make:middleware - Create a new middleware
+ * - make:service - Create a new service
+ * - make:view - Create a new view page
+ * - make:component - Create a new UI component
+ * - make:job - Create a new queue job
+ * - make:command - Create a new CLI command
+ * - make:error - Create a new error handler
+ * - make:action - Create a controller action
+ * - make:model - Create a Drizzle model
+ * - make:seeder - Create a database seeder
+ *
+ * @param cli - The CLI instance to register commands on
+ */
+export function registerMakeCommands(cli: Cli): void {
     cli.register('make:controller', async (args) => {
         const name = args[0]
         if (!name) {
@@ -58,8 +94,7 @@ export function registerMakeCommands(cli: Cli) {
                     viewCreated = true
                 } catch (error) {
                     console.error(
-                        `⚠️  Failed to create view: ${
-                            (error as Error).message
+                        `⚠️  Failed to create view: ${(error as Error).message
                         }`,
                     )
                 }
@@ -572,9 +607,8 @@ app.init({
             let body = ''
             if (withView) {
                 // Create view if it doesn't exist
-                const viewClassName = `${className}${
-                    actionName.charAt(0).toUpperCase() + actionName.slice(1)
-                }`
+                const viewClassName = `${className}${actionName.charAt(0).toUpperCase() + actionName.slice(1)
+                    }`
                 const viewFileName =
                     `${controllerName.toLowerCase()}/${actionName.toLowerCase()}`
                 const viewDirPath =
@@ -668,18 +702,16 @@ app.init({
                         if (!importList.includes(decoratorName)) {
                             importList.push(decoratorName)
                         }
-                        return `import { ${
-                            importList.join(', ')
-                        } } from 'lockness/core'`
+                        return `import { ${importList.join(', ')
+                            } } from 'lockness/core'`
                     },
                 )
             }
 
             // Add view import if needed
             if (withView) {
-                const viewClassName = `${className}${
-                    actionName.charAt(0).toUpperCase() + actionName.slice(1)
-                }`
+                const viewClassName = `${className}${actionName.charAt(0).toUpperCase() + actionName.slice(1)
+                    }`
                 const viewImport =
                     `import { ${viewClassName} } from '@view/pages/${controllerName.toLowerCase()}/${actionName.toLowerCase()}.tsx'\n`
 

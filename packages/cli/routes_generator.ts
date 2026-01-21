@@ -1,26 +1,53 @@
 /**
- * Routes Registry Generator
+ * @fileoverview Routes registry generator for production builds.
  *
- * Utilities for auto-generating routes registry from controller files
+ * Utilities for auto-generating routes registry from controller files.
+ * In development mode, controllers are auto-discovered. In production,
+ * this registry is used for faster startup.
+ *
+ * @module @lockness/cli/routes-generator
  */
 
 import { walk } from '@std/fs'
 import { basename } from '@std/path'
 
+/**
+ * Information about a discovered controller.
+ */
 export interface ControllerInfo {
-    className: string
-    fileName: string
-    importPath: string
+    /** PascalCase class name (e.g., 'UserController') */
+    readonly className: string
+    /** Original file name (e.g., 'user_controller.tsx') */
+    readonly fileName: string
+    /** Import path using @controller alias */
+    readonly importPath: string
 }
 
+/**
+ * Scan a directory for controller files.
+ *
+ * Discovers all `.ts` and `.tsx` files and extracts controller information.
+ * File names are converted from snake_case to PascalCase for class names.
+ *
+ * @param controllerDir - Path to the controller directory
+ * @param extensions - File extensions to include (default: ['tsx', 'ts'])
+ * @returns Array of discovered controller information, sorted by class name
+ * @throws {Error} When directory cannot be read
+ *
+ * @example
+ * ```ts
+ * const controllers = await scanControllers('./app/controller')
+ * // Returns: [{ className: 'AppController', fileName: 'app_controller.tsx', ... }]
+ * ```
+ */
 export async function scanControllers(
     controllerDir: string,
-    extensions: string[] = ['tsx', 'ts'],
+    extensions: ReadonlyArray<string> = ['tsx', 'ts'],
 ): Promise<ControllerInfo[]> {
     const controllers: ControllerInfo[] = []
 
     try {
-        for await (const entry of walk(controllerDir, { exts: extensions })) {
+        for await (const entry of walk(controllerDir, { exts: [...extensions] })) {
             if (entry.isFile) {
                 const fileName = basename(entry.path)
                 const fileNameWithoutExt = fileName.replace(
@@ -53,7 +80,23 @@ export async function scanControllers(
     return controllers.sort((a, b) => a.className.localeCompare(b.className))
 }
 
-export function generateRoutesContent(controllers: ControllerInfo[]): string {
+/**
+ * Generate the content for the routes registry file.
+ *
+ * Creates TypeScript source code with imports and exports for all controllers.
+ *
+ * @param controllers - Array of controller information from scanControllers
+ * @returns TypeScript source code string
+ *
+ * @example
+ * ```ts
+ * const content = generateRoutesContent(controllers)
+ * await Deno.writeTextFile('./app/routes.ts', content)
+ * ```
+ */
+export function generateRoutesContent(
+    controllers: ReadonlyArray<ControllerInfo>,
+): string {
     const imports = controllers.map(
         (c) => `import { ${c.className} } from '${c.importPath}'`,
     )
@@ -78,10 +121,38 @@ export const controllers = [
 `
 }
 
+/**
+ * Result of routes file generation.
+ */
+export interface GenerateRoutesResult {
+    /** Number of controllers found */
+    readonly count: number
+    /** List of controller class names */
+    readonly controllers: ReadonlyArray<string>
+}
+
+/**
+ * Scan controllers and generate a routes registry file.
+ *
+ * Convenience function combining scanControllers and generateRoutesContent.
+ *
+ * @param controllerDir - Path to the controller directory
+ * @param outputFile - Path to write the generated routes file
+ * @returns Result with count and controller names
+ *
+ * @example
+ * ```ts
+ * const result = await generateRoutesFile(
+ *   './app/controller',
+ *   './app/routes.ts'
+ * )
+ * console.log(`Generated registry for ${result.count} controllers`)
+ * ```
+ */
 export async function generateRoutesFile(
     controllerDir: string,
     outputFile: string,
-): Promise<{ count: number; controllers: string[] }> {
+): Promise<GenerateRoutesResult> {
     const controllers = await scanControllers(controllerDir)
     const content = generateRoutesContent(controllers)
 
