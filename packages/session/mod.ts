@@ -906,7 +906,7 @@ export class SessionStore implements Session {
         if (!this.data._flash) {
             this.data._flash = {}
         }
-        ; (this.data._flash as SessionData)[key] = value
+        ;(this.data._flash as SessionData)[key] = value
         this.dirty = true
     }
 
