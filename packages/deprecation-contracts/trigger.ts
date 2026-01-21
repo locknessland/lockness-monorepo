@@ -8,8 +8,8 @@
  */
 
 import { notifyCollector } from './collector.ts'
-import { shouldIgnore, isStrictMode } from './config.ts'
-import { formatMessage, buildFullMessage, createEntry } from './formatter.ts'
+import { isStrictMode, shouldIgnore } from './config.ts'
+import { buildFullMessage, createEntry, formatMessage } from './formatter.ts'
 import { defaultHandler } from './handler.ts'
 import type { DeprecationHandler } from './types.ts'
 
