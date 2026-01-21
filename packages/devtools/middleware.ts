@@ -103,8 +103,9 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
 
                     if (name) {
                         const fileName = collector.getComponentFile(name)
-                        capturedComponent = `<${name} ${fileName ? `_source="${fileName}"` : ''
-                            }/>`
+                        capturedComponent = `<${name} ${
+                            fileName ? `_source="${fileName}"` : ''
+                        }/>`
                     }
                 }
             }
@@ -123,10 +124,10 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
         if (typeof (c as any).render === 'function') {
             // deno-lint-ignore no-explicit-any
             const originalRender = (c as any).render.bind(c) // deno-lint-ignore no-explicit-any
-                ; (c as any).render = function (content: any, ...args: any[]) {
-                    captureComponent(content)
-                    return originalRender(content, ...args)
-                }
+            ;(c as any).render = function (content: any, ...args: any[]) {
+                captureComponent(content)
+                return originalRender(content, ...args)
+            }
         }
 
         // Collect request info

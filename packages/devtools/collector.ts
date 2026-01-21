@@ -92,7 +92,7 @@ export class DevtoolsCollector {
     private componentMap = new Map<string, string>()
 
     /** Private constructor for singleton pattern */
-    private constructor() { }
+    private constructor() {}
 
     /**
      * Get the singleton instance of the collector.
