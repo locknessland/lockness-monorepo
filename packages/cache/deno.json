@@ -11,6 +11,11 @@
     "publish": {
         "include": [
             "mod.ts",
+            "types.ts",
+            "config.ts",
+            "api.ts",
+            "store.ts",
+            "drivers/",
             "deno.json",
             "README.md"
         ],
