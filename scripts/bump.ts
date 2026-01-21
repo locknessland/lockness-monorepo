@@ -1,199 +1,373 @@
-// scripts/bump.ts
+#!/usr/bin/env -S deno run -A
+/**
+ * @fileoverview Version bump script for the Lockness monorepo.
+ *
+ * This script updates version numbers across all packages in the monorepo,
+ * including the root deno.jsonc, all package deno.json files, inter-package
+ * dependencies, and stub files.
+ *
+ * @module scripts/bump
+ *
+ * @example
+ * ```bash
+ * # Bump all packages to version 0.2.0
+ * deno task bump 0.2.0
+ *
+ * # Or run directly
+ * deno run -A scripts/bump.ts 0.2.0
+ * ```
+ */
+
 import { parse } from '@std/jsonc'
-const newVersion = Deno.args[0]
-if (!newVersion) {
-    console.error('❌ Merci de spécifier une version. Ex: deno task bump 0.2.0')
-    Deno.exit(1)
+
+// =============================================================================
+// Types
+// =============================================================================
+
+/**
+ * Root monorepo configuration structure.
+ */
+interface RootConfig {
+    /** Current version of the monorepo */
+    version: string
+    /** List of workspace member paths */
+    readonly workspace: readonly string[]
+    /** Import map entries */
+    imports?: Record<string, string>
 }
 
-console.log(`🚀 Mise à jour vers la version ${newVersion}`)
-console.log('')
+/**
+ * Package configuration structure.
+ */
+interface PackageConfig {
+    /** Package version */
+    version: string
+    /** Import map entries */
+    imports?: Record<string, string>
+}
 
-// Lit la configuration racine pour trouver les membres
-// deno-lint-ignore no-explicit-any
-const rootConfig = parse(await Deno.readTextFile('./deno.jsonc')) as any
+/**
+ * Result of an update operation.
+ */
+interface UpdateResult {
+    /** Whether the update was successful */
+    readonly success: boolean
+    /** Path that was updated */
+    readonly path: string
+    /** Error message if failed */
+    readonly error?: string
+}
 
-// Étape 0: Met à jour la version du monorepo racine
-console.log('🏠 Mise à jour de la version du monorepo racine...')
-rootConfig.version = newVersion
-await Deno.writeTextFile(
-    './deno.jsonc',
-    JSON.stringify(rootConfig, null, 4) + '\n',
-)
-console.log(`   ✅ deno.jsonc → ${newVersion}`)
+// =============================================================================
+// Constants
+// =============================================================================
 
-console.log('')
+/** Path to the root configuration file */
+const ROOT_CONFIG_PATH = './deno.jsonc' as const
 
-// Étape 1: Met à jour la version de chaque package
-console.log('📦 Mise à jour des versions des packages...')
-for (const member of rootConfig.workspace) {
-    const configPath = `${member}/deno.json`
+/** Regex pattern for matching JSR Lockness imports with versions */
+const LOCKNESS_VERSION_PATTERN = /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/g
+
+/** Regex pattern for extracting version parts from an import */
+const VERSION_EXTRACT_PATTERN = /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Extract error message from an unknown error.
+ *
+ * @param error - The error to extract message from
+ * @returns The error message string
+ */
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Check if an import key/value pair is a Lockness package.
+ *
+ * @param key - The import key
+ * @param value - The import value
+ * @returns True if this is a Lockness package import
+ */
+function isLocknessImport(key: string, value: unknown): value is string {
+    return (
+        typeof value === 'string' &&
+        (key.startsWith('@lockness/') || value.includes('jsr:@lockness/'))
+    )
+}
+
+/**
+ * Update the version in a JSR import string.
+ *
+ * @param importValue - The current import value
+ * @param newVersion - The new version to set
+ * @returns The updated import string, or null if no match
+ */
+function updateImportVersion(
+    importValue: string,
+    newVersion: string,
+): string | null {
+    const match = importValue.match(VERSION_EXTRACT_PATTERN)
+    if (!match) return null
+
+    const [, packagePath, versionPrefix] = match
+    return `${packagePath}@${versionPrefix}${newVersion}`
+}
+
+/**
+ * Recursively collect all .stub files from a directory.
+ *
+ * @param dirPath - The directory path to scan
+ * @returns Array of stub file paths
+ */
+async function collectStubFiles(dirPath: string): Promise<string[]> {
+    const stubFiles: string[] = []
+
+    const walk = async (path: string): Promise<void> => {
+        try {
+            for await (const entry of Deno.readDir(path)) {
+                const fullPath = `${path}/${entry.name}`
+                if (entry.isDirectory) {
+                    await walk(fullPath)
+                } else if (entry.name.endsWith('.stub')) {
+                    stubFiles.push(fullPath)
+                }
+            }
+        } catch {
+            // Directory doesn't exist or isn't readable
+        }
+    }
+
+    await walk(dirPath)
+    return stubFiles
+}
+
+// =============================================================================
+// Update Functions
+// =============================================================================
+
+/**
+ * Update the root monorepo configuration.
+ *
+ * Updates both the version field and any Lockness imports.
+ *
+ * @param newVersion - The new version to set
+ * @returns The updated root configuration
+ */
+async function updateRootConfig(newVersion: string): Promise<RootConfig> {
+    const content = await Deno.readTextFile(ROOT_CONFIG_PATH)
+    const config = parse(content) as unknown as RootConfig
+
+    // Update version
+    config.version = newVersion
+
+    // Update imports
+    if (config.imports) {
+        for (const [key, value] of Object.entries(config.imports)) {
+            if (isLocknessImport(key, value)) {
+                const updated = updateImportVersion(value, newVersion)
+                if (updated && updated !== value) {
+                    config.imports[key] = updated
+                }
+            }
+        }
+    }
+
+    await Deno.writeTextFile(
+        ROOT_CONFIG_PATH,
+        JSON.stringify(config, null, 4) + '\n',
+    )
+
+    return config
+}
+
+/**
+ * Update a single package's version and dependencies.
+ *
+ * @param memberPath - Path to the package (e.g., './packages/core')
+ * @param newVersion - The new version to set
+ * @returns Result of the update operation
+ */
+async function updatePackage(
+    memberPath: string,
+    newVersion: string,
+): Promise<UpdateResult> {
+    const configPath = `${memberPath}/deno.json`
+
     try {
-        const config = JSON.parse(await Deno.readTextFile(configPath))
+        const content = await Deno.readTextFile(configPath)
+        const config = JSON.parse(content) as PackageConfig
+
+        // Update version
         config.version = newVersion
+
+        // Update imports
+        let hasImportUpdates = false
+        if (config.imports) {
+            for (const [key, value] of Object.entries(config.imports)) {
+                if (isLocknessImport(key, value)) {
+                    const updated = updateImportVersion(value, newVersion)
+                    if (updated && updated !== value) {
+                        config.imports[key] = updated
+                        hasImportUpdates = true
+                    }
+                }
+            }
+        }
+
         await Deno.writeTextFile(
             configPath,
             JSON.stringify(config, null, 4) + '\n',
         )
-        console.log(`   ✅ ${member} → ${newVersion}`)
-    } catch {
-        console.warn(`   ⚠️  Pas de deno.json trouvé pour ${member}`)
-    }
-}
 
-console.log('')
-console.log('🔗 Mise à jour des dépendances inter-packages...')
-
-// Étape 2a: Met à jour les imports dans le deno.json racine
-try {
-    // deno-lint-ignore no-explicit-any
-    const rootConfig = parse(await Deno.readTextFile('./deno.jsonc')) as any
-
-    if (rootConfig.imports) {
-        let hasUpdates = false
-
-        for (const [key, value] of Object.entries(rootConfig.imports)) {
-            if (
-                typeof value === 'string' &&
-                (key.startsWith('@lockness/') ||
-                    value.includes('jsr:@lockness/'))
-            ) {
-                const match = value.match(
-                    /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/,
-                )
-                if (match) {
-                    const [, packagePath, versionPrefix] = match
-                    const newImport =
-                        `${packagePath}@${versionPrefix}${newVersion}`
-                    if (newImport !== value) {
-                        rootConfig.imports[key] = newImport
-                        hasUpdates = true
-                    }
-                }
-            }
-        }
-
-        if (hasUpdates) {
-            await Deno.writeTextFile(
-                './deno.jsonc',
-                JSON.stringify(rootConfig, null, 4) + '\n',
-            )
-            console.log('   ✅ deno.jsonc racine - dépendances mises à jour')
-        }
-    }
-} catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    console.warn(`   ⚠️  Erreur pour deno.jsonc racine: ${message}`)
-}
-
-// Étape 2b: Met à jour les imports @lockness/* dans chaque package
-for (const member of rootConfig.workspace) {
-    const configPath = `${member}/deno.json`
-    try {
-        const config = JSON.parse(await Deno.readTextFile(configPath))
-
-        if (!config.imports) continue
-
-        let hasUpdates = false
-
-        // Parcourt tous les imports
-        for (const [key, value] of Object.entries(config.imports)) {
-            // Si c'est un import @lockness/* ou une valeur contenant jsr:@lockness/
-            if (
-                typeof value === 'string' &&
-                (key.startsWith('@lockness/') ||
-                    value.includes('jsr:@lockness/'))
-            ) {
-                // Extrait le pattern de version (^X.X.X ou ~X.X.X)
-                const match = value.match(
-                    /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/,
-                )
-                if (match) {
-                    const [, packagePath, versionPrefix] = match
-                    const newImport =
-                        `${packagePath}@${versionPrefix}${newVersion}`
-                    if (newImport !== value) {
-                        config.imports[key] = newImport
-                        hasUpdates = true
-                    }
-                }
-            }
-        }
-
-        if (hasUpdates) {
-            await Deno.writeTextFile(
-                configPath,
-                JSON.stringify(config, null, 4) + '\n',
-            )
-            console.log(`   ✅ ${member} - dépendances mises à jour`)
+        return {
+            success: true,
+            path: memberPath,
+            error: hasImportUpdates ? undefined : undefined,
         }
     } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        console.warn(`   ⚠️  Erreur pour ${member}: ${message}`)
-    }
-}
-
-console.log('')
-console.log('🔧 Mise à jour des fichiers stubs...')
-
-// Étape 3: Met à jour les versions dans les fichiers .stub
-const stubFiles = []
-for await (const entry of Deno.readDir('packages')) {
-    if (entry.isDirectory) {
-        const stubsPath = `packages/${entry.name}/stubs`
-        try {
-            for await (
-                const walkEntry of Deno.readDir(stubsPath)
-            ) {
-                if (walkEntry.isDirectory) {
-                    // Parcourt récursivement les sous-dossiers de stubs
-                    const walk = async (path: string) => {
-                        for await (const file of Deno.readDir(path)) {
-                            const fullPath = `${path}/${file.name}`
-                            if (file.isDirectory) {
-                                await walk(fullPath)
-                            } else if (file.name.endsWith('.stub')) {
-                                stubFiles.push(fullPath)
-                            }
-                        }
-                    }
-                    await walk(`${stubsPath}/${walkEntry.name}`)
-                } else if (walkEntry.name.endsWith('.stub')) {
-                    stubFiles.push(`${stubsPath}/${walkEntry.name}`)
-                }
-            }
-        } catch {
-            // Pas de dossier stubs, on continue
+        return {
+            success: false,
+            path: memberPath,
+            error: getErrorMessage(error),
         }
     }
 }
 
-for (const stubPath of stubFiles) {
+/**
+ * Update version references in a stub file.
+ *
+ * @param stubPath - Path to the stub file
+ * @param newVersion - The new version to set
+ * @returns Result of the update operation
+ */
+async function updateStubFile(
+    stubPath: string,
+    newVersion: string,
+): Promise<UpdateResult> {
     try {
-        let content = await Deno.readTextFile(stubPath)
-        const originalContent = content
-
-        // Remplace toutes les versions @lockness/* dans le contenu
-        content = content.replace(
-            /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/g,
+        const content = await Deno.readTextFile(stubPath)
+        const updatedContent = content.replace(
+            LOCKNESS_VERSION_PATTERN,
             `$1@$2${newVersion}`,
         )
 
-        if (content !== originalContent) {
-            await Deno.writeTextFile(stubPath, content)
-            console.log(`   ✅ ${stubPath}`)
+        if (updatedContent !== content) {
+            await Deno.writeTextFile(stubPath, updatedContent)
+            return { success: true, path: stubPath }
         }
+
+        return { success: true, path: stubPath }
     } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        console.warn(`   ⚠️  Erreur pour ${stubPath}: ${message}`)
+        return {
+            success: false,
+            path: stubPath,
+            error: getErrorMessage(error),
+        }
     }
 }
 
-console.log('')
-console.log(`✨ Bump terminé ! Tous les packages sont en version ${newVersion}`)
-console.log('')
-console.log('📝 Prochaines étapes:')
-console.log('   1. Vérifier les changements: git diff')
-console.log('   2. Tester: deno task test')
-console.log('   3. Publier: deno publish')
-console.log('')
+// =============================================================================
+// Main Functions
+// =============================================================================
+
+/**
+ * Print the final summary and next steps.
+ *
+ * @param newVersion - The version that was set
+ */
+function printSummary(newVersion: string): void {
+    console.log('')
+    console.log(`✨ Bump terminé ! Tous les packages sont en version ${newVersion}`)
+    console.log('')
+    console.log('📝 Prochaines étapes:')
+    console.log('   1. Vérifier les changements: git diff')
+    console.log('   2. Tester: deno task test')
+    console.log('   3. Publier: deno publish')
+    console.log('')
+}
+
+/**
+ * Main entry point for the bump script.
+ *
+ * Orchestrates the version bump across all packages.
+ */
+async function main(): Promise<void> {
+    const newVersion = Deno.args[0]
+
+    if (!newVersion) {
+        console.error('❌ Merci de spécifier une version. Ex: deno task bump 0.2.0')
+        Deno.exit(1)
+    }
+
+    // Validate version format
+    if (!/^\d+\.\d+\.\d+$/.test(newVersion)) {
+        console.error('❌ Format de version invalide. Utilisez le format semver: X.Y.Z')
+        Deno.exit(1)
+    }
+
+    console.log(`🚀 Mise à jour vers la version ${newVersion}`)
+    console.log('')
+
+    // Step 0: Update root config
+    console.log('🏠 Mise à jour de la version du monorepo racine...')
+    const rootConfig = await updateRootConfig(newVersion)
+    console.log(`   ✅ deno.jsonc → ${newVersion}`)
+    console.log('')
+
+    // Step 1: Update all packages
+    console.log('📦 Mise à jour des versions des packages...')
+    for (const member of rootConfig.workspace) {
+        const result = await updatePackage(member, newVersion)
+        if (result.success) {
+            console.log(`   ✅ ${member} → ${newVersion}`)
+        } else {
+            console.warn(`   ⚠️  ${member}: ${result.error}`)
+        }
+    }
+    console.log('')
+
+    // Step 2: Update stub files
+    console.log('🔧 Mise à jour des fichiers stubs...')
+    const stubFiles: string[] = []
+
+    for await (const entry of Deno.readDir('packages')) {
+        if (entry.isDirectory) {
+            const packageStubs = await collectStubFiles(`packages/${entry.name}/stubs`)
+            stubFiles.push(...packageStubs)
+        }
+    }
+
+    let stubUpdates = 0
+    for (const stubPath of stubFiles) {
+        const result = await updateStubFile(stubPath, newVersion)
+        if (result.success) {
+            const content = await Deno.readTextFile(stubPath)
+            if (content.includes(`@^${newVersion}`) || content.includes(`@~${newVersion}`)) {
+                console.log(`   ✅ ${stubPath}`)
+                stubUpdates++
+            }
+        } else {
+            console.warn(`   ⚠️  ${stubPath}: ${result.error}`)
+        }
+    }
+
+    if (stubUpdates === 0 && stubFiles.length > 0) {
+        console.log('   ℹ️  Aucun fichier stub nécessitant une mise à jour')
+    } else if (stubFiles.length === 0) {
+        console.log('   ℹ️  Aucun fichier stub trouvé')
+    }
+
+    printSummary(newVersion)
+}
+
+// =============================================================================
+// Execution
+// =============================================================================
+
+if (import.meta.main) {
+    main()
+}
