@@ -9,6 +9,7 @@
         "./packages/cache",
         "./packages/container",
         "./packages/events",
+        "./packages/inertia",
         "./packages/logger",
         "./packages/mail",
         "./packages/openapi",

@@ -1959,6 +1959,12 @@
           "npm:hono@4.11.1"
         ]
       },
+      "packages/inertia": {
+        "dependencies": [
+          "jsr:@lockness/hono@~0.1.26",
+          "jsr:@std/assert@1"
+        ]
+      },
       "packages/init": {
         "dependencies": [
           "jsr:@std/cli@1",

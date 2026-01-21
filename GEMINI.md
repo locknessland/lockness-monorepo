@@ -157,6 +157,8 @@ essential framework features, and optional packages are imported explicitly:
 - `@lockness/storage` - File storage (local, S3, R2)
 - `@lockness/auth` - Authentication system
 - `@lockness/socialite` - OAuth providers
+- `@lockness/inertia` - Inertia.js adapter for modern SPAs with server-side
+  routing
 - `@lockness/ui` - UI components library with CLI tooling (see UI Components
   section)
 
@@ -1760,6 +1762,104 @@ class CustomDriver extends BaseOAuth2Driver {
 }
 
 registerSocialiteDriver('custom', CustomDriver)
+```
+
+### Inertia.js Adapter
+
+Lockness provides a complete Inertia.js server-side adapter for building modern
+SPAs with server-side routing through the `@lockness/inertia` package.
+
+**Configuration in kernel.tsx:**
+
+```typescript
+import { inertiaMiddleware } from '@lockness/inertia'
+
+app.useMiddleware(
+    inertiaMiddleware({
+        version: '1.0.0',
+    }),
+)
+```
+
+**Using inertia in controllers:**
+
+```typescript
+import { type Context, Controller, Get } from '@lockness/core'
+
+@Controller('/')
+export class DashboardController {
+    @Get('/dashboard')
+    async show(c: Context) {
+        const inertia = c.get('inertia')
+
+        return inertia.render('Dashboard', {
+            user: await getCurrentUser(c),
+            stats: await getDashboardStats(),
+        })
+    }
+}
+```
+
+**Shared props (global data):**
+
+```typescript
+// kernel.tsx
+app.useMiddleware(async (c, next) => {
+    const inertia = c.get('inertia')
+
+    inertia.share({
+        auth: {
+            user: await getCurrentUser(c),
+        },
+        flash: c.get('session')?.flash ?? {},
+    })
+
+    return next()
+})
+```
+
+**Lazy props (resolved only when needed):**
+
+```typescript
+@Get('/users/:id')
+async show(c: Context) {
+    const inertia = c.get('inertia')
+    const id = c.req.param('id')
+    
+    return inertia.render('Users/Show', {
+        user: await this.userService.findById(id),
+        // Lazy prop - only resolved if component requests it
+        activity: () => this.activityService.getRecent(id),
+    })
+}
+```
+
+**Custom root view with SSR:**
+
+```typescript
+import { type InertiaConfig, inertiaMiddleware } from '@lockness/inertia'
+
+const inertiaConfig: InertiaConfig = {
+    version: () => Deno.env.get('BUILD_HASH') ?? '1.0.0',
+    rootView: (page) => {
+        return `
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>${page.props.title ?? 'My App'}</title>
+                    <link rel="stylesheet" href="/css/app.css" />
+                </head>
+                <body>
+                    <div id="app" data-page='${JSON.stringify(page)}'></div>
+                    <script type="module" src="/js/app.js"></script>
+                </body>
+            </html>
+        `
+    },
+}
+
+app.useMiddleware(inertiaMiddleware(inertiaConfig))
 ```
 
 ### Mail System

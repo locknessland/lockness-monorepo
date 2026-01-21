@@ -499,6 +499,82 @@ Session API:
 - `flash(key, value)` - Flash for next request
 - `getFlash(key)` - Get flash data
 
+### Inertia.js Adapter
+
+Build modern SPAs with server-side routing:
+
+```typescript
+// Configure in kernel.tsx
+import { inertiaMiddleware } from '@lockness/inertia'
+
+app.useMiddleware(
+    inertiaMiddleware({
+        version: '1.0.0',
+    }),
+)
+
+// Share global props
+app.useMiddleware(async (c, next) => {
+    const inertia = c.get('inertia')
+    inertia.share({
+        auth: { user: await getCurrentUser(c) },
+        flash: c.get('session')?.flash ?? {},
+    })
+    return next()
+})
+
+// Use in controllers
+@Controller('/')
+export class DashboardController {
+    @Get('/dashboard')
+    async show(c: Context) {
+        const inertia = c.get('inertia')
+        
+        return inertia.render('Dashboard', {
+            user: await getCurrentUser(c),
+            stats: await getDashboardStats(),
+        })
+    }
+}
+
+// Lazy props (resolved only when needed)
+@Get('/users/:id')
+async show(c: Context) {
+    const inertia = c.get('inertia')
+    const id = c.req.param('id')
+    
+    return inertia.render('Users/Show', {
+        user: await this.userService.findById(id),
+        // Only resolved if component requests it
+        activity: () => this.activityService.getRecent(id),
+    })
+}
+```
+
+Inertia API:
+- `render(component, props?, options?)` - Render Inertia response
+- `share(props)` - Share props globally for all responses
+
+Custom root view:
+```typescript
+inertiaMiddleware({
+    version: () => Deno.env.get('BUILD_HASH') ?? '1.0.0',
+    rootView: (page) => `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>${page.props.title ?? 'My App'}</title>
+                <link rel="stylesheet" href="/css/app.css" />
+            </head>
+            <body>
+                <div id="app" data-page='${JSON.stringify(page)}'></div>
+                <script type="module" src="/js/app.js"></script>
+            </body>
+        </html>
+    `,
+})
+```
+
 ### Middleware
 
 Class-based middleware with decorators:
@@ -587,6 +663,7 @@ Official packages (install with `deno task cli package:install <name>`):
 - **@lockness/openapi** - OpenAPI/Swagger docs
 - **@lockness/cache** - Multi-driver caching (Memory, Deno KV, Redis)
 - **@lockness/socialite** - OAuth2 (Google, GitHub, Discord)
+- **@lockness/inertia** - Inertia.js adapter for modern SPAs with server-side routing
 
 ### Configuration
 
