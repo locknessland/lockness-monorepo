@@ -19,7 +19,11 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const HeroPage = () => {
     return (
-        <PageUiLayout title='Hero - Lockness UI' noPadding currentPath='/ui/hero'>
+        <PageUiLayout
+            title='Hero - Lockness UI'
+            noPadding
+            currentPath='/ui/hero'
+        >
             <div class='p-4 md:p-8 space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

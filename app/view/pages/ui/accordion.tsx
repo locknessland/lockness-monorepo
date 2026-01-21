@@ -9,7 +9,10 @@ import { CodeBlock } from '@lockness/ui/components'
 
 export const AccordionPage = () => {
     return (
-        <PageUiLayout title='Accordion - Lockness UI' currentPath='/ui/accordion'>
+        <PageUiLayout
+            title='Accordion - Lockness UI'
+            currentPath='/ui/accordion'
+        >
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

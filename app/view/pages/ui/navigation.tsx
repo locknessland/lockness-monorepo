@@ -22,7 +22,10 @@ import { CodeBlock } from '@lockness/ui/components'
 
 export const NavigationPage = () => {
     return (
-        <PageUiLayout title='Navigation Components - Lockness UI' currentPath='/ui/navigation'>
+        <PageUiLayout
+            title='Navigation Components - Lockness UI'
+            currentPath='/ui/navigation'
+        >
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>
