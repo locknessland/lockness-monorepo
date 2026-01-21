@@ -1,13 +1,42 @@
 #!/usr/bin/env -S deno run -A
 /**
- * Deprecation Contracts Package Installer
+ * @fileoverview Deprecation Contracts Package Installer.
  *
- * Automatically configures the @lockness/deprecation-contracts package in your project.
+ * Automatically configures the `@lockness/deprecation-contracts` package
+ * in your project by adding it to `deno.json` and updating environment files.
+ *
+ * @module @lockness/deprecation-contracts/install
+ *
+ * @example
+ * ```bash
+ * deno run -A jsr:@lockness/deprecation-contracts/install
+ * ```
  */
 
 import { addPackage } from '@lockness/cli'
 
-async function checkProjectStructure() {
+// =============================================================================
+// Constants
+// =============================================================================
+
+/**
+ * Deprecation configuration to add to environment files.
+ * @internal
+ */
+const DEPRECATION_CONFIG =
+    '\n# Deprecation Configuration\nSTRICT_DEPRECATIONS=false\nIGNORE_DEPRECATIONS=false\n'
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+/**
+ * Check if the current directory is a valid Lockness project.
+ *
+ * @returns `true` if `deno.json` exists, `false` otherwise
+ * @internal
+ */
+async function checkProjectStructure(): Promise<boolean> {
     try {
         await Deno.stat('./deno.json')
         return true
@@ -17,17 +46,24 @@ async function checkProjectStructure() {
     }
 }
 
-async function updateEnvFile() {
+/**
+ * Update environment files with deprecation configuration.
+ *
+ * Adds `STRICT_DEPRECATIONS` and `IGNORE_DEPRECATIONS` variables
+ * to `.env` and `.env.exemple` if they don't already exist.
+ *
+ * @returns void
+ * @internal
+ */
+async function updateEnvFile(): Promise<void> {
     const envPath = './.env'
     const envExemplePath = './.env.exemple'
-    const deprecationConfig =
-        '\n# Deprecation Configuration\nSTRICT_DEPRECATIONS=false\nIGNORE_DEPRECATIONS=false\n'
 
     // Update .env if it exists
     try {
         const envContent = await Deno.readTextFile(envPath)
         if (!envContent.includes('STRICT_DEPRECATIONS')) {
-            await Deno.writeTextFile(envPath, envContent + deprecationConfig)
+            await Deno.writeTextFile(envPath, envContent + DEPRECATION_CONFIG)
             console.log('✓ Updated .env with deprecation configuration')
         }
     } catch {
@@ -40,7 +76,7 @@ async function updateEnvFile() {
         if (!envExContent.includes('STRICT_DEPRECATIONS')) {
             await Deno.writeTextFile(
                 envExemplePath,
-                envExContent + deprecationConfig,
+                envExContent + DEPRECATION_CONFIG,
             )
             console.log('✓ Updated .env.exemple with deprecation configuration')
         }
@@ -49,7 +85,17 @@ async function updateEnvFile() {
     }
 }
 
-async function main() {
+// =============================================================================
+// Main
+// =============================================================================
+
+/**
+ * Main installer function.
+ *
+ * @returns void
+ * @internal
+ */
+async function main(): Promise<void> {
     console.log('🌊 Installing @lockness/deprecation-contracts...\n')
 
     if (!(await checkProjectStructure())) {
