@@ -9,10 +9,7 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const NewsletterPage = () => {
     return (
-        <PageUiLayout
-            title='Newsletter - Lockness UI'
-           
-        >
+        <PageUiLayout title='Newsletter - Lockness UI'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

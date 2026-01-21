@@ -12,10 +12,7 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const UploadZonePage = () => {
     return (
-        <PageUiLayout
-            title='UploadZone - Lockness UI'
-           
-        >
+        <PageUiLayout title='UploadZone - Lockness UI'>
             <div class='space-y-8 max-w-full'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-2'>

@@ -2,10 +2,7 @@ import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 export const UiIndex = () => {
     return (
-        <PageUiLayout
-            title='UI Showcase - Lockness Components'
-           
-        >
+        <PageUiLayout title='UI Showcase - Lockness Components'>
             <div class='space-y-8 max-w-4xl'>
                 <header>
                     <h1 class='font-pixel text-2xl text-foreground mb-4'>
