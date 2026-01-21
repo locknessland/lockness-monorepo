@@ -1,14 +1,77 @@
 #!/usr/bin/env -S deno run -A
+/**
+ * @fileoverview Lockness Upgrade Tool - CLI and library for upgrading Lockness packages.
+ *
+ * This module provides both a CLI tool and programmatic API for upgrading
+ * Lockness packages in a deno.json configuration file to their latest versions.
+ *
+ * @module @lockness/upgrade
+ *
+ * ## CLI Usage
+ *
+ * ```bash
+ * # Upgrade to latest version
+ * deno run -Ar jsr:@lockness/upgrade
+ *
+ * # Upgrade to specific version
+ * deno run -Ar jsr:@lockness/upgrade 0.2.0
+ *
+ * # Dry run (preview only)
+ * deno run -Ar jsr:@lockness/upgrade --dry-run
+ * ```
+ *
+ * ## Programmatic Usage
+ *
+ * ```typescript
+ * import { Upgrader, createVersionProvider } from '@lockness/upgrade'
+ *
+ * const upgrader = new Upgrader(createVersionProvider())
+ * const result = await upgrader.upgrade({ dryRun: true })
+ *
+ * if (result.success) {
+ *     for (const pkg of result.upgrades) {
+ *         console.log(`${pkg.name}: ${pkg.currentVersion} → ${pkg.targetVersion}`)
+ *     }
+ * }
+ * ```
+ */
+
 import { parseArgs } from '@std/cli'
 import { Upgrader } from './upgrader.ts'
 import { createVersionProvider } from './version_fetcher.ts'
 import type { PackageUpgrade } from './types.ts'
 
+// =============================================================================
+// Exports
+// =============================================================================
+
+export { Upgrader } from './upgrader.ts'
+export { createVersionProvider, JsrVersionProvider } from './version_fetcher.ts'
+export type {
+    PackageUpgrade,
+    UpgradeOptions,
+    UpgradeResult,
+    VersionProvider,
+} from './types.ts'
+
+// =============================================================================
+// CLI Helpers
+// =============================================================================
+
+// =============================================================================
+// CLI Helpers
+// =============================================================================
+
 /**
- * Print upgrade summary
+ * Print a summary of package upgrades to the console.
+ *
+ * @param upgrades - List of package upgrades
+ * @param dryRun - Whether this was a dry run
+ *
+ * @internal
  */
 function printSummary(
-    upgrades: PackageUpgrade[],
+    upgrades: readonly PackageUpgrade[],
     dryRun: boolean,
 ): void {
     if (upgrades.length === 0) {
@@ -31,7 +94,11 @@ function printSummary(
 }
 
 /**
- * Print success message
+ * Print success message with next steps.
+ *
+ * @param dryRun - Whether this was a dry run
+ *
+ * @internal
  */
 function printSuccess(dryRun: boolean): void {
     if (dryRun) {
@@ -48,8 +115,16 @@ function printSuccess(dryRun: boolean): void {
     }
 }
 
+// =============================================================================
+// CLI Entry Point
+// =============================================================================
+
 /**
- * Main CLI entry point
+ * Main CLI entry point.
+ *
+ * Parses command-line arguments and runs the upgrade process.
+ *
+ * @internal
  */
 async function main(): Promise<void> {
     const args = parseArgs(Deno.args, {
@@ -108,6 +183,10 @@ Examples:
     printSummary(result.upgrades, result.dryRun)
     printSuccess(result.dryRun)
 }
+
+// =============================================================================
+// Execution
+// =============================================================================
 
 // Run CLI if executed directly
 if (import.meta.main) {

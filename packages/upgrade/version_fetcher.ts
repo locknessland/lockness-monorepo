@@ -1,16 +1,92 @@
+/**
+ * @fileoverview Version fetching utilities for JSR packages.
+ *
+ * Provides the `JsrVersionProvider` class which fetches the latest
+ * available versions of packages from the JSR registry.
+ *
+ * @module @lockness/upgrade/version_fetcher
+ *
+ * @example
+ * ```typescript
+ * import { createVersionProvider } from '@lockness/upgrade'
+ *
+ * const provider = createVersionProvider()
+ * const version = await provider.getLatestVersion('@lockness/core')
+ * console.log(`Latest version: ${version}`)
+ * ```
+ */
+
 import type { VersionProvider } from './types.ts'
 
+// =============================================================================
+// Constants
+// =============================================================================
+
+/** Base URL for the JSR registry API */
+const JSR_BASE_URL = 'https://jsr.io' as const
+
+/** Default timeout for API requests in milliseconds */
+const DEFAULT_TIMEOUT_MS = 5000 as const
+
+// =============================================================================
+// Types
+// =============================================================================
+
 /**
- * Fetches latest version from JSR API
+ * Response structure from JSR package metadata endpoint.
+ * @internal
+ */
+interface JsrPackageMetadata {
+    /** The latest published version */
+    readonly latest: string
+    /** All available versions */
+    readonly versions?: Record<string, unknown>
+}
+
+// =============================================================================
+// JsrVersionProvider Class
+// =============================================================================
+
+/**
+ * Fetches latest package versions from the JSR registry.
+ *
+ * This provider queries the JSR API to determine the latest available
+ * version of a package. It includes timeout handling to prevent
+ * hanging on slow network connections.
+ *
+ * @example
+ * ```typescript
+ * const provider = new JsrVersionProvider()
+ * const version = await provider.getLatestVersion('@lockness/core')
+ * console.log(version) // '0.2.0'
+ * ```
  */
 export class JsrVersionProvider implements VersionProvider {
-    private readonly baseUrl = 'https://jsr.io'
-    private readonly timeout = 5000 // 5 seconds
+    /** Base URL for JSR API requests */
+    private readonly baseUrl: string = JSR_BASE_URL
+
+    /** Request timeout in milliseconds */
+    private readonly timeout: number = DEFAULT_TIMEOUT_MS
 
     /**
-     * Fetch the latest version of a package from JSR
-     * @param packageName Package name like "@lockness/core"
-     * @returns Latest version string like "0.2.0"
+     * Fetch the latest available version of a package from JSR.
+     *
+     * @param packageName - Full package name (e.g., "@lockness/core")
+     * @returns Promise resolving to the latest version string
+     * @throws {Error} If the request times out
+     * @throws {Error} If the package is not found or API returns an error
+     *
+     * @example
+     * ```typescript
+     * const provider = new JsrVersionProvider()
+     *
+     * try {
+     *     const version = await provider.getLatestVersion('@lockness/core')
+     *     console.log(`Latest: ${version}`)
+     * } catch (error) {
+     *     console.error('Failed to fetch version:', error.message)
+     * }
+     * ```
      */
     async getLatestVersion(packageName: string): Promise<string> {
         const scope = packageName.split('/')[0].replace('@', '')
@@ -33,8 +109,8 @@ export class JsrVersionProvider implements VersionProvider {
                 )
             }
 
-            const data = await response.json()
-            return data.latest as string
+            const data: JsrPackageMetadata = await response.json()
+            return data.latest
         } catch (error) {
             if (error instanceof Error) {
                 if (error.name === 'AbortError') {
@@ -51,9 +127,25 @@ export class JsrVersionProvider implements VersionProvider {
     }
 }
 
+// =============================================================================
+// Factory Function
+// =============================================================================
+
 /**
- * Create a version provider instance
- * @returns VersionProvider instance
+ * Create a version provider instance for fetching package versions.
+ *
+ * This factory function returns a `JsrVersionProvider` which queries
+ * the JSR registry for the latest package versions.
+ *
+ * @returns A new `VersionProvider` instance
+ *
+ * @example
+ * ```typescript
+ * import { createVersionProvider } from '@lockness/upgrade'
+ *
+ * const provider = createVersionProvider()
+ * const version = await provider.getLatestVersion('@lockness/core')
+ * ```
  */
 export function createVersionProvider(): VersionProvider {
     return new JsrVersionProvider()
