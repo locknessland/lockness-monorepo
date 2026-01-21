@@ -11,6 +11,11 @@ import type { FC } from '@lockness/core'
 import { cn } from '../lib/utils.ts'
 
 /**
+ * TreeView display variant
+ */
+export type TreeViewVariant = 'interactive' | 'text'
+
+/**
  * TreeView component props
  */
 export interface TreeViewProps {
@@ -22,6 +27,16 @@ export interface TreeViewProps {
      * Data-driven tree structure (alternative to children)
      */
     items?: TreeViewDataItem[]
+    /**
+     * Display variant:
+     * - 'interactive': Collapsible tree with keyboard navigation (default)
+     * - 'text': Static ASCII tree representation (like terminal output)
+     */
+    variant?: TreeViewVariant
+    /**
+     * Root label for text variant (displayed at top of tree)
+     */
+    rootLabel?: string
     /**
      * Additional CSS class names
      */
@@ -213,6 +228,40 @@ const renderTreeItems = (items: TreeViewDataItem[]): unknown => {
 }
 
 /**
+ * Render ASCII tree line with proper connectors
+ */
+const renderTextTreeLine = (
+    label: string,
+    prefix: string,
+    isLast: boolean,
+): string => {
+    const connector = isLast ? '└── ' : '├── '
+    return `${prefix}${connector}${label}`
+}
+
+/**
+ * Recursively render tree items as ASCII text
+ */
+const renderTextTree = (
+    items: TreeViewDataItem[],
+    prefix: string = '',
+): string[] => {
+    const lines: string[] = []
+
+    items.forEach((item, index) => {
+        const isLast = index === items.length - 1
+        lines.push(renderTextTreeLine(item.label, prefix, isLast))
+
+        if (item.children && item.children.length > 0) {
+            const childPrefix = prefix + (isLast ? '    ' : '│   ')
+            lines.push(...renderTextTree(item.children, childPrefix))
+        }
+    })
+
+    return lines
+}
+
+/**
  * TreeView Component
  *
  * A hierarchical tree structure for displaying nested data.
@@ -239,13 +288,49 @@ const renderTreeItems = (items: TreeViewDataItem[]): unknown => {
  * ]
  * <TreeView items={data} />
  * ```
+ *
+ * @example Text variant (ASCII tree)
+ * ```tsx
+ * const data = [
+ *   { id: '1', label: 'src/', children: [
+ *     { id: '1-1', label: 'index.ts' },
+ *     { id: '1-2', label: 'utils.ts' }
+ *   ]}
+ * ]
+ * <TreeView items={data} variant="text" rootLabel="my-project/" />
+ * ```
  */
 export const TreeView: FC<TreeViewProps> = ({
     class: className,
     children,
     items,
+    variant = 'interactive',
+    rootLabel,
     ...props
 }) => {
+    // Text variant: render ASCII tree
+    if (variant === 'text' && items) {
+        const lines = renderTextTree(items)
+        const content = rootLabel
+            ? [rootLabel, ...lines].join('\n')
+            : lines.join('\n')
+
+        return (
+            <pre
+                class={cn(
+                    'font-mono text-sm',
+                    'bg-muted/50 rounded-lg p-4',
+                    'overflow-x-auto',
+                    className,
+                )}
+                {...props}
+            >
+                <code>{content}</code>
+            </pre>
+        )
+    }
+
+    // Interactive variant: collapsible tree
     return (
         <>
             <ul

@@ -3,6 +3,52 @@
 This guide will walk you through creating your first Lockness application, from
 setup to deployment.
 
+## 📁 Project Structure
+
+After running `deno task init`, your project will have the following structure:
+
+```
+my-app/
+├── app/
+│   ├── kernel.tsx              # Application bootstrap
+│   ├── routes.ts               # Auto-generated routes registry
+│   ├── controller/             # HTTP controllers
+│   │   └── app_controller.tsx
+│   ├── middleware/             # Custom middleware
+│   ├── model/                  # Drizzle database schemas
+│   ├── repository/             # Data access layer
+│   ├── service/                # Business logic services
+│   └── view/
+│       ├── assets/             # CSS and client-side assets
+│       │   └── app.css
+│       ├── components/         # Reusable JSX components
+│       ├── layouts/            # Page layouts
+│       └── pages/              # Page components
+├── database/
+│   ├── migrations/             # SQL migration files
+│   └── seeders/                # Database seeders
+├── public/                     # Static files (served directly)
+│   ├── css/                    # Compiled CSS output
+│   ├── img/                    # Images
+│   └── js/                     # Client-side JavaScript
+├── tests/                      # Test files
+├── deno.json                   # Deno configuration & tasks
+├── drizzle.config.ts           # Drizzle ORM configuration
+└── main.ts                     # Application entry point
+```
+
+### Key Directories
+
+| Directory         | Purpose                                     |
+| ----------------- | ------------------------------------------- |
+| `app/controller/` | HTTP request handlers with route decorators |
+| `app/model/`      | Database table schemas (Drizzle ORM)        |
+| `app/repository/` | Data access layer for database operations   |
+| `app/service/`    | Business logic, injectable via `@Service()` |
+| `app/view/`       | JSX templates, components, and layouts      |
+| `database/`       | Migrations and seeders                      |
+| `public/`         | Static assets served at root URL            |
+
 ## 🎯 Your First Controller
 
 Let's create a simple API endpoint. Use the CLI to scaffold a controller:

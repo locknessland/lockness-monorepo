@@ -103,7 +103,9 @@ export const Home = () => {
                         <NavbarMenuItem href='#features'>
                             Features
                         </NavbarMenuItem>
-                        <NavbarMenuItem href={route('docs.ui')}>
+                        <NavbarMenuItem
+                            href={route('docs.page', { slug: 'ui' })}
+                        >
                             UI Components
                         </NavbarMenuItem>
                     </NavbarContent>

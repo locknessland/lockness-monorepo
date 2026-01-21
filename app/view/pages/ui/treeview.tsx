@@ -186,6 +186,87 @@ export const TreeViewPage = () => {
                     </div>
                 </section>
 
+                {/* Text Variant (ASCII Tree) */}
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        TEXT VARIANT (ASCII TREE)
+                    </h2>
+                    <p class='text-sm text-muted-foreground'>
+                        Static ASCII representation, perfect for documentation
+                        or code examples.
+                    </p>
+                    <div class='border border-(--border) rounded-lg p-4 bg-card'>
+                        <TreeView
+                            items={[
+                                {
+                                    id: 'app',
+                                    label: 'app/',
+                                    children: [
+                                        {
+                                            id: 'controller',
+                                            label: 'controller/',
+                                        },
+                                        { id: 'model', label: 'model/' },
+                                        {
+                                            id: 'view',
+                                            label: 'view/',
+                                            children: [
+                                                {
+                                                    id: 'components',
+                                                    label: 'components/',
+                                                },
+                                                {
+                                                    id: 'layouts',
+                                                    label: 'layouts/',
+                                                },
+                                                {
+                                                    id: 'pages',
+                                                    label: 'pages/',
+                                                },
+                                            ],
+                                        },
+                                        { id: 'kernel', label: 'kernel.tsx' },
+                                        { id: 'routes', label: 'routes.ts' },
+                                    ],
+                                },
+                                {
+                                    id: 'public',
+                                    label: 'public/',
+                                    children: [
+                                        { id: 'css', label: 'css/' },
+                                        { id: 'img', label: 'img/' },
+                                    ],
+                                },
+                                { id: 'main', label: 'main.ts' },
+                                { id: 'deno', label: 'deno.json' },
+                            ]}
+                            variant='text'
+                            rootLabel='my-app/'
+                        />
+                    </div>
+                    <CodeBlock lang='tsx'>
+                        {`import { TreeView } from '@lockness/ui/components'
+
+const projectStructure = [
+    { id: 'app', label: 'app/', children: [
+        { id: 'controller', label: 'controller/' },
+        { id: 'model', label: 'model/' },
+        { id: 'view', label: 'view/', children: [
+            { id: 'components', label: 'components/' },
+            { id: 'layouts', label: 'layouts/' },
+        ]},
+    ]},
+    { id: 'main', label: 'main.ts' },
+]
+
+<TreeView
+    items={projectStructure}
+    variant="text"
+    rootLabel="my-app/"
+/>`}
+                    </CodeBlock>
+                </section>
+
                 {/* Custom Icons Example */}
                 <section class='space-y-4'>
                     <h2 class='font-pixel text-sm text-foreground'>

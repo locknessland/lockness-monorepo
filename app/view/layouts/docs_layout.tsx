@@ -168,56 +168,56 @@ const navSections: readonly NavSection[] = [
         title: 'Getting Started',
         icon: RocketIcon,
         links: [
-            { title: 'Installation', name: 'docs.installation' },
-            { title: 'Introduction', name: 'docs.getting-started' },
+            { title: 'Installation', name: 'installation' },
+            { title: 'Introduction', name: 'getting-started' },
         ],
     },
     {
         title: 'Core Concepts',
         icon: PuzzleIcon,
         links: [
-            { title: 'Routing & Controllers', name: 'docs.routing' },
+            { title: 'Routing & Controllers', name: 'routing' },
             {
                 title: 'Dependency Injection',
-                name: 'docs.dependency-injection',
+                name: 'dependency-injection',
             },
-            { title: 'Middleware', name: 'docs.middleware' },
-            { title: 'Validation', name: 'docs.validation' },
+            { title: 'Middleware', name: 'middleware' },
+            { title: 'Validation', name: 'validation' },
         ],
     },
     {
         title: 'Database & State',
         icon: DatabaseIcon,
         links: [
-            { title: 'Models & Database', name: 'docs.models' },
-            { title: 'Session Management', name: 'docs.sessions' },
+            { title: 'Models & Database', name: 'models' },
+            { title: 'Session Management', name: 'sessions' },
         ],
     },
     {
         title: 'Development Tools',
         icon: WrenchIcon,
         links: [
-            { title: 'Lockness Devtools', name: 'docs.devtools' },
-            { title: 'Deprecation Contracts', name: 'docs.deprecation' },
-            { title: 'CLI Engine', name: 'docs.cli' },
-            { title: 'Nessy CLI', name: 'docs.nessy' },
+            { title: 'Lockness Devtools', name: 'devtools' },
+            { title: 'Deprecation Contracts', name: 'deprecation' },
+            { title: 'CLI Engine', name: 'cli' },
+            { title: 'Nessy CLI', name: 'nessy' },
         ],
     },
     {
         title: 'Advanced',
         icon: LayersIcon,
         links: [
-            { title: 'View Components', name: 'docs.components' },
-            { title: 'UI Components', name: 'docs.ui' },
-            { title: 'Table Component', name: 'docs.table' },
-            { title: 'Package Management', name: 'docs.packages' },
+            { title: 'View Components', name: 'components' },
+            { title: 'UI Components', name: 'ui' },
+            { title: 'Table Component', name: 'table' },
+            { title: 'Package Management', name: 'packages' },
         ],
     },
     {
         title: 'Contributing',
         icon: GitBranchIcon,
         links: [
-            { title: 'Framework Contribution', name: 'docs.contribution' },
+            { title: 'Framework Contribution', name: 'contribution' },
         ],
     },
 ]
@@ -244,7 +244,14 @@ const DocsSidebar = () => {
                         <SidebarGroupContent>
                             <SidebarMenu>
                                 {section.links.map((link) => {
-                                    const href = route(link.name)
+                                    // Use dynamic route with slug parameter for most docs
+                                    // Special pages (table, packages) use their dedicated routes
+                                    const href = link.name === 'table' ||
+                                            link.name === 'packages'
+                                        ? route(`docs.${link.name}`)
+                                        : route('docs.page', {
+                                            slug: link.name,
+                                        })
                                     return (
                                         <SidebarMenuItem key={link.name}>
                                             <SidebarMenuButton
