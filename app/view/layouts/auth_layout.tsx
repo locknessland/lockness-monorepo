@@ -90,7 +90,9 @@ export const AuthLayout: FC<AuthLayoutProps> = ({ title, children }) => {
 
                     <NavbarContent position='center' class='hidden md:flex'>
                         <NavbarMenuItem href='/docs'>Docs</NavbarMenuItem>
-                        <NavbarMenuItem href='/ui'>UI Components</NavbarMenuItem>
+                        <NavbarMenuItem href='/ui'>
+                            UI Components
+                        </NavbarMenuItem>
                     </NavbarContent>
 
                     <NavbarContent position='right'>
