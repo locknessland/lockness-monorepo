@@ -25,6 +25,7 @@
             "route_registry.ts",
             "server_listener.ts",
             "static_file_server.ts",
+            "llm_loader.ts",
             "deno.json",
             "README.md"
         ],

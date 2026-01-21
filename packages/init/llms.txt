@@ -1,0 +1,541 @@
+# Lockness Init
+
+Project scaffolding and initialization for new Lockness applications.
+
+## Overview
+
+@lockness/init provides:
+
+- **Quick Start** - Scaffold complete Lockness project in seconds
+- **Full Structure** - Pre-configured directory layout (MVC architecture)
+- **Environment Setup** - Automatic .env file creation
+- **Version Control** - Pin or use flexible version ranges
+- **Ready to Run** - Generated projects work out of the box
+
+## Usage
+
+### Create New Project
+
+```bash
+# Latest version (default)
+deno run -A jsr:@lockness/init my-app
+
+# Or using Nessy CLI
+./nessy init my-app
+```
+
+### Version Control
+
+Pin specific versions or use flexible ranges:
+
+```bash
+# Use specific version
+deno run -A jsr:@lockness/init my-app --use 0.1.15
+deno run -A jsr:@lockness/init my-app -u 0.1.15
+
+# Use caret range (allows patch + minor updates)
+deno run -A jsr:@lockness/init my-app --use "^0.1.0"
+
+# Use tilde range (allows patch updates only)
+deno run -A jsr:@lockness/init my-app --use "~0.1.20"
+
+# Use latest version explicitly
+deno run -A jsr:@lockness/init my-app --use latest
+```
+
+### Pin Init Package Version
+
+```bash
+# Use specific init package version
+deno run -A jsr:@lockness/init@0.1.10 my-app
+
+# Combine: specific init + specific framework
+deno run -A jsr:@lockness/init@0.1.10 my-app --use 0.1.8
+```
+
+## Version Format Reference
+
+| Format   | Description   | Example   | Result in deno.json |
+|----------|---------------|-----------|---------------------|
+| `X.Y.Z`  | Exact version | `0.1.15`  | `^0.1.15`           |
+| `^X.Y.Z` | Caret range   | `^0.1.0`  | `^0.1.0`            |
+| `~X.Y.Z` | Tilde range   | `~0.1.20` | `~0.1.20`           |
+| `latest` | Latest stable | `latest`  | `^0.1.22`           |
+
+### Caret (^)
+
+Allows patch and minor updates (recommended):
+
+- `^0.1.15` matches `0.1.15`, `0.1.16`, `0.1.999`
+- Won't match `0.2.0` or `1.0.0`
+
+### Tilde (~)
+
+Allows patch updates only:
+
+- `~0.1.15` matches `0.1.15`, `0.1.16`
+- Won't match `0.2.0`
+
+## Why Version Control?
+
+**Use Cases:**
+
+- **Stability** - Pin to tested versions for production
+- **Compatibility** - Match existing codebases
+- **Testing** - Verify compatibility with specific versions
+- **Migration** - Gradually upgrade across projects
+
+## Help
+
+```bash
+# Display help
+deno run -A jsr:@lockness/init --help
+
+# Show init package version
+deno run -A jsr:@lockness/init --version
+```
+
+## Generated Structure
+
+```
+my-app/
+├── deno.json                 # Deno configuration with workspace
+├── .env                      # Environment variables
+├── .env.example              # Environment template
+├── main.ts                   # Application entry point
+├── cli.ts                    # CLI entry point
+├── kernel.tsx                # Application kernel
+├── public/                   # Static files
+│   └── css/
+├── app/
+│   ├── controller/           # HTTP controllers
+│   ├── middleware/           # Custom middleware
+│   ├── model/                # Data models
+│   ├── repository/           # Data repositories
+│   ├── service/              # Business logic
+│   ├── view/                 # JSX view components
+│   └── routes.ts             # Route definitions
+├── database/
+│   ├── migrations/           # Database migrations
+│   └── seeders/              # Database seeders
+└── lockness/                 # Framework packages (workspace)
+```
+
+## Quick Start After Init
+
+```bash
+cd my-app
+deno task dev
+```
+
+Your application runs at `http://localhost:8888`
+
+## Configuration Files
+
+### deno.json
+
+Workspace configuration with:
+
+- Lockness package imports
+- Task definitions (dev, build, test)
+- TypeScript compiler options
+- Import map for dependencies
+
+```json
+{
+  "tasks": {
+    "dev": "deno run --allow-all --watch main.ts",
+    "build": "deno compile --allow-all --output=./bin/app main.ts",
+    "test": "deno test --allow-all"
+  },
+  "imports": {
+    "@lockness/core": "jsr:@lockness/core@^0.1.0",
+    "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.0"
+  }
+}
+```
+
+### .env
+
+Environment configuration:
+
+```env
+APP_ENV=development
+APP_PORT=8888
+APP_KEY=your-secret-key-here
+DATABASE_URL=postgres://user:password@localhost:5432/mydb
+```
+
+### kernel.tsx
+
+Application bootstrap:
+
+```typescript
+import { createApp } from '@lockness/core'
+import { cors, logger } from '@lockness/core'
+
+const app = createApp()
+
+// Global middleware
+app.use('*', logger())
+app.use('*', cors())
+
+// Error handling
+app.onError((err, c) => {
+    return c.json({ error: err.message }, 500)
+})
+
+export default app
+```
+
+### main.ts
+
+HTTP server entry point:
+
+```typescript
+import { serve } from 'jsr:@std/http'
+import app from './kernel.tsx'
+
+const port = Number(Deno.env.get('APP_PORT')) || 8888
+
+serve(app.fetch, { port })
+console.log(`Server running on http://localhost:${port}`)
+```
+
+## What's Included
+
+The scaffolded project includes:
+
+### MVC Architecture
+
+- **Controllers** - HTTP request handlers with decorators
+- **Models** - Database schemas with Drizzle ORM
+- **Views** - JSX components for server-side rendering
+- **Routes** - Automatic route discovery
+
+### Pre-configured Features
+
+- **Routing** - Controller-based with decorators
+- **Middleware** - Logger, CORS, error handling
+- **Database** - Drizzle ORM integration ready
+- **Authentication** - @lockness/auth ready to configure
+- **CLI** - Nessy wrapper and custom commands
+- **Development Tools** - Hot reload, route generation
+
+### Sample Files
+
+- Example controller (`app/controller/home_controller.ts`)
+- Example view (`app/view/home.tsx`)
+- Example routes (`app/routes.ts`)
+- Database configuration (`drizzle.config.ts`)
+
+## Example Files
+
+### Home Controller
+
+```typescript
+import { Controller, Get, Context } from '@lockness/core'
+
+@Controller('/')
+export class HomeController {
+    @Get('/')
+    index(c: Context) {
+        return c.html(<h1>Welcome to Lockness!</h1>)
+    }
+
+    @Get('/about')
+    about(c: Context) {
+        return c.json({ 
+            framework: 'Lockness',
+            version: '1.0.0'
+        })
+    }
+}
+```
+
+### Home View
+
+```typescript
+export function HomePage() {
+    return (
+        <html>
+            <head>
+                <title>Lockness App</title>
+                <link rel="stylesheet" href="/css/app.css" />
+            </head>
+            <body>
+                <header>
+                    <h1>Welcome to Lockness</h1>
+                </header>
+                <main>
+                    <p>Your Lockness application is ready!</p>
+                </main>
+            </body>
+        </html>
+    )
+}
+```
+
+## Next Steps After Init
+
+### 1. Configure Database
+
+Update `DATABASE_URL` in `.env`:
+
+```env
+DATABASE_URL=postgres://user:password@localhost:5432/mydb
+```
+
+### 2. Install Packages
+
+```bash
+# Install Drizzle ORM
+./nessy package:install drizzle
+
+# Install authentication
+./nessy package:install auth
+
+# Install caching
+./nessy package:install cache
+```
+
+### 3. Generate Code
+
+```bash
+# Create controller
+./nessy make:controller User
+
+# Create model
+./nessy make:model Post -a
+
+# Create middleware
+./nessy make:middleware Auth
+```
+
+### 4. Start Development
+
+```bash
+# Development server with hot reload
+deno task dev
+
+# Run tests
+deno task test
+
+# Build for production
+deno task build
+```
+
+## Development Workflow
+
+### Adding a Controller
+
+```bash
+./nessy make:controller Blog
+```
+
+Generates `app/controller/blog_controller.ts`:
+
+```typescript
+import { Controller, Get, Post, Context } from '@lockness/core'
+
+@Controller('/blog')
+export class BlogController {
+    @Get('/')
+    index(c: Context) {
+        return c.json({ posts: [] })
+    }
+
+    @Post('/')
+    store(c: Context) {
+        return c.json({ message: 'Post created' })
+    }
+}
+```
+
+### Adding a Model
+
+```bash
+./nessy make:model Post -a
+```
+
+Generates:
+- `app/model/post.ts` - Schema
+- `app/repository/post_repository.ts` - Data access
+- `app/controller/post_controller.ts` - HTTP handlers
+- `database/seeders/post_seeder.ts` - Test data
+
+### Running Migrations
+
+```bash
+# Generate migration
+./nessy db:generate
+
+# Run migrations
+./nessy db:migrate
+
+# Seed database
+./nessy db:seed
+```
+
+## Customization
+
+### Custom Project Structure
+
+The init command uses stubs from `stubs/init/`. To customize:
+
+```typescript
+import { Stub } from '@lockness/cli'
+
+await Stub.scaffoldFrom(
+    './custom-stubs',
+    './my-project',
+    {
+        projectName: 'my-project',
+        version: '^0.1.0',
+    }
+)
+```
+
+### Custom Environment Variables
+
+Add custom variables to `.env`:
+
+```env
+# Default variables
+APP_ENV=development
+APP_PORT=8888
+APP_KEY=your-secret-key-here
+DATABASE_URL=postgres://user:password@localhost:5432/mydb
+
+# Custom variables
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+API_KEY=your-api-key
+```
+
+Access in code:
+
+```typescript
+const smtpHost = Deno.env.get('SMTP_HOST')
+```
+
+## Project Tasks
+
+Available tasks in `deno.json`:
+
+```json
+{
+  "tasks": {
+    "dev": "deno run --allow-all --watch main.ts",
+    "build": "deno compile --allow-all --output=./bin/app main.ts",
+    "test": "deno test --allow-all",
+    "lint": "deno lint",
+    "fmt": "deno fmt",
+    "check": "deno check main.ts"
+  }
+}
+```
+
+Run with:
+
+```bash
+deno task dev
+deno task test
+deno task lint
+```
+
+## Deployment
+
+### Build Executable
+
+```bash
+deno task build
+```
+
+Generates standalone binary in `./bin/app`
+
+### Environment Variables
+
+Production `.env`:
+
+```env
+APP_ENV=production
+APP_PORT=8000
+APP_KEY=production-secret-key
+DATABASE_URL=postgres://user:pass@db.example.com:5432/prod
+```
+
+### Docker Deployment
+
+Example `Dockerfile`:
+
+```dockerfile
+FROM denoland/deno:alpine
+
+WORKDIR /app
+
+COPY . .
+
+RUN deno cache main.ts
+
+EXPOSE 8000
+
+CMD ["deno", "run", "--allow-all", "main.ts"]
+```
+
+### Deno Deploy
+
+```bash
+# Install deployctl
+deno install -Arf jsr:@deno/deployctl
+
+# Deploy
+deployctl deploy --project=my-app main.ts
+```
+
+## Troubleshooting
+
+### Import Errors
+
+If you see import errors:
+
+```bash
+# Clear Deno cache
+deno cache --reload main.ts
+
+# Check deno.json imports
+cat deno.json
+```
+
+### Port Already in Use
+
+Change port in `.env`:
+
+```env
+APP_PORT=3000
+```
+
+### Database Connection Errors
+
+Verify `DATABASE_URL` in `.env` and ensure PostgreSQL is running:
+
+```bash
+# Test connection
+./nessy db:check
+```
+
+## Best Practices
+
+- **Use version ranges** (caret ^) for flexibility
+- **Pin versions** for production stability
+- **Follow MVC structure** - keep code organized
+- **Use environment variables** - never commit secrets
+- **Run migrations** - keep database in sync
+- **Write tests** - ensure code quality
+- **Use CLI generators** - maintain consistency
+
+## See Also
+
+- [@lockness/cli](../cli/README.md) - CLI system
+- [@lockness/core](../core/README.md) - Core framework
+- [@lockness/drizzle](../drizzle/README.md) - Database ORM

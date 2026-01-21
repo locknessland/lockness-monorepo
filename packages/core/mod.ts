@@ -39,6 +39,7 @@ export * from './router.ts'
 export * from './helpers.ts'
 export * from './error_formatter.ts'
 export * from './default_error_handler.tsx'
+export * from './llm_loader.ts'
 
 // Re-export essential framework packages (used by core functionality)
 export * from '@lockness/container'

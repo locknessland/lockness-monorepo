@@ -1,0 +1,526 @@
+# Lockness Core
+
+The heart of the Lockness framework providing essential MVC architecture, dependency injection, and complete Hono integration.
+
+## Overview
+
+@lockness/core is the foundation of Lockness, providing:
+
+- **MVC Engine** - Class-based architecture with clean separation
+- **Modern Decorators** - TC39 Stage 3 decorators (@Controller, @Get, @Service)
+- **Powerful Routing** - Zero-configuration controller discovery
+- **Dependency Injection** - Built-in IoC container (@Inject, @Service)
+- **JSX Support** - Native JSX runtime for views and components
+- **Named Routes** - Dynamic URL generation
+- **Complete Hono Integration** - 61+ Hono middleware and utilities
+
+## Minimal Core Philosophy
+
+@lockness/core includes only essentials. Optional features are separate packages:
+
+- **Included**: HTTP server, routing, DI, JSX, Hono middleware
+- **Optional**: Sessions, queues, cache, logger, mail, storage, auth
+
+Import optional packages explicitly when needed.
+
+## Installation
+
+```bash
+# Create new project
+deno run -A jsr:@lockness/cli init my-app
+
+# Or add to existing deno.json
+{
+  "imports": {
+    "@lockness/core": "jsr:@lockness/core@^0.1.0"
+  }
+}
+```
+
+## Quick Start
+
+### Minimal Application
+
+```typescript
+// main.ts
+import { App } from '@lockness/core'
+
+const app = new App()
+
+await app.init({
+    controllersDir: './app/controller',
+})
+
+Deno.serve({ port: 8888 }, app.fetch)
+```
+
+### Application Kernel
+
+```typescript
+// app/kernel.tsx
+import { App } from '@lockness/core'
+
+export const bootstrap = async () => {
+    const app = new App()
+
+    await app.init({
+        controllersDir: './app/controller',
+        staticDir: 'public',
+    })
+
+    return app
+}
+```
+
+## MVC Architecture
+
+### Controllers
+
+Define routes with decorators:
+
+```typescript
+import { Controller, Get, Post, Context } from '@lockness/core'
+
+@Controller('/users')
+export class UserController {
+    @Get('/')
+    index(c: Context) {
+        return c.json({ users: [] })
+    }
+
+    @Get('/:id')
+    show(c: Context) {
+        const id = c.req.param('id')
+        return c.json({ id })
+    }
+
+    @Post('/')
+    async store(c: Context) {
+        const data = await c.req.json()
+        return c.json({ created: true }, 201)
+    }
+}
+```
+
+### Services
+
+Business logic in injectable services:
+
+```typescript
+import { Service, Inject } from '@lockness/core'
+
+@Service()
+export class UserService {
+    async findAll() {
+        return await db.select().from(users)
+    }
+
+    async findById(id: number) {
+        return await db.select().from(users).where(eq(users.id, id))
+    }
+}
+```
+
+### Dependency Injection
+
+Inject services into controllers:
+
+```typescript
+@Controller('/users')
+export class UserController {
+    @Inject(UserService)
+    accessor userService!: UserService
+
+    @Get('/:id')
+    async show(c: Context) {
+        const id = Number(c.req.param('id'))
+        const user = await this.userService.findById(id)
+        return c.json(user)
+    }
+}
+```
+
+### Views (JSX)
+
+Server-side JSX components:
+
+```typescript
+// app/view/pages/home.tsx
+export function HomePage() {
+    return (
+        <html>
+            <head>
+                <title>Lockness App</title>
+            </head>
+            <body>
+                <h1>Welcome to Lockness</h1>
+            </body>
+        </html>
+    )
+}
+
+// In controller
+@Get('/')
+home(c: Context) {
+    return c.html(<HomePage />)
+}
+```
+
+## Routing
+
+### Route Decorators
+
+```typescript
+@Controller('/posts')
+export class PostController {
+    @Get('/')              // GET /posts
+    @Get('/:id')           // GET /posts/:id
+    @Post('/')             // POST /posts
+    @Put('/:id')           // PUT /posts/:id
+    @Patch('/:id')         // PATCH /posts/:id
+    @Delete('/:id')        // DELETE /posts/:id
+}
+```
+
+### Named Routes
+
+```typescript
+import { route } from '@lockness/core'
+
+@Controller('/users')
+export class UserController {
+    @Get('/:id', { name: 'users.show' })
+    show(c: Context) {
+        const id = c.req.param('id')
+        return c.json({ id })
+    }
+}
+
+// Generate URLs
+const url = route('users.show', { id: 123 })  // "/users/123"
+```
+
+### Route Groups
+
+```typescript
+@Controller('/api/v1')
+export class ApiController {
+    @Get('/users')       // /api/v1/users
+    @Get('/posts')       // /api/v1/posts
+}
+```
+
+## Hono Integration
+
+All Hono middleware available from @lockness/core:
+
+### Authentication
+
+```typescript
+import { basicAuth, bearerAuth, jwt } from '@lockness/core'
+
+// HTTP Basic Auth
+app.use('/admin/*', basicAuth({ 
+    username: 'admin', 
+    password: 'secret' 
+}))
+
+// Bearer Token
+app.use('/api/*', bearerAuth({ 
+    token: 'secret-token' 
+}))
+
+// JWT
+app.use('/api/*', jwt({ 
+    secret: 'jwt-secret' 
+}))
+```
+
+### Security
+
+```typescript
+import { cors, csrf, secureHeaders } from '@lockness/core'
+
+// CORS
+app.use('*', cors({ 
+    origin: 'https://example.com' 
+}))
+
+// CSRF protection
+app.use('*', csrf())
+
+// Security headers
+app.use('*', secureHeaders())
+```
+
+### Content Processing
+
+```typescript
+import { compress, etag, prettyJSON } from '@lockness/core'
+
+// Compression
+app.use('*', compress())
+
+// ETag generation
+app.use('*', etag())
+
+// Pretty JSON
+app.use('*', prettyJSON())
+```
+
+### Request Handling
+
+```typescript
+import { bodyLimit, logger, requestId } from '@lockness/core'
+
+// Request logging
+app.use('*', logger())
+
+// Body limits
+app.use('*', bodyLimit({ 
+    maxSize: 50 * 1024 
+}))
+
+// Request IDs
+app.use('*', requestId())
+```
+
+### Utilities
+
+```typescript
+import { getCookie, setCookie, html, css } from '@lockness/core'
+
+// Cookies
+const value = getCookie(c, 'session')
+setCookie(c, 'session', 'abc123')
+
+// HTML/CSS
+return c.html(html`<h1>Hello</h1>`)
+```
+
+## Error Handling
+
+### Auto-Discovery
+
+Framework checks for custom error handler at:
+```
+app/view/pages/errors/error_handler.tsx
+```
+
+### Custom Error Handler
+
+```typescript
+import { Context, formatErrorForConsole, HTTPException } from '@lockness/core'
+
+export function errorHandler(error: Error, c: Context) {
+    const status = error instanceof HTTPException ? error.status : 500
+
+    // Clean console output
+    formatErrorForConsole(error, status, c.req.path, {
+        showStackTrace: status >= 500,
+    })
+
+    return c.html(<ErrorPage error={error} />, status)
+}
+```
+
+### Generate Error Pages
+
+```bash
+deno task cli make:error-pages
+```
+
+## Complete Example
+
+```typescript
+// main.ts
+import { App, logger, cors } from '@lockness/core'
+
+const app = new App()
+
+// Global middleware
+app.use('*', logger())
+app.use('*', cors())
+
+// Initialize
+await app.init({
+    controllersDir: './app/controller',
+    staticDir: 'public',
+})
+
+Deno.serve({ port: 8888 }, app.fetch)
+
+// app/controller/user_controller.ts
+import { Controller, Get, Post, Inject, Context } from '@lockness/core'
+import { UserService } from '../service/user_service.ts'
+
+@Controller('/users')
+export class UserController {
+    @Inject(UserService)
+    accessor userService!: UserService
+
+    @Get('/', { name: 'users.index' })
+    async index(c: Context) {
+        const users = await this.userService.findAll()
+        return c.json({ users })
+    }
+
+    @Get('/:id', { name: 'users.show' })
+    async show(c: Context) {
+        const id = Number(c.req.param('id'))
+        const user = await this.userService.findById(id)
+        
+        if (!user) {
+            return c.json({ error: 'Not found' }, 404)
+        }
+
+        return c.json({ user })
+    }
+
+    @Post('/')
+    async store(c: Context) {
+        const data = await c.req.json()
+        const user = await this.userService.create(data)
+        return c.json({ user }, 201)
+    }
+}
+
+// app/service/user_service.ts
+import { Service } from '@lockness/core'
+
+@Service()
+export class UserService {
+    async findAll() {
+        return [
+            { id: 1, name: 'Alice' },
+            { id: 2, name: 'Bob' },
+        ]
+    }
+
+    async findById(id: number) {
+        return { id, name: 'User' }
+    }
+
+    async create(data: any) {
+        return { id: 3, ...data }
+    }
+}
+```
+
+## Adding Optional Features
+
+### Sessions
+
+```typescript
+import { App } from '@lockness/core'
+import { configureSession, sessionMiddleware } from '@lockness/session'
+
+const app = new App()
+
+configureSession({ 
+    driver: 'cookie', 
+    secret: 'your-secret' 
+})
+
+app.use('*', sessionMiddleware())
+```
+
+### Validation
+
+```typescript
+import { Validate, z } from '@lockness/validator'
+
+const createUserSchema = z.object({
+    email: z.string().email(),
+    name: z.string().min(2),
+})
+
+@Post('/')
+@Validate('json', createUserSchema)
+async store(c: Context) {
+    const data = c.req.valid('json')
+    return c.json({ created: true })
+}
+```
+
+### Background Jobs
+
+```typescript
+import { configureQueue, registerJob } from '@lockness/queue'
+
+configureQueue({ driver: 'deno-kv' })
+registerJob('send-email', SendEmailJob)
+```
+
+### Authentication
+
+```typescript
+import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
+
+app.use('*', initializeAuthMiddleware({
+    default: 'web',
+    guards: {
+        web: (ctx) => new SessionGuard('web', ctx, userProvider),
+    },
+}))
+```
+
+## API Reference
+
+See detailed documentation in subdocs:
+
+- [Components](llms/components.txt) - JSX components and view system
+- [Routing](llms/routing.txt) - Advanced routing patterns
+- [Middleware](llms/middleware.txt) - Custom middleware creation
+- [Error Handling](llms/error-handling.txt) - Error handling patterns
+
+## Best Practices
+
+- **Keep controllers thin** - Delegate to services
+- **Use dependency injection** - Testable and maintainable
+- **Follow MVC pattern** - Clear separation of concerns
+- **Use named routes** - Easier URL generation
+- **Handle errors properly** - Custom error pages and logging
+- **Import Hono from core** - Never import from @lockness/hono directly
+- **Add features incrementally** - Start minimal, add what you need
+
+## Performance
+
+- Zero overhead decorators (metadata only)
+- Fast route matching with Hono
+- Efficient controller caching
+- Lazy loading of controllers
+- Minimal bundle size
+
+## Development
+
+```bash
+# Start dev server
+deno task dev
+
+# Build for production
+deno task build
+
+# Run tests
+deno task test
+```
+
+## Next Steps
+
+- Install optional packages as needed
+- Read subdocs for advanced topics
+- Check package README files for detailed guides
+- Join community for support
+
+## Package Integration
+
+Core integrates seamlessly with optional packages:
+
+- [@lockness/validator](../validator/llms.txt) - Request validation
+- [@lockness/session](../session/llms.txt) - Session management
+- [@lockness/auth](../auth/llms.txt) - Authentication
+- [@lockness/cache](../cache/llms.txt) - Caching layer
+- [@lockness/queue](../queue/llms.txt) - Background jobs
+- [@lockness/mail](../mail/llms.txt) - Email sending
+- [@lockness/storage](../storage/llms.txt) - File storage
+- [@lockness/drizzle](../drizzle/llms.txt) - Database ORM
