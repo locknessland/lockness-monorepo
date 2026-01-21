@@ -4,7 +4,12 @@
  * @module @lockness/session/store
  */
 
-import type { Session, SessionConfig, SessionData, SessionDriver } from './types.ts'
+import type {
+    Session,
+    SessionConfig,
+    SessionData,
+    SessionDriver,
+} from './types.ts'
 import { generateSessionId } from './utils.ts'
 
 /**

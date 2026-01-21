@@ -2,7 +2,9 @@
 
 ## Overview
 
-The `@lockness/cache` package has been refactored from a monolithic 960-line file into a modular structure. **No breaking changes** have been introduced - all existing code will continue to work without modification.
+The `@lockness/cache` package has been refactored from a monolithic 960-line
+file into a modular structure. **No breaking changes** have been introduced -
+all existing code will continue to work without modification.
 
 ## What Changed
 
@@ -36,29 +38,34 @@ packages/cache/
 
 ```typescript
 // ✅ This still works (recommended)
-import { cache, get, set, remember } from '@lockness/cache'
+import { cache, get, remember, set } from '@lockness/cache'
 
 // ✅ This also still works
 import type { CacheConfig, CacheDriver } from '@lockness/cache'
 
 // ✅ Driver classes still available
-import { MemoryCacheDriver, DenoKvCacheDriver } from '@lockness/cache'
+import { DenoKvCacheDriver, MemoryCacheDriver } from '@lockness/cache'
 ```
 
 ## Benefits You Get Automatically
 
 ### 1. Better Tree-Shaking
-Your bundler can now eliminate unused code more effectively since the package is modular.
+
+Your bundler can now eliminate unused code more effectively since the package is
+modular.
 
 ### 2. Improved Type Checking
+
 TypeScript can resolve types faster with the modular structure.
 
 ### 3. Clearer Error Messages
+
 Import errors will reference specific modules, making debugging easier.
 
 ## For Package Maintainers
 
-If you're maintaining the `@lockness/cache` package or creating custom drivers, you can now import from specific modules:
+If you're maintaining the `@lockness/cache` package or creating custom drivers,
+you can now import from specific modules:
 
 ```typescript
 // Import types directly
@@ -85,7 +92,7 @@ export class CustomCacheDriver implements CacheDriver {
         const fullKey = getCacheKey(key)
         // Your implementation
     }
-    
+
     // ... implement other methods
 }
 ```
@@ -109,14 +116,14 @@ import {
     configureCache,
     flush,
     get,
-    set,
     MemoryCacheDriver,
+    set,
 } from '@lockness/cache'
 
 Deno.test('my cache test', async () => {
     MemoryCacheDriver.clear()
     configureCache({ driver: 'memory' })
-    
+
     await set('key', 'value')
     const result = await get('key')
     // assertions...
@@ -125,7 +132,8 @@ Deno.test('my cache test', async () => {
 
 ## Rollback
 
-If you encounter any issues (though none are expected), you can always pin to the previous version:
+If you encounter any issues (though none are expected), you can always pin to
+the previous version:
 
 ```json
 {
@@ -137,4 +145,5 @@ If you encounter any issues (though none are expected), you can always pin to th
 
 ## Questions?
 
-If you have any questions about the refactoring or encounter any issues, please open an issue on GitHub.
+If you have any questions about the refactoring or encounter any issues, please
+open an issue on GitHub.

@@ -13,7 +13,8 @@ and **Redis** storage.
 - ⏱️ **Automatic Expiration** - Configurable session lifetime
 - 🧹 **Garbage Collection** - Automatic cleanup of expired sessions
 - 🔒 **Secure by Default** - HttpOnly, SameSite, and HTTPS options
-- 📦 **Modular Architecture** - SOLID principles with focused, single-purpose modules
+- 📦 **Modular Architecture** - SOLID principles with focused, single-purpose
+  modules
 
 ## Architecture
 
@@ -41,11 +42,14 @@ The package follows a modular architecture with clear separation of concerns:
 
 ### SOLID Principles
 
-- **Single Responsibility**: Each module handles one concern (types, config, drivers, etc.)
+- **Single Responsibility**: Each module handles one concern (types, config,
+  drivers, etc.)
 - **Open/Closed**: New drivers can be added without modifying existing code
-- **Liskov Substitution**: All drivers implement the same `SessionDriver` interface
+- **Liskov Substitution**: All drivers implement the same `SessionDriver`
+  interface
 - **Interface Segregation**: Clean interfaces without unnecessary methods
-- **Dependency Inversion**: Middleware depends on driver abstraction, not concrete implementations
+- **Dependency Inversion**: Middleware depends on driver abstraction, not
+  concrete implementations
 
 ## Installation
 
