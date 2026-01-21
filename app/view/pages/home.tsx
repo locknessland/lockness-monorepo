@@ -142,8 +142,8 @@ export const Home = () => {
                         The MVC framework that combines{' '}
                         <strong class='text-primary'>Laravel's</strong>{' '}
                         elegance with{' '}
-                        <strong class='text-primary'>HonoJS</strong> speed.
-                        Native to Deno.
+                        <strong class='text-primary'>HonoJS</strong>{' '}
+                        speed. Native to Deno.
                     </HeroSubtitle>
 
                     <HeroActions>
