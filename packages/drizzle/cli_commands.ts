@@ -1,20 +1,98 @@
+/**
+ * @fileoverview CLI commands for Drizzle ORM database operations.
+ *
+ * Registers database-related CLI commands for migration management,
+ * seeding, model generation, and database utilities.
+ *
+ * @module @lockness/drizzle/cli-commands
+ *
+ * @example
+ * ```ts
+ * import { registerDrizzleCommands } from '@lockness/drizzle'
+ * import { cli } from './cli.ts'
+ *
+ * registerDrizzleCommands(cli)
+ * ```
+ */
+
 import type { Cli } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { container } from '@lockness/core'
 import { Database } from './mod.ts'
 import type postgres from 'postgres'
 
-// Handle both local file:// and remote https:// URLs
-let STUBS_PATH: string
+// =============================================================================
+// Types
+// =============================================================================
 
-if (import.meta.url.startsWith('file://')) {
-    const currentDir = dirname(fromFileUrl(import.meta.url))
-    STUBS_PATH = join(currentDir, 'stubs')
-} else {
-    // When running from JSR, use relative URLs
-    STUBS_PATH = new URL('./stubs', import.meta.url).href
+/**
+ * Parsed CLI flags for make:model command.
+ */
+interface ModelFlags {
+    /** Model name (e.g., 'User') */
+    readonly name: string | undefined
+    /** Whether to create a repository */
+    readonly repository: boolean
+    /** Whether to create a seeder */
+    readonly seeder: boolean
+    /** Whether to create a controller */
+    readonly controller: boolean
 }
 
+/**
+ * Naming conventions derived from a model name.
+ */
+interface ModelNaming {
+    /** PascalCase model name (e.g., 'User') */
+    readonly modelName: string
+    /** Lowercase plural table name (e.g., 'users') */
+    readonly tableName: string
+    /** Lowercase file name (e.g., 'user') */
+    readonly fileName: string
+    /** Route path (e.g., 'users') */
+    readonly route: string
+    /** Repository class name (e.g., 'UserRepository') */
+    readonly repositoryName: string
+    /** Repository variable name (e.g., 'userRepository') */
+    readonly repositoryVar: string
+}
+
+/**
+ * Seeder class constructor type.
+ */
+type SeederConstructor = new () => { run(): Promise<void> }
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/** Drizzle Kit CLI command base */
+const DRIZZLE_KIT_ARGS = ['run', '-A', 'npm:drizzle-kit'] as const
+
+/** Directory for database seeders */
+const SEEDERS_DIR = './database/seeders' as const
+
+// =============================================================================
+// Stub Path Resolution
+// =============================================================================
+
+/**
+ * Resolved path to the stubs directory.
+ * Handles both local (file://) and remote (https://) imports.
+ */
+const STUBS_PATH: string = import.meta.url.startsWith('file://')
+    ? join(dirname(fromFileUrl(import.meta.url)), 'stubs')
+    : new URL('./stubs', import.meta.url).href
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+/**
+ * Initialize the database connection.
+ *
+ * @returns Connected Database instance
+ */
 async function initDatabase(): Promise<Database> {
     const db = container.get<Database>(Database)
     await db.connect(
@@ -24,17 +102,46 @@ async function initDatabase(): Promise<Database> {
 }
 
 /**
- * Parse CLI flags from args array
- * Supports: -r, -s, -c, -a, --repository, --seeder, --controller, --all
+ * Run a Drizzle Kit command.
+ *
+ * @param subcommand - The drizzle-kit subcommand to run
+ * @returns The exit code from the command
  */
-function parseFlags(args: string[]): {
-    name: string | undefined
-    repository: boolean
-    seeder: boolean
-    controller: boolean
-} {
+async function runDrizzleKit(subcommand: string): Promise<number> {
+    const command = new Deno.Command('deno', {
+        args: [...DRIZZLE_KIT_ARGS, subcommand],
+        stdout: 'inherit',
+        stderr: 'inherit',
+    })
+    const { code } = await command.output()
+    return code
+}
+
+/**
+ * Extract error message from an unknown error.
+ *
+ * @param error - The error to extract message from
+ * @returns The error message string
+ */
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Parse CLI flags from arguments array.
+ *
+ * Supports short and long flags:
+ * - `-r`, `--repository` - Create repository
+ * - `-s`, `--seeder` - Create seeder
+ * - `-c`, `--controller` - Create controller
+ * - `-a`, `--all` - Create all related files
+ *
+ * @param args - CLI arguments array
+ * @returns Parsed flags object
+ */
+function parseFlags(args: readonly string[]): ModelFlags {
     const name = args.find((a) => !a.startsWith('-'))
-    const hasFlag = (short: string, long: string) =>
+    const hasFlag = (short: string, long: string): boolean =>
         args.includes(short) || args.includes(long)
 
     const all = hasFlag('-a', '--all')
@@ -47,393 +154,501 @@ function parseFlags(args: string[]): {
     }
 }
 
-export function registerDrizzleCommands(cli: Cli) {
-    cli.register('db:generate', async () => {
-        console.log('📦 Generating migrations...')
-        const command = new Deno.Command('deno', {
-            args: ['run', '-A', 'npm:drizzle-kit', 'generate'],
-            stdout: 'inherit',
-            stderr: 'inherit',
-        })
-        const { code } = await command.output()
-        if (code === 0) {
-            console.log('✅ Migrations generated successfully')
-        } else {
-            console.error('❌ Failed to generate migrations')
-        }
-    }, 'Generate migration files from schema changes')
+/**
+ * Generate naming conventions from a model name.
+ *
+ * @param name - Base model name (e.g., 'user', 'User')
+ * @returns Complete naming conventions
+ */
+function generateNaming(name: string): ModelNaming {
+    const modelName = name.charAt(0).toUpperCase() + name.slice(1)
+    const tableName = name.toLowerCase() + 's'
+    const fileName = name.toLowerCase()
 
-    cli.register('db:migrate', async () => {
-        console.log('🚀 Running migrations...')
-        const command = new Deno.Command('deno', {
-            args: ['run', '-A', 'npm:drizzle-kit', 'migrate'],
-            stdout: 'inherit',
-            stderr: 'inherit',
-        })
-        const { code } = await command.output()
-        if (code === 0) {
-            console.log('✅ Migrations applied successfully')
-        } else {
-            console.error('❌ Failed to apply migrations')
-        }
-    }, 'Run pending database migrations')
+    return {
+        modelName,
+        tableName,
+        fileName,
+        route: tableName,
+        repositoryName: `${modelName}Repository`,
+        repositoryVar: `${fileName}Repository`,
+    }
+}
 
-    cli.register('db:push', async () => {
-        console.log('🔄 Pushing schema to database...')
-        const command = new Deno.Command('deno', {
-            args: ['run', '-A', 'npm:drizzle-kit', 'push'],
-            stdout: 'inherit',
-            stderr: 'inherit',
-        })
-        const { code } = await command.output()
-        if (code === 0) {
-            console.log('✅ Schema pushed successfully')
-        } else {
-            console.error('❌ Failed to push schema')
-        }
-    }, 'Push schema changes directly to database (without migrations)')
+/**
+ * Read and process a stub file with variable replacements.
+ *
+ * @param stubName - Name of the stub file (without .stub extension)
+ * @param replacements - Key-value pairs for template replacements
+ * @returns Processed stub content
+ */
+async function processStub(
+    stubName: string,
+    replacements: Record<string, string>,
+): Promise<string> {
+    const stubPath = join(STUBS_PATH, `${stubName}.stub`)
+    let content = await Deno.readTextFile(stubPath)
 
-    cli.register('db:studio', async () => {
-        console.log('🎨 Starting Drizzle Studio...')
-        const command = new Deno.Command('deno', {
-            args: ['run', '-A', 'npm:drizzle-kit', 'studio'],
-            stdout: 'inherit',
-            stderr: 'inherit',
-        })
-        const { code } = await command.output()
-        if (code !== 0) {
-            console.error('❌ Failed to start Drizzle Studio')
-        }
-    }, 'Open Drizzle Studio (database GUI)')
+    for (const [key, value] of Object.entries(replacements)) {
+        content = content.replaceAll(`{{${key}}}`, value)
+    }
 
-    cli.register('db:status', async () => {
-        console.log('📊 Checking migration status...')
-        const command = new Deno.Command('deno', {
-            args: ['run', '-A', 'npm:drizzle-kit', 'check'],
-            stdout: 'inherit',
-            stderr: 'inherit',
-        })
-        const { code } = await command.output()
-        if (code === 0) {
-            console.log('✅ Schema is up to date')
+    return content
+}
+
+/**
+ * Create a file with content, ensuring directory exists.
+ *
+ * @param filePath - Path to create the file at
+ * @param content - File content
+ */
+async function createFile(filePath: string, content: string): Promise<void> {
+    const dirPath = dirname(filePath)
+    await Deno.mkdir(dirPath, { recursive: true })
+    await Deno.writeTextFile(filePath, content)
+}
+
+// =============================================================================
+// Command Handlers
+// =============================================================================
+
+/**
+ * Handle db:seed command - run database seeders.
+ *
+ * @param args - Command arguments (optional seeder name)
+ */
+async function handleSeed(args: string[]): Promise<void> {
+    console.log('🌱 Running seeders...')
+
+    const db = await initDatabase()
+    const specificSeeder = args[0]
+
+    try {
+        if (specificSeeder) {
+            await runSpecificSeeder(specificSeeder)
         } else {
+            await runDatabaseSeeder()
+        }
+    } catch (error) {
+        console.error(`❌ Seeding failed: ${getErrorMessage(error)}`)
+    } finally {
+        await db.close()
+    }
+}
+
+/**
+ * Run a specific seeder by name.
+ *
+ * @param seederName - Name of the seeder (e.g., 'user')
+ */
+async function runSpecificSeeder(seederName: string): Promise<void> {
+    const fileName = `${seederName.toLowerCase()}_seeder.ts`
+    const filePath = `${SEEDERS_DIR}/${fileName}`
+
+    try {
+        const module = await import(`file://${Deno.cwd()}/${filePath}`)
+        const SeederClass = Object.values(module).find(
+            (v): v is SeederConstructor =>
+                typeof v === 'function' &&
+                v.prototype?.run !== undefined,
+        )
+
+        if (SeederClass) {
+            const seeder = new SeederClass()
+            await seeder.run()
+        } else {
+            console.error(`❌ No valid seeder found in ${filePath}`)
+        }
+    } catch (error) {
+        console.error(`❌ Failed to run seeder: ${getErrorMessage(error)}`)
+    }
+}
+
+/**
+ * Run the main DatabaseSeeder orchestrator.
+ */
+async function runDatabaseSeeder(): Promise<void> {
+    const mainSeederPath = `${SEEDERS_DIR}/database_seeder.ts`
+
+    try {
+        const module = await import(`file://${Deno.cwd()}/${mainSeederPath}`)
+        const DatabaseSeeder = module.DatabaseSeeder as
+            | SeederConstructor
+            | undefined
+
+        if (DatabaseSeeder) {
+            const seeder = new DatabaseSeeder()
+            await seeder.run()
+        } else {
+            console.error(
+                '❌ DatabaseSeeder class not found. Run `deno task cli make:seeder Database` first.',
+            )
+        }
+    } catch (error) {
+        const err = error as Error
+        if (err.message.includes('Module not found')) {
+            console.error(
+                '❌ No database_seeder.ts found. Run `deno task cli make:seeder Database` first.',
+            )
+        } else {
+            console.error(`❌ Seeding failed: ${err.message}`)
+            if (err.stack) {
+                console.error(err.stack)
+            }
+        }
+    }
+}
+
+/**
+ * Handle make:seeder command - create a new seeder file.
+ *
+ * @param args - Command arguments (seeder name)
+ */
+async function handleMakeSeeder(args: string[]): Promise<void> {
+    const name = args[0]
+    if (!name) {
+        console.error('❌ Please provide a seeder name (e.g., User)')
+        return
+    }
+
+    const className = name.charAt(0).toUpperCase() + name.slice(1)
+    const fileName = `${name.toLowerCase()}_seeder.ts`
+    const filePath = `${SEEDERS_DIR}/${fileName}`
+
+    const isDatabase = name.toLowerCase() === 'database'
+    const stubName = isDatabase ? 'database_seeder' : 'seeder'
+
+    try {
+        const content = await processStub(stubName, { className })
+        await createFile(filePath, content)
+
+        console.log(`✅ Seeder created at ${filePath}`)
+
+        if (isDatabase) {
             console.log(
-                '⚠️  Schema changes detected. Run db:generate to create a migration',
+                '💡 Add your seeders to the `seeders` array in DatabaseSeeder',
             )
         }
-    }, 'Check if migrations are up to date with schema')
+    } catch (error) {
+        console.error(`❌ Failed to create seeder: ${getErrorMessage(error)}`)
+    }
+}
 
-    cli.register('db:check', async () => {
-        console.log('🔍 Checking database connection...')
-        try {
-            const db = await initDatabase()
-            // Test connection using the client
-            await (db as unknown as { client: postgres.Sql }).client`SELECT 1`
-            console.log('✅ Database connection successful')
-        } catch (error) {
-            console.error(
-                '❌ Database connection failed:',
-                (error as Error).message,
-            )
-            console.log('\n💡 Check your DATABASE_URL in .env')
-        }
-    }, 'Test database connection')
+/**
+ * Handle make:model command - create model and related files.
+ *
+ * @param args - Command arguments and flags
+ */
+async function handleMakeModel(args: string[]): Promise<void> {
+    const flags = parseFlags(args)
 
-    cli.register('db:fresh', async () => {
-        console.log('🚨 WARNING: This will drop ALL tables and re-migrate')
-        console.log('⏳ Starting in 3 seconds... (Ctrl+C to cancel)')
-        await new Promise((resolve) => setTimeout(resolve, 3000))
+    if (!flags.name) {
+        printMakeModelUsage()
+        return
+    }
 
-        console.log('🗑️  Dropping database...')
-        const dropCommand = new Deno.Command('deno', {
-            args: ['run', '-A', 'npm:drizzle-kit', 'drop'],
-            stdout: 'inherit',
-            stderr: 'inherit',
+    const naming = generateNaming(flags.name)
+    const createdFiles: string[] = []
+
+    // Always create the model
+    const modelCreated = await createModelFile(naming)
+    if (!modelCreated) return
+    createdFiles.push(`./app/model/${naming.fileName}.ts`)
+
+    // Create optional files based on flags
+    if (flags.repository) {
+        const created = await createRepositoryFile(naming)
+        if (created) createdFiles.push(`./app/repository/${naming.fileName}_repository.ts`)
+    }
+
+    if (flags.seeder) {
+        const created = await createSeederFile(naming)
+        if (created) createdFiles.push(`./database/seeders/${naming.fileName}_seeder.ts`)
+    }
+
+    if (flags.controller) {
+        const created = await createControllerFile(naming)
+        if (created) createdFiles.push(`./app/controller/${naming.fileName}_controller.ts`)
+    }
+
+    // Print summary
+    console.log(`✅ Created ${createdFiles.length} file(s):`)
+    createdFiles.forEach((f) => console.log(`   ${f}`))
+
+    if (createdFiles.length === 1) {
+        console.log('')
+        console.log('💡 Use flags to generate related files:')
+        console.log('   -r  repository   -s  seeder   -c  controller   -a  all')
+    }
+}
+
+/**
+ * Print usage information for make:model command.
+ */
+function printMakeModelUsage(): void {
+    console.error('❌ Please provide a model name (e.g., Post)')
+    console.log('')
+    console.log('Usage: deno task cli make:model <Name> [options]')
+    console.log('')
+    console.log('Options:')
+    console.log('  -r, --repository    Create a repository')
+    console.log('  -s, --seeder        Create a seeder')
+    console.log('  -c, --controller    Create a CRUD controller')
+    console.log('  -a, --all           Create all (repository, seeder, controller)')
+}
+
+/**
+ * Create the model file.
+ *
+ * @param naming - Model naming conventions
+ * @returns True if created successfully
+ */
+async function createModelFile(naming: ModelNaming): Promise<boolean> {
+    try {
+        const content = await processStub('model', {
+            ModelName: naming.modelName,
+            tableName: naming.tableName,
         })
-        await dropCommand.output()
+        await createFile(`./app/model/${naming.fileName}.ts`, content)
+        return true
+    } catch (error) {
+        console.error(`❌ Failed to create model: ${getErrorMessage(error)}`)
+        return false
+    }
+}
 
-        console.log('🔄 Running migrations...')
-        const migrateCommand = new Deno.Command('deno', {
-            args: ['run', '-A', 'npm:drizzle-kit', 'migrate'],
-            stdout: 'inherit',
-            stderr: 'inherit',
+/**
+ * Create the repository file.
+ *
+ * @param naming - Model naming conventions
+ * @returns True if created successfully
+ */
+async function createRepositoryFile(naming: ModelNaming): Promise<boolean> {
+    try {
+        const content = await processStub('repository', {
+            ModelName: naming.modelName,
+            tableName: naming.tableName,
+            fileName: naming.fileName,
+            RepositoryName: naming.repositoryName,
         })
-        const { code } = await migrateCommand.output()
+        await createFile(`./app/repository/${naming.fileName}_repository.ts`, content)
+        return true
+    } catch (error) {
+        console.error(`❌ Failed to create repository: ${getErrorMessage(error)}`)
+        return false
+    }
+}
 
-        if (code === 0) {
-            console.log('✅ Database refreshed successfully')
-        } else {
-            console.error('❌ Failed to refresh database')
-        }
-    }, 'Drop all tables and run migrations from scratch')
+/**
+ * Create the seeder file.
+ *
+ * @param naming - Model naming conventions
+ * @returns True if created successfully
+ */
+async function createSeederFile(naming: ModelNaming): Promise<boolean> {
+    try {
+        const content = await processStub('seeder', {
+            className: naming.modelName,
+        })
+        await createFile(`./database/seeders/${naming.fileName}_seeder.ts`, content)
+        return true
+    } catch (error) {
+        console.error(`❌ Failed to create seeder: ${getErrorMessage(error)}`)
+        return false
+    }
+}
 
-    cli.register('db:seed', async (args) => {
-        console.log('🌱 Running seeders...')
+/**
+ * Create the controller file.
+ *
+ * @param naming - Model naming conventions
+ * @returns True if created successfully
+ */
+async function createControllerFile(naming: ModelNaming): Promise<boolean> {
+    try {
+        const content = await processStub('controller', {
+            ModelName: naming.modelName,
+            tableName: naming.tableName,
+            fileName: naming.fileName,
+            route: naming.route,
+            RepositoryName: naming.repositoryName,
+            repositoryVar: naming.repositoryVar,
+        })
+        await createFile(`./app/controller/${naming.fileName}_controller.ts`, content)
+        return true
+    } catch (error) {
+        console.error(`❌ Failed to create controller: ${getErrorMessage(error)}`)
+        return false
+    }
+}
 
-        // Initialize database connection
-        const db = await initDatabase()
+// =============================================================================
+// Command Registration
+// =============================================================================
 
-        const seederDir = './database/seeders'
-        const specificSeeder = args[0]
-
-        try {
-            if (specificSeeder) {
-                // Run a specific seeder
-                const fileName = `${specificSeeder.toLowerCase()}_seeder.ts`
-                const filePath = `${seederDir}/${fileName}`
-
-                try {
-                    const module = await import(
-                        `file://${Deno.cwd()}/${filePath}`
-                    )
-                    const SeederClass = Object.values(module).find(
-                        (v) =>
-                            typeof v === 'function' &&
-                            v.prototype?.run,
-                    ) as { new (): { run(): Promise<void> } } | undefined
-
-                    if (SeederClass) {
-                        const seeder = new SeederClass()
-                        await seeder.run()
-                    } else {
-                        console.error(`❌ No valid seeder found in ${filePath}`)
-                    }
-                } catch (e) {
-                    console.error(
-                        `❌ Failed to run seeder: ${(e as Error).message}`,
-                    )
-                }
-            } else {
-                // Run DatabaseSeeder (main orchestrator)
-                const mainSeederPath = `${seederDir}/database_seeder.ts`
-
-                try {
-                    const module = await import(
-                        `file://${Deno.cwd()}/${mainSeederPath}`
-                    )
-                    const DatabaseSeeder = module.DatabaseSeeder as
-                        | { new (): { run(): Promise<void> } }
-                        | undefined
-
-                    if (DatabaseSeeder) {
-                        const seeder = new DatabaseSeeder()
-                        await seeder.run()
-                    } else {
-                        console.error(
-                            '❌ DatabaseSeeder class not found. Run `deno task cli make:seeder Database` first.',
-                        )
-                    }
-                } catch (e) {
-                    const error = e as Error
-                    if (error.message.includes('Module not found')) {
-                        console.error(
-                            '❌ No database_seeder.ts found. Run `deno task cli make:seeder Database` first.',
-                        )
-                    } else {
-                        console.error(`❌ Seeding failed: ${error.message}`)
-                        if (error.stack) {
-                            console.error(error.stack)
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error(`❌ Seeding failed: ${(error as Error).message}`)
-        } finally {
-            // Close database connection
-            await db.close()
-        }
-    }, 'Seed the database with test data')
-
-    cli.register('make:seeder', async (args) => {
-        const name = args[0]
-        if (!name) {
-            console.error('❌ Please provide a seeder name (e.g., User)')
-            return
-        }
-
-        const className = name.charAt(0).toUpperCase() + name.slice(1)
-        const fileName = `${name.toLowerCase()}_seeder.ts`
-        const dirPath = './database/seeders'
-        const filePath = `${dirPath}/${fileName}`
-
-        // Determine which stub to use
-        const isDatabase = name.toLowerCase() === 'database'
-        const stubName = isDatabase ? 'database_seeder' : 'seeder'
-
-        try {
-            const stubContent = await Deno.readTextFile(
-                join(STUBS_PATH, `${stubName}.stub`),
-            )
-
-            const content = stubContent.replace(/\{\{className\}\}/g, className)
-
-            await Deno.mkdir(dirPath, { recursive: true })
-            await Deno.writeTextFile(filePath, content)
-            console.log(`✅ Seeder created at ${filePath}`)
-
-            if (isDatabase) {
-                console.log(
-                    '💡 Add your seeders to the `seeders` array in DatabaseSeeder',
-                )
-            }
-        } catch (error) {
-            console.error(
-                `❌ Failed to create seeder: ${(error as Error).message}`,
-            )
-        }
-    }, 'Create a new database seeder')
+/**
+ * Register all Drizzle-related CLI commands.
+ *
+ * Adds the following commands to the CLI:
+ * - `db:generate` - Generate migration files from schema changes
+ * - `db:migrate` - Run pending database migrations
+ * - `db:push` - Push schema changes directly to database
+ * - `db:studio` - Open Drizzle Studio GUI
+ * - `db:status` - Check if migrations are up to date
+ * - `db:check` - Test database connection
+ * - `db:fresh` - Drop all tables and re-migrate
+ * - `db:seed` - Seed the database with test data
+ * - `make:seeder` - Create a new database seeder
+ * - `make:model` - Create a new Drizzle model
+ *
+ * @param cli - The CLI instance to register commands on
+ *
+ * @example
+ * ```ts
+ * import { Cli } from '@lockness/cli'
+ * import { registerDrizzleCommands } from '@lockness/drizzle'
+ *
+ * const cli = new Cli()
+ * registerDrizzleCommands(cli)
+ *
+ * await cli.run()
+ * ```
+ */
+export function registerDrizzleCommands(cli: Cli): void {
+    // -------------------------------------------------------------------------
+    // Migration Commands
+    // -------------------------------------------------------------------------
 
     cli.register(
-        'make:model',
-        async (args) => {
-            const { name, repository, seeder, controller } = parseFlags(args)
+        'db:generate',
+        async () => {
+            console.log('📦 Generating migrations...')
+            const code = await runDrizzleKit('generate')
+            if (code === 0) {
+                console.log('✅ Migrations generated successfully')
+            } else {
+                console.error('❌ Failed to generate migrations')
+            }
+        },
+        'Generate migration files from schema changes',
+    )
 
-            if (!name) {
-                console.error('❌ Please provide a model name (e.g., Post)')
-                console.log('')
-                console.log('Usage: deno task cli make:model <Name> [options]')
-                console.log('')
-                console.log('Options:')
-                console.log('  -r, --repository    Create a repository')
-                console.log('  -s, --seeder        Create a seeder')
-                console.log('  -c, --controller    Create a CRUD controller')
+    cli.register(
+        'db:migrate',
+        async () => {
+            console.log('🚀 Running migrations...')
+            const code = await runDrizzleKit('migrate')
+            if (code === 0) {
+                console.log('✅ Migrations applied successfully')
+            } else {
+                console.error('❌ Failed to apply migrations')
+            }
+        },
+        'Run pending database migrations',
+    )
+
+    cli.register(
+        'db:push',
+        async () => {
+            console.log('🔄 Pushing schema to database...')
+            const code = await runDrizzleKit('push')
+            if (code === 0) {
+                console.log('✅ Schema pushed successfully')
+            } else {
+                console.error('❌ Failed to push schema')
+            }
+        },
+        'Push schema changes directly to database (without migrations)',
+    )
+
+    cli.register(
+        'db:studio',
+        async () => {
+            console.log('🎨 Starting Drizzle Studio...')
+            const code = await runDrizzleKit('studio')
+            if (code !== 0) {
+                console.error('❌ Failed to start Drizzle Studio')
+            }
+        },
+        'Open Drizzle Studio (database GUI)',
+    )
+
+    cli.register(
+        'db:status',
+        async () => {
+            console.log('📊 Checking migration status...')
+            const code = await runDrizzleKit('check')
+            if (code === 0) {
+                console.log('✅ Schema is up to date')
+            } else {
                 console.log(
-                    '  -a, --all           Create all (repository, seeder, controller)',
-                )
-                return
-            }
-
-            // Naming conventions
-            const modelName = name.charAt(0).toUpperCase() + name.slice(1) // User
-            const tableName = name.toLowerCase() + 's' // users
-            const fileName = name.toLowerCase() // user
-            const route = tableName // users
-            const repositoryName = `${modelName}Repository`
-            const repositoryVar = `${fileName}Repository`
-
-            const createdFiles: string[] = []
-
-            // Always create the model
-            try {
-                const stubContent = await Deno.readTextFile(
-                    join(STUBS_PATH, 'model.stub'),
-                )
-
-                const content = stubContent
-                    .replace(/\{\{ModelName\}\}/g, modelName)
-                    .replace(/\{\{tableName\}\}/g, tableName)
-
-                const dirPath = './app/model'
-                const filePath = `${dirPath}/${fileName}.ts`
-
-                await Deno.mkdir(dirPath, { recursive: true })
-                await Deno.writeTextFile(filePath, content)
-                createdFiles.push(filePath)
-            } catch (error) {
-                console.error(
-                    `❌ Failed to create model: ${(error as Error).message}`,
-                )
-                return
-            }
-
-            // Create repository if requested
-            if (repository) {
-                try {
-                    const stubContent = await Deno.readTextFile(
-                        join(STUBS_PATH, 'repository.stub'),
-                    )
-
-                    const content = stubContent
-                        .replace(/\{\{ModelName\}\}/g, modelName)
-                        .replace(/\{\{tableName\}\}/g, tableName)
-                        .replace(/\{\{fileName\}\}/g, fileName)
-                        .replace(/\{\{RepositoryName\}\}/g, repositoryName)
-
-                    const dirPath = './app/repository'
-                    const filePath = `${dirPath}/${fileName}_repository.ts`
-
-                    await Deno.mkdir(dirPath, { recursive: true })
-                    await Deno.writeTextFile(filePath, content)
-                    createdFiles.push(filePath)
-                } catch (error) {
-                    console.error(
-                        `❌ Failed to create repository: ${
-                            (error as Error).message
-                        }`,
-                    )
-                }
-            }
-
-            // Create seeder if requested
-            if (seeder) {
-                try {
-                    const stubContent = await Deno.readTextFile(
-                        join(STUBS_PATH, 'seeder.stub'),
-                    )
-
-                    const content = stubContent.replace(
-                        /\{\{className\}\}/g,
-                        modelName,
-                    )
-
-                    const dirPath = './database/seeders'
-                    const filePath = `${dirPath}/${fileName}_seeder.ts`
-
-                    await Deno.mkdir(dirPath, { recursive: true })
-                    await Deno.writeTextFile(filePath, content)
-                    createdFiles.push(filePath)
-                } catch (error) {
-                    console.error(
-                        `❌ Failed to create seeder: ${
-                            (error as Error).message
-                        }`,
-                    )
-                }
-            }
-
-            // Create controller if requested
-            if (controller) {
-                try {
-                    const stubContent = await Deno.readTextFile(
-                        join(STUBS_PATH, 'controller.stub'),
-                    )
-
-                    const content = stubContent
-                        .replace(/\{\{ModelName\}\}/g, modelName)
-                        .replace(/\{\{tableName\}\}/g, tableName)
-                        .replace(/\{\{fileName\}\}/g, fileName)
-                        .replace(/\{\{route\}\}/g, route)
-                        .replace(/\{\{RepositoryName\}\}/g, repositoryName)
-                        .replace(/\{\{repositoryVar\}\}/g, repositoryVar)
-
-                    const dirPath = './app/controller'
-                    const filePath = `${dirPath}/${fileName}_controller.ts`
-
-                    await Deno.mkdir(dirPath, { recursive: true })
-                    await Deno.writeTextFile(filePath, content)
-                    createdFiles.push(filePath)
-                } catch (error) {
-                    console.error(
-                        `❌ Failed to create controller: ${
-                            (error as Error).message
-                        }`,
-                    )
-                }
-            }
-
-            // Summary
-            console.log(`✅ Created ${createdFiles.length} file(s):`)
-            createdFiles.forEach((f) => console.log(`   ${f}`))
-
-            if (createdFiles.length === 1) {
-                console.log('')
-                console.log('💡 Use flags to generate related files:')
-                console.log(
-                    '   -r  repository   -s  seeder   -c  controller   -a  all',
+                    '⚠️  Schema changes detected. Run db:generate to create a migration',
                 )
             }
         },
+        'Check if migrations are up to date with schema',
+    )
+
+    // -------------------------------------------------------------------------
+    // Database Utility Commands
+    // -------------------------------------------------------------------------
+
+    cli.register(
+        'db:check',
+        async () => {
+            console.log('🔍 Checking database connection...')
+            try {
+                const db = await initDatabase()
+                await (db as unknown as { client: postgres.Sql }).client`SELECT 1`
+                console.log('✅ Database connection successful')
+            } catch (error) {
+                console.error(
+                    '❌ Database connection failed:',
+                    getErrorMessage(error),
+                )
+                console.log('\n💡 Check your DATABASE_URL in .env')
+            }
+        },
+        'Test database connection',
+    )
+
+    cli.register(
+        'db:fresh',
+        async () => {
+            console.log('🚨 WARNING: This will drop ALL tables and re-migrate')
+            console.log('⏳ Starting in 3 seconds... (Ctrl+C to cancel)')
+            await new Promise((resolve) => setTimeout(resolve, 3000))
+
+            console.log('🗑️  Dropping database...')
+            await runDrizzleKit('drop')
+
+            console.log('🔄 Running migrations...')
+            const code = await runDrizzleKit('migrate')
+
+            if (code === 0) {
+                console.log('✅ Database refreshed successfully')
+            } else {
+                console.error('❌ Failed to refresh database')
+            }
+        },
+        'Drop all tables and run migrations from scratch',
+    )
+
+    // -------------------------------------------------------------------------
+    // Seeding Commands
+    // -------------------------------------------------------------------------
+
+    cli.register('db:seed', handleSeed, 'Seed the database with test data')
+
+    cli.register('make:seeder', handleMakeSeeder, 'Create a new database seeder')
+
+    // -------------------------------------------------------------------------
+    // Model Generation Command
+    // -------------------------------------------------------------------------
+
+    cli.register(
+        'make:model',
+        handleMakeModel,
         'Create a new Drizzle model (with optional repository, seeder, controller)',
     )
 }
