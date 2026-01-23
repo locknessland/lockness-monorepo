@@ -128,13 +128,13 @@ console.log(greeting);`}
 
 Five built-in themes are available:
 
-| Theme     | Description                                    |
-| --------- | ---------------------------------------------- |
-| `default` | Neutral dark theme with balanced colors        |
-| `monokai` | Classic warm theme inspired by Monokai         |
-| `github`  | Clean minimal theme inspired by GitHub         |
-| `nord`    | Arctic, north-bluish color palette             |
-| `plain`   | No syntax highlighting, monospace text only    |
+| Theme     | Description                                 |
+| --------- | ------------------------------------------- |
+| `default` | Neutral dark theme with balanced colors     |
+| `monokai` | Classic warm theme inspired by Monokai      |
+| `github`  | Clean minimal theme inspired by GitHub      |
+| `nord`    | Arctic, north-bluish color palette          |
+| `plain`   | No syntax highlighting, monospace text only |
 
 ### Default Theme
 
