@@ -123,8 +123,20 @@ export const Home = () => {
                             class='inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
                             title='LLM Documentation'
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 0a3 3 0 0 0-3 3v1H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2h-3V7a3 3 0 0 0-3-3Zm-2 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm6 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-5 4h2" />
+                            <svg
+                                xmlns='http://www.w3.org/2000/svg'
+                                fill='none'
+                                viewBox='0 0 24 24'
+                                stroke-width='1.5'
+                                stroke='currentColor'
+                                width='20'
+                                height='20'
+                            >
+                                <path
+                                    stroke-linecap='round'
+                                    stroke-linejoin='round'
+                                    d='M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m3.75-1.5v1.5m-3.75 15v1.5m3.75-1.5v1.5M6 6.75h12A2.25 2.25 0 0 1 20.25 9v7.5A2.25 2.25 0 0 1 18 18.75H6A2.25 2.25 0 0 1 3.75 16.5V9A2.25 2.25 0 0 1 6 6.75ZM9.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm5.25.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm-5.25 3h4.5'
+                                />
                             </svg>
                         </a>
                         <ThemeSwitch variant='toggle' />
