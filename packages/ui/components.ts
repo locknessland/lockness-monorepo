@@ -186,6 +186,10 @@ export type {
 export { Alert, AlertDescription, AlertTitle } from './components/Alert/mod.tsx'
 export { Kbd } from './components/Kbd/mod.tsx'
 
+// Media Components
+export { Video } from './components/Video/mod.tsx'
+export type { VideoProps, VideoSource } from './components/Video/mod.tsx'
+
 // Code Components
 export {
     CodeBlock,

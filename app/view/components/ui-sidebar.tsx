@@ -114,6 +114,7 @@ const navSections: readonly NavSection[] = [
         links: [
             { title: 'Chart', href: '/ui/chart' },
             { title: 'Gallery', href: '/ui/gallery' },
+            { title: 'Video', href: '/ui/video' },
         ],
     },
     {

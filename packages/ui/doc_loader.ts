@@ -94,6 +94,7 @@ export class UiDocLoader {
         'separator': 'Separator',
         'separators': 'Separator',
         'gallery': 'Gallery',
+        'video': 'Video',
         'hero': 'Hero',
         'navbar': 'Navbar',
         'newsletter': 'Newsletter',
