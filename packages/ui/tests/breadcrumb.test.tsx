@@ -6,7 +6,7 @@ import {
     BreadcrumbList,
     BreadcrumbPage,
     BreadcrumbSeparator,
-} from '../components/Breadcrumb.tsx'
+} from '../components/Breadcrumb/mod.tsx'
 
 /**
  * Helper to render a component to string

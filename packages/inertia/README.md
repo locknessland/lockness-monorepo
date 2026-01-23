@@ -468,7 +468,7 @@ rootView: ;
 
 - [Inertia.js Official Docs](https://inertiajs.com)
 - [Inertia.js Protocol Specification](https://inertiajs.com/the-protocol)
-- [Lockness Framework Docs](https://lockness.dev)
+- [Lockness Framework Docs](https://lockness.land/docs)
 
 ## License
 

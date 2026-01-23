@@ -1,5 +1,5 @@
 import { assertStringIncludes } from '@std/assert'
-import { Input } from '../components/Input.tsx'
+import { Input } from '../components/Input/mod.tsx'
 
 /**
  * Helper to render a component to string

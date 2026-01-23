@@ -12,7 +12,7 @@ import { ApiDocsController } from '@controller/api_docs_controller.ts'
 import { AppController } from '@controller/app_controller.tsx'
 import { AuthController } from '@controller/auth_controller.tsx'
 import { DocsController } from '@controller/docs_controller.tsx'
-import { LlmController } from '@controller/llm_controller.tsx'
+import { LlmsIndexController } from '@controller/llm_controller.tsx'
 import { UiController } from '@controller/ui_controller.tsx'
 
 export const controllers = [
@@ -20,6 +20,6 @@ export const controllers = [
     AppController,
     AuthController,
     DocsController,
-    LlmController,
+    LlmsIndexController,
     UiController,
 ]

@@ -32,7 +32,8 @@
         "@std/path": "jsr:@std/path@1",
         "hono": "jsr:@lockness/hono@^0.1.26",
         "clsx": "npm:clsx@2.1.1",
-        "tailwind-merge": "npm:tailwind-merge@2.6.0"
+        "tailwind-merge": "npm:tailwind-merge@2.6.0",
+        "highlight.js": "npm:highlight.js@11.11.1"
     },
     "compilerOptions": {
         "jsx": "precompile",

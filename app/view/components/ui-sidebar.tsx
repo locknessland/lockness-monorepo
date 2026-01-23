@@ -6,6 +6,7 @@ import {
     MegaphoneIcon,
     NavigationIcon,
     PlayIcon,
+    Separator,
     Sidebar,
     SidebarContent,
     SidebarFooter,
@@ -100,6 +101,9 @@ const navSections: readonly NavSection[] = [
         icon: SparklesIcon,
         links: [
             { title: 'Progress', href: '/ui/progress' },
+            { title: 'Stepped Progress', href: '/ui/stepped-progress' },
+            { title: 'Circular Progress', href: '/ui/circular-progress' },
+            { title: 'Gauge Progress', href: '/ui/gauge-progress' },
             { title: 'Spinner', href: '/ui/spinner' },
             { title: 'Skeletons', href: '/ui/skeletons' },
         ],
@@ -143,33 +147,36 @@ export const UiSidebar = () => {
 
             <SidebarContent>
                 {/* Navigation Sections */}
-                {navSections.map((section) => (
-                    <SidebarGroup key={section.title}>
-                        <SidebarGroupLabel>
-                            {section.icon && (
-                                <section.icon
-                                    size={14}
-                                    class='mr-2 text-sidebar-foreground/70'
-                                />
-                            )}
-                            {section.title}
-                        </SidebarGroupLabel>
-                        <SidebarGroupContent>
-                            <SidebarMenu>
-                                {section.links.map((link) => (
-                                    <SidebarMenuItem key={link.href}>
-                                        <SidebarMenuButton
-                                            href={link.href}
-                                            up-preload
-                                            up-transition='move-left'
-                                        >
-                                            {link.title}
-                                        </SidebarMenuButton>
-                                    </SidebarMenuItem>
-                                ))}
-                            </SidebarMenu>
-                        </SidebarGroupContent>
-                    </SidebarGroup>
+                {navSections.map((section, index) => (
+                    <>
+                        {index > 0 && <Separator class='mx-2 w-auto' />}
+                        <SidebarGroup key={section.title}>
+                            <SidebarGroupLabel>
+                                {section.icon && (
+                                    <section.icon
+                                        size={14}
+                                        class='mr-2 text-sidebar-foreground/70'
+                                    />
+                                )}
+                                {section.title}
+                            </SidebarGroupLabel>
+                            <SidebarGroupContent>
+                                <SidebarMenu>
+                                    {section.links.map((link) => (
+                                        <SidebarMenuItem key={link.href}>
+                                            <SidebarMenuButton
+                                                href={link.href}
+                                                up-preload
+                                                up-transition='move-left'
+                                            >
+                                                {link.title}
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                    ))}
+                                </SidebarMenu>
+                            </SidebarGroupContent>
+                        </SidebarGroup>
+                    </>
                 ))}
             </SidebarContent>
 

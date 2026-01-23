@@ -2221,7 +2221,55 @@ deno run -A jsr:@lockness/ui add pricing
 | `button`  | utils                             |
 | `card`    | utils                             |
 | `badge`   | utils                             |
+| `alert`   | utils, icons                      |
 | `pricing` | utils, icons, button, card, badge |
+
+#### Icons
+
+The UI package includes a comprehensive icon library based on Lucide icons:
+
+```bash
+# Add icons to your project
+deno run -A jsr:@lockness/ui add icons
+```
+
+**Usage:**
+
+```tsx
+import { ArrowRightIcon, CheckCircleIcon, GithubIcon } from '@view/icons.tsx'
+
+// Default size (24px)
+<ArrowRightIcon />
+
+// Custom size
+<CheckCircleIcon size={16} />
+
+// With class
+<GithubIcon class="text-muted-foreground" />
+
+// Custom stroke width
+<ArrowRightIcon strokeWidth={1.5} />
+```
+
+**Available Icon Categories:**
+
+| Category    | Icons                                                                      |
+| ----------- | -------------------------------------------------------------------------- |
+| Navigation  | `ArrowRightIcon`, `ArrowLeftIcon`, `ChevronRightIcon`, `MenuIcon`, `XIcon` |
+| Status      | `CheckCircleIcon`, `XCircleIcon`, `InfoCircleIcon`, `AlertTriangleIcon`    |
+| Actions     | `CopyIcon`, `SearchIcon`, `UploadIcon`, `PlayIcon`                         |
+| Development | `CodeIcon`, `TerminalIcon`, `DatabaseIcon`, `GitBranchIcon`                |
+| Brands      | `GithubIcon`, `TwitterIcon`, `DiscordIcon`                                 |
+| Theme       | `SunIcon`, `MoonIcon`, `SettingsIcon`                                      |
+| Misc        | `RocketIcon`, `SparklesIcon`, `ShieldIcon`, `ZapIcon`                      |
+
+**IconProps Interface:**
+
+| Prop          | Type     | Default | Description                |
+| ------------- | -------- | ------- | -------------------------- |
+| `size`        | `number` | `24`    | Icon width and height (px) |
+| `class`       | `string` | -       | Additional CSS classes     |
+| `strokeWidth` | `number` | `2`     | SVG stroke width           |
 
 #### Unpoly Integration
 
@@ -2278,7 +2326,7 @@ over the component code.
 │   ├── service/           # Business Logic
 │   └── kernel.ts          # App Initialization
 ├── data/                  # Static Data & Assets
-├── docs/                  # Documentation & AI Rules
+├── docs/                  # Documentation (Markdown + LLM files)
 ├── scripts/               # Build & Internal Scripts
 ├── _output/               # Build Artifacts & Binaries
 ├── main.ts                # Entry point
@@ -2290,8 +2338,10 @@ over the component code.
   an ORM-agnostic core while providing official extensions like
   `lockness-drizzle`.
 - **Root Files & `app/`**: Boilerplate structure generated for users.
-- **`docs/`**: Contains reference documentation and rules, including HonoJS
-  docs, for AI assistance.
+- **`docs/`**: Contains framework documentation in Markdown format. These files
+  are dynamically served as LLM-friendly `.txt` files via the `DocsLoader`
+  service. Static aggregated files (`full.txt`, `packages.txt`) live in
+  `docs/llms/`.
 - **`dist/`**: Output directory for production SSR builds (`server.js`).
 
 ## ⚙️ Development Workflow
@@ -2590,6 +2640,108 @@ single source of truth for development.
   (standardized convention).
 - `packages/*/deno.json`: Package configuration including name (e.g.,
   `@lockness/core`), version, and exports.
+
+### Documentation Structure
+
+Lockness uses a **dynamic documentation system** that generates LLM-friendly
+content from Markdown source files. This eliminates duplication and ensures
+documentation stays in sync with the codebase.
+
+#### Package Documentation
+
+Each package maintains its documentation in `packages/{pkg}/docs/DOCS.md`:
+
+```
+packages/
+├── auth/
+│   ├── docs/
+│   │   └── DOCS.md          # Package documentation (Markdown)
+│   ├── mod.ts
+│   └── README.md
+├── core/
+│   ├── docs/
+│   │   ├── routing.md       # Multiple docs for larger packages
+│   │   ├── middleware.md
+│   │   ├── components.md
+│   │   └── error-handling.md
+│   └── mod.ts
+└── ...
+```
+
+#### General Documentation
+
+Framework-level documentation lives in the root `docs/` folder:
+
+```
+docs/
+├── installation.md          # Getting started guide
+├── getting-started.md       # Quick start tutorial
+├── architecture.md          # Framework architecture
+├── testing.md               # Testing best practices
+├── deployment.md            # Production deployment
+├── contribution.md          # Contributing guide
+└── llms/                    # Static LLM files (aggregated)
+    ├── full.txt             # Complete documentation dump
+    ├── lockness.txt         # Framework overview
+    └── packages.txt         # Package index
+```
+
+#### Dynamic LLM Generation
+
+The `DocsLoader` service dynamically generates LLM-friendly `.txt` files from
+Markdown sources. These are served at `/llms/{slug}.txt`:
+
+| URL                      | Source                          |
+| ------------------------ | ------------------------------- |
+| `/llms/auth.txt`         | `packages/auth/docs/DOCS.md`    |
+| `/llms/routing.txt`      | `packages/core/docs/routing.md` |
+| `/llms/installation.txt` | `docs/installation.md`          |
+| `/llms/full.txt`         | `docs/llms/full.txt` (static)   |
+
+**Transformation features:**
+
+- Replaces `<version>` placeholder with current framework version
+- Converts relative links `[text](/path)` to absolute URLs
+- Caches transformed content for performance
+
+**Example usage in code:**
+
+```typescript
+// app/service/docs_loader.ts
+const docsLoader = new DocsLoader()
+
+// Load and transform for LLM consumption
+const content = await docsLoader.loadForLlm('auth')
+
+// Get available documentation slugs
+const slugs = docsLoader.getAvailableSlugs()
+```
+
+#### Why This Approach?
+
+1. **Single Source of Truth**: Documentation lives next to the code it documents
+2. **Web-Readable**: Markdown files work on GitHub, docs sites, and IDEs
+3. **LLM-Optimized**: Dynamic `.txt` generation with version injection
+4. **No Duplication**: Eliminates static `llms.txt` files that get out of sync
+5. **Easy Maintenance**: Update docs in one place, changes reflect everywhere
+
+#### Adding Documentation for a New Package
+
+1. Create `packages/{pkg}/docs/DOCS.md` with your documentation
+2. Add the slug mapping in `app/service/docs_loader.ts`:
+   ```typescript
+   private readonly slugToPath: Record<string, string> = {
+       // ...existing entries
+       'my-package': 'packages/my-package/docs/DOCS.md',
+   }
+
+   private readonly llmsSlugToSource: Record<string, string> = {
+       // ...existing entries
+       'my-package': 'packages/my-package/docs/DOCS.md',
+   }
+   ```
+3. Add sidebar entry in `app/view/layouts/docs_layout.tsx`
+4. Run tests to verify: `deno task test`
 
 ### Unified Development
 

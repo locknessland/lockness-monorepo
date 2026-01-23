@@ -150,10 +150,43 @@
     --alert-padding: 1rem;
     --alert-border-radius: var(--radius);
     --alert-border-width: 1px;
-    --alert-icon-size: 1rem;
+    --alert-icon-size: 1.25rem;
+    --alert-icon-gap: 0.75rem;
     --alert-title-font-size: 0.875rem;
-    --alert-title-font-weight: 500;
+    --alert-title-font-weight: 600;
     --alert-description-font-size: 0.875rem;
+
+    /* Alert variant: default */
+    --alert-default-bg: var(--muted);
+    --alert-default-fg: var(--foreground);
+    --alert-default-border: var(--border);
+    --alert-default-icon: var(--muted-foreground);
+
+    /* Alert variant: success */
+    --alert-success-bg: oklch(95% 0.03 145);
+    --alert-success-fg: oklch(35% 0.12 145);
+    --alert-success-border: oklch(85% 0.08 145);
+    --alert-success-icon: oklch(50% 0.15 145);
+
+    /* Alert variant: warning */
+    --alert-warning-bg: oklch(95% 0.04 85);
+    --alert-warning-fg: oklch(40% 0.12 60);
+    --alert-warning-border: oklch(85% 0.10 85);
+    --alert-warning-icon: oklch(55% 0.15 70);
+
+    /* Alert variant: destructive */
+    --alert-destructive-bg: oklch(95% 0.03 25);
+    --alert-destructive-fg: oklch(45% 0.15 25);
+    --alert-destructive-border: oklch(85% 0.08 25);
+    --alert-destructive-icon: oklch(55% 0.18 25);
+
+    /* Table customization */
+    --table-border-radius: var(--radius);
+    --table-border-color: var(--border);
+    --table-header-background: var(--muted);
+    --table-header-foreground: var(--muted-foreground);
+    --table-row-hover-background: var(--muted);
+    --table-row-stripe-background: var(--muted);
 
     /* Separator customization */
     --separator-thickness: 1px;
@@ -163,6 +196,18 @@
     --skeleton-border-radius: var(--radius);
     --skeleton-background: var(--muted);
     --skeleton-animation-duration: 2s;
+
+    /* Progress customization */
+    --progress-border-radius: var(--radius);
+    --progress-background: var(--secondary);
+    --progress-height-sm: 0.25rem;
+    --progress-height-default: 0.5rem;
+    --progress-height-lg: 1rem;
+    --progress-outline-border-width: 2px;
+    --progress-outline-padding: 0.25rem;
+    --progress-outline-border-radius: calc(var(--radius) + 4px);
+    --progress-stripe-size: 1rem;
+    --progress-animation-duration: 1s;
 
     /* Kbd customization */
     --kbd-padding-x: 0.375rem;
@@ -191,6 +236,14 @@
     --theme-switch-toggle-padding: 0.5rem;
     /* Switch variant */
     --theme-switch-switch-padding: 0.125rem;
+
+    /* Sidebar section customization */
+    --sidebar-header-background: oklch(from var(--sidebar) calc(l - 0.03) c h);
+    --sidebar-content-background: var(--sidebar);
+    --sidebar-footer-background: oklch(from var(--sidebar) calc(l - 0.03) c h);
+    --sidebar-header-border: oklch(from var(--sidebar) calc(l - 0.08) c h);
+    --sidebar-footer-border: oklch(from var(--sidebar) calc(l - 0.08) c h);
+    --sidebar-edge-border: oklch(from var(--sidebar) calc(l - 0.08) c h);
 
     /* Title customization - h1 is the base, others are calculated */
     --title-h1-font-size: 2.25rem;
@@ -313,6 +366,24 @@
     --code-border: oklch(0.262 0 0);
     --code-font-size: 0.813rem;
     --code-line-height: 1.5;
+
+    /* Alert variant: success - Dark mode */
+    --alert-success-bg: oklch(25% 0.05 145);
+    --alert-success-fg: oklch(80% 0.08 145);
+    --alert-success-border: oklch(35% 0.06 145);
+    --alert-success-icon: oklch(65% 0.12 145);
+
+    /* Alert variant: warning - Dark mode */
+    --alert-warning-bg: oklch(25% 0.05 85);
+    --alert-warning-fg: oklch(85% 0.10 85);
+    --alert-warning-border: oklch(40% 0.08 80);
+    --alert-warning-icon: oklch(70% 0.14 75);
+
+    /* Alert variant: destructive - Dark mode */
+    --alert-destructive-bg: oklch(25% 0.05 25);
+    --alert-destructive-fg: oklch(80% 0.10 25);
+    --alert-destructive-border: oklch(40% 0.08 25);
+    --alert-destructive-icon: oklch(65% 0.15 25);
 }
 
 /* Base styles */
@@ -325,5 +396,15 @@
 
     button {
         cursor: pointer;
+    }
+}
+
+/* Progress bar striped animation */
+@keyframes progress-stripes {
+    from {
+        background-position: 1rem 0;
+    }
+    to {
+        background-position: 0 0;
     }
 }

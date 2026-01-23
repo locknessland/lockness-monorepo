@@ -1,5 +1,5 @@
 import { assertStringIncludes } from '@std/assert'
-import { Label } from '../components/Label.tsx'
+import { Label } from '../components/Label/mod.tsx'
 
 /**
  * Helper to render a component to string

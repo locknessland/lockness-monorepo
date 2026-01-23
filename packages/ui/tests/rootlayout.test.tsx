@@ -1,5 +1,5 @@
 import { assertStringIncludes } from '@std/assert'
-import { RootLayout } from '../components/RootLayout.tsx'
+import { RootLayout } from '../components/RootLayout/mod.tsx'
 
 /**
  * Helper to render a component to string

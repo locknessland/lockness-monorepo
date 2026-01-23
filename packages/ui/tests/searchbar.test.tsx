@@ -3,7 +3,7 @@ import {
     SearchBar,
     SearchBarFilter,
     SearchBarGroup,
-} from '../components/SearchBar.tsx'
+} from '../components/SearchBar/mod.tsx'
 
 /**
  * Helper to render a component to string

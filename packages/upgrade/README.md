@@ -202,7 +202,7 @@ MIT License - see LICENSE file for details
 
 - [Lockness Framework](https://github.com/locknessjs/lockness)
 - [JSR Package Registry](https://jsr.io/@lockness/upgrade)
-- [Documentation](https://lockness.dev)
+- [Documentation](https://lockness.land/docs)
 
 ---
 

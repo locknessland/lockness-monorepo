@@ -1,166 +1,124 @@
+/**
+ * @fileoverview Controller for UI component documentation
+ *
+ * Renders live examples from examples.tsx files colocated with components.
+ * DOCS.md/llms.txt files are served separately for LLM consumption.
+ */
+
 import { Context, Controller, Get } from '@lockness/core'
+import { ExampleSection, UiDocLoader } from '../../packages/ui/doc_loader.ts'
 import { UiIndex } from '@view/pages/ui/getting-started.tsx'
-import { ButtonsPage } from '@view/pages/ui/buttons.tsx'
-import { CardsPage } from '@view/pages/ui/cards.tsx'
-import { FormsPage } from '@view/pages/ui/forms.tsx'
-import { BadgesPage } from '@view/pages/ui/badges.tsx'
-import { AlertsPage } from '@view/pages/ui/alerts.tsx'
-import { SeparatorsPage } from '@view/pages/ui/separators.tsx'
-import { SkeletonsPage } from '@view/pages/ui/skeletons.tsx'
-import { KeyboardsPage } from '@view/pages/ui/keyboards.tsx'
-import { NavigationPage } from '@view/pages/ui/navigation.tsx'
-import { AccordionPage } from '@view/pages/ui/accordion.tsx'
-import { SidebarPage } from '@view/pages/ui/sidebar.tsx'
-import { ModalPage } from '@view/pages/ui/modal.tsx'
-import { NavbarDemoPage } from '@view/pages/ui/navbar-demo.tsx'
-import { TablePage } from '@view/pages/ui/table.tsx'
-import { PaginationDemo } from '@view/pages/ui/pagination-demo.tsx'
-import { ProgressPage } from '@view/pages/ui/progress.tsx'
-import { UploadZonePage } from '@view/pages/ui/upload-zone.tsx'
-import { ChartPage } from '@view/pages/ui/chart.tsx'
-import { SpinnerPage } from '@view/pages/ui/spinner.tsx'
-import { NewsletterPage } from '@view/pages/ui/newsletter.tsx'
-import { HeroPage } from '@view/pages/ui/hero.tsx'
-import { GalleryPage } from '@view/pages/ui/gallery.tsx'
-import { PricingPage } from '@view/pages/ui/pricing.tsx'
-import { ThemeSwitchPage } from '@view/pages/ui/theme-switch.tsx'
-import { TreeViewPage } from '@view/pages/ui/treeview.tsx'
-import { SearchBarPage } from '@view/pages/ui/search-bar.tsx'
+import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
+
+/**
+ * Renders the examples sections for a component
+ */
+const ExamplesRenderer = ({ examples }: { examples: ExampleSection[] }) => {
+    return (
+        <div class='space-y-12'>
+            {examples.map((example) => (
+                <section class='space-y-4'>
+                    <h2 class='font-pixel text-sm text-foreground'>
+                        {example.title.toUpperCase()}
+                    </h2>
+                    {example.render()}
+                </section>
+            ))}
+        </div>
+    )
+}
 
 @Controller('/ui')
 export class UiController {
+    private docLoader = new UiDocLoader()
+
+    /**
+     * UI Components index page
+     */
     @Get('/', { name: 'ui.index' })
     index(c: Context) {
         return c.render(<UiIndex />)
     }
 
-    @Get('/buttons', { name: 'ui.buttons' })
-    buttons(c: Context) {
-        return c.render(<ButtonsPage />)
+    /**
+     * LLM index - serves the root @lockness/ui documentation
+     * with installation instructions and component list
+     */
+    @Get('/llms.txt', { name: 'ui.llms.index' })
+    async llmsIndex(c: Context) {
+        try {
+            const content = await this.docLoader.loadRootLlms()
+            return c.text(content)
+        } catch (error) {
+            console.error('Failed to load root LLM doc:', error)
+            return c.notFound()
+        }
     }
 
-    @Get('/cards', { name: 'ui.cards' })
-    cards(c: Context) {
-        return c.render(<CardsPage />)
+    /**
+     * Dynamic route for component documentation
+     * Loads examples.tsx from component folders and renders live demos
+     */
+    @Get('/:slug', { name: 'ui.component' })
+    async component(c: Context) {
+        const slug = c.req.param('slug')
+
+        // Check if this is a valid component slug
+        if (!this.docLoader.hasSlug(slug)) {
+            return c.notFound()
+        }
+
+        try {
+            // Load component title and examples
+            const [doc, examples] = await Promise.all([
+                this.docLoader.load(slug),
+                this.docLoader.loadExamples(slug),
+            ])
+
+            // Convert doc slug to LLM slug
+            const llmSlug = this.docLoader.docSlugToLlmSlug(slug)
+
+            // Render page with examples only
+            return c.html(
+                <PageUiLayout title={doc.title} llmSlug={llmSlug}>
+                    {examples
+                        ? <ExamplesRenderer examples={examples} />
+                        : (
+                            <p class='text-muted-foreground'>
+                                No examples available for this component yet.
+                            </p>
+                        )}
+                </PageUiLayout>,
+            )
+        } catch (error) {
+            console.error(
+                `Failed to load documentation for ${slug}:`,
+                error,
+            )
+            return c.notFound()
+        }
     }
 
-    @Get('/forms', { name: 'ui.forms' })
-    forms(c: Context) {
-        return c.render(<FormsPage />)
-    }
+    /**
+     * LLM documentation endpoint for UI components
+     * Serves llms.txt files for AI/LLM consumption
+     *
+     * @example /ui/llms/button.txt -> packages/ui/components/Button/llms.txt
+     */
+    @Get('/llms/:component', { extension: '.txt', name: 'ui.llms' })
+    async llms(c: Context) {
+        const component = c.req.param('component')
 
-    @Get('/badges', { name: 'ui.badges' })
-    badges(c: Context) {
-        return c.render(<BadgesPage />)
-    }
+        if (!this.docLoader.hasLlmsSlug(component)) {
+            return c.notFound()
+        }
 
-    @Get('/alerts', { name: 'ui.alerts' })
-    alerts(c: Context) {
-        return c.render(<AlertsPage />)
-    }
-
-    @Get('/separators', { name: 'ui.separators' })
-    separators(c: Context) {
-        return c.render(<SeparatorsPage />)
-    }
-
-    @Get('/skeletons', { name: 'ui.skeletons' })
-    skeletons(c: Context) {
-        return c.render(<SkeletonsPage />)
-    }
-
-    @Get('/keyboards', { name: 'ui.keyboards' })
-    keyboards(c: Context) {
-        return c.render(<KeyboardsPage />)
-    }
-
-    @Get('/navigation', { name: 'ui.navigation' })
-    navigation(c: Context) {
-        return c.render(<NavigationPage />)
-    }
-
-    @Get('/accordion', { name: 'ui.accordion' })
-    accordion(c: Context) {
-        return c.render(<AccordionPage />)
-    }
-
-    @Get('/sidebar', { name: 'ui.sidebar' })
-    sidebar(c: Context) {
-        return c.render(<SidebarPage />)
-    }
-
-    @Get('/modal', { name: 'ui.modal' })
-    modal(c: Context) {
-        return c.render(<ModalPage />)
-    }
-
-    @Get('/navbar', { name: 'ui.navbar' })
-    navbar(c: Context) {
-        return c.render(<NavbarDemoPage />)
-    }
-
-    @Get('/table', { name: 'ui.table' })
-    table(c: Context) {
-        return c.render(<TablePage />)
-    }
-
-    @Get('/pagination', { name: 'ui.pagination' })
-    pagination(c: Context) {
-        return c.render(<PaginationDemo />)
-    }
-
-    @Get('/progress', { name: 'ui.progress' })
-    progress(c: Context) {
-        return c.render(<ProgressPage />)
-    }
-
-    @Get('/upload-zone', { name: 'ui.upload-zone' })
-    uploadZone(c: Context) {
-        return c.render(<UploadZonePage />)
-    }
-
-    @Get('/chart', { name: 'ui.chart' })
-    chart(c: Context) {
-        return c.render(<ChartPage />)
-    }
-
-    @Get('/spinner', { name: 'ui.spinner' })
-    spinner(c: Context) {
-        return c.render(<SpinnerPage />)
-    }
-
-    @Get('/newsletter', { name: 'ui.newsletter' })
-    newsletter(c: Context) {
-        return c.render(<NewsletterPage />)
-    }
-
-    @Get('/hero', { name: 'ui.hero' })
-    hero(c: Context) {
-        return c.render(<HeroPage />)
-    }
-
-    @Get('/gallery', { name: 'ui.gallery' })
-    gallery(c: Context) {
-        return c.render(<GalleryPage />)
-    }
-
-    @Get('/pricing', { name: 'ui.pricing' })
-    pricing(c: Context) {
-        return c.render(<PricingPage />)
-    }
-
-    @Get('/theme-switch', { name: 'ui.theme-switch' })
-    themeSwitch(c: Context) {
-        return c.render(<ThemeSwitchPage />)
-    }
-
-    @Get('/treeview', { name: 'ui.treeview' })
-    treeview(c: Context) {
-        return c.render(<TreeViewPage />)
-    }
-
-    @Get('/search-bar', { name: 'ui.search-bar' })
-    searchBar(c: Context) {
-        return c.render(<SearchBarPage />)
+        try {
+            const content = await this.docLoader.loadLlms(component)
+            return c.text(content)
+        } catch (error) {
+            console.error(`Failed to load LLM doc for ${component}:`, error)
+            return c.notFound()
+        }
     }
 }

@@ -1,0 +1,38 @@
+{
+    "name": "@lockness/markdown",
+    "description": "Markdown to JSX renderer using Lockness UI components",
+    "version": "0.1.26",
+    "license": "MIT",
+    "exports": {
+        ".": "./mod.tsx"
+    },
+    "tasks": {
+        "test": "deno test -A tests/",
+        "test:watch": "deno test -A --watch tests/"
+    },
+    "publish": {
+        "include": [
+            "mod.tsx",
+            "parser.ts",
+            "renderer.tsx",
+            "types.ts",
+            "deno.json",
+            "README.md"
+        ],
+        "exclude": [
+            "tests/"
+        ]
+    },
+    "imports": {
+        "@std/assert": "jsr:@std/assert@1",
+        "@libs/markdown": "jsr:@libs/markdown@^2.1.0",
+        "@lockness/ui": "jsr:@lockness/ui@^0.1.26",
+        "hono": "jsr:@lockness/hono@^0.1.26",
+        "clsx": "npm:clsx@2.1.1",
+        "tailwind-merge": "npm:tailwind-merge@2.6.0"
+    },
+    "compilerOptions": {
+        "jsx": "precompile",
+        "jsxImportSource": "hono"
+    }
+}

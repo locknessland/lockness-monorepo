@@ -88,7 +88,7 @@ const REGISTRY: Registry = {
         description: 'Flexible button component with variants and sizes',
         files: [
             {
-                path: 'components/Button.tsx',
+                path: 'components/Button/mod.tsx',
                 target: 'components/ui/Button.tsx',
             },
         ],
@@ -99,7 +99,10 @@ const REGISTRY: Registry = {
         description:
             'Card component system (Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter)',
         files: [
-            { path: 'components/Card.tsx', target: 'components/ui/Card.tsx' },
+            {
+                path: 'components/Card/mod.tsx',
+                target: 'components/ui/Card.tsx',
+            },
         ],
         internalDependencies: ['utils'],
     },
@@ -108,7 +111,7 @@ const REGISTRY: Registry = {
         description: 'Base HTML layout with Unpoly CDN integration',
         files: [
             {
-                path: 'components/RootLayout.tsx',
+                path: 'components/RootLayout/mod.tsx',
                 target: 'components/ui/RootLayout.tsx',
             },
         ],
@@ -118,7 +121,7 @@ const REGISTRY: Registry = {
         description: 'Form label component with consistent styling',
         files: [
             {
-                path: 'components/Label.tsx',
+                path: 'components/Label/mod.tsx',
                 target: 'components/ui/Label.tsx',
             },
         ],
@@ -129,7 +132,7 @@ const REGISTRY: Registry = {
         description: 'Text input component with variants',
         files: [
             {
-                path: 'components/Input.tsx',
+                path: 'components/Input/mod.tsx',
                 target: 'components/ui/Input.tsx',
             },
         ],
@@ -140,7 +143,7 @@ const REGISTRY: Registry = {
         description: 'Multi-line text input component',
         files: [
             {
-                path: 'components/Textarea.tsx',
+                path: 'components/Textarea/mod.tsx',
                 target: 'components/ui/Textarea.tsx',
             },
         ],
@@ -151,7 +154,7 @@ const REGISTRY: Registry = {
         description: 'Badge/label component for tags and status',
         files: [
             {
-                path: 'components/Badge.tsx',
+                path: 'components/Badge/mod.tsx',
                 target: 'components/ui/Badge.tsx',
             },
         ],
@@ -162,7 +165,7 @@ const REGISTRY: Registry = {
         description: 'Visual divider line component',
         files: [
             {
-                path: 'components/Separator.tsx',
+                path: 'components/Separator/mod.tsx',
                 target: 'components/ui/Separator.tsx',
             },
         ],
@@ -173,7 +176,7 @@ const REGISTRY: Registry = {
         description: 'Loading placeholder with animated pulse',
         files: [
             {
-                path: 'components/Skeleton.tsx',
+                path: 'components/Skeleton/mod.tsx',
                 target: 'components/ui/Skeleton.tsx',
             },
         ],
@@ -185,7 +188,7 @@ const REGISTRY: Registry = {
             'Alert message component (Alert, AlertTitle, AlertDescription)',
         files: [
             {
-                path: 'components/Alert.tsx',
+                path: 'components/Alert/mod.tsx',
                 target: 'components/ui/Alert.tsx',
             },
         ],
@@ -195,7 +198,10 @@ const REGISTRY: Registry = {
         name: 'kbd',
         description: 'Keyboard shortcut display component',
         files: [
-            { path: 'components/Kbd.tsx', target: 'components/ui/Kbd.tsx' },
+            {
+                path: 'components/Kbd/mod.tsx',
+                target: 'components/ui/Kbd.tsx',
+            },
         ],
         internalDependencies: ['utils'],
     },
@@ -204,7 +210,7 @@ const REGISTRY: Registry = {
         description: 'Checkbox input with custom styling',
         files: [
             {
-                path: 'components/Checkbox.tsx',
+                path: 'components/Checkbox/mod.tsx',
                 target: 'components/ui/Checkbox.tsx',
             },
         ],
@@ -215,7 +221,7 @@ const REGISTRY: Registry = {
         description: 'Toggle switch component',
         files: [
             {
-                path: 'components/Switch.tsx',
+                path: 'components/Switch/mod.tsx',
                 target: 'components/ui/Switch.tsx',
             },
         ],
@@ -227,7 +233,7 @@ const REGISTRY: Registry = {
             'Breadcrumb navigation (Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbSeparator, BreadcrumbPage)',
         files: [
             {
-                path: 'components/Breadcrumb.tsx',
+                path: 'components/Breadcrumb/mod.tsx',
                 target: 'components/ui/Breadcrumb.tsx',
             },
         ],
@@ -238,7 +244,10 @@ const REGISTRY: Registry = {
         description:
             'Tabbed interface (Tabs, TabsList, TabsTrigger, TabsContent)',
         files: [
-            { path: 'components/Tabs.tsx', target: 'components/ui/Tabs.tsx' },
+            {
+                path: 'components/Tabs/mod.tsx',
+                target: 'components/ui/Tabs.tsx',
+            },
         ],
         internalDependencies: ['utils'],
     },
@@ -248,7 +257,7 @@ const REGISTRY: Registry = {
             'Collapsible sections (Accordion, AccordionItem, AccordionTrigger, AccordionContent)',
         files: [
             {
-                path: 'components/Accordion.tsx',
+                path: 'components/Accordion/mod.tsx',
                 target: 'components/ui/Accordion.tsx',
             },
         ],
@@ -260,7 +269,7 @@ const REGISTRY: Registry = {
             'Typography heading component with CSS variable sizing (h1-h6)',
         files: [
             {
-                path: 'components/Title.tsx',
+                path: 'components/Title/mod.tsx',
                 target: 'components/ui/Title.tsx',
             },
         ],
@@ -272,7 +281,7 @@ const REGISTRY: Registry = {
             'Pricing components (PricingCard, PricingCardHeader, PricingCardPrice, PricingCardFeatures, PricingToggle, PricingComparison)',
         files: [
             {
-                path: 'components/Pricing.tsx',
+                path: 'components/Pricing/mod.tsx',
                 target: 'components/ui/Pricing.tsx',
             },
         ],
@@ -284,7 +293,7 @@ const REGISTRY: Registry = {
             'Dual-button theme switcher optimized for Preline UI dark mode system',
         files: [
             {
-                path: 'components/ThemeSwitch.tsx',
+                path: 'components/ThemeSwitch/mod.tsx',
                 target: 'components/ui/ThemeSwitch.tsx',
             },
         ],
@@ -296,7 +305,7 @@ const REGISTRY: Registry = {
             'Customizable search bar with variants, sizes, and Unpoly integration',
         files: [
             {
-                path: 'components/SearchBar.tsx',
+                path: 'components/SearchBar/mod.tsx',
                 target: 'components/ui/SearchBar.tsx',
             },
         ],

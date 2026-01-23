@@ -16,11 +16,11 @@
 export { cn } from './lib/utils.ts'
 
 // Layout Components
-export { RootLayout } from './components/RootLayout.tsx'
+export { RootLayout } from './components/RootLayout/mod.tsx'
 
 // Navigation Components
-export { Link } from './components/Link.tsx'
-export type { LinkProps } from './components/Link.tsx'
+export { Link } from './components/Link/mod.tsx'
+export type { LinkProps } from './components/Link/mod.tsx'
 export {
     Navbar,
     NavbarBrand,
@@ -28,7 +28,7 @@ export {
     NavbarMenu,
     NavbarMenuItem,
     NavbarToggle,
-} from './components/Navbar.tsx'
+} from './components/Navbar/mod.tsx'
 export type {
     NavbarBrandProps,
     NavbarContentProps,
@@ -36,17 +36,17 @@ export type {
     NavbarMenuProps,
     NavbarProps,
     NavbarToggleProps,
-} from './components/Navbar.tsx'
+} from './components/Navbar/mod.tsx'
 
 // Form Components
-export { Label } from './components/Label.tsx'
-export { Input } from './components/Input.tsx'
-export { Textarea } from './components/Textarea.tsx'
-export { Checkbox } from './components/Checkbox.tsx'
-export { Switch } from './components/Switch.tsx'
+export { Label } from './components/Label/mod.tsx'
+export { Input } from './components/Input/mod.tsx'
+export { Textarea } from './components/Textarea/mod.tsx'
+export { Checkbox } from './components/Checkbox/mod.tsx'
+export { Switch } from './components/Switch/mod.tsx'
 
 // Display Components
-export { Button } from './components/Button.tsx'
+export { Button } from './components/Button/mod.tsx'
 export {
     Card,
     CardContent,
@@ -54,16 +54,16 @@ export {
     CardFooter,
     CardHeader,
     CardTitle,
-} from './components/Card.tsx'
-export { Badge } from './components/Badge.tsx'
-export { Progress } from './components/Progress.tsx'
-export type { ProgressProps } from './components/Progress.tsx'
-export { CircularProgress } from './components/CircularProgress.tsx'
-export type { CircularProgressProps } from './components/CircularProgress.tsx'
-export { SteppedProgress } from './components/SteppedProgress.tsx'
-export type { SteppedProgressProps } from './components/SteppedProgress.tsx'
-export { GaugeProgress } from './components/GaugeProgress.tsx'
-export type { GaugeProgressProps } from './components/GaugeProgress.tsx'
+} from './components/Card/mod.tsx'
+export { Badge } from './components/Badge/mod.tsx'
+export { Progress } from './components/Progress/mod.tsx'
+export type { ProgressProps } from './components/Progress/mod.tsx'
+export { CircularProgress } from './components/CircularProgress/mod.tsx'
+export type { CircularProgressProps } from './components/CircularProgress/mod.tsx'
+export { SteppedProgress } from './components/SteppedProgress/mod.tsx'
+export type { SteppedProgressProps } from './components/SteppedProgress/mod.tsx'
+export { GaugeProgress } from './components/GaugeProgress/mod.tsx'
+export type { GaugeProgressProps } from './components/GaugeProgress/mod.tsx'
 export {
     AreaChart,
     BarChart,
@@ -71,7 +71,7 @@ export {
     ChartLegendItem,
     ChartScript,
     LineChart,
-} from './components/Chart.tsx'
+} from './components/Chart/mod.tsx'
 export type {
     AreaChartProps,
     BarChartProps,
@@ -80,13 +80,13 @@ export type {
     ChartLegendItemProps,
     ChartLegendProps,
     LineChartProps,
-} from './components/Chart.tsx'
+} from './components/Chart/mod.tsx'
 export {
     BubbleChart,
     PieChart,
     Sparkline,
     SparklinePie,
-} from './components/ChartExtras.tsx'
+} from './components/ChartExtras/mod.tsx'
 export type {
     BubbleChartDataItem,
     BubbleChartDataset,
@@ -95,37 +95,40 @@ export type {
     PieChartProps,
     SparklinePieProps,
     SparklineProps,
-} from './components/ChartExtras.tsx'
+} from './components/ChartExtras/mod.tsx'
 export {
     InputFile,
     SingleImageUpload,
     UploadFileList,
     UploadFilePreview,
     UploadZone,
-} from './components/UploadZone.tsx'
+} from './components/UploadZone/mod.tsx'
 export type {
     InputFileProps,
     SingleImageUploadProps,
     UploadFileListProps,
     UploadFilePreviewProps,
     UploadZoneProps,
-} from './components/UploadZone.tsx'
-export { Separator } from './components/Separator.tsx'
-export type { SeparatorProps } from './components/Separator.tsx'
+} from './components/UploadZone/mod.tsx'
+export { Separator } from './components/Separator/mod.tsx'
+export type { SeparatorProps } from './components/Separator/mod.tsx'
 export {
     Skeleton,
     SkeletonAvatar,
     SkeletonCard,
     SkeletonText,
-} from './components/Skeleton.tsx'
-export type { SkeletonProps, SkeletonVariant } from './components/Skeleton.tsx'
-export { Spinner } from './components/Spinner.tsx'
-export type { SpinnerProps } from './components/Spinner.tsx'
-export { Newsletter, NewsletterSection } from './components/Newsletter.tsx'
+} from './components/Skeleton/mod.tsx'
+export type {
+    SkeletonProps,
+    SkeletonVariant,
+} from './components/Skeleton/mod.tsx'
+export { Spinner } from './components/Spinner/mod.tsx'
+export type { SpinnerProps } from './components/Spinner/mod.tsx'
+export { Newsletter, NewsletterSection } from './components/Newsletter/mod.tsx'
 export type {
     NewsletterProps,
     NewsletterSectionProps,
-} from './components/Newsletter.tsx'
+} from './components/Newsletter/mod.tsx'
 export {
     Hero,
     HeroActions,
@@ -139,7 +142,7 @@ export {
     HeroSeparator,
     HeroSubtitle,
     HeroTitle,
-} from './components/Hero.tsx'
+} from './components/Hero/mod.tsx'
 export type {
     HeroActionsProps,
     HeroAnnouncementProps,
@@ -152,7 +155,7 @@ export type {
     HeroProps,
     HeroSubtitleProps,
     HeroTitleProps,
-} from './components/Hero.tsx'
+} from './components/Hero/mod.tsx'
 export {
     Gallery,
     GalleryGrid,
@@ -164,7 +167,7 @@ export {
     GalleryLightboxScript,
     GalleryMasonry,
     GalleryMasonryColumn,
-} from './components/Gallery.tsx'
+} from './components/Gallery/mod.tsx'
 export type {
     GalleryGridProps,
     GalleryImageProps,
@@ -179,24 +182,29 @@ export type {
     GalleryMasonryColumnProps,
     GalleryMasonryProps,
     GalleryProps,
-} from './components/Gallery.tsx'
-export { Alert, AlertDescription, AlertTitle } from './components/Alert.tsx'
-export { Kbd } from './components/Kbd.tsx'
+} from './components/Gallery/mod.tsx'
+export { Alert, AlertDescription, AlertTitle } from './components/Alert/mod.tsx'
+export { Kbd } from './components/Kbd/mod.tsx'
 
 // Code Components
 export {
     CodeBlock,
     Command,
     CommandBlock,
+    getAvailableThemes,
+    getThemeStyles,
+    HighlightedCodeBlock,
     InlineCode,
-} from './components/CodeBlock.tsx'
+} from './components/CodeBlock/mod.tsx'
+export { SyntaxHighlightingStyles } from './components/CodeBlock/styles.tsx'
+export type { ThemeName } from './components/CodeBlock/mod.tsx'
 
 // Copy Components
-export { CopyButton, CopyLink } from './components/CopyButton.tsx'
+export { CopyButton, CopyLink } from './components/CopyButton/mod.tsx'
 export type {
     CopyButtonProps,
     CopyLinkProps,
-} from './components/CopyButton.tsx'
+} from './components/CopyButton/mod.tsx'
 
 // Modal Components
 export {
@@ -210,7 +218,7 @@ export {
     ModalHeader,
     ModalTitle,
     ModalTrigger,
-} from './components/Modal.tsx'
+} from './components/Modal/mod.tsx'
 
 // Navigation Components
 export {
@@ -220,7 +228,7 @@ export {
     BreadcrumbList,
     BreadcrumbPage,
     BreadcrumbSeparator,
-} from './components/Breadcrumb.tsx'
+} from './components/Breadcrumb/mod.tsx'
 export {
     Pagination,
     PaginationContent,
@@ -229,13 +237,18 @@ export {
     PaginationNext,
     PaginationPrevious,
     SimplePagination,
-} from './components/Pagination.tsx'
+} from './components/Pagination/mod.tsx'
 export type {
     PaginationItemProps,
     PaginationProps,
     SimplePaginationProps,
-} from './components/Pagination.tsx'
-export { Tabs, TabsContent, TabsList, TabsTrigger } from './components/Tabs.tsx'
+} from './components/Pagination/mod.tsx'
+export {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from './components/Tabs/mod.tsx'
 
 // Layout Components
 export {
@@ -243,7 +256,7 @@ export {
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
-} from './components/Accordion.tsx'
+} from './components/Accordion/mod.tsx'
 
 export {
     Sidebar,
@@ -267,7 +280,7 @@ export {
     SidebarProvider,
     SidebarRail,
     SidebarTrigger,
-} from './components/Sidebar.tsx'
+} from './components/Sidebar/mod.tsx'
 
 export {
     TreeView,
@@ -277,7 +290,7 @@ export {
     TreeViewLabel,
     TreeViewScript,
     TreeViewTrigger,
-} from './components/TreeView.tsx'
+} from './components/TreeView/mod.tsx'
 export type {
     TreeViewContentProps,
     TreeViewDataItem,
@@ -286,41 +299,41 @@ export type {
     TreeViewLabelProps,
     TreeViewProps,
     TreeViewTriggerProps,
-} from './components/TreeView.tsx'
+} from './components/TreeView/mod.tsx'
 
 // Landing Page Components
-export { FeatureCard } from './components/FeatureCard.tsx'
-export type { FeatureCardProps } from './components/FeatureCard.tsx'
+export { FeatureCard } from './components/FeatureCard/mod.tsx'
+export type { FeatureCardProps } from './components/FeatureCard/mod.tsx'
 export {
     Section,
     SectionContent,
     SectionDescription,
     SectionHeader,
     SectionTitle,
-} from './components/Section.tsx'
+} from './components/Section/mod.tsx'
 export type {
     SectionContentProps,
     SectionDescriptionProps,
     SectionHeaderProps,
     SectionProps,
     SectionTitleProps,
-} from './components/Section.tsx'
+} from './components/Section/mod.tsx'
 export {
     Footer,
     FooterLink,
     FooterSection,
     FooterSectionItem,
-} from './components/Footer.tsx'
+} from './components/Footer/mod.tsx'
 export type {
     FooterLinkProps,
     FooterProps,
     FooterSectionItemProps,
     FooterSectionProps,
-} from './components/Footer.tsx'
+} from './components/Footer/mod.tsx'
 
 // Typography Components
-export { Title } from './components/Title.tsx'
-export type { TitleProps } from './components/Title.tsx'
+export { Title } from './components/Title/mod.tsx'
+export type { TitleProps } from './components/Title/mod.tsx'
 
 // Table Components
 export {
@@ -333,7 +346,7 @@ export {
     TableHead,
     TableHeader,
     TableRow,
-} from './components/Table.tsx'
+} from './components/Table/mod.tsx'
 export type {
     TableBodyProps,
     TableCaptionProps,
@@ -344,11 +357,14 @@ export type {
     TableHeadProps,
     TableProps,
     TableRowProps,
-} from './components/Table.tsx'
+} from './components/Table/mod.tsx'
 
 // Theme Components
-export { ThemeSwitch, ThemeSwitchScript } from './components/ThemeSwitch.tsx'
-export type { ThemeSwitchProps } from './components/ThemeSwitch.tsx'
+export {
+    ThemeSwitch,
+    ThemeSwitchScript,
+} from './components/ThemeSwitch/mod.tsx'
+export type { ThemeSwitchProps } from './components/ThemeSwitch/mod.tsx'
 
 // Pricing Components
 export {
@@ -362,7 +378,7 @@ export {
     PricingComparison,
     PricingSection,
     PricingToggle,
-} from './components/Pricing.tsx'
+} from './components/Pricing/mod.tsx'
 export type {
     BillingPeriod,
     BillingPeriodSelection,
@@ -378,7 +394,7 @@ export type {
     PricingComparisonProps,
     PricingSectionProps,
     PricingToggleProps,
-} from './components/Pricing.tsx'
+} from './components/Pricing/mod.tsx'
 
 // Icons
 export * from './icons.tsx'
@@ -394,4 +410,4 @@ export {
     type SearchBarProps,
     type SearchBarSize,
     type SearchBarVariant,
-} from './components/SearchBar.tsx'
+} from './components/SearchBar/mod.tsx'

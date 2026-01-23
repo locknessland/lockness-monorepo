@@ -13,8 +13,8 @@ export class UserSeeder {
         console.log('🌱 Running UserSeeder...')
 
         await this.database.db.insert(users).values([
-            { email: 'admin@lockness.dev' },
-            { email: 'user@lockness.dev' },
+            { email: 'admin@lockness.land' },
+            { email: 'user@lockness.land' },
         ]).onConflictDoNothing()
 
         console.log('✅ UserSeeder completed')

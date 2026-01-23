@@ -15,6 +15,8 @@ import {
     RobotIcon,
     RocketIcon,
     RootLayout,
+    Separator,
+    ShieldIcon,
     Sidebar,
     SidebarContent,
     SidebarGroup,
@@ -43,7 +45,7 @@ const LlmLinks = (props: { llmPath?: string }) => {
                 LLM DOCS:
             </span>
             <Button
-                href={`/llms/${props.llmPath}.txt`}
+                href={`/docs/llms/${props.llmPath}.txt`}
                 target='_blank'
                 variant='outline'
                 size='sm'
@@ -54,7 +56,7 @@ const LlmLinks = (props: { llmPath?: string }) => {
                 <span class='font-pixel text-[9px]'>VIEW</span>
             </Button>
             <CopyLink
-                path={`/llms/${props.llmPath}.txt`}
+                path={`/docs/llms/${props.llmPath}.txt`}
                 variant='outline'
                 size='sm'
                 showLabel
@@ -170,6 +172,8 @@ const navSections: readonly NavSection[] = [
         links: [
             { title: 'Installation', name: 'installation' },
             { title: 'Introduction', name: 'getting-started' },
+            { title: 'Architecture', name: 'architecture' },
+            { title: 'Packages', name: 'packages' },
         ],
     },
     {
@@ -182,7 +186,9 @@ const navSections: readonly NavSection[] = [
                 name: 'dependency-injection',
             },
             { title: 'Middleware', name: 'middleware' },
+            { title: 'Error Handling', name: 'error-handling' },
             { title: 'Validation', name: 'validation' },
+            { title: 'Events', name: 'events' },
         ],
     },
     {
@@ -190,7 +196,19 @@ const navSections: readonly NavSection[] = [
         icon: DatabaseIcon,
         links: [
             { title: 'Models & Database', name: 'models' },
+            { title: 'Drizzle ORM', name: 'drizzle' },
             { title: 'Session Management', name: 'sessions' },
+            { title: 'Caching', name: 'caching' },
+            { title: 'Storage', name: 'storage' },
+        ],
+    },
+    {
+        title: 'Authentication',
+        icon: ShieldIcon,
+        links: [
+            { title: 'Authentication', name: 'authentication' },
+            { title: 'Auth Providers', name: 'auth-provider' },
+            { title: 'Social Auth', name: 'socialite' },
         ],
     },
     {
@@ -201,6 +219,8 @@ const navSections: readonly NavSection[] = [
             { title: 'Deprecation Contracts', name: 'deprecation' },
             { title: 'CLI Engine', name: 'cli' },
             { title: 'Nessy CLI', name: 'nessy' },
+            { title: 'Logging', name: 'logging' },
+            { title: 'Testing', name: 'testing' },
         ],
     },
     {
@@ -209,8 +229,20 @@ const navSections: readonly NavSection[] = [
         links: [
             { title: 'View Components', name: 'components' },
             { title: 'UI Components', name: 'ui' },
-            { title: 'Table Component', name: 'table' },
-            { title: 'Package Management', name: 'packages' },
+            { title: 'Hono Integration', name: 'hono' },
+            { title: 'Mail', name: 'mail' },
+            { title: 'Queues', name: 'queues' },
+            { title: 'OpenAPI', name: 'openapi' },
+            { title: 'SSE', name: 'sse' },
+            { title: 'Inertia', name: 'inertia' },
+        ],
+    },
+    {
+        title: 'Deployment',
+        icon: RocketIcon,
+        links: [
+            { title: 'Deployment Guide', name: 'deployment' },
+            { title: 'Upgrade Guide', name: 'upgrade' },
         ],
     },
     {
@@ -232,41 +264,39 @@ const DocsSidebar = () => {
                 </span>
             </SidebarHeader>
             <SidebarContent>
-                {navSections.map((section) => (
-                    <SidebarGroup key={section.title}>
-                        <SidebarGroupLabel>
-                            <section.icon
-                                size={14}
-                                class='mr-2 text-sidebar-foreground/70'
-                            />
-                            {section.title}
-                        </SidebarGroupLabel>
-                        <SidebarGroupContent>
-                            <SidebarMenu>
-                                {section.links.map((link) => {
-                                    // Use dynamic route with slug parameter for most docs
-                                    // Special pages (table, packages) use their dedicated routes
-                                    const href = link.name === 'table' ||
-                                            link.name === 'packages'
-                                        ? route(`docs.${link.name}`)
-                                        : route('docs.page', {
+                {navSections.map((section, index) => (
+                    <>
+                        {index > 0 && <Separator class='mx-2 w-auto' />}
+                        <SidebarGroup key={section.title}>
+                            <SidebarGroupLabel>
+                                <section.icon
+                                    size={14}
+                                    class='mr-2 text-sidebar-foreground/70'
+                                />
+                                {section.title}
+                            </SidebarGroupLabel>
+                            <SidebarGroupContent>
+                                <SidebarMenu>
+                                    {section.links.map((link) => {
+                                        const href = route('docs.page', {
                                             slug: link.name,
                                         })
-                                    return (
-                                        <SidebarMenuItem key={link.name}>
-                                            <SidebarMenuButton
-                                                href={href}
-                                                up-preload
-                                                up-transition='move-left'
-                                            >
-                                                {link.title}
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
-                                    )
-                                })}
-                            </SidebarMenu>
-                        </SidebarGroupContent>
-                    </SidebarGroup>
+                                        return (
+                                            <SidebarMenuItem key={link.name}>
+                                                <SidebarMenuButton
+                                                    href={href}
+                                                    up-preload
+                                                    up-transition='move-left'
+                                                >
+                                                    {link.title}
+                                                </SidebarMenuButton>
+                                            </SidebarMenuItem>
+                                        )
+                                    })}
+                                </SidebarMenu>
+                            </SidebarGroupContent>
+                        </SidebarGroup>
+                    </>
                 ))}
             </SidebarContent>
         </Sidebar>

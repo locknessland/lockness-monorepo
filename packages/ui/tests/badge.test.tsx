@@ -1,5 +1,5 @@
 import { assertStringIncludes } from '@std/assert'
-import { Badge } from '../components/Badge.tsx'
+import { Badge } from '../components/Badge/mod.tsx'
 
 /**
  * Helper to render a component to string

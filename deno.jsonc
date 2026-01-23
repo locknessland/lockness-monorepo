@@ -26,7 +26,8 @@
         "./packages/deprecation-contracts",
         "./packages/devtools",
         "./packages/upgrade",
-        "./packages/ui"
+        "./packages/ui",
+        "./packages/markdown"
     ],
     "nodeModulesDir": "auto",
     "tasks": {
@@ -37,8 +38,8 @@
         "cli": "deno run -A --env cli.ts",
         "css:build": "deno run -A @tailwindcss/cli -i app/view/assets/app.css -o public/css/app.css",
         "css:watch": "deno run -A @tailwindcss/cli -i app/view/assets/app.css -o public/css/app.css --watch",
-        "test": "deno test -A packages/",
-        "test:watch": "deno test -A --watch packages/",
+        "test": "deno test -A",
+        "test:watch": "deno test -A --watch",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage packages/ && deno coverage coverage --lcov > coverage/lcov.info && rm -f coverage/*.json",
         "routes:generate": "deno run -A scripts/generate_routes.ts",
         "routes:watch": "deno run -A scripts/watch_routes.ts",

@@ -1,5 +1,9 @@
 import { assertStringIncludes } from '@std/assert'
-import { Alert, AlertDescription, AlertTitle } from '../components/Alert.tsx'
+import {
+    Alert,
+    AlertDescription,
+    AlertTitle,
+} from '../components/Alert/mod.tsx'
 
 /**
  * Helper to render a component to string
@@ -28,8 +32,8 @@ Deno.test('Alert component', async (t) => {
                 <AlertTitle>Info</AlertTitle>
             </Alert>,
         )
-        assertStringIncludes(html, 'bg-(--background)')
-        assertStringIncludes(html, 'border-(--border)')
+        assertStringIncludes(html, 'bg-(--alert-default-bg)')
+        assertStringIncludes(html, 'border-(--alert-default-border)')
     })
 
     await t.step('renders destructive variant', () => {
@@ -38,8 +42,38 @@ Deno.test('Alert component', async (t) => {
                 <AlertTitle>Error</AlertTitle>
             </Alert>,
         )
-        assertStringIncludes(html, 'text-(--destructive)')
-        assertStringIncludes(html, 'border-(--destructive)')
+        assertStringIncludes(html, 'text-(--alert-destructive-fg)')
+        assertStringIncludes(html, 'border-(--alert-destructive-border)')
+    })
+
+    await t.step('renders success variant', () => {
+        const html = renderToString(
+            <Alert variant='success'>
+                <AlertTitle>Success</AlertTitle>
+            </Alert>,
+        )
+        assertStringIncludes(html, 'bg-(--alert-success-bg)')
+        assertStringIncludes(html, 'border-(--alert-success-border)')
+    })
+
+    await t.step('renders warning variant', () => {
+        const html = renderToString(
+            <Alert variant='warning'>
+                <AlertTitle>Warning</AlertTitle>
+            </Alert>,
+        )
+        assertStringIncludes(html, 'bg-(--alert-warning-bg)')
+        assertStringIncludes(html, 'border-(--alert-warning-border)')
+    })
+
+    await t.step('renders with icon when showIcon is true', () => {
+        const html = renderToString(
+            <Alert variant='success' showIcon>
+                <AlertTitle>Success</AlertTitle>
+            </Alert>,
+        )
+        assertStringIncludes(html, '<svg')
+        assertStringIncludes(html, 'text-(--alert-icon-color)')
     })
 
     await t.step('forwards custom class names', () => {

@@ -40,7 +40,7 @@ export const ThemeCustomizer = () => {
             {/* Customizer Panel */}
             <div
                 id={customizerId}
-                class='hidden fixed bottom-4 left-4 z-[100] w-80 max-h-[80vh] overflow-y-auto'
+                class='hidden fixed bottom-4 left-4 z100 w-80 max-h-[80vh] overflow-y-auto'
             >
                 <Card class='shadow-xl border-2'>
                     <CardContent class='p-4 space-y-4'>

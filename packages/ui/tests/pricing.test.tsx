@@ -10,7 +10,7 @@ import {
     PricingComparison,
     PricingSection,
     PricingToggle,
-} from '../components/Pricing.tsx'
+} from '../components/Pricing/mod.tsx'
 
 /**
  * Helper to render a component to string

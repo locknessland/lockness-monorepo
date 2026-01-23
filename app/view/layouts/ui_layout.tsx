@@ -1,10 +1,13 @@
 import { route } from '@lockness/core'
 import {
+    Button,
+    CopyLink,
     GithubIcon,
     Navbar,
     NavbarBrand,
     NavbarContent,
     NavbarMenuItem,
+    RobotIcon,
     RootLayout,
     SidebarInset,
     SidebarProvider,
@@ -17,15 +20,49 @@ import {
 import { UiSidebar } from '../components/ui-sidebar.tsx'
 import { ThemeCustomizerScript } from '../components/theme-customizer.tsx'
 
+const LlmLinks = (props: { llmSlug?: string }) => {
+    if (!props.llmSlug) return null
+
+    return (
+        <div class='flex items-center gap-2'>
+            <span class='text-muted-foreground font-pixel text-[10px] hidden sm:inline'>
+                LLM DOCS:
+            </span>
+            <Button
+                href={`/ui/llms/${props.llmSlug}.txt`}
+                target='_blank'
+                variant='outline'
+                size='sm'
+                class='gap-1.5 h-8'
+                title='View LLM-optimized documentation'
+            >
+                <RobotIcon size={14} />
+                <span class='font-pixel text-[9px]'>VIEW</span>
+            </Button>
+            <CopyLink
+                path={`/ui/llms/${props.llmSlug}.txt`}
+                variant='outline'
+                size='sm'
+                showLabel
+                label='COPY'
+                copiedLabel='COPIED!'
+                class='gap-1.5 h-8'
+            />
+        </div>
+    )
+}
+
 interface PageUiLayoutProps {
     title: string
     children: any
     /** Remove default padding from main content area */
     noPadding?: boolean
+    /** LLM slug for documentation link (e.g., 'button', 'card') */
+    llmSlug?: string
 }
 
 export const PageUiLayout = (
-    { title, children, noPadding = false }: PageUiLayoutProps,
+    { title, children, noPadding = false, llmSlug }: PageUiLayoutProps,
 ) => {
     return (
         <RootLayout
@@ -86,9 +123,12 @@ export const PageUiLayout = (
                     >
                         {/* SEO H1 Title - only when padding is applied (no custom hero) */}
                         {!noPadding && (
-                            <Title level={1} class='mb-6'>
-                                {title}
-                            </Title>
+                            <div class='flex items-center justify-between gap-4 mb-6 pb-4 border-b-2 border-border/50'>
+                                <Title level={1} class='mb-0'>
+                                    {title}
+                                </Title>
+                                <LlmLinks llmSlug={llmSlug} />
+                            </div>
                         )}
                         {children}
                     </main>

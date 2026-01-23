@@ -6,7 +6,7 @@ import {
     CardFooter,
     CardHeader,
     CardTitle,
-} from '../components/Card.tsx'
+} from '../components/Card/mod.tsx'
 
 /**
  * Helper to render a component to string

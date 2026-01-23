@@ -100,7 +100,7 @@ export const TablePage = () => {
                             </TableCaption>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead class='w-[100px]'>
+                                    <TableHead class='w-25'>
                                         Invoice
                                     </TableHead>
                                     <TableHead>Status</TableHead>
@@ -143,7 +143,7 @@ export const TablePage = () => {
   <TableCaption>A list of your recent invoices.</TableCaption>
   <TableHeader>
     <TableRow>
-      <TableHead class="w-[100px]">Invoice</TableHead>
+      <TableHead class="w-25">Invoice</TableHead>
       <TableHead>Status</TableHead>
       <TableHead>Method</TableHead>
       <TableHead class="text-right">Amount</TableHead>

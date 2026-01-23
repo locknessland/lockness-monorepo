@@ -2,9 +2,11 @@
  * Package Structure Validation Tests
  *
  * Ensures all packages in the Lockness monorepo follow the standard structure:
- * - llms.txt: LLM documentation (llmstxt.org convention)
  * - README.md: Package documentation
  * - mod.ts: Package entry point
+ *
+ * Note: llms.txt is no longer a required static file - packages now use
+ * dynamic LLM generation from docs/DOCS.md files served via DocsLoader.
  *
  * These tests run in CI to catch missing files when new packages are added
  * or when package structure changes.
@@ -18,10 +20,6 @@ import { join } from '@std/path'
  * Required files for each package
  */
 const REQUIRED_FILES = {
-    'llms.txt': {
-        description: 'LLM documentation file (llmstxt.org convention)',
-        minLength: 100,
-    },
     'README.md': {
         description: 'Package documentation',
         minLength: 50,
@@ -53,6 +51,7 @@ const PACKAGES: string[] = [
     'init',
     'logger',
     'mail',
+    'markdown',
     'openapi',
     'queue',
     'session',
@@ -67,34 +66,18 @@ const PACKAGES: string[] = [
 /**
  * Packages exempted from certain file requirements
  * Key: package name, Value: array of files to exempt
+ *
+ * Note: llms.txt is no longer a required static file - packages now use
+ * dynamic LLM generation from docs/DOCS.md files served via DocsLoader.
  */
 const EXEMPTIONS: Record<string, RequiredFile[]> = {
-    // No exemptions - all packages including hono should have llms.txt
-    // hono is an internal infrastructure package that bridges Hono dependency management
+    // ui package mod.ts is a CLI entry point, not a module with exports
+    ui: ['mod.ts'],
 }
 
 // =============================================================================
 // Test: All packages should have required files
 // =============================================================================
-
-Deno.test('Package Structure - all packages should have llms.txt', async (t) => {
-    const missing: string[] = []
-
-    for (const pkg of PACKAGES) {
-        if (EXEMPTIONS[pkg]?.includes('llms.txt')) continue
-
-        await t.step(`checking ${pkg}/llms.txt`, async () => {
-            const filePath = join('packages', pkg, 'llms.txt')
-            const hasFile = await exists(filePath)
-
-            if (!hasFile) missing.push(pkg)
-
-            assert(hasFile, `Package "${pkg}" is missing llms.txt`)
-        })
-    }
-
-    assertEquals(missing.length, 0, `Missing llms.txt: ${missing.join(', ')}`)
-})
 
 Deno.test('Package Structure - all packages should have README.md', async (t) => {
     const missing: string[] = []
@@ -122,12 +105,14 @@ Deno.test('Package Structure - all packages should have mod.ts', async (t) => {
         if (EXEMPTIONS[pkg]?.includes('mod.ts')) continue
 
         await t.step(`checking ${pkg}/mod.ts`, async () => {
-            const filePath = join('packages', pkg, 'mod.ts')
-            const hasFile = await exists(filePath)
+            // Check for either mod.ts or mod.tsx (JSX packages)
+            const tsPath = join('packages', pkg, 'mod.ts')
+            const tsxPath = join('packages', pkg, 'mod.tsx')
+            const hasFile = await exists(tsPath) || await exists(tsxPath)
 
             if (!hasFile) missing.push(pkg)
 
-            assert(hasFile, `Package "${pkg}" is missing mod.ts`)
+            assert(hasFile, `Package "${pkg}" is missing mod.ts or mod.tsx`)
         })
     }
 
@@ -138,31 +123,8 @@ Deno.test('Package Structure - all packages should have mod.ts', async (t) => {
 // Test: Files should not be empty
 // =============================================================================
 
-Deno.test('Package Structure - llms.txt files should not be empty', async (t) => {
-    const tooShort: string[] = []
-
-    for (const pkg of PACKAGES) {
-        if (EXEMPTIONS[pkg]?.includes('llms.txt')) continue
-
-        await t.step(`checking ${pkg}/llms.txt content`, async () => {
-            const filePath = join('packages', pkg, 'llms.txt')
-
-            if (await exists(filePath)) {
-                const content = await Deno.readTextFile(filePath)
-                const minLength = REQUIRED_FILES['llms.txt'].minLength
-
-                if (content.trim().length < minLength) {
-                    tooShort.push(pkg)
-                }
-
-                assert(
-                    content.trim().length >= minLength,
-                    `Package "${pkg}" llms.txt is too short (${content.trim().length} chars, min ${minLength})`,
-                )
-            }
-        })
-    }
-})
+// Note: llms.txt tests removed - packages now use dynamic LLM generation
+// from docs/DOCS.md files served via DocsLoader at /llms/{slug}.txt
 
 Deno.test('Package Structure - README.md files should not be empty', async (t) => {
     for (const pkg of PACKAGES) {
@@ -237,12 +199,11 @@ Deno.test('Package Structure - detect unconfigured packages', async () => {
 Deno.test('Package Structure - generate summary report', async () => {
     const report: Record<
         string,
-        { llm: boolean; readme: boolean; mod: boolean }
+        { readme: boolean; mod: boolean }
     > = {}
 
     for (const pkg of PACKAGES) {
         report[pkg] = {
-            llm: await exists(join('packages', pkg, 'llms.txt')),
             readme: await exists(join('packages', pkg, 'README.md')),
             mod: await exists(join('packages', pkg, 'mod.ts')),
         }
@@ -256,9 +217,8 @@ Deno.test('Package Structure - generate summary report', async () => {
     const incomplete: string[] = []
 
     for (const [pkg, status] of Object.entries(report)) {
-        const isComplete = status.llm && status.readme && status.mod
+        const isComplete = status.readme && status.mod
         const icons = [
-            status.llm ? '✓' : '✗',
             status.readme ? '✓' : '✗',
             status.mod ? '✓' : '✗',
         ]
@@ -267,9 +227,7 @@ Deno.test('Package Structure - generate summary report', async () => {
             complete.push(pkg)
         } else {
             incomplete.push(pkg)
-            console.log(
-                `  ${pkg}: llm=${icons[0]} readme=${icons[1]} mod=${icons[2]}`,
-            )
+            console.log(`  ${pkg}: readme=${icons[0]} mod=${icons[1]}`)
         }
     }
 

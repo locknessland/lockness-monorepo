@@ -7,7 +7,7 @@ import {
     SearchBar,
     SearchBarFilter,
     SearchBarGroup,
-} from '../components/SearchBar.tsx'
+} from '../components/SearchBar/mod.tsx'
 
 // Test 1: Basic SearchBar
 const _basicSearchBar = <SearchBar />

@@ -20,15 +20,15 @@ setup.
 **Setup:**
 
 1. Connect your GitHub repository to Deno Deploy
-2. Configure the project:
-   - **Entry Point**: `main.ts`
-   - **Build Command**: `deno task routes:generate && deno task css:build`
-3. Set environment variables:
-   ```
-   APP_ENV=production
-   APP_PORT=8888
-   DATABASE_URL=postgresql://...
-   ```
+2. Configure the project with **Entry Point**: `main.ts` and **Build Command**:
+   `deno task routes:generate && deno task css:build`
+3. Set environment variables (see below)
+
+```
+APP_ENV=production
+APP_PORT=8888
+DATABASE_URL=postgresql://...
+```
 
 **Important:** Deno Deploy automatically runs your TypeScript code with full
 support for TC39 decorators and all Lockness features.

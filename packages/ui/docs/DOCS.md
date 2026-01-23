@@ -1,4 +1,4 @@
-# UI Components
+# @lockness/ui
 
 `@lockness/ui` provides a collection of pre-built UI components powered by Hono
 JSX, Tailwind CSS, and Unpoly. Inspired by shadcn/ui, components are **copied to
@@ -61,7 +61,7 @@ Or add to `deno.json`:
 ```json
 {
     "imports": {
-        "@lockness/ui": "jsr:@lockness/ui@^0.1.22"
+        "@lockness/ui": "jsr:@lockness/ui@^<version>"
     }
 }
 ```
@@ -74,245 +74,254 @@ import { Button, Card, cn, RootLayout } from '@lockness/ui/components'
 
 ## Available Components
 
-### Button
+For detailed documentation of each component, fetch the corresponding endpoint:
 
-Flexible button with multiple variants and sizes.
+- https://lockness.land/ui/llms/accordion.txt
+- https://lockness.land/ui/llms/alert.txt
+- https://lockness.land/ui/llms/badge.txt
+- https://lockness.land/ui/llms/breadcrumb.txt
+- https://lockness.land/ui/llms/button.txt
+- https://lockness.land/ui/llms/card.txt
+- https://lockness.land/ui/llms/chart.txt
+- https://lockness.land/ui/llms/chart-extras.txt
+- https://lockness.land/ui/llms/checkbox.txt
+- https://lockness.land/ui/llms/circular-progress.txt
+- https://lockness.land/ui/llms/code-block.txt
+- https://lockness.land/ui/llms/copy-button.txt
+- https://lockness.land/ui/llms/feature-card.txt
+- https://lockness.land/ui/llms/footer.txt
+- https://lockness.land/ui/llms/gallery.txt
+- https://lockness.land/ui/llms/gauge-progress.txt
+- https://lockness.land/ui/llms/hero.txt
+- https://lockness.land/ui/llms/input.txt
+- https://lockness.land/ui/llms/kbd.txt
+- https://lockness.land/ui/llms/label.txt
+- https://lockness.land/ui/llms/link.txt
+- https://lockness.land/ui/llms/modal.txt
+- https://lockness.land/ui/llms/navbar.txt
+- https://lockness.land/ui/llms/newsletter.txt
+- https://lockness.land/ui/llms/pagination.txt
+- https://lockness.land/ui/llms/pricing.txt
+- https://lockness.land/ui/llms/progress.txt
+- https://lockness.land/ui/llms/props-table.txt
+- https://lockness.land/ui/llms/root-layout.txt
+- https://lockness.land/ui/llms/search-bar.txt
+- https://lockness.land/ui/llms/section.txt
+- https://lockness.land/ui/llms/separator.txt
+- https://lockness.land/ui/llms/sidebar.txt
+- https://lockness.land/ui/llms/skeleton.txt
+- https://lockness.land/ui/llms/spinner.txt
+- https://lockness.land/ui/llms/stepped-progress.txt
+- https://lockness.land/ui/llms/switch.txt
+- https://lockness.land/ui/llms/table.txt
+- https://lockness.land/ui/llms/tabs.txt
+- https://lockness.land/ui/llms/textarea.txt
+- https://lockness.land/ui/llms/theme-switch.txt
+- https://lockness.land/ui/llms/title.txt
+- https://lockness.land/ui/llms/treeview.txt
+- https://lockness.land/ui/llms/upload-zone.txt
+
+## Icons
+
+`@lockness/ui` includes a comprehensive icon library based on Lucide icons,
+optimized for Hono JSX with consistent sizing and theming support.
+
+### Installation
+
+```bash
+deno run -A jsr:@lockness/ui add icons
+```
+
+### Usage
+
+```tsx
+import { ArrowRightIcon, CheckCircleIcon, GithubIcon } from '@view/icons.tsx'
+
+// Default size (24px)
+<ArrowRightIcon />
+
+// Custom size
+<CheckCircleIcon size={16} />
+
+// With custom class
+<GithubIcon class="text-muted-foreground" />
+
+// Custom stroke width
+<ArrowRightIcon strokeWidth={1.5} />
+```
+
+### IconProps Interface
+
+All icons accept the same props:
+
+| Prop          | Type     | Default | Description                |
+| ------------- | -------- | ------- | -------------------------- |
+| `size`        | `number` | `24`    | Icon width and height (px) |
+| `class`       | `string` | -       | Additional CSS classes     |
+| `strokeWidth` | `number` | `2`     | SVG stroke width           |
+
+### Available Icons
+
+#### Navigation & UI
+
+| Icon               | Description      |
+| ------------------ | ---------------- |
+| `ArrowRightIcon`   | Right arrow      |
+| `ArrowLeftIcon`    | Left arrow       |
+| `ChevronRightIcon` | Chevron right    |
+| `ChevronDownIcon`  | Chevron down     |
+| `MenuIcon`         | Hamburger menu   |
+| `XIcon`            | Close/X          |
+| `ExternalLinkIcon` | External link    |
+| `NavigationIcon`   | Navigation arrow |
+
+#### Status & Feedback
+
+| Icon                | Description                     |
+| ------------------- | ------------------------------- |
+| `CheckIcon`         | Simple checkmark                |
+| `CheckCircleIcon`   | Checkmark in circle (success)   |
+| `XCircleIcon`       | X in circle (error/destructive) |
+| `InfoCircleIcon`    | Info icon in circle             |
+| `AlertTriangleIcon` | Warning triangle                |
+| `LoaderIcon`        | Loading spinner                 |
+
+#### Actions
+
+| Icon         | Description       |
+| ------------ | ----------------- |
+| `CopyIcon`   | Copy to clipboard |
+| `SearchIcon` | Search/magnify    |
+| `UploadIcon` | Upload            |
+| `PlayIcon`   | Play button       |
+
+#### Development
+
+| Icon            | Description    |
+| --------------- | -------------- |
+| `CodeIcon`      | Code brackets  |
+| `TerminalIcon`  | Terminal/CLI   |
+| `DatabaseIcon`  | Database       |
+| `LayersIcon`    | Layers/stack   |
+| `BoxIcon`       | 3D box/package |
+| `GitBranchIcon` | Git branch     |
+
+#### Status Indicators
+
+| Icon           | Description     |
+| -------------- | --------------- |
+| `ZapIcon`      | Lightning/speed |
+| `ShieldIcon`   | Security shield |
+| `ClockIcon`    | Time/clock      |
+| `SparklesIcon` | Sparkles/AI     |
+
+#### Communication
+
+| Icon            | Description  |
+| --------------- | ------------ |
+| `MailIcon`      | Email        |
+| `UsersIcon`     | Group/team   |
+| `UserIcon`      | Single user  |
+| `MegaphoneIcon` | Announcement |
+
+#### Brands
+
+| Icon          | Description |
+| ------------- | ----------- |
+| `GithubIcon`  | GitHub logo |
+| `TwitterIcon` | Twitter/X   |
+| `DiscordIcon` | Discord     |
+
+#### Documents
+
+| Icon        | Description   |
+| ----------- | ------------- |
+| `FileIcon`  | File/document |
+| `BookIcon`  | Book/docs     |
+| `ImageIcon` | Image         |
+
+#### Theme & Settings
+
+| Icon           | Description    |
+| -------------- | -------------- |
+| `SunIcon`      | Light mode     |
+| `MoonIcon`     | Dark mode      |
+| `SettingsIcon` | Settings/cog   |
+| `PaletteIcon`  | Colors/palette |
+
+#### Misc
+
+| Icon             | Description   |
+| ---------------- | ------------- |
+| `RobotIcon`      | Robot/AI      |
+| `RocketIcon`     | Rocket/launch |
+| `PuzzleIcon`     | Puzzle piece  |
+| `WrenchIcon`     | Tools/wrench  |
+| `LayoutGridIcon` | Grid layout   |
+| `FormInputIcon`  | Form input    |
+| `BarChartIcon`   | Bar chart     |
+
+### Creating Custom Icons
+
+Create your own icons following the same pattern:
+
+```tsx
+import type { FC } from '@lockness/core'
+
+interface IconProps {
+    size?: number
+    class?: string
+    strokeWidth?: number
+}
+
+const IconBase: FC<IconProps & { children?: unknown }> = ({
+    size = 24,
+    class: className,
+    strokeWidth = 2,
+    children,
+}) => (
+    <svg
+        xmlns='http://www.w3.org/2000/svg'
+        width={size}
+        height={size}
+        viewBox='0 0 24 24'
+        fill='none'
+        stroke='currentColor'
+        stroke-width={strokeWidth}
+        stroke-linecap='round'
+        stroke-linejoin='round'
+        class={className}
+    >
+        {children}
+    </svg>
+)
+
+export const MyCustomIcon: FC<IconProps> = (props) => (
+    <IconBase {...props}>
+        {/* SVG paths here */}
+        <circle cx='12' cy='12' r='10' />
+    </IconBase>
+)
+```
+
+### Usage with Components
+
+Icons integrate seamlessly with other UI components:
 
 ```tsx
 import { Button } from '@view/components/ui/Button.tsx'
+import { ArrowRightIcon, GithubIcon } from '@view/icons.tsx'
 
-// Variants
-<Button variant="primary">Primary</Button>
-<Button variant="secondary">Secondary</Button>
-<Button variant="outline">Outline</Button>
-<Button variant="ghost">Ghost</Button>
-<Button variant="danger">Delete</Button>
+// Button with icon
+<Button>
+    <GithubIcon size={16} class="mr-2" />
+    View on GitHub
+</Button>
 
-// Sizes
-<Button size="sm">Small</Button>
-<Button size="md">Medium</Button>
-<Button size="lg">Large</Button>
-
-// States
-<Button disabled>Disabled</Button>
-
-// With Unpoly navigation
-<Button up-target=".main" up-href="/users">Load Users</Button>
-
-// Custom styling
-<Button class="w-full" type="submit">Sign In</Button>
-```
-
-**Props:**
-
-- `variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'` (default:
-  'primary')
-- `size?: 'sm' | 'md' | 'lg'` (default: 'md')
-- `disabled?: boolean`
-- `class?: string` - Additional Tailwind classes
-- All standard HTML button attributes
-
-### Card Components
-
-Compound components for content containers.
-
-```tsx
-import {
-    Card,
-    CardHeader,
-    CardTitle,
-    CardDescription,
-    CardContent,
-    CardFooter,
-} from '@view/components/ui/Card.tsx'
-
-<Card>
-    <CardHeader>
-        <CardTitle>User Profile</CardTitle>
-        <CardDescription>Manage your account settings</CardDescription>
-    </CardHeader>
-    <CardContent>
-        <form>
-            <input type="email" name="email" class="w-full p-2 border rounded" />
-            <input type="text" name="username" class="w-full p-2 border rounded" />
-        </form>
-    </CardContent>
-    <CardFooter>
-        <Button type="submit">Save Changes</Button>
-        <Button variant="outline">Cancel</Button>
-    </CardFooter>
-</Card>
-```
-
-**Available Components:**
-
-- `Card` - Main container with border, shadow, and rounded corners
-- `CardHeader` - Header section with bottom spacing
-- `CardTitle` - H3 heading with proper typography
-- `CardDescription` - Muted subtitle text
-- `CardContent` - Main content area with padding
-- `CardFooter` - Footer section with flex layout for actions
-
-All components accept `class` prop and forward HTML attributes.
-
-### RootLayout
-
-Base HTML layout with Unpoly integration.
-
-```tsx
-import { RootLayout } from '@view/components/ui/RootLayout.tsx'
-
-<RootLayout
-    title="My Application"
-    meta={[
-        <meta name="description" content="App description" />,
-        <meta property="og:title" content="My App" />
-    ]}
-    styles={[
-        <link rel="stylesheet" href="/css/app.css" />
-    ]}
-    scripts={[
-        <script src="/js/analytics.js" />
-    ]}
->
-    <div class="container mx-auto">
-        {children}
-    </div>
-</RootLayout>
-```
-
-**Props:**
-
-- `title?: string` - Page title (default: "Lockness App")
-- `meta?: JSX.Element[]` - Additional meta tags
-- `styles?: JSX.Element[]` - Additional stylesheets
-- `scripts?: JSX.Element[]` - Additional scripts
-- `children?: JSX.Element` - Page content
-
-**Features:**
-
-- Includes Unpoly CDN (v3.12.1) for progressive enhancement
-- Proper HTML5 boilerplate structure
-- Responsive viewport settings
-- UTF-8 charset declaration
-
-### Pricing Components
-
-Complete pricing section components for SaaS landing pages.
-
-```bash
-# Install pricing component and all its dependencies
-deno run -A jsr:@lockness/ui add pricing
-```
-
-**This installs 6 files automatically:**
-
-- `components/ui/Pricing.tsx` - Main pricing components
-- `components/ui/Button.tsx` - CTA buttons
-- `components/ui/Card.tsx` - Card containers
-- `components/ui/Badge.tsx` - Promotional badges
-- `lib/utils.ts` - Class name utility
-- `lib/icons.tsx` - Check/X icons for features
-
-```tsx
-import {
-    PricingSection,
-    PricingCard,
-    PricingCardHeader,
-    PricingCardPrice,
-    PricingCardDescription,
-    PricingCardFeatures,
-    PricingCardFeature,
-    PricingCardAction,
-    PricingToggle,
-    PricingComparison,
-} from '@view/components/ui/Pricing.tsx'
-
-// Two-tier layout
-<PricingSection columns={2}>
-    <PricingCard>
-        <PricingCardHeader title="Starter" />
-        <PricingCardPrice price={0} description="Free forever" />
-        <PricingCardDescription>
-            Perfect for individuals and small projects
-        </PricingCardDescription>
-        <PricingCardFeatures>
-            <PricingCardFeature>Up to 3 projects</PricingCardFeature>
-            <PricingCardFeature>1 GB storage</PricingCardFeature>
-            <PricingCardFeature included={false}>Priority support</PricingCardFeature>
-        </PricingCardFeatures>
-        <PricingCardAction href="/signup" variant="outline">
-            Get Started Free
-        </PricingCardAction>
-    </PricingCard>
-
-    <PricingCard featured>
-        <PricingCardHeader title="Pro" badge="Popular" />
-        <PricingCardPrice price={29} period="month" />
-        <PricingCardDescription>
-            For professionals and growing teams
-        </PricingCardDescription>
-        <PricingCardFeatures>
-            <PricingCardFeature>Unlimited projects</PricingCardFeature>
-            <PricingCardFeature>50 GB storage</PricingCardFeature>
-            <PricingCardFeature>Priority support</PricingCardFeature>
-        </PricingCardFeatures>
-        <PricingCardAction href="/signup">
-            Start Free Trial
-        </PricingCardAction>
-    </PricingCard>
-</PricingSection>
-```
-
-**Available Components:**
-
-| Component                | Description                                              |
-| ------------------------ | -------------------------------------------------------- |
-| `PricingSection`         | Grid container (2 or 3 columns)                          |
-| `PricingCard`            | Main card container, supports `featured` prop            |
-| `PricingCardHeader`      | Title with optional `badge`                              |
-| `PricingCardPrice`       | Price display with `currency`, `period`, `originalPrice` |
-| `PricingCardDescription` | Short tier description                                   |
-| `PricingCardFeatures`    | Feature list container                                   |
-| `PricingCardFeature`     | Feature item with check/cross icon                       |
-| `PricingCardAction`      | CTA button (always at bottom)                            |
-| `PricingToggle`          | Monthly/Yearly billing toggle                            |
-| `PricingComparison`      | Feature comparison table                                 |
-
-**Typesafe Props:**
-
-```tsx
-// Currency symbols with autocomplete
-type CurrencySymbol = '$' | '€' | '£' | '¥' | '₹' | '₽' | 'Fr' | 'kr' | 'R$' | string
-
-// Billing periods with autocomplete
-type BillingPeriod = 'month' | 'year' | 'week' | 'day' | 'one-time' | 'lifetime' | string
-
-// Examples
-<PricingCardPrice price={29} currency="€" period="month" />
-<PricingCardPrice price={290} period="year" originalPrice={348} description="Save 17%" />
-<PricingCardPrice price="Custom" description="Contact us for pricing" />
-```
-
-**Feature Comparison Table:**
-
-```tsx
-<PricingComparison
-    tiers={['Free', 'Pro', 'Enterprise']}
-    features={[
-        ['Projects', '3', '10', 'Unlimited'],
-        ['Storage', '1 GB', '10 GB', '100 GB'],
-        ['Support', false, true, true],
-        ['Custom Domain', false, true, true],
-        ['SSO', false, false, true],
-    ]}
-/>
-```
-
-**Billing Toggle:**
-
-```tsx
-<PricingToggle selected='yearly' yearlyBadge='Save 20%' />
+// Icon button
+<Button variant="outline" size="icon">
+    <ArrowRightIcon size={16} />
+</Button>
 ```
 
 ## Utilities
@@ -332,22 +341,10 @@ cn('px-2 py-1', 'bg-blue-500')
 cn('px-2', 'px-4')
 // => 'px-4'
 
-cn('text-red-500', 'text-blue-500')
-// => 'text-blue-500'
-
 // Conditional classes
 cn('text-base', isLarge && 'text-lg')
 cn('text-base', { 'text-lg': isLarge })
-
-// In components
-type Props = { class?: string }
-<Button class={cn('base-styles', props.class)}>Text</Button>
 ```
-
-**Uses:**
-
-- `clsx` for conditional class merging
-- `tailwind-merge` for Tailwind-specific conflict resolution
 
 **Add to deno.json:**
 
@@ -357,305 +354,6 @@ type Props = { class?: string }
         "clsx": "npm:clsx@2.1.1",
         "tailwind-merge": "npm:tailwind-merge@2.6.0"
     }
-}
-```
-
-## Theme Components
-
-### ThemeSwitch
-
-A versatile theme switcher with multiple visual styles and native JavaScript
-logic.
-
-```tsx
-import { ThemeSwitch, ThemeSwitchScript } from '@view/components/ui/ThemeSwitch.tsx'
-
-// Basic usage (classic style)
-<ThemeSwitch />
-
-// Single button toggle
-<ThemeSwitch variant="toggle" />
-
-// Checkbox-style switch
-<ThemeSwitch variant="switch" />
-```
-
-**Props:**
-
-- `variant?: 'classic' | 'toggle' | 'switch'` (default: 'classic')
-- `size?: 'sm' | 'md' | 'lg'` (default: 'md')
-- `class?: string` - Additional Tailwind classes
-
-**Note:** Add `<ThemeSwitchScript />` to your `RootLayout` to initialize the
-theme and keep components synchronized.
-
-## Unpoly Integration
-
-All components support Unpoly directives for SPA-like navigation without heavy
-client-side hydration.
-
-### Navigation
-
-```tsx
-// Replace target element
-<a up-target=".main" up-href="/users">Load Users</a>
-
-// Navigate entire page
-<a up-follow up-href="/dashboard">Dashboard</a>
-
-// Preload on hover
-<a up-preload up-href="/profile">Profile</a>
-```
-
-### Layers (Modals/Overlays)
-
-```tsx
-// Open modal
-<a up-layer="new modal" up-href="/user/new">New User</a>
-
-// Open drawer
-<a up-layer="new drawer" up-href="/settings">Settings</a>
-
-// Close layer
-<Button up-dismiss>Close</Button>
-```
-
-### Forms
-
-```tsx
-// AJAX form submission
-<form up-submit up-target=".result">
-    <input type="text" name="query" />
-    <Button type="submit">Search</Button>
-</form>
-
-// Validate before submit
-<form up-submit up-validate>
-    <input type="email" name="email" required />
-    <Button type="submit">Subscribe</Button>
-</form>
-```
-
-### Transitions
-
-```tsx
-// Custom transition
-<a up-target=".content" up-transition="cross-fade">Fade In</a>
-
-// Animation duration
-<a up-target=".content" up-duration="300">Quick</a>
-```
-
-Learn more: [unpoly.com](https://unpoly.com)
-
-## Usage Examples
-
-### Basic Page with UI Components
-
-```tsx
-import { Controller, Get } from '@lockness/core'
-import type { Context } from '@lockness/core'
-import { Button } from '@view/components/ui/Button.tsx'
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from '@view/components/ui/Card.tsx'
-import { RootLayout } from '@view/components/ui/RootLayout.tsx'
-
-@Controller('/')
-export class HomeController {
-    @Get('/')
-    index(c: Context) {
-        return c.html(
-            <RootLayout title='Welcome'>
-                <div class='container mx-auto p-8'>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Welcome to Lockness</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <p class='mb-4'>Get started building your app</p>
-                            <Button variant='primary'>Get Started</Button>
-                        </CardContent>
-                    </Card>
-                </div>
-            </RootLayout>,
-        )
-    }
-}
-```
-
-### Interactive List with Unpoly
-
-```tsx
-@Controller('/users')
-export class UserController {
-    @Get('/')
-    list(c: Context) {
-        return c.html(
-            <RootLayout title='Users'>
-                <div class='container mx-auto p-8'>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Users</CardTitle>
-                        </CardHeader>
-                        <CardContent class='main'>
-                            <div class='space-y-2'>
-                                <Button
-                                    up-target='.main'
-                                    up-href='/users/active'
-                                    variant='outline'
-                                >
-                                    Active Users
-                                </Button>
-                                <Button
-                                    up-target='.main'
-                                    up-href='/users/inactive'
-                                    variant='outline'
-                                >
-                                    Inactive Users
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-            </RootLayout>,
-        )
-    }
-
-    @Get('/active')
-    active(c: Context) {
-        // Return just the content that replaces .main
-        return c.html(
-            <div class='main'>
-                <h3 class='text-lg font-semibold mb-2'>Active Users</h3>
-                <ul class='space-y-1'>
-                    <li>John Doe</li>
-                    <li>Jane Smith</li>
-                </ul>
-            </div>,
-        )
-    }
-}
-```
-
-### Form with Validation
-
-```tsx
-@Controller('/contact')
-export class ContactController {
-    @Get('/')
-    form(c: Context) {
-        return c.html(
-            <RootLayout title='Contact'>
-                <div class='container mx-auto p-8 max-w-md'>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Contact Us</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <form
-                                up-submit
-                                up-target='.result'
-                                class='space-y-4'
-                            >
-                                <input
-                                    type='email'
-                                    name='email'
-                                    placeholder='Email'
-                                    required
-                                    class='w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500'
-                                />
-                                <textarea
-                                    name='message'
-                                    placeholder='Message'
-                                    required
-                                    rows={4}
-                                    class='w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500'
-                                />
-                                <div class='result' />
-                                <Button type='submit' class='w-full'>
-                                    Send Message
-                                </Button>
-                            </form>
-                        </CardContent>
-                    </Card>
-                </div>
-            </RootLayout>,
-        )
-    }
-
-    @Post('/')
-    async submit(c: Context) {
-        const { email, message } = await c.req.parseBody()
-
-        // Process form...
-
-        // Return result that replaces .result
-        return c.html(
-            <div class='result p-4 bg-green-50 border border-green-200 text-green-800 rounded'>
-                Message sent successfully!
-            </div>,
-        )
-    }
-}
-```
-
-## Customization
-
-All components are designed to be easily customized since they live in your
-project.
-
-### Extending Components
-
-```tsx
-// Create custom variant by extending Button
-import { Button as BaseButton } from '@view/components/ui/Button.tsx'
-import type { ButtonProps } from '@view/components/ui/Button.tsx'
-
-export const PrimaryButton = (props: Omit<ButtonProps, 'variant'>) => {
-    return (
-        <BaseButton
-            {...props}
-            variant='primary'
-            class={cn('min-w-32', props.class)}
-        />
-    )
-}
-
-// Create icon button variant
-export const IconButton = (props: ButtonProps & { icon: string }) => {
-    return (
-        <BaseButton
-            {...props}
-            class={cn('flex items-center gap-2', props.class)}
-        >
-            <span>{props.icon}</span>
-            {props.children}
-        </BaseButton>
-    )
-}
-```
-
-### Modifying Styles
-
-Since components are in your project, modify them directly:
-
-```tsx
-// Edit app/view/components/ui/Button.tsx
-export const Button = (
-    { variant = 'primary', size = 'md', ...props }: ButtonProps,
-) => {
-    const variants = {
-        primary: 'bg-purple-600 hover:bg-purple-700 text-white', // Changed from blue
-        secondary: 'bg-gray-600 hover:bg-gray-700 text-white',
-        // ... add your own variants
-        brand: 'bg-gradient-to-r from-pink-500 to-purple-500 text-white',
-    }
-
-    // ... rest of component
 }
 ```
 
@@ -682,10 +380,10 @@ deno run -A jsr:@lockness/ui add pricing
 | `button`    | utils                             |
 | `card`      | utils                             |
 | `badge`     | utils                             |
+| `alert`     | utils, icons                      |
 | `pricing`   | utils, icons, button, card, badge |
 | `accordion` | utils                             |
 | `tabs`      | utils                             |
-| `alert`     | utils                             |
 
 When you run `add`, the CLI:
 
@@ -693,21 +391,6 @@ When you run `add`, the CLI:
 2. Copies each component to the correct location
 3. Rewrites import paths automatically
 4. Shows npm dependencies to add to `deno.json`
-
-**Project structure after adding `pricing`:**
-
-```plaintext
-app/view/
-├── components/
-│   └── ui/
-│       ├── Pricing.tsx     # Main pricing components
-│       ├── Button.tsx      # Dependency
-│       ├── Card.tsx        # Dependency
-│       └── Badge.tsx       # Dependency
-└── lib/
-    ├── utils.ts            # Class name utility
-    └── icons.tsx           # SVG icons
-```
 
 ## Project Structure
 
@@ -788,15 +471,9 @@ When run remotely from JSR:
 5. **Learning** - Study source code in your project to understand how they work
 6. **Customization** - Change anything without forking or ejecting
 
-**Inspired by:**
-
-- [shadcn/ui](https://ui.shadcn.com/) - Copy-paste components philosophy
-- [Radix UI](https://www.radix-ui.com/) - Headless component patterns
-- [Laravel Breeze](https://laravel.com/docs/starter-kits) - Scaffolding approach
-
 ## Next Steps
 
-- [Components](/docs/components) - Learn to create custom JSX components
-- [Routing](/docs/routing) - Use components in controllers
-- [Packages](/docs/packages) - Explore other Lockness packages
-- [Unpoly Documentation](https://unpoly.com) - Progressive enhancement guide
+- https://lockness.land/docs/components - Learn to create custom JSX components
+- https://lockness.land/docs/routing - Use components in controllers
+- https://lockness.land/docs/packages - Explore other Lockness packages
+- https://unpoly.com - Progressive enhancement guide

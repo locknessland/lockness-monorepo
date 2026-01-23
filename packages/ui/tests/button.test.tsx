@@ -1,5 +1,5 @@
 import { assertStringIncludes } from '@std/assert'
-import { Button } from '../components/Button.tsx'
+import { Button } from '../components/Button/mod.tsx'
 
 /**
  * Helper to render a component to string

@@ -4,7 +4,7 @@ import {
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
-} from '../components/Accordion.tsx'
+} from '../components/Accordion/mod.tsx'
 
 /**
  * Helper to render a component to string

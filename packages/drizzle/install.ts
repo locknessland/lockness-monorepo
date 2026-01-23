@@ -268,7 +268,7 @@ function showNextSteps(): void {
     console.log('     deno task cli db:migrate')
     console.log('  4. Explore with Drizzle Studio:')
     console.log('     dx drizzle-kit studio')
-    console.log('\n📖 Documentation: https://lockness.dev/docs/models')
+    console.log('\n📖 Documentation: https://lockness.land/docs/models')
 }
 
 // =============================================================================

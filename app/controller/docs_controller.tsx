@@ -1,17 +1,14 @@
 import { Context, Controller, Get, Inject, route } from '@lockness/core'
+import { renderMarkdownWithoutTitle } from '@lockness/markdown'
 import { DocsLoader } from '@service/docs_loader.ts'
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
-import { MarkdownRenderer } from '@view/components/markdown_renderer.tsx'
-import { parseMarkdown } from '@view/helpers/markdown.ts'
-import { PackagesPage } from '@view/pages/docs/packages.tsx'
-import { TableDocsPage } from '@view/pages/docs/table.tsx'
 
 /**
  * Controller for documentation pages.
  *
  * Dynamically loads documentation from colocated package docs
- * and general documentation files. Special pages (packages, table)
- * are still handled with dedicated components.
+ * and general documentation files. All documentation is now
+ * loaded from Markdown files.
  *
  * @example
  * GET /docs                    -> Redirects to /docs/installation
@@ -33,28 +30,10 @@ export class DocsController {
     }
 
     /**
-     * Special page: Package management overview
-     * @deprecated Will be migrated to Markdown in a future update
-     */
-    @Get('/packages', { name: 'docs.packages' })
-    packages(c: Context) {
-        return c.html(<PackagesPage />)
-    }
-
-    /**
-     * Special page: Table component documentation
-     * @deprecated Will be migrated to Markdown in a future update
-     */
-    @Get('/table', { name: 'docs.table' })
-    table(c: Context) {
-        return c.html(<TableDocsPage />)
-    }
-
-    /**
      * Dynamic documentation page loader.
      *
      * Loads documentation from colocated package docs or general docs,
-     * parses Markdown content, and renders with layout.
+     * renders Markdown content to HTML using @libs/markdown.
      *
      * @param c - Request context with slug parameter
      * @returns Rendered documentation page or 404 if not found
@@ -67,8 +46,8 @@ export class DocsController {
             // Load documentation from colocated files
             const doc = await this.docsLoader.load(slug)
 
-            // Parse Markdown content into structured blocks
-            const blocks = parseMarkdown(doc.content)
+            // Render Markdown to JSX using Lockness UI components
+            const content = await renderMarkdownWithoutTitle(doc.content)
 
             // Render with layout (uses slug for LLM path)
             return c.html(
@@ -77,12 +56,59 @@ export class DocsController {
                     currentPath={`/docs/${slug}`}
                     llmPath={slug}
                 >
-                    <MarkdownRenderer blocks={blocks} />
+                    <div class='max-w-none'>
+                        {content}
+                    </div>
                 </DocsLayout>,
             )
         } catch (error) {
             // Log error for debugging but don't expose details to user
             console.error(`Error loading docs for slug "${slug}":`, error)
+            return c.notFound()
+        }
+    }
+
+    /**
+     * LLM index - lists all available docs llms.txt files
+     */
+    @Get('/llms.txt', { name: 'docs.llms.index' })
+    llmsIndex(c: Context) {
+        const slugs = this.docsLoader.getAvailableLlmsSlugs()
+        const baseUrl = 'https://lockness.land'
+
+        const content = [
+            'Lockness Framework - Documentation LLM Index',
+            '==============================================',
+            '',
+            'Available documentation:',
+            '',
+            ...slugs.map((slug) => `- ${baseUrl}/docs/llms/${slug}.txt`),
+            '',
+            'Usage: Fetch any endpoint to get plain text documentation optimized for LLM consumption.',
+        ].join('\n')
+
+        return c.text(content)
+    }
+
+    /**
+     * LLM documentation endpoint for docs
+     * Serves llms.txt files for AI/LLM consumption
+     *
+     * @example /docs/llms/authentication.txt -> packages/auth/llms.txt
+     */
+    @Get('/llms/:slug', { extension: '.txt', name: 'docs.llms' })
+    async llms(c: Context) {
+        const slug = c.req.param('slug')
+
+        if (!this.docsLoader.hasLlmsSlug(slug)) {
+            return c.notFound()
+        }
+
+        try {
+            const content = await this.docsLoader.loadLlms(slug)
+            return c.text(content)
+        } catch (error) {
+            console.error(`Failed to load LLM doc for ${slug}:`, error)
             return c.notFound()
         }
     }

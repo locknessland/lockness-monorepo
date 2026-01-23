@@ -1,5 +1,5 @@
 import { assertStringIncludes } from '@std/assert'
-import { Checkbox } from '../components/Checkbox.tsx'
+import { Checkbox } from '../components/Checkbox/mod.tsx'
 
 /**
  * Helper to render a component to string

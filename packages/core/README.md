@@ -331,7 +331,7 @@ Deno.serve({ port: 8888 }, app.fetch)
 ```
 
 For a complete list of available middleware and utilities, see the
-[Middleware Documentation](https://lockness.dev/docs/middleware).
+[Middleware Documentation](https://lockness.land/docs/middleware).
 
 ## 🛠 Advanced Configuration
 
