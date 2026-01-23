@@ -113,6 +113,7 @@ const navSections: readonly NavSection[] = [
         icon: BarChartIcon,
         links: [
             { title: 'Chart', href: '/ui/chart' },
+            { title: 'Code Block', href: '/ui/code-block' },
             { title: 'Gallery', href: '/ui/gallery' },
             { title: 'Video', href: '/ui/video' },
         ],
