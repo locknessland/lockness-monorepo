@@ -96,7 +96,7 @@ import { Video } from '@lockness/ui/components'
 
 **Step 1.1: Create Video Component**
 
-File: `/packages/ui/components/media/video.tsx`
+File: `/packages/ui/components/Video/mod.tsx`
 
 ````tsx
 /**
@@ -105,11 +105,11 @@ File: `/packages/ui/components/media/video.tsx`
  * Provides a styled, accessible video player with support for
  * multiple sources, controls, and responsive layouts.
  *
- * @module @lockness/ui/components/media/video
+ * @module @lockness/ui/components/video
  */
 
 import type { FC, PropsWithChildren } from '@lockness/core'
-import { cn } from '../lib/utils.ts'
+import { cn } from '../../lib/utils.ts'
 
 /**
  * Video source configuration
@@ -241,39 +241,152 @@ export const Video: FC<VideoProps> = ({
 }
 ````
 
-**Step 1.2: Create Media Module Export**
+**Step 1.2: Create examples.tsx**
 
-File: `/packages/ui/components/media/mod.ts`
+File: `/packages/ui/components/Video/examples.tsx`
 
 ```tsx
 /**
- * @fileoverview Media components barrel export.
+ * @fileoverview Video component examples for documentation.
  *
- * @module @lockness/ui/components/media
+ * @module @lockness/ui/components/video/examples
  */
 
-export { Video } from './video.tsx'
-export type { VideoProps, VideoSource } from './video.tsx'
+import { Video } from './mod.tsx'
+
+/**
+ * Basic usage example
+ */
+export const BasicExample = () => (
+    <Video src='/videos/demo.mp4' controls />
+)
+
+/**
+ * With poster image
+ */
+export const WithPosterExample = () => (
+    <Video
+        src='/videos/demo.mp4'
+        poster='/img/poster.jpg'
+        controls
+    />
+)
+
+/**
+ * Multiple sources with aspect ratio
+ */
+export const MultipleSourcesExample = () => (
+    <Video
+        sources={[
+            { src: '/videos/demo.webm', type: 'video/webm' },
+            { src: '/videos/demo.mp4', type: 'video/mp4' },
+        ]}
+        poster='/img/poster.jpg'
+        controls
+        aspectRatio='16/9'
+        class='rounded-lg shadow-lg'
+    />
+)
+
+/**
+ * Autoplay muted loop (background video)
+ */
+export const BackgroundVideoExample = () => (
+    <Video
+        src='/videos/background.mp4'
+        autoplay
+        muted
+        loop
+        aspectRatio='21/9'
+    />
+)
 ```
 
 **Step 1.3: Update Main Exports**
 
-Add to `/packages/ui/components/mod.ts`:
+Add to `/packages/ui/components.ts`:
 
 ```tsx
-// Media
-export * from './media/mod.ts'
+// Media Components
+export { Video } from './components/Video/mod.tsx'
+export type { VideoProps, VideoSource } from './components/Video/mod.tsx'
+```
+
+### Phase 2: Demo Page and Sidebar
+
+**Step 2.1: Create Demo Page**
+
+File: `/app/view/pages/ui/video.tsx`
+
+```tsx
+import { PageUiLayout } from '../../layouts/ui_layout.tsx'
+import {
+    BackgroundVideoExample,
+    BasicExample,
+    MultipleSourcesExample,
+    WithPosterExample,
+} from '@lockness/ui/components/Video/examples.tsx'
+
+export const VideoPage = () => {
+    return (
+        <PageUiLayout title='Video' llmSlug='video'>
+            <div class='space-y-8'>
+                <section>
+                    <h2 class='text-xl font-semibold mb-4'>Basic Usage</h2>
+                    <BasicExample />
+                </section>
+
+                <section>
+                    <h2 class='text-xl font-semibold mb-4'>With Poster</h2>
+                    <WithPosterExample />
+                </section>
+
+                <section>
+                    <h2 class='text-xl font-semibold mb-4'>Multiple Sources</h2>
+                    <MultipleSourcesExample />
+                </section>
+
+                <section>
+                    <h2 class='text-xl font-semibold mb-4'>Background Video</h2>
+                    <BackgroundVideoExample />
+                </section>
+            </div>
+        </PageUiLayout>
+    )
+}
+```
+
+**Step 2.2: Add to Sidebar Navigation**
+
+Update `/app/view/components/ui-sidebar.tsx`:
+
+```tsx
+// In the DATA section (or create MEDIA section)
+{
+    title: 'DATA',
+    icon: BarChartIcon,
+    links: [
+        { title: 'Chart', href: '/ui/chart' },
+        { title: 'Gallery', href: '/ui/gallery' },
+        { title: 'Video', href: '/ui/video' },  // Add this line
+    ],
+},
 ```
 
 ## ✅ Definition of Done
 
 - [ ] Video component created with all props
+- [ ] examples.tsx with usage examples
+- [ ] DOCS.md with component documentation
 - [ ] Support for single and multiple sources
 - [ ] Responsive aspect ratio support
 - [ ] Accessibility attributes (aria-label)
 - [ ] Fallback content for unsupported browsers
 - [ ] JSDoc documentation complete
 - [ ] Exported from @lockness/ui/components
+- [ ] Demo page at `/ui/video`
+- [ ] Added to ui-sidebar.tsx navigation
+- [ ] LLM documentation at `/public/ui/llms/video.txt`
 - [ ] Type safety enforced (no `any` types)
 - [ ] `deno check` passes
 - [ ] `deno lint` passes
