@@ -224,7 +224,7 @@ export const CommandBlock: FC<CommandBlockProps> = (
     return (
         <>
             <SyntaxHighlightingStyles theme={theme} />
-            <div class='my-6 overflow-hidden border border-code-border bg-code-background rounded-(--radius)'>
+            <div class='my-6 overflow-hidden border border-code-border bg-code-background rounded-(--radius)' data-hljs-theme={theme}>
                 <div class='flex items-center justify-between px-4 py-2 bg-code-header-background border-b border-code-border'>
                     <div class='flex items-center gap-2'>
                         <div class='flex gap-2'>
@@ -318,7 +318,7 @@ export const CodeBlock: FC<CodeBlockProps> = (
     return (
         <>
             <SyntaxHighlightingStyles theme={theme} />
-            <div class='my-6 overflow-hidden border border-code-border bg-code-background max-w-full rounded-(--radius)'>
+            <div class='my-6 overflow-hidden border border-code-border bg-code-background max-w-full rounded-(--radius)' data-hljs-theme={theme}>
                 <div class='flex items-center justify-between px-4 py-2 bg-code-header-background border-b border-code-border'>
                     <div class='flex items-center gap-2'>
                         <div class='flex gap-2'>
@@ -419,7 +419,7 @@ export const HighlightedCodeBlock: FC<HighlightedCodeBlockProps> = ({
     return (
         <>
             <SyntaxHighlightingStyles theme={theme} />
-            <div class='my-6 overflow-hidden border border-code-border bg-code-background max-w-full rounded-(--radius)'>
+            <div class='my-6 overflow-hidden border border-code-border bg-code-background max-w-full rounded-(--radius)' data-hljs-theme={theme}>
                 <div class='flex items-center justify-between px-4 py-2 bg-code-header-background border-b border-code-border'>
                     <div class='flex items-center gap-2'>
                         <div class='flex gap-2'>
