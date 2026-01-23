@@ -2,11 +2,14 @@
 
 ## 📋 Task Overview
 
-Implement a `@Cached` decorator that integrates with `@lockness/cache` to automatically cache method return values. This provides a declarative way to add caching to expensive computations or database queries.
+Implement a `@Cached` decorator that integrates with `@lockness/cache` to
+automatically cache method return values. This provides a declarative way to add
+caching to expensive computations or database queries.
 
 ## 🎯 Objectives
 
-1. **Primary Objective**: Create `@Cached` decorator for automatic method result caching
+1. **Primary Objective**: Create `@Cached` decorator for automatic method result
+   caching
 2. **Secondary Objective**: Support cache key generation from method arguments
 3. **Additional Objective**: Integrate with existing tag-based invalidation
 4. **Quality Objective**: Full type safety preserving method signatures
@@ -31,7 +34,7 @@ Le package `@lockness/cache` expose déjà :
 
 ```typescript
 // Functional API
-import { get, set, remember, forget, flush, flushByTag } from '@lockness/cache'
+import { flush, flushByTag, forget, get, remember, set } from '@lockness/cache'
 
 await set('key', value, ttl, tags)
 const value = await get('key')
@@ -98,7 +101,8 @@ class UserService {
 
     @CacheInvalidate({ key: (id: number) => `user:${id}` })
     async updateUser(id: number, data: UpdateUserDTO): Promise<User> {
-        return await db.update(users).set(data).where(eq(users.id, id)).returning()
+        return await db.update(users).set(data).where(eq(users.id, id))
+            .returning()
     }
 }
 ```
@@ -122,7 +126,7 @@ class UserService {
 
 File: `/packages/cache/decorators.ts`
 
-```typescript
+````typescript
 /**
  * @fileoverview Cache decorators for automatic method result caching.
  *
@@ -306,11 +310,12 @@ export function Cached<
     context: ClassMethodDecoratorContext,
 ) => T {
     // Normalize options
-    const options: CachedOptions<Args, Result> = typeof ttlOrOptions === 'object' &&
+    const options: CachedOptions<Args, Result> =
+        typeof ttlOrOptions === 'object' &&
             !Array.isArray(ttlOrOptions) &&
             'ttl' in ttlOrOptions
-        ? ttlOrOptions
-        : { ttl: ttlOrOptions as TTLFormat }
+            ? ttlOrOptions
+            : { ttl: ttlOrOptions as TTLFormat }
 
     const ttlSeconds = parseTTL(options.ttl)
 
@@ -465,7 +470,7 @@ export function CacheInvalidate<Args extends unknown[]>(
         return wrapper as T
     }
 }
-```
+````
 
 ### Phase 2: Exports
 
@@ -479,13 +484,13 @@ File: `/packages/cache/mod.ts` - Add exports
 // =============================================================================
 
 export {
-    Cached,
-    CacheInvalidate,
-    parseTTL,
-    type CachedOptions,
     type CacheCondition,
+    Cached,
+    type CachedOptions,
+    CacheInvalidate,
     type CacheInvalidateOptions,
     type KeyGenerator,
+    parseTTL,
     type TTLFormat,
 } from './decorators.ts'
 ```
@@ -761,7 +766,8 @@ class StatsController {
 
 ### Design Decisions
 
-1. **Pourquoi `remember` pattern ?** - Réutilise l'API existante du package cache
+1. **Pourquoi `remember` pattern ?** - Réutilise l'API existante du package
+   cache
 2. **Pourquoi les tags ?** - Intégration naturelle avec `flushByTag` existant
 3. **Pourquoi TTL string ?** - Plus lisible que des nombres
 
