@@ -13,6 +13,7 @@ import {
     AlertDescription,
     HighlightedCodeBlock,
     InlineCode as UIInlineCode,
+    type Language,
     Link as UILink,
     Separator,
     Table as UITable,
@@ -55,7 +56,7 @@ const defaultComponents: Required<ComponentOverrides> = {
         <p class='leading-7 [&:not(:first-child)]:mt-6'>{children}</p>
     ),
     CodeBlock: ({ language, children, html }) => (
-        <HighlightedCodeBlock lang={language} html={html}>
+        <HighlightedCodeBlock lang={language as Language} html={html}>
             {children}
         </HighlightedCodeBlock>
     ),

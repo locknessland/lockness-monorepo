@@ -14,14 +14,14 @@ const codeBlockProps: PropDefinition[] = [
     },
     {
         name: 'lang',
-        type: 'string',
-        default: "'typescript'",
-        description: 'Programming language for syntax highlighting',
+        type: 'Language',
+        default: 'typescript',
+        description: 'Programming language for syntax highlighting (typesafe)',
     },
     {
         name: 'theme',
         type: "'default' | 'monokai' | 'github' | 'nord' | 'plain'",
-        default: "'default'",
+        default: 'default',
         description: 'Syntax highlighting theme',
     },
 ]

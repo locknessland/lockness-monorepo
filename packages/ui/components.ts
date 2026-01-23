@@ -201,7 +201,7 @@ export {
     InlineCode,
 } from './components/CodeBlock/mod.tsx'
 export { SyntaxHighlightingStyles } from './components/CodeBlock/styles.tsx'
-export type { ThemeName } from './components/CodeBlock/mod.tsx'
+export type { Language, ThemeName } from './components/CodeBlock/mod.tsx'
 
 // Copy Components
 export { CopyButton, CopyLink } from './components/CopyButton/mod.tsx'

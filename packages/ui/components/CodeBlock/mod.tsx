@@ -18,12 +18,54 @@ export type { ThemeName } from './themes.ts'
 export { getAvailableThemes, getThemeStyles } from './themes.ts'
 
 /**
+ * Supported programming languages for syntax highlighting.
+ * Based on highlight.js common languages.
+ */
+export type Language =
+    | 'typescript'
+    | 'javascript'
+    | 'tsx'
+    | 'jsx'
+    | 'python'
+    | 'rust'
+    | 'go'
+    | 'java'
+    | 'kotlin'
+    | 'swift'
+    | 'c'
+    | 'cpp'
+    | 'csharp'
+    | 'php'
+    | 'ruby'
+    | 'bash'
+    | 'shell'
+    | 'zsh'
+    | 'powershell'
+    | 'sql'
+    | 'json'
+    | 'yaml'
+    | 'toml'
+    | 'xml'
+    | 'html'
+    | 'css'
+    | 'scss'
+    | 'less'
+    | 'markdown'
+    | 'graphql'
+    | 'dockerfile'
+    | 'nginx'
+    | 'apache'
+    | 'plaintext'
+    | 'text'
+    | (string & Record<PropertyKey, never>) // Allow custom languages while keeping autocomplete
+
+/**
  * Highlight code using highlight.js (server-side)
  * @param code - The code to highlight
  * @param lang - The language for syntax highlighting
  * @returns HTML string with highlight.js classes
  */
-function highlightCode(code: string, lang: string): string {
+function highlightCode(code: string, lang: Language): string {
     try {
         // Try to highlight with the specified language
         if (hljs.getLanguage(lang)) {
@@ -204,7 +246,8 @@ export const Command: FC<CommandProps> = ({ children }) => {
  */
 export interface CommandBlockProps {
     children: string
-    lang?: string
+    /** Programming language for syntax highlighting */
+    lang?: Language
     /** Syntax highlighting theme */
     theme?: ThemeName
 }
@@ -301,7 +344,8 @@ export const CommandBlock: FC<CommandBlockProps> = (
  */
 export interface CodeBlockProps {
     children: string
-    lang?: string
+    /** Programming language for syntax highlighting */
+    lang?: Language
     /** Syntax highlighting theme */
     theme?: ThemeName
 }
@@ -398,7 +442,7 @@ export const CodeBlock: FC<CodeBlockProps> = (
  */
 export interface HighlightedCodeBlockProps {
     /** Programming language for display */
-    lang?: string
+    lang?: Language
     /** Plain text content (used for copy functionality) */
     children: string
     /** Pre-highlighted HTML content */

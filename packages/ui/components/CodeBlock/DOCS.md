@@ -95,11 +95,11 @@ A full code block styled for terminal commands with header and copy button.
 
 ### Props
 
-| Prop       | Type        | Default     | Description                                  |
-| ---------- | ----------- | ----------- | -------------------------------------------- |
-| `children` | `string`    | -           | The code content to display                  |
-| `lang`     | `string`    | `'bash'`    | Programming language for syntax highlighting |
-| `theme`    | `ThemeName` | `'default'` | Syntax highlighting theme                    |
+| Prop       | Type        | Default   | Description                                  |
+| ---------- | ----------- | --------- | -------------------------------------------- |
+| `children` | `string`    | -         | The code content to display                  |
+| `lang`     | `Language`  | `bash`    | Programming language for syntax highlighting |
+| `theme`    | `ThemeName` | `default` | Syntax highlighting theme                    |
 
 ---
 
@@ -116,11 +116,11 @@ console.log(greeting);`}
 
 ### Props
 
-| Prop       | Type        | Default        | Description                                  |
-| ---------- | ----------- | -------------- | -------------------------------------------- |
-| `children` | `string`    | -              | The code content to display                  |
-| `lang`     | `string`    | `'typescript'` | Programming language for syntax highlighting |
-| `theme`    | `ThemeName` | `'default'`    | Syntax highlighting theme                    |
+| Prop       | Type        | Default      | Description                                  |
+| ---------- | ----------- | ------------ | -------------------------------------------- |
+| `children` | `string`    | -            | The code content to display                  |
+| `lang`     | `Language`  | `typescript` | Programming language for syntax highlighting |
+| `theme`    | `ThemeName` | `default`    | Syntax highlighting theme                    |
 
 ---
 
@@ -190,18 +190,27 @@ Five built-in themes are available:
 
 ## Language Support
 
-Syntax highlighting is powered by highlight.js. Common supported languages
-include:
+The `lang` prop is typesafe using the `Language` type. Import it for type hints:
 
-- `typescript` / `javascript`
-- `python`
-- `rust`
-- `go`
-- `bash` / `shell`
-- `json`
-- `html` / `css`
-- `sql`
-- And many more...
+```tsx
+import { CodeBlock, type Language } from '@lockness/ui/components'
+```
+
+### Supported Languages
+
+| Category       | Languages                                                    |
+| -------------- | ------------------------------------------------------------ |
+| **JavaScript** | `typescript`, `javascript`, `tsx`, `jsx`                     |
+| **Systems**    | `rust`, `go`, `c`, `cpp`                                     |
+| **Backend**    | `python`, `java`, `kotlin`, `swift`, `csharp`, `php`, `ruby` |
+| **Shell**      | `bash`, `shell`, `zsh`, `powershell`                         |
+| **Data**       | `sql`, `json`, `yaml`, `toml`, `xml`, `graphql`              |
+| **Web**        | `html`, `css`, `scss`, `less`                                |
+| **Config**     | `dockerfile`, `nginx`, `apache`, `markdown`                  |
+| **Other**      | `plaintext`, `text`                                          |
+
+Custom languages are also supported (string fallback for highlight.js
+compatibility).
 
 ---
 
