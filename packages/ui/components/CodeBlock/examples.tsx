@@ -4,7 +4,7 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
-import { CodeBlock, CommandBlock, Command, InlineCode } from './mod.tsx'
+import { CodeBlock, Command, CommandBlock, InlineCode } from './mod.tsx'
 
 const codeBlockProps: PropDefinition[] = [
     {
@@ -20,7 +20,7 @@ const codeBlockProps: PropDefinition[] = [
     },
     {
         name: 'theme',
-        type: "'default' | 'monokai' | 'github' | 'nord'",
+        type: "'default' | 'monokai' | 'github' | 'nord' | 'plain'",
         default: "'default'",
         description: 'Syntax highlighting theme',
     },
@@ -52,13 +52,15 @@ export const examples: ExampleSection[] = [
                 <Card>
                     <CardContent class='p-6'>
                         <p class='text-foreground'>
-                            Use the <InlineCode>deno run</InlineCode> command to execute scripts.
-                            The <InlineCode>--allow-net</InlineCode> flag enables network access.
+                            Use the <InlineCode>deno run</InlineCode>{' '}
+                            command to execute scripts. The{' '}
+                            <InlineCode>--allow-net</InlineCode>{' '}
+                            flag enables network access.
                         </p>
                     </CardContent>
                 </Card>
                 <CodeBlock lang='tsx'>
-{`<p>
+                    {`<p>
   Use the <InlineCode>deno run</InlineCode> command to execute scripts.
 </p>`}
                 </CodeBlock>
@@ -75,7 +77,7 @@ export const examples: ExampleSection[] = [
                     </CardContent>
                 </Card>
                 <CodeBlock lang='tsx'>
-{`<Command>deno run -A main.ts</Command>`}
+                    {`<Command>deno run -A main.ts</Command>`}
                 </CodeBlock>
             </div>
         ),
@@ -85,7 +87,7 @@ export const examples: ExampleSection[] = [
         render: () => (
             <div class='space-y-4'>
                 <CommandBlock lang='bash'>
-{`# Clone the repository
+                    {`# Clone the repository
 git clone https://github.com/lockness/app.git
 
 # Install dependencies
@@ -95,7 +97,7 @@ deno install
 deno task dev`}
                 </CommandBlock>
                 <CodeBlock lang='tsx'>
-{`<CommandBlock lang="bash">
+                    {`<CommandBlock lang="bash">
 {\`# Clone the repository
 git clone https://github.com/lockness/app.git
 
@@ -111,7 +113,7 @@ deno install\`}
         render: () => (
             <div class='space-y-4'>
                 <CodeBlock lang='typescript'>
-{`interface User {
+                    {`interface User {
   id: number;
   name: string;
   email: string;
@@ -123,7 +125,7 @@ async function fetchUsers(): Promise<User[]> {
 }`}
                 </CodeBlock>
                 <CodeBlock lang='tsx'>
-{`<CodeBlock lang="typescript">
+                    {`<CodeBlock lang="typescript">
 {\`interface User {
   id: number;
   name: string;
@@ -138,7 +140,7 @@ async function fetchUsers(): Promise<User[]> {
         render: () => (
             <div class='space-y-4'>
                 <CodeBlock lang='typescript' theme='default'>
-{`function greet(name: string): string {
+                    {`function greet(name: string): string {
   const message = \`Hello, \${name}!\`;
   console.log(message);
   return message;
@@ -152,7 +154,7 @@ async function fetchUsers(): Promise<User[]> {
         render: () => (
             <div class='space-y-4'>
                 <CodeBlock lang='typescript' theme='monokai'>
-{`function greet(name: string): string {
+                    {`function greet(name: string): string {
   const message = \`Hello, \${name}!\`;
   console.log(message);
   return message;
@@ -166,7 +168,7 @@ async function fetchUsers(): Promise<User[]> {
         render: () => (
             <div class='space-y-4'>
                 <CodeBlock lang='typescript' theme='github'>
-{`function greet(name: string): string {
+                    {`function greet(name: string): string {
   const message = \`Hello, \${name}!\`;
   console.log(message);
   return message;
@@ -180,7 +182,21 @@ async function fetchUsers(): Promise<User[]> {
         render: () => (
             <div class='space-y-4'>
                 <CodeBlock lang='typescript' theme='nord'>
-{`function greet(name: string): string {
+                    {`function greet(name: string): string {
+  const message = \`Hello, \${name}!\`;
+  console.log(message);
+  return message;
+}`}
+                </CodeBlock>
+            </div>
+        ),
+    },
+    {
+        title: 'Plain Theme (No Highlighting)',
+        render: () => (
+            <div class='space-y-4'>
+                <CodeBlock lang='typescript' theme='plain'>
+                    {`function greet(name: string): string {
   const message = \`Hello, \${name}!\`;
   console.log(message);
   return message;

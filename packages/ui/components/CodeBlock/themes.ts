@@ -10,7 +10,7 @@
 /**
  * Available syntax highlighting theme names
  */
-export type ThemeName = 'default' | 'monokai' | 'github' | 'nord'
+export type ThemeName = 'default' | 'monokai' | 'github' | 'nord' | 'plain'
 
 /**
  * Theme definition with CSS styles
@@ -275,6 +275,52 @@ const nordTheme: Theme = {
 }
 
 /**
+ * Plain theme - no syntax highlighting, just monospace text
+ */
+const plainTheme: Theme = {
+    name: 'Plain',
+    styles: `
+[data-hljs-theme="plain"] {
+    --code-background: oklch(0.15 0 0);
+    --code-foreground: oklch(0.85 0 0);
+    --code-header-background: oklch(0.2 0 0);
+    --code-border: oklch(0.3 0 0);
+}
+
+[data-hljs-theme="plain"] .hljs-keyword,
+[data-hljs-theme="plain"] .hljs-selector-tag,
+[data-hljs-theme="plain"] .hljs-literal,
+[data-hljs-theme="plain"] .hljs-section,
+[data-hljs-theme="plain"] .hljs-link,
+[data-hljs-theme="plain"] .hljs-string,
+[data-hljs-theme="plain"] .hljs-title,
+[data-hljs-theme="plain"] .hljs-name,
+[data-hljs-theme="plain"] .hljs-type,
+[data-hljs-theme="plain"] .hljs-attribute,
+[data-hljs-theme="plain"] .hljs-symbol,
+[data-hljs-theme="plain"] .hljs-bullet,
+[data-hljs-theme="plain"] .hljs-addition,
+[data-hljs-theme="plain"] .hljs-variable,
+[data-hljs-theme="plain"] .hljs-template-tag,
+[data-hljs-theme="plain"] .hljs-template-variable,
+[data-hljs-theme="plain"] .hljs-comment,
+[data-hljs-theme="plain"] .hljs-quote,
+[data-hljs-theme="plain"] .hljs-deletion,
+[data-hljs-theme="plain"] .hljs-meta,
+[data-hljs-theme="plain"] .hljs-function,
+[data-hljs-theme="plain"] .hljs-title.function_,
+[data-hljs-theme="plain"] .hljs-number,
+[data-hljs-theme="plain"] .hljs-built_in,
+[data-hljs-theme="plain"] .hljs-class .hljs-title,
+[data-hljs-theme="plain"] .hljs-property,
+[data-hljs-theme="plain"] .hljs-params,
+[data-hljs-theme="plain"] .hljs-attr {
+    color: inherit;
+}
+`,
+}
+
+/**
  * All available themes
  */
 export const themes: Record<ThemeName, Theme> = {
@@ -282,6 +328,7 @@ export const themes: Record<ThemeName, Theme> = {
     monokai: monokaiTheme,
     github: githubTheme,
     nord: nordTheme,
+    plain: plainTheme,
 }
 
 /**

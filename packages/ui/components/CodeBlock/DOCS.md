@@ -126,14 +126,15 @@ console.log(greeting);`}
 
 ## Themes
 
-Four built-in themes are available:
+Five built-in themes are available:
 
-| Theme     | Description                             |
-| --------- | --------------------------------------- |
-| `default` | Neutral dark theme with balanced colors |
-| `monokai` | Classic warm theme inspired by Monokai  |
-| `github`  | Clean minimal theme inspired by GitHub  |
-| `nord`    | Arctic, north-bluish color palette      |
+| Theme     | Description                                    |
+| --------- | ---------------------------------------------- |
+| `default` | Neutral dark theme with balanced colors        |
+| `monokai` | Classic warm theme inspired by Monokai         |
+| `github`  | Clean minimal theme inspired by GitHub         |
+| `nord`    | Arctic, north-bluish color palette             |
+| `plain`   | No syntax highlighting, monospace text only    |
 
 ### Default Theme
 
@@ -169,6 +170,16 @@ Four built-in themes are available:
 
 ```tsx
 <CodeBlock lang='typescript' theme='nord'>
+    {`function greet(name: string): string {
+  return \`Hello, \${name}!\`;
+}`}
+</CodeBlock>
+```
+
+### Plain Theme
+
+```tsx
+<CodeBlock lang='typescript' theme='plain'>
     {`function greet(name: string): string {
   return \`Hello, \${name}!\`;
 }`}
