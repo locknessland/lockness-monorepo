@@ -91,7 +91,7 @@ export function NamedMiddleware(name: string) {
     ) {
         if (context.kind !== 'class') {
             throw new Error('@NamedMiddleware can only decorate classes')
-        }// Store metadata on the class
+        } // Store metadata on the class
 
         ;(target as any)[MIDDLEWARE_NAME_KEY] = name
 

@@ -172,7 +172,7 @@ export function Kernel(config: KernelConfig = {}) {
     ) {
         if (context.kind !== 'class') {
             throw new Error('@Kernel can only decorate classes')
-        }// Store configuration on class
+        } // Store configuration on class
 
         ;(target as any)[KERNEL_CONFIG] = config // Initialize metadata arrays
         ;(target as any)[KERNEL_BOOT_HOOKS] = []
