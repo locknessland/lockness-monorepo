@@ -1,6 +1,7 @@
 # Video
 
-A responsive video player component with support for multiple sources, controls, and aspect ratios.
+A responsive video player component with support for multiple sources, controls,
+and aspect ratios.
 
 ## Installation
 
@@ -46,28 +47,28 @@ import { Video } from '@lockness/ui/components'
 
 ## Props
 
-| Prop         | Type                                    | Default      | Description                                     |
-| ------------ | --------------------------------------- | ------------ | ----------------------------------------------- |
-| src          | `string`                                | -            | Single video source URL                         |
-| sources      | `VideoSource[]`                         | -            | Multiple video sources for format fallback      |
-| poster       | `string`                                | -            | Poster image URL shown before playback          |
-| controls     | `boolean`                               | `true`       | Show video controls                             |
-| autoplay     | `boolean`                               | `false`      | Autoplay video (requires muted for browsers)    |
-| muted        | `boolean`                               | `false`      | Mute video audio                                |
-| loop         | `boolean`                               | `false`      | Loop video playback                             |
-| playsinline  | `boolean`                               | `true`       | Play video inline on mobile (prevents fullscreen)|
-| preload      | `'none' \| 'metadata' \| 'auto'`        | `'metadata'` | Preload behavior                                |
-| aspectRatio  | `'16/9' \| '4/3' \| '1/1' \| '21/9' \| string` | - | Responsive aspect ratio                         |
-| width        | `number \| string`                      | -            | Video width                                     |
-| height       | `number \| string`                      | -            | Video height                                    |
-| class        | `string`                                | -            | Additional CSS classes                          |
-| aria-label   | `string`                                | -            | Accessible label for the video                  |
+| Prop        | Type                                           | Default      | Description                                       |
+| ----------- | ---------------------------------------------- | ------------ | ------------------------------------------------- |
+| src         | `string`                                       | -            | Single video source URL                           |
+| sources     | `VideoSource[]`                                | -            | Multiple video sources for format fallback        |
+| poster      | `string`                                       | -            | Poster image URL shown before playback            |
+| controls    | `boolean`                                      | `true`       | Show video controls                               |
+| autoplay    | `boolean`                                      | `false`      | Autoplay video (requires muted for browsers)      |
+| muted       | `boolean`                                      | `false`      | Mute video audio                                  |
+| loop        | `boolean`                                      | `false`      | Loop video playback                               |
+| playsinline | `boolean`                                      | `true`       | Play video inline on mobile (prevents fullscreen) |
+| preload     | `'none' \| 'metadata' \| 'auto'`               | `'metadata'` | Preload behavior                                  |
+| aspectRatio | `'16/9' \| '4/3' \| '1/1' \| '21/9' \| string` | -            | Responsive aspect ratio                           |
+| width       | `number \| string`                             | -            | Video width                                       |
+| height      | `number \| string`                             | -            | Video height                                      |
+| class       | `string`                                       | -            | Additional CSS classes                            |
+| aria-label  | `string`                                       | -            | Accessible label for the video                    |
 
 ### VideoSource Interface
 
-| Property | Type     | Description                            |
-| -------- | -------- | -------------------------------------- |
-| src      | `string` | Video file URL                         |
+| Property | Type     | Description                                 |
+| -------- | -------- | ------------------------------------------- |
+| src      | `string` | Video file URL                              |
 | type     | `string` | MIME type (e.g., 'video/mp4', 'video/webm') |
 
 ## Features
@@ -114,12 +115,12 @@ For hero sections or decorative backgrounds:
 
 ```tsx
 <Video
-    src="/background.mp4"
+    src='/background.mp4'
     autoplay
     muted
     loop
     playsinline
-    aspectRatio="21/9"
+    aspectRatio='21/9'
 />
 ```
 
@@ -131,9 +132,9 @@ Always provide meaningful labels for screen readers:
 
 ```tsx
 <Video
-    src="/tutorial.mp4"
+    src='/tutorial.mp4'
     controls
-    aria-label="Product tutorial video"
+    aria-label='Product tutorial video'
 />
 ```
 
@@ -142,27 +143,30 @@ Always provide meaningful labels for screen readers:
 Provide custom fallback for browsers that don't support video:
 
 ```tsx
-<Video src="/demo.mp4" controls>
+<Video src='/demo.mp4' controls>
     <p>
         Your browser does not support video playback.
-        <a href="/demo.mp4">Download the video</a> instead.
+        <a href='/demo.mp4'>Download the video</a> instead.
     </p>
 </Video>
 ```
 
 ## Best Practices
 
-1. **Provide multiple formats**: WebM for smaller file sizes, MP4 for compatibility
+1. **Provide multiple formats**: WebM for smaller file sizes, MP4 for
+   compatibility
 2. **Use poster images**: Improves perceived performance and provides preview
 3. **Add `playsinline` for mobile**: Prevents fullscreen on iOS Safari
 4. **Mute autoplay videos**: Required by most browsers' autoplay policies
-5. **Set appropriate preload**: Use `metadata` for faster page loads, `auto` for critical videos
+5. **Set appropriate preload**: Use `metadata` for faster page loads, `auto` for
+   critical videos
 6. **Include accessibility labels**: Use `aria-label` for screen readers
 7. **Optimize file sizes**: Compress videos and use appropriate bitrates
 
 ## Browser Support
 
-The Video component uses native HTML5 `<video>` element, which is supported by all modern browsers:
+The Video component uses native HTML5 `<video>` element, which is supported by
+all modern browsers:
 
 - Chrome/Edge: Full support
 - Firefox: Full support
@@ -171,4 +175,5 @@ The Video component uses native HTML5 `<video>` element, which is supported by a
 
 ## Examples
 
-See the [Video component page](/ui/video) for live examples and interactive demos.
+See the [Video component page](/ui/video) for live examples and interactive
+demos.
