@@ -3,6 +3,31 @@
 Middleware allows you to filter and modify HTTP requests before they reach your
 controllers.
 
+## Quick Start
+
+Lockness provides a powerful decorator-based middleware system:
+
+```typescript
+// 1. Declare a middleware with a name
+@DeclareMiddleware('auth')
+export class AuthMiddleware implements IMiddleware {
+    async handle(c: Context, next: Next) {
+        // Your middleware logic
+        await next()
+    }
+}
+
+// 2. Use it in controllers
+@Controller('/dashboard')
+export class DashboardController {
+    @Get('/')
+    @UseMiddleware('auth')
+    index(c: Context) {
+        return c.json({ dashboard: true })
+    }
+}
+```
+
 ## Built-in Middleware
 
 Lockness provides access to all Hono middleware directly from `@lockness/core`.
@@ -104,20 +129,74 @@ deno task cli make:middleware Auth
 This creates `app/middleware/auth_middleware.ts`:
 
 ```typescript
-import { Context, IMiddleware, MiddlewareHandler } from '@lockness/core'
+import {
+    type Context,
+    DeclareMiddleware,
+    type IMiddleware,
+    type Next,
+} from '@lockness/core'
 
+/**
+ * Auth middleware - checks if user is authenticated
+ *
+ * This middleware is automatically registered as 'auth' via @DeclareMiddleware.
+ * Use it in controllers with @UseMiddleware('auth')
+ */
+@DeclareMiddleware('auth')
 export class AuthMiddleware implements IMiddleware {
-    handle: MiddlewareHandler = async (c: Context, next) => {
-        // Your middleware logic here
-        console.log('Request URL:', c.req.url)
+    async handle(c: Context, next: Next) {
+        const authHeader = c.req.header('Authorization')
+
+        if (!authHeader) {
+            return c.json({ error: 'Unauthorized' }, 401)
+        }
+
+        // Verify token, get user, attach to context
+        // c.set('user', user)
 
         await next()
-
-        // After response
-        console.log('Response status:', c.res.status)
     }
 }
 ```
+
+### The @DeclareMiddleware Decorator
+
+The `@DeclareMiddleware(name)` decorator automatically registers your middleware
+in a global registry. When you call `app.init()` with `middlewaresDir`, all
+middlewares in that directory are auto-discovered and registered.
+
+```typescript
+// Middleware is registered as 'admin' - no manual registration needed!
+@DeclareMiddleware('admin')
+export class AdminMiddleware implements IMiddleware {
+    async handle(c: Context, next: Next) {
+        const user = c.get('user')
+        if (!user?.isAdmin) {
+            return c.json({ error: 'Admin access required' }, 403)
+        }
+        await next()
+    }
+}
+```
+
+## Auto-Discovery
+
+Configure middleware auto-discovery in your kernel:
+
+```typescript
+// app/kernel.tsx
+await app.init({
+    // Auto-discover middlewares decorated with @DeclareMiddleware
+    middlewaresDir: './app/middleware',
+
+    // Controllers
+    controllersDir: './app/controller',
+})
+```
+
+All files in `middlewaresDir` are imported, and classes decorated with
+`@DeclareMiddleware` are automatically registered. No need to manually import or
+configure each middleware!
 
 ## Global Middleware
 
@@ -125,22 +204,22 @@ Apply middleware to all routes in `app/kernel.ts`:
 
 ```typescript
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
-import { CorsMiddleware } from '@middleware/cors_middleware.ts'
 
 // Configure global middlewares using fluent API
 app.useMiddleware(
+    sessionMiddleware(),
     LoggerMiddleware,
-    CorsMiddleware,
 )
 
 await app.init({
-    controllers,
+    middlewaresDir: './app/middleware',
+    controllersDir: './app/controller',
 })
 ```
 
-## Named Middleware
+## Named Middleware (Legacy)
 
-Register middleware by name for use with `@Use()` decorator:
+You can still manually register middlewares for backward compatibility:
 
 ```typescript
 import { AuthMiddleware } from '@middleware/auth_middleware.ts'
@@ -155,51 +234,58 @@ await app.init({
 })
 ```
 
+> **Note:** Middlewares decorated with `@DeclareMiddleware` take precedence over
+> manually registered ones with the same name.
+
 ## Using Middleware in Controllers
 
-**With class reference:**
+### With @UseMiddleware (Recommended)
+
+Use the `@UseMiddleware` decorator to apply middleware to route methods:
 
 ```typescript
-import { Controller, Get, Use } from '@lockness/core'
-import { AuthMiddleware } from '@middleware/auth_middleware.ts'
+import { Controller, Get, UseMiddleware } from '@lockness/core'
 
 @Controller('/dashboard')
 export class DashboardController {
     @Get('/')
-    @Use(AuthMiddleware)
+    @UseMiddleware('auth')
     index(c: Context) {
         return c.json({ dashboard: true })
     }
 }
 ```
 
-**With named middleware:**
+### Stacking Multiple Middlewares
+
+Apply multiple middlewares - they execute top-to-bottom:
 
 ```typescript
 @Controller('/admin')
 export class AdminController {
     @Get('/users')
-    @Use('auth')
-    @Use('admin')
+    @UseMiddleware('auth') // Runs first
+    @UseMiddleware('admin') // Runs second
     users(c: Context) {
         return c.json({ users: [] })
     }
 }
 ```
 
-**Controller-level middleware:**
+### With Class Reference
+
+You can also use middleware classes directly:
 
 ```typescript
+import { AuthMiddleware } from '@middleware/auth_middleware.ts'
+
 @Controller('/api')
-@Use(AuthMiddleware)
 export class ApiController {
-    // All routes in this controller use AuthMiddleware
-    
-    @Get('/users')
-    users(c: Context) { ... }
-    
-    @Get('/posts')
-    posts(c: Context) { ... }
+    @Get('/data')
+    @UseMiddleware(AuthMiddleware)
+    getData(c: Context) {
+        return c.json({ data: [] })
+    }
 }
 ```
 
@@ -208,8 +294,9 @@ export class ApiController {
 **Logger Middleware:**
 
 ```typescript
+@DeclareMiddleware('logger')
 export class LoggerMiddleware implements IMiddleware {
-    handle: MiddlewareHandler = async (c, next) => {
+    async handle(c: Context, next: Next) {
         const start = Date.now()
         await next()
         const ms = Date.now() - start
@@ -221,8 +308,9 @@ export class LoggerMiddleware implements IMiddleware {
 **CORS Middleware:**
 
 ```typescript
+@DeclareMiddleware('cors')
 export class CorsMiddleware implements IMiddleware {
-    handle: MiddlewareHandler = async (c, next) => {
+    async handle(c: Context, next: Next) {
         c.header('Access-Control-Allow-Origin', '*')
         c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE')
         await next()
@@ -235,8 +323,9 @@ export class CorsMiddleware implements IMiddleware {
 ```typescript
 const requests = new Map<string, number>()
 
+@DeclareMiddleware('rate-limit')
 export class RateLimitMiddleware implements IMiddleware {
-    handle: MiddlewareHandler = async (c, next) => {
+    async handle(c: Context, next: Next) {
         const ip = c.req.header('x-forwarded-for') || 'unknown'
         const count = requests.get(ip) || 0
 
@@ -254,9 +343,8 @@ export class RateLimitMiddleware implements IMiddleware {
 
 Middleware execution order:
 
-1. **Global middlewares** - Applied to all routes
-2. **Controller-level middlewares** - Applied to all routes in controller
-3. **Route-level middlewares** - Applied to specific route method
+1. **Global middlewares** - Applied to all routes (via `app.useMiddleware()`)
+2. **Route-level middlewares** - Applied via `@UseMiddleware` (top-to-bottom)
 
 Example execution order:
 
@@ -265,12 +353,42 @@ Example execution order:
 app.useMiddleware(LoggerMiddleware)
 
 @Controller('/api')
-@Use(AuthMiddleware)
 export class ApiController {
     @Get('/users')
-    @Use(CacheMiddleware)
+    @UseMiddleware('auth')   // Runs after global middlewares
+    @UseMiddleware('cache')  // Runs after auth
     users(c: Context) { ... }
 }
 
 // Execution order: Logger → Auth → Cache → users()
 ```
+
+## Migration from @Use to @UseMiddleware
+
+The `@Use` decorator is deprecated in favor of `@UseMiddleware` for clearer
+intent.
+
+**Before (deprecated):**
+
+```typescript
+import { Use } from '@lockness/core'
+
+@Get('/protected')
+@Use('auth')
+@Use(AuthMiddleware)
+protected(c: Context) { ... }
+```
+
+**After (recommended):**
+
+```typescript
+import { UseMiddleware } from '@lockness/core'
+
+@Get('/protected')
+@UseMiddleware('auth')
+@UseMiddleware(AuthMiddleware)
+protected(c: Context) { ... }
+```
+
+Both decorators work identically, but `@UseMiddleware` is preferred for new
+code.

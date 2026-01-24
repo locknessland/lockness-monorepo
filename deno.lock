@@ -3928,6 +3928,7 @@
       },
       "packages/core": {
         "dependencies": [
+          "jsr:@lockness/deprecation-contracts@~0.1.26",
           "jsr:@lockness/hono@~0.1.26",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",

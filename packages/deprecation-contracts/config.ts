@@ -30,26 +30,44 @@ import type { DeprecationConfig } from './types.ts'
  * ```
  */
 export function getConfig(): DeprecationConfig {
-    return {
-        ignore: Deno.env.get('IGNORE_DEPRECATIONS') === 'true',
-        strict: Deno.env.get('STRICT_DEPRECATIONS') === 'true',
+    try {
+        return {
+            ignore: Deno.env.get('IGNORE_DEPRECATIONS') === 'true',
+            strict: Deno.env.get('STRICT_DEPRECATIONS') === 'true',
+        }
+    } catch {
+        // Permission denied or env not accessible - return safe defaults
+        return {
+            ignore: false,
+            strict: false,
+        }
     }
 }
 
 /**
  * Check if deprecations should be ignored.
  *
- * @returns `true` if `IGNORE_DEPRECATIONS=true`
+ * @returns `true` if `IGNORE_DEPRECATIONS=true`, `false` otherwise or if env access is denied
  */
 export function shouldIgnore(): boolean {
-    return Deno.env.get('IGNORE_DEPRECATIONS') === 'true'
+    try {
+        return Deno.env.get('IGNORE_DEPRECATIONS') === 'true'
+    } catch {
+        // Permission denied or env not accessible - don't ignore deprecations
+        return false
+    }
 }
 
 /**
  * Check if deprecations should throw errors.
  *
- * @returns `true` if `STRICT_DEPRECATIONS=true`
+ * @returns `true` if `STRICT_DEPRECATIONS=true`, `false` otherwise or if env access is denied
  */
 export function isStrictMode(): boolean {
-    return Deno.env.get('STRICT_DEPRECATIONS') === 'true'
+    try {
+        return Deno.env.get('STRICT_DEPRECATIONS') === 'true'
+    } catch {
+        // Permission denied or env not accessible - don't use strict mode
+        return false
+    }
 }

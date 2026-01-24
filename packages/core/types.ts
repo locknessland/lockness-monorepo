@@ -98,6 +98,21 @@ export interface MountPoint {
 
 export interface AppConfig {
     controllersDir?: string
+    /**
+     * Optional path to middleware directory for auto-discovery.
+     *
+     * When provided, all middleware files will be imported to trigger
+     * `@DeclareMiddleware` decorators, automatically registering them.
+     *
+     * @example
+     * ```typescript
+     * await app.init({
+     *     middlewaresDir: './app/middleware',
+     *     controllersDir: './app/controller',
+     * })
+     * ```
+     */
+    middlewaresDir?: string
     staticDir?: string
 
     /**

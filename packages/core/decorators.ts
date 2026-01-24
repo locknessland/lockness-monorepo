@@ -4,15 +4,15 @@
  * This module provides decorators for building HTTP controllers:
  * - `@Controller(path)` - Marks a class as a controller with a base path
  * - `@Get()`, `@Post()`, `@Put()`, `@Delete()`, `@Patch()` - HTTP method decorators
- * - `@Use(middleware)` - Applies middleware to a route method
- * - `@Middleware()` - Marks a class as a middleware (marker decorator)
+ * - `@DeclareMiddleware(name)` - Registers a middleware for auto-discovery
+ * - `@UseMiddleware(middleware)` - Applies middleware to a route method
  *
  * @example
  * ```ts
  * @Controller('/users')
  * class UserController {
  *   @Get('/')
- *   @Use(AuthMiddleware)
+ *   @UseMiddleware('auth')
  *   async index(c: Context) {
  *     return c.json({ users: [] })
  *   }
@@ -27,7 +27,24 @@
  * @module
  */
 
-import type { MiddlewareInput } from './types.ts'
+import type { MiddlewareClass, MiddlewareInput } from './types.ts'
+import { triggerDeprecation } from '@lockness/deprecation-contracts'
+
+/**
+ * Global registry for declared middlewares.
+ * Maps middleware names to their class constructors.
+ * @internal
+ */
+export const declaredMiddlewares: Map<string, MiddlewareClass> = new Map<
+    string,
+    MiddlewareClass
+>()
+
+/**
+ * Symbol to store middleware name metadata on classes.
+ * @internal
+ */
+export const MIDDLEWARE_NAME_KEY = Symbol('middleware:name')
 
 /**
  * Route metadata stored on controller classes.
@@ -368,6 +385,48 @@ export function Middleware(): TC39ClassDecorator {
 }
 
 /**
+ * Declare a class-based middleware with a unique name.
+ * The middleware can then be applied using `@UseMiddleware('name')` on controllers or methods.
+ *
+ * This decorator automatically registers the middleware in a global registry,
+ * eliminating the need for manual registration in the kernel.
+ *
+ * @param name - Unique middleware name (e.g., 'auth', 'admin', 'rate-limit')
+ * @returns Class decorator function
+ *
+ * @example
+ * ```ts
+ * @DeclareMiddleware('auth')
+ * export class AuthMiddleware {
+ *     async handle(c: Context, next: Next) {
+ *         const user = await getUser(c)
+ *         if (!user) return c.redirect('/login')
+ *         return next()
+ *     }
+ * }
+ *
+ * // Then use it in controllers:
+ * @Controller('/dashboard')
+ * @UseMiddleware('auth')
+ * export class DashboardController { ... }
+ * ```
+ */
+export function DeclareMiddleware(name: string): TC39ClassDecorator {
+    return function <T extends Constructor>(
+        target: T,
+        _context: ClassDecoratorContext,
+    ): T {
+        // Store the name on the class for potential introspection
+        ;(target as any)[MIDDLEWARE_NAME_KEY] = name
+
+        // Register in global registry
+        declaredMiddlewares.set(name, target as unknown as MiddlewareClass)
+
+        return target
+    }
+}
+
+/**
  * Apply middleware to a route method.
  *
  * Can accept either a middleware class or a named middleware string.
@@ -375,6 +434,17 @@ export function Middleware(): TC39ClassDecorator {
  *
  * @param middleware - Middleware class or named middleware string
  * @returns Method decorator function
+ *
+ * @deprecated Since 0.1.27. Use `@UseMiddleware()` instead for clearer intent.
+ * ```ts
+ * // Before (deprecated)
+ * @Use('auth')
+ * @Use(AuthMiddleware)
+ *
+ * // After
+ * @UseMiddleware('auth')
+ * @UseMiddleware(AuthMiddleware)
+ * ```
  *
  * @example
  * ```ts
@@ -385,31 +455,113 @@ export function Middleware(): TC39ClassDecorator {
  * // Using a named middleware (must be registered in kernel)
  * @Use('auth')
  * async index(c: Context) { ... }
- *
- * // Stacking multiple middlewares
- * @Use('auth')
- * @Use(RateLimitMiddleware)
- * async index(c: Context) { ... }
  * ```
  */
-export function Use(middleware: MiddlewareInput | string): TC39MethodDecorator {
-    return function (
-        _target: unknown,
-        context: ClassMethodDecoratorContext,
+/**
+ * Internal implementation for applying middleware to a route method.
+ * Shared by both `@Use` and `@UseMiddleware` decorators.
+ */
+function applyMiddleware(
+    middleware: MiddlewareInput | string,
+): <This, Args extends unknown[], Return>(
+    target: (this: This, ...args: Args) => Return,
+    context: ClassMethodDecoratorContext<
+        This,
+        (this: This, ...args: Args) => Return
+    >,
+) => void {
+    return function <This, Args extends unknown[], Return>(
+        _target: (this: This, ...args: Args) => Return,
+        context: ClassMethodDecoratorContext<
+            This,
+            (this: This, ...args: Args) => Return
+        >,
     ): void {
         const methodName = String(context.name)
         let initialized = false
         context.addInitializer(function () {
             if (!initialized) {
                 initialized = true
+                const instance = this as object
                 const constructor =
-                    (this as { constructor: ControllerConstructor }).constructor
+                    (instance as { constructor: ControllerConstructor })
+                        .constructor
                 if (!constructor._middlewares) constructor._middlewares = {}
                 if (!constructor._middlewares[methodName]) {
                     constructor._middlewares[methodName] = []
                 }
-                constructor._middlewares[methodName].push(middleware)
+                // Use unshift to maintain top-to-bottom execution order
+                // (TC39 decorators apply bottom-to-top)
+                constructor._middlewares[methodName].unshift(middleware)
             }
         })
     }
+}
+
+export function Use(
+    middleware: MiddlewareInput | string,
+): <This, Args extends unknown[], Return>(
+    target: (this: This, ...args: Args) => Return,
+    context: ClassMethodDecoratorContext<
+        This,
+        (this: This, ...args: Args) => Return
+    >,
+) => void {
+    // Trigger deprecation warning at decoration time (build/load time)
+    triggerDeprecation(
+        'lockness/core',
+        '0.1.27',
+        '@Use() is deprecated. Use @UseMiddleware() instead for clearer intent.',
+    )
+
+    return applyMiddleware(middleware)
+}
+
+/**
+ * Apply middleware to a route method.
+ *
+ * Accepts either a middleware class or a named middleware string declared
+ * via `@DeclareMiddleware()`. This is the preferred way to apply middlewares.
+ *
+ * @param middleware - Middleware class or name declared with `@DeclareMiddleware()`
+ * @returns Method decorator function
+ *
+ * @since 0.1.27
+ *
+ * @example Using a named middleware
+ * ```ts
+ * @Controller('/api')
+ * export class ApiController {
+ *     @Get('/admin')
+ *     @UseMiddleware('admin')
+ *     adminPanel(c: Context) { ... }
+ * }
+ * ```
+ *
+ * @example Using a middleware class directly
+ * ```ts
+ * @Get('/protected')
+ * @UseMiddleware(AuthMiddleware)
+ * async protectedRoute(c: Context) { ... }
+ * ```
+ *
+ * @example Stacking multiple middlewares
+ * ```ts
+ * @Get('/admin/users')
+ * @UseMiddleware('auth')
+ * @UseMiddleware('admin')
+ * @UseMiddleware(RateLimitMiddleware)
+ * async listUsers(c: Context) { ... }
+ * ```
+ */
+export function UseMiddleware(
+    middleware: MiddlewareInput | string,
+): <This, Args extends unknown[], Return>(
+    target: (this: This, ...args: Args) => Return,
+    context: ClassMethodDecoratorContext<
+        This,
+        (this: This, ...args: Args) => Return
+    >,
+) => void {
+    return applyMiddleware(middleware)
 }

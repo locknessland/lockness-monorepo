@@ -14,6 +14,58 @@ import type {
     MiddlewareInput,
     MiddlewareRegistry,
 } from './types.ts'
+import { declaredMiddlewares } from './decorators.ts'
+
+/**
+ * Discovers middlewares decorated with @DeclareMiddleware from a directory.
+ *
+ * @param directory - Path to the directory containing middleware files
+ * @returns Promise resolving to middleware count
+ *
+ * @example
+ * ```typescript
+ * await discoverMiddlewares('./app/middleware')
+ * ```
+ *
+ * @internal
+ */
+export async function discoverMiddlewares(
+    directory: string,
+): Promise<number> {
+    const startCount = declaredMiddlewares.size
+
+    try {
+        // Resolve directory to absolute path
+        const absoluteDir = directory.startsWith('/')
+            ? directory
+            : `${Deno.cwd()}/${directory.replace(/^\.\//, '')}`
+
+        // Find all .ts and .tsx files recursively
+        const files: string[] = []
+        for await (const entry of Deno.readDir(absoluteDir)) {
+            if (
+                entry.isFile &&
+                (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))
+            ) {
+                files.push(`${absoluteDir}/${entry.name}`)
+            }
+        }
+
+        // Import each file to trigger @DeclareMiddleware decorators
+        for (const file of files) {
+            try {
+                await import(`file://${file}`)
+            } catch (_error) {
+                // Ignore import errors for middleware discovery
+                // Middlewares are registered during class decoration, not instantiation
+            }
+        }
+    } catch (_error) {
+        // Directory doesn't exist or can't be read - that's okay
+    }
+
+    return declaredMiddlewares.size - startCount
+}
 
 /**
  * Resolves middleware from various input types to handler functions.
@@ -61,6 +113,28 @@ export class MiddlewareResolver {
      */
     setRegistry(registry: MiddlewareRegistry): void {
         this.middlewareRegistry = registry
+    }
+
+    /**
+     * Merges declared middlewares (from @DeclareMiddleware decorator) with the current registry.
+     * Declared middlewares take precedence over manually registered ones.
+     *
+     * @example
+     * ```typescript
+     * // After middleware classes are decorated with @DeclareMiddleware
+     * resolver.mergeDeclaredMiddlewares()
+     * ```
+     *
+     * @internal
+     */
+    mergeDeclaredMiddlewares(): void {
+        const declared: MiddlewareRegistry = {}
+        for (const [name, middlewareClass] of declaredMiddlewares.entries()) {
+            declared[name] = middlewareClass
+        }
+
+        // Merge: declared middlewares take precedence
+        this.middlewareRegistry = { ...this.middlewareRegistry, ...declared }
     }
 
     /**

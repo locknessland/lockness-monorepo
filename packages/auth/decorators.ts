@@ -14,7 +14,7 @@ import {
     authRequired,
 } from './middleware/auth_middleware.ts'
 import type { MiddlewareHandler } from 'hono'
-import { Use } from '@lockness/core'
+import { UseMiddleware } from '@lockness/core'
 
 /**
  * Inject guard as second parameter to controller method
@@ -110,7 +110,7 @@ export { InjectGuard as Guard }
 // deno-lint-ignore no-explicit-any
 export function AuthOptional(guardName?: string): any {
     const middleware: MiddlewareHandler = authOptional(guardName ?? 'web')
-    return Use(middleware)
+    return UseMiddleware(middleware)
 }
 
 /**
@@ -159,7 +159,7 @@ export function AuthRequired(
     }
 
     const middleware: MiddlewareHandler = authRequired(guardName, redirectTo)
-    return Use(middleware)
+    return UseMiddleware(middleware)
 }
 
 /**
@@ -181,5 +181,5 @@ export function AuthRequired(
 // deno-lint-ignore no-explicit-any
 export function AuthGuard(guardName: string): any {
     const middleware: MiddlewareHandler = authGuard(guardName)
-    return Use(middleware)
+    return UseMiddleware(middleware)
 }

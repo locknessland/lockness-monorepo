@@ -414,6 +414,9 @@ export class App {
     async init(
         config: Module | ModuleWithMiddleware | AppConfig,
     ): Promise<void> {
+        // Step 0: Discover middlewares decorated with @DeclareMiddleware
+        await this.discoverMiddlewares(config)
+
         // Step 1: Register named middlewares
         this.registerNamedMiddlewares(config)
 
@@ -477,14 +480,33 @@ export class App {
     }
 
     /**
-     * Register named middlewares from config
+     * Discover middlewares decorated with @DeclareMiddleware
+     * @internal
+     */
+    private async discoverMiddlewares(
+        config: Module | ModuleWithMiddleware | AppConfig,
+    ): Promise<void> {
+        if ('middlewaresDir' in config && config.middlewaresDir) {
+            const { discoverMiddlewares } = await import(
+                './middleware_resolver.ts'
+            )
+            await discoverMiddlewares(config.middlewaresDir)
+        }
+    }
+
+    /**
+     * Register named middlewares from config and merge with declared middlewares
      */
     private registerNamedMiddlewares(
         config: Module | ModuleWithMiddleware | AppConfig,
     ): void {
+        // First, set manually registered middlewares
         if ('middlewares' in config && config.middlewares) {
             this.middlewareResolver.setRegistry(config.middlewares)
         }
+
+        // Then merge with @DeclareMiddleware decorated middlewares (takes precedence)
+        this.middlewareResolver.mergeDeclaredMiddlewares()
     }
 
     /**

@@ -21,15 +21,10 @@
  */
 
 import { App } from '@lockness/core'
-import type { Context, Next } from '@lockness/core'
 import { container } from '@lockness/container'
 import { configureSession, sessionMiddleware } from '@lockness/session'
 import { Database } from '@lockness/drizzle'
-import {
-    authMiddleware,
-    initializeAuthMiddleware,
-    SessionGuard,
-} from '@lockness/auth'
+import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
 import { collectAppRoutes, enableDevtools } from '@lockness/devtools'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { UserProvider } from '../app/auth/user_provider.ts'
@@ -101,33 +96,25 @@ export const bootstrap = async (): Promise<App> => {
         LoggerMiddleware,
     )
 
-    // Initialize with controllers (auto-discovery in dev, explicit in prod)
+    // Initialize with controllers and middlewares (auto-discovery in dev, explicit in prod)
     await app.init({
+        // Auto-discover middlewares decorated with @DeclareMiddleware
+        middlewaresDir: './app/middleware',
+
+        // Auto-discover controllers in dev, use explicit list in prod
         controllersDir: app.isDevelopment ? './app/controller' : undefined,
         controllers: app.isDevelopment ? undefined : controllers,
         staticDir: 'public',
 
         /**
-         * Named middlewares registry.
-         * Use with `@Use('auth')` decorator on controller methods.
+         * Optional: Manual middleware registration (merged with @DeclareMiddleware)
+         *
+         * Middlewares decorated with @DeclareMiddleware take precedence.
+         * This is kept for backward compatibility and edge cases.
          */
         middlewares: {
-            /**
-             * Authentication middleware - protects routes requiring login.
-             * Redirects unauthenticated users to the login page.
-             */
-            auth: class AuthMiddleware {
-                /**
-                 * Handles the authentication check.
-                 *
-                 * @param c - Hono context
-                 * @param next - Next middleware function
-                 * @returns Response or continues to next middleware
-                 */
-                async handle(c: Context, next: Next): Promise<Response | void> {
-                    return await authMiddleware()(c, next)
-                }
-            },
+            // Example of manually registered middleware (if needed)
+            // 'custom': CustomMiddleware,
         },
     })
 

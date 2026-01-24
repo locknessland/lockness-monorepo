@@ -364,9 +364,11 @@ The `app.init()` method accepts a configuration object:
 
 - `controllers`: Array of controller classes (for production/compilation).
 - `controllersDir`: Directory for auto-discovery (for development).
+- `middlewaresDir`: Directory for auto-discovering `@DeclareMiddleware`
+  decorated classes.
 - `staticDir`: Directory for serving static files.
 - `mountPoints`: Array of mount point configurations for multi-pattern routing.
-- `middlewares`: Named middlewares for use with `@Use('name')`.
+- `middlewares`: Named middlewares (legacy, prefer `@DeclareMiddleware`).
 - Note: `globalMiddlewares` and `errorHandler` are now configured via fluent API
 
 ### Multi-Mount Routing
@@ -551,7 +553,11 @@ The framework uses a dual-layer routing architecture to enable mount points:
 - `@Put(path, options)`: Registers a PUT route.
 - `@Patch(path, options)`: Registers a PATCH route.
 - `@Delete(path, options)`: Registers a DELETE route.
-- `@Use(middleware)`: Applies middleware to a class or method.
+- `@DeclareMiddleware(name)`: Registers a middleware class with a name for
+  auto-discovery.
+- `@UseMiddleware(middleware)`: Applies middleware to a route method (accepts
+  name or class).
+- `@Use(middleware)`: _(Deprecated)_ Use `@UseMiddleware` instead.
 - `@Service()`: Declares a class as a service.
 - `@Inject(class)`: Injects a service into a property.
 
