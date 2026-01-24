@@ -51,8 +51,26 @@ export const bootstrap = async (): Promise<App> => {
 ## Target State (Declarative)
 
 ```typescript
+// app/middleware/auth_middleware.ts
+import { DeclareMiddleware } from '@lockness/core'
+
+@DeclareMiddleware('auth')
+export class AuthMiddleware {
+    async handle(c: Context, next: Next) {
+        // Auth logic...
+    }
+}
+
+// app/middleware/admin_middleware.ts
+@DeclareMiddleware('admin')
+export class AdminMiddleware {
+    async handle(c: Context, next: Next) {
+        // Admin check...
+    }
+}
+
 // app/kernel.tsx
-import { GlobalMiddleware, Kernel, NamedMiddlewares } from '@lockness/core'
+import { DeclareGlobalMiddleware, Kernel } from '@lockness/core'
 
 @Kernel({
     database: { url: Deno.env.get('DATABASE_URL') },
@@ -60,9 +78,10 @@ import { GlobalMiddleware, Kernel, NamedMiddlewares } from '@lockness/core'
     devtools: true,
     staticDir: 'public',
     controllersDir: './app/controller',
+    middlewaresDir: './app/middleware', // Auto-discovers @DeclareMiddleware classes
 })
 export class AppKernel {
-    @GlobalMiddleware()
+    @DeclareGlobalMiddleware()
     globalMiddlewares = [
         sessionMiddleware(),
         initializeAuthMiddleware({
@@ -74,11 +93,8 @@ export class AppKernel {
         LoggerMiddleware,
     ]
 
-    @NamedMiddlewares()
-    namedMiddlewares = {
-        auth: AuthMiddleware,
-        admin: AdminMiddleware,
-    }
+    // Named middlewares are auto-discovered via middlewaresDir
+    // No need for @DeclareNamedMiddlewares!
 }
 
 // main.ts
@@ -145,7 +161,6 @@ export interface KernelConfig {
  */
 export const KERNEL_CONFIG = Symbol('kernel:config')
 export const KERNEL_GLOBAL_MIDDLEWARE = Symbol('kernel:globalMiddleware')
-export const KERNEL_NAMED_MIDDLEWARES = Symbol('kernel:namedMiddlewares')
 export const KERNEL_BOOT_HOOKS = Symbol('kernel:bootHooks')
 
 /**
@@ -182,15 +197,28 @@ export function Kernel(config: KernelConfig = {}) {
 }
 ````
 
-### 2. Property Decorators
+### 2. Property Decorator
 
 **File**: `packages/core/kernel/decorators.ts` (continued)
 
-```typescript
+````typescript
 /**
- * Mark a property as the global middleware list
+ * Declare a property as the global middleware list.
+ * Global middlewares are applied to all routes in order.
+ *
+ * @example
+ * ```typescript
+ * @Kernel({ middlewaresDir: './app/middleware' })
+ * export class AppKernel {
+ *     @DeclareGlobalMiddleware()
+ *     globalMiddlewares = [
+ *         sessionMiddleware(),
+ *         LoggerMiddleware,
+ *     ]
+ * }
+ * ```
  */
-export function GlobalMiddleware() {
+export function DeclareGlobalMiddleware() {
     return function (
         _target: undefined,
         context: ClassFieldDecoratorContext,
@@ -204,23 +232,10 @@ export function GlobalMiddleware() {
     }
 }
 
-/**
- * Mark a property as the named middlewares map
- */
-export function NamedMiddlewares() {
-    return function (
-        _target: undefined,
-        context: ClassFieldDecoratorContext,
-    ) {
-        const fieldName = context.name
-
-        context.addInitializer(function () {
-            const constructor = this.constructor as any
-            constructor[KERNEL_NAMED_MIDDLEWARES] = fieldName
-        })
-    }
-}
-```
+// NOTE: @DeclareNamedMiddlewares is NOT needed!
+// Named middlewares are auto-discovered via middlewaresDir option.
+// Each middleware class uses @DeclareMiddleware('name') to register itself.
+````
 
 ### 3. Kernel Loader
 
@@ -233,9 +248,9 @@ import {
     KERNEL_BOOT_HOOKS,
     KERNEL_CONFIG,
     KERNEL_GLOBAL_MIDDLEWARE,
-    KERNEL_NAMED_MIDDLEWARES,
     type KernelConfig,
 } from './decorators.ts'
+import { discoverMiddlewares } from '../middleware_discovery.ts'
 
 /**
  * Create and bootstrap an App from a decorated Kernel class
@@ -243,7 +258,6 @@ import {
 export async function createApp<T>(KernelClass: new () => T): Promise<App> {
     const config: KernelConfig = (KernelClass as any)[KERNEL_CONFIG] ?? {}
     const globalMiddlewareProp = (KernelClass as any)[KERNEL_GLOBAL_MIDDLEWARE]
-    const namedMiddlewaresProp = (KernelClass as any)[KERNEL_NAMED_MIDDLEWARES]
     const bootHooks: Array<{ method: string; priority: number }> =
         (KernelClass as any)[KERNEL_BOOT_HOOKS] ?? []
 
@@ -298,20 +312,21 @@ export async function createApp<T>(KernelClass: new () => T): Promise<App> {
         await (kernel as any)[hook.method](app)
     }
 
-    // 7. Initialize app
-    const namedMiddlewares = namedMiddlewaresProp
-        ? (kernel as any)[namedMiddlewaresProp]
-        : undefined
+    // 7. Auto-discover named middlewares from middlewaresDir
+    let namedMiddlewares: Map<string, unknown> | undefined
+    if (config.middlewaresDir) {
+        namedMiddlewares = await discoverMiddlewares(config.middlewaresDir)
+    }
 
+    // 8. Initialize app
     await app.init({
         controllersDir: app.isDevelopment ? config.controllersDir : undefined,
         controllers: app.isDevelopment ? undefined : config.controllers,
         staticDir: config.staticDir,
-        middlewaresDir: config.middlewaresDir,
         middlewares: namedMiddlewares,
     })
 
-    // 8. Collect routes for devtools
+    // 9. Collect routes for devtools
     if (config.devtools && app.isDevelopment) {
         const { collectAppRoutes } = await import('@lockness/devtools')
         collectAppRoutes(app)
@@ -328,10 +343,9 @@ export async function createApp<T>(KernelClass: new () => T): Promise<App> {
 ```typescript
 // Kernel decorators
 export {
-    GlobalMiddleware,
+    DeclareGlobalMiddleware,
     Kernel,
     type KernelConfig,
-    NamedMiddlewares,
 } from './kernel/decorators.ts'
 
 export { createApp } from './kernel/loader.ts'
@@ -363,8 +377,8 @@ The imperative `bootstrap()` function pattern must continue to work. The
 ## Acceptance Criteria
 
 - [ ] `@Kernel(config)` decorator stores configuration metadata
-- [ ] `@GlobalMiddleware()` marks middleware list property
-- [ ] `@NamedMiddlewares()` marks named middlewares property
+- [ ] `@DeclareGlobalMiddleware()` declares global middleware list property
+- [ ] `middlewaresDir` auto-discovers `@DeclareMiddleware` classes
 - [ ] `createApp(KernelClass)` bootstraps from decorated class
 - [ ] Database, session, devtools configured from decorator options
 - [ ] Imperative bootstrap continues to work
@@ -381,5 +395,5 @@ Low - Major DX improvement but requires careful design
 
 ## Dependencies
 
-- Depends on `@NamedMiddleware` decorator (for middleware discovery)
+- Depends on `@DeclareMiddleware` decorator (for middleware discovery)
 - Depends on `@OnBoot` decorator (for boot hooks)
