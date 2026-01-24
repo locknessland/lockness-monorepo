@@ -396,4 +396,4 @@ Low - Major DX improvement but requires careful design
 ## Dependencies
 
 - Depends on `@DeclareMiddleware` decorator (for middleware discovery)
-- Depends on `@OnBoot` decorator (for boot hooks)
+- ✅ `@OnBoot` decorator (implemented)
