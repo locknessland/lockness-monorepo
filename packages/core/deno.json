@@ -25,11 +25,14 @@
             "route_registry.ts",
             "server_listener.ts",
             "static_file_server.ts",
+            "kernel/decorators.ts",
+            "kernel/boot_runner.ts",
             "deno.json",
             "README.md"
         ],
         "exclude": [
-            "tests/"
+            "tests/",
+            "docs/examples/"
         ]
     },
     "tasks": {

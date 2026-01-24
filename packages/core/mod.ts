@@ -5,9 +5,10 @@
  * Re-exports all public APIs including:
  *
  * - **App**: Main application class for bootstrapping
- * - **Decorators**: `@Controller`, `@Get`, `@Post`, etc.
+ * - **Decorators**: `@Controller`, `@Get`, `@Post`, `@OnBoot`, etc.
  * - **Types**: `Context`, `Next`, `MiddlewareHandler`, etc.
  * - **Helpers**: `asset()`, `route()`, `formatErrorForConsole()`
+ * - **Boot Lifecycle**: `runBootHooks()`, `getBootHooks()`
  * - **Hono Re-exports**: All Hono middleware and utilities
  *
  * @module @lockness/core
@@ -39,6 +40,15 @@ export * from './router.ts'
 export * from './helpers.ts'
 export * from './error_formatter.ts'
 export * from './default_error_handler.tsx'
+
+// Export boot lifecycle features
+export {
+    type BootHookMeta,
+    KERNEL_BOOT_HOOKS,
+    OnBoot,
+    type OnBootOptions,
+} from './kernel/decorators.ts'
+export { getBootHooks, runBootHooks } from './kernel/boot_runner.ts'
 
 // Re-export essential framework packages (used by core functionality)
 export * from '@lockness/container'
