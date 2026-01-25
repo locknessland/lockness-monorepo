@@ -37,9 +37,12 @@ import type {
     ModuleWithMiddleware,
 } from './types.ts'
 import { MiddlewareResolver } from './http/resolver.ts'
+import { MiddlewareRegistrator } from './http/registrator.ts'
 import { ErrorHandlerRegistry } from './exceptions/handler.ts'
+import { ExceptionRegistrator } from './exceptions/registrator.ts'
 import { ControllerDiscovery } from './routing/discovery.ts'
 import { RouteRegistry } from './routing/registry.ts'
+import { MountManager } from './routing/mount_manager.ts'
 import { StaticFileServer } from './http/static.ts'
 import { ServerListener } from './http/server.ts'
 import pkg from './deno.json' with { type: 'json' }
@@ -140,18 +143,27 @@ export class App {
         strict: false,
     })
 
+    // Core services
     /** @internal */
     private readonly middlewareResolver: MiddlewareResolver
     /** @internal */
+    private readonly middlewareRegistrator: MiddlewareRegistrator
+    /** @internal */
     private readonly errorHandlerRegistry: ErrorHandlerRegistry
+    /** @internal */
+    private readonly exceptionRegistrator: ExceptionRegistrator
     /** @internal */
     private readonly controllerDiscovery: ControllerDiscovery
     /** @internal */
     private readonly routeRegistry: RouteRegistry
     /** @internal */
+    private readonly mountManager: MountManager
+    /** @internal */
     private readonly staticFileServer: StaticFileServer
     /** @internal */
     private readonly serverListener: ServerListener
+
+    // Pending configuration from fluent API
     /** @internal */
     private readonly pendingGlobalMiddlewares: MiddlewareInput[] = []
     /** @internal */
@@ -185,11 +197,21 @@ export class App {
             ),
         )
 
-        // Initialize utility classes
+        // Initialize core services
         this.middlewareResolver = new MiddlewareResolver()
+        this.middlewareRegistrator = new MiddlewareRegistrator(
+            this.middlewareResolver,
+            this.hono,
+        )
         this.errorHandlerRegistry = new ErrorHandlerRegistry()
+        this.exceptionRegistrator = new ExceptionRegistrator(
+            this.errorHandlerRegistry,
+            this.hono,
+            this.rootHono,
+        )
         this.controllerDiscovery = new ControllerDiscovery()
         this.routeRegistry = new RouteRegistry(this.middlewareResolver)
+        this.mountManager = new MountManager(this.rootHono, this.hono)
         this.staticFileServer = new StaticFileServer()
         this.serverListener = new ServerListener()
     }
@@ -414,35 +436,32 @@ export class App {
     async init(
         config: Module | ModuleWithMiddleware | AppConfig,
     ): Promise<void> {
-        // Step 0: Discover middlewares decorated with @DeclareMiddleware
-        await this.discoverMiddlewares(config)
+        // Step 1: Register middlewares (discovery, naming, global application)
+        await this.middlewareRegistrator.register(
+            config,
+            this.pendingGlobalMiddlewares,
+        )
 
-        // Step 1: Register named middlewares
-        this.registerNamedMiddlewares(config)
+        // Step 2: Register error handlers
+        const errorHandler = await this.exceptionRegistrator.register(
+            config,
+            this.pendingErrorHandler,
+        )
 
-        // Step 2: Discover and register error handler
-        const errorHandler = await this.discoverErrorHandler(config)
-        this.registerErrorHandler(errorHandler)
-
-        // Step 3: Resolve global middlewares
-        const globalMiddlewares = this.resolveGlobalMiddlewares(config)
-        this.applyGlobalMiddlewares(globalMiddlewares)
-
-        // Step 4: Discover or load controllers
+        // Step 3: Discover or load controllers
         const controllers = await this.loadControllers(config)
 
-        // Step 5: Register controllers and routes (on internal hono)
+        // Step 4: Register controllers and routes (on internal hono)
         this.routeRegistry.registerControllers(this.hono, controllers)
 
-        // Step 6: Register static file serving FIRST (on rootHono, global)
-        // Must be before mount points so /css/app.css isn't intercepted by /:langId/:countryId
+        // Step 5: Register static file serving (on rootHono, before mount points)
         this.registerStaticFiles(config)
 
-        // Step 7: Set up mount points (connects rootHono → hono)
-        this.setupMountPoints(config)
+        // Step 6: Set up mount points (connects rootHono → hono)
+        this.mountManager.setup(config)
 
-        // Step 8: Register 404 handler (on rootHono, must be last)
-        this.registerNotFoundHandler(errorHandler)
+        // Step 7: Register 404 handler (on rootHono, must be last)
+        this.exceptionRegistrator.registerNotFoundHandler(errorHandler)
     }
 
     /**
@@ -481,82 +500,8 @@ export class App {
     }
 
     /**
-     * Discover middlewares decorated with @DeclareMiddleware
-     * @internal
-     */
-    private async discoverMiddlewares(
-        config: Module | ModuleWithMiddleware | AppConfig,
-    ): Promise<void> {
-        if ('middlewaresDir' in config && config.middlewaresDir) {
-            const { discoverMiddlewares } = await import(
-                './http/resolver.ts'
-            )
-            await discoverMiddlewares(config.middlewaresDir)
-        }
-    }
-
-    /**
-     * Register named middlewares from config and merge with declared middlewares
-     */
-    private registerNamedMiddlewares(
-        config: Module | ModuleWithMiddleware | AppConfig,
-    ): void {
-        // First, set manually registered middlewares
-        if ('middlewares' in config && config.middlewares) {
-            this.middlewareResolver.setRegistry(config.middlewares)
-        }
-
-        // Then merge with @DeclareMiddleware decorated middlewares (takes precedence)
-        this.middlewareResolver.mergeDeclaredMiddlewares()
-    }
-
-    /**
-     * Discover and return the error handler
-     */
-    private async discoverErrorHandler(
-        config: Module | ModuleWithMiddleware | AppConfig,
-    ): Promise<ErrorHandler> {
-        const providedHandler = this.pendingErrorHandler ||
-            ('errorHandler' in config ? config.errorHandler : undefined)
-
-        return await this.errorHandlerRegistry.discover(providedHandler)
-    }
-
-    /**
-     * Register error handler with Hono
-     */
-    private registerErrorHandler(errorHandler: ErrorHandler): void {
-        this.hono.onError((error, c) => {
-            return errorHandler(error, c as any)
-        })
-    }
-
-    /**
-     * Resolve global middlewares from fluent API and config
-     */
-    private resolveGlobalMiddlewares(
-        config: Module | ModuleWithMiddleware | AppConfig,
-    ): MiddlewareInput[] {
-        return [
-            ...this.pendingGlobalMiddlewares,
-            ...('globalMiddlewares' in config && config.globalMiddlewares
-                ? config.globalMiddlewares
-                : []),
-        ]
-    }
-
-    /**
-     * Apply global middlewares to all routes
-     */
-    private applyGlobalMiddlewares(middlewares: MiddlewareInput[]): void {
-        const handlers = this.middlewareResolver.resolveMany(middlewares)
-        if (handlers.length > 0) {
-            this.hono.use('*', ...handlers as any)
-        }
-    }
-
-    /**
      * Load controllers from config (explicit list or discovery)
+     * @internal
      */
     private async loadControllers(
         config: Module | ModuleWithMiddleware | AppConfig,
@@ -569,37 +514,6 @@ export class App {
             )
         }
         return []
-    }
-
-    /**
-     * Sets up mount points by connecting rootHono to hono.
-     * If no mount points are defined, mounts at root `/`.
-     * @internal
-     */
-    private setupMountPoints(
-        config: Module | ModuleWithMiddleware | AppConfig,
-    ): void {
-        const mountPoints = 'mountPoints' in config
-            ? config.mountPoints
-            : undefined
-
-        // Always mount at root FIRST - this ensures routes like /demo/mount-points
-        // are matched before the mount point pattern /:langId/:countryId
-        this.rootHono.route('/', this.hono)
-
-        if (mountPoints && mountPoints.length > 0) {
-            // Mount points add middleware to specific patterns
-            // Routes remain accessible at root AND under mount point patterns
-            for (const mount of mountPoints) {
-                // Apply mount-specific middleware if provided
-                if (mount.middleware) {
-                    this.rootHono.use(`${mount.pattern}/*`, mount.middleware)
-                }
-
-                // Route requests under this pattern to internal hono
-                this.rootHono.route(mount.pattern, this.hono)
-            }
-        }
     }
 
     /**
@@ -616,17 +530,5 @@ export class App {
                 config.staticDir,
             )
         }
-    }
-
-    /**
-     * Register the 404 Not Found handler on the public layer.
-     * @internal
-     */
-    private registerNotFoundHandler(errorHandler: ErrorHandler): void {
-        this.rootHono.notFound((c) => {
-            const error = new Error('Not Found') as any
-            error.status = 404
-            return errorHandler(error, c as any)
-        })
     }
 }
