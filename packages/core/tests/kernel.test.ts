@@ -21,7 +21,7 @@ Deno.test('@Kernel - stores configuration metadata on class', () => {
     }
 
     @Kernel(config)
-    class TestKernel {}
+    class TestKernel { }
 
     const storedConfig = (TestKernel as any)[KERNEL_CONFIG]
     assertExists(storedConfig)
@@ -30,7 +30,7 @@ Deno.test('@Kernel - stores configuration metadata on class', () => {
 
 Deno.test('@Kernel - works with empty configuration', () => {
     @Kernel()
-    class TestKernel {}
+    class TestKernel { }
 
     const storedConfig = (TestKernel as any)[KERNEL_CONFIG]
     assertExists(storedConfig)
@@ -43,7 +43,7 @@ Deno.test('@Kernel - throws error if applied to non-class', () => {
             const decoratorFn = Kernel()
             // Call the decorator with a mock context that simulates non-class usage
             decoratorFn(
-                class {} as any,
+                class { } as any,
                 { kind: 'method', name: 'test' } as any,
             )
         },
@@ -82,7 +82,7 @@ Deno.test('@DeclareGlobalMiddleware - supports custom field names', () => {
 
 Deno.test('createApp - creates App instance with minimal config', async () => {
     @Kernel()
-    class TestKernel {}
+    class TestKernel { }
 
     const app = await createApp(TestKernel)
 
@@ -187,7 +187,7 @@ Deno.test('createApp - supports static directory configuration', async () => {
         staticDir: 'public',
         controllers: [],
     })
-    class TestKernel {}
+    class TestKernel { }
 
     const app = await createApp(TestKernel)
 
@@ -199,7 +199,7 @@ Deno.test('createApp - supports controller directory configuration', async () =>
         controllersDir: './test-controllers',
         controllers: [],
     })
-    class TestKernel {}
+    class TestKernel { }
 
     const app = await createApp(TestKernel)
 
@@ -210,7 +210,7 @@ Deno.test('createApp - supports explicit controllers list', async () => {
     @Kernel({
         controllers: [],
     })
-    class TestKernel {}
+    class TestKernel { }
 
     const app = await createApp(TestKernel)
 
@@ -264,7 +264,7 @@ Deno.test('createApp - supports database configuration as boolean', async () => 
         database: true, // Enable with defaults
         controllers: [],
     })
-    class TestKernel {}
+    class TestKernel { }
 
     // Should not throw even if @lockness/drizzle is not installed
     // The loader will warn and skip database setup
@@ -272,47 +272,62 @@ Deno.test('createApp - supports database configuration as boolean', async () => 
     assertExists(app)
 })
 
-Deno.test('createApp - supports database configuration as object', async () => {
-    @Kernel({
-        database: {
-            url: 'postgres://localhost:5432/test',
-            autoConnect: true,
-        },
-        controllers: [],
-    })
-    class TestKernel {}
+Deno.test({
+    name: 'createApp - supports database configuration as object',
+    sanitizeResources: false,
+    sanitizeOps: false,
+    fn: async () => {
+        @Kernel({
+            database: {
+                url: 'postgres://localhost:5432/test',
+                autoConnect: true,
+            },
+            controllers: [],
+        })
+        class TestKernel { }
 
-    // Should not throw even if @lockness/drizzle is not installed
-    const app = await createApp(TestKernel)
-    assertExists(app)
-})
+        // Should not throw even if @lockness/drizzle is not installed
+        const app = await createApp(TestKernel)
+        assertExists(app)
+    }
+});
 
-Deno.test('createApp - supports session configuration as boolean', async () => {
-    @Kernel({
-        session: true,
-        controllers: [],
-    })
-    class TestKernel {}
+Deno.test({
+    name: 'createApp - supports session configuration as boolean',
+    sanitizeResources: false,
+    sanitizeOps: false,
+    fn: async () => {
+        @Kernel({
+            session: true,
+            controllers: [],
+        })
+        class TestKernel { }
 
-    // Should not throw even if @lockness/session is not installed
-    const app = await createApp(TestKernel)
-    assertExists(app)
-})
+        // Should not throw even if @lockness/session is not installed
+        const app = await createApp(TestKernel)
+        assertExists(app)
+    }
+});
 
-Deno.test('createApp - supports session configuration as object', async () => {
-    @Kernel({
-        session: {
-            driver: 'memory',
-            lifetime: 3600,
-            secure: false,
-        },
-        controllers: [],
-    })
-    class TestKernel {}
+Deno.test({
+    name: 'createApp - supports session configuration as object',
+    sanitizeResources: false,
+    sanitizeOps: false,
+    fn: async () => {
+        @Kernel({
+            session: {
+                driver: 'memory',
+                lifetime: 3600,
+                secure: false,
+            },
+            controllers: [],
+        })
+        class TestKernel { }
 
-    // Should not throw even if @lockness/session is not installed
-    const app = await createApp(TestKernel)
-    assertExists(app)
+        // Should not throw even if @lockness/session is not installed
+        const app = await createApp(TestKernel)
+        assertExists(app)
+    }
 })
 
 Deno.test('createApp - handles missing optional dependencies gracefully', async () => {
@@ -322,7 +337,7 @@ Deno.test('createApp - handles missing optional dependencies gracefully', async 
         devtools: true,
         controllers: [],
     })
-    class TestKernel {}
+    class TestKernel { }
 
     // Should not throw - just logs warnings if packages not installed
     const app = await createApp(TestKernel)
