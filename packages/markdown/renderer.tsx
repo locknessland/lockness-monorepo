@@ -53,7 +53,7 @@ const defaultComponents: Required<ComponentOverrides> = {
         </Title>
     ),
     Paragraph: ({ children }) => (
-        <p class='leading-7 [&:not(:first-child)]:mt-6'>{children}</p>
+        <p class='leading-7 not-first:mt-6'>{children}</p>
     ),
     CodeBlock: ({ language, children, html }) => (
         <HighlightedCodeBlock lang={language as Language} html={html}>
