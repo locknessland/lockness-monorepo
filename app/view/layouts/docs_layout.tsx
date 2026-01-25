@@ -245,6 +245,7 @@ const navSections: readonly NavSection[] = [
         icon: RocketIcon,
         links: [
             { title: 'Deployment Guide', name: 'deployment' },
+            { title: 'Binary Compilation', name: 'compilation' },
             { title: 'Upgrade Guide', name: 'upgrade' },
         ],
     },

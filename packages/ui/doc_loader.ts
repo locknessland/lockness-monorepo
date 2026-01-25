@@ -125,18 +125,32 @@ export class UiDocLoader {
      * @param baseDir - Base directory for components (defaults to auto-detection)
      */
     constructor(baseDir?: string) {
-        // Auto-detect base directory relative to this file
+        // Auto-detect base directory
         if (baseDir) {
             this.baseDir = baseDir
         } else {
-            // When used from packages/ui/doc_loader.ts
-            const currentFileUrl = new URL(import.meta.url)
-            const currentDir = currentFileUrl.pathname.replace(
-                '/doc_loader.ts',
-                '',
-            )
-            this.baseDir = join(currentDir, 'components')
+            // 1. Try relative to CWD first (standard for production/dist)
+            const cwdComponents = join(Deno.cwd(), 'packages', 'ui', 'components')
+            try {
+                Deno.statSync(cwdComponents)
+                this.baseDir = cwdComponents
+            } catch {
+                // 2. Fallback to import.meta.url (standard for development)
+                try {
+                    const currentFileUrl = new URL(import.meta.url)
+                    const currentDir = currentFileUrl.pathname.replace(
+                        '/doc_loader.ts',
+                        '',
+                    )
+                    this.baseDir = join(currentDir, 'components')
+                    Deno.statSync(this.baseDir)
+                } catch {
+                    // 3. Last resort fallback
+                    this.baseDir = cwdComponents
+                }
+            }
         }
+        // console.log(`🔍 UiDocLoader initialized with baseDir: ${this.baseDir}`)
     }
 
     /**
@@ -186,7 +200,17 @@ export class UiDocLoader {
      * @returns Component examples module or null if not found
      */
     async loadExamples(slug: string): Promise<ExampleSection[] | null> {
-        // Map slug to component name
+        // 1. Try static registry first (preferred for compiled binary/production)
+        try {
+            const { uiExamplesRegistry } = await import('./examples_registry.ts')
+            if (uiExamplesRegistry[slug]) {
+                return uiExamplesRegistry[slug]
+            }
+        } catch {
+            // Registry not generated or not available - fallback to dynamic discovery
+        }
+
+        // 2. Dynamic discovery fallback (standard for development)
         const componentName = this.slugToComponent[slug]
         if (!componentName) {
             return null

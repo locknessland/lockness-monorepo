@@ -81,6 +81,23 @@ import { databaseConfig, sessionConfig } from '../config/mod.ts'
             middleware: i18nMiddleware,
         },
     ],
+
+    // Binary compilation configuration
+    compile: {
+        output: '_dist/lockness',
+        main: 'main.ts',
+        flags: ['-A', '--env-file=.env.production.local'],
+        assets: [
+            'public',
+            'docs',
+            { source: 'packages/ui/components', target: 'packages/ui/components' },
+        ],
+        scripts: [
+            'scripts/generate_ui_registry.ts',
+            'deno task css:build',
+            'scripts/prepare_docs.ts',
+        ],
+    },
 })
 export class AppKernel {
     /**

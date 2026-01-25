@@ -9,6 +9,7 @@
 
 import { Service } from '@lockness/core'
 import { join } from 'node:path'
+import { exists } from '@std/fs'
 
 /**
  * Parsed documentation page with metadata
@@ -94,6 +95,7 @@ export class DocsLoader {
         'models': 'docs/models.md',
         'nessy': 'docs/nessy.md',
         'packages': 'docs/packages.md',
+        'compilation': 'docs/compilation.md',
     }
 
     /**
@@ -272,6 +274,7 @@ export class DocsLoader {
         'deployment': 'docs/deployment.md',
         'contribution': 'docs/contribution.md',
         'packages': 'docs/packages.md',
+        'compilation': 'docs/compilation.md',
     }
 
     /**
@@ -363,8 +366,22 @@ export class DocsLoader {
     private async getVersion(): Promise<string> {
         if (this.version) return this.version
 
+        // Priority 1: Environment variable (standard for compiled binaries/containers)
+        const envVersion = Deno.env.get('APP_VERSION')
+        if (envVersion) {
+            this.version = envVersion
+            return this.version
+        }
+
         try {
+            // Priority 2: deno.jsonc (standard for development monorepo)
             const denoJsonPath = join(Deno.cwd(), 'deno.jsonc')
+
+            if (!await exists(denoJsonPath)) {
+                this.version = '0.0.0'
+                return this.version
+            }
+
             const content = await Deno.readTextFile(denoJsonPath)
             // Handle JSONC (with comments) - simple approach
             const jsonWithoutComments = content.replace(

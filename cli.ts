@@ -3,7 +3,7 @@ import { Cli, loadPackageCommands, registerCoreCommands } from '@lockness/cli'
 const cli = new Cli()
 
 // Register framework core commands (make:controller, make:middleware, etc.)
-registerCoreCommands(cli)
+await registerCoreCommands(cli)
 
 // Load commands from installed packages (drizzle, openapi, etc.)
 // verified in deno.json under "lockness.packages"

@@ -33,7 +33,7 @@
  * ```
  */
 
-import type { MountPoint } from '../types.ts'
+import type { CompileConfig, MountPoint } from '../types.ts'
 
 /**
  * Database configuration options
@@ -179,6 +179,12 @@ export interface KernelConfig {
      * ```
      */
     mountPoints?: readonly MountPoint[]
+
+    /**
+     * Binary compilation configuration.
+     * Use this to orchestrate the `deno compile` process.
+     */
+    compile?: CompileConfig
 }
 
 /**
@@ -265,7 +271,7 @@ export function Kernel(
             throw new Error('@Kernel can only decorate classes')
         } // Store configuration on class
 
-        ;(target as any)[KERNEL_CONFIG] = config
+        ; (target as any)[KERNEL_CONFIG] = config
 
         return target
     }

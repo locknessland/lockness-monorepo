@@ -137,6 +137,47 @@ export interface AppConfig {
      * ```
      */
     readonly mountPoints?: readonly MountPoint[]
+    /**
+     * Binary compilation configuration.
+     * 
+     * Used by the CLI to orchestrate the `deno compile` process, 
+     * including registry generation, asset copying, and compilation flags.
+     */
+    readonly compile?: CompileConfig
+}
+
+/**
+ * Mapping of a source file or directory to a target directory in _dist.
+ */
+export interface AssetMapping {
+    readonly source: string
+    readonly target: string
+}
+
+/**
+ * Configuration for binary compilation orchestration.
+ */
+export interface CompileConfig {
+    /** Output path for the binary. Defaults to '_dist/lockness' */
+    readonly output?: string
+    /** 
+     * Folders or files to copy to the distribution directory.
+     * Can be a simple path (relative to root) or an AssetMapping.
+     */
+    readonly assets?: readonly (string | AssetMapping)[]
+    /**
+     * Scripts to execute before compilation (e.g., registry generation).
+     */
+    readonly scripts?: readonly string[]
+    /**
+     * Explicit flags to pass to `deno compile`.
+     * If not provided, defaults to standard flags like -A.
+     */
+    readonly flags?: readonly string[]
+    /**
+     * Main entry file for compilation. Defaults to 'main.ts'.
+     */
+    readonly main?: string
 }
 
 /**
