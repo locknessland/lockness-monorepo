@@ -392,3 +392,95 @@ protected(c: Context) { ... }
 
 Both decorators work identically, but `@UseMiddleware` is preferred for new
 code.
+
+## Composing Middlewares
+
+Lockness provides a `compose()` helper to combine multiple middlewares into a
+single reusable unit. This is useful for creating middleware stacks that you can
+apply in multiple places.
+
+### Basic Usage
+
+```typescript
+import { compose, cors, logger } from '@lockness/core'
+
+// Combine multiple middlewares into one
+const apiStack = compose([
+    logger(), // Hono function middleware
+    AuthMiddleware, // Lockness class middleware
+    'admin', // Named middleware (resolved from registry)
+])
+
+@Controller('/api')
+export class ApiController {
+    @Get('/users')
+    @UseMiddleware(apiStack)
+    users(c: Context) {
+        return c.json({ users: [] })
+    }
+}
+```
+
+### Alternative Syntax
+
+Use `composeMiddleware()` with rest parameters instead of an array:
+
+```typescript
+import { composeMiddleware, cors, logger } from '@lockness/core'
+
+const stack = composeMiddleware(
+    logger(),
+    AuthMiddleware,
+    'admin',
+)
+```
+
+### Nested Composition
+
+You can compose composed middlewares for complex stacks:
+
+```typescript
+// Base auth stack
+const authStack = compose([
+    sessionMiddleware(),
+    'auth',
+])
+
+// Admin stack builds on auth
+const adminStack = compose([
+    authStack,          // Reuse the auth stack
+    'admin',
+    AuditMiddleware,
+])
+
+// Use the complete stack
+@Controller('/admin')
+@UseMiddleware(adminStack)
+export class AdminController { ... }
+```
+
+### Supported Middleware Types
+
+The `compose()` function accepts:
+
+- **Hono middleware functions**: `cors()`, `logger()`, `sessionMiddleware()`
+- **Lockness class middlewares**: Classes implementing `IMiddleware`
+- **Named middlewares**: String names registered via `@DeclareMiddleware`
+- **Composed middlewares**: Output of another `compose()` call
+
+### Short-Circuiting
+
+If any middleware in the composed stack returns a `Response`, the chain stops
+and that response is returned immediately:
+
+```typescript
+const protectedStack = compose([
+    async (c, next) => {
+        if (!c.get('user')) {
+            return c.json({ error: 'Unauthorized' }, 401)
+        }
+        await next()
+    },
+    AdminMiddleware,
+])
+```
