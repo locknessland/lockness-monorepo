@@ -226,16 +226,39 @@ maintainable architecture:
 
 #### Component Structure
 
-The framework is composed of focused, single-responsibility components:
+The framework is composed of focused, single-responsibility components organized
+by domain:
 
-- **App**: Main orchestrator that coordinates all framework components
+**Core Orchestration:**
+
+- **App**: Main orchestrator that coordinates all framework components (~450
+  lines)
+
+**HTTP Domain (`http/`):**
+
 - **MiddlewareResolver**: Resolves middleware from classes, functions, and named
   strings
-- **ControllerDiscovery**: Scans directories and discovers controller classes
-- **RouteRegistry**: Manages route registration, sorting, and Hono integration
-- **ErrorHandlerRegistry**: Auto-discovers and manages error handlers
+- **MiddlewareRegistrator**: Orchestrates middleware discovery, registration,
+  and application
 - **StaticFileServer**: Handles static file serving configuration
 - **ServerListener**: Manages server startup, port conflicts, and console output
+
+**Routing Domain (`routing/`):**
+
+- **ControllerDiscovery**: Scans directories and discovers controller classes
+- **RouteRegistry**: Manages route registration, sorting, and Hono integration
+- **MountManager**: Handles multi-mount routing patterns (i18n, API versioning)
+
+**Exceptions Domain (`exceptions/`):**
+
+- **ErrorHandlerRegistry**: Auto-discovers and manages error handlers
+- **ExceptionRegistrator**: Orchestrates error handler discovery and
+  registration
+
+**View Domain (`view/`):**
+
+- **jsx-runtime.ts**: Re-exports Hono's JSX runtime
+- **jsx.ts**: JSX utilities and components
 
 #### Design Benefits
 
@@ -246,17 +269,19 @@ The framework is composed of focused, single-responsibility components:
   components
 - **Backward Compatibility**: Public API remains stable across internal
   refactoring
+- **Domain-Driven**: Clear separation of concerns by functional domain
 
 #### Architecture Philosophy
 
 The App class acts as a lightweight orchestrator, delegating responsibilities to
 specialized components. This approach:
 
-- Reduces complexity in the main App class (from 520 to 269 lines)
+- Reduces complexity in the main App class (from 633 to ~450 lines)
 - Enables parallel development of features
 - Makes the codebase easier to understand for contributors
 - Follows the Open/Closed Principle (open for extension, closed for
   modification)
+- Groups related functionality into domain-specific directories
 
 #### Modular Package System
 
