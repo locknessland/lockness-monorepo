@@ -29,6 +29,7 @@
 
 import type { MiddlewareClass, MiddlewareInput } from '../types.ts'
 import { triggerDeprecation } from '@lockness/deprecation-contracts'
+import { compose, type ComposableMiddleware } from '../http/compose.ts'
 
 /**
  * Global registry for declared middlewares.
@@ -417,7 +418,7 @@ export function DeclareMiddleware(name: string): TC39ClassDecorator {
         _context: ClassDecoratorContext,
     ): T {
         // Store the name on the class for potential introspection
-        ;(target as any)[MIDDLEWARE_NAME_KEY] = name
+        ; (target as any)[MIDDLEWARE_NAME_KEY] = name
 
         // Register in global registry
         declaredMiddlewares.set(name, target as unknown as MiddlewareClass)
@@ -564,4 +565,70 @@ export function UseMiddleware(
     >,
 ) => void {
     return applyMiddleware(middleware)
+}
+
+/**
+ * Compose and apply multiple middlewares to a route method in a single decorator.
+ *
+ * This is a convenience decorator that combines `compose()` and `@UseMiddleware()`
+ * for cleaner, more readable route middleware declarations.
+ *
+ * Accepts any combination of:
+ * - Hono middleware functions (e.g., `cors()`, `logger()`)
+ * - Lockness middleware classes (e.g., `AuthMiddleware`)
+ * - Named middleware strings (e.g., `'admin'`) registered via `@DeclareMiddleware()`
+ *
+ * @param middlewares - Rest parameters of middlewares to compose and apply
+ * @returns Method decorator function
+ *
+ * @since 0.1.30
+ *
+ * @example Inline composition (no variable needed)
+ * ```ts
+ * import { ComposeMiddleware, logger, cors } from '@lockness/core'
+ *
+ * @Controller('/api')
+ * export class ApiController {
+ *     @Get('/users')
+ *     @ComposeMiddleware(logger(), AuthMiddleware, 'admin')
+ *     users(c: Context) {
+ *         return c.json({ users: [] })
+ *     }
+ * }
+ * ```
+ *
+ * @example Complex middleware stack
+ * ```ts
+ * @Get('/admin/dashboard')
+ * @ComposeMiddleware(
+ *     cors({ origin: 'https://admin.example.com' }),
+ *     'auth',
+ *     AdminMiddleware,
+ *     AuditMiddleware,
+ *     'rate-limit',
+ * )
+ * dashboard(c: Context) { ... }
+ * ```
+ *
+ * @example Comparison with traditional approach
+ * ```ts
+ * // Before: 4 lines
+ * const apiStack = compose([logger(), AuthMiddleware, 'admin'])
+ * @UseMiddleware(apiStack)
+ *
+ * // After: 1 line
+ * @ComposeMiddleware(logger(), AuthMiddleware, 'admin')
+ * ```
+ */
+export function ComposeMiddleware(
+    ...middlewares: ComposableMiddleware[]
+): <This, Args extends unknown[], Return>(
+    target: (this: This, ...args: Args) => Return,
+    context: ClassMethodDecoratorContext<
+        This,
+        (this: This, ...args: Args) => Return
+    >,
+) => void {
+    const composedMiddleware = compose(middlewares)
+    return applyMiddleware(composedMiddleware)
 }

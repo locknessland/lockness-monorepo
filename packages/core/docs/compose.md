@@ -14,10 +14,46 @@ can be applied consistently across multiple routes or controllers.
 ## Import
 
 ```typescript
-import { compose, composeMiddleware } from '@lockness/core'
+import { compose, ComposeMiddleware, composeMiddleware } from '@lockness/core'
 ```
 
-## Basic Usage
+## `@ComposeMiddleware` Decorator (Recommended)
+
+The `@ComposeMiddleware` decorator provides the cleanest syntax for inline
+middleware composition. It combines `compose()` and `@UseMiddleware()` in a
+single decorator:
+
+```typescript
+import { ComposeMiddleware, cors, logger } from '@lockness/core'
+
+@Controller('/api')
+export class ApiController {
+    @Get('/users')
+    @ComposeMiddleware(logger(), AuthMiddleware, 'admin')
+    users(c: Context) {
+        return c.json({ users: [] })
+    }
+}
+```
+
+**Benefits:**
+
+- ✅ No intermediate variable needed
+- ✅ Single import (`ComposeMiddleware`)
+- ✅ Inline declaration at the route level
+- ✅ Supports all middleware types (functions, classes, named)
+
+### Comparison
+
+| Approach                         | Lines | Imports Required           |
+| -------------------------------- | ----- | -------------------------- |
+| `@ComposeMiddleware(...)`        | 1     | `ComposeMiddleware`        |
+| `compose()` + `@UseMiddleware()` | 2-4   | `compose`, `UseMiddleware` |
+
+## Basic Usage (Alternative)
+
+If you prefer to define reusable stacks or need more control, use `compose()`
+with `@UseMiddleware()`:
 
 ### Array Syntax
 

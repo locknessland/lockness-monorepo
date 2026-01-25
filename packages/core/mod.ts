@@ -40,7 +40,7 @@ export * from './routing/router.ts'
 export * from './helpers.ts'
 export * from './exceptions/formatter.ts'
 export * from './exceptions/default_view.tsx'
-export { compose, composeMiddleware } from './http/compose.ts'
+export { compose, composeMiddleware, type ComposableMiddleware } from './http/compose.ts'
 
 // Export kernel features (boot lifecycle + declarative configuration)
 export {
