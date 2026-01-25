@@ -8,7 +8,7 @@ import { LlmSectionService } from '@service/llm_section_service.ts'
  * documentation across /docs/llms/*.txt and /ui/llms/*.txt
  */
 @Controller('/')
-export class LlmsIndexController {
+export class LlmController {
     @Inject(LlmSectionService)
     accessor llmSectionService!: LlmSectionService
 
