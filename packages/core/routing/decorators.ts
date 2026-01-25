@@ -29,7 +29,7 @@
 
 import type { MiddlewareClass, MiddlewareInput } from '../types.ts'
 import { triggerDeprecation } from '@lockness/deprecation-contracts'
-import { compose, type ComposableMiddleware } from '../http/compose.ts'
+import { type ComposableMiddleware, compose } from '../http/compose.ts'
 
 /**
  * Global registry for declared middlewares.
@@ -418,7 +418,7 @@ export function DeclareMiddleware(name: string): TC39ClassDecorator {
         _context: ClassDecoratorContext,
     ): T {
         // Store the name on the class for potential introspection
-        ; (target as any)[MIDDLEWARE_NAME_KEY] = name
+        ;(target as any)[MIDDLEWARE_NAME_KEY] = name
 
         // Register in global registry
         declaredMiddlewares.set(name, target as unknown as MiddlewareClass)
