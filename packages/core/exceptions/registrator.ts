@@ -16,7 +16,7 @@ export class ExceptionRegistrator {
         private readonly registry: ErrorHandlerRegistry,
         private readonly hono: Hono<Env, Schema, string>,
         private readonly rootHono: Hono<Env, Schema, string>,
-    ) { }
+    ) {}
 
     /**
      * Orchestrates discovery and registration of error handlers.

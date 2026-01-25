@@ -10,7 +10,7 @@ export class MountManager {
     constructor(
         private readonly rootHono: Hono<Env, Schema, string>,
         private readonly internalHono: Hono<Env, Schema, string>,
-    ) { }
+    ) {}
 
     /**
      * Sets up mount points by connecting rootHono to hono.

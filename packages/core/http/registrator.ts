@@ -15,7 +15,7 @@ export class MiddlewareRegistrator {
     constructor(
         private readonly resolver: MiddlewareResolver,
         private readonly hono: Hono<Env, Schema, string>,
-    ) { }
+    ) {}
 
     /**
      * Orchestrates the discovery, registration, and application of middlewares.
