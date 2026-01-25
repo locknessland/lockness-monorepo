@@ -1,96 +1,201 @@
-import {
-    App,
-} from '@lockness/core'
-import { controllers } from './routes.ts'
-
 /**
- * Bootstrap the {{ projectName }} application
+ * @fileoverview Application Kernel - Bootstrap and Configuration
  *
  * This is your application's kernel - the central configuration file
  * that sets up middleware, authentication, and other core features.
  *
- * Start simple and add features as you need them!
+ * Uses the declarative @Kernel decorator approach for cleaner configuration.
+ * Configuration is externalized in the `config/` directory for better organization.
+ *
+ * @module app/kernel
  */
-export const bootstrap = async () => {
-    // Create Lockness application
-    const app = new App()
 
-    // Initialize with controllers (auto-discovery in dev, explicit in prod)
-    await app.init({
-        controllersDir: app.isDevelopment ? './app/controller' : undefined,
-        controllers: app.isDevelopment ? undefined : controllers,
-        staticDir: 'public',
-    })
+import { type App, DeclareGlobalMiddleware, Kernel, OnBoot } from '@lockness/core'
+import { controllers } from './routes.ts'
+import { appConfig, databaseConfig, sessionConfig } from '../config/mod.ts'
 
-    return app
+/**
+ * Application Kernel with Declarative Configuration
+ *
+ * This kernel configures your {{ projectName }} application using the @Kernel decorator.
+ * Configuration files are located in the `config/` directory:
+ *
+ * - `config/app.ts` - General application settings
+ * - `config/database.ts` - Database connection
+ * - `config/session.ts` - Session management
+ * - `config/mod.ts` - Central export point
+ *
+ * @example Start the application
+ * ```typescript
+ * import { createApp } from '@lockness/core'
+ * import { AppKernel } from './app/kernel.tsx'
+ *
+ * const app = await createApp(AppKernel)
+ * app.listen(8888)
+ * ```
+ */
+@Kernel({
+    // Static files directory
+    staticDir: 'public',
+
+    // Controllers configuration
+    // Development: auto-discovery from directory
+    // Production: uses explicit controllers list
+    controllersDir: './app/controller',
+    controllers: controllers,
+
+    // Uncomment when you add database support:
+    // database: databaseConfig,
+
+    // Uncomment when you add session support:
+    // session: sessionConfig,
+})
+export class AppKernel {
+    /**
+     * Global Middleware Stack
+     *
+     * Add middlewares that should run on every request.
+     * They execute in array order.
+     *
+     * @example Add session and auth:
+     * ```typescript
+     * import { sessionMiddleware } from '@lockness/session'
+     * import { authConfig } from './auth/guards.ts'
+     *
+     * globalMiddlewares = [
+     *     sessionMiddleware(),
+     *     initializeAuthMiddleware(authConfig),
+     *     LoggerMiddleware,
+     * ]
+     * ```
+     */
+    @DeclareGlobalMiddleware()
+    globalMiddlewares: unknown[] = [
+        // Add your global middlewares here
+    ]
 }
 
 /**
- * Configuration Examples - Add features as you need them:
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * CONFIGURATION EXAMPLES - Add features as your application grows
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
- * 1. Add Session Management (for traditional web apps):
- * 
- *    import { configureSession, sessionMiddleware } from '@lockness/session'
- *    
- *    configureSession({
- *        driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory'
- *        secret: Deno.env.get('APP_KEY') || 'change-me-in-production',
- *        lifetime: 7200, // 2 hours
- *        secure: Deno.env.get('APP_ENV') === 'production',
+ * Configuration files are already created in `config/` directory:
+ *
+ *    config/
+ *    ├── mod.ts          # Central export point
+ *    ├── app.ts          # App settings (isDevelopment, isProduction)
+ *    ├── database.ts     # Database connection
+ *    └── session.ts      # Session management
+ *
+ * Just uncomment the relevant @Kernel options above to enable features!
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 1. AUTHENTICATION (with externalized guards)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ *    // app/auth/guards.ts
+ *    import { container } from '@lockness/container'
+ *    import { Database } from '@lockness/drizzle'
+ *    import { type AuthConfig, SessionGuard } from '@lockness/auth'
+ *    import { UserProvider } from './user_provider.ts'
+ *
+ *    export function createWebGuard(ctx: Context) {
+ *        const db = container.get<Database>(Database)
+ *        return new SessionGuard('web', ctx, new UserProvider(db))
+ *    }
+ *
+ *    export const authConfig: AuthConfig = {
+ *        default: 'web',
+ *        guards: { web: createWebGuard },
+ *    }
+ *
+ *    // app/kernel.tsx
+ *    import { authConfig } from './auth/guards.ts'
+ *
+ *    @DeclareGlobalMiddleware()
+ *    globalMiddlewares = [
+ *        sessionMiddleware(),
+ *        initializeAuthMiddleware(authConfig),
+ *    ]
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 2. NAMED MIDDLEWARES (route-level)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ *    @Kernel({
+ *        middlewaresDir: './app/middleware', // Auto-discovers @DeclareMiddleware
  *    })
- *    
- *    app.useMiddleware(
- *        sessionMiddleware(), // Add before auth if using session-based auth
- *    )
  *
- * 2. Add Authentication (session-based or JWT):
- * 
- *    import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
- *    import { UserProvider } from '@auth/user_provider.ts'
- *    
- *    app.useMiddleware(
- *        initializeAuthMiddleware({
- *            default: 'web',
- *            guards: {
- *                web: (ctx) => new SessionGuard('web', ctx, new UserProvider()),
- *            },
- *        })
- *    )
- *    
- *    // Then use named middleware:
- *    await app.init({
- *        middlewares: {
- *            auth: class AuthMiddleware {
- *                async handle(c: import('@lockness/core').Context, next: import('@lockness/core').Next) {
- *                    // Your auth logic or import from @lockness/auth
- *                    return await next()
- *                }
- *            },
- *        },
+ *    // app/middleware/auth_middleware.ts
+ *    @DeclareMiddleware('auth')
+ *    export class AuthMiddleware {
+ *        async handle(c: Context, next: Next) {
+ *            return await next()
+ *        }
+ *    }
+ *
+ *    // Use in controllers: @UseMiddleware('auth')
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 3. MOUNT POINTS (i18n, API versioning, multi-tenancy)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ *    // app/middleware/i18n_middleware.ts
+ *    import { isValidLanguage, isValidCountry } from '../config/i18n.ts'
+ *
+ *    export async function i18nMiddleware(c: Context, next: Next) {
+ *        const langId = c.req.param('langId')
+ *        const countryId = c.req.param('countryId')
+ *
+ *        if (!isValidLanguage(langId) || !isValidCountry(countryId)) {
+ *            return c.notFound()
+ *        }
+ *
+ *        c.set('locale', { langId, countryId })
+ *        return next()
+ *    }
+ *
+ *    // app/kernel.tsx
+ *    @Kernel({
+ *        mountPoints: [
+ *            { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
+ *        ],
  *    })
  *
- * 3. Add Global Middleware (CORS, logging, etc.):
- * 
- *    import { cors, logger } from '@lockness/core' // Hono middleware
- *    
- *    app.useMiddleware(
- *        logger(),
- *        cors({
- *            origin: ['http://localhost:3000'],
- *            credentials: true,
- *        })
- *    )
+ *    // Routes accessible at:
+ *    // - /products (root, no locale)
+ *    // - /fr/ca/products (with locale context)
  *
- * 4. Customize error pages (auto-discovered):
- * 
- *    Run: deno task cli make:error-pages
- *    This creates app/view/pages/errors/error_handler.tsx
- *    The framework will automatically use it - no import needed!
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 4. DEVTOOLS (development only)
+ * ─────────────────────────────────────────────────────────────────────────────
  *
- * 5. Enable devtools in development:
- * 
- *    import { enableDevtools } from '@lockness/devtools'
- *    if (app.isDevelopment) {
- *        enableDevtools(app.getHono())
+ *    import { collectAppRoutes } from '@lockness/devtools'
+ *
+ *    @Kernel({ devtools: true })
+ *    export class AppKernel {
+ *        @OnBoot()
+ *        collectDevtoolsRoutes(app: App) {
+ *            if (app.isDevelopment) {
+ *                collectAppRoutes(app)
+ *            }
+ *        }
+ *    }
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 5. BOOT HOOKS (startup lifecycle)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ *    @OnBoot({ priority: 100 }) // Higher priority runs first
+ *    async setupDatabase(app: App) {
+ *        console.log('Database ready!')
+ *    }
+ *
+ *    @OnBoot({ priority: 50 })
+ *    async seedData(app: App) {
+ *        if (app.isDevelopment) {
+ *            await runSeeders()
+ *        }
  *    }
  */

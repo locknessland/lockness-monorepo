@@ -47,13 +47,17 @@ export class AuthMiddleware implements IMiddleware {
 
 ```typescript
 // app/kernel.tsx
-const app = new App()
+import { DeclareGlobalMiddleware, Kernel } from '@lockness/core'
 
-await app.init({
+@Kernel({
     middlewaresDir: './app/middleware', // Auto-discover @DeclareMiddleware
     controllersDir: './app/controller',
     staticDir: 'public',
 })
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares: unknown[] = []
+}
 ```
 
 ### 3. Use in Controllers
@@ -182,7 +186,11 @@ export class UserController {
 }
 
 // In kernel.tsx
-app.useMiddleware(LoggerMiddleware) // 1. Global middleware
+@Kernel({ controllersDir: './app/controller' })
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [LoggerMiddleware] // 1. Global middleware
+}
 ```
 
 **Execution order for `/users/123`:**

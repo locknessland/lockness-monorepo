@@ -78,7 +78,7 @@ deno run -Ar jsr:@lockness/upgrade 0.2.0 --dry-run
 
 ⚠️  Don't forget to:
   - Review the changes with git diff
-  - Check the changelog at https://github.com/locknessjs/lockness/releases
+  - Check the changelog at https://github.com/locknessland/lockness/releases
   - Test your application
 ```
 
@@ -136,7 +136,8 @@ Note: `@std/path` remains unchanged.
 
 1. **Always Review Changes**: Use `git diff` after upgrading
 2. **Check Breaking Changes**: Read the
-   [changelog](https://github.com/locknessjs/lockness/releases) before upgrading
+   [changelog](https://github.com/locknessland/lockness/releases) before
+   upgrading
 3. **Test Thoroughly**: Run your test suite after upgrading
 4. **Use Dry Run First**: Preview changes before applying them
 5. **Version Control**: Commit before upgrading so you can revert if needed
@@ -192,7 +193,7 @@ unavailable.
 ## Contributing
 
 Found a bug or have a feature request? Please open an issue on
-[GitHub](https://github.com/locknessjs/lockness/issues).
+[GitHub](https://github.com/locknessland/lockness/issues).
 
 ## License
 
@@ -200,7 +201,7 @@ MIT License - see LICENSE file for details
 
 ## Links
 
-- [Lockness Framework](https://github.com/locknessjs/lockness)
+- [Lockness Framework](https://github.com/locknessland/lockness)
 - [JSR Package Registry](https://jsr.io/@lockness/upgrade)
 - [Documentation](https://lockness.land/docs)
 

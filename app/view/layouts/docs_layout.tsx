@@ -11,6 +11,7 @@ import {
     NavbarBrand,
     NavbarContent,
     NavbarMenuItem as NavbarLink,
+    PlayIcon,
     PuzzleIcon,
     RobotIcon,
     RocketIcon,
@@ -186,6 +187,7 @@ const navSections: readonly NavSection[] = [
                 name: 'dependency-injection',
             },
             { title: 'Middleware', name: 'middleware' },
+            { title: 'Mount Points', name: 'mount-points' },
             { title: 'Error Handling', name: 'error-handling' },
             { title: 'Validation', name: 'validation' },
             { title: 'Events', name: 'events' },
@@ -252,6 +254,16 @@ const navSections: readonly NavSection[] = [
             { title: 'Framework Contribution', name: 'contribution' },
         ],
     },
+    {
+        title: 'Live Demos',
+        icon: PlayIcon,
+        links: [
+            {
+                title: 'Mount Points Demo',
+                name: 'demo:/en/us/demo/mount-points',
+            },
+        ],
+    },
 ]
 
 // Docs Sidebar using @lockness/ui Sidebar components
@@ -278,9 +290,13 @@ const DocsSidebar = () => {
                             <SidebarGroupContent>
                                 <SidebarMenu>
                                     {section.links.map((link) => {
-                                        const href = route('docs.page', {
-                                            slug: link.name,
-                                        })
+                                        // Handle demo links with special prefix
+                                        const href =
+                                            link.name.startsWith('demo:')
+                                                ? link.name.slice(5)
+                                                : route('docs.page', {
+                                                    slug: link.name,
+                                                })
                                         return (
                                             <SidebarMenuItem key={link.name}>
                                                 <SidebarMenuButton

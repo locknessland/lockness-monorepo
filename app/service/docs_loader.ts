@@ -59,6 +59,7 @@ export class DocsLoader {
         'cli': 'packages/cli/docs/DOCS.md',
         'routing': 'packages/core/docs/routing.md',
         'middleware': 'packages/core/docs/middleware.md',
+        'mount-points': 'packages/core/docs/mount-points.md',
         'components': 'packages/core/docs/components.md',
         'error-handling': 'packages/core/docs/error-handling.md',
         'dependency-injection': 'packages/container/docs/DOCS.md',

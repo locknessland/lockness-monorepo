@@ -41,14 +41,25 @@ export * from './helpers.ts'
 export * from './error_formatter.ts'
 export * from './default_error_handler.tsx'
 
-// Export boot lifecycle features
+// Export kernel features (boot lifecycle + declarative configuration)
 export {
     type BootHookMeta,
+    type DatabaseConfig,
+    DeclareGlobalMiddleware,
+    getBootHooks,
+    Kernel,
     KERNEL_BOOT_HOOKS,
+    KERNEL_CONFIG,
+    KERNEL_GLOBAL_MIDDLEWARE,
+    type KernelConfig,
     OnBoot,
     type OnBootOptions,
-} from './kernel/decorators.ts'
-export { getBootHooks, runBootHooks } from './kernel/boot_runner.ts'
+    runBootHooks,
+    type SessionConfig,
+} from './kernel/mod.ts'
+
+// Export kernel loader
+export { createApp } from './kernel/loader.ts'
 
 // Re-export essential framework packages (used by core functionality)
 export * from '@lockness/container'

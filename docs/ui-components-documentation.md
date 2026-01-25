@@ -8,8 +8,9 @@ components.
 UI component documentation is colocated with component source code using a
 folder-based structure. Each component has its own folder containing:
 
-- `index.tsx` - The component implementation
+- `mod.tsx` - The component implementation
 - `DOCS.md` - Markdown documentation
+- `examples.tsx` - Exemple file
 
 The system uses dynamic loading to render documentation pages without requiring
 manual route registration.
@@ -19,11 +20,13 @@ manual route registration.
 ```
 packages/ui/components/
 ├── Button/
-│   ├── index.tsx    # Component code
-│   └── DOCS.md      # Documentation
+│   ├── mod.tsx       # Component code
+│   ├── DOCS.md       # Documentation
+│   └── examples.tsx  # Usage examples
 ├── Card/
-│   ├── index.tsx
-│   └── DOCS.md
+│   ├── mod.tsx
+│   ├── DOCS.md
+│   └── examples.tsx
 └── ...
 ```
 

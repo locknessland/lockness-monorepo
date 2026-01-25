@@ -434,11 +434,12 @@ export class App {
         // Step 5: Register controllers and routes (on internal hono)
         this.routeRegistry.registerControllers(this.hono, controllers)
 
-        // Step 6: Set up mount points (connects rootHono → hono)
-        this.setupMountPoints(config)
-
-        // Step 7: Register static file serving (on rootHono, global)
+        // Step 6: Register static file serving FIRST (on rootHono, global)
+        // Must be before mount points so /css/app.css isn't intercepted by /:langId/:countryId
         this.registerStaticFiles(config)
+
+        // Step 7: Set up mount points (connects rootHono → hono)
+        this.setupMountPoints(config)
 
         // Step 8: Register 404 handler (on rootHono, must be last)
         this.registerNotFoundHandler(errorHandler)
@@ -582,20 +583,22 @@ export class App {
             ? config.mountPoints
             : undefined
 
+        // Always mount at root FIRST - this ensures routes like /demo/mount-points
+        // are matched before the mount point pattern /:langId/:countryId
+        this.rootHono.route('/', this.hono)
+
         if (mountPoints && mountPoints.length > 0) {
-            // Mount the internal app under each mount point
+            // Mount points add middleware to specific patterns
+            // Routes remain accessible at root AND under mount point patterns
             for (const mount of mountPoints) {
                 // Apply mount-specific middleware if provided
                 if (mount.middleware) {
                     this.rootHono.use(`${mount.pattern}/*`, mount.middleware)
                 }
 
-                // Route all requests under this pattern to internal hono
+                // Route requests under this pattern to internal hono
                 this.rootHono.route(mount.pattern, this.hono)
             }
-        } else {
-            // Default: mount at root when no mount points configured
-            this.rootHono.route('/', this.hono)
         }
     }
 

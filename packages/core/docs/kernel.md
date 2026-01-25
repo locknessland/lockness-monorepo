@@ -15,8 +15,11 @@ allowing you to control the initialization sequence.
 ### Simple Boot Hook
 
 ```typescript
-import { App, OnBoot, runBootHooks } from '@lockness/core'
+import { createApp, Kernel, OnBoot } from '@lockness/core'
 
+@Kernel({
+    controllersDir: './app/controller',
+})
 class AppKernel {
     @OnBoot()
     async logStartup(app: App) {
@@ -24,20 +27,24 @@ class AppKernel {
     }
 }
 
-// Execute boot hooks
-const kernel = new AppKernel()
-const app = new App()
-await runBootHooks(kernel, app)
+// Bootstrap the application
+const app = await createApp(AppKernel)
+app.listen(8888)
 ```
 
 ### Boot Hook with Priority
 
 ```typescript
+@Kernel({
+    database: { url: Deno.env.get('DATABASE_URL') },
+    controllersDir: './app/controller',
+})
 class AppKernel {
     @OnBoot({ priority: 100 })
     async connectDatabase(app: App) {
-        const db = container.get<Database>(Database)
-        await db.connect(Deno.env.get('DATABASE_URL'))
+        // Database connection is handled by @Kernel,
+        // but you can add custom logic here
+        console.log('✅ Database ready')
     }
 
     @OnBoot({ priority: 50 })
@@ -113,19 +120,35 @@ class AppKernel {
 
 ## Integration Patterns
 
-### Pattern 1: Standalone Usage
+### Pattern 1: Declarative Kernel (Recommended)
 
-Use `@OnBoot` with the traditional `bootstrap()` function:
+Use `@OnBoot` with the declarative `@Kernel` decorator:
 
 ```typescript
 // app/kernel.tsx
-import { App, OnBoot, runBootHooks } from '@lockness/core'
+import {
+    createApp,
+    DeclareGlobalMiddleware,
+    Kernel,
+    OnBoot,
+} from '@lockness/core'
+import { sessionMiddleware } from '@lockness/session'
 
-class BootTasks {
+@Kernel({
+    database: { url: Deno.env.get('DATABASE_URL') },
+    session: { driver: 'cookie', secret: Deno.env.get('APP_KEY')! },
+    controllersDir: './app/controller',
+    middlewaresDir: './app/middleware',
+})
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [
+        sessionMiddleware(),
+    ]
+
     @OnBoot({ priority: 100 })
-    async connectDatabase(app: App) {
-        const db = container.get<Database>(Database)
-        await db.connect(Deno.env.get('DATABASE_URL'))
+    async onDatabaseReady(app: App) {
+        console.log('✅ Database connected')
     }
 
     @OnBoot({ priority: 50 })
@@ -136,60 +159,45 @@ class BootTasks {
     }
 }
 
-export const bootstrap = async (): Promise<App> => {
-    const app = new App()
-
-    // Run boot hooks
-    await runBootHooks(new BootTasks(), app)
-
-    // Continue with normal setup
-    app.useMiddleware() /* ... */
-    await app.init({/* ... */})
-
-    return app
-}
+// main.ts
+const app = await createApp(AppKernel)
+app.listen(8888)
 ```
 
-### Pattern 2: Modular Boot Tasks
+### Pattern 2: Kernel Inheritance
 
-Organize boot tasks into separate classes:
+Extend a base kernel with boot tasks:
 
 ```typescript
-// app/kernel/database_boot_tasks.ts
-class DatabaseBootTasks {
+// app/kernel/base_kernel.ts
+import { Kernel, OnBoot } from '@lockness/core'
+
+@Kernel({
+    database: { url: Deno.env.get('DATABASE_URL') },
+})
+export class BaseKernel {
     @OnBoot({ priority: 100 })
-    async connect(app: App) {
-        await db.connect()
-    }
-
-    @OnBoot({ priority: 50 })
-    async migrate(app: App) {
-        await db.migrate.latest()
-    }
-}
-
-// app/kernel/cache_boot_tasks.ts
-class CacheBootTasks {
-    @OnBoot({ priority: 90 })
-    async connect(app: App) {
-        await cache.connect()
-    }
-
-    @OnBoot({ priority: 30 })
-    async warm(app: App) {
-        await cache.warm(['config'])
+    async logDatabaseReady(app: App) {
+        console.log('✅ Database connected')
     }
 }
 
 // app/kernel.tsx
-export const bootstrap = async (): Promise<App> => {
-    const app = new App()
+import { DeclareGlobalMiddleware, Kernel, OnBoot } from '@lockness/core'
+import { BaseKernel } from './kernel/base_kernel.ts'
 
-    // Run different boot task groups
-    await runBootHooks(new DatabaseBootTasks(), app)
-    await runBootHooks(new CacheBootTasks(), app)
+@Kernel({
+    controllersDir: './app/controller',
+    middlewaresDir: './app/middleware',
+})
+export class AppKernel extends BaseKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = []
 
-    return app
+    @OnBoot({ priority: 30 })
+    async warmCaches(app: App) {
+        await cache.warm(['config'])
+    }
 }
 ```
 
@@ -198,10 +206,15 @@ export const bootstrap = async (): Promise<App> => {
 Execute tasks based on environment or app state:
 
 ```typescript
+@Kernel({
+    database: { url: Deno.env.get('DATABASE_URL') },
+    devtools: true,
+    controllersDir: './app/controller',
+})
 class AppKernel {
     @OnBoot({ priority: 100 })
-    async connectDatabase(app: App) {
-        await db.connect()
+    async onDatabaseReady(app: App) {
+        console.log('✅ Database connected')
     }
 
     @OnBoot({ priority: 50 })
@@ -216,7 +229,6 @@ class AppKernel {
     private async devSetup(app: App) {
         console.log('🔧 Development mode setup')
         await runSeeders()
-        await enableDebugMode()
     }
 
     private async prodSetup(app: App) {
@@ -255,6 +267,9 @@ async logStartup(app: App) {
 
 Execute all `@OnBoot` decorated methods from a kernel instance.
 
+> **Note:** When using `createApp()`, boot hooks are executed automatically.
+> This function is only needed for manual/advanced usage.
+
 **Parameters:**
 
 - `kernel` - Kernel instance with `@OnBoot` decorated methods
@@ -265,9 +280,13 @@ Execute all `@OnBoot` decorated methods from a kernel instance.
 **Example:**
 
 ```typescript
+// Manual usage (advanced)
 const kernel = new AppKernel()
 const app = new App()
 await runBootHooks(kernel, app)
+
+// Recommended: use createApp() which runs hooks automatically
+const app = await createApp(AppKernel)
 ```
 
 ### `getBootHooks(kernelOrClass)`

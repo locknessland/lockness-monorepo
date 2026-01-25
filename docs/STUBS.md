@@ -31,6 +31,10 @@ project.
 | `drizzle.config.ts`                 | `packages/drizzle/stubs/drizzle.config.ts.stub`                   | ✅    |
 | `.env.exemple`                      | `packages/init/stubs/init/.env.exemple.stub`                      | ✅    |
 | `.gitignore`                        | `packages/init/stubs/init/.gitignore.stub`                        | ✅    |
+| `config/mod.ts`                     | `packages/init/stubs/init/config/mod.ts.stub`                     | ✅    |
+| `config/app.ts`                     | `packages/init/stubs/init/config/app.ts.stub`                     | ✅    |
+| `config/database.ts`                | `packages/init/stubs/init/config/database.ts.stub`                | ✅    |
+| `config/session.ts`                 | `packages/init/stubs/init/config/session.ts.stub`                 | ✅    |
 | `app/kernel.tsx`                    | `packages/init/stubs/init/app/kernel.tsx.stub`                    | ✅    |
 | `app/controller/app_controller.tsx` | `packages/init/stubs/init/app/controller/app_controller.tsx.stub` | ✅    |
 | `app/view/app.ts`                   | `packages/init/stubs/init/app/view/app.ts.stub`                   | ✅    |

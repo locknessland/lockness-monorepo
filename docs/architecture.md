@@ -56,14 +56,22 @@ Import explicitly when needed:
 **Skip if:** Building stateless JWT APIs
 
 ```typescript
-import { configureSession, sessionMiddleware } from '@lockness/session'
+// In your kernel
+import { sessionMiddleware } from '@lockness/session'
 
-configureSession({
-    driver: 'cookie',
-    secret: Deno.env.get('SESSION_SECRET')!,
+@Kernel({
+    session: {
+        driver: 'cookie',
+        secret: Deno.env.get('SESSION_SECRET')!,
+        lifetime: 7200,
+    },
 })
-
-app.useMiddleware(sessionMiddleware())
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [
+        sessionMiddleware(),
+    ]
+}
 ```
 
 #### @lockness/queue
@@ -117,16 +125,24 @@ logger.info('User logged in', { userId: 123 })
 
 ```typescript
 import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
+import { sessionMiddleware } from '@lockness/session'
 import { UserProvider } from './auth/user_provider.ts'
 
-app.useMiddleware(
-    initializeAuthMiddleware({
-        default: 'web',
-        guards: {
-            web: (ctx) => new SessionGuard('web', ctx, new UserProvider()),
-        },
-    }),
-)
+@Kernel({
+    session: { driver: 'cookie', secret: 'your-secret' },
+})
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [
+        sessionMiddleware(),
+        initializeAuthMiddleware({
+            default: 'web',
+            guards: {
+                web: (ctx) => new SessionGuard('web', ctx, new UserProvider()),
+            },
+        }),
+    ]
+}
 ```
 
 ## Architecture Benefits
@@ -135,10 +151,20 @@ app.useMiddleware(
 
 ```typescript
 // Minimal JWT API (no sessions, no queue)
-import { App, Controller, Get, jwt } from '@lockness/core'
+import { createApp, jwt, Kernel } from '@lockness/core'
 
-const app = new App()
-app.useMiddleware(jwt({ secret: 'your-secret' }))
+@Kernel({
+    staticDir: 'public',
+    controllersDir: './app/controller',
+})
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [
+        jwt({ secret: 'your-secret' }),
+    ]
+}
+
+const app = await createApp(AppKernel)
 ```
 
 **Bundle includes:** Only core + Hono (~2MB)\
@@ -148,16 +174,29 @@ app.useMiddleware(jwt({ secret: 'your-secret' }))
 
 ```typescript
 // Traditional web app with all features
-import { App, Controller, Get } from '@lockness/core'
-import { configureSession, sessionMiddleware } from '@lockness/session'
+import { createApp, DeclareGlobalMiddleware, Kernel } from '@lockness/core'
+import { sessionMiddleware } from '@lockness/session'
 import { configureQueue } from '@lockness/queue'
-import { cache } from '@lockness/cache'
+import { configureCache } from '@lockness/cache'
 
-const app = new App()
-configureSession({ driver: 'cookie', secret: 'secret' })
+@Kernel({
+    database: { url: Deno.env.get('DATABASE_URL') },
+    session: { driver: 'cookie', secret: 'secret' },
+    devtools: true,
+    controllersDir: './app/controller',
+})
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [
+        sessionMiddleware(),
+    ]
+}
+
+// Configure optional features
 configureQueue({ driver: 'deno-kv' })
+configureCache({ driver: 'memory' })
 
-app.useMiddleware(sessionMiddleware())
+const app = await createApp(AppKernel)
 ```
 
 **Bundle includes:** Core + selected features\
@@ -191,10 +230,15 @@ import { Validator } from '@lockness/validator'
 **Setup:**
 
 ```typescript
-import { App, jwt } from '@lockness/core'
+import { createApp, DeclareGlobalMiddleware, jwt, Kernel } from '@lockness/core'
 
-const app = new App()
-app.useMiddleware(jwt({ secret: 'secret' }))
+@Kernel({ controllersDir: './app/controller' })
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [jwt({ secret: 'secret' })]
+}
+
+const app = await createApp(AppKernel)
 ```
 
 ### Traditional Web App
@@ -208,13 +252,23 @@ app.useMiddleware(jwt({ secret: 'secret' }))
 **Setup:**
 
 ```typescript
-import { App } from '@lockness/core'
-import { configureSession, sessionMiddleware } from '@lockness/session'
+import { createApp, DeclareGlobalMiddleware, Kernel } from '@lockness/core'
+import { sessionMiddleware } from '@lockness/session'
 import { initializeAuthMiddleware } from '@lockness/auth'
 
-const app = new App()
-configureSession({ driver: 'cookie', secret: 'secret' })
-app.useMiddleware(sessionMiddleware(), initializeAuthMiddleware({/* ... */}))
+@Kernel({
+    session: { driver: 'cookie', secret: 'secret' },
+    controllersDir: './app/controller',
+})
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [
+        sessionMiddleware(),
+        initializeAuthMiddleware({/* ... */}),
+    ]
+}
+
+const app = await createApp(AppKernel)
 ```
 
 ### Full-Featured SaaS
@@ -232,19 +286,42 @@ app.useMiddleware(sessionMiddleware(), initializeAuthMiddleware({/* ... */}))
 **Setup:**
 
 ```typescript
-import { App } from '@lockness/core'
-import { configureSession, sessionMiddleware } from '@lockness/session'
+import {
+    createApp,
+    DeclareGlobalMiddleware,
+    Kernel,
+    OnBoot,
+} from '@lockness/core'
+import { sessionMiddleware } from '@lockness/session'
 import { configureQueue } from '@lockness/queue'
 import { configureCache } from '@lockness/cache'
 import { configureMail } from '@lockness/mail'
 import { configureStorage } from '@lockness/storage'
 
-// Configure all features
-configureSession({/* ... */})
-configureQueue({/* ... */})
-configureCache({/* ... */})
-configureMail({/* ... */})
-configureStorage({/* ... */})
+@Kernel({
+    database: { url: Deno.env.get('DATABASE_URL') },
+    session: { driver: 'cookie', secret: 'secret', lifetime: 7200 },
+    devtools: true,
+    controllersDir: './app/controller',
+    middlewaresDir: './app/middleware',
+})
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [
+        sessionMiddleware(),
+        // ... other middlewares
+    ]
+
+    @OnBoot({ priority: 100 })
+    async configureServices() {
+        configureQueue({/* ... */})
+        configureCache({/* ... */})
+        configureMail({/* ... */})
+        configureStorage({/* ... */})
+    }
+}
+
+const app = await createApp(AppKernel)
 ```
 
 ## Migration Guide
@@ -254,11 +331,21 @@ If you have existing code importing from `@lockness/core`:
 ### Sessions
 
 ```typescript
-// ❌ Old (no longer works)
-import { configureSession, sessionMiddleware } from '@lockness/core'
-
-// ✅ New (explicit import)
+// ❌ Old (imperative style)
 import { configureSession, sessionMiddleware } from '@lockness/session'
+configureSession({ driver: 'cookie', secret: 'secret' })
+app.useMiddleware(sessionMiddleware())
+
+// ✅ New (declarative with @Kernel)
+import { sessionMiddleware } from '@lockness/session'
+
+@Kernel({
+    session: { driver: 'cookie', secret: 'secret' },
+})
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [sessionMiddleware()]
+}
 ```
 
 ### Queue

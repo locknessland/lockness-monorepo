@@ -72,21 +72,21 @@ dependency.
 }
 ```
 
-#### 2. Create Application Kernel
+#### 2. Create Application Kernel (Declarative)
 
 ```typescript
 // app/kernel.tsx
-import { App } from '@lockness/core'
+import { createApp, DeclareGlobalMiddleware, Kernel } from '@lockness/core'
+import { controllers } from './routes.ts'
 
-export const bootstrap = async () => {
-    const app = new App()
-
-    await app.init({
-        controllersDir: './app/controller',
-        staticDir: 'public',
-    })
-
-    return app
+@Kernel({
+    staticDir: 'public',
+    controllersDir: './app/controller',
+    controllers: controllers,
+})
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares: unknown[] = []
 }
 ```
 
@@ -94,9 +94,10 @@ export const bootstrap = async () => {
 
 ```typescript
 // main.ts
-import { bootstrap } from './app/kernel.tsx'
+import { createApp } from '@lockness/core'
+import { AppKernel } from './app/kernel.tsx'
 
-const app = await bootstrap()
+const app = await createApp(AppKernel)
 
 Deno.serve({ port: 8888 }, app.fetch)
 ```
@@ -106,12 +107,23 @@ Deno.serve({ port: 8888 }, app.fetch)
 #### Sessions (for web apps)
 
 ```typescript
-import { App } from '@lockness/core'
-import { configureSession, sessionMiddleware } from '@lockness/session'
+// In your kernel
+import { sessionMiddleware } from '@lockness/session'
 
-const app = new App()
-configureSession({ driver: 'cookie', secret: 'your-secret' })
-app.useMiddleware(sessionMiddleware())
+@Kernel({
+    session: {
+        driver: 'cookie',
+        secret: Deno.env.get('APP_KEY') || 'your-secret',
+        lifetime: 7200,
+    },
+    // ... other options
+})
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [
+        sessionMiddleware(),
+    ]
+}
 ```
 
 #### Background Jobs
@@ -547,17 +559,33 @@ The framework uses a dual-layer routing architecture to enable mount points:
 
 ### Decorators
 
+**Kernel Configuration:**
+
+- `@Kernel(config)`: Declares a class as the application kernel with
+  configuration (database, session, devtools, controllers, middlewares).
+- `@DeclareGlobalMiddleware()`: Marks a property as the global middleware stack.
+- `@OnBoot(options)`: Marks a method to run during application bootstrap
+  (supports priority ordering).
+
+**Routing:**
+
 - `@Controller(path)`: Declares a class as a controller.
 - `@Get(path, options)`: Registers a GET route.
 - `@Post(path, options)`: Registers a POST route.
 - `@Put(path, options)`: Registers a PUT route.
 - `@Patch(path, options)`: Registers a PATCH route.
 - `@Delete(path, options)`: Registers a DELETE route.
+
+**Middleware:**
+
 - `@DeclareMiddleware(name)`: Registers a middleware class with a name for
   auto-discovery.
 - `@UseMiddleware(middleware)`: Applies middleware to a route method (accepts
   name or class).
 - `@Use(middleware)`: _(Deprecated)_ Use `@UseMiddleware` instead.
+
+**Dependency Injection:**
+
 - `@Service()`: Declares a class as a service.
 - `@Inject(class)`: Injects a service into a property.
 

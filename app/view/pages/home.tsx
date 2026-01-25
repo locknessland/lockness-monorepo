@@ -141,7 +141,7 @@ export const Home = () => {
                         </a>
                         <ThemeSwitch variant='toggle' />
                         <a
-                            href='https://github.com/locknessjs/core'
+                            href='https://github.com/locknessland/core'
                             class='hidden md:inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
                         >
                             <GithubIcon size={20} />
@@ -419,7 +419,7 @@ export class AuthController {
                         </Button>
                         <Button
                             as='a'
-                            href='https://github.com/locknessjs/core'
+                            href='https://github.com/locknessland/core'
                             variant='outline'
                             size='lg'
                         >
@@ -464,7 +464,7 @@ export class AuthController {
                             JSR Packages
                         </FooterSectionItem>
                         <FooterSectionItem
-                            href='https://github.com/locknessjs/core'
+                            href='https://github.com/locknessland/core'
                             external
                         >
                             GitHub
@@ -473,19 +473,19 @@ export class AuthController {
 
                     <FooterSection title='Community'>
                         <FooterSectionItem
-                            href='https://github.com/locknessjs/core/discussions'
+                            href='https://github.com/locknessland/core/discussions'
                             external
                         >
                             Discussions
                         </FooterSectionItem>
                         <FooterSectionItem
-                            href='https://github.com/locknessjs/core/issues'
+                            href='https://github.com/locknessland/core/issues'
                             external
                         >
                             Issues
                         </FooterSectionItem>
                         <FooterSectionItem
-                            href='https://github.com/locknessjs/core/blob/main/CONTRIBUTING.md'
+                            href='https://github.com/locknessland/core/blob/main/CONTRIBUTING.md'
                             external
                         >
                             Contributing

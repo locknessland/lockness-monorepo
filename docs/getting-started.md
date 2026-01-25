@@ -152,16 +152,30 @@ Scaffold a complete auth system:
 deno task cli make:auth
 ```
 
-Configure in `app/kernel.ts`:
+Configure in `app/kernel.tsx`:
 
 ```typescript
-import { configureAuth, container } from '@lockness/core'
-import { UserProvider } from '@provider/user_provider.ts'
+import { DeclareGlobalMiddleware, Kernel } from '@lockness/core'
+import { sessionMiddleware } from '@lockness/session'
+import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
+import { UserProvider } from '@auth/user_provider.ts'
 
-configureAuth({
-    userProvider: container.get(UserProvider),
-    redirectTo: '/auth/login',
+@Kernel({
+    session: { driver: 'cookie', secret: Deno.env.get('APP_KEY') || 'secret' },
+    controllersDir: './app/controller',
 })
+export class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = [
+        sessionMiddleware(),
+        initializeAuthMiddleware({
+            default: 'web',
+            guards: {
+                web: (ctx) => new SessionGuard('web', ctx, new UserProvider()),
+            },
+        }),
+    ]
+}
 ```
 
 Protect routes with `@Auth()` decorator:
