@@ -187,6 +187,7 @@ const navSections: readonly NavSection[] = [
                 name: 'dependency-injection',
             },
             { title: 'Middleware', name: 'middleware' },
+            { title: 'Compose', name: 'compose' },
             { title: 'Mount Points', name: 'mount-points' },
             { title: 'Error Handling', name: 'error-handling' },
             { title: 'Validation', name: 'validation' },
