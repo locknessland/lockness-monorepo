@@ -18,7 +18,7 @@
  */
 
 import { join } from 'node:path'
-import type { ControllerClass } from './types.ts'
+import type { ControllerClass } from '../types.ts'
 
 /** Supported file extensions for controller files */
 const CONTROLLER_EXTENSIONS = ['.ts', '.js', '.tsx'] as const

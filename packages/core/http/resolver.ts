@@ -13,8 +13,8 @@ import type {
     MiddlewareClass,
     MiddlewareInput,
     MiddlewareRegistry,
-} from './types.ts'
-import { declaredMiddlewares } from './decorators.ts'
+} from '../types.ts'
+import { declaredMiddlewares } from '../routing/decorators.ts'
 
 /**
  * Discovers middlewares decorated with @DeclareMiddleware from a directory.

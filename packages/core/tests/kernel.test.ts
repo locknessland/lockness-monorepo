@@ -344,26 +344,31 @@ Deno.test('createApp - handles missing optional dependencies gracefully', async 
     assertExists(app)
 })
 
-Deno.test('createApp - supports both declarative and imperative patterns', async () => {
-    // Declarative pattern
-    @Kernel({
-        controllers: [],
-    })
-    class DeclarativeKernel {
-        @DeclareGlobalMiddleware()
-        globalMiddlewares = []
-    }
+Deno.test({
+    name: 'createApp - supports both declarative and imperative patterns',
+    sanitizeResources: false,
+    sanitizeOps: false,
+    fn: async () => {
+        // Declarative pattern
+        @Kernel({
+            controllers: [],
+        })
+        class DeclarativeKernel {
+            @DeclareGlobalMiddleware()
+            globalMiddlewares = []
+        }
 
-    const declarativeApp = await createApp(DeclarativeKernel)
-    assertExists(declarativeApp)
+        const declarativeApp = await createApp(DeclarativeKernel)
+        assertExists(declarativeApp)
 
-    // Imperative pattern (traditional bootstrap)
-    const { App } = await import('../app.ts')
-    const imperativeApp = new App()
-    await imperativeApp.init({
-        controllers: [],
-    })
-    assertExists(imperativeApp)
+        // Imperative pattern (traditional bootstrap)
+        const { App } = await import('../app.ts')
+        const imperativeApp = new App()
+        await imperativeApp.init({
+            controllers: [],
+        })
+        assertExists(imperativeApp)
+    },
 })
 
 Deno.test('createApp - combines @Kernel with @OnBoot decorators', async () => {

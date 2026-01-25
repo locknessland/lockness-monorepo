@@ -4,9 +4,9 @@
 
 import { assertEquals } from '@std/assert'
 import { Hono } from 'hono'
-import { Controller, Get, Post } from '../decorators.ts'
-import { RouteRegistry } from '../route_registry.ts'
-import { namedRoutes } from '../router.ts'
+import { Controller, Get, Post } from '../routing/decorators.ts'
+import { RouteRegistry } from '../routing/registry.ts'
+import { namedRoutes } from '../routing/router.ts'
 
 // Mock middleware resolver
 const mockMiddlewareResolver = {

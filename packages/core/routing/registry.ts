@@ -10,8 +10,8 @@
 
 import type { Hono, MiddlewareHandler } from 'hono'
 import { namedRoutes } from './router.ts'
-import type { Context, ControllerClass, Route } from './types.ts'
-import type { RouteInfo } from './app.ts'
+import type { Context, ControllerClass, Route } from '../types.ts'
+import type { RouteInfo } from '../app.ts'
 
 /** HTTP methods supported by the router */
 type HttpMethod =

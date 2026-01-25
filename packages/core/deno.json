@@ -4,29 +4,20 @@
     "license": "MIT",
     "exports": {
         ".": "./mod.ts",
-        "./jsx": "./jsx.ts",
-        "./jsx-runtime": "./jsx-runtime.ts"
+        "./jsx": "./view/jsx.ts",
+        "./jsx-runtime": "./view/jsx-runtime.ts"
     },
     "publish": {
         "include": [
             "mod.ts",
             "app.ts",
-            "decorators.ts",
             "helpers.ts",
-            "router.ts",
             "types.ts",
-            "jsx.ts",
-            "jsx-runtime.ts",
-            "controller_discovery.ts",
-            "default_error_handler.tsx",
-            "error_formatter.ts",
-            "error_handler_registry.ts",
-            "middleware_resolver.ts",
-            "route_registry.ts",
-            "server_listener.ts",
-            "static_file_server.ts",
-            "kernel/decorators.ts",
-            "kernel/boot_runner.ts",
+            "http/",
+            "routing/",
+            "exceptions/",
+            "view/",
+            "kernel/",
             "deno.json",
             "README.md"
         ],

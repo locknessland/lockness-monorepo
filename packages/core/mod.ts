@@ -35,11 +35,11 @@
 // Context is a type alias of Hono's Context, so it's compatible
 export * from './types.ts'
 export * from './app.ts'
-export * from './decorators.ts'
-export * from './router.ts'
+export * from './routing/decorators.ts'
+export * from './routing/router.ts'
 export * from './helpers.ts'
-export * from './error_formatter.ts'
-export * from './default_error_handler.tsx'
+export * from './exceptions/formatter.ts'
+export * from './exceptions/default_view.tsx'
 
 // Export kernel features (boot lifecycle + declarative configuration)
 export {

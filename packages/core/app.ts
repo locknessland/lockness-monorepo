@@ -36,12 +36,12 @@ import type {
     Module,
     ModuleWithMiddleware,
 } from './types.ts'
-import { MiddlewareResolver } from './middleware_resolver.ts'
-import { ErrorHandlerRegistry } from './error_handler_registry.ts'
-import { ControllerDiscovery } from './controller_discovery.ts'
-import { RouteRegistry } from './route_registry.ts'
-import { StaticFileServer } from './static_file_server.ts'
-import { ServerListener } from './server_listener.ts'
+import { MiddlewareResolver } from './http/resolver.ts'
+import { ErrorHandlerRegistry } from './exceptions/handler.ts'
+import { ControllerDiscovery } from './routing/discovery.ts'
+import { RouteRegistry } from './routing/registry.ts'
+import { StaticFileServer } from './http/static.ts'
+import { ServerListener } from './http/server.ts'
 import pkg from './deno.json' with { type: 'json' }
 
 /**
@@ -489,7 +489,7 @@ export class App {
     ): Promise<void> {
         if ('middlewaresDir' in config && config.middlewaresDir) {
             const { discoverMiddlewares } = await import(
-                './middleware_resolver.ts'
+                './http/resolver.ts'
             )
             await discoverMiddlewares(config.middlewaresDir)
         }

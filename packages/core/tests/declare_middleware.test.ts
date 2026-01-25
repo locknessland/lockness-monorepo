@@ -14,7 +14,10 @@ import {
     UseMiddleware,
 } from '../mod.ts'
 import type { Context } from '../types.ts'
-import { declaredMiddlewares, MIDDLEWARE_NAME_KEY } from '../decorators.ts'
+import {
+    declaredMiddlewares,
+    MIDDLEWARE_NAME_KEY,
+} from '../routing/decorators.ts'
 
 Deno.test('@DeclareMiddleware - registers middleware in global registry', () => {
     // Clear registry before test
@@ -170,7 +173,7 @@ Deno.test({
         const middlewareFile = `${tempDir}/temp_middleware.ts`
 
         // Get absolute path to the decorators module
-        const decoratorsPath = import.meta.resolve('../decorators.ts')
+        const decoratorsPath = import.meta.resolve('../routing/decorators.ts')
         const typesPath = import.meta.resolve('../types.ts')
 
         await Deno.writeTextFile(

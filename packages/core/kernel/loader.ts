@@ -35,7 +35,7 @@ import {
     type KernelConfig,
 } from './kernel_decorators.ts'
 import { type BootHookMeta, KERNEL_BOOT_HOOKS } from './decorators.ts'
-import { discoverMiddlewares } from '../middleware_resolver.ts'
+import { discoverMiddlewares } from '../http/resolver.ts'
 import type { ControllerClass } from '../types.ts'
 
 /**

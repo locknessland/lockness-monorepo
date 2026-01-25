@@ -27,7 +27,7 @@
  * @module
  */
 
-import type { MiddlewareClass, MiddlewareInput } from './types.ts'
+import type { MiddlewareClass, MiddlewareInput } from '../types.ts'
 import { triggerDeprecation } from '@lockness/deprecation-contracts'
 
 /**

@@ -5,11 +5,11 @@
 // deno-lint-ignore-file no-unused-vars require-await
 
 import { assertEquals, assertExists } from '@std/assert'
+import { discoverMiddlewares, MiddlewareResolver } from '../http/resolver.ts'
 import {
-    discoverMiddlewares,
-    MiddlewareResolver,
-} from '../middleware_resolver.ts'
-import { declaredMiddlewares, DeclareMiddleware } from '../decorators.ts'
+    declaredMiddlewares,
+    DeclareMiddleware,
+} from '../routing/decorators.ts'
 import type { Context, IMiddleware, Next } from '../types.ts'
 
 Deno.test('MiddlewareResolver - mergeDeclaredMiddlewares adds declared middlewares to registry', () => {
@@ -104,11 +104,12 @@ Deno.test('discoverMiddlewares - discovers middlewares from directory', async ()
     // Create a temp directory with a middleware file
     const tempDir = await Deno.makeTempDir()
     const middlewareCode = `
-import { DeclareMiddleware } from '${Deno.cwd()}/packages/core/decorators.ts'
+import { DeclareMiddleware } from '${Deno.cwd()}/routing/decorators.ts'
+import type { Context, Next } from '${Deno.cwd()}/types.ts'
 
 @DeclareMiddleware('temp-test')
 export class TempTestMiddleware {
-    async handle(_c, next) {
+    async handle(_c: Context, next: Next) {
         return next()
     }
 }
@@ -139,11 +140,12 @@ Deno.test('discoverMiddlewares - resolves relative paths correctly', async () =>
     await Deno.mkdir(tempDirName, { recursive: true })
 
     const middlewareCode = `
-import { DeclareMiddleware } from '${Deno.cwd()}/packages/core/decorators.ts'
+import { DeclareMiddleware } from '${Deno.cwd()}/routing/decorators.ts'
+import type { Context, Next } from '${Deno.cwd()}/types.ts'
 
 @DeclareMiddleware('relative-test')
 export class RelativeTestMiddleware {
-    async handle(_c, next) {
+    async handle(_c: Context, next: Next) {
         return next()
     }
 }

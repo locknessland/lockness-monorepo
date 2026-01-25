@@ -1,5 +1,5 @@
-import type { Context } from './types.ts'
-import { formatErrorForConsole } from './error_formatter.ts'
+import type { Context } from '../types.ts'
+import { formatErrorForConsole } from './formatter.ts'
 
 /**
  * Simple inline error pages - no external dependencies

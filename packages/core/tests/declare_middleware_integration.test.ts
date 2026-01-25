@@ -15,7 +15,7 @@ import {
     UseMiddleware,
 } from '../mod.ts'
 import type { Context } from '../types.ts'
-import { declaredMiddlewares } from '../decorators.ts'
+import { declaredMiddlewares } from '../routing/decorators.ts'
 
 Deno.test('App integration - declared middlewares are automatically registered', async () => {
     declaredMiddlewares.clear()
@@ -154,7 +154,7 @@ Deno.test('App integration - backward compatibility with @Use decorator', async 
     }
 
     // Using the old @Use decorator instead of @UseMiddleware
-    const { Use } = await import('../decorators.ts')
+    const { Use } = await import('../routing/decorators.ts')
 
     @Controller('/test')
     class TestController {

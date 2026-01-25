@@ -3,7 +3,7 @@
  */
 
 import { assertEquals } from '@std/assert'
-import { namedRoutes, route } from '../router.ts'
+import { namedRoutes, route } from '../routing/router.ts'
 
 Deno.test('route - returns path for registered route without params', () => {
     namedRoutes.clear()

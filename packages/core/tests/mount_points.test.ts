@@ -6,7 +6,7 @@
 import { assertEquals, assertExists } from '@std/assert'
 import { App } from '../app.ts'
 import type { Context, Next } from '../types.ts'
-import { Controller, Get, Post } from '../decorators.ts'
+import { Controller, Get, Post } from '../routing/decorators.ts'
 
 // Test controller for mount points testing
 @Controller('/users')
