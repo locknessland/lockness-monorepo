@@ -103,9 +103,12 @@ Deno.test('discoverMiddlewares - discovers middlewares from directory', async ()
 
     // Create a temp directory with a middleware file
     const tempDir = await Deno.makeTempDir()
+    const decoratorsPath = import.meta.resolve('../routing/decorators.ts')
+    const typesPath = import.meta.resolve('../types.ts')
+
     const middlewareCode = `
-import { DeclareMiddleware } from '${Deno.cwd()}/routing/decorators.ts'
-import type { Context, Next } from '${Deno.cwd()}/types.ts'
+import { DeclareMiddleware } from '${decoratorsPath}'
+import type { Context, Next } from '${typesPath}'
 
 @DeclareMiddleware('temp-test')
 export class TempTestMiddleware {
@@ -139,9 +142,12 @@ Deno.test('discoverMiddlewares - resolves relative paths correctly', async () =>
     const tempDirName = `tmp/test-discover-${Date.now()}`
     await Deno.mkdir(tempDirName, { recursive: true })
 
+    const decoratorsPath = import.meta.resolve('../routing/decorators.ts')
+    const typesPath = import.meta.resolve('../types.ts')
+
     const middlewareCode = `
-import { DeclareMiddleware } from '${Deno.cwd()}/routing/decorators.ts'
-import type { Context, Next } from '${Deno.cwd()}/types.ts'
+import { DeclareMiddleware } from '${decoratorsPath}'
+import type { Context, Next } from '${typesPath}'
 
 @DeclareMiddleware('relative-test')
 export class RelativeTestMiddleware {
