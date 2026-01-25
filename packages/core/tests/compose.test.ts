@@ -17,7 +17,7 @@ function createMockContext(): Context {
             if (key === 'executionOrder') return executionOrder
             return undefined
         },
-        set: (_key: string, _value: unknown) => { },
+        set: (_key: string, _value: unknown) => {},
         json: (data: unknown) => new Response(JSON.stringify(data)),
         text: (data: string) => new Response(data),
         req: { method: 'GET', path: '/' },

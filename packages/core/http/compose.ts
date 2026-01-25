@@ -18,7 +18,7 @@ import { declaredMiddlewares } from '../routing/decorators.ts'
 export type ComposableMiddleware =
     | MiddlewareHandler
     | {
-        new(): {
+        new (): {
             handle: (
                 c: Context,
                 next: Next,
