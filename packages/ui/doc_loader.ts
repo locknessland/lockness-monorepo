@@ -130,7 +130,12 @@ export class UiDocLoader {
             this.baseDir = baseDir
         } else {
             // 1. Try relative to CWD first (standard for production/dist)
-            const cwdComponents = join(Deno.cwd(), 'packages', 'ui', 'components')
+            const cwdComponents = join(
+                Deno.cwd(),
+                'packages',
+                'ui',
+                'components',
+            )
             try {
                 Deno.statSync(cwdComponents)
                 this.baseDir = cwdComponents
@@ -202,7 +207,9 @@ export class UiDocLoader {
     async loadExamples(slug: string): Promise<ExampleSection[] | null> {
         // 1. Try static registry first (preferred for compiled binary/production)
         try {
-            const { uiExamplesRegistry } = await import('./examples_registry.ts')
+            const { uiExamplesRegistry } = await import(
+                './examples_registry.ts'
+            )
             if (uiExamplesRegistry[slug]) {
                 return uiExamplesRegistry[slug]
             }

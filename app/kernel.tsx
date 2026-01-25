@@ -90,7 +90,10 @@ import { databaseConfig, sessionConfig } from '../config/mod.ts'
         assets: [
             'public',
             'docs',
-            { source: 'packages/ui/components', target: 'packages/ui/components' },
+            {
+                source: 'packages/ui/components',
+                target: 'packages/ui/components',
+            },
         ],
         scripts: [
             'scripts/generate_ui_registry.ts',

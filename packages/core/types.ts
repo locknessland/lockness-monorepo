@@ -139,8 +139,8 @@ export interface AppConfig {
     readonly mountPoints?: readonly MountPoint[]
     /**
      * Binary compilation configuration.
-     * 
-     * Used by the CLI to orchestrate the `deno compile` process, 
+     *
+     * Used by the CLI to orchestrate the `deno compile` process,
      * including registry generation, asset copying, and compilation flags.
      */
     readonly compile?: CompileConfig
@@ -160,7 +160,7 @@ export interface AssetMapping {
 export interface CompileConfig {
     /** Output path for the binary. Defaults to '_dist/lockness' */
     readonly output?: string
-    /** 
+    /**
      * Folders or files to copy to the distribution directory.
      * Can be a simple path (relative to root) or an AssetMapping.
      */

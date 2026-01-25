@@ -1,25 +1,29 @@
 /**
  * @fileoverview Generator for UI examples registry.
- * 
+ *
  * Scans all component directories for examples.tsx and generates
  * a static registry file for production builds (deno compile).
- * 
+ *
  * @module @lockness/ui/registry_generator
  */
 
-import { walk } from "@std/fs";
-import { basename, join, dirname, fromFileUrl } from "@std/path";
+import { walk } from '@std/fs'
+import { basename, dirname, fromFileUrl, join } from '@std/path'
 
 /**
  * Generates the static UI examples registry file.
- * 
+ *
  * @param componentsDir - Path to the components directory
  * @param outputFile - Path where to write the registry file
  */
-export async function generateUiRegistry(componentsDir: string, outputFile: string) {
-    console.log("🎨 Generating UI examples registry...");
+export async function generateUiRegistry(
+    componentsDir: string,
+    outputFile: string,
+) {
+    console.log('🎨 Generating UI examples registry...')
 
-    const examples: { slug: string; importPath: string; className: string }[] = [];
+    const examples: { slug: string; importPath: string; className: string }[] =
+        []
 
     // Slug to Component mapping
     const slugMap: Record<string, string> = {
@@ -72,42 +76,45 @@ export async function generateUiRegistry(componentsDir: string, outputFile: stri
         'chart-extras': 'ChartExtras',
         'forms': 'Input',
         'navigation': 'Breadcrumb',
-    };
+    }
 
     // Inverse map for lookup
-    const componentToSlugs: Record<string, string[]> = {};
+    const componentToSlugs: Record<string, string[]> = {}
     for (const [slug, component] of Object.entries(slugMap)) {
-        if (!componentToSlugs[component]) componentToSlugs[component] = [];
-        componentToSlugs[component].push(slug);
+        if (!componentToSlugs[component]) componentToSlugs[component] = []
+        componentToSlugs[component].push(slug)
     }
 
     // Scan for examples.tsx
-    for await (const entry of walk(componentsDir, {
-        maxDepth: 2,
-        includeDirs: false,
-        match: [/examples\.tsx$/]
-    })) {
-        const componentName = basename(join(entry.path, ".."));
-        const slugs = componentToSlugs[componentName] || [componentName.toLowerCase()];
+    for await (
+        const entry of walk(componentsDir, {
+            maxDepth: 2,
+            includeDirs: false,
+            match: [/examples\.tsx$/],
+        })
+    ) {
+        const componentName = basename(join(entry.path, '..'))
+        const slugs = componentToSlugs[componentName] ||
+            [componentName.toLowerCase()]
 
-        const relativeImportPath = `./components/${componentName}/examples.tsx`;
-        const className = `${componentName}Examples`;
+        const relativeImportPath = `./components/${componentName}/examples.tsx`
+        const className = `${componentName}Examples`
 
         for (const slug of slugs) {
-            examples.push({ slug, importPath: relativeImportPath, className });
+            examples.push({ slug, importPath: relativeImportPath, className })
         }
     }
 
     // Generate file content
-    const uniqueImports = Array.from(new Set(examples.map(e => e.importPath)));
-    const importStats = uniqueImports.map(path => {
-        const componentName = basename(join(path, ".."));
-        return `import * as ${componentName}Examples from '${path}';`;
-    }).join("\n");
+    const uniqueImports = Array.from(new Set(examples.map((e) => e.importPath)))
+    const importStats = uniqueImports.map((path) => {
+        const componentName = basename(join(path, '..'))
+        return `import * as ${componentName}Examples from '${path}';`
+    }).join('\n')
 
-    const registryEntries = examples.map(e => {
-        return `    '${e.slug}': ${e.className}.examples,`;
-    }).join("\n");
+    const registryEntries = examples.map((e) => {
+        return `    '${e.slug}': ${e.className}.examples,`
+    }).join('\n')
 
     const content = `/**
  * @fileoverview AUTO-GENERATED UI EXAMPLES REGISTRY
@@ -121,18 +128,20 @@ ${importStats}
 export const uiExamplesRegistry: Record<string, any> = {
 ${registryEntries}
 };
-`;
+`
 
-    await Deno.writeTextFile(outputFile, content);
-    console.log(`✅ Generated UI examples registry with ${examples.length} entries.`);
+    await Deno.writeTextFile(outputFile, content)
+    console.log(
+        `✅ Generated UI examples registry with ${examples.length} entries.`,
+    )
 }
 
 /**
  * CLI entry point for the registry generator.
  */
 if (import.meta.main) {
-    const pkgDir = dirname(fromFileUrl(import.meta.url));
-    const componentsDir = join(pkgDir, 'components');
-    const outputFile = join(pkgDir, 'examples_registry.ts');
-    await generateUiRegistry(componentsDir, outputFile);
+    const pkgDir = dirname(fromFileUrl(import.meta.url))
+    const componentsDir = join(pkgDir, 'components')
+    const outputFile = join(pkgDir, 'examples_registry.ts')
+    await generateUiRegistry(componentsDir, outputFile)
 }

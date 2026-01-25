@@ -271,7 +271,7 @@ export function Kernel(
             throw new Error('@Kernel can only decorate classes')
         } // Store configuration on class
 
-        ; (target as any)[KERNEL_CONFIG] = config
+        ;(target as any)[KERNEL_CONFIG] = config
 
         return target
     }
