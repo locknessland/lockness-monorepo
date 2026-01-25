@@ -49,6 +49,28 @@ export class UserController {
 - `@Options`
 - `@Head`
 
+## Middleware Composition
+
+The `@ComposeMiddleware` decorator allows you to apply multiple middlewares to a
+route method in a single, clean declaration. It supports Hono functions,
+Lockness classes, and named middlewares.
+
+```typescript
+import { ComposeMiddleware, cors, logger } from '@lockness/core'
+
+@Controller('/api')
+export class ApiController {
+    @Get('/users')
+    @ComposeMiddleware(logger(), AuthMiddleware, 'admin')
+    users(c: Context) {
+        return c.json({ users: [] })
+    }
+}
+```
+
+This is the recommended way to apply multiple middlewares to a single route, as
+it's more concise than using multiple `@UseMiddleware` decorators.
+
 ## Dependency Injection
 
 Controllers support automatic dependency injection:

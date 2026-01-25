@@ -34,7 +34,8 @@ Lockness abstracts this layer to offer a complete and familiar MVC
 - **Controllers**: Class-based controllers with decorators (`@Controller`,
   `@Get`, `@Post`, etc.) and automatic route generation
 - **Robust Middleware Support**: Class-based middlewares with the `@Middleware`
-  decorator, supporting global middlewares and named middleware registration
+  decorator, supporting global middlewares, named middleware registration, and
+  **inline middleware composition** via `@ComposeMiddleware`
 - **Dependency Injection**: A built-in IoC container managing services with
   `@Service` and `@Inject` decorators (TC39 Stage 3 decorators)
 - **View Engine (JSX)**: Native JSX support powered by Hono's JSX runtime, fully
@@ -540,6 +541,59 @@ interface MountPoint {
     readonly middleware?: (c: Context, next: Next) => Promise<void | Response>
 }
 ```
+
+### Middleware Composition
+
+Lockness provides a clean way to compose multiple middlewares into a single
+reusable unit or apply them directly to routes using the `@ComposeMiddleware`
+decorator.
+
+#### Inline Composition (Recommended)
+
+The `@ComposeMiddleware` decorator eliminates the need for intermediate
+variables and multiple `@UseMiddleware` decorators:
+
+```typescript
+import { ComposeMiddleware, cors, logger } from '@lockness/core'
+
+@Controller('/api')
+export class ApiController {
+    @Get('/users')
+    @ComposeMiddleware(logger(), AuthMiddleware, 'admin')
+    users(c: Context) {
+        return c.json({ users: [] })
+    }
+}
+```
+
+#### Reusable Stacks
+
+For complex applications, you can define reusable middleware stacks using the
+`compose()` helper:
+
+```typescript
+import { compose, logger } from '@lockness/core'
+
+const apiStack = compose([
+    logger(),
+    AuthMiddleware,
+    'admin',
+])
+
+@Controller('/api')
+export class ApiController {
+    @Get('/stats')
+    @UseMiddleware(apiStack)
+    stats(c: Context) { ... }
+}
+```
+
+**Benefits:**
+
+- **Zero Boilerplate**: Compose directly in the decorator
+- **Type-safe**: Full TypeScript support for all middleware types
+- **Flexible**: Mix Hono functions, class middlewares, and named strings
+- **Modular**: Build complex stacks from smaller ones
 
 ### Modern Development Workflow
 
