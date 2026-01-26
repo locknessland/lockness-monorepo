@@ -203,9 +203,11 @@ Deno.test('Package Structure - generate summary report', async () => {
     > = {}
 
     for (const pkg of PACKAGES) {
+        const hasModTs = await exists(join('packages', pkg, 'mod.ts'))
+        const hasModTsx = await exists(join('packages', pkg, 'mod.tsx'))
         report[pkg] = {
             readme: await exists(join('packages', pkg, 'README.md')),
-            mod: await exists(join('packages', pkg, 'mod.ts')),
+            mod: hasModTs || hasModTsx,
         }
     }
 

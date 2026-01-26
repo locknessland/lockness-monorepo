@@ -37,6 +37,7 @@ export * from './types.ts'
 export * from './app.ts'
 export * from './routing/decorators.ts'
 export * from './routing/router.ts'
+export * from './routing/generator.ts'
 export * from './helpers.ts'
 export * from './exceptions/formatter.ts'
 export * from './exceptions/default_view.tsx'
@@ -139,3 +140,14 @@ export {
     validator,
     verify as jwtVerify,
 } from '@lockness/hono'
+
+/**
+ * Register core framework CLI commands.
+ * This is used by the CLI to discover commands provided by the core package.
+ *
+ * @param cli - The CLI instance
+ */
+export async function registerCoreCommands(cli: any) {
+    const { CompileCommand } = await import('./cli/compile_command.ts')
+    cli.registerCommand(CompileCommand)
+}

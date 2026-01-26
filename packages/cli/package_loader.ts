@@ -7,12 +7,29 @@
  * @module @lockness/cli/package-loader
  */
 
+import { parse as parseJsonc } from '@std/jsonc'
 import type { Cli } from './mod.ts'
 
 /**
- * Load and register commands from packages listed in deno.json.
+ * Find and read the project configuration file (deno.json or deno.jsonc).
+ * @returns Object with config content and the path found.
+ */
+async function readConfig(): Promise<{ content: any; path: string }> {
+    let configPath = 'deno.json'
+    let content = ''
+    try {
+        content = await Deno.readTextFile(configPath)
+    } catch (_e) {
+        configPath = 'deno.jsonc'
+        content = await Deno.readTextFile(configPath)
+    }
+    return { content: parseJsonc(content), path: configPath }
+}
+
+/**
+ * Load and register commands from packages listed in deno.json or deno.jsonc.
  *
- * Reads the `lockness.packages` section from deno.json and dynamically
+ * Reads the `lockness.packages` section from the configuration file and dynamically
  * imports the register functions from each package.
  *
  * @param cli - The CLI instance to register commands on
@@ -25,12 +42,16 @@ import type { Cli } from './mod.ts'
  */
 export async function loadPackageCommands(cli: Cli): Promise<void> {
     try {
-        // Read deno.json from current working directory
-        const denoJsonPath = 'deno.json'
-        const denoJson = JSON.parse(await Deno.readTextFile(denoJsonPath))
+        const { content: denoJson } = await readConfig()
 
         // Get packages list from lockness config
-        const packages: string[] = denoJson.lockness?.packages || []
+        const packages: string[] = (denoJson as any).lockness?.packages || []
+
+        // Always try to load core commands if NOT already in the list
+        // core is the engine, it should provide its commands by default
+        if (!packages.includes('core')) {
+            packages.unshift('core')
+        }
 
         if (packages.length === 0) {
             return
@@ -114,18 +135,15 @@ export async function loadPackageCommands(cli: Cli): Promise<void> {
  * ```
  */
 export async function addPackage(packageName: string): Promise<void> {
-    const denoJsonPath = 'deno.json'
-
     try {
-        const content = await Deno.readTextFile(denoJsonPath)
-        const denoJson = JSON.parse(content)
+        const { content: denoJson, path: denoJsonPath } = await readConfig()
 
         // Initialize lockness section if it doesn't exist
-        if (!denoJson.lockness) {
-            denoJson.lockness = {}
+        if (!(denoJson as any).lockness) {
+            ;(denoJson as any).lockness = {}
         }
-        if (!denoJson.lockness.packages) {
-            denoJson.lockness.packages = []
+        if (!(denoJson as any).lockness.packages) {
+            ;(denoJson as any).lockness.packages = []
         }
 
         // Normalize package name
@@ -134,14 +152,14 @@ export async function addPackage(packageName: string): Promise<void> {
             : packageName
 
         // Check if already added
-        if (denoJson.lockness.packages.includes(normalizedName)) {
+        if ((denoJson as any).lockness.packages.includes(normalizedName)) {
             console.log(`✓ Package ${normalizedName} is already registered`)
             return
-        }
+        } // Add package
 
-        // Add package
-        denoJson.lockness.packages.push(normalizedName)
-        denoJson.lockness.packages.sort()
+        ;(denoJson as any).lockness.packages.push(normalizedName)(
+            denoJson as any,
+        ).lockness.packages.sort()
 
         // Write back to file
         await Deno.writeTextFile(
@@ -171,13 +189,10 @@ export async function addPackage(packageName: string): Promise<void> {
  * ```
  */
 export async function removePackage(packageName: string): Promise<void> {
-    const denoJsonPath = 'deno.json'
-
     try {
-        const content = await Deno.readTextFile(denoJsonPath)
-        const denoJson = JSON.parse(content)
+        const { content: denoJson, path: denoJsonPath } = await readConfig()
 
-        if (!denoJson.lockness?.packages) {
+        if (!(denoJson as any).lockness?.packages) {
             console.log('No packages registered')
             return
         }
@@ -188,13 +203,15 @@ export async function removePackage(packageName: string): Promise<void> {
             : packageName
 
         // Remove package
-        const index = denoJson.lockness.packages.indexOf(normalizedName)
+        const index = (denoJson as any).lockness.packages.indexOf(
+            normalizedName,
+        )
         if (index === -1) {
             console.log(`Package ${normalizedName} is not registered`)
             return
         }
 
-        denoJson.lockness.packages.splice(index, 1)
+        ;(denoJson as any).lockness.packages.splice(index, 1)
 
         // Write back to file
         await Deno.writeTextFile(

@@ -5,7 +5,7 @@
  * In development mode, controllers are auto-discovered. In production,
  * this registry is used for faster startup.
  *
- * @module @lockness/cli/routes-generator
+ * @module @lockness/core/routing/generator
  */
 
 import { walk } from '@std/fs'
@@ -25,20 +25,6 @@ export interface ControllerInfo {
 
 /**
  * Scan a directory for controller files.
- *
- * Discovers all `.ts` and `.tsx` files and extracts controller information.
- * File names are converted from snake_case to PascalCase for class names.
- *
- * @param controllerDir - Path to the controller directory
- * @param extensions - File extensions to include (default: ['tsx', 'ts'])
- * @returns Array of discovered controller information, sorted by class name
- * @throws {Error} When directory cannot be read
- *
- * @example
- * ```ts
- * const controllers = await scanControllers('./app/controller')
- * // Returns: [{ className: 'AppController', fileName: 'app_controller.tsx', ... }]
- * ```
  */
 export async function scanControllers(
     controllerDir: string,
@@ -84,17 +70,6 @@ export async function scanControllers(
 
 /**
  * Generate the content for the routes registry file.
- *
- * Creates TypeScript source code with imports and exports for all controllers.
- *
- * @param controllers - Array of controller information from scanControllers
- * @returns TypeScript source code string
- *
- * @example
- * ```ts
- * const content = generateRoutesContent(controllers)
- * await Deno.writeTextFile('./app/routes.ts', content)
- * ```
  */
 export function generateRoutesContent(
     controllers: ReadonlyArray<ControllerInfo>,
@@ -135,21 +110,6 @@ export interface GenerateRoutesResult {
 
 /**
  * Scan controllers and generate a routes registry file.
- *
- * Convenience function combining scanControllers and generateRoutesContent.
- *
- * @param controllerDir - Path to the controller directory
- * @param outputFile - Path to write the generated routes file
- * @returns Result with count and controller names
- *
- * @example
- * ```ts
- * const result = await generateRoutesFile(
- *   './app/controller',
- *   './app/routes.ts'
- * )
- * console.log(`Generated registry for ${result.count} controllers`)
- * ```
  */
 export async function generateRoutesFile(
     controllerDir: string,

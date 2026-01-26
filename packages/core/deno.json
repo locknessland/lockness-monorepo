@@ -18,6 +18,7 @@
             "exceptions/",
             "view/",
             "kernel/",
+            "cli/",
             "deno.json",
             "README.md"
         ],

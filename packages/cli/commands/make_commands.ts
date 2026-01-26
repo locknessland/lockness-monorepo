@@ -9,7 +9,6 @@
 
 import { type Cli, Stub } from '../mod.ts'
 import { dirname, fromFileUrl, join } from '@std/path'
-import { generateRoutesFile } from '../routes_generator.ts'
 
 /**
  * Path to CLI stubs directory.
@@ -122,6 +121,7 @@ export function registerMakeCommands(cli: Cli): void {
 
             // Auto-regenerate routes.ts for production builds
             try {
+                const { generateRoutesFile } = await import('@lockness/core')
                 await generateRoutesFile('./app/controller', './app/routes.ts')
                 console.log('✅ Routes registry updated')
             } catch {
@@ -534,6 +534,7 @@ app.init({
 
             // Auto-regenerate routes.ts for production builds
             try {
+                const { generateRoutesFile } = await import('@lockness/core')
                 await generateRoutesFile('./app/controller', './app/routes.ts')
                 console.log('✅ Routes registry updated')
             } catch {

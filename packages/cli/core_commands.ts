@@ -36,7 +36,7 @@ import { registerTinkerCommand } from './commands/tinker_command.ts'
  * await cli.run(Deno.args)
  * ```
  */
-export async function registerCoreCommands(cli: Cli): Promise<void> {
+export function registerCoreCommands(cli: Cli): void {
     // Package management commands
     cli.register(
         'package:add',
@@ -123,8 +123,4 @@ export async function registerCoreCommands(cli: Cli): Promise<void> {
     registerRouterCommands(cli)
     registerQueueCommands(cli)
     registerTinkerCommand(cli)
-
-    // Binary compilation orchestration
-    const { CompileCommand } = await import('./commands/compile_command.ts')
-    cli.registerCommand(CompileCommand)
 }

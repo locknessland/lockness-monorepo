@@ -7,18 +7,6 @@
         "./commands": "./core_commands.ts"
     },
     "publish": {
-        "include": [
-            "mod.ts",
-            "auto_register.ts",
-            "core_commands.ts",
-            "package_loader.ts",
-            "routes_generator.ts",
-            "stubs.ts",
-            "deno.json",
-            "README.md",
-            "stubs/**/*",
-            "commands/**/*.ts"
-        ],
         "exclude": [
             "tests/"
         ]

@@ -350,4 +350,3 @@ export class Cli {
 
 export const cli: Cli = new Cli()
 export { Stub }
-export * from './routes_generator.ts'

@@ -3,26 +3,33 @@
  *
  * Tests the controller scanning and routes file generation utilities.
  *
- * @module @lockness/cli/tests/routes_generator
+ * @module @lockness/core/tests/routes_generator
  */
 
 import { assertEquals, assertStringIncludes } from '@std/assert'
+import { existsSync } from '@std/fs'
 import {
     type ControllerInfo,
     generateRoutesContent,
     scanControllers,
-} from '../routes_generator.ts'
-import {
-    cleanupTestDir,
-    fileExists,
-    readFile,
-    setupTestDir,
-    TEST_DIR,
-} from './helpers.ts'
+} from '../routing/generator.ts'
 
 // =============================================================================
-// Setup/Teardown
+// Test Helpers
 // =============================================================================
+
+const TEST_DIR = './.test-routes-output'
+
+async function setupTestDir(): Promise<void> {
+    await cleanupTestDir()
+    await Deno.mkdir(TEST_DIR, { recursive: true })
+}
+
+async function cleanupTestDir(): Promise<void> {
+    if (existsSync(TEST_DIR)) {
+        await Deno.remove(TEST_DIR, { recursive: true })
+    }
+}
 
 async function setupControllerDir(): Promise<void> {
     await setupTestDir()
@@ -229,9 +236,9 @@ Deno.test('scanControllers + generateRoutesContent - full workflow', async () =>
         const outputPath = `${TEST_DIR}/routes.ts`
         await Deno.writeTextFile(outputPath, content)
 
-        assertEquals(fileExists(outputPath), true)
+        assertEquals(existsSync(outputPath), true)
 
-        const written = await readFile(outputPath)
+        const written = await Deno.readTextFile(outputPath)
         assertStringIncludes(written, 'AppController')
         assertStringIncludes(written, 'UserController')
         assertStringIncludes(written, 'export const controllers')

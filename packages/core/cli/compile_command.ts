@@ -10,14 +10,32 @@
  * 5. Runs 'deno compile' with configured flags and output
  */
 
-import { Command, type CommandContext, type ICommand } from '../mod.ts'
 import { dirname, join } from '@std/path'
 import { copy, ensureDir, exists } from '@std/fs'
-import { KERNEL_CONFIG } from '../../core/kernel/kernel_decorators.ts'
-import { generateRoutesFile } from '../routes_generator.ts'
+import { KERNEL_CONFIG } from '../kernel/kernel_decorators.ts'
+import { generateRoutesFile } from '../routing/generator.ts'
 
-@Command('compile', 'Orchestrate binary compilation from @Kernel config')
+/**
+ * Interface definition copied from @lockness/cli to avoid circular dependency.
+ * The CLI will be able to register this class because it matches the expected interface.
+ */
+export interface CommandContext {
+    readonly args: string[]
+    arg(index: number): string | undefined
+    hasFlag(name: string): boolean
+    getFlag(name: string): string | undefined
+}
+
+export interface ICommand {
+    handle(ctx: CommandContext): Promise<void>
+}
+
 export class CompileCommand implements ICommand {
+    // We'll use a property instead of decorator to avoid dependency on CLI package
+    static readonly _commandName = 'compile'
+    static readonly _commandDescription =
+        'Orchestrate binary compilation from @Kernel config'
+
     async handle(_ctx: CommandContext): Promise<void> {
         console.log('🚀 Orchestrating binary compilation...')
 
@@ -60,6 +78,7 @@ export class CompileCommand implements ICommand {
             console.log('\n🗺️ Generating routes registry...')
             const controllersDir = kernelConfig.controllersDir ||
                 './app/controller'
+
             try {
                 const result = await generateRoutesFile(
                     controllersDir,
@@ -75,34 +94,25 @@ export class CompileCommand implements ICommand {
             }
 
             // 4. Run user-defined pre-compile scripts/commands
-            // This allows the app to handle its own specific logic (like UI registry or docs syncing)
             if (scripts.length > 0) {
                 console.log(
                     '\n📜 Running user-defined pre-compile scripts/commands...',
                 )
                 for (const script of scripts) {
                     console.log(`  - Executing: ${script}...`)
-
                     let command: Deno.Command
                     if (script.startsWith('deno ')) {
-                        // Handle 'deno run' or 'deno task'
                         const [cmd, ...args] = script.split(' ')
-                        command = new Deno.Command(cmd, {
-                            args: args,
-                        })
+                        command = new Deno.Command(cmd, { args })
                     } else if (
                         script.endsWith('.ts') || script.endsWith('.js')
                     ) {
-                        // Direct script execution
                         command = new Deno.Command(Deno.execPath(), {
                             args: ['run', '-A', script],
                         })
                     } else {
-                        // Generic shell command
                         const [cmd, ...args] = script.split(' ')
-                        command = new Deno.Command(cmd, {
-                            args: args,
-                        })
+                        command = new Deno.Command(cmd, { args })
                     }
 
                     const { success, stderr, stdout } = await command.output()
@@ -118,7 +128,6 @@ export class CompileCommand implements ICommand {
             }
 
             // 5. Copy explicit assets
-            // The user should declare their specific folders (like packages/core/docs) here
             if (assets.length > 0) {
                 console.log('\n📦 Copying explicit assets...')
                 for (const asset of assets) {
@@ -128,7 +137,6 @@ export class CompileCommand implements ICommand {
                     const target = typeof asset === 'string'
                         ? asset
                         : asset.target
-
                     const sourcePath = join(Deno.cwd(), source)
                     const targetPath = join(distDir, target)
 
@@ -150,7 +158,6 @@ export class CompileCommand implements ICommand {
                 ...flags,
                 main,
             ]
-
             console.log(`  - Running: deno ${compileArgs.join(' ')}`)
             const compileCommand = new Deno.Command(Deno.execPath(), {
                 args: compileArgs,
