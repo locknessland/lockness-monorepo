@@ -442,7 +442,7 @@ extraction patterns.
 **2. Open/Closed Principle (OCP)**
 
 - Users extend behavior via configuration, not code changes
-- Mount points are added/removed through `AppConfig.mountPoints`
+- Mount point is configured through `AppConfig.mountPoint`
 
 **3. Liskov Substitution Principle (LSP)**
 
@@ -486,7 +486,7 @@ await app.init({
 app.listen(8888)
 ```
 
-**Multi-Mount Setup (i18n Example):**
+**Mount Point Setup (i18n Example):**
 
 ```typescript
 import { App, type Context, type Next } from '@lockness/core'
@@ -512,15 +512,12 @@ const app = new App()
 await app.init({
     controllersDir: './app/controller',
     staticDir: 'public',
-    mountPoints: [
-        { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-        { pattern: '/api/:version', middleware: apiVersionMiddleware },
-    ],
+    mountPoint: { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
 })
 
 // Controllers now available at:
-// - /fr/ca/users, /en/us/products (i18n routes)
-// - /api/v1/users, /api/v2/products (versioned API)
+// - /users, /products (root access)
+// - /fr/ca/users, /en/us/products (i18n routes with locale context)
 app.listen(3000)
 ```
 

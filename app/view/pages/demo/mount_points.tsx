@@ -37,20 +37,17 @@ export const LOCALES: Record<
 // Code Example
 // =============================================================================
 
-const KERNEL_CODE =
-    `// app/kernel.tsx - Mount points with locale prefix at START
+const KERNEL_CODE = `// app/kernel.tsx - Mount point with locale prefix at START
 @Kernel({
     controllers: controllers,
-    mountPoints: [
-        {
-            pattern: '/:langId/:countryId',
-            middleware: async (c: Context, next: Next) => {
-                c.set('langId', c.req.param('langId'))
-                c.set('countryId', c.req.param('countryId'))
-                return await next()
-            },
+    mountPoint: {
+        pattern: '/:langId/:countryId',
+        middleware: async (c: Context, next: Next) => {
+            c.set('langId', c.req.param('langId'))
+            c.set('countryId', c.req.param('countryId'))
+            return await next()
         },
-    ],
+    },
 })
 export class AppKernel {}
 

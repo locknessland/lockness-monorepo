@@ -265,7 +265,7 @@ export async function createApp<T>(KernelClass: new () => T): Promise<App> {
             : (config.controllers as ControllerClass[] | undefined),
         staticDir: config.staticDir,
         middlewaresDir: config.middlewaresDir,
-        mountPoints: config.mountPoints,
+        mountPoint: config.mountPoint,
     })
 
     // Step 9: Collect routes for devtools (after app.init)

@@ -116,27 +116,33 @@ export interface AppConfig {
     staticDir?: string
 
     /**
-     * Configuration for mounting the app on multiple URL patterns.
+     * Configuration for mounting the app on a URL pattern prefix.
      *
-     * When defined, the application will be accessible under each mount point's pattern.
-     * Controllers registered with decorators like `@Get('/users')` will be available
-     * under all mount points (e.g., `/:langId/:countryId/users`, `/api/:version/users`).
+     * When defined, the application will be accessible both at root AND under
+     * the mount point's pattern. This is typically used for i18n to make routes
+     * accessible with locale prefixes.
      *
-     * If not defined, the application mounts at root `/` (default behavior).
+     * Controllers registered with `@Get('/users')` will be available at:
+     * - `/users` (root access)
+     * - `/:langId/:countryId/users` (with locale context)
+     *
+     * For API versioning, prefer using `@Controller('/api/:version')` instead,
+     * as it's more explicit and doesn't require global mount points.
+     *
+     * If not defined, the application mounts at root `/` only (default behavior).
      *
      * @example
      * ```typescript
      * await app.init({
      *     controllersDir: './app/controller',
-     *     staticDir: 'public',
-     *     mountPoints: [
-     *         { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-     *         { pattern: '/api/:version', middleware: apiVersionMiddleware },
-     *     ],
+     *     mountPoint: {
+     *         pattern: '/:langId/:countryId',
+     *         middleware: i18nMiddleware,
+     *     },
      * })
      * ```
      */
-    readonly mountPoints?: readonly MountPoint[]
+    readonly mountPoint?: MountPoint
     /**
      * Binary compilation configuration.
      *

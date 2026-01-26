@@ -73,14 +73,12 @@ import { databaseConfig, sessionConfig } from '../config/mod.ts'
     // Auto-discover middlewares decorated with @DeclareMiddleware
     middlewaresDir: './app/middleware',
 
-    // Mount points for i18n URL pattern
+    // Mount point for i18n URL pattern
     // Routes are accessible at root AND under /:langId/:countryId/
-    mountPoints: [
-        {
-            pattern: '/:langId/:countryId',
-            middleware: i18nMiddleware,
-        },
-    ],
+    mountPoint: {
+        pattern: '/:langId/:countryId',
+        middleware: i18nMiddleware,
+    },
 
     // Binary compilation configuration
     compile: {

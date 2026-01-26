@@ -1,9 +1,9 @@
 /**
  * @fileoverview Demo Controller
  *
- * Demonstrates the REAL mount points feature with locale prefix at START of URL.
+ * Demonstrates the REAL mount point feature with locale prefix at START of URL.
  *
- * With mount points configured in app/kernel.tsx, routes are accessible:
+ * With mount point configured in app/kernel.tsx, routes are accessible:
  * - At root: /demo/mount-points (no locale context)
  * - Under mount point: /fr/ca/demo/mount-points (with locale context)
  *
@@ -17,9 +17,9 @@ import {
 } from '@view/pages/demo/mount_points.tsx'
 
 /**
- * Controller for mount points demo
+ * Controller for mount point demo
  *
- * Mount points are configured in app/kernel.tsx with pattern /:langId/:countryId
+ * Mount point is configured in app/kernel.tsx with pattern /:langId/:countryId
  * This controller's routes are accessible:
  * - /demo/mount-points → no locale (root access)
  * - /fr/ca/demo/mount-points → locale set by middleware

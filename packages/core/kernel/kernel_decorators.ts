@@ -157,28 +157,24 @@ export interface KernelConfig {
     middlewaresDir?: string
 
     /**
-     * Mount points for URL versioning, i18n, or multi-tenancy.
-     * When defined, the application is accessible under each mount point's pattern.
+     * Mount point for URL prefixing (i18n, multi-tenancy).
      *
-     * @example API versioning
-     * ```typescript
-     * @Kernel({
-     *     mountPoints: [
-     *         { pattern: '/api/:version', middleware: apiVersionMiddleware },
-     *     ],
-     * })
-     * ```
+     * When defined, the application is accessible under the mount point's pattern
+     * in addition to the root path. This is typically used for i18n.
+     *
+     * For API versioning, prefer using `@Controller('/api/:version')` instead.
      *
      * @example i18n routing
      * ```typescript
      * @Kernel({
-     *     mountPoints: [
-     *         { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-     *     ],
+     *     mountPoint: {
+     *         pattern: '/:langId/:countryId',
+     *         middleware: i18nMiddleware,
+     *     },
      * })
      * ```
      */
-    mountPoints?: readonly MountPoint[]
+    mountPoint?: MountPoint
 
     /**
      * Binary compilation configuration.

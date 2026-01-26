@@ -1,17 +1,16 @@
-# Mount Points
+# Mount Point
 
-Mount points allow you to **extend** your application's routing by making all
-routes accessible under additional URL patterns. This is essential for
-internationalization (i18n), API versioning, and multi-tenancy where routes need
-to be accessible with dynamic prefixes.
+A mount point allows you to **extend** your application's routing by making all
+routes accessible under an additional URL pattern. This is essential for
+internationalization (i18n) where routes need to be accessible with locale
+prefixes.
 
 ## How It Works
 
-Mount points work by mounting your controllers at **multiple entry points**:
+Mount points work by mounting your controllers at **two entry points**:
 
 1. **Root mount** (`/`) - Routes remain accessible at their original paths
-2. **Pattern mounts** - Routes are ALSO accessible under each mount point
-   pattern
+2. **Pattern mount** - Routes are ALSO accessible under the mount point pattern
 
 ```
 With mount point pattern: /:langId/:countryId
@@ -23,7 +22,7 @@ Your controller routes are accessible at:
 ```
 
 > **Key insight:** Mount points **extend** routing, they don't restrict it.
-> Routes work at root AND under mount point patterns.
+> Routes work at root AND under the mount point pattern.
 
 ## Architecture
 
@@ -35,7 +34,7 @@ Lockness uses a **dual-layer Hono architecture** for mount points:
 │  ┌─────────────────────────────────────────────────────┐    │
 │  │  1. Static files (/css, /js, /img)                  │    │
 │  │  2. Root mount: route('/', hono)                    │    │
-│  │  3. Mount points: route('/:lang/:country', hono)    │    │
+│  │  3. Mount point: route('/:lang/:country', hono)     │    │
 │  │  4. 404 handler                                     │    │
 │  └─────────────────────────────────────────────────────┘    │
 │                              ↓                              │
@@ -54,7 +53,8 @@ Lockness uses a **dual-layer Hono architecture** for mount points:
 3. **Mount point routes** - `/fr/ca/products` matches, middleware runs
 4. **404 handler** - Unmatched requests
 
-This order ensures static files are never intercepted by mount point patterns.
+This order ensures static files are never intercepted by the mount point
+pattern.
 
 ## Configuration
 
@@ -65,23 +65,21 @@ import { Context, Kernel, Next } from '@lockness/core'
 
 @Kernel({
     controllersDir: './app/controller',
-    mountPoints: [
-        {
-            pattern: '/:langId/:countryId',
-            middleware: async (c: Context, next: Next) => {
-                // Extract parameters from URL
-                const langId = c.req.param('langId')
-                const countryId = c.req.param('countryId')
+    mountPoint: {
+        pattern: '/:langId/:countryId',
+        middleware: async (c: Context, next: Next) => {
+            // Extract parameters from URL
+            const langId = c.req.param('langId')
+            const countryId = c.req.param('countryId')
 
-                // Set context values for controllers
-                c.set('langId', langId)
-                c.set('countryId', countryId)
-                c.set('localeKey', `${langId}-${countryId}`)
+            // Set context values for controllers
+            c.set('langId', langId)
+            c.set('countryId', countryId)
+            c.set('localeKey', `${langId}-${countryId}`)
 
-                return await next()
-            },
+            return await next()
         },
-    ],
+    },
 })
 export class AppKernel {}
 ```
@@ -93,12 +91,10 @@ const app = new App()
 
 await app.init({
     controllers: [UserController, ProductController],
-    mountPoints: [
-        {
-            pattern: '/:langId/:countryId',
-            middleware: i18nMiddleware,
-        },
-    ],
+    mountPoint: {
+        pattern: '/:langId/:countryId',
+        middleware: i18nMiddleware,
+    },
 })
 ```
 
@@ -108,7 +104,7 @@ await app.init({
 interface MountPoint {
     /**
      * URL pattern with Hono path parameters.
-     * Examples: '/:langId/:countryId', '/api/:version', '/tenant/:id'
+     * Example: '/:langId/:countryId'
      */
     pattern: string
 
@@ -152,9 +148,7 @@ class ProductController {
 }
 ```
 
-## Use Cases
-
-### 1. Internationalization (i18n)
+## Use Case: Internationalization (i18n)
 
 ```typescript
 const i18nMiddleware = async (c: Context, next: Next) => {
@@ -179,9 +173,10 @@ const i18nMiddleware = async (c: Context, next: Next) => {
 }
 
 @Kernel({
-    mountPoints: [
-        { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-    ],
+    mountPoint: {
+        pattern: '/:langId/:countryId',
+        middleware: i18nMiddleware,
+    },
 })
 export class AppKernel {}
 ```
@@ -192,88 +187,40 @@ export class AppKernel {}
 - `/fr/ca/products` → Works with French Canadian locale
 - `/invalid/xx/products` → Redirects to `/en/us/products`
 
-### 2. API Versioning
+## API Versioning Alternative
+
+For API versioning, prefer using `@Controller('/api/:version')` instead of a
+mount point. This is more explicit and keeps versioning logic local to API
+controllers:
 
 ```typescript
-const versionMiddleware = async (c: Context, next: Next) => {
-    const version = c.req.param('version')
-
-    if (!['v1', 'v2', 'v3'].includes(version)) {
-        return c.json({ error: 'Unsupported version' }, 400)
+@Controller('/api/:version')
+class ApiController {
+    @Get('/users')
+    users(c: Context) {
+        const version = c.req.param('version')
+        // Handle version-specific logic
+        return c.json({ version, users: [] })
     }
-
-    c.set('apiVersion', version)
-    return await next()
 }
-
-@Kernel({
-    mountPoints: [
-        { pattern: '/api/:version', middleware: versionMiddleware },
-    ],
-})
-export class AppKernel {}
 ```
 
-**Resulting URLs:**
+This approach:
 
-- `/users` → Works (no version context)
-- `/api/v2/users` → Works with version context
-
-### 3. Multi-Tenancy
-
-```typescript
-const tenantMiddleware = async (c: Context, next: Next) => {
-    const tenantId = c.req.param('tenantId')
-
-    const tenant = await TenantService.find(tenantId)
-    if (!tenant) {
-        return c.notFound()
-    }
-
-    c.set('tenant', tenant)
-    c.set('db', tenant.database)
-
-    return await next()
-}
-
-@Kernel({
-    mountPoints: [
-        { pattern: '/t/:tenantId', middleware: tenantMiddleware },
-    ],
-})
-export class AppKernel {}
-```
-
-### 4. Multiple Mount Points
-
-Controllers are accessible under ALL defined patterns:
-
-```typescript
-@Kernel({
-    mountPoints: [
-        { pattern: '/api/:version', middleware: versionMiddleware },
-        { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-    ],
-})
-export class AppKernel {}
-```
-
-**Result:**
-
-- `/users` → Root access ✅
-- `/api/v2/users` → API versioned access ✅
-- `/fr/ca/users` → Localized access ✅
+- Keeps versioning explicit in the controller
+- Doesn't affect other routes in the application
+- Is simpler to understand and maintain
 
 ## Static Files
 
-Static files are registered **before** mount points in the routing chain:
+Static files are registered **before** the mount point in the routing chain:
 
 ```typescript
 @Kernel({
     staticDir: 'public',  // Served at /css, /js, /img, /favicon.ico
-    mountPoints: [
-        { pattern: '/:langId/:countryId' },
-    ],
+    mountPoint: {
+        pattern: '/:langId/:countryId',
+    },
 })
 ```
 
@@ -321,8 +268,6 @@ declare module '@lockness/core' {
         langId: string
         countryId: string
         localeKey: string
-        apiVersion: 'v1' | 'v2' | 'v3'
-        tenant: Tenant
     }
 }
 ```
@@ -371,13 +316,16 @@ const i18nMiddleware = async (c: Context, next: Next) => {
 5. **Type your context** - Use TypeScript declaration merging for type-safe
    context access
 
+6. **Use mount points for i18n only** - For API versioning, prefer
+   `@Controller('/api/:version')` which is more explicit
+
 ## Live Demo
 
-This application has mount points configured in `app/kernel.tsx`. Try the
+This application has a mount point configured in `app/kernel.tsx`. Try the
 interactive demo:
 
 <div class="my-8 rounded-lg border border-border bg-card p-6">
-    <h3 class="font-pixel text-lg mb-4">🔗 Interactive Mount Points Demo</h3>
+    <h3 class="font-pixel text-lg mb-4">🔗 Interactive Mount Point Demo</h3>
     <p class="text-muted-foreground mb-4">
         See how the same route behaves with and without locale prefix:
     </p>

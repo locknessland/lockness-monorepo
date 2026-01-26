@@ -3,8 +3,8 @@ import type { Env, Schema } from 'hono'
 import type { AppConfig, Module, ModuleWithMiddleware } from '../types.ts'
 
 /**
- * Manages the mounting of the application on different URL patterns.
- * Implements the multi-mount routing strategy.
+ * Manages the mounting of the application on a URL pattern prefix.
+ * Implements the dual-layer routing strategy for i18n and similar use cases.
  */
 export class MountManager {
     constructor(
@@ -13,30 +13,29 @@ export class MountManager {
     ) {}
 
     /**
-     * Sets up mount points by connecting rootHono to hono.
-     * If no mount points are defined, mounts at root `/`.
+     * Sets up mount point by connecting rootHono to internalHono.
+     * If no mount point is defined, only mounts at root `/`.
      */
     setup(config: Module | ModuleWithMiddleware | AppConfig): void {
-        const mountPoints = 'mountPoints' in config
-            ? config.mountPoints
+        const mountPoint = 'mountPoint' in config
+            ? config.mountPoint
             : undefined
 
         // Always mount at root FIRST - this ensures routes like /demo/mount-points
         // are matched before the mount point pattern /:langId/:countryId
         this.rootHono.route('/', this.internalHono)
 
-        if (mountPoints && mountPoints.length > 0) {
-            // Mount points add middleware to specific patterns
-            // Routes remain accessible at root AND under mount point patterns
-            for (const mount of mountPoints) {
-                // Apply mount-specific middleware if provided
-                if (mount.middleware) {
-                    this.rootHono.use(`${mount.pattern}/*`, mount.middleware)
-                }
-
-                // Route requests under this pattern to internal hono
-                this.rootHono.route(mount.pattern, this.internalHono)
+        if (mountPoint) {
+            // Apply mount-specific middleware if provided
+            if (mountPoint.middleware) {
+                this.rootHono.use(
+                    `${mountPoint.pattern}/*`,
+                    mountPoint.middleware,
+                )
             }
+
+            // Route requests under this pattern to internal hono
+            this.rootHono.route(mountPoint.pattern, this.internalHono)
         }
     }
 }

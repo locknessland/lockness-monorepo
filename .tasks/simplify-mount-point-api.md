@@ -350,38 +350,38 @@ deno test packages/core/tests/mount_points.test.ts
 
 ### Core Implementation
 
-- [ ] `mountPoint` singular property added to `AppConfig` in types.ts
-- [ ] `mountPoint` singular property added to `KernelConfig` in
+- [x] `mountPoint` singular property added to `AppConfig` in types.ts
+- [x] `mountPoint` singular property added to `KernelConfig` in
       kernel_decorators.ts
-- [ ] `mountPoints` array removed from all interfaces
-- [ ] MountManager simplified to handle single mount point
-- [ ] Kernel loader updated to pass singular property
+- [x] `mountPoints` array removed from all interfaces
+- [x] MountManager simplified to handle single mount point
+- [x] Kernel loader updated to pass singular property
 
 ### Application Updates
 
-- [ ] app/kernel.tsx updated to singular syntax
+- [x] app/kernel.tsx updated to singular syntax
 
 ### Live Demo Updates
 
-- [ ] demo_controller.tsx JSDoc comments updated
-- [ ] mount_points.tsx KERNEL_CODE example updated to singular
+- [x] demo_controller.tsx JSDoc comments updated
+- [x] mount_points.tsx KERNEL_CODE example updated to singular
 
 ### Documentation Updates
 
-- [ ] /packages/core/docs/mount-points.md - All examples use singular
-- [ ] /GEMINI.md - Architecture section uses singular
-- [ ] Remove "Multiple Mount Points" section from docs
+- [x] /packages/core/docs/mount-points.md - All examples use singular
+- [x] /GEMINI.md - Architecture section uses singular
+- [x] Remove "Multiple Mount Points" section from docs
 
 ### Tests
 
-- [ ] mount_points.test.ts updated for new API
-- [ ] All tests pass
+- [x] mount_points.test.ts updated for new API
+- [x] All tests pass
 
 ### Quality Checks
 
-- [ ] `deno check` passes on all modified files
-- [ ] `deno lint` passes on all modified files
-- [ ] `deno test` passes
+- [x] `deno check` passes on all modified files
+- [x] `deno lint` passes on all modified files
+- [x] `deno test` passes
 
 ## 📝 Notes
 

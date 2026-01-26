@@ -1,6 +1,6 @@
 /**
- * Tests for multi-mount routing strategy
- * Validates dual-layer routing architecture with mount points
+ * Tests for mount point routing strategy
+ * Validates dual-layer routing architecture with mount point
  */
 
 import { assertEquals, assertExists } from '@std/assert'
@@ -8,7 +8,7 @@ import { App } from '../app.ts'
 import type { Context, Next } from '../types.ts'
 import { Controller, Get, Post } from '../routing/decorators.ts'
 
-// Test controller for mount points testing
+// Test controller for mount point testing
 @Controller('/users')
 class UserController {
     @Get('/')
@@ -33,12 +33,11 @@ class ProductController {
     @Get('/')
     list(c: Context) {
         const locale = c.get('locale')
-        const apiVersion = c.get('apiVersion')
-        return c.json({ products: [], locale, apiVersion })
+        return c.json({ products: [], locale })
     }
 }
 
-Deno.test('App - mounts at root when no mountPoints defined', async () => {
+Deno.test('App - mounts at root when no mountPoint defined', async () => {
     const app = new App()
 
     await app.init({
@@ -66,14 +65,12 @@ Deno.test('App - controllers accessible at root path parameter routes', async ()
     assertEquals(data.id, '123')
 })
 
-Deno.test('App - mounts controllers under single mount point pattern', async () => {
+Deno.test('App - mounts controllers under mount point pattern', async () => {
     const app = new App()
 
     await app.init({
         controllers: [UserController],
-        mountPoints: [
-            { pattern: '/:langId/:countryId' },
-        ],
+        mountPoint: { pattern: '/:langId/:countryId' },
     })
 
     // Should work under mount point
@@ -84,23 +81,23 @@ Deno.test('App - mounts controllers under single mount point pattern', async () 
     assertEquals(Array.isArray(data.users), true)
 })
 
-Deno.test('App - mounts controllers under multiple mount point patterns', async () => {
+Deno.test('App - routes accessible at root AND under mount point', async () => {
     const app = new App()
 
     await app.init({
         controllers: [UserController],
-        mountPoints: [
-            { pattern: '/:langId/:countryId' },
-            { pattern: '/api/:version' },
-        ],
+        mountPoint: { pattern: '/:langId/:countryId' },
     })
 
-    // Both mount points should work
-    const i18nRes = await app.fetch(new Request('http://localhost/fr/ca/users'))
-    assertEquals(i18nRes.status, 200)
+    // Should work at root
+    const rootRes = await app.fetch(new Request('http://localhost/users'))
+    assertEquals(rootRes.status, 200)
 
-    const apiRes = await app.fetch(new Request('http://localhost/api/v1/users'))
-    assertEquals(apiRes.status, 200)
+    // Should also work under mount point
+    const mountRes = await app.fetch(
+        new Request('http://localhost/fr/ca/users'),
+    )
+    assertEquals(mountRes.status, 200)
 })
 
 Deno.test('App - executes mount-specific middleware', async () => {
@@ -122,9 +119,10 @@ Deno.test('App - executes mount-specific middleware', async () => {
 
     await app.init({
         controllers: [UserController],
-        mountPoints: [
-            { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-        ],
+        mountPoint: {
+            pattern: '/:langId/:countryId',
+            middleware: i18nMiddleware,
+        },
     })
 
     const res = await app.fetch(new Request('http://localhost/fr/ca/users'))
@@ -152,9 +150,10 @@ Deno.test('App - middleware can set context values for controllers', async () =>
 
     await app.init({
         controllers: [ProductController],
-        mountPoints: [
-            { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-        ],
+        mountPoint: {
+            pattern: '/:langId/:countryId',
+            middleware: i18nMiddleware,
+        },
     })
 
     const res = await app.fetch(new Request('http://localhost/en/us/products'))
@@ -164,14 +163,12 @@ Deno.test('App - middleware can set context values for controllers', async () =>
     assertEquals(data.locale, 'en-us')
 })
 
-Deno.test('App - different mount points can have different middleware', async () => {
-    const i18nMiddleware = async (c: Context, next: Next) => {
-        c.set('locale', `${c.req.param('langId')}-${c.req.param('countryId')}`)
-        return await next()
-    }
+Deno.test('App - middleware does not run for root access', async () => {
+    let middlewareCalled = false
 
-    const apiVersionMiddleware = async (c: Context, next: Next) => {
-        c.set('apiVersion', c.req.param('version'))
+    const i18nMiddleware = async (c: Context, next: Next) => {
+        middlewareCalled = true
+        c.set('locale', `${c.req.param('langId')}-${c.req.param('countryId')}`)
         return await next()
     }
 
@@ -179,30 +176,19 @@ Deno.test('App - different mount points can have different middleware', async ()
 
     await app.init({
         controllers: [ProductController],
-        mountPoints: [
-            // More specific pattern first to avoid overlap
-            { pattern: '/api/:version', middleware: apiVersionMiddleware },
-            { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-        ],
+        mountPoint: {
+            pattern: '/:langId/:countryId',
+            middleware: i18nMiddleware,
+        },
     })
 
-    // Test i18n mount point
-    const i18nRes = await app.fetch(
-        new Request('http://localhost/fr/ca/products'),
-    )
-    assertEquals(i18nRes.status, 200)
-    const i18nData = await i18nRes.json()
-    assertEquals(i18nData.locale, 'fr-ca')
-    assertEquals(i18nData.apiVersion, undefined)
+    // Access at root - middleware should NOT run
+    const res = await app.fetch(new Request('http://localhost/products'))
+    assertEquals(res.status, 200)
+    assertEquals(middlewareCalled, false)
 
-    // Test API mount point
-    const apiRes = await app.fetch(
-        new Request('http://localhost/api/v2/products'),
-    )
-    assertEquals(apiRes.status, 200)
-    const apiData = await apiRes.json()
-    assertEquals(apiData.apiVersion, 'v2')
-    assertEquals(apiData.locale, undefined)
+    const data = await res.json()
+    assertEquals(data.locale, undefined)
 })
 
 Deno.test('App - middleware can reject invalid parameters', async () => {
@@ -218,9 +204,10 @@ Deno.test('App - middleware can reject invalid parameters', async () => {
 
     await app.init({
         controllers: [UserController],
-        mountPoints: [
-            { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-        ],
+        mountPoint: {
+            pattern: '/:langId/:countryId',
+            middleware: i18nMiddleware,
+        },
     })
 
     // Valid language
@@ -237,10 +224,10 @@ Deno.test('App - middleware can reject invalid parameters', async () => {
 })
 
 Deno.test('App - middleware can return custom error responses', async () => {
-    const apiVersionMiddleware = async (c: Context, next: Next) => {
-        const version = c.req.param('version')
-        if (!['v1', 'v2'].includes(version)) {
-            return c.json({ error: 'Unsupported API version' }, 400)
+    const i18nMiddleware = async (c: Context, next: Next) => {
+        const langId = c.req.param('langId')
+        if (!['en', 'fr'].includes(langId)) {
+            return c.json({ error: 'Unsupported language' }, 400)
         }
         return await next()
     }
@@ -249,34 +236,33 @@ Deno.test('App - middleware can return custom error responses', async () => {
 
     await app.init({
         controllers: [UserController],
-        mountPoints: [
-            { pattern: '/api/:version', middleware: apiVersionMiddleware },
-        ],
+        mountPoint: {
+            pattern: '/:langId/:countryId',
+            middleware: i18nMiddleware,
+        },
     })
 
-    // Valid version
+    // Valid language
     const validRes = await app.fetch(
-        new Request('http://localhost/api/v1/users'),
+        new Request('http://localhost/en/us/users'),
     )
     assertEquals(validRes.status, 200)
 
-    // Invalid version
+    // Invalid language
     const invalidRes = await app.fetch(
-        new Request('http://localhost/api/v3/users'),
+        new Request('http://localhost/de/de/users'),
     )
     assertEquals(invalidRes.status, 400)
     const data = await invalidRes.json()
-    assertEquals(data.error, 'Unsupported API version')
+    assertEquals(data.error, 'Unsupported language')
 })
 
-Deno.test('App - 404 handler works with mount points', async () => {
+Deno.test('App - 404 handler works with mount point', async () => {
     const app = new App()
 
     await app.init({
         controllers: [UserController],
-        mountPoints: [
-            { pattern: '/:langId/:countryId' },
-        ],
+        mountPoint: { pattern: '/:langId/:countryId' },
     })
 
     // Valid mount point but invalid route
@@ -292,14 +278,12 @@ Deno.test('App - 404 handler works with mount points', async () => {
     assertEquals(res2.status, 404)
 })
 
-Deno.test('App - path parameters work in controller routes with mount points', async () => {
+Deno.test('App - path parameters work in controller routes with mount point', async () => {
     const app = new App()
 
     await app.init({
         controllers: [UserController],
-        mountPoints: [
-            { pattern: '/:langId/:countryId' },
-        ],
+        mountPoint: { pattern: '/:langId/:countryId' },
     })
 
     const res = await app.fetch(new Request('http://localhost/fr/ca/users/456'))
@@ -309,18 +293,16 @@ Deno.test('App - path parameters work in controller routes with mount points', a
     assertEquals(data.id, '456')
 })
 
-Deno.test('App - POST requests work with mount points', async () => {
+Deno.test('App - POST requests work with mount point', async () => {
     const app = new App()
 
     await app.init({
         controllers: [UserController],
-        mountPoints: [
-            { pattern: '/api/:version' },
-        ],
+        mountPoint: { pattern: '/:langId/:countryId' },
     })
 
     const res = await app.fetch(
-        new Request('http://localhost/api/v1/users', {
+        new Request('http://localhost/fr/ca/users', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: 'John' }),
@@ -332,14 +314,12 @@ Deno.test('App - POST requests work with mount points', async () => {
     assertEquals(data.created, true)
 })
 
-Deno.test('App - mount points work with multiple controllers', async () => {
+Deno.test('App - mount point works with multiple controllers', async () => {
     const app = new App()
 
     await app.init({
         controllers: [UserController, ProductController],
-        mountPoints: [
-            { pattern: '/:langId/:countryId' },
-        ],
+        mountPoint: { pattern: '/:langId/:countryId' },
     })
 
     // Test first controller
@@ -355,33 +335,19 @@ Deno.test('App - mount points work with multiple controllers', async () => {
     assertEquals(productsRes.status, 200)
 })
 
-Deno.test('App - empty mountPoints array falls back to root', async () => {
+Deno.test('App - getRoutes() still works with mount point', async () => {
     const app = new App()
 
     await app.init({
         controllers: [UserController],
-        mountPoints: [],
-    })
-
-    const res = await app.fetch(new Request('http://localhost/users'))
-    assertEquals(res.status, 200)
-})
-
-Deno.test('App - getRoutes() still works with mount points', async () => {
-    const app = new App()
-
-    await app.init({
-        controllers: [UserController],
-        mountPoints: [
-            { pattern: '/:langId/:countryId' },
-        ],
+        mountPoint: { pattern: '/:langId/:countryId' },
     })
 
     const routes = app.getRoutes()
     assertExists(routes)
     assertEquals(routes.length, 3) // GET /, GET /:id, POST /
 
-    // Routes should show controller paths, not mount points
+    // Routes should show controller paths, not mount point
     const getUsersRoute = routes.find((r) => r.path === '/users')
     assertExists(getUsersRoute)
     assertEquals(getUsersRoute.method, 'GET')
