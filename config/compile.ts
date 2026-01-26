@@ -1,0 +1,46 @@
+import type { CompileConfig } from '@lockness/core'
+
+/**
+ * Binary compilation configuration.
+ *
+ * This configuration is used by the 'deno task compile' command
+ * to orchestrate the build process, including asset copying,
+ * pre-compile scripts, and binary metadata.
+ */
+export const compileConfig: CompileConfig = {
+    /** Output path for the binary. */
+    output: '_dist/lockness',
+
+    /** Entry point of the application. */
+    main: 'main.ts',
+
+    /**
+     * Deno compilation flags.
+     * -A: Allow all permissions
+     * --env-file: Load production environment variables
+     */
+    flags: ['-A', '--env-file=.env.production.local'],
+
+    /**
+     * Assets to copy into the distribution directory alongside the binary.
+     * Supports simple strings (folder/file) or source/target mappings.
+     */
+    assets: [
+        'public',
+        'docs',
+        {
+            source: 'packages/ui/components',
+            target: 'packages/ui/components',
+        },
+    ],
+
+    /**
+     * Scripts to execute BEFORE compilation starts.
+     * These typically generate registries or build frontend assets.
+     */
+    scripts: [
+        'scripts/generate_ui_registry.ts',
+        'deno task css:build',
+        'scripts/prepare_docs.ts',
+    ],
+}
