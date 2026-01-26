@@ -1,7 +1,7 @@
 {
     "name": "@lockness/ui",
     "description": "CLI for adding Hono JSX UI components (shadcn-style) to your Lockness project",
-    "version": "0.1.27",
+    "version": "0.1.28",
     "license": "MIT",
     "exports": {
         ".": "./mod.ts",
@@ -23,7 +23,7 @@
         "@std/cli": "jsr:@std/cli@1",
         "@std/fs": "jsr:@std/fs@1",
         "@std/path": "jsr:@std/path@1",
-        "hono": "jsr:@lockness/hono@^0.1.27",
+        "hono": "jsr:@lockness/hono@^0.1.28",
         "clsx": "npm:clsx@2.1.1",
         "tailwind-merge": "npm:tailwind-merge@2.6.0",
         "highlight.js": "npm:highlight.js@11.11.1"
