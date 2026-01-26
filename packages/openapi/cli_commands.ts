@@ -1,6 +1,6 @@
 import type { Cli } from '@lockness/cli'
 import { generateOpenAPISpec } from './generator.ts'
-import type { ControllerClass } from '@lockness/core'
+import type { ControllerClass } from '@lockness/contract'
 import { join } from '@std/path'
 
 export function registerOpenAPICommands(cli: Cli) {

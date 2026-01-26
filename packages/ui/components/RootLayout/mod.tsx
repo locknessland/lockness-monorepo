@@ -6,8 +6,8 @@
  * @module @lockness/ui/components/root-layout
  */
 
-import type { FC } from '@lockness/core'
-import { raw } from '@lockness/core'
+import type { FC } from '@lockness/hono'
+import { raw } from '@lockness/hono'
 
 /**
  * RootLayout component props

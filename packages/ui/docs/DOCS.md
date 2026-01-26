@@ -266,7 +266,7 @@ All icons accept the same props:
 Create your own icons following the same pattern:
 
 ```tsx
-import type { FC } from '@lockness/core'
+import type { FC } from '@lockness/hono'
 
 interface IconProps {
     size?: number

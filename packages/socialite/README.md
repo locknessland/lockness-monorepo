@@ -45,7 +45,7 @@ configureSocialite({
 ### Basic Example
 
 ```typescript
-import { Controller, Get } from '@lockness/core'
+import { Controller, Get } from '@lockness/contract'
 import { socialite } from '@lockness/socialite'
 import type { Context } from 'hono'
 

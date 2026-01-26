@@ -68,7 +68,7 @@ deno run -Ar jsr:@lockness/upgrade 0.2.0 --dry-run
 
 📦 Found 5 package(s):
 
-  @lockness/core              0.1.19 → 0.2.0
+  @lockness/contract          0.1.19 → 0.2.0
   @lockness/cli               0.1.19 → 0.2.0
   @lockness/auth              0.1.19 → 0.2.0
   @lockness/drizzle           0.1.19 → 0.2.0
@@ -96,7 +96,7 @@ Before:
 ```json
 {
     "imports": {
-        "@lockness/core": "jsr:@lockness/core@^0.1.19",
+        "@lockness/contract": "jsr:@lockness/contract@^0.1.19",
         "@lockness/cli": "jsr:@lockness/cli@^0.1.19",
         "@std/path": "jsr:@std/path@^1.0.0"
     }
@@ -108,7 +108,7 @@ After:
 ```json
 {
     "imports": {
-        "@lockness/core": "jsr:@lockness/core@^0.2.0",
+        "@lockness/contract": "jsr:@lockness/contract@^0.2.0",
         "@lockness/cli": "jsr:@lockness/cli@^0.2.0",
         "@std/path": "jsr:@std/path@^1.0.0"
     }

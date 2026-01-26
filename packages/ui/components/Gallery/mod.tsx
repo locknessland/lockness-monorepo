@@ -6,7 +6,7 @@
  * @module @lockness/ui/components/gallery
  */
 
-import type { FC, PropsWithChildren } from '@lockness/core'
+import type { FC, PropsWithChildren } from '@lockness/hono'
 import { cn } from '../../lib/utils.ts'
 
 // ============================================================================

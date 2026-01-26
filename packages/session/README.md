@@ -419,7 +419,7 @@ If you were using `lockness/core/session.ts`:
 
 ```typescript
 // Old
-import { getSession, sessionMiddleware } from '@lockness/core'
+import { getSession, sessionMiddleware } from '@lockness/contract'
 
 // New
 import { getSession, sessionMiddleware } from '@lockness/session'

@@ -1,39 +1,28 @@
 import type {
-    Context as HonoContext,
-    Env,
-    Input,
+    Context,
+    ControllerClass,
+    IMiddleware,
+    MiddlewareClass,
     MiddlewareHandler,
+    MiddlewareInput,
+    MiddlewareRegistry,
     Next,
+    Route,
     ValidationTargets,
-} from 'hono'
+} from '@lockness/contract'
 
-export type { MiddlewareHandler, Next, ValidationTargets }
-
-export type Context<
-    E extends Env = any,
-    P extends string = any,
-    I extends Input = { out: { [K in keyof ValidationTargets]: any } },
-> = HonoContext<E, P, I>
-
-export interface Route {
-    method: string
-    path: string
-    methodName: string
-    name?: string
-    /** File extension to strip from route parameters */
-    extension?: string
+export type {
+    Context,
+    ControllerClass,
+    IMiddleware,
+    MiddlewareClass,
+    MiddlewareHandler,
+    MiddlewareInput,
+    MiddlewareRegistry,
+    Next,
+    Route,
+    ValidationTargets,
 }
-
-export interface ControllerMetadata {
-    _basePath?: string
-    _routes?: Route[]
-    _middlewares?: Record<string, any[]>
-    _validators?: Record<string, any[]>
-}
-
-export type ControllerClass =
-    & (new (...args: any[]) => Record<string, any>)
-    & ControllerMetadata
 
 export interface Module {
     controllers: ControllerClass[]
@@ -41,114 +30,17 @@ export interface Module {
 
 /**
  * Configuration for a single mount point.
- *
- * A mount point defines a URL pattern where the application will be mounted,
- * along with optional middleware for context extraction.
- *
- * @example
- * ```typescript
- * // Internationalization mount point
- * const i18nMount: MountPoint = {
- *     pattern: '/:langId/:countryId',
- *     middleware: async (c, next) => {
- *         const langId = c.req.param('langId')
- *         const countryId = c.req.param('countryId')
- *         c.set('locale', await LocaleService.resolve(langId, countryId))
- *         return next()
- *     }
- * }
- *
- * // API versioning mount point
- * const apiMount: MountPoint = {
- *     pattern: '/api/:version',
- *     middleware: async (c, next) => {
- *         c.set('apiVersion', c.req.param('version'))
- *         return next()
- *     }
- * }
- * ```
  */
 export interface MountPoint {
-    /**
-     * The URL pattern to mount the application on.
-     * Supports Hono path parameters (e.g., `:langId`, `:countryId`, `:version`).
-     *
-     * @example '/:langId/:countryId'
-     * @example '/api/:version'
-     * @example '/tenant/:tenantId'
-     */
     readonly pattern: string
-
-    /**
-     * Optional middleware specific to this mount point.
-     * Executed before any controller logic for requests matching this pattern.
-     *
-     * Common use cases:
-     * - Extract path parameters and hydrate context (locale, version)
-     * - Validate path parameters (language codes, API versions)
-     * - Load localized resources or tenant data
-     * - Set up request-scoped dependencies
-     *
-     * @param c - Hono Context object
-     * @param next - Next middleware function
-     * @returns Promise resolving to void or a Response
-     */
     readonly middleware?: (c: Context, next: Next) => Promise<void | Response>
 }
 
 export interface AppConfig {
     controllersDir?: string
-    /**
-     * Optional path to middleware directory for auto-discovery.
-     *
-     * When provided, all middleware files will be imported to trigger
-     * `@DeclareMiddleware` decorators, automatically registering them.
-     *
-     * @example
-     * ```typescript
-     * await app.init({
-     *     middlewaresDir: './app/middleware',
-     *     controllersDir: './app/controller',
-     * })
-     * ```
-     */
     middlewaresDir?: string
     staticDir?: string
-
-    /**
-     * Configuration for mounting the app on a URL pattern prefix.
-     *
-     * When defined, the application will be accessible both at root AND under
-     * the mount point's pattern. This is typically used for i18n to make routes
-     * accessible with locale prefixes.
-     *
-     * Controllers registered with `@Get('/users')` will be available at:
-     * - `/users` (root access)
-     * - `/:langId/:countryId/users` (with locale context)
-     *
-     * For API versioning, prefer using `@Controller('/api/:version')` instead,
-     * as it's more explicit and doesn't require global mount points.
-     *
-     * If not defined, the application mounts at root `/` only (default behavior).
-     *
-     * @example
-     * ```typescript
-     * await app.init({
-     *     controllersDir: './app/controller',
-     *     mountPoint: {
-     *         pattern: '/:langId/:countryId',
-     *         middleware: i18nMiddleware,
-     *     },
-     * })
-     * ```
-     */
     readonly mountPoint?: MountPoint
-    /**
-     * Binary compilation configuration.
-     *
-     * Used by the CLI to orchestrate the `deno compile` process,
-     * including registry generation, asset copying, and compilation flags.
-     */
     readonly compile?: CompileConfig
 }
 
@@ -164,25 +56,10 @@ export interface AssetMapping {
  * Configuration for binary compilation orchestration.
  */
 export interface CompileConfig {
-    /** Output path for the binary. Defaults to '_dist/lockness' */
     readonly output?: string
-    /**
-     * Folders or files to copy to the distribution directory.
-     * Can be a simple path (relative to root) or an AssetMapping.
-     */
     readonly assets?: readonly (string | AssetMapping)[]
-    /**
-     * Scripts to execute before compilation (e.g., registry generation).
-     */
     readonly scripts?: readonly string[]
-    /**
-     * Explicit flags to pass to `deno compile`.
-     * If not provided, defaults to standard flags like -A.
-     */
     readonly flags?: readonly string[]
-    /**
-     * Main entry file for compilation. Defaults to 'main.ts'.
-     */
     readonly main?: string
 }
 
@@ -193,25 +70,6 @@ export type ErrorHandler = (
     error: Error,
     c: Context,
 ) => Response | Promise<Response>
-
-export interface IMiddleware {
-    handle: MiddlewareHandler
-}
-
-/**
- * Middleware class type
- */
-export type MiddlewareClass = new () => IMiddleware
-
-/**
- * Middleware input - can be a class or a handler function
- */
-export type MiddlewareInput = MiddlewareClass | MiddlewareHandler
-
-/**
- * Registry of named middlewares
- */
-export type MiddlewareRegistry = Record<string, MiddlewareClass>
 
 /**
  * Extended Module config with middleware support

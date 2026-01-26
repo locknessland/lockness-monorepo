@@ -3885,6 +3885,7 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@lockness/contract@~0.1.28",
       "jsr:@lockness/core@~0.1.28",
       "jsr:@lockness/drizzle@~0.1.28",
       "jsr:@lockness/ui@~0.1.28",
@@ -3905,6 +3906,7 @@
     "members": {
       "packages/auth": {
         "dependencies": [
+          "jsr:@lockness/contract@~0.1.28",
           "jsr:@lockness/hono@~0.1.28",
           "jsr:@std/assert@1"
         ]
@@ -3916,6 +3918,7 @@
       },
       "packages/cli": {
         "dependencies": [
+          "jsr:@lockness/contract@~0.1.28",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
@@ -3923,11 +3926,22 @@
       },
       "packages/container": {
         "dependencies": [
+          "jsr:@lockness/contract@~0.1.28",
           "jsr:@std/assert@1"
+        ]
+      },
+      "packages/contract": {
+        "dependencies": [
+          "jsr:@lockness/hono@~0.1.28",
+          "jsr:@std/assert@1",
+          "jsr:@std/fs@1",
+          "jsr:@std/path@1"
         ]
       },
       "packages/core": {
         "dependencies": [
+          "jsr:@lockness/container@~0.1.28",
+          "jsr:@lockness/contract@~0.1.28",
           "jsr:@lockness/deprecation-contracts@~0.1.28",
           "jsr:@lockness/hono@~0.1.28",
           "jsr:@std/assert@1",
@@ -3938,8 +3952,6 @@
       },
       "packages/deprecation-contracts": {
         "dependencies": [
-          "jsr:@lockness/container@~0.1.28",
-          "jsr:@lockness/logger@~0.1.28",
           "jsr:@std/assert@1"
         ]
       },
@@ -4003,7 +4015,7 @@
       },
       "packages/openapi": {
         "dependencies": [
-          "jsr:@lockness/core@~0.1.28",
+          "jsr:@lockness/contract@~0.1.28",
           "jsr:@lockness/hono@~0.1.28",
           "jsr:@std/assert@1"
         ]

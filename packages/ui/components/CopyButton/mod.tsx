@@ -6,7 +6,7 @@
  * @module @lockness/ui/components/copy-button
  */
 
-import type { FC } from '@lockness/core'
+import type { FC } from '@lockness/hono'
 import { cn } from '../../lib/utils.ts'
 
 // Unique ID counter for copy buttons

@@ -96,6 +96,7 @@ export class DocsLoader {
         'nessy': 'docs/nessy.md',
         'packages': 'docs/packages.md',
         'compilation': 'docs/compilation.md',
+        'dependencies': 'docs/dependencies.md',
     }
 
     /**
@@ -276,6 +277,7 @@ export class DocsLoader {
         'contribution': 'docs/contribution.md',
         'packages': 'docs/packages.md',
         'compilation': 'docs/compilation.md',
+        'dependencies': 'docs/dependencies.md',
     }
 
     /**

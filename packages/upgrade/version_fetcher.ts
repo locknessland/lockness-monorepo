@@ -11,7 +11,7 @@
  * import { createVersionProvider } from '@lockness/upgrade'
  *
  * const provider = createVersionProvider()
- * const version = await provider.getLatestVersion('@lockness/core')
+ * const version = await provider.getLatestVersion('@lockness/contract')
  * console.log(`Latest version: ${version}`)
  * ```
  */
@@ -57,7 +57,7 @@ interface JsrPackageMetadata {
  * @example
  * ```typescript
  * const provider = new JsrVersionProvider()
- * const version = await provider.getLatestVersion('@lockness/core')
+ * const version = await provider.getLatestVersion('@lockness/contract')
  * console.log(version) // '0.2.0'
  * ```
  */
@@ -71,7 +71,7 @@ export class JsrVersionProvider implements VersionProvider {
     /**
      * Fetch the latest available version of a package from JSR.
      *
-     * @param packageName - Full package name (e.g., "@lockness/core")
+     * @param packageName - Full package name (e.g., "@lockness/contract")
      * @returns Promise resolving to the latest version string
      * @throws {Error} If the request times out
      * @throws {Error} If the package is not found or API returns an error
@@ -81,7 +81,7 @@ export class JsrVersionProvider implements VersionProvider {
      * const provider = new JsrVersionProvider()
      *
      * try {
-     *     const version = await provider.getLatestVersion('@lockness/core')
+     *     const version = await provider.getLatestVersion('@lockness/contract')
      *     console.log(`Latest: ${version}`)
      * } catch (error) {
      *     console.error('Failed to fetch version:', error.message)
@@ -144,7 +144,7 @@ export class JsrVersionProvider implements VersionProvider {
  * import { createVersionProvider } from '@lockness/upgrade'
  *
  * const provider = createVersionProvider()
- * const version = await provider.getLatestVersion('@lockness/core')
+ * const version = await provider.getLatestVersion('@lockness/contract')
  * ```
  */
 export function createVersionProvider(): VersionProvider {

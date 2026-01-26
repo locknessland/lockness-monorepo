@@ -7,7 +7,7 @@
  * @module @lockness/ui/components/code-block/styles
  */
 
-import type { FC } from '@lockness/core'
+import type { FC } from '@lockness/hono'
 import { getThemeStyles, type ThemeName } from './themes.ts'
 
 export interface SyntaxHighlightingStylesProps {

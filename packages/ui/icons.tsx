@@ -6,7 +6,7 @@
  * @module @lockness/ui/icons
  */
 
-import type { FC } from '@lockness/core'
+import type { FC } from '@lockness/hono'
 
 /**
  * Icon component props

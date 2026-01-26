@@ -7,7 +7,7 @@
  * @module @lockness/ui/components/video
  */
 
-import type { FC, PropsWithChildren } from '@lockness/core'
+import type { FC, PropsWithChildren } from '@lockness/hono'
 import { cn } from '../../lib/utils.ts'
 
 /**

@@ -217,4 +217,4 @@ After initializing:
 ## See Also
 
 - [@lockness/cli](../cli/README.md) - CLI system documentation
-- [@lockness/core](../core/README.md) - Core framework features
+- [@lockness/contract](../core/README.md) - Core framework features

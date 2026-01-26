@@ -6,7 +6,7 @@
  * @module @lockness/ui/components/pricing
  */
 
-import type { FC } from '@lockness/core'
+import type { FC } from '@lockness/hono'
 import { cn } from '../../lib/utils.ts'
 import { Button } from '../Button/mod.tsx'
 import type { ButtonProps } from '../Button/mod.tsx'

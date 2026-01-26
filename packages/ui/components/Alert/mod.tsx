@@ -8,7 +8,7 @@
  * @module @lockness/ui/components/alert
  */
 
-import type { FC } from '@lockness/core'
+import type { FC } from '@lockness/hono'
 import { cn } from '../../lib/utils.ts'
 import {
     AlertTriangleIcon,

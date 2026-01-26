@@ -2,14 +2,14 @@
 
 > **📌 Internal Package Notice**: This is an internal infrastructure package for
 > the Lockness framework. For application development, please use the unified
-> **`@lockness/core`** package, which provides all these functionalities and
+> **`@lockness/contract`** package, which provides all these functionalities and
 > more.
 >
-> **Developers should import from `@lockness/core` instead:**
+> **Developers should import from `@lockness/contract` instead:**
 >
 > ```typescript
 > // ✅ Recommended (Unified API)
-> import { basicAuth, cors, Hono, logger } from '@lockness/core'
+> import { basicAuth, cors, Hono, logger } from '@lockness/contract'
 >
 > // ❌ Not recommended (Internal package)
 > import { basicAuth, cors, Hono, logger } from '@lockness/hono'

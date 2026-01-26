@@ -29,7 +29,7 @@ import { inertiaMiddleware } from '@lockness/inertia'
 
 ```typescript
 // kernel.tsx
-import { App } from '@lockness/core'
+import { App } from '@lockness/contract'
 import { inertiaMiddleware } from '@lockness/inertia'
 
 const app = new App()
@@ -52,7 +52,7 @@ app.listen(3000)
 
 ```typescript
 // app/controller/dashboard_controller.tsx
-import { type Context, Controller, Get } from '@lockness/core'
+import { type Context, Controller, Get } from '@lockness/contract'
 
 @Controller('/')
 export class DashboardController {

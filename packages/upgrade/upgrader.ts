@@ -199,13 +199,13 @@ export class Upgrader {
     /**
      * Extract the version number from a JSR import string.
      *
-     * @param importValue - Import string like "jsr:@lockness/core@^0.1.19"
+     * @param importValue - Import string like "jsr:@lockness/contract@^0.1.19"
      * @returns Version string like "0.1.19", or "unknown" if not found
      *
      * @example
      * ```typescript
-     * extractVersion('jsr:@lockness/core@^0.1.19') // '0.1.19'
-     * extractVersion('jsr:@lockness/core@0.2.0')   // '0.2.0'
+     * extractVersion('jsr:@lockness/contract@^0.1.19') // '0.1.19'
+     * extractVersion('jsr:@lockness/contract@0.2.0')   // '0.2.0'
      * ```
      *
      * @internal
@@ -226,8 +226,8 @@ export class Upgrader {
      *
      * @example
      * ```typescript
-     * updateVersion('jsr:@lockness/core@^0.1.19', '0.2.0')
-     * // Returns: 'jsr:@lockness/core@^0.2.0'
+     * updateVersion('jsr:@lockness/contract@^0.1.19', '0.2.0')
+     * // Returns: 'jsr:@lockness/contract@^0.2.0'
      * ```
      *
      * @internal

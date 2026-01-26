@@ -4,6 +4,7 @@
     "version": "0.1.28",
     "workspace": [
         "./packages/core",
+        "./packages/contract",
         "./packages/hono",
         "./packages/auth",
         "./packages/auth-provider",
@@ -44,6 +45,7 @@
         "routes:generate": "deno run -A scripts/generate_routes.ts",
         "routes:watch": "deno run -A scripts/watch_routes.ts",
         "bump": "deno run -A ./scripts/bump.ts",
+        "deps:analyze": "deno run -A scripts/deps_analyzer.ts",
         "hooks:install": "deno run -A scripts/install_hooks.ts",
         "init": "deno run -Ar packages/init/mod.ts _lockness_app",
         "ui": "deno run -Ar packages/ui/mod.ts"
@@ -67,6 +69,7 @@
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "drizzle-kit": "npm:drizzle-kit@beta",
         "@lockness/core": "jsr:@lockness/core@^0.1.28",
+        "@lockness/contract": "jsr:@lockness/contract@^0.1.28",
         "@lockness/drizzle": "jsr:@lockness/drizzle@^0.1.28",
         "@lockness/ui": "jsr:@lockness/ui@^0.1.28",
         "tailwindcss": "npm:tailwindcss@^4.1.18",

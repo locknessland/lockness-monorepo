@@ -6,8 +6,8 @@
  * @module @lockness/ui/components/chart-extras
  */
 
-import type { FC } from '@lockness/core'
-import type { JSX } from '@lockness/core/jsx-runtime'
+import type { FC } from '@lockness/hono'
+import type { JSX } from '@lockness/hono/jsx-runtime'
 import { cn } from '../../lib/utils.ts'
 
 /**

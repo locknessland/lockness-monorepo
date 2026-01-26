@@ -1,14 +1,13 @@
 /**
  * @fileoverview Default handler for outputting deprecation notices.
  *
- * Provides the default implementation that uses console.warn and
- * optionally the Lockness Logger if available.
+ * Provides the default implementation that uses console.warn.
+ * For custom logging integration (e.g., with @lockness/logger),
+ * use setHandler() to provide your own implementation.
  *
  * @module @lockness/deprecation-contracts/handler
  */
 
-import { container } from '@lockness/container'
-import { Logger } from '@lockness/logger'
 import type { DeprecationHandler } from './types.ts'
 
 // =============================================================================
@@ -34,8 +33,9 @@ const DEPRECATION_MESSAGE_STYLE = 'color: inherit; font-weight: normal;'
 /**
  * Default deprecation handler implementation.
  *
- * Uses the Lockness Logger if available in the container,
- * otherwise falls back to styled console.warn.
+ * Uses styled console.warn for output. For custom logging
+ * (e.g., integration with @lockness/logger), use setHandler()
+ * to provide your own implementation.
  *
  * @example
  * ```typescript
@@ -47,18 +47,7 @@ const DEPRECATION_MESSAGE_STYLE = 'color: inherit; font-weight: normal;'
  */
 export const defaultHandler: DeprecationHandler = {
     warn(message: string): void {
-        // Try Lockness Logger first
-        try {
-            if (container.has(Logger)) {
-                const loggerInstance = container.get(Logger) as Logger
-                loggerInstance.warn(message)
-                return
-            }
-        } catch {
-            // Fallback if container or logger fails
-        }
-
-        // Default: styled console.warn
+        // Styled console.warn
         console.warn(
             `%c[DEPRECATION] %c${message.replace('[DEPRECATION] ', '')}`,
             DEPRECATION_PREFIX_STYLE,

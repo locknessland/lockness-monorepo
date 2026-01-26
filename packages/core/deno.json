@@ -23,6 +23,8 @@
         "@std/testing/bdd": "jsr:@std/testing@^1.0.0/bdd",
         "@std/expect": "jsr:@std/expect@^1.0.0",
         "hono": "jsr:@lockness/hono@^0.1.28",
+        "@lockness/contract": "jsr:@lockness/contract@^0.1.28",
+        "@lockness/container": "jsr:@lockness/container@^0.1.28",
         "@lockness/deprecation-contracts": "jsr:@lockness/deprecation-contracts@^0.1.28"
     },
     "compilerOptions": {

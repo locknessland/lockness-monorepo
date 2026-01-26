@@ -121,7 +121,9 @@ export function registerMakeCommands(cli: Cli): void {
 
             // Auto-regenerate routes.ts for production builds
             try {
-                const { generateRoutesFile } = await import('@lockness/core')
+                const { generateRoutesFile } = await import(
+                    '@lockness/contract'
+                )
                 await generateRoutesFile('./app/controller', './app/routes.ts')
                 console.log('✅ Routes registry updated')
             } catch {
@@ -534,7 +536,9 @@ app.init({
 
             // Auto-regenerate routes.ts for production builds
             try {
-                const { generateRoutesFile } = await import('@lockness/core')
+                const { generateRoutesFile } = await import(
+                    '@lockness/contract'
+                )
                 await generateRoutesFile('./app/controller', './app/routes.ts')
                 console.log('✅ Routes registry updated')
             } catch {

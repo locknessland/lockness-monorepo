@@ -66,7 +66,7 @@ export default defineConfig({
 ### Initialize Database Connection
 
 ```typescript
-import { createApp } from '@lockness/core'
+import { createApp } from '@lockness/contract'
 import { Database } from '@lockness/drizzle'
 
 const app = createApp()
@@ -198,7 +198,7 @@ Create a repository for clean data access:
 
 ```typescript
 // app/repository/user_repository.ts
-import { Inject, Service } from '@lockness/core'
+import { Inject, Service } from '@lockness/contract'
 import { Database } from '@lockness/drizzle'
 import { eq } from 'drizzle-orm'
 import { type NewUser, type User, users } from '../model/user.ts'

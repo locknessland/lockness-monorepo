@@ -287,7 +287,7 @@ deno run -A jsr:@lockness/ui add button card root-layout
 Then use them in your controllers:
 
 ```tsx
-import { Controller, Get } from '@lockness/core'
+import { Controller, Get } from '@lockness/hono'
 import { Button } from '@view/components/ui/Button.tsx'
 import {
     Card,
@@ -335,7 +335,7 @@ import {
     CardTitle,
     RootLayout,
 } from '@lockness/ui/components'
-import { Controller, Get } from '@lockness/core'
+import { Controller, Get } from '@lockness/hono'
 
 @Controller('/')
 export class HomeController {

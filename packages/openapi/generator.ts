@@ -3,7 +3,7 @@
  * Scans controllers and generates OpenAPI 3.0 spec
  */
 
-import type { ControllerClass } from '@lockness/core'
+import type { ControllerClass } from '@lockness/contract'
 import { getApiDocMetadata, hasApiDoc } from './decorator.ts'
 import type { OpenAPISpec, Operation, PathItem } from './types.ts'
 

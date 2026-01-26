@@ -32,7 +32,7 @@ Use the `@Validate` decorator to validate incoming request data using Zod
 schemas in your controllers:
 
 ```typescript
-import { Context, Controller, Post } from '@lockness/core'
+import { Context, Controller, Post } from '@lockness/contract'
 import { Validate, z } from '@lockness/validator'
 
 const createUserSchema = z.object({

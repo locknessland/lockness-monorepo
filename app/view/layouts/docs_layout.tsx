@@ -219,6 +219,7 @@ const navSections: readonly NavSection[] = [
         icon: WrenchIcon,
         links: [
             { title: 'Lockness Devtools', name: 'devtools' },
+            { title: 'Dependencies Graph', name: 'dependencies' },
             { title: 'Deprecation Contracts', name: 'deprecation' },
             { title: 'CLI Engine', name: 'cli' },
             { title: 'Nessy CLI', name: 'nessy' },

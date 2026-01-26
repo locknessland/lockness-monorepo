@@ -14,7 +14,7 @@ import {
     authRequired,
 } from './middleware/auth_middleware.ts'
 import type { MiddlewareHandler } from 'hono'
-import { UseMiddleware } from '@lockness/core'
+import { UseMiddleware } from '@lockness/contract'
 
 /**
  * Inject guard as second parameter to controller method

@@ -157,7 +157,7 @@ app.post('/logout', authMiddleware(), async (c) => {
 Use dedicated decorators for clean, type-safe route protection:
 
 ```typescript
-import { Context, Controller, Get, Post } from '@lockness/core'
+import { Context, Controller, Get, Post } from '@lockness/contract'
 import { AuthGuard, AuthOptional, AuthRequired } from '@lockness/auth'
 
 @Controller('/auth')
@@ -615,13 +615,13 @@ the **same configuration** when verifying it.
 9. **Log authentication events** - Monitor suspicious activity
 10. **Validate user input** - Prevent injection attacks
 
-## Migration from `@lockness/core`
+## Migration from `@lockness/contract`
 
 Old auth system was monolithic. New system is modular:
 
 ```typescript
 // Old
-import { Auth } from '@lockness/core'
+import { Auth } from '@lockness/contract'
 const auth = new Auth(ctx)
 
 // New
@@ -641,7 +641,7 @@ The cleanest approach with `c.auth.*` fluent API - **use this for 95% of
 cases**.
 
 ```typescript
-import { Context, Controller, Post, Use } from '@lockness/core'
+import { Context, Controller, Post, Use } from '@lockness/contract'
 import { withAuth } from '@lockness/auth'
 
 @Controller('/auth')

@@ -15,15 +15,22 @@
  * ```
  */
 
-import type { Cli } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { container } from '@lockness/container'
 import { Database } from './mod.ts'
 import type postgres from 'postgres'
 
-// =============================================================================
-// Types
-// =============================================================================
+/**
+ * CLI command handler type.
+ */
+type CommandHandler = (args: string[]) => void | Promise<void>
+
+/**
+ * Minimal CLI interface to avoid direct dependency on @lockness/cli.
+ */
+interface Cli {
+    register(name: string, handler: CommandHandler, description?: string): void
+}
 
 /**
  * Parsed CLI flags for make:model command.

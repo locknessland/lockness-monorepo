@@ -9,7 +9,7 @@
  * @example
  * ```ts
  * import { Database } from '@lockness/drizzle'
- * import { container } from '@lockness/core'
+ * import { container } from '@lockness/contract'
  *
  * const db = container.get<Database>(Database)
  * await db.connect(Deno.env.get('DATABASE_URL')!)

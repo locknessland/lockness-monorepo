@@ -7,7 +7,7 @@
  * @module @lockness/ui/components/searchbar
  */
 
-import type { FC } from '@lockness/core'
+import type { FC } from '@lockness/hono'
 import { cn } from '../../lib/utils.ts'
 import { LoaderIcon, SearchIcon, XIcon } from '../../icons.tsx'
 

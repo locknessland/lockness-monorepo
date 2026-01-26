@@ -17,7 +17,7 @@ For single-client streaming scenarios (progress updates, log streaming):
 
 ```typescript
 import { createCustomSSEHandler } from '@lockness/sse'
-import { Controller, Get } from '@lockness/core'
+import { Controller, Get } from '@lockness/contract'
 
 @Controller('/api')
 export class StreamController {
@@ -57,7 +57,7 @@ For multi-client broadcasting (notifications, chat, live updates):
 
 ```typescript
 import { SSEChannel, sseHandler } from '@lockness/sse'
-import { type Context, Controller, Get, Post } from '@lockness/core'
+import { type Context, Controller, Get, Post } from '@lockness/contract'
 
 // Create a channel
 const notifications = new SSEChannel('notifications')

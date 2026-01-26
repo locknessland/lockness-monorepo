@@ -12,7 +12,7 @@ import {
     type ControllerInfo,
     generateRoutesContent,
     scanControllers,
-} from '../routing/generator.ts'
+} from '@lockness/contract'
 
 // =============================================================================
 // Test Helpers

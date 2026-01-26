@@ -9,7 +9,7 @@
  * ## Quick Start
  *
  * ```typescript
- * import { App } from '@lockness/core'
+ * import { App } from '@lockness/contract'
  * import { inertiaMiddleware } from '@lockness/inertia'
  *
  * const app = new App()

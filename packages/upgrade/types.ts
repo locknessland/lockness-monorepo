@@ -20,14 +20,14 @@
  * @example
  * ```typescript
  * const upgrade: PackageUpgrade = {
- *     name: '@lockness/core',
+ *     name: '@lockness/contract',
  *     currentVersion: '0.1.19',
  *     targetVersion: '0.2.0',
  * }
  * ```
  */
 export interface PackageUpgrade {
-    /** Package name (e.g., "@lockness/core") */
+    /** Package name (e.g., "@lockness/contract") */
     readonly name: string
     /** Current version before upgrade */
     readonly currentVersion: string
@@ -49,7 +49,7 @@ export interface PackageUpgrade {
  * ```typescript
  * const result: UpgradeResult = {
  *     success: true,
- *     upgrades: [{ name: '@lockness/core', currentVersion: '0.1.19', targetVersion: '0.2.0' }],
+ *     upgrades: [{ name: '@lockness/contract', currentVersion: '0.1.19', targetVersion: '0.2.0' }],
  *     dryRun: false,
  * }
  * ```
@@ -142,7 +142,7 @@ export interface VersionProvider {
     /**
      * Get the latest available version of a package.
      *
-     * @param packageName - Full package name (e.g., "@lockness/core")
+     * @param packageName - Full package name (e.g., "@lockness/contract")
      * @returns Promise resolving to the latest version string (e.g., "0.2.0")
      * @throws {Error} If the version cannot be fetched
      */

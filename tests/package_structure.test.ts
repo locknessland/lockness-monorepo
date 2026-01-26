@@ -41,6 +41,7 @@ const PACKAGES: string[] = [
     'cache',
     'cli',
     'container',
+    'contract',
     'core',
     'deprecation-contracts',
     'devtools',

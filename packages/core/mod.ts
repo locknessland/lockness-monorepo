@@ -31,21 +31,15 @@
  * ```
  */
 
-// Export core types (Context, ErrorHandler, etc.) from our own types module
-// Context is a type alias of Hono's Context, so it's compatible
+// Export core types (Context, ErrorHandler, etc.) from contract package
+export * from '@lockness/contract'
 export * from './types.ts'
 export * from './app.ts'
-export * from './routing/decorators.ts'
 export * from './routing/router.ts'
 export * from './routing/generator.ts'
-export * from './helpers.ts'
 export * from './exceptions/formatter.ts'
 export * from './exceptions/default_view.tsx'
-export {
-    type ComposableMiddleware,
-    compose,
-    composeMiddleware,
-} from './http/compose.ts'
+export * from './helpers.ts'
 
 // Export kernel features (boot lifecycle + declarative configuration)
 export {
