@@ -17,7 +17,7 @@
 
 import type { Cli } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
-import { container } from '@lockness/core'
+import { container } from '@lockness/container'
 import { Database } from './mod.ts'
 import type postgres from 'postgres'
 

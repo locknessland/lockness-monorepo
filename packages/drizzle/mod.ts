@@ -23,7 +23,7 @@
 
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { Service } from '@lockness/core'
+import { Service } from '@lockness/container'
 
 export { registerDrizzleCommands } from './cli_commands.ts'
 
