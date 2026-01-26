@@ -58,7 +58,49 @@ pattern.
 
 ## Configuration
 
-### Using @Kernel Decorator
+### Recommended: Externalized Configuration
+
+Lockness encourages externalizing configuration to the `config/` directory. This
+keeps the kernel clean and makes mount point configuration easy to modify:
+
+```typescript
+// config/routing.ts
+import type { MountPoint } from '@lockness/core'
+import { i18nMiddleware } from '../app/middleware/i18n_middleware.ts'
+
+export const mountPointConfig: MountPoint = {
+    pattern: '/:langId/:countryId',
+    middleware: i18nMiddleware,
+}
+```
+
+```typescript
+// config/mod.ts
+export { mountPointConfig } from './routing.ts'
+// ... other exports
+```
+
+```typescript
+// app/kernel.tsx
+import { Kernel } from '@lockness/core'
+import { mountPointConfig } from '../config/mod.ts'
+
+@Kernel({
+    controllersDir: './app/controller',
+    mountPoint: mountPointConfig,
+})
+export class AppKernel {}
+```
+
+This approach:
+
+- Keeps configuration separate from bootstrap logic
+- Makes it easy to modify without touching the kernel
+- Follows the same pattern as `databaseConfig` and `sessionConfig`
+
+### Inline Configuration
+
+For simple cases, you can also configure inline in the kernel:
 
 ```typescript
 import { Context, Kernel, Next } from '@lockness/core'
@@ -68,15 +110,8 @@ import { Context, Kernel, Next } from '@lockness/core'
     mountPoint: {
         pattern: '/:langId/:countryId',
         middleware: async (c: Context, next: Next) => {
-            // Extract parameters from URL
-            const langId = c.req.param('langId')
-            const countryId = c.req.param('countryId')
-
-            // Set context values for controllers
-            c.set('langId', langId)
-            c.set('countryId', countryId)
-            c.set('localeKey', `${langId}-${countryId}`)
-
+            c.set('langId', c.req.param('langId'))
+            c.set('countryId', c.req.param('countryId'))
             return await next()
         },
     },
@@ -319,9 +354,12 @@ const i18nMiddleware = async (c: Context, next: Next) => {
 6. **Use mount points for i18n only** - For API versioning, prefer
    `@Controller('/api/:version')` which is more explicit
 
+7. **Externalize configuration** - Keep mount point config in
+   `config/routing.ts` for easier maintenance
+
 ## Live Demo
 
-This application has a mount point configured in `app/kernel.tsx`. Try the
+This application has a mount point configured in `config/routing.ts`. Try the
 interactive demo:
 
 <div class="my-8 rounded-lg border border-border bg-card p-6">

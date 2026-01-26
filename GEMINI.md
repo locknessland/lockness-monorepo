@@ -143,6 +143,7 @@ my-project/
 │   ├── mod.ts          # Central export point
 │   ├── app.ts          # App settings (env helpers)
 │   ├── database.ts     # Database connection
+│   ├── routing.ts      # Mount point configuration
 │   ├── session.ts      # Session management
 │   └── i18n.ts         # Internationalization (optional)
 ├── app/
@@ -186,10 +187,22 @@ export const sessionConfig = {
 ```
 
 ```typescript
+// config/routing.ts
+import type { MountPoint } from '@lockness/core'
+import { i18nMiddleware } from '../app/middleware/i18n_middleware.ts'
+
+export const mountPointConfig: MountPoint = {
+    pattern: '/:langId/:countryId',
+    middleware: i18nMiddleware,
+}
+```
+
+```typescript
 // config/mod.ts - Central export
 export { appConfig, isDevelopment, isProduction } from './app.ts'
 export { databaseConfig } from './database.ts'
 export { sessionConfig } from './session.ts'
+export { mountPointConfig } from './routing.ts'
 ```
 
 **Benefits:**

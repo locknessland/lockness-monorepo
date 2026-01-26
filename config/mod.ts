@@ -14,6 +14,7 @@
 export { appConfig, isDevelopment, isProduction } from './app.ts'
 export { databaseConfig } from './database.ts'
 export { sessionConfig } from './session.ts'
+export { mountPointConfig } from './routing.ts'
 export {
     defaultLocale,
     isValidCountry,

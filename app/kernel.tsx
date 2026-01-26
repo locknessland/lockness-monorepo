@@ -26,10 +26,9 @@ import { sessionMiddleware } from '@lockness/session'
 import { initializeAuthMiddleware } from '@lockness/auth'
 import { collectAppRoutes } from '@lockness/devtools'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
-import { i18nMiddleware } from '@middleware/i18n_middleware.ts'
 import { authConfig } from './auth/guards.ts'
 import { controllers } from './routes.ts'
-import { databaseConfig, sessionConfig } from '../config/mod.ts'
+import { databaseConfig, mountPointConfig, sessionConfig } from '../config/mod.ts'
 
 /**
  * Application Kernel with Declarative Configuration
@@ -75,10 +74,8 @@ import { databaseConfig, sessionConfig } from '../config/mod.ts'
 
     // Mount point for i18n URL pattern
     // Routes are accessible at root AND under /:langId/:countryId/
-    mountPoint: {
-        pattern: '/:langId/:countryId',
-        middleware: i18nMiddleware,
-    },
+    // See config/routing.ts for configuration
+    mountPoint: mountPointConfig,
 
     // Binary compilation configuration
     compile: {
