@@ -8,19 +8,6 @@
         "test:watch": "deno test -A --watch tests/"
     },
     "publish": {
-        "include": [
-            "mod.ts",
-            "authenticator.ts",
-            "decorators.ts",
-            "password.ts",
-            "errors.ts",
-            "types.ts",
-            "deno.json",
-            "README.md",
-            "guards/**/*.ts",
-            "middleware/**/*.ts",
-            "providers/**/*.ts"
-        ],
         "exclude": [
             "tests/"
         ]

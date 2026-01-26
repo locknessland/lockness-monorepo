@@ -10,12 +10,6 @@
         "test:watch": "deno test -A --watch tests/"
     },
     "publish": {
-        "include": [
-            "mod.ts",
-            "stubs",
-            "deno.json",
-            "README.md"
-        ],
         "exclude": [
             "tests/"
         ]

@@ -8,13 +8,8 @@
         "./install": "./install.ts"
     },
     "publish": {
-        "include": [
-            "mod.ts",
-            "cli_commands.ts",
-            "install.ts",
-            "deno.json",
-            "README.md",
-            "stubs/**/*"
+        "exclude": [
+            "tests/"
         ]
     },
     "imports": {

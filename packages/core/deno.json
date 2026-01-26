@@ -8,23 +8,9 @@
         "./jsx-runtime": "./view/jsx-runtime.ts"
     },
     "publish": {
-        "include": [
-            "mod.ts",
-            "app.ts",
-            "helpers.ts",
-            "types.ts",
-            "http/",
-            "routing/",
-            "exceptions/",
-            "view/",
-            "kernel/",
-            "cli/",
-            "deno.json",
-            "README.md"
-        ],
         "exclude": [
             "tests/",
-            "docs/examples/"
+            "docs/"
         ]
     },
     "tasks": {

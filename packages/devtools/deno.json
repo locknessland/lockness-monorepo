@@ -8,20 +8,9 @@
         "test:watch": "deno test -A --watch tests/"
     },
     "publish": {
-        "include": [
-            "mod.ts",
-            "collector.ts",
-            "middleware.ts",
-            "types.ts",
-            "dashboard.tsx",
-            "ui/",
-            "components/",
-            "utils/",
-            "deno.json",
-            "README.md"
-        ],
         "exclude": [
             "tests/",
+            "docs/",
             ".github/"
         ]
     },

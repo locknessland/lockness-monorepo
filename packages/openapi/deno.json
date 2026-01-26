@@ -11,18 +11,6 @@
         "test:watch": "deno test -A --watch tests/"
     },
     "publish": {
-        "include": [
-            "mod.ts",
-            "generator.ts",
-            "decorator.ts",
-            "types.ts",
-            "ui.ts",
-            "cli_commands.ts",
-            "install.ts",
-            "stubs",
-            "deno.json",
-            "README.md"
-        ],
         "exclude": [
             "tests/"
         ]
