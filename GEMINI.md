@@ -461,6 +461,7 @@ Lockness supports a dual-layer routing architecture that enables mounting the
 same application on multiple URL patterns. This powerful feature allows for
 internationalization, API versioning, multi-tenancy, and other URL-based context
 extraction patterns.
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  rootHono (Public Layer)                                        │
