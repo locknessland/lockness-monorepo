@@ -19,8 +19,6 @@ event streams.
 
 ```typescript
 import { EventEmitter, events } from '@lockness/events'
-// or
-import { EventEmitter, events } from '@lockness/core'
 ```
 
 ## Basic Usage
