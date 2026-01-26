@@ -35,7 +35,7 @@ requirements:
     compile: {
         output: '_dist/lockness', // Name and path of the binary
         main: 'main.ts', // Entry point of your app
-        flags: ['-A', '--env-file=.env'], // Deno compile flags
+        flags: ['-A', '--env-file=.env.production.local'], // Deno compile flags
         assets: [ // Files/folders to copy to _dist
             'public',
             'docs',

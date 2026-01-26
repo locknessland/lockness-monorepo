@@ -84,6 +84,25 @@ import { databaseConfig, sessionConfig } from '../config/mod.ts'
     controllersDir: './app/controller',
     controllers: controllers,
     middlewaresDir: './app/middleware',
+    // Binary compilation configuration
+    compile: {
+        output: '_dist/lockness',
+        main: 'main.ts',
+        flags: ['-A', '--env-file=.env.production.local'],
+        assets: [
+            'public',
+            'docs',
+            {
+                source: 'packages/ui/components',
+                target: 'packages/ui/components',
+            },
+        ],
+        scripts: [
+            'scripts/generate_ui_registry.ts',
+            'deno task css:build',
+            'scripts/prepare_docs.ts',
+        ],
+    },
 })
 export class AppKernel {
     @DeclareGlobalMiddleware()
@@ -734,6 +753,46 @@ export const controllers = [
     AuthController,
 ]
 ```
+
+### Binary Compilation Orchestration
+
+Lockness provides a built-in orchestration engine for site-independent
+production builds. While `deno compile` handles the binary creation, Lockness
+coordinates the entire lifecycle:
+
+**1. Framework-Level Invariants:**
+
+- **Route Generation**: Automatically scans controllers and generates
+  `app/routes.ts` before compilation. This is necessary because runtime
+  reflection is not available in a compiled binary.
+
+**2. Application-Level Orchestration:**
+
+Through the `@Kernel({ compile })` configuration, you can declare:
+
+- **Assets**: Files or folders to copy to the distribution directory (e.g.,
+  `public/`, `docs/`).
+- **Scripts**: Project-specific commands to run before compilation (e.g.,
+  `css:build`, syncing package docs, generating registries).
+
+**How to compile:**
+
+```bash
+deno task compile
+```
+
+This runs `deno task cli compile`, which reads your Kernel configuration and
+performs all required steps to produce a standalone executable in the `_dist`
+folder.
+
+**Key Architecture Principle (SOLID):**
+
+- **Framework Responsibilities**: Handled by `@lockness/cli` (e.g., route
+  generation).
+- **Application Responsibilities**: Handled by user scripts in the Kernel (e.g.,
+  generating UI registries or site-specific docs syncing).
+
+The framework provides the **engine**; the application provides the **logic**.
 
 #### CSS Workflow
 
