@@ -12,17 +12,10 @@
         "test:watch": "deno test -A --watch tests/"
     },
     "publish": {
-        "include": [
-            "mod.ts",
-            "components.ts",
-            "lib/**/*.ts",
-            "components/**/*.tsx",
-            "styles/**/*.css",
-            "deno.json",
-            "README.md"
-        ],
         "exclude": [
-            "tests/"
+            "tests/",
+            "docs/",
+            ".github/"
         ]
     },
     "imports": {

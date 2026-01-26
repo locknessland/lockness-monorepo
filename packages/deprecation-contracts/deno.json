@@ -11,13 +11,6 @@
         "test:watch": "deno test -A --watch tests/"
     },
     "publish": {
-        "include": [
-            "mod.ts",
-            "decorators.ts",
-            "install.ts",
-            "deno.json",
-            "README.md"
-        ],
         "exclude": [
             "tests/"
         ]
