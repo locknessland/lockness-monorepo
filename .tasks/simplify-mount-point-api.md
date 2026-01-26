@@ -112,7 +112,7 @@ export class AppKernel {}
 
 File: `/packages/core/types.ts`
 
-```typescript
+````typescript
 export interface AppConfig {
     // ... other fields
 
@@ -149,13 +149,13 @@ export interface AppConfig {
      */
     readonly mountPoints?: readonly MountPoint[]
 }
-```
+````
 
 **Step 1.2: Update kernel_decorators.ts**
 
 File: `/packages/core/kernel/kernel_decorators.ts`
 
-```typescript
+````typescript
 export interface KernelConfig {
     // ... other fields
 
@@ -182,7 +182,7 @@ export interface KernelConfig {
      */
     mountPoints?: readonly MountPoint[]
 }
-```
+````
 
 ### Phase 2: Update MountManager
 
@@ -286,7 +286,6 @@ File: `/app/kernel.tsx`
         pattern: '/:langId/:countryId',
         middleware: i18nMiddleware,
     },
-
     // ... rest of config
 })
 export class AppKernel {}
@@ -384,7 +383,8 @@ deno test packages/core/tests/mount_points.test.ts
 ## 📝 Notes
 
 - The array syntax was over-engineered for a single use case
-- API versioning is better handled at controller level: `@Controller('/api/:version')`
+- API versioning is better handled at controller level:
+  `@Controller('/api/:version')`
 - i18n remains the primary (and essentially only) use case for mount points
 - This simplification reduces cognitive load and makes the API more intuitive
 
