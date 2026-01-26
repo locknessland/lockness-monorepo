@@ -7,10 +7,10 @@
  *
  * @example
  * ```typescript
- * import { mountPointConfig } from '../config/mod.ts'
+ * import { config } from '../config/mod.ts'
  *
  * @Kernel({
- *     mountPoint: mountPointConfig,
+ *     mountPoint: config.routing,
  * })
  * export class AppKernel {}
  * ```

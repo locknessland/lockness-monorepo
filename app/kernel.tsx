@@ -28,11 +28,7 @@ import { collectAppRoutes } from '@lockness/devtools'
 import { LoggerMiddleware } from '@middleware/logger_middleware.ts'
 import { authConfig } from './auth/guards.ts'
 import { controllers } from './routes.ts'
-import {
-    databaseConfig,
-    mountPointConfig,
-    sessionConfig,
-} from '../config/mod.ts'
+import { config } from '../config/mod.ts'
 
 /**
  * Application Kernel with Declarative Configuration
@@ -56,10 +52,10 @@ import {
  */
 @Kernel({
     // Database configuration
-    database: databaseConfig,
+    database: config.database,
 
     // Session configuration
-    session: sessionConfig,
+    session: config.session,
 
     // Enable devtools in development
     devtools: true,
@@ -79,7 +75,7 @@ import {
     // Mount point for i18n URL pattern
     // Routes are accessible at root AND under /:langId/:countryId/
     // See config/routing.ts for configuration
-    mountPoint: mountPointConfig,
+    mountPoint: config.routing,
 
     // Binary compilation configuration
     compile: {

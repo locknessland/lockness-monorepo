@@ -12,7 +12,7 @@
 
 import { type App, DeclareGlobalMiddleware, Kernel, OnBoot } from '@lockness/core'
 import { controllers } from './routes.ts'
-import { appConfig, databaseConfig, sessionConfig } from '../config/mod.ts'
+import { config } from '../config/mod.ts'
 
 /**
  * Application Kernel with Declarative Configuration
@@ -45,10 +45,10 @@ import { appConfig, databaseConfig, sessionConfig } from '../config/mod.ts'
     controllers: controllers,
 
     // Uncomment when you add database support:
-    // database: databaseConfig,
+    // database: config.database,
 
     // Uncomment when you add session support:
-    // session: sessionConfig,
+    // session: config.session,
 })
 export class AppKernel {
     /**
@@ -153,10 +153,10 @@ export class AppKernel {
  *    }
  *
  *    // app/kernel.tsx
- *    import { mountPointConfig } from '../config/mod.ts'
+ *    import { config } from '../config/mod.ts'
  *
  *    @Kernel({
- *        mountPoint: mountPointConfig,
+ *        mountPoint: config.routing,
  *    })
  *
  *    // Routes accessible at:

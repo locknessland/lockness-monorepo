@@ -1,5 +1,5 @@
 import type { Context, Next } from '@lockness/core'
-import { isValidCountry, isValidLanguage } from '../../config/mod.ts'
+import { config } from '../../config/mod.ts'
 
 /**
  * i18n Middleware for Mount Points
@@ -30,7 +30,10 @@ export async function i18nMiddleware(c: Context, next: Next) {
     const countryId = c.req.param('countryId')
 
     // Validate locale parameters
-    if (!isValidLanguage(langId) || !isValidCountry(countryId)) {
+    if (
+        !config.i18n.isValidLanguage(langId) ||
+        !config.i18n.isValidCountry(countryId)
+    ) {
         // Option 1: Return 404 for invalid locales
         return c.notFound()
 
