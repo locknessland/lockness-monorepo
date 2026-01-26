@@ -1,6 +1,6 @@
 {
     "name": "@lockness/inertia",
-    "version": "0.1.28",
+    "version": "0.1.29",
     "license": "MIT",
     "exports": "./mod.ts",
     "publish": {
@@ -14,7 +14,7 @@
     },
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
-        "hono": "jsr:@lockness/hono@^0.1.28"
+        "hono": "jsr:@lockness/hono@^0.1.29"
     },
     "description": "Inertia.js server-side adapter for building modern SPAs with server-side routing"
 }

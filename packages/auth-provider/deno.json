@@ -1,6 +1,6 @@
 {
     "name": "@lockness/auth-provider",
-    "version": "0.1.28",
+    "version": "0.1.29",
     "license": "MIT",
     "description": "Agnostic user providers for @lockness/auth. Support for Drizzle, Kysely, and more.",
     "exports": {
