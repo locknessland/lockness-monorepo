@@ -34,6 +34,7 @@ project.
 | `config/mod.ts`                     | `packages/init/stubs/init/config/mod.ts.stub`                     | ✅    |
 | `config/app.ts`                     | `packages/init/stubs/init/config/app.ts.stub`                     | ✅    |
 | `config/database.ts`                | `packages/init/stubs/init/config/database.ts.stub`                | ✅    |
+| `config/routing.ts`                 | `packages/init/stubs/init/config/routing.ts.stub`                 | ✅    |
 | `config/session.ts`                 | `packages/init/stubs/init/config/session.ts.stub`                 | ✅    |
 | `app/kernel.tsx`                    | `packages/init/stubs/init/app/kernel.tsx.stub`                    | ✅    |
 | `app/controller/app_controller.tsx` | `packages/init/stubs/init/app/controller/app_controller.tsx.stub` | ✅    |

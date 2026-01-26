@@ -141,26 +141,22 @@ export class AppKernel {
  * 3. MOUNT POINTS (i18n, API versioning, multi-tenancy)
  * ─────────────────────────────────────────────────────────────────────────────
  *
- *    // app/middleware/i18n_middleware.ts
- *    import { isValidLanguage, isValidCountry } from '../config/i18n.ts'
+ *    Mount point configuration is externalized in config/routing.ts:
  *
- *    export async function i18nMiddleware(c: Context, next: Next) {
- *        const langId = c.req.param('langId')
- *        const countryId = c.req.param('countryId')
+ *    // config/routing.ts
+ *    import type { MountPoint } from '@lockness/core'
+ *    import { i18nMiddleware } from '../app/middleware/i18n_middleware.ts'
  *
- *        if (!isValidLanguage(langId) || !isValidCountry(countryId)) {
- *            return c.notFound()
- *        }
- *
- *        c.set('locale', { langId, countryId })
- *        return next()
+ *    export const mountPointConfig: MountPoint = {
+ *        pattern: '/:langId/:countryId',
+ *        middleware: i18nMiddleware,
  *    }
  *
  *    // app/kernel.tsx
+ *    import { mountPointConfig } from '../config/mod.ts'
+ *
  *    @Kernel({
- *        mountPoints: [
- *            { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
- *        ],
+ *        mountPoint: mountPointConfig,
  *    })
  *
  *    // Routes accessible at:
