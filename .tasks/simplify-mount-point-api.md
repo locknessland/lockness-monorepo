@@ -14,10 +14,9 @@ complexity and making the intent clearer.
 
 1. **Simplify API**: Change `mountPoints: MountPoint[]` to
    `mountPoint?: MountPoint`
-2. **Backward Compatibility**: Support legacy array syntax with deprecation
-   warning
+2. **Remove Array Syntax**: No backward compatibility needed (framework in dev)
 3. **Update Documentation**: Reflect the simplified API in all docs
-4. **Maintain Tests**: Ensure all existing functionality works
+4. **Update Live Demo**: Update demo controller and view to reflect new API
 5. **Clean Implementation**: Follow SOLID principles
 
 ## 📁 Affected File Paths
@@ -27,18 +26,24 @@ complexity and making the intent clearer.
 - `/packages/core/types.ts` - Change `mountPoints` to `mountPoint`
 - `/packages/core/routing/mount_manager.ts` - Handle single mount point
 - `/packages/core/kernel/kernel_decorators.ts` - Update KernelConfig interface
+- `/packages/core/kernel/loader.ts` - Update config passing
 
 ### Application Files to Update
 
 - `/app/kernel.tsx` - Use new singular syntax
 
+### Live Demo Files to Update
+
+- `/app/controller/demo_controller.tsx` - Update JSDoc comments
+- `/app/view/pages/demo/mount_points.tsx` - Update code examples in view
+
 ### Test Files
 
-- `/packages/core/tests/mount_points.test.ts` - Add tests for new API
+- `/packages/core/tests/mount_points.test.ts` - Update tests for new API
 
 ### Documentation Files to Update
 
-- `/packages/core/docs/mount-points.md` - Update all examples
+- `/packages/core/docs/mount-points.md` - Update all examples to singular
 - `/GEMINI.md` - Update architecture documentation
 
 ## 🏗️ Architecture Principles
@@ -93,17 +98,6 @@ export class AppKernel {}
 export class AppKernel {}
 ```
 
-### Backward Compatibility (Deprecated)
-
-```typescript
-// Still works but shows deprecation warning
-@Kernel({
-    mountPoints: [
-        { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-    ],
-})
-```
-
 ## 📝 Detailed Implementation Steps
 
 ### Phase 1: Update Type Definitions
@@ -142,12 +136,6 @@ export interface AppConfig {
      * ```
      */
     readonly mountPoint?: MountPoint
-
-    /**
-     * @deprecated Use `mountPoint` (singular) instead. Will be removed in v1.0.
-     * Only the first element of the array will be used.
-     */
-    readonly mountPoints?: readonly MountPoint[]
 }
 ````
 
@@ -176,11 +164,6 @@ export interface KernelConfig {
      * ```
      */
     mountPoint?: MountPoint
-
-    /**
-     * @deprecated Use `mountPoint` (singular) instead. Will be removed in v1.0.
-     */
-    mountPoints?: readonly MountPoint[]
 }
 ````
 
@@ -193,7 +176,12 @@ File: `/packages/core/routing/mount_manager.ts`
 ```typescript
 import type { Hono } from 'hono'
 import type { Env, Schema } from 'hono'
-import type { AppConfig, Module, ModuleWithMiddleware } from '../types.ts'
+import type {
+    AppConfig,
+    Module,
+    ModuleWithMiddleware,
+    MountPoint,
+} from '../types.ts'
 
 /**
  * Manages the mounting of the application on a URL pattern prefix.
@@ -210,8 +198,9 @@ export class MountManager {
      * If no mount point is defined, only mounts at root `/`.
      */
     setup(config: Module | ModuleWithMiddleware | AppConfig): void {
-        // Resolve mount point (support both new and legacy syntax)
-        const mountPoint = this.resolveMountPoint(config)
+        const mountPoint = 'mountPoint' in config
+            ? config.mountPoint
+            : undefined
 
         // Always mount at root FIRST - this ensures routes like /demo/mount-points
         // are matched before the mount point pattern /:langId/:countryId
@@ -230,30 +219,6 @@ export class MountManager {
             this.rootHono.route(mountPoint.pattern, this.internalHono)
         }
     }
-
-    /**
-     * Resolves mount point from config, supporting both new and legacy syntax.
-     * Shows deprecation warning if legacy array syntax is used.
-     */
-    private resolveMountPoint(
-        config: Module | ModuleWithMiddleware | AppConfig,
-    ): MountPoint | undefined {
-        // New singular syntax takes precedence
-        if ('mountPoint' in config && config.mountPoint) {
-            return config.mountPoint
-        }
-
-        // Legacy array syntax (deprecated)
-        if ('mountPoints' in config && config.mountPoints?.length) {
-            console.warn(
-                '[Lockness] DEPRECATION: `mountPoints` array is deprecated. ' +
-                    'Use `mountPoint` (singular) instead. Only the first element is used.',
-            )
-            return config.mountPoints[0]
-        }
-
-        return undefined
-    }
 }
 ```
 
@@ -267,7 +232,7 @@ Update the config passing to use the new singular property:
 
 ```typescript
 // In the loadKernel function, when building AppConfig:
-mountPoint: config.mountPoint ?? config.mountPoints?.[0],
+mountPoint: config.mountPoint,
 ```
 
 ### Phase 4: Update Application Kernel
@@ -291,77 +256,91 @@ File: `/app/kernel.tsx`
 export class AppKernel {}
 ```
 
-### Phase 5: Update Tests
+### Phase 5: Update Live Demo
 
-**Step 5.1: Update mount_points.test.ts**
+**Step 5.1: Update demo view code example**
+
+File: `/app/view/pages/demo/mount_points.tsx`
+
+Update the `KERNEL_CODE` constant to use singular syntax:
+
+```typescript
+const KERNEL_CODE = `// app/kernel.tsx - Mount point with locale prefix at START
+@Kernel({
+    controllers: controllers,
+    mountPoint: {
+        pattern: '/:langId/:countryId',
+        middleware: async (c: Context, next: Next) => {
+            c.set('langId', c.req.param('langId'))
+            c.set('countryId', c.req.param('countryId'))
+            return await next()
+        },
+    },
+})
+export class AppKernel {}
+
+// Routes accessible at:
+// /demo/mount-points → without locale context
+// /fr/ca/demo/mount-points → WITH locale context ✅`
+```
+
+**Step 5.2: Update demo controller JSDoc**
+
+File: `/app/controller/demo_controller.tsx`
+
+Update comments to reference singular `mountPoint` instead of `mountPoints`.
+
+### Phase 6: Update Tests
+
+**Step 6.1: Update mount_points.test.ts**
 
 File: `/packages/core/tests/mount_points.test.ts`
 
 ```typescript
+Deno.test('App - mounts at root when no mountPoint defined', async () => {
+    // Test without mount point
+})
+
 Deno.test('App - mounts at pattern when mountPoint is defined', async () => {
-    // Test with new singular syntax
+    // Test with mount point
 })
 
-Deno.test('App - shows deprecation warning with legacy mountPoints array', async () => {
-    // Test backward compatibility
-})
-```
-
-## 📚 Documentation Updates Checklist
-
-### Core Documentation
-
-- [ ] Update `/packages/core/docs/mount-points.md` - All examples use singular
-- [ ] Update `/GEMINI.md` - Architecture section uses singular
-- [ ] Add deprecation notice for array syntax
-
-### User Documentation
-
-- [ ] Update all code examples in docs
-- [ ] Add migration note from `mountPoints` to `mountPoint`
-
-## 🔄 Migration Guide
-
-### For Existing Users
-
-**Before (Deprecated):**
-
-```typescript
-@Kernel({
-    mountPoints: [
-        { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-    ],
+Deno.test('App - applies middleware for mount point pattern', async () => {
+    // Test middleware execution
 })
 ```
 
-**After (Recommended):**
+### Phase 7: Update Documentation
 
-```typescript
-@Kernel({
-    mountPoint: {
-        pattern: '/:langId/:countryId',
-        middleware: i18nMiddleware,
-    },
-})
-```
+**Step 7.1: Update mount-points.md**
 
-### Breaking Changes
+File: `/packages/core/docs/mount-points.md`
 
-- ⚠️ **None** - Old syntax continues to work with deprecation warning
+- Replace all `mountPoints: [...]` with `mountPoint: {...}`
+- Remove "Multiple Mount Points" section
+- Update API versioning section to recommend `@Controller('/api/:version')`
+  instead
 
-### Deprecation Strategy
+**Step 7.2: Update GEMINI.md**
 
-1. v0.2.x: Add `mountPoint` (singular), deprecate `mountPoints` (array)
-2. v1.0.0: Remove `mountPoints` array support
+File: `/GEMINI.md`
+
+Update the Multi-Mount Routing Strategy section to use singular syntax.
 
 ## 🔍 Quality Checks
 
 ```bash
 # Type check modified files
-deno check packages/core/types.ts packages/core/routing/mount_manager.ts packages/core/kernel/kernel_decorators.ts app/kernel.tsx
+deno check packages/core/types.ts packages/core/routing/mount_manager.ts \
+  packages/core/kernel/kernel_decorators.ts packages/core/kernel/loader.ts \
+  app/kernel.tsx app/controller/demo_controller.tsx \
+  app/view/pages/demo/mount_points.tsx
 
 # Lint modified files
-deno lint packages/core/types.ts packages/core/routing/mount_manager.ts packages/core/kernel/kernel_decorators.ts app/kernel.tsx
+deno lint packages/core/types.ts packages/core/routing/mount_manager.ts \
+  packages/core/kernel/kernel_decorators.ts packages/core/kernel/loader.ts \
+  app/kernel.tsx app/controller/demo_controller.tsx \
+  app/view/pages/demo/mount_points.tsx
 
 # Run tests
 deno test packages/core/tests/mount_points.test.ts
@@ -369,19 +348,44 @@ deno test packages/core/tests/mount_points.test.ts
 
 ## ✅ Definition of Done
 
-- [ ] `mountPoint` singular property added to types
-- [ ] `mountPoints` marked as deprecated
-- [ ] MountManager handles both syntaxes
-- [ ] Deprecation warning shown for array usage
+### Core Implementation
+
+- [ ] `mountPoint` singular property added to `AppConfig` in types.ts
+- [ ] `mountPoint` singular property added to `KernelConfig` in
+      kernel_decorators.ts
+- [ ] `mountPoints` array removed from all interfaces
+- [ ] MountManager simplified to handle single mount point
+- [ ] Kernel loader updated to pass singular property
+
+### Application Updates
+
 - [ ] app/kernel.tsx updated to singular syntax
-- [ ] Tests pass for both syntaxes
-- [ ] Documentation updated
-- [ ] `deno check` passes
-- [ ] `deno lint` passes
+
+### Live Demo Updates
+
+- [ ] demo_controller.tsx JSDoc comments updated
+- [ ] mount_points.tsx KERNEL_CODE example updated to singular
+
+### Documentation Updates
+
+- [ ] /packages/core/docs/mount-points.md - All examples use singular
+- [ ] /GEMINI.md - Architecture section uses singular
+- [ ] Remove "Multiple Mount Points" section from docs
+
+### Tests
+
+- [ ] mount_points.test.ts updated for new API
+- [ ] All tests pass
+
+### Quality Checks
+
+- [ ] `deno check` passes on all modified files
+- [ ] `deno lint` passes on all modified files
 - [ ] `deno test` passes
 
 ## 📝 Notes
 
+- No backward compatibility needed - framework is in active development
 - The array syntax was over-engineered for a single use case
 - API versioning is better handled at controller level:
   `@Controller('/api/:version')`
