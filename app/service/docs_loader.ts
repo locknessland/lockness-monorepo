@@ -261,6 +261,7 @@ export class DocsLoader {
         'middleware': 'packages/core/docs/middleware.md',
         'compose': 'packages/core/docs/compose.md',
         'routing': 'packages/core/docs/routing.md',
+        'mount-points': 'packages/core/docs/mount-points.md',
         'error-handling': 'packages/core/docs/error-handling.md',
         'components': 'packages/core/docs/components.md',
 
