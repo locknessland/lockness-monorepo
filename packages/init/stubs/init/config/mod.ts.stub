@@ -30,6 +30,7 @@ import { appConfig } from './app.ts'
 import { databaseConfig } from './database.ts'
 import { sessionConfig } from './session.ts'
 import { mountPointConfig } from './routing.ts'
+import { compileConfig } from './compile.ts'
 
 /**
  * Centralized configuration object with typed namespaces.
@@ -51,6 +52,7 @@ export const config = {
     database: databaseConfig,
     session: sessionConfig,
     routing: mountPointConfig,
+    compile: compileConfig,
 } as const
 
 /** Check if running in development mode */

@@ -85,24 +85,8 @@ import { databaseConfig, sessionConfig } from '../config/mod.ts'
     controllers: controllers,
     middlewaresDir: './app/middleware',
     // Binary compilation configuration
-    compile: {
-        output: '_dist/lockness',
-        main: 'main.ts',
-        flags: ['-A', '--env-file=.env.production.local'],
-        assets: [
-            'public',
-            'docs',
-            {
-                source: 'packages/ui/components',
-                target: 'packages/ui/components',
-            },
-        ],
-        scripts: [
-            'scripts/generate_ui_registry.ts',
-            'deno task css:build',
-            'scripts/prepare_docs.ts',
-        ],
-    },
+    // See config/compile.ts for configuration
+    compile: config.compile,
 })
 export class AppKernel {
     @DeclareGlobalMiddleware()
@@ -145,6 +129,7 @@ my-project/
 │   ├── database.ts     # Database connection
 │   ├── routing.ts      # Mount point configuration
 │   ├── session.ts      # Session management
+│   ├── compile.ts      # Binary compilation configuration
 │   └── i18n.ts         # Internationalization (optional)
 ├── app/
 │   ├── auth/
@@ -203,6 +188,7 @@ export { appConfig, isDevelopment, isProduction } from './app.ts'
 export { databaseConfig } from './database.ts'
 export { sessionConfig } from './session.ts'
 export { mountPointConfig } from './routing.ts'
+export { compileConfig } from './compile.ts'
 ```
 
 **Benefits:**
@@ -791,9 +777,9 @@ Through the `@Kernel({ compile })` configuration, you can declare:
 deno task compile
 ```
 
-This runs `deno task cli compile`, which reads your Kernel configuration and
-performs all required steps to produce a standalone executable in the `_dist`
-folder.
+This runs `deno task cli compile`, which reads your Kernel configuration
+(pointing to `config/compile.ts`) and performs all required steps to produce a
+standalone executable in the `_dist` folder.
 
 **Key Architecture Principle (SOLID):**
 

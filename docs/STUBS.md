@@ -36,6 +36,7 @@ project.
 | `config/database.ts`                | `packages/init/stubs/init/config/database.ts.stub`                | ✅    |
 | `config/routing.ts`                 | `packages/init/stubs/init/config/routing.ts.stub`                 | ✅    |
 | `config/session.ts`                 | `packages/init/stubs/init/config/session.ts.stub`                 | ✅    |
+| `config/compile.ts`                 | `packages/init/stubs/init/config/compile.ts.stub`                 | ✅    |
 | `app/kernel.tsx`                    | `packages/init/stubs/init/app/kernel.tsx.stub`                    | ✅    |
 | `app/controller/app_controller.tsx` | `packages/init/stubs/init/app/controller/app_controller.tsx.stub` | ✅    |
 | `app/view/app.ts`                   | `packages/init/stubs/init/app/view/app.ts.stub`                   | ✅    |

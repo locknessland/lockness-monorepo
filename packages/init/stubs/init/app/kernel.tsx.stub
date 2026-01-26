@@ -49,6 +49,10 @@ import { config } from '../config/mod.ts'
 
     // Uncomment when you add session support:
     // session: config.session,
+
+    // Binary compilation configuration
+    // See config/compile.ts for configuration
+    compile: config.compile,
 })
 export class AppKernel {
     /**
@@ -86,7 +90,8 @@ export class AppKernel {
  *    ├── mod.ts          # Central export point
  *    ├── app.ts          # App settings (isDevelopment, isProduction)
  *    ├── database.ts     # Database connection
- *    └── session.ts      # Session management
+ *    ├── session.ts      # Session management
+ *    └── compile.ts      # Binary compilation config
  *
  * Just uncomment the relevant @Kernel options above to enable features!
  *

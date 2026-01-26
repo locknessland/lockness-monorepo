@@ -26,36 +26,57 @@ order:
 
 ## Configuration
 
-In your `app/kernel.tsx`, use the `compile` property to define your build
-requirements:
+Lockness encourages externalizing your compilation settings in
+`config/compile.ts` to keep your kernel clean.
+
+### 1. Define the configuration
+
+Create or edit `config/compile.ts`:
+
+```typescript
+// config/compile.ts
+import type { CompileConfig } from '@lockness/core'
+
+export const compileConfig: CompileConfig = {
+    output: '_dist/lockness', // Name and path of the binary
+    main: 'main.ts', // Entry point of your app
+    flags: ['-A', '--env-file=.env.production.local'], // Deno compile flags
+    assets: [ // Files/folders to copy to _dist
+        'public',
+        'docs',
+        { source: 'packages/ui/components', target: 'packages/ui/components' },
+    ],
+    scripts: [ // Commands to run before compilation
+        'deno task css:build',
+        'scripts/prepare_docs.ts',
+    ],
+}
+```
+
+### 2. Register in the Kernel
+
+Then, reference it in your `app/kernel.tsx`:
 
 ```tsx
+// app/kernel.tsx
+import { config } from '../config/mod.ts'
+
 @Kernel({
     // ... other config
-    compile: {
-        output: '_dist/lockness', // Name and path of the binary
-        main: 'main.ts', // Entry point of your app
-        flags: ['-A', '--env-file=.env.production.local'], // Deno compile flags
-        assets: [ // Files/folders to copy to _dist
-            'public',
-            'docs',
-            { source: 'config/config.json', target: 'config/config.json' },
-        ],
-        scripts: [ // Commands to run before compilation
-            'deno task css:build',
-            'scripts/my_custom_task.ts',
-        ],
-    },
+    compile: config.compile,
 })
 export class AppKernel {}
 ```
 
-## Why separate scripts?
+## Why externalize configuration?
 
-Lockness follows the **Dependency Inversion Principle**. While the framework
-provides the orchestration engine, application-specific tasks (like building
-search registries or syncing project docs) should remain in your project
-scripts. This keeps the core framework clean and distribution-agnostic.
+Lockness follows the **Dependency Inversion Principle**. By moving configuration
+out of the `app/kernel.tsx`, you ensure that:
+
+- The Kernel remains a declarative overview of the application components.
+- Configuration is easily testable and discoverable in the `config/` directory.
+- Application-specific tasks (like building search registries or syncing project
+  docs) are clearly separated from framework logic.
 
 ## Runtime Behavior
 
