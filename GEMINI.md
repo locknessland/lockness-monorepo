@@ -406,27 +406,73 @@ app.useMiddleware(
 }
 ```
 
+#### Dependency Architecture
+
+The Lockness monorepo maintains a **strict acyclic dependency graph (DAG)** to
+ensure architectural integrity and prevent circular dependencies. The dependency
+structure is organized into three clear layers:
+
+**Foundation Layer:**
+
+- `@lockness/contract` - Core contracts, types, and decorators (zero internal
+  dependencies)
+- `@lockness/hono` - Hono bridge wrapper around `npm:hono` (zero internal
+  dependencies)
+
+**Implementation Layer:**
+
+- `@lockness/container` - DI container implementation (depends on `contract`)
+- `@lockness/deprecation-contracts` - Standalone deprecation system (zero
+  internal dependencies)
+- Feature packages (`auth`, `session`, `cache`, `queue`, etc.) - Each depends
+  only on `contract` and/or `hono`
+
+**Orchestration Layer:**
+
+- `@lockness/core` - Main framework orchestrator that re-exports everything
+  (depends on `contract`, `container`, `hono`, `deprecation-contracts`)
+
+**Key Architectural Decisions:**
+
+1. **No Circular Dependencies**: The entire monorepo (26 packages) maintains a
+   clean DAG structure
+2. **Standalone Packages**: Packages like `@lockness/deprecation-contracts` are
+   designed to be framework-agnostic with zero internal dependencies
+3. **Dependency Inversion**: `@lockness/contract` provides shared interfaces to
+   avoid circular dependencies between `core` and `container`
+4. **Automated Verification**: Run `deno task deps:analyze` to verify the
+   dependency graph and detect any circular dependencies
+
+**Viewing the Dependency Graph:**
+
+The complete dependency tree is auto-generated and available in the
+documentation:
+
+- **Web**: Visit `/docs/dependencies` in the running application
+- **CLI**: Run `deno task deps:analyze` to regenerate `docs/dependencies.md`
+- **LLM**: Access `/docs/llms/dependencies.txt` for machine-readable format
+
+This architecture ensures that packages remain modular, testable, and reusable
+across different contexts while maintaining clear separation of concerns.
+
 ### Multi-Mount Routing Strategy
 
 Lockness supports a dual-layer routing architecture that enables mounting the
 same application on multiple URL patterns. This powerful feature allows for
 internationalization, API versioning, multi-tenancy, and other URL-based context
 extraction patterns.
-
-#### Dual-Layer Architecture
-
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  rootHono (Public Layer)                                         │
+│  rootHono (Public Layer)                                        │
 │  ├── GET /:langId/:countryId/* → i18nMiddleware → internal hono │
 │  ├── GET /api/:version/* → apiVersionMiddleware → internal hono │
 │  ├── Static Files (/css, /js, /img)                             │
-│  └── 404 Not Found Handler                                       │
+│  └── 404 Not Found Handler                                      │
 ├─────────────────────────────────────────────────────────────────┤
-│  hono (Internal Layer)                                           │
-│  ├── Controllers registered here                                 │
+│  hono (Internal Layer)                                          │
+│  ├── Controllers registered here                                │
 │  ├── @Get('/users') → works under ALL mount points              │
-│  └── Business logic unchanged                                    │
+│  └── Business logic unchanged                                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -1150,6 +1196,12 @@ Lockness provides a powerful deprecation system through the
 `@lockness/deprecation-contracts` package. It helps you evolve your codebase
 without breaking changes by providing clear warnings about deprecated features.
 
+**Architecture**: `@lockness/deprecation-contracts` is a **standalone package**
+with zero internal dependencies on `@lockness/container` or `@lockness/logger`.
+This makes it lightweight, framework-agnostic, and reusable across any Deno
+project. By default, it uses `console.warn` for deprecation notices with styled
+output.
+
 #### Installation
 
 The deprecation system is optional and installed separately:
@@ -1213,9 +1265,10 @@ toolbar with:
 - Timestamp and occurrence count
 - Quick navigation to source code
 
-The integration is **automatic** - no configuration needed. If you only install
-devtools, deprecations will still be logged to the console, and you'll see a
-suggestion to install the deprecation-contracts package for full tracking.
+The integration is **automatic** - no configuration needed. The package uses
+`console.warn` by default, which is automatically captured by Devtools when
+available. If you only install devtools without deprecation-contracts, you'll
+see a suggestion to install the package for full tracking.
 
 ### Named Routes
 

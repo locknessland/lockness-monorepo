@@ -6,8 +6,9 @@ feature is becoming obsolete, while providing guidance on what to use instead.
 
 Inspired by the
 [symfony/deprecation-contracts](https://github.com/symfony/deprecation-contracts)
-PHP package, it is fully integrated into the Lockness ecosystem (Logger,
-Devtools, and Container).
+PHP package, `@lockness/deprecation-contracts` is a **standalone package** with
+zero internal dependencies, making it lightweight and reusable across any Deno
+project.
 
 ---
 
@@ -23,6 +24,17 @@ If it's not already installed, you can add it via Nessy:
 ```bash
 ./nessy package:install deprecation-contracts
 ```
+
+### Architecture
+
+The package is designed to be **framework-agnostic**:
+
+- **Zero Dependencies**: No internal dependencies on `@lockness/container` or
+  `@lockness/logger`
+- **Default Handler**: Uses `console.warn` for deprecation notices with styled
+  output
+- **Extensible**: You can integrate custom loggers at the application level if
+  needed
 
 ---
 
