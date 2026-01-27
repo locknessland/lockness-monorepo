@@ -27,7 +27,11 @@
  * @module
  */
 
-import type { CacheOptions, MiddlewareClass, MiddlewareInput } from '../types.ts'
+import type {
+    CacheOptions,
+    MiddlewareClass,
+    MiddlewareInput,
+} from '../types.ts'
 import { type ComposableMiddleware, compose } from '../http/compose.ts'
 
 /**
@@ -699,4 +703,3 @@ export function CacheTTL(ttl: number): TC39MethodDecorator {
 export function CacheKey(key: string): TC39MethodDecorator {
     return Cache({ key })
 }
-
