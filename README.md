@@ -11,8 +11,7 @@ all packages, the documentation website, and the demo application.
 ## 📖 Documentation
 
 Full framework documentation is available at
-[lockness.land/docs](https://lockness.land/docs) or in the
-[docs/](./app/view/pages/docs/content/) folder.
+[lockness.land/docs](https://lockness.land/docs)
 
 ## 🏗️ Repository Structure
 
