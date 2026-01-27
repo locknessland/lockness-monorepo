@@ -49,11 +49,42 @@ export class DenoKvCacheDriver implements CacheDriver {
     async get<T = unknown>(key: string): Promise<T | null> {
         const kv = await this.getKv()
         const cacheKey = getCacheKey(key)
-        const result = await kv.get<CacheItem<T>>(['cache', cacheKey])
+        const result = await kv.get<CacheItem<T> | { _chunked: number }>(['cache', cacheKey])
 
         if (!result.value) return null
 
-        const item = result.value
+        let item: CacheItem<T>
+
+        // Handle chunked values
+        if ('_chunked' in result.value) {
+            const chunkCount = result.value._chunked
+            const chunks: Uint8Array[] = []
+
+            for (let i = 0; i < chunkCount; i++) {
+                const chunkResult = await kv.get<Uint8Array>(['cache', cacheKey, 'chunks', i])
+                if (chunkResult.value) {
+                    chunks.push(chunkResult.value)
+                }
+            }
+
+            // Assemble chunks
+            const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0)
+            const combined = new Uint8Array(totalLength)
+            let offset = 0
+            for (const chunk of chunks) {
+                combined.set(chunk, offset)
+                offset += chunk.length
+            }
+
+            try {
+                const decoder = new TextDecoder()
+                item = JSON.parse(decoder.decode(combined))
+            } catch {
+                return null
+            }
+        } else {
+            item = result.value as CacheItem<T>
+        }
 
         if (isExpired(item.expiresAt)) {
             await this.forget(key)
@@ -79,19 +110,59 @@ export class DenoKvCacheDriver implements CacheDriver {
             tags,
         }
 
-        // Set with expiration if TTL is set
-        if (expiresAt !== null) {
-            await kv.set(['cache', cacheKey], item, {
-                expireIn: (expiresAt - Date.now()),
-            })
+        // We use JSON for consistent size checking and chunking
+        const serialized = JSON.stringify(item)
+        const encoder = new TextEncoder()
+        const bytes = encoder.encode(serialized)
+
+        // Deno KV limit is 64KB per value. We use 32KB per chunk for safety
+        // and to stay well within atomic transaction limits (800KB).
+        const CHUNK_SIZE = 32768 
+
+        const expireIn = expiresAt !== null ? (expiresAt - Date.now()) : undefined
+
+        // If value is too large, use chunking
+        if (bytes.length > CHUNK_SIZE) {
+            const chunkCount = Math.ceil(bytes.length / CHUNK_SIZE)
+
+            // Deno KV Atomic limit: 800KB total. If larger, we can't use atomic for all chunks.
+            // But for docs, it should stay under that.
+            const atomic = kv.atomic()
+
+            // Store manifest
+            atomic.set(['cache', cacheKey], { _chunked: chunkCount }, { expireIn })
+
+            // Store chunks as raw Uint8Array
+            for (let i = 0; i < chunkCount; i++) {
+                const start = i * CHUNK_SIZE
+                const end = Math.min(start + CHUNK_SIZE, bytes.length)
+                atomic.set(['cache', cacheKey, 'chunks', i], bytes.slice(start, end), { expireIn })
+            }
+
+            const commitSuccess = await atomic.commit()
+            if (!commitSuccess) {
+                // If atomic failed (likely due to transaction size), try manual sets
+                // (less safe but better than total failure)
+                await kv.set(['cache', cacheKey], { _chunked: chunkCount }, { expireIn })
+                for (let i = 0; i < chunkCount; i++) {
+                    const start = i * CHUNK_SIZE
+                    const end = Math.min(start + CHUNK_SIZE, bytes.length)
+                    await kv.set(['cache', cacheKey, 'chunks', i], bytes.slice(start, end), { expireIn })
+                }
+            }
         } else {
-            await kv.set(['cache', cacheKey], item)
+            // Standard set
+            if (expireIn !== undefined) {
+                await kv.set(['cache', cacheKey], item, { expireIn })
+            } else {
+                await kv.set(['cache', cacheKey], item)
+            }
         }
 
         // Update tag indices
         if (tags) {
             for (const tag of tags) {
-                await kv.set(['tag', tag, cacheKey], true)
+                await kv.set(['tag', tag, cacheKey], true, { expireIn })
             }
         }
     }
@@ -105,18 +176,29 @@ export class DenoKvCacheDriver implements CacheDriver {
         const kv = await this.getKv()
         const cacheKey = getCacheKey(key)
 
-        // Get item to find tags
-        const result = await kv.get<CacheItem>(['cache', cacheKey])
+        // Get item to find tags and check if chunked
+        const result = await kv.get<CacheItem | { _chunked: number }>(['cache', cacheKey])
 
-        // Delete main entry
-        await kv.delete(['cache', cacheKey])
+        if (!result.value) return
 
-        // Delete tag references
-        if (result.value?.tags) {
+        const atomic = kv.atomic()
+
+        // Delete main entry/manifest
+        atomic.delete(['cache', cacheKey])
+
+        // Delete chunks if exists
+        if ('_chunked' in result.value) {
+            for (let i = 0; i < result.value._chunked; i++) {
+                atomic.delete(['cache', cacheKey, 'chunks', i])
+            }
+        } else if (result.value.tags) {
+            // Delete tag references
             for (const tag of result.value.tags) {
-                await kv.delete(['tag', tag, cacheKey])
+                atomic.delete(['tag', tag, cacheKey])
             }
         }
+
+        await atomic.commit()
     }
 
     async flush(): Promise<void> {

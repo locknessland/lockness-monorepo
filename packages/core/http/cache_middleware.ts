@@ -71,18 +71,24 @@ export function cacheDecoratorMiddleware(
 
             // After execution, if the response is successful, cache it
             if (c.res.ok && cache) {
-                const responseToCache = c.res.clone()
-                const body = await responseToCache.text()
-                const headers: Record<string, string> = {}
-                responseToCache.headers.forEach((value, key) => {
-                    headers[key] = value
-                })
+                try {
+                    const responseToCache = c.res.clone()
+                    const body = await responseToCache.text()
+                    const headers: Record<string, string> = {}
+                    responseToCache.headers.forEach((value, key) => {
+                        headers[key] = value
+                    })
 
-                await cache.set(cacheKey, {
-                    body,
-                    headers,
-                    status: responseToCache.status,
-                }, ttl)
+                    await cache.set(cacheKey, {
+                        body,
+                        headers,
+                        status: responseToCache.status,
+                    }, ttl)
+                } catch (error) {
+                    console.error(
+                        `[Lockness] Failed to store response in cache: ${(error as Error).message}`,
+                    )
+                }
             }
             return
         }
