@@ -7,6 +7,13 @@
 
 import { assert, assertEquals, assertExists, assertRejects } from '@std/assert'
 import { DocsLoader } from '../app/service/docs_loader.ts'
+import { CacheServiceToken, container } from '@lockness/core'
+import { cache } from '@lockness/cache'
+
+// Register cache service for tests to avoid ServiceNotFoundError
+if (!container.has(CacheServiceToken)) {
+    container.set(CacheServiceToken, cache())
+}
 
 // =============================================================================
 // Test: Load package-specific documentation
