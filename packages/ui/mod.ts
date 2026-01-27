@@ -311,6 +311,288 @@ const REGISTRY: Registry = {
         ],
         internalDependencies: ['utils', 'icons'],
     },
+    progress: {
+        name: 'progress',
+        description: 'Progress bar component',
+        files: [
+            {
+                path: 'components/Progress/mod.tsx',
+                target: 'components/ui/Progress.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    'circular-progress': {
+        name: 'circular-progress',
+        description: 'Circular progress indicator',
+        files: [
+            {
+                path: 'components/CircularProgress/mod.tsx',
+                target: 'components/ui/CircularProgress.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    'stepped-progress': {
+        name: 'stepped-progress',
+        description: 'Step-by-step progress tracker',
+        files: [
+            {
+                path: 'components/SteppedProgress/mod.tsx',
+                target: 'components/ui/SteppedProgress.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'icons'],
+    },
+    'gauge-progress': {
+        name: 'gauge-progress',
+        description: 'Gauge/meter style progress',
+        files: [
+            {
+                path: 'components/GaugeProgress/mod.tsx',
+                target: 'components/ui/GaugeProgress.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    'code-block': {
+        name: 'code-block',
+        description: 'Syntax highlighting code block',
+        files: [
+            {
+                path: 'components/CodeBlock/mod.tsx',
+                target: 'components/ui/CodeBlock/mod.tsx',
+            },
+            {
+                path: 'components/CodeBlock/styles.tsx',
+                target: 'components/ui/CodeBlock/styles.tsx',
+            },
+            {
+                path: 'components/CodeBlock/themes.ts',
+                target: 'components/ui/CodeBlock/themes.ts',
+            },
+        ],
+        dependencies: {
+            'highlight.js': 'npm:highlight.js@^11.9.0',
+        },
+        internalDependencies: ['utils', 'icons'],
+    },
+    'copy-button': {
+        name: 'copy-button',
+        description: 'Copy to clipboard button',
+        files: [
+            {
+                path: 'components/CopyButton/mod.tsx',
+                target: 'components/ui/CopyButton.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    chart: {
+        name: 'chart',
+        description: 'Chart components using Chart.js',
+        files: [
+            {
+                path: 'components/Chart/mod.tsx',
+                target: 'components/ui/Chart.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    'chart-extras': {
+        name: 'chart-extras',
+        description: 'Extra chart components (Pie, Bubble, etc.)',
+        files: [
+            {
+                path: 'components/ChartExtras/mod.tsx',
+                target: 'components/ui/ChartExtras.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'chart'],
+    },
+    'feature-card': {
+        name: 'feature-card',
+        description: 'Card for displaying features',
+        files: [
+            {
+                path: 'components/FeatureCard/mod.tsx',
+                target: 'components/ui/FeatureCard.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'card', 'icons'],
+    },
+    footer: {
+        name: 'footer',
+        description: 'Footer component sections',
+        files: [
+            {
+                path: 'components/Footer/mod.tsx',
+                target: 'components/ui/Footer.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'section', 'link'],
+    },
+    gallery: {
+        name: 'gallery',
+        description: 'Image gallery with lightbox and layouts',
+        files: [
+            {
+                path: 'components/Gallery/mod.tsx',
+                target: 'components/ui/Gallery.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'icons'],
+    },
+    hero: {
+        name: 'hero',
+        description: 'Hero sections for landing pages',
+        files: [
+            {
+                path: 'components/Hero/mod.tsx',
+                target: 'components/ui/Hero.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'button', 'badge', 'link'],
+    },
+    link: {
+        name: 'link',
+        description: 'Enhanced link component',
+        files: [
+            {
+                path: 'components/Link/mod.tsx',
+                target: 'components/ui/Link.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    modal: {
+        name: 'modal',
+        description: 'Dialog/Modal component',
+        files: [
+            {
+                path: 'components/Modal/mod.tsx',
+                target: 'components/ui/Modal.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'icons', 'button'],
+    },
+    navbar: {
+        name: 'navbar',
+        description: 'Navigation bar component',
+        files: [
+            {
+                path: 'components/Navbar/mod.tsx',
+                target: 'components/ui/Navbar.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'button', 'link'],
+    },
+    newsletter: {
+        name: 'newsletter',
+        description: 'Newsletter subscription form section',
+        files: [
+            {
+                path: 'components/Newsletter/mod.tsx',
+                target: 'components/ui/Newsletter.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'button', 'input', 'section'],
+    },
+    pagination: {
+        name: 'pagination',
+        description: 'Pagination controls',
+        files: [
+            {
+                path: 'components/Pagination/mod.tsx',
+                target: 'components/ui/Pagination.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'button', 'icons'],
+    },
+    section: {
+        name: 'section',
+        description: 'Page section layout component',
+        files: [
+            {
+                path: 'components/Section/mod.tsx',
+                target: 'components/ui/Section.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    sidebar: {
+        name: 'sidebar',
+        description: 'Sidebar navigation component',
+        files: [
+            {
+                path: 'components/Sidebar/mod.tsx',
+                target: 'components/ui/Sidebar.tsx',
+            },
+        ],
+        internalDependencies: [
+            'utils',
+            'button',
+            'separator',
+            'skeleton',
+            'input',
+            'icons',
+        ],
+    },
+    spinner: {
+        name: 'spinner',
+        description: 'Loading spinner component',
+        files: [
+            {
+                path: 'components/Spinner/mod.tsx',
+                target: 'components/ui/Spinner.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    table: {
+        name: 'table',
+        description: 'Data table component',
+        files: [
+            {
+                path: 'components/Table/mod.tsx',
+                target: 'components/ui/Table.tsx',
+            },
+        ],
+        internalDependencies: ['utils'],
+    },
+    'tree-view': {
+        name: 'tree-view',
+        description: 'Hierarchical tree view component',
+        files: [
+            {
+                path: 'components/TreeView/mod.tsx',
+                target: 'components/ui/TreeView.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'icons'],
+    },
+    'upload-zone': {
+        name: 'upload-zone',
+        description: 'File upload area with drag and drop',
+        files: [
+            {
+                path: 'components/UploadZone/mod.tsx',
+                target: 'components/ui/UploadZone.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'icons', 'button'],
+    },
+    video: {
+        name: 'video',
+        description: 'Video player component',
+        files: [
+            {
+                path: 'components/Video/mod.tsx',
+                target: 'components/ui/Video.tsx',
+            },
+        ],
+        internalDependencies: ['utils', 'icons'],
+    },
 }
 
 // =============================================================================
