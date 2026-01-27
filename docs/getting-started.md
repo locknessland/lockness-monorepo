@@ -5,7 +5,7 @@ setup to deployment.
 
 ## 📁 Project Structure
 
-After running `deno task init`, your project will have the following structure:
+Your project will have the following structure, after the initialization:
 
 ```
 my-app/
