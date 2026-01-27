@@ -4,7 +4,8 @@
 
 ## Overview
 
-The Lockness monorepo contains **26 packages** with the following dependency structure:
+The Lockness monorepo contains **26 packages** with the following dependency
+structure:
 
 ## ✅ No Circular Dependencies
 
@@ -13,14 +14,17 @@ The dependency graph is acyclic (DAG).
 ## Architecture Layers
 
 ### Foundation Layer
+
 - **`@lockness/contract`**: Core contracts, types, and decorators
 - **`@lockness/hono`**: Hono bridge (wrapper around `npm:hono`)
 
 ### Implementation Layer
+
 - **`@lockness/container`**: DI container implementation
 - Feature packages: `auth`, `session`, `cache`, `queue`, etc.
 
 ### Orchestration Layer
+
 - **`@lockness/core`**: Main framework orchestrator (re-exports everything)
 
 ## Complete Dependency Tree
@@ -107,7 +111,6 @@ upgrade (v0.1.30)
 
 validator (v0.1.30)
 └── hono (v0.1.30)
-
 ```
 
 ## Package Details
@@ -343,7 +346,11 @@ validator (v0.1.30)
 
 ## Architecture Rules
 
-1. **No package should depend on** `@lockness/core` **(except for end-user applications)**
-2. `@lockness/contract` **has zero internal dependencies** (only external: `@lockness/hono`, `@std/*`)
-3. **Feature packages depend on** `@lockness/contract` **for types and decorators**
-4. `@lockness/core` **is the orchestrator that assembles and re-exports everything**
+1. **No package should depend on** `@lockness/core` **(except for end-user
+   applications)**
+2. `@lockness/contract` **has zero internal dependencies** (only external:
+   `@lockness/hono`, `@std/*`)
+3. **Feature packages depend on** `@lockness/contract` **for types and
+   decorators**
+4. `@lockness/core` **is the orchestrator that assembles and re-exports
+   everything**
