@@ -35,6 +35,7 @@ export const compileConfig: CompileConfig = {
         {
             source: 'packages/ui/components',
             target: 'packages/ui/components',
+            include: /\.md$/,
         },
     ],
 
