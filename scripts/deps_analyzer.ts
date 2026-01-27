@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-run
 /**
  * Dependency Analyzer for Lockness Monorepo
  *
@@ -353,6 +353,19 @@ async function main() {
     await Deno.writeTextFile(outputPath, markdown)
 
     console.log(`✅ Documentation generated: ${outputPath}`)
+
+    // Format the generated file
+    try {
+        const command = new Deno.Command(Deno.execPath(), {
+            args: ['fmt', outputPath],
+        })
+        const { success } = await command.output()
+        if (success) {
+            console.log(`✨ Documentation formatted: ${outputPath}`)
+        }
+    } catch (error) {
+        console.warn(`⚠️  Failed to format documentation: ${error}`)
+    }
 
     // Exit with error code if cycles detected
     if (cycles.length > 0) {
