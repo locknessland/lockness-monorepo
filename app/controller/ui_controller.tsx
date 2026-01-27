@@ -5,7 +5,7 @@
  * DOCS.md/llms.txt files are served separately for LLM consumption.
  */
 
-import { Context, Controller, Get } from '@lockness/core'
+import { Cache, Context, Controller, Get } from '@lockness/core'
 import { ExampleSection, UiDocLoader } from '../../packages/ui/doc_loader.ts'
 import { UiIndex } from '@view/pages/ui/getting-started.tsx'
 import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
@@ -36,6 +36,7 @@ export class UiController {
      * UI Components index page
      */
     @Get('/', { name: 'ui.index' })
+    @Cache({ strategy: 'both', ttl: 3600 })
     index(c: Context) {
         return c.render(<UiIndex />)
     }
@@ -45,6 +46,7 @@ export class UiController {
      * with installation instructions and component list
      */
     @Get('/llms.txt', { name: 'ui.llms.index' })
+    @Cache({ strategy: 'both', ttl: 86400 })
     async llmsIndex(c: Context) {
         try {
             const content = await this.docLoader.loadRootLlms()
@@ -60,6 +62,7 @@ export class UiController {
      * Loads examples.tsx from component folders and renders live demos
      */
     @Get('/:slug', { name: 'ui.component' })
+    @Cache({ strategy: 'both', ttl: 3600 })
     async component(c: Context) {
         const slug = c.req.param('slug')
 
@@ -106,6 +109,7 @@ export class UiController {
      * @example /ui/llms/button.txt -> packages/ui/components/Button/llms.txt
      */
     @Get('/llms/:component', { extension: '.txt', name: 'ui.llms' })
+    @Cache({ strategy: 'both', ttl: 86400 })
     async llms(c: Context) {
         const component = c.req.param('component')
 

@@ -1,4 +1,4 @@
-import { Context, Controller, Get, Inject, route } from '@lockness/core'
+import { Cache, Context, Controller, Get, Inject, route } from '@lockness/core'
 import { renderMarkdownWithoutTitle } from '@lockness/markdown'
 import { DocsLoader } from '@service/docs_loader.ts'
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
@@ -39,6 +39,7 @@ export class DocsController {
      * @returns Rendered documentation page or 404 if not found
      */
     @Get('/:slug', { name: 'docs.page' })
+    @Cache({ strategy: 'both', ttl: 3600 })
     async page(c: Context) {
         const slug = c.req.param('slug')
 
@@ -72,6 +73,7 @@ export class DocsController {
      * LLM index - lists all available docs llms.txt files
      */
     @Get('/llms.txt', { name: 'docs.llms.index' })
+    @Cache({ strategy: 'both', ttl: 86400 })
     llmsIndex(c: Context) {
         const slugs = this.docsLoader.getAvailableLlmsSlugs()
         const baseUrl = 'https://lockness.land'
@@ -97,6 +99,7 @@ export class DocsController {
      * @example /docs/llms/authentication.txt -> packages/auth/llms.txt
      */
     @Get('/llms/:slug', { extension: '.txt', name: 'docs.llms' })
+    @Cache({ strategy: 'both', ttl: 86400 })
     async llms(c: Context) {
         const slug = c.req.param('slug')
 

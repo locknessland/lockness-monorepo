@@ -7,7 +7,7 @@
  * @module @service/docs_loader
  */
 
-import { Service } from '@lockness/core'
+import { CacheServiceToken, ICache, Inject, Service } from '@lockness/core'
 import { join } from 'node:path'
 import { exists } from '@std/fs'
 import { isDevelopment } from '@/config/app.ts'
@@ -46,8 +46,9 @@ export interface DocPage {
  */
 @Service()
 export class DocsLoader {
-    /** In-memory cache of loaded documentation */
-    private cache = new Map<string, DocPage>()
+    /** Global cache service */
+    @Inject(CacheServiceToken)
+    accessor cache!: ICache
 
     /**
      * Mapping of URL slugs to file paths.
@@ -118,9 +119,13 @@ export class DocsLoader {
      * ```
      */
     async load(slug: string): Promise<DocPage> {
+        // Build cache key
+        const cacheKey = `docs:page:${slug}`
+
         // Return cached version if available (only in production)
-        if (!isDevelopment && this.cache.has(slug)) {
-            return this.cache.get(slug)!
+        if (!isDevelopment) {
+            const cached = await this.cache.get<DocPage>(cacheKey)
+            if (cached) return cached
         }
 
         // Get file path from slug mapping
@@ -143,9 +148,14 @@ export class DocsLoader {
             )
         }
 
-        // Parse metadata and cache
+        // Parse metadata
         const doc = this.parseDoc(slug, relativePath, content)
-        this.cache.set(slug, doc)
+
+        // Cache the result in production (1 hour TTL)
+        if (!isDevelopment) {
+            await this.cache.set(cacheKey, doc, 3600)
+        }
+
         return doc
     }
 
@@ -223,9 +233,6 @@ export class DocsLoader {
         return Object.keys(this.slugToPath)
     }
 
-    /** In-memory cache of LLM content */
-    private llmCache = new Map<string, string>()
-
     /** Cached version from deno.jsonc */
     private version: string | null = null
 
@@ -297,9 +304,13 @@ export class DocsLoader {
      * are read directly from static .txt files.
      */
     async loadLlms(slug: string): Promise<string> {
+        // Build cache key
+        const cacheKey = `docs:llm:${slug}`
+
         // Check cache first (only in production)
-        if (!isDevelopment && this.llmCache.has(slug)) {
-            return this.llmCache.get(slug)!
+        if (!isDevelopment) {
+            const cached = await this.cache.get<string>(cacheKey)
+            if (cached) return cached
         }
 
         // Check if it's a static file
@@ -308,7 +319,9 @@ export class DocsLoader {
             const path = join(cwd, this.llmsStaticFiles[slug])
             try {
                 const content = await Deno.readTextFile(path)
-                this.llmCache.set(slug, content)
+                if (!isDevelopment) {
+                    await this.cache.set(cacheKey, content, 3600)
+                }
                 return content
             } catch (error) {
                 throw new Error(
@@ -329,7 +342,9 @@ export class DocsLoader {
         try {
             let content = await Deno.readTextFile(path)
             content = await this.transformToLlmFormat(content)
-            this.llmCache.set(slug, content)
+            if (!isDevelopment) {
+                await this.cache.set(cacheKey, content, 3600)
+            }
             return content
         } catch (error) {
             throw new Error(
@@ -429,9 +444,10 @@ export class DocsLoader {
      * loader.clearCache()  // Forces reload on next access
      * ```
      */
-    clearCache(): void {
-        this.cache.clear()
-        this.llmCache.clear()
+    async clearCache(): Promise<void> {
+        // We can't easily clear specific keys with prefixes without a pattern,
+        // so we flush the whole cache. This is only for development/testing.
+        await this.cache.flush()
         this.version = null
     }
 }

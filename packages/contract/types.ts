@@ -62,6 +62,8 @@ export interface ICache {
     has(key: string): Promise<boolean>
     /** Remove an item from the cache */
     forget(key: string): Promise<void>
+    /** Clear all items from the cache */
+    flush(): Promise<void>
 }
 
 /**
