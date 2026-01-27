@@ -657,6 +657,52 @@ export class ApiController {
 - **Flexible**: Mix Hono functions, class middlewares, and named strings
 - **Modular**: Build complex stacks from smaller ones
 
+### Response Caching (Decorators)
+
+Lockness provides a powerful, decorator-based response caching system inspired by NestJS. It allows you to cache expensive route responses at different layers (CDN/Browser or Server-side) with zero boilerplate.
+
+#### Decorators
+
+- `@Cache(options)`: Main decorator to enable caching on a route.
+- `@CacheTTL(seconds)`: Raccourci pour définir la durée de vie du cache.
+- `@CacheKey(key)`: Raccourci pour définir une clé de cache personnalisée.
+
+#### Caching Strategies
+
+1. **`server` (Default)**: Result is stored in the application cache (In-memory, Deno KV, Redis). Subsequent requests return the cached response without executing the controller method.
+2. **`http`**: Sets `Cache-Control` headers (e.g., `max-age=3600`) to instruct browsers and CDNs (Cloudflare, etc.) to cache the response.
+3. **`both`**: Combines both strategies for maximum performance and efficiency.
+
+#### Example
+
+```typescript
+import { Cache, CacheTTL, Controller, Get } from '@lockness/core'
+
+@Controller('/api')
+export class ApiController {
+    @Get('/heavy-data')
+    @Cache({ 
+        ttl: 600, 
+        strategy: 'server', 
+        key: 'custom-key' 
+    })
+    async getData() {
+        return { data: await someHeavyTask() }
+    }
+
+    @Get('/home')
+    @CacheTTL(3600) // 1 hour
+    @Cache({ strategy: 'http' })
+    index(c: Context) {
+        return c.render(<Home />)
+    }
+}
+```
+
+**Requirements:**
+
+To use the `server` strategy, you must have the `@lockness/cache` package installed and a cache provider registered in your container.
+
 ### Modern Development Workflow
 
 Lockness uses a pure Deno workflow with automatic route generation for
