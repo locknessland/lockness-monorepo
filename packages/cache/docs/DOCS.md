@@ -20,13 +20,15 @@ Redis) and tagging capabilities.
 
 ```typescript
 import { cache, configureCache } from '@lockness/cache'
+
+configureCache({ 
+    driver: 'memory', // or 'deno-kv' 
+    ttl: 3600, // Default TTL in seconds (1 hour)
+    prefix: 'myapp', // Cache key prefix 
+    kvPath: './data/cache.db', // Optional: Deno KV path 
+})
 ```
 
-configureCache({ driver: 'memory', // or 'deno-kv' ttl: 3600, // Default TTL in
-seconds (1 hour) prefix: 'myapp', // Cache key prefix kvPath: './data/cache.db',
-// Optional: Deno KV path })
-
-````
 ## Decorator-based Caching
 
 Lockness provides a powerful decorator-based caching system that allows you to cache entire controller responses with minimal code. This is the recommended way to handle route-level caching.
