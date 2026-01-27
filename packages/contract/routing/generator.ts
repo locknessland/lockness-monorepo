@@ -120,6 +120,16 @@ export async function generateRoutesFile(
 
     await Deno.writeTextFile(outputFile, content)
 
+    // Format the file to match project style
+    try {
+        const command = new Deno.Command(Deno.execPath(), {
+            args: ['fmt', outputFile],
+        })
+        await command.output()
+    } catch (_e) {
+        // Ignore failures to format
+    }
+
     return {
         count: controllers.length,
         controllers: controllers.map((c) => c.className),

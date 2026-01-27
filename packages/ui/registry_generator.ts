@@ -131,6 +131,17 @@ ${registryEntries}
 `
 
     await Deno.writeTextFile(outputFile, content)
+
+    // Format the file to match project style
+    try {
+        const command = new Deno.Command(Deno.execPath(), {
+            args: ['fmt', outputFile],
+        })
+        await command.output()
+    } catch (_e) {
+        // Ignore failures to format
+    }
+
     console.log(
         `✅ Generated UI examples registry with ${examples.length} entries.`,
     )
