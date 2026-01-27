@@ -3,7 +3,7 @@ import { dirname, fromFileUrl, join } from '@std/path'
 import { type Cli, Stub } from '@lockness/cli'
 
 // Explicit file list for JSR (when running from https://)
-const INIT_STUB_FILES = [
+export const INIT_STUB_FILES = [
     '.dockerignore.stub',
     '.env.exemple.stub',
     '.gitignore.stub',
@@ -19,7 +19,9 @@ const INIT_STUB_FILES = [
     'scripts/watch_routes.ts.stub',
     'config/mod.ts.stub',
     'config/app.ts.stub',
+    'config/compile.ts.stub',
     'config/database.ts.stub',
+    'config/routing.ts.stub',
     'config/session.ts.stub',
     'app/controller/app_controller.tsx.stub',
     'app/kernel.tsx.stub',
@@ -32,7 +34,7 @@ const INIT_STUB_FILES = [
 ]
 
 // Binary files that need special handling (not included in remote scaffolding)
-const BINARY_FILES = [
+export const BINARY_FILES = [
     'public/favicon.ico',
     'public/favicon-16x16.png',
     'public/favicon-32x32.png',
