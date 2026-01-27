@@ -1,5 +1,6 @@
 import type { FC } from '@lockness/core'
 import { route } from '@lockness/core'
+import { isDevelopment } from '@/config/app.ts'
 import {
     Button,
     CopyLink,
@@ -82,6 +83,16 @@ export const DocsLayout = (
             title={`${props.title} | Lockness Documentation`}
             styles={[
                 <link key='app-css' rel='stylesheet' href='/css/app.css' />,
+            ]}
+            scripts={[
+                isDevelopment && (
+                    <script
+                        key='unpoly-dev-config'
+                        dangerouslySetInnerHTML={{
+                            __html: 'up.cache.config.size = 0;',
+                        }}
+                    />
+                ),
             ]}
         >
             <Navbar position='sticky'>

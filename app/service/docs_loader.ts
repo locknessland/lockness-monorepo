@@ -10,6 +10,7 @@
 import { Service } from '@lockness/core'
 import { join } from 'node:path'
 import { exists } from '@std/fs'
+import { isDevelopment } from '@/config/app.ts'
 
 /**
  * Parsed documentation page with metadata
@@ -117,8 +118,8 @@ export class DocsLoader {
      * ```
      */
     async load(slug: string): Promise<DocPage> {
-        // Return cached version if available
-        if (this.cache.has(slug)) {
+        // Return cached version if available (only in production)
+        if (!isDevelopment && this.cache.has(slug)) {
             return this.cache.get(slug)!
         }
 
@@ -296,8 +297,8 @@ export class DocsLoader {
      * are read directly from static .txt files.
      */
     async loadLlms(slug: string): Promise<string> {
-        // Check cache first
-        if (this.llmCache.has(slug)) {
+        // Check cache first (only in production)
+        if (!isDevelopment && this.llmCache.has(slug)) {
             return this.llmCache.get(slug)!
         }
 
