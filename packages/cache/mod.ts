@@ -33,6 +33,19 @@
  * Some methods are async for interface consistency even if they don't await.
  */
 
+import { container } from '@lockness/container'
+import { CacheServiceToken } from '@lockness/contract'
+import { cache } from './store.ts'
+
+// Auto-register cache service in the global container
+try {
+    if (!container.has(CacheServiceToken)) {
+        container.set(CacheServiceToken, cache())
+    }
+} catch {
+    // Silently skip if container is not available in current environment
+}
+
 // =============================================================================
 // Type Exports
 // =============================================================================

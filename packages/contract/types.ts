@@ -48,6 +48,28 @@ export interface Route {
 }
 
 /**
+ * Interface for application-level caching.
+ *
+ * This interface must be implemented by the cache provider
+ * and registered in the container using CacheServiceToken.
+ */
+export interface ICache {
+    /** Get an item from the cache */
+    get<T>(key: string): Promise<T | null>
+    /** Store an item in the cache */
+    set<T>(key: string, value: T, ttl?: number): Promise<void>
+    /** Check if an item exists in the cache */
+    has(key: string): Promise<boolean>
+    /** Remove an item from the cache */
+    forget(key: string): Promise<void>
+}
+
+/**
+ * Token used to resolve the global cache service from the container.
+ */
+export const CacheServiceToken = Symbol('lockness:cache')
+
+/**
  * Options for configuring caching on controller routes.
  */
 export interface CacheOptions {

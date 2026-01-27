@@ -12,6 +12,7 @@ import type { Hono, MiddlewareHandler } from 'hono'
 import { namedRoutes } from './router.ts'
 import type { Context, ControllerClass, Route } from '../types.ts'
 import type { RouteInfo } from '../app.ts'
+import { cacheDecoratorMiddleware } from '../http/cache_middleware.ts'
 
 /** HTTP methods supported by the router */
 type HttpMethod =
@@ -190,6 +191,7 @@ export class RouteRegistry {
             Controller._middlewares || {}
         const validators: Record<string, ValidatorEntry[]> =
             Controller._validators || {}
+        const cacheConfigs = Controller._cacheConfigs || {}
         const controllerName = Controller.name
 
         const registrations: RouteRegistration[] = []
@@ -210,11 +212,18 @@ export class RouteRegistry {
                 )
                 .filter((h): h is MiddlewareHandler => h !== null)
 
+            // Get cache middleware if configured
+            const cacheConfig = cacheConfigs[route.methodName]
+            const cacheMiddleware = cacheConfig
+                ? [cacheDecoratorMiddleware(cacheConfig)]
+                : []
+
             // Collect middleware names for display
             const middlewareNames = this.collectMiddlewareNames(
                 route.methodName,
                 validators,
                 middlewares,
+                cacheConfigs,
             )
 
             // Create handler, wrapping with extension stripping if needed
@@ -231,6 +240,7 @@ export class RouteRegistry {
                 method: route.method.toLowerCase() as HttpMethod,
                 handler,
                 middlewares: [
+                    ...cacheMiddleware, // Cache runs early to return hit immediately
                     ...routeValidators,
                     ...routeMiddlewares,
                 ],
@@ -349,6 +359,7 @@ export class RouteRegistry {
         methodName: string,
         validators: Record<string, ValidatorEntry[]>,
         middlewares: Record<string, unknown[]>,
+        cacheConfigs: Record<string, any>,
     ): string[] {
         const names: string[] = []
 
@@ -365,6 +376,11 @@ export class RouteRegistry {
             } else if (typeof m === 'function') {
                 names.push(m.name)
             }
+        }
+
+        // Cache middleware name
+        if (cacheConfigs[methodName]) {
+            names.push('@Cache')
         }
 
         return names

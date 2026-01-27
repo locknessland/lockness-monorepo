@@ -3913,6 +3913,8 @@
       },
       "packages/cache": {
         "dependencies": [
+          "jsr:@lockness/container@~0.1.30",
+          "jsr:@lockness/contract@~0.1.30",
           "jsr:@std/assert@1"
         ]
       },

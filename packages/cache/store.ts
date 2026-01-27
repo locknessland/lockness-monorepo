@@ -11,6 +11,7 @@ import type { CacheDriver } from './types.ts'
 import { getCacheConfig } from './config.ts'
 import { DenoKvCacheDriver } from './drivers/deno_kv_driver.ts'
 import { MemoryCacheDriver } from './drivers/memory_driver.ts'
+import type { ICache } from '@lockness/contract'
 
 /**
  * Global cache driver instance (lazy-initialized).
@@ -83,8 +84,9 @@ export function setCacheDriver(driver: CacheDriver): void {
  * // Invalidate all entries with 'users' tag
  * await cache('users').flush()
  * ```
+ * @see {@link CacheStore}
  */
-export class CacheStore {
+export class CacheStore implements ICache {
     /** @internal Tags applied to all operations */
     private readonly tags: readonly string[]
 
@@ -128,6 +130,25 @@ export class CacheStore {
      */
     async get<T = unknown>(key: string): Promise<T | null> {
         return await getDriver().get<T>(key)
+    }
+
+    /**
+     * Check if an item exists in the cache.
+     *
+     * @param key - The cache key
+     * @returns True if the key exists and is not expired
+     */
+    async has(key: string): Promise<boolean> {
+        return await getDriver().has(key)
+    }
+
+    /**
+     * Remove an item from the cache.
+     *
+     * @param key - The cache key
+     */
+    async forget(key: string): Promise<void> {
+        return await getDriver().forget(key)
     }
 
     /**
