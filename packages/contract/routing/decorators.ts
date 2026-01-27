@@ -27,7 +27,7 @@
  * @module
  */
 
-import type { MiddlewareClass, MiddlewareInput } from '../types.ts'
+import type { CacheOptions, MiddlewareClass, MiddlewareInput } from '../types.ts'
 import { type ComposableMiddleware, compose } from '../http/compose.ts'
 
 /**
@@ -75,6 +75,8 @@ export interface ControllerWithMetadata {
     _middlewares?: Record<string, (MiddlewareInput | string)[]>
     /** Validator mappings by method name */
     _validators?: Record<string, unknown[]>
+    /** Cache configuration by method name */
+    _cacheConfigs?: Record<string, CacheOptions>
 }
 
 /** Generic constructor type */
@@ -131,6 +133,7 @@ export function Controller(path: string): TC39ClassDecorator {
         if (!controller._routes) controller._routes = []
         if (!controller._middlewares) controller._middlewares = {}
         if (!controller._validators) controller._validators = {}
+        if (!controller._cacheConfigs) controller._cacheConfigs = {}
         return target
     }
 }
@@ -629,3 +632,71 @@ export function ComposeMiddleware(
     const composedMiddleware = compose(middlewares)
     return applyMiddleware(composedMiddleware)
 }
+
+/**
+ * Configure caching for a route method.
+ *
+ * @param options - Cache configuration options (ttl, key, strategy)
+ * @returns Method decorator function
+ *
+ * @example
+ * ```ts
+ * @Cache({ ttl: 60, strategy: 'server' })
+ * async index(c: Context) { ... }
+ * ```
+ */
+export function Cache(options: CacheOptions): TC39MethodDecorator {
+    return function (
+        _target: unknown,
+        context: ClassMethodDecoratorContext,
+    ): void {
+        const methodName = String(context.name)
+        let initialized = false
+        context.addInitializer(function () {
+            if (!initialized) {
+                initialized = true
+                const constructor =
+                    (this as { constructor: ControllerConstructor })
+                        .constructor
+                if (!constructor._cacheConfigs) constructor._cacheConfigs = {}
+                constructor._cacheConfigs[methodName] = {
+                    ...constructor._cacheConfigs[methodName],
+                    ...options,
+                }
+            }
+        })
+    }
+}
+
+/**
+ * Set the cache TTL for a route method.
+ *
+ * @param ttl - Cache TTL in seconds
+ * @returns Method decorator function
+ *
+ * @example
+ * ```ts
+ * @CacheTTL(300)
+ * async index(c: Context) { ... }
+ * ```
+ */
+export function CacheTTL(ttl: number): TC39MethodDecorator {
+    return Cache({ ttl })
+}
+
+/**
+ * Set a custom cache key for a route method.
+ *
+ * @param key - Custom cache key
+ * @returns Method decorator function
+ *
+ * @example
+ * ```ts
+ * @CacheKey('custom_users_list')
+ * async index(c: Context) { ... }
+ * ```
+ */
+export function CacheKey(key: string): TC39MethodDecorator {
+    return Cache({ key })
+}
+

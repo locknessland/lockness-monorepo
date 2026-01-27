@@ -47,11 +47,34 @@ export interface Route {
     extension?: string
 }
 
+/**
+ * Options for configuring caching on controller routes.
+ */
+export interface CacheOptions {
+    /**
+     * Cache TTL (Time To Live) in seconds.
+     * Use 0 for permanent cache (if supported by driver).
+     */
+    ttl?: number
+    /**
+     * Custom cache key to use instead of the auto-generated URL-based key.
+     */
+    key?: string
+    /**
+     * Optional strategy to use:
+     * - 'server': Store result in-memory/kv/redis (default)
+     * - 'http': Only set Cache-Control headers
+     */
+    strategy?: 'server' | 'http' | 'both'
+}
+
 export interface ControllerMetadata {
     _basePath?: string
     _routes?: Route[]
     _middlewares?: Record<string, any[]>
     _validators?: Record<string, any[]>
+    /** Cache configuration by method name */
+    _cacheConfigs?: Record<string, CacheOptions>
 }
 
 export type ControllerClass =
