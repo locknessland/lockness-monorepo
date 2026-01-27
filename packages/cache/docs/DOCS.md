@@ -22,14 +22,11 @@ Redis) and tagging capabilities.
 import { cache, configureCache } from '@lockness/cache'
 ```
 
-configureCache({
-    driver: 'memory', // or 'deno-kv'
-    ttl: 3600, // Default TTL in seconds (1 hour)
-    prefix: 'myapp', // Cache key prefix
-    kvPath: './data/cache.db', // Optional: Deno KV path
-})
-```
+configureCache({ driver: 'memory', // or 'deno-kv' ttl: 3600, // Default TTL in
+seconds (1 hour) prefix: 'myapp', // Cache key prefix kvPath: './data/cache.db',
+// Optional: Deno KV path })
 
+````
 ## Decorator-based Caching
 
 Lockness provides a powerful decorator-based caching system that allows you to cache entire controller responses with minimal code. This is the recommended way to handle route-level caching.
@@ -49,15 +46,21 @@ export class ProductController {
         return c.json(await Product.find(c.req.param('id')))
     }
 }
-```
+````
 
 ### Caching Strategies
 
 The `strategy` option determines where the cache is stored:
 
-1.  **`server` (Default)**: The response is stored on the server (In-memory, Deno KV, or Redis). When a cached response exists, the controller method is **not executed**, and the cached result is returned immediately.
-2.  **`http`**: Sets HTTP `Cache-Control` headers (e.g., `max-age=3600`). This tells the browser and intermediate CDNs (like Cloudflare) to cache the response. The controller method **still executes** if the CDN/browser cache is bypassed or expired.
-3.  **`both`**: Combines both strategies. The server caches the result to avoid database hits, and the headers are set to enable CDN caching.
+1. **`server` (Default)**: The response is stored on the server (In-memory, Deno
+   KV, or Redis). When a cached response exists, the controller method is **not
+   executed**, and the cached result is returned immediately.
+2. **`http`**: Sets HTTP `Cache-Control` headers (e.g., `max-age=3600`). This
+   tells the browser and intermediate CDNs (like Cloudflare) to cache the
+   response. The controller method **still executes** if the CDN/browser cache
+   is bypassed or expired.
+3. **`both`**: Combines both strategies. The server caches the result to avoid
+   database hits, and the headers are set to enable CDN caching.
 
 ### Helper Decorators
 
@@ -77,11 +80,14 @@ async stats(c: Context) { ... }
 ### How Server-side Caching Works
 
 When using the `server` or `both` strategy, Lockness:
-1.  Generates a cache key (the URL or your custom key).
-2.  Checks the global `ICache` provider (resolved from the container).
-3.  If a hit occurs, it returns a new `Response` object with the cached body, headers, and status code.
-4.  If a miss occurs, it executes the route handler.
-5.  If the resulting response is successful (`ok`), it clones the response and stores it in the cache for next time.
+
+1. Generates a cache key (the URL or your custom key).
+2. Checks the global `ICache` provider (resolved from the container).
+3. If a hit occurs, it returns a new `Response` object with the cached body,
+   headers, and status code.
+4. If a miss occurs, it executes the route handler.
+5. If the resulting response is successful (`ok`), it clones the response and
+   stores it in the cache for next time.
 
 ---
 
