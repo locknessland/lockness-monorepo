@@ -86,7 +86,9 @@ export function cacheDecoratorMiddleware(
                     }, ttl)
                 } catch (error) {
                     console.error(
-                        `[Lockness] Failed to store response in cache: ${(error as Error).message}`,
+                        `[Lockness] Failed to store response in cache: ${
+                            (error as Error).message
+                        }`,
                     )
                 }
             }
