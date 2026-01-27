@@ -16,18 +16,37 @@ Redis) and tagging capabilities.
 - **Counters** - Increment/decrement for rate limiting and metrics
 - **Batch Operations** - Get/set multiple keys efficiently
 
-## Installation
+## Configuration
+
+Le système de cache se configure directement dans votre **Kernel** via le
+décorateur `@Kernel`.
 
 ```typescript
-import { cache, configureCache } from '@lockness/cache'
+// app/kernel.tsx
+@Kernel({
+    // Configuration simple (utilise les valeurs par défaut : memory, ttl 3600)
+    cache: true,
 
-configureCache({
-    driver: 'memory', // or 'deno-kv'
-    ttl: 3600, // Default TTL in seconds (1 hour)
-    prefix: 'myapp', // Cache key prefix
-    kvPath: './data/cache.db', // Optional: Deno KV path
+    // OU Configuration détaillée
+    cache: {
+        driver: 'deno-kv',
+        ttl: 86400, // 24 heures
+        kvPath: './data/cache.db'
+    }
 })
+export class AppKernel { ... }
 ```
+
+### Options de configuration
+
+| Option   | Type     | Par défaut   | Description                                                                                                            |
+| :------- | :------- | :----------- | :--------------------------------------------------------------------------------------------------------------------- |
+| `driver` | `string` | `'memory'`   | `'memory'`, `'deno-kv'` ou `'redis'`                                                                                   |
+| `ttl`    | `number` | `3600`       | Durée de vie par défaut en secondes                                                                                    |
+| `kvPath` | `string` | `undefined`  | Chemin vers la DB Deno KV. Recommandé de laisser `undefined` sur Deno Deploy. Peut être piloté par `DATABASE_KV_PATH`. |
+| `prefix` | `string` | `'lockness'` | Préfixe pour toutes les clés de cache                                                                                  |
+
+---
 
 ## Decorator-based Caching
 

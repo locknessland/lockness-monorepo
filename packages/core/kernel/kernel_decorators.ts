@@ -82,6 +82,34 @@ export interface SessionConfig {
 }
 
 /**
+ * Cache configuration options
+ */
+export interface CacheConfig {
+    /**
+     * Cache storage driver
+     * @default 'memory'
+     */
+    driver?: 'memory' | 'deno-kv' | 'redis'
+
+    /**
+     * Default time-to-live in seconds
+     * @default 3600 (1 hour)
+     */
+    ttl?: number
+
+    /**
+     * Path to the Deno KV database file (for 'deno-kv' driver)
+     */
+    kvPath?: string
+
+    /**
+     * Prefix for all cache keys
+     * @default 'lockness'
+     */
+    prefix?: string
+}
+
+/**
  * Kernel configuration options
  */
 export interface KernelConfig {
@@ -124,6 +152,26 @@ export interface KernelConfig {
      * ```
      */
     session?: SessionConfig | boolean
+
+    /**
+     * Cache configuration
+     * - `boolean`: Enable with default settings (memory)
+     * - `CacheConfig`: Custom cache configuration
+     * - `undefined`: Skip cache setup
+     *
+     * @example
+     * ```typescript
+     * // Custom configuration
+     * cache: { driver: 'deno-kv', ttl: 86400 }
+     *
+     * // Enable with defaults (memory)
+     * cache: true
+     *
+     * // Disable cache
+     * cache: undefined
+     * ```
+     */
+    cache?: CacheConfig | boolean
 
     /**
      * Enable devtools in development

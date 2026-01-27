@@ -29,6 +29,7 @@
 import { appConfig } from './app.ts'
 import { databaseConfig } from './database.ts'
 import { sessionConfig } from './session.ts'
+import { cacheConfig } from './cache.ts'
 import { mountPointConfig } from './routing.ts'
 import { compileConfig } from './compile.ts'
 import {
@@ -51,6 +52,7 @@ import {
  * config.app.debug       // true/false
  * config.database.url    // 'postgres://...'
  * config.session.secret  // 'your-secret'
+ * config.cache.driver    // 'memory'
  * config.i18n.defaultLocale  // 'en-us'
  * config.routing         // MountPoint config
  * ```
@@ -59,6 +61,7 @@ export const config = {
     app: appConfig,
     database: databaseConfig,
     session: sessionConfig,
+    cache: cacheConfig,
     routing: mountPointConfig,
     compile: compileConfig,
     i18n: {

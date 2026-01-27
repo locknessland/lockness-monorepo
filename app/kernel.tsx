@@ -57,6 +57,9 @@ import { config } from '../config/mod.ts'
     // Session configuration
     session: config.session,
 
+    // Cache configuration
+    cache: config.cache,
+
     // Enable devtools in development
     devtools: true,
 

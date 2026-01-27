@@ -19,6 +19,7 @@ export const INIT_STUB_FILES = [
     'scripts/watch_routes.ts.stub',
     'config/mod.ts.stub',
     'config/app.ts.stub',
+    'config/cache.ts.stub',
     'config/compile.ts.stub',
     'config/database.ts.stub',
     'config/routing.ts.stub',

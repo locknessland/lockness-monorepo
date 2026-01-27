@@ -25,6 +25,7 @@ export { getBootHooks, runBootHooks } from './boot_runner.ts'
 
 // Kernel configuration decorators (new in 0.1.28)
 export {
+    type CacheConfig,
     type DatabaseConfig,
     DeclareGlobalMiddleware,
     Kernel,

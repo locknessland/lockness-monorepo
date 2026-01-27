@@ -44,6 +44,7 @@ export * from './helpers.ts'
 // Export kernel features (boot lifecycle + declarative configuration)
 export {
     type BootHookMeta,
+    type CacheConfig,
     type DatabaseConfig,
     DeclareGlobalMiddleware,
     getBootHooks,

@@ -208,6 +208,37 @@ export async function createApp<T>(KernelClass: new () => T): Promise<App> {
         }
     }
 
+    // Step 2.5: Cache configuration
+    if (config.cache) {
+        try {
+            const { configureCache } = await import('@lockness/cache')
+
+            // Determine cache config
+            const cacheConfig = typeof config.cache === 'object'
+                ? config.cache
+                : {}
+
+            configureCache({
+                driver: cacheConfig.driver ?? 'memory',
+                ttl: cacheConfig.ttl ?? 3600,
+                prefix: cacheConfig.prefix ?? 'lockness',
+                kvPath: cacheConfig.kvPath,
+            })
+        } catch (error) {
+            // Cache package not installed - skip cache setup
+            if (
+                error instanceof TypeError &&
+                error.message.includes('Cannot resolve')
+            ) {
+                console.warn(
+                    '⚠️ @lockness/cache not found - skipping cache setup',
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
     // Step 3: Create App instance
     const app = new App()
 

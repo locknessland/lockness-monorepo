@@ -50,6 +50,9 @@ import { config } from '../config/mod.ts'
     // Uncomment when you add session support:
     // session: config.session,
 
+    // Uncomment when you add cache support:
+    // cache: config.cache,
+
     // Binary compilation configuration
     // See config/compile.ts for configuration
     compile: config.compile,
@@ -91,6 +94,7 @@ export class AppKernel {
  *    ├── app.ts          # App settings (isDevelopment, isProduction)
  *    ├── database.ts     # Database connection
  *    ├── session.ts      # Session management
+ *    ├── cache.ts        # Cache configuration
  *    └── compile.ts      # Binary compilation config
  *
  * Just uncomment the relevant @Kernel options above to enable features!
