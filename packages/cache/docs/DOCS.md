@@ -385,6 +385,13 @@ configureCache({
 - Persistent cache data
 - Multi-worker setups
 
+#### Automatic Value Chunking
+
+Deno KV has a strict **64KB limit** per value. Lockness handles this
+transparently by splitting large values into multiple 60KB chunks. This allows
+you to cache large HTML pages (common in documentation) or large JSON payloads
+without worrying about driver limits.
+
 ### Redis Driver
 
 Distributed cache using Redis for multi-instance deployments:

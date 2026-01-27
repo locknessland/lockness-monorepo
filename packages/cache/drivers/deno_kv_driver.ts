@@ -126,9 +126,9 @@ export class DenoKvCacheDriver implements CacheDriver {
         const encoder = new TextEncoder()
         const bytes = encoder.encode(serialized)
 
-        // Deno KV limit is 64KB per value. We use 32KB per chunk for safety
+        // Deno KV limit is 64KB per value. We use 60KB per chunk for safety
         // and to stay well within atomic transaction limits (800KB).
-        const CHUNK_SIZE = 32768
+        const CHUNK_SIZE = 61440
 
         const expireIn = expiresAt !== null
             ? (expiresAt - Date.now())

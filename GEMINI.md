@@ -672,8 +672,9 @@ by NestJS. It allows you to cache expensive route responses at different layers
 #### Caching Strategies
 
 1. **`server` (Default)**: Result is stored in the application cache (In-memory,
-   Deno KV, Redis). Subsequent requests return the cached response without
-   executing the controller method.
+    Deno KV, Redis). Subsequent requests return the cached response without
+    executing the controller method. **Lockness handles Deno KV's 64KB limit
+    automatically by chunking large values.**
 2. **`http`**: Sets `Cache-Control` headers (e.g., `max-age=3600`) to instruct
    browsers and CDNs (Cloudflare, etc.) to cache the response.
 3. **`both`**: Combines both strategies for maximum performance and efficiency.
