@@ -10,8 +10,8 @@
  * 5. Runs 'deno compile' with configured flags and output
  */
 
-import { dirname, join } from '@std/path'
-import { copy, ensureDir, exists } from '@std/fs'
+import { dirname, join, relative } from '@std/path'
+import { copy, ensureDir, exists, walk } from '@std/fs'
 import { KERNEL_CONFIG } from '../kernel/kernel_decorators.ts'
 import { generateRoutesFile } from '../routing/generator.ts'
 
@@ -143,7 +143,30 @@ export class CompileCommand implements ICommand {
                     if (await exists(sourcePath)) {
                         console.log(`  - Copying ${source} to ${target}...`)
                         await ensureDir(dirname(targetPath))
-                        await copy(sourcePath, targetPath, { overwrite: true })
+
+                        if (typeof asset !== 'string' && asset.include) {
+                            const include = asset.include
+                            const regex = typeof include === 'string'
+                                ? new RegExp(include)
+                                : include
+
+                            for await (const entry of walk(sourcePath)) {
+                                if (entry.isDirectory) continue
+                                if (regex.test(entry.path)) {
+                                    const relPath = relative(
+                                        sourcePath,
+                                        entry.path,
+                                    )
+                                    const destPath = join(targetPath, relPath)
+                                    await ensureDir(dirname(destPath))
+                                    await Deno.copyFile(entry.path, destPath)
+                                }
+                            }
+                        } else {
+                            await copy(sourcePath, targetPath, {
+                                overwrite: true,
+                            })
+                        }
                     } else {
                         console.warn(`  - ⚠️ Asset not found: ${source}`)
                     }

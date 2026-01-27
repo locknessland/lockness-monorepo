@@ -27,7 +27,11 @@ export const compileConfig: CompileConfig = {
      */
     assets: [
         'public',
-        'docs',
+        {
+            source: 'docs',
+            target: 'docs',
+            include: /\.md$/,
+        },
         {
             source: 'packages/ui/components',
             target: 'packages/ui/components',

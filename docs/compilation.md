@@ -43,7 +43,7 @@ export const compileConfig: CompileConfig = {
     flags: ['-A', '--env-file=.env.production.local'], // Deno compile flags
     assets: [ // Files/folders to copy to _dist
         'public',
-        'docs',
+        { source: 'docs', target: 'docs', include: /\.md$/ }, // Only copy .md files
         { source: 'packages/ui/components', target: 'packages/ui/components' },
     ],
     scripts: [ // Commands to run before compilation

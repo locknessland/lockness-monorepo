@@ -50,6 +50,7 @@ export interface AppConfig {
 export interface AssetMapping {
     readonly source: string
     readonly target: string
+    readonly include?: string | RegExp
 }
 
 /**
