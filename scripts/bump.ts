@@ -321,11 +321,17 @@ async function main(): Promise<void> {
             const versionSemver = semver.parse(currentVersion)
 
             if (args.major) {
-                newVersion = semver.format(semver.increment(versionSemver, 'major'))
+                newVersion = semver.format(
+                    semver.increment(versionSemver, 'major'),
+                )
             } else if (args.minor) {
-                newVersion = semver.format(semver.increment(versionSemver, 'minor'))
+                newVersion = semver.format(
+                    semver.increment(versionSemver, 'minor'),
+                )
             } else if (args.patch) {
-                newVersion = semver.format(semver.increment(versionSemver, 'patch'))
+                newVersion = semver.format(
+                    semver.increment(versionSemver, 'patch'),
+                )
             } else {
                 console.error(
                     '❌ Merci de spécifier une version ou un flag type --major, --minor, --patch.',
@@ -339,7 +345,9 @@ async function main(): Promise<void> {
             )
         } catch (error) {
             console.error(
-                `❌ Impossible de lire la version actuelle: ${getErrorMessage(error)}`,
+                `❌ Impossible de lire la version actuelle: ${
+                    getErrorMessage(error)
+                }`,
             )
             Deno.exit(1)
         }
