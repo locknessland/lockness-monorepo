@@ -18,6 +18,8 @@
     "jsr:@std/jsonc@1": "1.0.2",
     "jsr:@std/path@1": "1.1.4",
     "jsr:@std/path@^1.1.4": "1.1.4",
+    "jsr:@std/semver@*": "1.0.8",
+    "jsr:@std/semver@1": "1.0.8",
     "jsr:@std/testing@1": "1.0.17",
     "jsr:@std/text@^1.0.16": "1.0.17",
     "jsr:@std/yaml@^1.0.10": "1.0.11",
@@ -143,6 +145,9 @@
       "dependencies": [
         "jsr:@std/internal@^1.0.12"
       ]
+    },
+    "@std/semver@1.0.8": {
+      "integrity": "dc830e8b8b6a380c895d53fbfd1258dc253704ca57bbe1629ac65fd7830179b7"
     },
     "@std/testing@1.0.17": {
       "integrity": "87bdc2700fa98249d48a17cd72413352d3d3680dcfbdb64947fd0982d6bbf681",
@@ -3894,6 +3899,7 @@
       "jsr:@std/fs@1",
       "jsr:@std/jsonc@1",
       "jsr:@std/path@1",
+      "jsr:@std/semver@1",
       "jsr:@std/testing@1",
       "npm:@tailwindcss/cli@^4.1.18",
       "npm:clsx@2.1.1",

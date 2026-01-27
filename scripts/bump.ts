@@ -19,6 +19,8 @@
  */
 
 import { parse } from '@std/jsonc'
+import { parseArgs } from '@std/cli/parse-args'
+import * as semver from '@std/semver'
 
 // =============================================================================
 // Types
@@ -302,13 +304,45 @@ function printSummary(newVersion: string): void {
  * Orchestrates the version bump across all packages.
  */
 async function main(): Promise<void> {
-    const newVersion = Deno.args[0]
+    const args = parseArgs(Deno.args, {
+        boolean: ['major', 'minor', 'patch'],
+        alias: { major: 'M', minor: 'm', patch: 'p' },
+    })
+
+    let newVersion = args._[0]?.toString()
 
     if (!newVersion) {
-        console.error(
-            '❌ Merci de spécifier une version. Ex: deno task bump 0.2.0',
-        )
-        Deno.exit(1)
+        // Read current version to determine next version
+        try {
+            const content = await Deno.readTextFile(ROOT_CONFIG_PATH)
+            const config = parse(content) as unknown as RootConfig
+            const currentVersion = config.version
+
+            const versionSemver = semver.parse(currentVersion)
+
+            if (args.major) {
+                newVersion = semver.format(semver.increment(versionSemver, 'major'))
+            } else if (args.minor) {
+                newVersion = semver.format(semver.increment(versionSemver, 'minor'))
+            } else if (args.patch) {
+                newVersion = semver.format(semver.increment(versionSemver, 'patch'))
+            } else {
+                console.error(
+                    '❌ Merci de spécifier une version ou un flag type --major, --minor, --patch.',
+                )
+                console.error('   Ex: deno task bump 0.2.0')
+                console.error('   Ex: deno task bump --minor')
+                Deno.exit(1)
+            }
+            console.log(
+                `ℹ️  Bump automatique: ${currentVersion} -> ${newVersion}`,
+            )
+        } catch (error) {
+            console.error(
+                `❌ Impossible de lire la version actuelle: ${getErrorMessage(error)}`,
+            )
+            Deno.exit(1)
+        }
     }
 
     // Validate version format
