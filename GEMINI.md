@@ -2818,8 +2818,7 @@ This displays a formatted table showing:
 - **PATH**: Route path with parameters
 - **CONTROLLER**: Controller class name
 - **ACTION**: Method name
-- **MIDDLEWARES**: Applied middlewares (@Auth, @Validate, or named
-  middlewares)
+- **MIDDLEWARES**: Applied middlewares (@Auth, @Validate, or named middlewares)
 
 Example output:
 
