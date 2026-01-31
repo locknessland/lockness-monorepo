@@ -24,9 +24,13 @@ public/css/
 
 # Scripts should be versioned (remove any script-related ignores if present)
 
+# Initialize a new Lockness project (Only for development purposes)
+_lockness_app
+
+# LLMs documentations .md ... We only use AGENTS.md in the project
+GEMINI.md
+CLAUDE.md
+
 # Nessy CLI wrapper (root only)
 /nessy
 /nessy.cmd
-
-# Initialize a new Lockness project (Only for development purposes)
-_lockness_app
