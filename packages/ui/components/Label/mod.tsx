@@ -58,9 +58,9 @@ export const Label: FC<LabelProps> = ({
     return (
         <label
             class={cn(
-                'text-sm font-medium leading-none',
+                'text-[length:--label-font-size] font-(--label-font-weight) leading-(--label-line-height)',
                 'text-(--foreground)',
-                'peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
+                'peer-disabled:cursor-not-allowed peer-disabled:opacity-(--label-disabled-opacity)',
                 className,
             )}
             {...props}

@@ -191,6 +191,79 @@ The Spinner includes proper ARIA attributes for screen readers:
 </Card>
 ```
 
+## Theming
+
+The Spinner component can be customized using CSS variables. This allows you to
+change the appearance of spinners, including size, colors, border width, and
+animation duration globally or override specific instances.
+
+### Available CSS Variables
+
+| Variable                       | Default            | Description                          |
+| ------------------------------ | ------------------ | ------------------------------------ |
+| `--spinner-size-sm`            | `1rem`             | Size for small spinner               |
+| `--spinner-size-md`            | `1.5rem`           | Size for medium spinner              |
+| `--spinner-size-lg`            | `2rem`             | Size for large spinner               |
+| `--spinner-size-xl`            | `3rem`             | Size for extra large spinner         |
+| `--spinner-border-width-sm`    | `2px`              | Border width for small spinner       |
+| `--spinner-border-width-md`    | `3px`              | Border width for medium spinner      |
+| `--spinner-border-width-lg`    | `3px`              | Border width for large spinner       |
+| `--spinner-border-width-xl`    | `4px`              | Border width for extra large spinner |
+| `--spinner-default-color`      | `var(--primary)`   | Default spinner color                |
+| `--spinner-success-color`      | `hsl(142 76% 36%)` | Success variant color                |
+| `--spinner-warning-color`      | `hsl(38 92% 50%)`  | Warning variant color                |
+| `--spinner-info-color`         | `hsl(221 83% 53%)` | Info variant color                   |
+| `--spinner-animation-duration` | `0.75s`            | Duration of the rotation animation   |
+
+### Theming Examples
+
+#### Global Customization
+
+Customize all spinners by setting CSS variables in your theme:
+
+```css
+/* app/view/assets/app.css */
+@theme {
+    --spinner-size-md: 2rem;
+    --spinner-border-width-md: 4px;
+    --spinner-default-color: hsl(280 70% 50%);
+    --spinner-animation-duration: 1s;
+}
+```
+
+#### Local Overrides
+
+Override CSS variables for specific spinner instances:
+
+```tsx
+<div style='--spinner-size-md: 3rem; --spinner-border-width-md: 5px;'>
+    <Spinner size='md' />
+</div>
+```
+
+#### Component-Specific Theming
+
+Create themed sections with different spinner styles:
+
+```tsx
+<section class="fast-spinners">
+    <style>
+        .fast-spinners {
+            --spinner-animation-duration: 0.5s;
+            --spinner-default-color: hsl(200 100% 50%);
+            --spinner-border-width-sm: 3px;
+            --spinner-border-width-md: 4px;
+            --spinner-border-width-lg: 5px;
+        }
+    </style>
+    <div class="flex items-center gap-4">
+        <Spinner size="sm" />
+        <Spinner size="md" />
+        <Spinner size="lg" />
+    </div>
+</section>
+```
+
 ## Styling
 
 The spinner uses a CSS keyframe animation for smooth rotation:

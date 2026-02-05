@@ -335,6 +335,59 @@ Evolution management with Devtools integration. See:
 
 ---
 
+## 🎨 Tailwind CSS v4 - CSS Variables Syntax
+
+> **CRITICAL**: This project uses Tailwind CSS v4. When using CSS variables in
+> utility classes, you MUST use **parentheses `()`** syntax, NOT brackets `[]`.
+
+### ✅ Correct Syntax (Tailwind v4)
+
+```tsx
+// Use parentheses for CSS variable references
+'bg-(--my-background)'
+'text-(--my-color)'
+'px-(--my-padding)'
+'rounded-(--my-radius)'
+'border-(--my-border-color)'
+'h-(--my-height)'
+'w-(--my-width)'
+'gap-(--my-gap)'
+```
+
+### ❌ Incorrect Syntax (Will NOT resolve variables)
+
+```tsx
+// Brackets are for arbitrary VALUES, not CSS variable references
+'bg-[--my-background]' // ❌ Won't work - treated as literal string
+'px-[--my-padding]' // ❌ Won't work - no padding applied
+'h-[--my-height]' // ❌ Won't work
+```
+
+### Special Cases
+
+```tsx
+// For font-size with CSS variables, use the length modifier:
+'text-[length:--font-size-var]'
+
+// For colors with opacity:
+'bg-(--primary)/50'
+
+// Arbitrary values (actual CSS values, not variables):
+'px-[0.75rem]' // ✅ Correct - this is a direct value
+'h-[200px]' // ✅ Correct - this is a direct value
+```
+
+### Quick Reference
+
+| Purpose            | Syntax                    | Example                   |
+| ------------------ | ------------------------- | ------------------------- |
+| CSS Variable       | `utility-(--var-name)`    | `bg-(--primary)`          |
+| Arbitrary Value    | `utility-[value]`         | `px-[0.75rem]`            |
+| Font-size Variable | `text-[length:--var]`     | `text-[length:--text-sm]` |
+| Color with Opacity | `utility-(--var)/opacity` | `bg-(--primary)/50`       |
+
+---
+
 ## ⚙️ Development Workflow
 
 ### Quality Assurance

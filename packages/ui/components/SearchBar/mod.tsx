@@ -118,7 +118,7 @@ export interface SearchBarProps {
 
 const variantStyles: Record<SearchBarVariant, string> = {
     default: `
-        border border-(--input) bg-(--background)
+        border border-(--searchbar-border-color) bg-(--searchbar-background)
         focus-within:ring-2 focus-within:ring-(--ring) focus-within:ring-offset-2
     `,
     ghost: `
@@ -145,8 +145,9 @@ const sizeStyles: Record<
         icon: 14,
     },
     md: {
-        container: 'h-10 px-3 gap-2',
-        input: 'text-sm',
+        container:
+            'h-(--searchbar-height) px-(--searchbar-padding-x) py-(--searchbar-padding-y) gap-2',
+        input: 'text-[length:--searchbar-font-size]',
         icon: 16,
     },
     lg: {
@@ -216,7 +217,7 @@ export const SearchBar: FC<SearchBarProps> = ({
     return (
         <div
             class={cn(
-                'relative inline-flex items-center rounded-(--radius)',
+                'relative inline-flex items-center rounded-(--searchbar-border-radius)',
                 'transition-all duration-200',
                 variantStyles[variant],
                 sizeConfig.container,
@@ -227,7 +228,7 @@ export const SearchBar: FC<SearchBarProps> = ({
         >
             {/* Left Icon */}
             {showIcon && iconPosition === 'left' && (
-                <span class='shrink-0 text-(--muted-foreground)'>
+                <span class='shrink-0 text-(--searchbar-icon-color)'>
                     {loading
                         ? (
                             <LoaderIcon
@@ -262,14 +263,14 @@ export const SearchBar: FC<SearchBarProps> = ({
 
             {/* Right Icon (when position is right) */}
             {showIcon && iconPosition === 'right' && !loading && (
-                <span class='shrink-0 text-(--muted-foreground)'>
+                <span class='shrink-0 text-(--searchbar-icon-color)'>
                     <SearchIcon size={sizeConfig.icon} />
                 </span>
             )}
 
             {/* Loading indicator (right side) */}
             {loading && iconPosition === 'right' && (
-                <span class='shrink-0 text-(--muted-foreground)'>
+                <span class='shrink-0 text-(--searchbar-icon-color)'>
                     <LoaderIcon size={sizeConfig.icon} class='animate-spin' />
                 </span>
             )}

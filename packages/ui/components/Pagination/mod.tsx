@@ -192,17 +192,17 @@ export const PaginationItem: FC<PaginationItemProps> = ({
 }) => {
     const baseClasses = cn(
         'inline-flex items-center justify-center',
-        'min-w-9 h-9 px-3',
-        'text-sm font-medium',
-        'rounded-(--radius)',
+        'h-(--pagination-item-size) w-(--pagination-item-size)',
+        'text-[length:--pagination-item-font-size] font-medium',
+        'rounded-(--pagination-item-border-radius)',
         'transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
     )
 
     const stateClasses = cn(
         isActive
-            ? 'bg-primary text-primary-foreground'
-            : 'hover:bg-accent hover:text-accent-foreground',
+            ? 'bg-(--pagination-item-active-background) text-(--pagination-item-active-foreground)'
+            : 'bg-(--pagination-item-background) text-(--pagination-item-foreground) hover:bg-(--pagination-item-background-hover) hover:text-(--pagination-item-foreground-hover)',
         disabled && 'pointer-events-none opacity-50',
     )
 
@@ -243,7 +243,7 @@ export const PaginationEllipsis: FC<{ class?: string }> = ({
 }) => (
     <span
         class={cn(
-            'inline-flex items-center justify-center min-w-9 h-9',
+            'inline-flex items-center justify-center h-(--pagination-item-size) w-(--pagination-item-size)',
             'text-muted-foreground',
             className,
         )}
@@ -262,7 +262,10 @@ export const PaginationPrevious: FC<PaginationItemProps> = ({
     children,
     ...props
 }) => (
-    <PaginationItem class={cn('gap-1 pl-2.5', className)} {...props}>
+    <PaginationItem
+        class={cn('gap-(--pagination-gap) pl-2.5', className)}
+        {...props}
+    >
         <ChevronLeftIcon size={16} />
         <span>{children ?? 'Previous'}</span>
     </PaginationItem>
@@ -277,7 +280,10 @@ export const PaginationNext: FC<PaginationItemProps> = ({
     children,
     ...props
 }) => (
-    <PaginationItem class={cn('gap-1 pr-2.5', className)} {...props}>
+    <PaginationItem
+        class={cn('gap-(--pagination-gap) pr-2.5', className)}
+        {...props}
+    >
         <span>{children ?? 'Next'}</span>
         <ChevronRightIcon size={16} />
     </PaginationItem>
@@ -291,7 +297,12 @@ export const PaginationContent: FC<{ class?: string; children?: unknown }> = ({
     class: className,
     children,
 }) => (
-    <div class={cn('flex flex-row items-center gap-1', className)}>
+    <div
+        class={cn(
+            'flex flex-row items-center gap-(--pagination-gap)',
+            className,
+        )}
+    >
         {children}
     </div>
 )
@@ -511,7 +522,7 @@ export const SimplePagination: FC<SimplePaginationProps> = ({
             />
 
             {showPageInfo && (
-                <span class='text-sm text-muted-foreground'>
+                <span class='text-[length:--pagination-item-font-size] text-muted-foreground'>
                     Page {currentPage} of {totalPages}
                 </span>
             )}

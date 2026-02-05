@@ -153,7 +153,7 @@ export const Breadcrumb: FC<BreadcrumbProps> = ({
     return (
         <nav
             aria-label='breadcrumb'
-            class={cn('text-sm', className)}
+            class={cn('text-[length:--breadcrumb-font-size]', className)}
             {...props}
         >
             {children}
@@ -172,8 +172,8 @@ export const BreadcrumbList: FC<BreadcrumbListProps> = ({
     return (
         <ol
             class={cn(
-                'flex flex-wrap items-center gap-1.5 wrap-break-word',
-                'text-(--muted-foreground)',
+                'flex flex-wrap items-center gap-(--breadcrumb-gap) wrap-break-word',
+                'text-(--breadcrumb-separator-color)',
                 className,
             )}
             {...props}
@@ -193,7 +193,10 @@ export const BreadcrumbItem: FC<BreadcrumbItemProps> = ({
 }) => {
     return (
         <li
-            class={cn('inline-flex items-center gap-1.5', className)}
+            class={cn(
+                'inline-flex items-center gap-(--breadcrumb-gap)',
+                className,
+            )}
             {...props}
         >
             {children}
@@ -212,7 +215,7 @@ export const BreadcrumbLink: FC<BreadcrumbLinkProps> = ({
     return (
         <a
             class={cn(
-                'transition-colors hover:text-(--foreground)',
+                'text-(--breadcrumb-link-color) transition-colors hover:text-(--breadcrumb-link-hover-color)',
                 className,
             )}
             {...props}
@@ -255,7 +258,10 @@ export const BreadcrumbPage: FC<BreadcrumbPageProps> = ({
             role='link'
             aria-disabled='true'
             aria-current='page'
-            class={cn('font-normal text-(--foreground)', className)}
+            class={cn(
+                'font-normal text-(--breadcrumb-current-color)',
+                className,
+            )}
             {...props}
         >
             {children}

@@ -32,8 +32,8 @@ Deno.test('SearchBar component', async (t) => {
 
     await t.step('renders default variant', () => {
         const html = renderToString(<SearchBar variant='default' />)
-        assertStringIncludes(html, 'border-(--input)')
-        assertStringIncludes(html, 'bg-(--background)')
+        assertStringIncludes(html, 'border-(--searchbar-border-color)')
+        assertStringIncludes(html, 'bg-(--searchbar-background)')
     })
 
     await t.step('renders ghost variant', () => {
@@ -60,8 +60,8 @@ Deno.test('SearchBar component', async (t) => {
 
     await t.step('renders medium size (default)', () => {
         const html = renderToString(<SearchBar size='md' />)
-        assertStringIncludes(html, 'h-10')
-        assertStringIncludes(html, 'text-sm')
+        assertStringIncludes(html, 'h-(--searchbar-height)')
+        assertStringIncludes(html, 'text-[length:--searchbar-font-size]')
     })
 
     await t.step('renders large size', () => {
@@ -175,9 +175,9 @@ Deno.test('SearchBar component', async (t) => {
 
     await t.step('uses CSS variables for styling', () => {
         const html = renderToString(<SearchBar />)
-        assertStringIncludes(html, '(--radius)')
+        assertStringIncludes(html, 'rounded-(--searchbar-border-radius)')
         assertStringIncludes(html, '(--muted-foreground)')
-        assertStringIncludes(html, '(--background)')
+        assertStringIncludes(html, '(--searchbar-background)')
     })
 })
 

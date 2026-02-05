@@ -89,7 +89,7 @@ export const Home = () => {
                 {/* Header */}
                 <Navbar position='fixed'>
                     <NavbarBrand href='/'>
-                        <div class='w-8 h-8 bg-primary rounded-(--radius) flex items-center justify-center'>
+                        <div class='w-8 h-8 bg-primary flex items-center justify-center'>
                             <span class='text-sm font-bold text-primary-foreground'>
                                 L
                             </span>
@@ -155,12 +155,16 @@ export const Home = () => {
                 <ThemeSwitchScript />
 
                 {/* Hero Section */}
-                <Hero background='gradient' size='xl' class='pt-32'>
+                <Hero background='gradient' size='xl'>
                     <HeroAnnouncement badge={`v${pkg.version}`}>
                         Now available on JSR
                     </HeroAnnouncement>
 
-                    <HeroTitle size='lg' gradient='at monster speed.'>
+                    <HeroTitle
+                        size='md'
+                        class='mx-auto md:w-[800px]'
+                        gradient='at monster speed.'
+                    >
                         Build fullstack apps
                     </HeroTitle>
 

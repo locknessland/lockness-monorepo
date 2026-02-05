@@ -103,6 +103,104 @@ import {
 | class    | `string`  | -       | Additional CSS class names |
 | children | `unknown` | -       | Children content           |
 
+## Theming
+
+The Hero component can be customized using CSS variables. This allows you to
+change the appearance of hero sections globally or override specific instances.
+
+### Available CSS Variables
+
+| Variable                       | Default   | Description                         |
+| ------------------------------ | --------- | ----------------------------------- |
+| `--hero-padding-y`             | `4rem`    | Vertical padding                    |
+| `--hero-padding-x`             | `1.5rem`  | Horizontal padding                  |
+| `--hero-title-font-size`       | `3rem`    | Title font size (base)              |
+| `--hero-title-font-size-md`    | `4rem`    | Title font size (medium screens)    |
+| `--hero-title-font-size-lg`    | `5rem`    | Title font size (large screens)     |
+| `--hero-subtitle-font-size`    | `1.25rem` | Subtitle font size (base)           |
+| `--hero-subtitle-font-size-md` | `1.5rem`  | Subtitle font size (medium screens) |
+| `--hero-gap`                   | `1.5rem`  | Gap between hero elements           |
+
+### Theming Examples
+
+#### Global Customization
+
+Customize all hero sections by setting CSS variables in your theme:
+
+```css
+/* app/view/assets/app.css */
+@theme {
+    /* Increase padding for more spacious heroes */
+    --hero-padding-y: 6rem;
+    --hero-padding-x: 2rem;
+
+    /* Larger title sizes */
+    --hero-title-font-size: 3.5rem;
+    --hero-title-font-size-md: 4.5rem;
+    --hero-title-font-size-lg: 6rem;
+
+    /* Adjust subtitle size */
+    --hero-subtitle-font-size: 1.5rem;
+    --hero-subtitle-font-size-md: 1.75rem;
+
+    /* More spacing between elements */
+    --hero-gap: 2rem;
+}
+```
+
+#### Local Overrides
+
+Override CSS variables for specific hero instances:
+
+```tsx
+<div style="--hero-padding-y: 2rem; --hero-title-font-size: 2rem;">
+    <Hero>
+        {/* Compact hero with smaller text */}
+        <HeroTitle>Welcome</HeroTitle>
+    </Hero>
+</div>
+
+<div style="--hero-title-font-size-lg: 7rem; --hero-gap: 3rem;">
+    <Hero size="xl">
+        {/* Extra large hero with massive title */}
+        <HeroTitle>Big Announcement</HeroTitle>
+    </Hero>
+</div>
+```
+
+#### Component-Specific Theming
+
+Create themed sections with different hero styles:
+
+```tsx
+<div class="landing-hero" style={{
+    '--hero-padding-y': '8rem',
+    '--hero-title-font-size': '4rem',
+    '--hero-title-font-size-lg': '6rem',
+    '--hero-gap': '2.5rem'
+}}>
+    <Hero background="gradient" size="xl">
+        {/* Large, spacious landing page hero */}
+        <HeroTitle>Build Amazing Things</HeroTitle>
+        <HeroSubtitle>Start building today</HeroSubtitle>
+    </Hero>
+</div>
+
+<div class="compact-hero" style={{
+    '--hero-padding-y': '2rem',
+    '--hero-padding-x': '1rem',
+    '--hero-title-font-size': '2rem',
+    '--hero-subtitle-font-size': '1rem',
+    '--hero-gap': '1rem'
+}}>
+    <Hero size="sm">
+        {/* Compact hero for internal pages */}
+        <HeroTitle>Dashboard</HeroTitle>
+        <HeroSubtitle>Manage your account</HeroSubtitle>
+    </Hero>
+</div>
+```
+
 ## Examples
 
 ### Basic Example

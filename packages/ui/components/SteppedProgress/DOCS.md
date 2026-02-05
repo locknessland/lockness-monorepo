@@ -98,16 +98,146 @@ import { SteppedProgress } from '@lockness/ui/components'
 
 ## CSS Variables
 
-SteppedProgress uses the same CSS variables as Progress:
+SteppedProgress uses the same CSS variables as Progress, plus additional
+step-specific variables:
 
-| Variable                           | Default                     | Description                        |
-| ---------------------------------- | --------------------------- | ---------------------------------- |
-| `--progress-border-radius`         | `var(--radius)`             | Border radius of each segment      |
-| `--progress-outline-border-width`  | `2px`                       | Border width for outlined wrapper  |
-| `--progress-outline-padding`       | `0.25rem`                   | Padding inside outlined wrapper    |
-| `--progress-outline-border-radius` | `calc(var(--radius) + 4px)` | Border radius for outlined wrapper |
-| `--progress-stripe-size`           | `1rem`                      | Size of diagonal stripes           |
-| `--progress-animation-duration`    | `1s`                        | Duration of stripe animation       |
+| Variable                              | Default                     | Description                        |
+| ------------------------------------- | --------------------------- | ---------------------------------- |
+| `--progress-border-radius`            | `var(--radius)`             | Border radius of each segment      |
+| `--progress-outline-border-width`     | `2px`                       | Border width for outlined wrapper  |
+| `--progress-outline-padding`          | `0.25rem`                   | Padding inside outlined wrapper    |
+| `--progress-outline-border-radius`    | `calc(var(--radius) + 4px)` | Border radius for outlined wrapper |
+| `--progress-stripe-size`              | `1rem`                      | Size of diagonal stripes           |
+| `--progress-animation-duration`       | `1s`                        | Duration of stripe animation       |
+| `--stepped-progress-step-size`        | `2rem`                      | Size of step indicators            |
+| `--stepped-progress-step-font-size`   | `0.875rem`                  | Font size for step numbers         |
+| `--stepped-progress-step-font-weight` | `600`                       | Font weight for step numbers       |
+| `--stepped-progress-connector-height` | `2px`                       | Height of connecting line          |
+| `--stepped-progress-connector-color`  | `var(--border)`             | Color of connecting line           |
+| `--stepped-progress-active-color`     | `var(--primary)`            | Color of active step               |
+| `--stepped-progress-inactive-color`   | `var(--muted)`              | Color of inactive steps            |
+| `--stepped-progress-completed-color`  | `var(--primary)`            | Color of completed steps           |
+| `--stepped-progress-label-font-size`  | `0.875rem`                  | Font size for step labels          |
+| `--stepped-progress-label-margin-top` | `0.5rem`                    | Spacing above step labels          |
+
+## Theming
+
+The SteppedProgress component can be customized using CSS variables. Override
+these variables to match your design system.
+
+### Available CSS Variables
+
+| Variable                              | Default                     | Description                        |
+| ------------------------------------- | --------------------------- | ---------------------------------- |
+| `--progress-border-radius`            | `var(--radius)`             | Border radius of each segment      |
+| `--progress-outline-border-width`     | `2px`                       | Border width for outlined wrapper  |
+| `--progress-outline-padding`          | `0.25rem`                   | Padding inside outlined wrapper    |
+| `--progress-outline-border-radius`    | `calc(var(--radius) + 4px)` | Border radius for outlined wrapper |
+| `--progress-stripe-size`              | `1rem`                      | Size of diagonal stripes           |
+| `--progress-animation-duration`       | `1s`                        | Duration of stripe animation       |
+| `--stepped-progress-step-size`        | `2rem`                      | Size of step indicators            |
+| `--stepped-progress-step-font-size`   | `0.875rem`                  | Font size for step numbers         |
+| `--stepped-progress-step-font-weight` | `600`                       | Font weight for step numbers       |
+| `--stepped-progress-connector-height` | `2px`                       | Height of connecting line          |
+| `--stepped-progress-connector-color`  | `var(--border)`             | Color of connecting line           |
+| `--stepped-progress-active-color`     | `var(--primary)`            | Color of active step               |
+| `--stepped-progress-inactive-color`   | `var(--muted)`              | Color of inactive steps            |
+| `--stepped-progress-completed-color`  | `var(--primary)`            | Color of completed steps           |
+| `--stepped-progress-label-font-size`  | `0.875rem`                  | Font size for step labels          |
+| `--stepped-progress-label-margin-top` | `0.5rem`                    | Spacing above step labels          |
+
+### Theming Examples
+
+#### Custom Step Size and Typography
+
+```css
+:root {
+    --stepped-progress-step-size: 2.5rem;
+    --stepped-progress-step-font-size: 1rem;
+    --stepped-progress-step-font-weight: 700;
+}
+```
+
+#### Custom Connector Style
+
+```css
+:root {
+    --stepped-progress-connector-height: 3px;
+    --stepped-progress-connector-color: hsl(240 5% 80%);
+}
+
+.dark {
+    --stepped-progress-connector-color: hsl(240 5% 30%);
+}
+```
+
+#### Custom Step Colors
+
+```css
+:root {
+    --stepped-progress-active-color: hsl(220 90% 56%);
+    --stepped-progress-inactive-color: hsl(240 5% 65%);
+    --stepped-progress-completed-color: hsl(142 76% 36%);
+}
+
+.dark {
+    --stepped-progress-active-color: hsl(220 90% 66%);
+    --stepped-progress-inactive-color: hsl(240 5% 45%);
+    --stepped-progress-completed-color: hsl(142 76% 46%);
+}
+```
+
+#### Custom Label Style
+
+```css
+:root {
+    --stepped-progress-label-font-size: 1rem;
+    --stepped-progress-label-margin-top: 0.75rem;
+}
+```
+
+#### Complete Custom Theme
+
+```css
+:root {
+    /* Segment styling */
+    --progress-border-radius: 0.5rem;
+
+    /* Outline styling */
+    --progress-outline-border-width: 1px;
+    --progress-outline-padding: 0.375rem;
+    --progress-outline-border-radius: 0.75rem;
+
+    /* Stripe styling */
+    --progress-stripe-size: 0.75rem;
+    --progress-animation-duration: 1.5s;
+
+    /* Step indicators */
+    --stepped-progress-step-size: 3rem;
+    --stepped-progress-step-font-size: 1rem;
+    --stepped-progress-step-font-weight: 700;
+
+    /* Connector */
+    --stepped-progress-connector-height: 3px;
+    --stepped-progress-connector-color: hsl(210 40% 85%);
+
+    /* Colors */
+    --stepped-progress-active-color: hsl(262 83% 58%);
+    --stepped-progress-inactive-color: hsl(240 5% 70%);
+    --stepped-progress-completed-color: hsl(160 60% 45%);
+
+    /* Labels */
+    --stepped-progress-label-font-size: 1rem;
+    --stepped-progress-label-margin-top: 1rem;
+}
+
+.dark {
+    --stepped-progress-connector-color: hsl(210 40% 25%);
+    --stepped-progress-active-color: hsl(262 83% 68%);
+    --stepped-progress-inactive-color: hsl(240 5% 40%);
+    --stepped-progress-completed-color: hsl(160 60% 55%);
+}
+```
 
 ## Features
 

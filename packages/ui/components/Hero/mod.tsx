@@ -49,10 +49,10 @@ export interface HeroProps {
 }
 
 const sizeClasses = {
-    sm: 'py-12 md:py-16',
-    md: 'py-16 md:py-24',
-    lg: 'py-24 md:py-32',
-    xl: 'py-32 md:py-48',
+    sm: 'py-(--hero-padding-y)',
+    md: 'py-(--hero-padding-y)',
+    lg: 'py-(--hero-padding-y)',
+    xl: 'py-(--hero-padding-y)',
 }
 
 const maxWidthClasses = {
@@ -104,6 +104,7 @@ export const Hero: FC<HeroProps> = ({
     return (
         <section
             class={cn(
+                'px-(--hero-padding-x) py-(--hero-padding-y)',
                 'relative overflow-hidden',
                 sizeClasses[size],
                 backgroundStyles[background],
@@ -113,7 +114,7 @@ export const Hero: FC<HeroProps> = ({
         >
             <div
                 class={cn(
-                    'mx-auto px-4 sm:px-6 lg:px-8',
+                    'mx-auto',
                     maxWidthClasses[maxWidth],
                     align === 'center' && 'text-center',
                 )}
@@ -219,7 +220,7 @@ export interface HeroTitleProps {
      * Title size
      * @default 'default'
      */
-    size?: 'sm' | 'default' | 'lg' | 'xl'
+    size?: 'sm' | 'md' | 'lg' | 'xl' | 'default'
     /**
      * Gradient text (wrap part of title in this)
      */
@@ -253,10 +254,12 @@ export interface HeroTitleProps {
 }
 
 const titleSizeClasses = {
-    sm: 'text-2xl md:text-3xl lg:text-4xl',
-    default: 'text-3xl md:text-4xl lg:text-5xl',
-    lg: 'text-4xl md:text-5xl lg:text-6xl',
-    xl: 'text-5xl md:text-6xl lg:text-7xl',
+    sm: 'text-(length:--hero-title-font-size) md:text-(length:--hero-title-font-size-md) lg:text-(length:--hero-title-font-size-lg)',
+    md: 'text-(length:--hero-title-font-size) md:text-(length:--hero-title-font-size-md) lg:text-(length:--hero-title-font-size-lg)',
+    lg: 'text-(length:--hero-title-font-size) md:text-(length:--hero-title-font-size-md) lg:text-(length:--hero-title-font-size-lg)',
+    xl: 'text-(length:--hero-title-font-size) md:text-(length:--hero-title-font-size-md) lg:text-(length:--hero-title-font-size-lg)',
+    default:
+        'text-(length:--hero-title-font-size) md:text-(length:--hero-title-font-size-md) lg:text-(length:--hero-title-font-size-lg)',
 }
 
 const gradientClasses = {
@@ -271,7 +274,7 @@ const gradientClasses = {
  * Hero Title Component
  */
 export const HeroTitle: FC<HeroTitleProps> = ({
-    size = 'default',
+    size = 'md',
     gradient,
     gradientColors = 'primary',
     gradientClass,
@@ -282,7 +285,7 @@ export const HeroTitle: FC<HeroTitleProps> = ({
     return (
         <h1
             class={cn(
-                'block font-bold text-foreground',
+                'block font-bold text-foreground leading-(--hero-title-line-height)',
                 titleSizeClasses[size],
                 className,
             )}
@@ -351,7 +354,7 @@ export const HeroSubtitle: FC<HeroSubtitleProps> = ({
     return (
         <p
             class={cn(
-                'mt-5 text-lg text-muted-foreground mx-auto',
+                'mt-5 text-(length:--hero-subtitle-font-size) md:text-(length:--hero-subtitle-font-size-md) text-muted-foreground mx-auto',
                 subtitleMaxWidthClasses[maxWidth],
                 className,
             )}
@@ -390,7 +393,10 @@ export const HeroActions: FC<HeroActionsProps> = ({
 }) => {
     return (
         <div
-            class={cn('mt-8 gap-3 flex justify-center flex-wrap', className)}
+            class={cn(
+                'mt-8 gap-(--hero-gap) flex justify-center flex-wrap',
+                className,
+            )}
             {...props}
         >
             {children}

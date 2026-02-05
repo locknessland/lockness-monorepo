@@ -86,7 +86,7 @@ export const Table: FC<TableProps> = ({
         >
             <table
                 class={cn(
-                    'w-full caption-bottom text-sm',
+                    'w-full caption-bottom text-[length:--table-font-size]',
                     className,
                 )}
                 data-striped={striped ? 'true' : undefined}
@@ -126,7 +126,7 @@ export const TableHeader: FC<TableHeaderProps> = ({
             class={cn(
                 '[&_tr]:border-b',
                 // Bordered cells (when parent table has data-bordered)
-                '[[data-bordered=true]_&_th]:border [[data-bordered=true]_&_th]:border-border',
+                '[[data-bordered=true]_&_th]:border [[data-bordered=true]_&_th]:border-(--table-border-color)',
                 className,
             )}
             {...props}
@@ -162,11 +162,11 @@ export const TableBody: FC<TableBodyProps> = ({
             class={cn(
                 '[&_tr:last-child]:border-0',
                 // Striped rows (when parent table has data-striped)
-                '[[data-striped=true]_&_tr:nth-child(odd)]:bg-muted/50',
+                '[[data-striped=true]_&_tr:nth-child(odd)]:bg-(--table-row-stripe-background)',
                 // Hoverable rows (when parent table has data-hoverable)
-                '[[data-hoverable=true]_&_tr]:hover:bg-muted',
+                '[[data-hoverable=true]_&_tr]:hover:bg-(--table-row-hover-background)',
                 // Bordered cells (when parent table has data-bordered)
-                '[[data-bordered=true]_&_td]:border [[data-bordered=true]_&_td]:border-border',
+                '[[data-bordered=true]_&_td]:border [[data-bordered=true]_&_td]:border-(--table-border-color)',
                 className,
             )}
             {...props}
@@ -200,7 +200,7 @@ export const TableFooter: FC<TableFooterProps> = ({
     return (
         <tfoot
             class={cn(
-                'border-t bg-muted/50 font-medium [&>tr]:last:border-b-0',
+                'border-t bg-(--table-header-background) font-(--table-header-font-weight) [&>tr]:last:border-b-0',
                 className,
             )}
             {...props}
@@ -238,8 +238,8 @@ export const TableRow: FC<TableRowProps> = ({
     ...props
 }) => {
     const classes = cn(
-        'border-b border-border transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted',
-        selected && 'bg-muted',
+        'border-b border-(--table-border-color) transition-colors hover:bg-(--table-row-hover-background) data-[state=selected]:bg-(--table-row-hover-background)',
+        selected && 'bg-(--table-row-hover-background)',
         href && 'cursor-pointer',
         className,
     )
@@ -302,7 +302,8 @@ export const TableHead: FC<TableHeadProps> = ({
     ...props
 }) => {
     const baseClasses = cn(
-        'h-10 px-4 text-left align-middle font-medium',
+        'px-(--table-padding-x) py-(--table-padding-y)',
+        'h-(--table-header-height) text-left align-middle font-(--table-header-font-weight)',
         'bg-(--table-header-background) text-(--table-header-foreground)',
         '[&:has([role=checkbox])]:pr-0 *:[[role=checkbox]]:translate-y-0.5',
         sortable && 'cursor-pointer select-none hover:text-foreground',
@@ -432,7 +433,8 @@ export const TableCell: FC<TableCellProps> = ({
     return (
         <td
             class={cn(
-                'p-4 align-middle [&:has([role=checkbox])]:pr-0 *:[[role=checkbox]]:translate-y-0.5',
+                'px-(--table-padding-x) py-(--table-padding-y)',
+                'h-(--table-row-height) align-middle [&:has([role=checkbox])]:pr-0 *:[[role=checkbox]]:translate-y-0.5',
                 className,
             )}
             colSpan={colSpan}

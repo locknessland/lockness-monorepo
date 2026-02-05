@@ -1,8 +1,3 @@
-/**
- * Main CSS file with Tailwind directives
- * Compiled via Tailwind CSS v4.1 standalone CLI
- */
-
 @import 'tailwindcss';
 
 @source '../../**/*.tsx';
@@ -14,7 +9,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /**
- * Lockness UI - Zinc Theme Variables
+ * Lockness UI - Theme Variables
  * Default theme for @lockness/ui components
  * Uses OKLCH color space for perceptually uniform colors
  */
@@ -181,12 +176,18 @@
     --alert-destructive-icon: oklch(55% 0.18 25);
 
     /* Table customization */
+    --table-padding-x: 0.7rem;
+    --table-padding-y: 0.7rem;
     --table-border-radius: var(--radius);
     --table-border-color: var(--border);
-    --table-header-background: var(--muted);
+    --table-header-background: var(--border);
     --table-header-foreground: var(--muted-foreground);
     --table-row-hover-background: var(--muted);
     --table-row-stripe-background: var(--muted);
+    --table-header-height: 2.5rem;
+    --table-row-height: 2.5rem;
+    --table-font-size: 0.875rem;
+    --table-header-font-weight: 500;
 
     /* Separator customization */
     --separator-thickness: 1px;
@@ -259,6 +260,244 @@
     --title-letter-spacing: -0.025em;
     --title-margin-bottom: 0;
     --title-color: var(--foreground);
+
+    /* Accordion customization */
+    --accordion-item-padding: 1rem;
+    --accordion-trigger-font-size: 1rem;
+    --accordion-trigger-font-weight: 500;
+    --accordion-trigger-hover-underline: underline;
+    --accordion-content-padding-bottom: 1rem;
+    --accordion-content-padding-top: 0;
+    --accordion-content-font-size: 0.875rem;
+    --accordion-icon-transition-duration: 200ms;
+    --accordion-border-color: var(--border);
+
+    /* Breadcrumb customization */
+    --breadcrumb-gap: 0.5rem;
+    --breadcrumb-font-size: 0.875rem;
+    --breadcrumb-separator-color: var(--muted-foreground);
+    --breadcrumb-link-color: var(--foreground);
+    --breadcrumb-link-hover-color: var(--foreground);
+    --breadcrumb-current-color: var(--foreground);
+
+    /* Input customization */
+    --input-height: 2.5rem;
+    --input-padding-x: 0.75rem;
+    --input-padding-y: 0.5rem;
+    --input-font-size: 0.875rem;
+    --input-border-radius: var(--radius);
+    --input-border-color: var(--input);
+    --input-background: var(--background);
+    --input-foreground: var(--foreground);
+
+    /* Textarea customization */
+    --textarea-min-height: 5rem;
+    --textarea-padding-x: 0.75rem;
+    --textarea-padding-y: 0.5rem;
+    --textarea-font-size: 0.875rem;
+    --textarea-border-radius: var(--radius);
+    --textarea-border-color: var(--input);
+    --textarea-background: var(--background);
+    --textarea-foreground: var(--foreground);
+
+    /* Checkbox customization */
+    --checkbox-size: 1rem;
+    --checkbox-border-radius: calc(var(--radius) - 2px);
+    --checkbox-border-color: var(--primary);
+    --checkbox-accent-color: var(--primary);
+
+    /* Switch customization */
+    --switch-width: 2.75rem;
+    --switch-height: 1.5rem;
+    --switch-knob-size: 1.25rem;
+    --switch-knob-offset: 0.125rem;
+    --switch-border-radius: 9999px;
+    --switch-background: var(--input);
+    --switch-background-checked: var(--primary);
+    --switch-knob-background: var(--background);
+    --switch-transition-duration: 200ms;
+
+    /* Tabs customization */
+    --tabs-padding: 0.25rem;
+    --tabs-height: 2.5rem;
+    --tabs-background: var(--muted);
+    --tabs-foreground: var(--muted-foreground);
+    --tabs-border-radius: var(--radius);
+    --tabs-trigger-padding-x: 0.75rem;
+    --tabs-trigger-padding-y: 0.375rem;
+    --tabs-trigger-font-size: 0.875rem;
+    --tabs-trigger-font-weight: 500;
+    --tabs-trigger-border-radius: calc(var(--radius) - 2px);
+    --tabs-trigger-background-active: var(--background);
+    --tabs-trigger-foreground-active: var(--foreground);
+    --tabs-content-margin-top: 0.5rem;
+
+    /* Label customization */
+    --label-font-size: 0.875rem;
+    --label-font-weight: 500;
+    --label-line-height: 1;
+    --label-letter-spacing: 0;
+    --label-disabled-opacity: 0.7;
+
+    /* Link customization */
+    --link-primary-background: oklch(0.488 0.243 264.376);
+    --link-primary-background-hover: oklch(0.4 0.22 264.376);
+    --link-primary-foreground: var(--primary-foreground);
+    --link-secondary-background: var(--secondary);
+    --link-secondary-background-hover: oklch(
+        from
+        var(--secondary)
+        calc(l - 0.05)
+        c
+        h
+    );
+    --link-secondary-foreground: var(--secondary-foreground);
+    --link-danger-background: var(--destructive);
+    --link-danger-background-hover: oklch(
+        from
+        var(--destructive)
+        calc(l - 0.05)
+        c
+        h
+    );
+    --link-danger-foreground: var(--destructive-foreground);
+    --link-default-color: var(--foreground);
+    --link-default-underline-offset: 4px;
+    --link-padding-x: 1rem;
+    --link-padding-y: 0.5rem;
+    --link-border-radius: var(--radius);
+    --link-font-weight: 500;
+
+    /* Spinner customization */
+    --spinner-success-color: oklch(0.646 0.222 145);
+    --spinner-warning-color: oklch(0.828 0.189 84.429);
+    --spinner-info-color: oklch(0.6 0.118 264);
+    --spinner-default-color: var(--primary);
+    --spinner-animation-duration: 1s;
+
+    /* CircularProgress customization */
+    --circular-progress-size-sm: 2.5rem;
+    --circular-progress-size-md: 4rem;
+    --circular-progress-size-lg: 6rem;
+    --circular-progress-size-xl: 8rem;
+    --circular-progress-stroke-width-sm: 2;
+    --circular-progress-stroke-width-md: 3;
+    --circular-progress-stroke-width-lg: 4;
+    --circular-progress-stroke-width-xl: 5;
+    --circular-progress-track-color: var(--secondary);
+    --circular-progress-indicator-color: var(--primary);
+    --circular-progress-text-font-size-sm: 0.75rem;
+    --circular-progress-text-font-size-md: 1rem;
+    --circular-progress-text-font-size-lg: 1.5rem;
+    --circular-progress-text-font-size-xl: 2rem;
+
+    /* GaugeProgress customization */
+    --gauge-progress-size-sm: 6rem;
+    --gauge-progress-size-md: 8rem;
+    --gauge-progress-size-lg: 12rem;
+    --gauge-progress-size-xl: 16rem;
+    --gauge-progress-stroke-width-sm: 8;
+    --gauge-progress-stroke-width-md: 10;
+    --gauge-progress-stroke-width-lg: 12;
+    --gauge-progress-stroke-width-xl: 14;
+    --gauge-progress-track-color: var(--secondary);
+    --gauge-progress-indicator-color: var(--primary);
+    --gauge-progress-label-font-size-sm: 1.5rem;
+    --gauge-progress-label-font-size-md: 2rem;
+    --gauge-progress-label-font-size-lg: 2.5rem;
+    --gauge-progress-label-font-size-xl: 3rem;
+    --gauge-progress-sublabel-font-size-sm: 0.75rem;
+    --gauge-progress-sublabel-font-size-md: 0.875rem;
+    --gauge-progress-sublabel-font-size-lg: 1rem;
+    --gauge-progress-sublabel-font-size-xl: 1.125rem;
+
+    /* SteppedProgress customization */
+    --stepped-progress-step-size: 2rem;
+    --stepped-progress-step-font-size: 0.875rem;
+    --stepped-progress-step-font-weight: 600;
+    --stepped-progress-connector-height: 2px;
+    --stepped-progress-connector-color: var(--border);
+    --stepped-progress-active-color: var(--primary);
+    --stepped-progress-inactive-color: var(--muted);
+    --stepped-progress-completed-color: var(--primary);
+    --stepped-progress-label-font-size: 0.875rem;
+    --stepped-progress-label-margin-top: 0.5rem;
+
+    /* Pagination customization */
+    --pagination-gap: 0.25rem;
+    --pagination-item-size: 2.5rem;
+    --pagination-item-font-size: 0.875rem;
+    --pagination-item-border-radius: var(--radius);
+    --pagination-item-background: var(--background);
+    --pagination-item-background-hover: var(--accent);
+    --pagination-item-foreground: var(--foreground);
+    --pagination-item-foreground-hover: var(--accent-foreground);
+    --pagination-item-active-background: var(--primary);
+    --pagination-item-active-foreground: var(--primary-foreground);
+
+    /* Navbar customization */
+    --navbar-height: 2rem;
+    --navbar-padding-x: 1.5rem;
+    --navbar-padding-y: 1rem;
+    --navbar-background: var(--background);
+    --navbar-foreground: var(--foreground);
+    --navbar-border-color: var(--border);
+    --navbar-link-padding-x: 0.75rem;
+    --navbar-link-padding-y: 0.5rem;
+    --navbar-link-font-weight: 500;
+
+    /* SearchBar customization */
+    --searchbar-height: 2.5rem;
+    --searchbar-padding-x: 0.75rem;
+    --searchbar-padding-y: 0.5rem;
+    --searchbar-font-size: 0.875rem;
+    --searchbar-border-radius: var(--radius);
+    --searchbar-background: var(--background);
+    --searchbar-border-color: var(--input);
+    --searchbar-icon-color: var(--muted-foreground);
+
+    /* Hero customization */
+    --hero-padding-y: 8rem;
+    --hero-padding-x: 1.5rem;
+    --hero-title-font-size: 3rem;
+    --hero-title-font-size-md: 4rem;
+    --hero-title-font-size-lg: 5rem;
+    --hero-title-line-height: 5.5rem;
+    --hero-subtitle-font-size: 1.25rem;
+    --hero-subtitle-font-size-md: 1.5rem;
+    --hero-gap: 1.5rem;
+
+    /* Newsletter customization */
+    --newsletter-padding: 2rem;
+    --newsletter-gap: 1rem;
+    --newsletter-input-height: 2.5rem;
+    --newsletter-border-radius: var(--radius);
+
+    /* TreeView customization */
+    --treeview-item-padding-x: 0.5rem;
+    --treeview-item-padding-y: 0.375rem;
+    --treeview-item-border-radius: var(--radius);
+    --treeview-item-background-hover: var(--accent);
+    --treeview-item-foreground-hover: var(--accent-foreground);
+    --treeview-icon-size: 1rem;
+    --treeview-icon-transition-duration: 200ms;
+
+    /* UploadZone customization */
+    --uploadzone-min-height: 12rem;
+    --uploadzone-padding: 2rem;
+    --uploadzone-border-width: 2px;
+    --uploadzone-border-style: dashed;
+    --uploadzone-border-color: var(--border);
+    --uploadzone-border-radius: var(--radius);
+    --uploadzone-background: var(--background);
+    --uploadzone-background-hover: var(--accent);
+    --uploadzone-icon-size: 3rem;
+    --uploadzone-icon-color: var(--muted-foreground);
+
+    /* Video customization */
+    --video-border-radius: var(--radius);
+    --video-controls-background: oklch(0 0 0 / 0.8);
+    --video-controls-foreground: oklch(1 0 0);
 }
 
 :root {
@@ -384,6 +623,8 @@
     --alert-destructive-fg: oklch(80% 0.10 25);
     --alert-destructive-border: oklch(40% 0.08 25);
     --alert-destructive-icon: oklch(65% 0.15 25);
+    /* Table customization - Dark mode */
+    --table-row-stripe-background: oklch(0.32 0 0);
 }
 
 /* Base styles */

@@ -58,7 +58,7 @@
         "@model/": "./app/model/",
         "@repository/": "./app/repository/",
         "@view/": "./app/view/",
-        "@kernel": "./app/kernel.tsx",
+        "@kernel": "./app/kernel.ts",
         "@std/assert": "jsr:@std/assert@1",
         "@std/cli": "jsr:@std/cli@1",
         "@std/fs": "jsr:@std/fs@1",

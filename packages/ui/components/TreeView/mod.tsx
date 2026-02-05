@@ -388,8 +388,8 @@ export const TreeViewItem: FC<TreeViewItemProps> = ({
             <div
                 tabindex={0}
                 class={cn(
-                    'relative inline-flex items-center gap-1 py-1 px-2 rounded',
-                    'hover:bg-accent hover:text-accent-foreground',
+                    'relative inline-flex items-center gap-1 py-(--treeview-item-padding-y) px-(--treeview-item-padding-x) rounded-(--treeview-item-border-radius)',
+                    'hover:bg-(--treeview-item-background-hover) hover:text-(--treeview-item-foreground-hover)',
                     'transition-colors duration-150',
                     'cursor-pointer',
                     'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset',
@@ -401,7 +401,10 @@ export const TreeViewItem: FC<TreeViewItemProps> = ({
             >
                 {hasChildren && <TreeViewTrigger />}
                 {!hasChildren && (
-                    <span class='inline-block w-4 h-4' aria-hidden='true' />
+                    <span
+                        class='inline-block size-(--treeview-icon-size)'
+                        aria-hidden='true'
+                    />
                 )}
                 {icon && <TreeViewIcon>{icon}</TreeViewIcon>}
                 <TreeViewLabel>{label}</TreeViewLabel>
@@ -438,8 +441,8 @@ export const TreeViewTrigger: FC<TreeViewTriggerProps> = ({
             type='button'
             class={cn(
                 'inline-flex items-center justify-center',
-                'w-4 h-4 rounded',
-                'transition-transform duration-200',
+                'size-(--treeview-icon-size) rounded',
+                'transition-transform duration-(--treeview-icon-transition-duration)',
                 'text-muted-foreground hover:text-foreground',
                 'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset',
                 '[&[aria-expanded=true]>svg]:rotate-90',
@@ -482,7 +485,7 @@ export const TreeViewIcon: FC<TreeViewIconProps> = ({
         <span
             class={cn(
                 'inline-flex items-center justify-center',
-                'w-4 h-4',
+                'size-(--treeview-icon-size)',
                 'text-muted-foreground',
                 className,
             )}

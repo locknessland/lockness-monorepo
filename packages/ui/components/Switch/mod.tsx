@@ -78,13 +78,13 @@ export const Switch: FC<SwitchProps> = ({ class: className, ...props }) => {
     return (
         <label
             class={cn(
-                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer',
-                'items-center rounded-full transition-colors',
+                'relative inline-flex h-(--switch-height) w-(--switch-width) shrink-0 cursor-pointer',
+                'items-center rounded-(--switch-border-radius) transition-[colors] duration-(--switch-transition-duration)',
                 'focus-within:outline-none focus-within:ring-2',
                 'focus-within:ring-(--ring) focus-within:ring-offset-(--ring-offset)',
                 'focus-within:ring-offset-(--background)',
-                'bg-(--input)',
-                'has-checked:bg-(--primary)',
+                'bg-(--switch-background)',
+                'has-checked:bg-(--switch-background-checked)',
                 'has-disabled:cursor-not-allowed has-disabled:opacity-50',
                 className,
             )}
@@ -97,10 +97,10 @@ export const Switch: FC<SwitchProps> = ({ class: className, ...props }) => {
             />
             <span
                 class={cn(
-                    'pointer-events-none block h-5 w-5 rounded-full',
-                    'bg-(--background) shadow-lg ring-0',
-                    'transition-transform',
-                    'translate-x-0.5',
+                    'pointer-events-none block h-(--switch-knob-size) w-(--switch-knob-size) rounded-full',
+                    'bg-(--switch-knob-background) shadow-lg ring-0',
+                    'transition-[transform] duration-(--switch-transition-duration)',
+                    'translate-x-(--switch-knob-offset)',
                     'peer-checked:translate-x-5.5',
                 )}
             />

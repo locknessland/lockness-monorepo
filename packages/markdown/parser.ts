@@ -397,6 +397,8 @@ function decodeHtmlEntities(text: string): string {
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&amp;/g, '&')
+        .replace(/&#38;/g, '&')
+        .replace(/&#x26;/g, '&')
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
         .replace(/&#x27;/g, "'")

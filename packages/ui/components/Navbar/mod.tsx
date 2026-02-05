@@ -129,13 +129,14 @@ export const Navbar: FC<NavbarProps> = ({
     return (
         <nav
             class={cn(
-                'w-full border-b border-(--border) bg-(--background) backdrop-blur supports-backdrop-filter:bg-(--background)/95',
+                'px-(--navbar-padding-x) py-(--navbar-padding-y)',
+                'w-full border-b border-(--navbar-border-color) bg-(--navbar-background)',
                 positionClasses[position],
                 className,
             )}
             {...props}
         >
-            <div class='container mx-auto flex h-16 items-center justify-between px-4 md:px-6'>
+            <div class='container mx-auto flex h-(--navbar-height) items-center justify-between'>
                 {children}
             </div>
         </nav>
@@ -158,7 +159,7 @@ export const NavbarBrand: FC<NavbarBrandProps> = ({
             up-follow
             up-target='body'
             class={cn(
-                'flex items-center gap-2 text-lg font-semibold text-(--foreground) transition-colors hover:text-(--primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-(--radius)',
+                'flex items-center gap-2 text-lg font-semibold text-(--navbar-foreground) transition-colors hover:text-(--primary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-(--radius)',
                 className,
             )}
             {...props}
@@ -211,7 +212,7 @@ export const NavbarMenu: FC<NavbarMenuProps> = ({
     return (
         <div
             class={cn(
-                'fixed inset-x-0 top-16 z-50 border-b border-(--border) bg-(--background) px-4 py-6 shadow-lg transition-all duration-200 ease-in-out md:hidden',
+                'fixed inset-x-0 top-(--navbar-height) z-50 border-b border-(--navbar-border-color) bg-(--navbar-background) px-(--navbar-padding-x) py-(--navbar-padding-y) shadow-lg transition-all duration-200 ease-in-out md:hidden',
                 open
                     ? 'translate-y-0 opacity-100'
                     : '-translate-y-full opacity-0 pointer-events-none',
@@ -241,10 +242,10 @@ export const NavbarMenuItem: FC<NavbarMenuItemProps> = ({
             up-follow
             up-target='body'
             class={cn(
-                'inline-flex h-9 items-center justify-start rounded-(--radius) px-4 py-2 text-sm font-medium transition-colors hover:bg-(--accent) hover:text-(--accent-foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50',
+                'inline-flex h-9 items-center justify-start rounded-(--radius) px-(--navbar-link-padding-x) py-(--navbar-link-padding-y) text-sm font-(--navbar-link-font-weight) transition-colors hover:bg-(--accent) hover:text-(--accent-foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50',
                 active
                     ? 'bg-(--accent) text-(--accent-foreground)'
-                    : 'text-(--foreground)',
+                    : 'text-(--navbar-foreground)',
                 className,
             )}
             {...props}
@@ -269,7 +270,7 @@ export const NavbarToggle: FC<NavbarToggleProps> = ({
             type='button'
             onClick={onClick}
             class={cn(
-                'inline-flex h-9 w-9 items-center justify-center rounded-(--radius) text-(--foreground) transition-colors hover:bg-(--accent) hover:text-(--accent-foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden',
+                'inline-flex h-9 w-9 items-center justify-center rounded-(--radius) text-(--navbar-foreground) transition-colors hover:bg-(--accent) hover:text-(--accent-foreground) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--ring) focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden',
                 className,
             )}
             aria-label={open ? 'Close menu' : 'Open menu'}

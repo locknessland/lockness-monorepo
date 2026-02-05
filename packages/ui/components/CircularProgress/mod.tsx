@@ -37,7 +37,7 @@ export interface CircularProgressProps
     size?: 'sm' | 'default' | 'lg' | 'xl'
     /**
      * Stroke width of the progress circle
-     * @default 2
+     * If not provided, uses size-specific CSS variables
      */
     strokeWidth?: number
     /**
@@ -56,24 +56,31 @@ export interface CircularProgressProps
 }
 
 const sizeStyles = {
-    sm: 'size-16',
-    default: 'size-24',
-    lg: 'size-32',
-    xl: 'size-40',
+    sm: 'size-(--circular-progress-size-sm)',
+    default: 'size-(--circular-progress-size-md)',
+    lg: 'size-(--circular-progress-size-lg)',
+    xl: 'size-(--circular-progress-size-xl)',
 }
 
 const labelSizeStyles = {
-    sm: 'text-xs',
-    default: 'text-base',
-    lg: 'text-xl',
-    xl: 'text-2xl',
+    sm: 'text-[length:--circular-progress-text-font-size-sm]',
+    default: 'text-[length:--circular-progress-text-font-size-md]',
+    lg: 'text-[length:--circular-progress-text-font-size-lg]',
+    xl: 'text-[length:--circular-progress-text-font-size-xl]',
 }
 
 const variantStyles = {
-    default: 'text-primary',
+    default: 'text-(--circular-progress-indicator-color)',
     success: 'text-green-500',
     warning: 'text-yellow-500',
     destructive: 'text-destructive',
+}
+
+const strokeWidthStyles = {
+    sm: 'var(--circular-progress-stroke-width-sm)',
+    default: 'var(--circular-progress-stroke-width-md)',
+    lg: 'var(--circular-progress-stroke-width-lg)',
+    xl: 'var(--circular-progress-stroke-width-xl)',
 }
 
 /**
@@ -103,7 +110,7 @@ export const CircularProgress: FC<CircularProgressProps> = ({
     max = 100,
     variant = 'default',
     size = 'default',
-    strokeWidth = 2,
+    strokeWidth,
     showLabel = false,
     class: className,
     id,
@@ -115,6 +122,9 @@ export const CircularProgress: FC<CircularProgressProps> = ({
 
     // Calculate stroke-dashoffset (100 - percentage for counter-clockwise fill)
     const strokeDashoffset = 100 - percentage
+
+    // Use size-specific CSS variable for stroke width if not explicitly provided
+    const computedStrokeWidth = strokeWidth ?? strokeWidthStyles[size]
 
     return (
         <div
@@ -137,8 +147,8 @@ export const CircularProgress: FC<CircularProgressProps> = ({
                     cy='18'
                     r='16'
                     fill='none'
-                    class='stroke-current text-secondary'
-                    stroke-width={strokeWidth}
+                    class='stroke-current text-(--circular-progress-track-color)'
+                    stroke-width={computedStrokeWidth}
                 />
                 {/* Progress Circle */}
                 <circle
@@ -147,7 +157,7 @@ export const CircularProgress: FC<CircularProgressProps> = ({
                     r='16'
                     fill='none'
                     class={cn('stroke-current', variantStyles[variant])}
-                    stroke-width={strokeWidth}
+                    stroke-width={computedStrokeWidth}
                     stroke-dasharray='100'
                     stroke-dashoffset={strokeDashoffset}
                     stroke-linecap='round'

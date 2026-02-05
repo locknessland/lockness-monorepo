@@ -104,10 +104,10 @@ my-app/
 ├── .env.example              # Environment template
 ├── main.ts                   # Application entry point
 ├── cli.ts                    # CLI entry point
-├── kernel.tsx                # Application kernel
 ├── public/                   # Static files
 │   └── css/
 ├── app/
+│   ├── kernel.ts             # Application kernel
 │   ├── controller/           # HTTP controllers
 │   ├── middleware/           # Custom middleware
 │   ├── model/                # Data models
@@ -166,7 +166,7 @@ APP_KEY=your-secret-key-here
 DATABASE_URL=postgres://user:password@localhost:5432/mydb
 ```
 
-### kernel.tsx
+### kernel.ts
 
 Application bootstrap:
 
@@ -194,7 +194,7 @@ HTTP server entry point:
 
 ```typescript
 import { serve } from 'jsr:@std/http'
-import app from './kernel.tsx'
+import app from './kernel.ts'
 
 const port = Number(Deno.env.get('APP_PORT')) || 8888
 

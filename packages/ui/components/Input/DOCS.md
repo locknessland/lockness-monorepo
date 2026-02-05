@@ -220,3 +220,82 @@ The Input component includes:
 - Focus ring with offset
 - Disabled styling with opacity and cursor
 - File input styling for clean file inputs
+
+## Theming
+
+The Input component can be fully customized using CSS variables. This allows you
+to adjust dimensions, colors, spacing, and borders to match your design system
+while maintaining consistent behavior across your application.
+
+### Available CSS Variables
+
+| Variable                | Default             | Description                         |
+| ----------------------- | ------------------- | ----------------------------------- |
+| `--input-height`        | `2.5rem`            | Height of the input field           |
+| `--input-padding-x`     | `0.75rem`           | Horizontal padding inside the input |
+| `--input-padding-y`     | `0.5rem`            | Vertical padding inside the input   |
+| `--input-font-size`     | `0.875rem`          | Font size of the input text         |
+| `--input-border-radius` | `var(--radius)`     | Border radius of the input corners  |
+| `--input-border-color`  | `var(--input)`      | Border color of the input           |
+| `--input-background`    | `var(--background)` | Background color of the input       |
+
+### Theming Examples
+
+#### Global Customization
+
+Add these styles to your `app.css` to customize all Input components across your
+application:
+
+```css
+:root {
+    /* Larger inputs with more padding */
+    --input-height: 3rem;
+    --input-padding-x: 1rem;
+    --input-padding-y: 0.75rem;
+    --input-font-size: 1rem;
+
+    /* Custom border styling */
+    --input-border-radius: 0.375rem;
+    --input-border-color: hsl(210 40% 80%);
+
+    /* Dark mode theme */
+    --input-background: hsl(222 47% 11%);
+}
+```
+
+#### Local Overrides
+
+Override theming for specific inputs using inline styles:
+
+```tsx
+{/* Compact input */}
+<Input
+    placeholder='Compact'
+    style={{
+        '--input-height': '2rem',
+        '--input-padding-x': '0.5rem',
+        '--input-font-size': '0.75rem',
+    }}
+/>
+
+{/* Large input with custom colors */}
+<Input
+    placeholder='Large and colorful'
+    style={{
+        '--input-height': '3.5rem',
+        '--input-padding-x': '1.25rem',
+        '--input-font-size': '1.125rem',
+        '--input-border-color': 'hsl(260 100% 70%)',
+        '--input-background': 'hsl(260 100% 95%)',
+    }}
+/>
+
+{/* Minimal rounded input */}
+<Input
+    placeholder='Minimal'
+    style={{
+        '--input-border-radius': '9999px',
+        '--input-padding-x': '1.5rem',
+    }}
+/>
+```

@@ -13,8 +13,8 @@ Deno.test('Label component', async (t) => {
     await t.step('renders with default props', () => {
         const html = renderToString(<Label>Email</Label>)
         assertStringIncludes(html, 'Email')
-        assertStringIncludes(html, 'text-sm')
-        assertStringIncludes(html, 'font-medium')
+        assertStringIncludes(html, 'text-[length:--label-font-size]')
+        assertStringIncludes(html, 'font-(--label-font-weight)')
     })
 
     await t.step('renders with for attribute', () => {

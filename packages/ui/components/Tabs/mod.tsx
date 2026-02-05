@@ -186,9 +186,9 @@ export const TabsList: FC<TabsListProps> = ({
             aria-orientation={orientation}
             class={cn(
                 'inline-flex items-center justify-center',
-                'rounded-(--radius) bg-(--muted)',
-                'p-1 text-(--muted-foreground)',
-                orientation === 'horizontal' && 'h-10 flex-row',
+                'rounded-(--tabs-border-radius) bg-(--tabs-background)',
+                'p-(--tabs-padding) text-(--tabs-foreground)',
+                orientation === 'horizontal' && 'h-(--tabs-height) flex-row',
                 orientation === 'vertical' && 'h-auto flex-col w-fit',
                 className,
             )}
@@ -217,12 +217,12 @@ export const TabsTrigger: FC<TabsTriggerProps> = ({
         <label
             class={cn(
                 'inline-flex items-center justify-center whitespace-nowrap',
-                'rounded-[calc(var(--radius)-2px)] px-3 py-1.5 text-sm font-medium cursor-pointer',
+                'rounded-(--tabs-trigger-border-radius) px-(--tabs-trigger-padding-x) py-(--tabs-trigger-padding-y) text-[length:--tabs-trigger-font-size] font-(--tabs-trigger-font-weight) cursor-pointer',
                 'ring-offset-(--background) transition-all',
                 'focus-visible:outline-none focus-visible:ring-2',
                 'focus-visible:ring-(--ring) focus-visible:ring-offset-(--ring-offset)',
-                'has-checked:bg-(--background)',
-                'has-checked:text-(--foreground)',
+                'has-checked:bg-(--tabs-trigger-background-active)',
+                'has-checked:text-(--tabs-trigger-foreground-active)',
                 'has-checked:shadow-sm',
                 className,
             )}
@@ -258,7 +258,7 @@ export const TabsContent: FC<TabsContentProps> = ({
             role='tabpanel'
             class={cn(
                 `tab-content-${name}`,
-                'mt-2 ring-offset-(--background)',
+                'mt-(--tabs-content-margin-top) ring-offset-(--background)',
                 'focus-visible:outline-none focus-visible:ring-2',
                 'focus-visible:ring-(--ring) focus-visible:ring-offset-(--ring-offset)',
                 className,

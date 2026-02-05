@@ -122,3 +122,90 @@ CSS timing functions for the `easing` prop:
 <Button class="w-full">Full Width</Button>
 <Button variant="outline" class="border-2 border-primary">Custom Border</Button>
 ```
+
+## Theming
+
+The Button component can be customized using CSS variables. This allows you to
+change the appearance of buttons globally or override specific instances.
+
+### Available CSS Variables
+
+| Variable                        | Default                 | Description                   |
+| ------------------------------- | ----------------------- | ----------------------------- |
+| `--button-border-radius`        | `var(--radius)`         | Button border radius          |
+| `--button-border-width`         | `0px`                   | Border width for all variants |
+| `--button-border-width-outline` | `2px`                   | Border width for outline      |
+| `--button-font-weight`          | `500`                   | Button font weight            |
+| `--button-transition-duration`  | `150ms`                 | Transition animation speed    |
+| `--button-disabled-opacity`     | `0.6`                   | Opacity when disabled         |
+| `--button-shadow`               | `none`                  | Default box shadow            |
+| `--button-shadow-hover`         | `none`                  | Box shadow on hover           |
+| `--button-shadow-focus`         | `0 0 0 2px var(--ring)` | Focus ring shadow             |
+| `--button-padding-x-sm`         | `0.75rem`               | Horizontal padding (small)    |
+| `--button-padding-y-sm`         | `0.375rem`              | Vertical padding (small)      |
+| `--button-font-size-sm`         | `0.875rem`              | Font size (small)             |
+| `--button-padding-x-md`         | `calc(...)`             | Horizontal padding (medium)   |
+| `--button-padding-y-md`         | `calc(...)`             | Vertical padding (medium)     |
+| `--button-font-size-md`         | `calc(...)`             | Font size (medium)            |
+| `--button-padding-x-lg`         | `calc(...)`             | Horizontal padding (large)    |
+| `--button-padding-y-lg`         | `calc(...)`             | Vertical padding (large)      |
+| `--button-font-size-lg`         | `calc(...)`             | Font size (large)             |
+| `--button-padding-x-xl`         | `calc(...)`             | Horizontal padding (x-large)  |
+| `--button-padding-y-xl`         | `calc(...)`             | Vertical padding (x-large)    |
+| `--button-font-size-xl`         | `calc(...)`             | Font size (x-large)           |
+
+### Theming Examples
+
+#### Global Customization
+
+Customize all buttons by setting CSS variables in your theme:
+
+```css
+/* app/view/assets/app.css */
+@theme {
+    /* Make buttons more rounded */
+    --button-border-radius: 0.5rem;
+
+    /* Add shadows to buttons */
+    --button-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --button-shadow-hover: 0 4px 6px rgba(0, 0, 0, 0.1);
+
+    /* Make buttons bolder */
+    --button-font-weight: 600;
+
+    /* Increase padding for all sizes */
+    --button-padding-x-sm: 1rem;
+    --button-padding-y-sm: 0.5rem;
+}
+```
+
+#### Local Overrides
+
+Override CSS variables for specific button instances:
+
+```tsx
+<div style="--button-border-radius: 9999px;">
+    <Button variant="primary">Pill Button</Button>
+</div>
+
+<div style="--button-shadow-hover: 0 10px 20px rgba(0,0,0,0.2);">
+    <Button variant="primary">Dramatic Hover</Button>
+</div>
+```
+
+#### Component-Specific Theming
+
+Create themed sections with different button styles:
+
+```tsx
+<section class="premium-section">
+    <style>
+        .premium-section {
+            --button-border-radius: 0.25rem;
+            --button-font-weight: 700;
+            --button-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+    <Button variant="primary">Premium Action</Button>
+</section>
+```

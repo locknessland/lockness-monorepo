@@ -163,6 +163,89 @@ Provide custom fallback for browsers that don't support video:
 6. **Include accessibility labels**: Use `aria-label` for screen readers
 7. **Optimize file sizes**: Compress videos and use appropriate bitrates
 
+## Theming
+
+The Video component can be customized using CSS variables. This allows you to
+change the appearance of video players globally or override specific instances.
+
+### Available CSS Variables
+
+| Variable                      | Default              | Description                        |
+| ----------------------------- | -------------------- | ---------------------------------- |
+| `--video-border-radius`       | `var(--radius)`      | Border radius of the video player  |
+| `--video-controls-background` | `oklch(0 0 0 / 0.8)` | Background color of video controls |
+| `--video-controls-foreground` | `oklch(1 0 0)`       | Text/icon color of video controls  |
+
+### Theming Examples
+
+#### Global Customization
+
+Customize all video players by setting CSS variables in your theme:
+
+```css
+/* app/view/assets/app.css */
+@theme {
+    /* More rounded video players */
+    --video-border-radius: 1rem;
+
+    /* Lighter control bar */
+    --video-controls-background: oklch(0.2 0 0 / 0.9);
+
+    /* Colored controls */
+    --video-controls-foreground: hsl(var(--primary));
+}
+```
+
+#### Local Overrides
+
+Override CSS variables for specific video instances:
+
+```tsx
+<div style="--video-border-radius: 0;">
+    <Video src="/video.mp4" controls />
+    {/* Video with sharp corners */}
+</div>
+
+<div style="--video-border-radius: 2rem;">
+    <Video src="/video.mp4" controls aspectRatio="16/9" />
+    {/* Video with very rounded corners */}
+</div>
+```
+
+#### Component-Specific Theming
+
+Create themed sections with different video styles:
+
+```tsx
+<div class="hero-video" style={{
+    '--video-border-radius': '0',
+    '--video-controls-background': 'oklch(0 0 0 / 0.6)',
+    '--video-controls-foreground': 'oklch(1 0 0)'
+}}>
+    <Video
+        src="/hero.mp4"
+        autoplay
+        muted
+        loop
+        aspectRatio="21/9"
+    />
+</div>
+
+<div class="tutorial-video" style={{
+    '--video-border-radius': '0.75rem',
+    '--video-controls-background': 'hsl(var(--primary) / 0.9)',
+    '--video-controls-foreground': 'hsl(var(--primary-foreground))'
+}}>
+    <Video
+        src="/tutorial.mp4"
+        poster="/tutorial-poster.jpg"
+        controls
+        aspectRatio="16/9"
+        aria-label="Product tutorial"
+    />
+</div>
+```
+
 ## Browser Support
 
 The Video component uses native HTML5 `<video>` element, which is supported by

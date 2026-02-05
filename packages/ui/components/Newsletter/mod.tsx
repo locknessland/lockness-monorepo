@@ -139,7 +139,7 @@ export const Newsletter: FC<NewsletterProps> = ({
         return (
             <form
                 {...formProps}
-                class={cn('flex gap-2', className)}
+                class={cn('flex gap-(--newsletter-gap)', className)}
                 {...props}
             >
                 <div class='relative flex-1'>
@@ -154,7 +154,7 @@ export const Newsletter: FC<NewsletterProps> = ({
                         placeholder={placeholder}
                         required
                         class={cn(
-                            'w-full h-10 px-3 py-2 bg-background border border-input rounded-(--radius) text-sm',
+                            'w-full h-(--newsletter-input-height) px-(--newsletter-padding) py-2 bg-background border border-input rounded-(--newsletter-border-radius) text-sm',
                             'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
                             showIcon && 'ps-10',
                         )}
@@ -162,7 +162,7 @@ export const Newsletter: FC<NewsletterProps> = ({
                 </div>
                 <button
                     type='submit'
-                    class='h-10 px-4 bg-primary text-primary-foreground rounded-(--radius) text-sm font-medium hover:bg-primary/90 transition-colors'
+                    class='h-(--newsletter-input-height) px-(--newsletter-padding) bg-primary text-primary-foreground rounded-(--newsletter-border-radius) text-sm font-medium hover:bg-primary/90 transition-colors'
                 >
                     {buttonText}
                 </button>
@@ -173,7 +173,7 @@ export const Newsletter: FC<NewsletterProps> = ({
     // Stacked variant
     if (variant === 'stacked') {
         return (
-            <div class={cn('space-y-4', className)} {...props}>
+            <div class={cn('space-y-(--newsletter-gap)', className)} {...props}>
                 {title && (
                     <h3 class='text-lg font-semibold text-foreground'>
                         {title}
@@ -182,7 +182,7 @@ export const Newsletter: FC<NewsletterProps> = ({
                 {description && (
                     <p class='text-sm text-muted-foreground'>{description}</p>
                 )}
-                <form {...formProps} class='space-y-3'>
+                <form {...formProps} class='space-y-(--newsletter-gap)'>
                     <div class='relative'>
                         {showIcon && (
                             <div class='absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none'>
@@ -195,7 +195,7 @@ export const Newsletter: FC<NewsletterProps> = ({
                             placeholder={placeholder}
                             required
                             class={cn(
-                                'w-full h-10 px-3 py-2 bg-background border border-input rounded-(--radius) text-sm',
+                                'w-full h-(--newsletter-input-height) px-(--newsletter-padding) py-2 bg-background border border-input rounded-(--newsletter-border-radius) text-sm',
                                 'placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
                                 showIcon && 'ps-10',
                             )}
@@ -203,7 +203,7 @@ export const Newsletter: FC<NewsletterProps> = ({
                     </div>
                     <button
                         type='submit'
-                        class='w-full h-10 px-4 bg-primary text-primary-foreground rounded-(--radius) text-sm font-medium hover:bg-primary/90 transition-colors'
+                        class='w-full h-(--newsletter-input-height) px-(--newsletter-padding) bg-primary text-primary-foreground rounded-(--newsletter-border-radius) text-sm font-medium hover:bg-primary/90 transition-colors'
                     >
                         {buttonText}
                     </button>
@@ -217,14 +217,14 @@ export const Newsletter: FC<NewsletterProps> = ({
         return (
             <div
                 class={cn(
-                    'p-6 bg-card border border-border rounded-(--radius) shadow-sm',
+                    'p-(--newsletter-padding) bg-card border border-border rounded-(--newsletter-border-radius) shadow-sm',
                     className,
                 )}
                 {...props}
             >
-                <div class='space-y-4'>
+                <div class='space-y-(--newsletter-gap)'>
                     {showIcon && (
-                        <div class='size-12 flex items-center justify-center bg-primary/10 rounded-(--radius)'>
+                        <div class='size-12 flex items-center justify-center bg-primary/10 rounded-(--newsletter-border-radius)'>
                             <svg
                                 class='size-6 text-primary'
                                 xmlns='http://www.w3.org/2000/svg'
@@ -256,17 +256,17 @@ export const Newsletter: FC<NewsletterProps> = ({
                             {description}
                         </p>
                     )}
-                    <form {...formProps} class='flex gap-2'>
+                    <form {...formProps} class='flex gap-(--newsletter-gap)'>
                         <input
                             type='email'
                             name={inputName}
                             placeholder={placeholder}
                             required
-                            class='flex-1 h-10 px-3 py-2 bg-background border border-input rounded-(--radius) text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent'
+                            class='flex-1 h-(--newsletter-input-height) px-(--newsletter-padding) py-2 bg-background border border-input rounded-(--newsletter-border-radius) text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent'
                         />
                         <button
                             type='submit'
-                            class='h-10 px-4 bg-primary text-primary-foreground rounded-(--radius) text-sm font-medium hover:bg-primary/90 transition-colors'
+                            class='h-(--newsletter-input-height) px-(--newsletter-padding) bg-primary text-primary-foreground rounded-(--newsletter-border-radius) text-sm font-medium hover:bg-primary/90 transition-colors'
                         >
                             {buttonText}
                         </button>

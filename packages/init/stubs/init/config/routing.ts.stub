@@ -50,7 +50,7 @@ import type { MountPoint } from '@lockness/core'
  *     middleware: i18nMiddleware,
  * }
  *
- * // 3. Use in kernel.tsx
+ * // 3. Use in kernel.ts
  * @Kernel({ mountPoint: mountPointConfig })
  * ```
  *

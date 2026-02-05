@@ -38,7 +38,7 @@ project.
 | `config/session.ts`                 | `packages/init/stubs/init/config/session.ts.stub`                 | ✅    |
 | `config/cache.ts`                   | `packages/init/stubs/init/config/cache.ts.stub`                   | ✅    |
 | `config/compile.ts`                 | `packages/init/stubs/init/config/compile.ts.stub`                 | ✅    |
-| `app/kernel.tsx`                    | `packages/init/stubs/init/app/kernel.tsx.stub`                    | ✅    |
+| `app/kernel.ts`                     | `packages/init/stubs/init/app/kernel.ts.stub`                     | ✅    |
 | `app/controller/app_controller.tsx` | `packages/init/stubs/init/app/controller/app_controller.tsx.stub` | ✅    |
 | `app/view/app.ts`                   | `packages/init/stubs/init/app/view/app.ts.stub`                   | ✅    |
 | `app/view/assets/app.css`           | `packages/init/stubs/init/app/view/assets/app.css.stub`           | ✅    |

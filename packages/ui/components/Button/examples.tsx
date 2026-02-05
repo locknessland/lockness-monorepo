@@ -138,39 +138,6 @@ export const examples: ExampleSection[] = [
         ),
     },
     {
-        title: 'As Link with Unpoly',
-        render: () => (
-            <div class='space-y-4'>
-                <Card>
-                    <CardContent class='p-6 flex flex-wrap gap-4 items-center'>
-                        <Button href='/ui/buttons' variant='primary'>
-                            Navigate
-                        </Button>
-                        <Button href='/ui/buttons' variant='outline' preload>
-                            With Preload
-                        </Button>
-                    </CardContent>
-                </Card>
-                <CodeBlock lang='tsx'>
-                    {`// Auto-detected as anchor with up-follow
-<Button href='/dashboard'>Go to Dashboard</Button>
-
-// With all Unpoly options
-<Button
-  href='/next'
-  target='.content'
-  transition='move-left'
-  duration={200}
-  easing='ease-out'
-  preload
->
-  Next Page
-</Button>`}
-                </CodeBlock>
-            </div>
-        ),
-    },
-    {
         title: 'Props',
         render: () => <PropsTable props={buttonProps} />,
     },

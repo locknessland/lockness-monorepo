@@ -66,6 +66,107 @@ import { TreeView, TreeViewItem } from '@lockness/ui/components'
 | selectable      | `boolean`            | -            | Whether item is selectable         |
 | defaultSelected | `boolean`            | -            | Whether item is initially selected |
 
+## Theming
+
+The TreeView component can be customized using CSS variables. This allows you to
+change the appearance of tree structures globally or override specific
+instances.
+
+### Available CSS Variables
+
+| Variable                              | Default                    | Description                         |
+| ------------------------------------- | -------------------------- | ----------------------------------- |
+| `--treeview-item-padding-x`           | `0.5rem`                   | Horizontal padding for tree items   |
+| `--treeview-item-padding-y`           | `0.375rem`                 | Vertical padding for tree items     |
+| `--treeview-item-border-radius`       | `var(--radius)`            | Border radius for tree items        |
+| `--treeview-item-background-hover`    | `var(--accent)`            | Background color on item hover      |
+| `--treeview-item-foreground-hover`    | `var(--accent-foreground)` | Text color on item hover            |
+| `--treeview-icon-size`                | `1rem`                     | Size of expand/collapse icons       |
+| `--treeview-icon-transition-duration` | `200ms`                    | Duration of icon rotation animation |
+
+### Theming Examples
+
+#### Global Customization
+
+Customize all tree views by setting CSS variables in your theme:
+
+```css
+/* app/view/assets/app.css */
+@theme {
+    /* More spacious items */
+    --treeview-item-padding-x: 0.75rem;
+    --treeview-item-padding-y: 0.5rem;
+
+    /* More rounded items */
+    --treeview-item-border-radius: 0.5rem;
+
+    /* Larger icons */
+    --treeview-icon-size: 1.25rem;
+
+    /* Faster animation */
+    --treeview-icon-transition-duration: 150ms;
+}
+```
+
+#### Local Overrides
+
+Override CSS variables for specific tree view instances:
+
+```tsx
+<div style="--treeview-item-padding-y: 0.25rem;">
+    <TreeView>
+        {/* Compact tree with less indentation */}
+    </TreeView>
+</div>
+
+<div style="--treeview-item-padding-x: 1rem; --treeview-item-border-radius: 0.75rem;">
+    <TreeView>
+        {/* Tree with more padding and rounded items */}
+    </TreeView>
+</div>
+```
+
+#### Component-Specific Theming
+
+Create themed sections with different tree view styles:
+
+```tsx
+<div class="file-browser" style={{
+    '--treeview-item-padding-x': '0.5rem',
+    '--treeview-item-padding-y': '0.25rem',
+    '--treeview-item-border-radius': '0.25rem',
+    '--treeview-icon-size': '0.875rem'
+}}>
+    <TreeView>
+        {/* Compact file browser tree */}
+        <TreeViewItem label="src" hasChildren defaultExpanded>
+            <TreeViewItem label="components" hasChildren>
+                <TreeViewItem label="Button.tsx" />
+            </TreeViewItem>
+        </TreeViewItem>
+    </TreeView>
+</div>
+
+<div class="navigation-tree" style={{
+    '--treeview-item-padding-x': '1rem',
+    '--treeview-item-padding-y': '0.5rem',
+    '--treeview-item-border-radius': '0.5rem',
+    '--treeview-icon-size': '1.25rem',
+    '--treeview-icon-transition-duration': '250ms'
+}}>
+    <TreeView>
+        {/* Spacious navigation tree with smooth animations */}
+        <TreeViewItem label="Documentation" hasChildren>
+            <TreeViewItem label="Getting Started" />
+            <TreeViewItem label="Components" hasChildren>
+                <TreeViewItem label="Button" />
+                <TreeViewItem label="Input" />
+            </TreeViewItem>
+        </TreeViewItem>
+    </TreeView>
+</div>
+```
+
 ## Examples
 
 ### Basic Example

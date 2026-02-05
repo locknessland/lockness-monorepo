@@ -13,8 +13,8 @@ Deno.test('Input component', async (t) => {
     await t.step('renders with default props', () => {
         const html = renderToString(<Input />)
         assertStringIncludes(html, 'type="text"')
-        assertStringIncludes(html, 'h-10')
-        assertStringIncludes(html, 'rounded-(--radius)')
+        assertStringIncludes(html, 'h-(--input-height)')
+        assertStringIncludes(html, 'rounded-(--input-border-radius)')
     })
 
     await t.step('renders with email type', () => {
@@ -46,7 +46,7 @@ Deno.test('Input component', async (t) => {
 
     await t.step('uses CSS variables', () => {
         const html = renderToString(<Input />)
-        assertStringIncludes(html, '(--input)')
+        assertStringIncludes(html, '(--input-border-color)')
         assertStringIncludes(html, '(--background)')
         assertStringIncludes(html, '(--ring)')
     })

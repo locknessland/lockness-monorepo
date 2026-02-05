@@ -102,9 +102,9 @@ export const Textarea: FC<TextareaProps> = ({
     return (
         <textarea
             class={cn(
-                'flex min-h-20 w-full rounded-(--radius)',
-                'border border-(--input) bg-(--background)',
-                'px-3 py-2 text-sm',
+                'flex min-h-(--textarea-min-height) w-full rounded-(--textarea-border-radius)',
+                'border border-(--textarea-border-color) bg-(--textarea-background)',
+                'px-(--textarea-padding-x) py-(--textarea-padding-y) text-[length:--textarea-font-size]',
                 'ring-offset-(--background)',
                 'placeholder:text-(--muted-foreground)',
                 'focus-visible:outline-none focus-visible:ring-2',

@@ -13,7 +13,8 @@ Deno.test('Checkbox component', async (t) => {
     await t.step('renders with default props', () => {
         const html = renderToString(<Checkbox />)
         assertStringIncludes(html, 'type="checkbox"')
-        assertStringIncludes(html, 'h-4 w-4')
+        assertStringIncludes(html, 'h-(--checkbox-size)')
+        assertStringIncludes(html, 'w-(--checkbox-size)')
     })
 
     await t.step('renders with checked state', () => {
@@ -33,7 +34,7 @@ Deno.test('Checkbox component', async (t) => {
 
     await t.step('uses CSS variables', () => {
         const html = renderToString(<Checkbox />)
-        assertStringIncludes(html, '(--primary)')
+        assertStringIncludes(html, '(--checkbox-accent-color)')
         assertStringIncludes(html, '(--ring)')
     })
 

@@ -53,23 +53,24 @@ export interface LinkProps {
 }
 
 const variantClasses = {
-    default: 'text-blue-600 hover:text-blue-800 hover:underline',
+    default:
+        'text-(--link-default-color) hover:underline underline-offset-(--link-default-underline-offset)',
     primary:
-        'inline-flex items-center justify-center font-medium rounded-(--radius) bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors duration-150',
+        'inline-flex items-center justify-center font-(--link-font-weight) rounded-(--link-border-radius) bg-(--link-primary-background) text-(--link-primary-foreground) hover:bg-(--link-primary-background-hover) transition-colors duration-150',
     secondary:
-        'inline-flex items-center justify-center font-medium rounded-(--radius) bg-gray-600 text-white hover:bg-gray-700 active:bg-gray-800 transition-colors duration-150',
+        'inline-flex items-center justify-center font-(--link-font-weight) rounded-(--link-border-radius) bg-(--link-secondary-background) text-(--link-secondary-foreground) hover:bg-(--link-secondary-background-hover) transition-colors duration-150',
     outline:
-        'inline-flex items-center justify-center font-medium rounded-(--radius) border-2 border-gray-300 text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-colors duration-150',
+        'inline-flex items-center justify-center font-(--link-font-weight) rounded-(--link-border-radius) border-2 border-(--border) text-(--foreground) hover:bg-(--accent) hover:text-(--accent-foreground) transition-colors duration-150',
     ghost:
-        'inline-flex items-center justify-center font-medium rounded-(--radius) text-gray-700 hover:bg-gray-100 active:bg-gray-200 transition-colors duration-150',
+        'inline-flex items-center justify-center font-(--link-font-weight) rounded-(--link-border-radius) text-(--foreground) hover:bg-(--accent) hover:text-(--accent-foreground) transition-colors duration-150',
     danger:
-        'inline-flex items-center justify-center font-medium rounded-(--radius) bg-red-600 text-white hover:bg-red-700 active:bg-red-800 transition-colors duration-150',
+        'inline-flex items-center justify-center font-(--link-font-weight) rounded-(--link-border-radius) bg-(--link-danger-background) text-(--link-danger-foreground) hover:bg-(--link-danger-background-hover) transition-colors duration-150',
 }
 
 const sizeClasses = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
+    sm: 'px-(--link-padding-x) py-[calc(var(--link-padding-y)*0.75)] text-sm',
+    md: 'px-(--link-padding-x) py-(--link-padding-y) text-base',
+    lg: 'px-[calc(var(--link-padding-x)*1.5)] py-[calc(var(--link-padding-y)*1.5)] text-lg',
 }
 
 /**

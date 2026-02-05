@@ -42,7 +42,8 @@ export interface GaugeProgressProps
     size?: 'sm' | 'default' | 'lg' | 'xl'
     /**
      * Stroke width of the progress arc
-     * @default 1.5
+     * If not provided, uses size-based defaults from CSS variables:
+     * - sm: 8, md: 10, lg: 12, xl: 14
      */
     strokeWidth?: number
     /**
@@ -84,34 +85,42 @@ export interface GaugeProgressProps
 }
 
 const sizeStyles = {
-    sm: 'size-20',
-    default: 'size-32',
-    lg: 'size-40',
-    xl: 'size-48',
+    sm: '[width:var(--gauge-progress-size-sm)] [height:var(--gauge-progress-size-sm)]',
+    default:
+        '[width:var(--gauge-progress-size-md)] [height:var(--gauge-progress-size-md)]',
+    lg: '[width:var(--gauge-progress-size-lg)] [height:var(--gauge-progress-size-lg)]',
+    xl: '[width:var(--gauge-progress-size-xl)] [height:var(--gauge-progress-size-xl)]',
 }
 
 const valueSizeStyles = {
-    sm: 'text-lg',
-    default: 'text-2xl',
-    lg: 'text-4xl',
-    xl: 'text-5xl',
+    sm: '[font-size:var(--gauge-progress-label-font-size-sm)]',
+    default: '[font-size:var(--gauge-progress-label-font-size-md)]',
+    lg: '[font-size:var(--gauge-progress-label-font-size-lg)]',
+    xl: '[font-size:var(--gauge-progress-label-font-size-xl)]',
 }
 
 const labelSizeStyles = {
-    sm: 'text-xs',
-    default: 'text-sm',
-    lg: 'text-base',
-    xl: 'text-lg',
+    sm: '[font-size:var(--gauge-progress-sublabel-font-size-sm)]',
+    default: '[font-size:var(--gauge-progress-sublabel-font-size-md)]',
+    lg: '[font-size:var(--gauge-progress-sublabel-font-size-lg)]',
+    xl: '[font-size:var(--gauge-progress-sublabel-font-size-xl)]',
 }
 
 const variantStyles = {
-    default: 'text-primary',
+    default: '[color:var(--gauge-progress-indicator-color)]',
     success: 'text-teal-500',
     warning: 'text-yellow-500',
     destructive: 'text-red-500',
 }
 
-const trackStyles = 'text-gray-200 dark:text-neutral-700'
+const trackStyles = '[color:var(--gauge-progress-track-color)]'
+
+const strokeWidthStyles = {
+    sm: 8,
+    default: 10,
+    lg: 12,
+    xl: 14,
+}
 
 /**
  * GaugeProgress Component
@@ -160,7 +169,7 @@ export const GaugeProgress: FC<GaugeProgressProps> = ({
     type = 'gauge',
     variant = 'default',
     size = 'default',
-    strokeWidth = 1.5,
+    strokeWidth,
     trackStrokeWidth,
     strokeLinecap = 'round',
     progressColor,
@@ -187,8 +196,9 @@ export const GaugeProgress: FC<GaugeProgressProps> = ({
         ? 'top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2'
         : 'top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/4'
 
-    // Determine track stroke width (defaults to strokeWidth if not specified)
-    const effectiveTrackStrokeWidth = trackStrokeWidth ?? strokeWidth
+    // Determine stroke widths (use CSS variable-based values by size, or custom if provided)
+    const effectiveStrokeWidth = strokeWidth ?? strokeWidthStyles[size]
+    const effectiveTrackStrokeWidth = trackStrokeWidth ?? effectiveStrokeWidth
 
     // Determine colors (custom colors override variant)
     const effectiveProgressColor = progressColor || variantStyles[variant]
@@ -230,7 +240,7 @@ export const GaugeProgress: FC<GaugeProgressProps> = ({
                     r='16'
                     fill='none'
                     class={cn('stroke-current', effectiveProgressColor)}
-                    stroke-width={strokeWidth}
+                    stroke-width={effectiveStrokeWidth}
                     stroke-dasharray={`${progressDasharray} 100`}
                     stroke-linecap={strokeLinecap}
                 />

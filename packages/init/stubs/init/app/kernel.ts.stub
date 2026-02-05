@@ -28,7 +28,7 @@ import { config } from '../config/mod.ts'
  * @example Start the application
  * ```typescript
  * import { createApp } from '@lockness/core'
- * import { AppKernel } from './app/kernel.tsx'
+ * import { AppKernel } from './app/kernel.ts'
  *
  * const app = await createApp(AppKernel)
  * app.listen(8888)
@@ -119,7 +119,7 @@ export class AppKernel {
  *        guards: { web: createWebGuard },
  *    }
  *
- *    // app/kernel.tsx
+ *    // app/kernel.ts
  *    import { authConfig } from './auth/guards.ts'
  *
  *    @DeclareGlobalMiddleware()
@@ -161,7 +161,7 @@ export class AppKernel {
  *        middleware: i18nMiddleware,
  *    }
  *
- *    // app/kernel.tsx
+ *    // app/kernel.ts
  *    import { config } from '../config/mod.ts'
  *
  *    @Kernel({

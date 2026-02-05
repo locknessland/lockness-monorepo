@@ -108,8 +108,8 @@ export const Input: FC<InputProps> = ({
         <input
             type={type}
             class={cn(
-                'flex h-10 w-full rounded-(--radius) border border-(--input)',
-                'bg-(--background) px-3 py-2 text-sm',
+                'flex h-(--input-height) w-full rounded-(--input-border-radius) border border-(--input-border-color)',
+                'bg-(--input-background) px-(--input-padding-x) py-(--input-padding-y) text-[length:--input-font-size]',
                 'ring-offset-(--background)',
                 'file:border-0 file:bg-transparent file:text-sm file:font-medium',
                 'placeholder:text-(--muted-foreground)',

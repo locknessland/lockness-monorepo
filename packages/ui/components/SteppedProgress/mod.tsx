@@ -33,6 +33,7 @@ export interface SteppedProgressProps
     /**
      * Custom thickness in Tailwind spacing units (1 = 0.25rem)
      * @default 2.5 (h-2.5)
+     * @deprecated Use CSS variable --stepped-progress-connector-height instead
      */
     thickness?: number
     /**
@@ -72,6 +73,10 @@ export interface SteppedProgressProps
      */
     outlined?: boolean
     /**
+     * Step labels (optional array of label strings)
+     */
+    labels?: string[]
+    /**
      * Additional CSS class names
      */
     class?: string
@@ -83,23 +88,27 @@ export interface SteppedProgressProps
 
 const variantStyles = {
     default: {
-        active: 'bg-primary',
-        inactive: 'bg-gray-300 dark:bg-neutral-600',
+        active: 'bg-(--stepped-progress-active-color)',
+        inactive: 'bg-(--stepped-progress-inactive-color)',
+        completed: 'bg-(--stepped-progress-completed-color)',
         label: 'text-foreground',
     },
     success: {
         active: 'bg-teal-500',
         inactive: 'bg-teal-100 dark:bg-teal-500/30',
+        completed: 'bg-teal-500',
         label: 'text-foreground',
     },
     warning: {
         active: 'bg-yellow-500',
         inactive: 'bg-yellow-100 dark:bg-yellow-500/30',
+        completed: 'bg-yellow-500',
         label: 'text-yellow-500',
     },
     destructive: {
         active: 'bg-red-600',
         inactive: 'bg-red-100 dark:bg-red-500/30',
+        completed: 'bg-red-600',
         label: 'text-red-500',
     },
 }
@@ -121,6 +130,9 @@ const outlineVariantStyles = {
  * ```tsx
  * // Basic usage (2 of 4 steps completed)
  * <SteppedProgress value={2} steps={4} />
+ *
+ * // With step labels
+ * <SteppedProgress value={2} steps={4} labels={['Account', 'Profile', 'Preferences', 'Complete']} />
  *
  * // With end label (percentage at the end)
  * <SteppedProgress value={2} steps={4} endLabel />
@@ -154,14 +166,15 @@ export const SteppedProgress: FC<SteppedProgressProps> = ({
     value = 0,
     steps = 4,
     variant = 'default',
-    thickness = 2.5,
+    thickness: _thickness = 2.5,
     showLabel = false,
     innerLabel = false,
     endLabel = false,
     showCheck = false,
-    striped = false,
-    animated = false,
+    striped: _striped = false,
+    animated: _animated = false,
     outlined = false,
+    labels,
     class: className,
     id,
     ...props
@@ -171,25 +184,6 @@ export const SteppedProgress: FC<SteppedProgressProps> = ({
     const percentage = Math.round((clampedValue / steps) * 100)
     const isComplete = clampedValue === steps
 
-    // Convert thickness to rem (Tailwind spacing: 1 = 0.25rem)
-    // For innerLabel, use a minimum thickness of 6 (1.5rem) to fit the text
-    const effectiveThickness = innerLabel && thickness < 6 ? 6 : thickness
-    const thicknessStyle = `${effectiveThickness * 0.25}rem`
-
-    // Striped background style
-    const stripedStyle = striped
-        ? `background-image: linear-gradient(
-            45deg,
-            rgba(255, 255, 255, 0.15) 25%,
-            transparent 25%,
-            transparent 50%,
-            rgba(255, 255, 255, 0.15) 50%,
-            rgba(255, 255, 255, 0.15) 75%,
-            transparent 75%,
-            transparent
-        ); background-size: var(--progress-stripe-size, 1rem) var(--progress-stripe-size, 1rem);`
-        : ''
-
     const styles = variantStyles[variant]
 
     // Determine if we should show end label (endLabel or deprecated showLabel)
@@ -198,7 +192,7 @@ export const SteppedProgress: FC<SteppedProgressProps> = ({
     const stepsBar = (
         <div
             class={cn(
-                'flex items-center gap-x-1 w-full',
+                'flex items-center gap-x-2 w-full',
                 outlined && 'bg-transparent',
             )}
             role='group'
@@ -206,33 +200,80 @@ export const SteppedProgress: FC<SteppedProgressProps> = ({
         >
             {Array.from({ length: steps }, (_, index) => {
                 const stepNumber = index + 1
-                const isActive = stepNumber <= clampedValue
-                const isLastActiveStep = stepNumber === clampedValue
+                const isCompleted = stepNumber < clampedValue
+                const isActive = stepNumber === clampedValue
+                const isVisited = stepNumber <= clampedValue
+                const hasLabel = labels && labels[index]
 
                 return (
                     <div
                         key={index}
-                        role='progressbar'
-                        aria-valuenow={isActive ? 100 : 0}
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-label={`Step ${stepNumber} of ${steps}`}
-                        class={cn(
-                            'w-full flex flex-col justify-center overflow-hidden transition-colors duration-300',
-                            isActive ? styles.active : styles.inactive,
-                            innerLabel && 'items-center',
-                            animated &&
-                                isActive &&
-                                'animate-[progress-stripes_var(--progress-animation-duration,1s)_linear_infinite]',
-                        )}
-                        style={`height: ${thicknessStyle}; border-radius: var(--progress-border-radius, var(--radius)); ${
-                            isActive ? stripedStyle : ''
-                        }`}
+                        class='flex items-center flex-1'
                     >
-                        {innerLabel && isLastActiveStep && clampedValue > 0 && (
-                            <span class='text-xs font-medium text-white whitespace-nowrap'>
-                                {clampedValue} of {steps}
-                            </span>
+                        {/* Step Circle */}
+                        <div class='flex flex-col items-center'>
+                            <div
+                                role='progressbar'
+                                aria-valuenow={isVisited ? 100 : 0}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-label={`Step ${stepNumber} of ${steps}`}
+                                class={cn(
+                                    'size-(--stepped-progress-step-size) rounded-full flex items-center justify-center transition-colors duration-300',
+                                    'text-[length:--stepped-progress-step-font-size] font-(--stepped-progress-step-font-weight)',
+                                    isCompleted && styles.completed,
+                                    isActive && !isCompleted && styles.active,
+                                    !isVisited && styles.inactive,
+                                    isVisited && 'text-white',
+                                    !isVisited && 'text-muted-foreground',
+                                )}
+                            >
+                                {isCompleted
+                                    ? (
+                                        <svg
+                                            class='size-4'
+                                            xmlns='http://www.w3.org/2000/svg'
+                                            width='24'
+                                            height='24'
+                                            viewBox='0 0 24 24'
+                                            fill='none'
+                                            stroke='currentColor'
+                                            stroke-width='2'
+                                            stroke-linecap='round'
+                                            stroke-linejoin='round'
+                                        >
+                                            <polyline points='20 6 9 17 4 12' />
+                                        </svg>
+                                    )
+                                    : stepNumber}
+                            </div>
+
+                            {/* Step Label */}
+                            {hasLabel && (
+                                <span
+                                    class={cn(
+                                        'text-[length:--stepped-progress-label-font-size] mt-(--stepped-progress-label-margin-top)',
+                                        'text-center',
+                                        isVisited
+                                            ? styles.label
+                                            : 'text-muted-foreground',
+                                    )}
+                                >
+                                    {labels[index]}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Connector Line (not shown after last step) */}
+                        {index < steps - 1 && (
+                            <div
+                                class={cn(
+                                    'flex-1 h-(--stepped-progress-connector-height) mx-2 transition-colors duration-300',
+                                    isCompleted
+                                        ? 'bg-(--stepped-progress-completed-color)'
+                                        : 'bg-(--stepped-progress-connector-color)',
+                                )}
+                            />
                         )}
                     </div>
                 )
@@ -258,14 +299,19 @@ export const SteppedProgress: FC<SteppedProgressProps> = ({
     return (
         <div
             id={id}
-            class={cn('flex items-center gap-x-1', className)}
+            class={cn('flex items-center gap-x-2', className)}
             {...props}
         >
             {wrappedStepsBar}
 
             {shouldShowEndLabel && !showCheck && !innerLabel && (
                 <div class='w-10 text-end'>
-                    <span class={cn('text-sm', styles.label)}>
+                    <span
+                        class={cn(
+                            'text-[length:--stepped-progress-label-font-size]',
+                            styles.label,
+                        )}
+                    >
                         {percentage}%
                     </span>
                 </div>
@@ -276,7 +322,7 @@ export const SteppedProgress: FC<SteppedProgressProps> = ({
                     <span
                         class={cn(
                             'shrink-0 size-4 flex justify-center items-center rounded-full text-white',
-                            styles.active,
+                            styles.completed,
                         )}
                     >
                         <svg
@@ -299,7 +345,12 @@ export const SteppedProgress: FC<SteppedProgressProps> = ({
 
             {showCheck && !isComplete && shouldShowEndLabel && !innerLabel && (
                 <div class='w-10 text-end'>
-                    <span class={cn('text-sm', styles.label)}>
+                    <span
+                        class={cn(
+                            'text-[length:--stepped-progress-label-font-size]',
+                            styles.label,
+                        )}
+                    >
                         {percentage}%
                     </span>
                 </div>

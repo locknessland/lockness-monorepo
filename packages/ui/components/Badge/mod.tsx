@@ -73,7 +73,7 @@ export const Badge: FC<BadgeProps> = ({
                 'inline-flex items-center justify-center',
                 'px-(--badge-padding-x) py-(--badge-padding-y)',
                 'rounded-[calc(var(--radius))]',
-                'text-(length:--badge-font-size) font-[--badge-font-weight]',
+                'text-(length:--badge-font-size) font-(--badge-font-weight)',
                 'transition-colors',
                 'focus:outline-none focus:ring-2 focus:ring-(--ring)',
                 'focus:ring-offset-(--ring-offset)',

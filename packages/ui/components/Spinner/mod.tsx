@@ -50,20 +50,20 @@ export interface SpinnerProps {
 }
 
 const sizeClasses = {
-    sm: 'size-4 border-2',
-    md: 'size-6 border-3',
-    lg: 'size-8 border-3',
-    xl: 'size-12 border-4',
+    sm: 'h-4 w-4 border-2',
+    md: 'h-6 w-6 border-2',
+    lg: 'h-8 w-8 border-3',
+    xl: 'h-12 w-12 border-4',
 }
 
 const variantColors = {
-    primary: 'var(--primary)',
+    primary: 'var(--spinner-default-color)',
     secondary: 'var(--secondary-foreground)',
     muted: 'var(--muted-foreground)',
     destructive: 'var(--destructive)',
-    success: '#16a34a',
-    warning: '#ca8a04',
-    info: '#2563eb',
+    success: 'var(--spinner-success-color)',
+    warning: 'var(--spinner-warning-color)',
+    info: 'var(--spinner-info-color)',
 }
 
 /**
@@ -108,7 +108,8 @@ export const Spinner: FC<SpinnerProps> = ({
             style={{
                 borderColor: color,
                 borderTopColor: 'transparent',
-                animation: 'spin 1s linear infinite',
+                animation:
+                    'spin var(--spinner-animation-duration) linear infinite',
             }}
             role='status'
             aria-label={label}

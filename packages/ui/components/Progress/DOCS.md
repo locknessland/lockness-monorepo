@@ -137,6 +137,110 @@ import { Progress } from '@lockness/ui/components'
 | `--progress-stripe-size`           | `1rem`                      | Size of diagonal stripes           |
 | `--progress-animation-duration`    | `1s`                        | Duration of stripe animation       |
 
+## Theming
+
+The Progress component can be customized using CSS variables. Override these
+variables to match your design system.
+
+### Available CSS Variables
+
+| Variable                           | Default                     | Description                        |
+| ---------------------------------- | --------------------------- | ---------------------------------- |
+| `--progress-border-radius`         | `var(--radius)`             | Border radius of the bar           |
+| `--progress-background`            | `var(--secondary)`          | Background color of the track      |
+| `--progress-height-sm`             | `0.25rem`                   | Height for sm size                 |
+| `--progress-height-default`        | `0.5rem`                    | Height for default size            |
+| `--progress-height-lg`             | `1rem`                      | Height for lg size                 |
+| `--progress-outline-border-width`  | `2px`                       | Border width for outlined wrapper  |
+| `--progress-outline-padding`       | `0.25rem`                   | Padding inside outlined wrapper    |
+| `--progress-outline-border-radius` | `calc(var(--radius) + 4px)` | Border radius for outlined wrapper |
+| `--progress-stripe-size`           | `1rem`                      | Size of diagonal stripes           |
+| `--progress-animation-duration`    | `1s`                        | Duration of stripe animation       |
+
+### Theming Examples
+
+#### Custom Heights
+
+```css
+:root {
+    --progress-height-sm: 0.125rem; /* Thinner small size */
+    --progress-height-default: 0.75rem; /* Thicker default */
+    --progress-height-lg: 1.5rem; /* Larger large size */
+}
+```
+
+#### Custom Border Radius
+
+```css
+:root {
+    --progress-border-radius: 0; /* Square corners */
+}
+
+/* or */
+:root {
+    --progress-border-radius: 9999px; /* Fully rounded */
+}
+```
+
+#### Custom Track Background
+
+```css
+:root {
+    --progress-background: hsl(240 5% 85%); /* Custom gray */
+}
+
+.dark {
+    --progress-background: hsl(240 5% 20%); /* Darker for dark mode */
+}
+```
+
+#### Custom Outline Style
+
+```css
+:root {
+    --progress-outline-border-width: 3px; /* Thicker border */
+    --progress-outline-padding: 0.5rem; /* More padding */
+    --progress-outline-border-radius: 1rem; /* More rounded */
+}
+```
+
+#### Custom Stripe Animation
+
+```css
+:root {
+    --progress-stripe-size: 1.5rem; /* Larger stripes */
+    --progress-animation-duration: 2s; /* Slower animation */
+}
+```
+
+#### Complete Custom Theme
+
+```css
+:root {
+    /* Heights */
+    --progress-height-sm: 0.25rem;
+    --progress-height-default: 0.625rem;
+    --progress-height-lg: 1.25rem;
+
+    /* Appearance */
+    --progress-border-radius: 0.5rem;
+    --progress-background: hsl(210 40% 90%);
+
+    /* Outline */
+    --progress-outline-border-width: 1px;
+    --progress-outline-padding: 0.375rem;
+    --progress-outline-border-radius: 0.75rem;
+
+    /* Stripes */
+    --progress-stripe-size: 0.75rem;
+    --progress-animation-duration: 1.5s;
+}
+
+.dark {
+    --progress-background: hsl(210 40% 15%);
+}
+```
+
 ## Features
 
 - **Pure CSS** - No JavaScript required
@@ -147,14 +251,4 @@ import { Progress } from '@lockness/ui/components'
 - **Striped effect** - Diagonal stripes with optional animation
 - **Outlined wrapper** - Border wrapper with padding
 - **Fully customizable** - CSS variables for theming
-- **Accessible** - Proper ARIA attributes (`progressbar` role) | `--secondary` |
-  Progress bar background color | | `--radius` | Border radius |
-
-## Features
-
-- **Pure CSS** - No JavaScript required
-- **Smooth animations** - Animated transitions on value change
-- **Multiple label options** - Above, floating, inner, or end position
-- **Vertical support** - Can be displayed vertically
-- **Custom thickness** - Override size with exact thickness
 - **Accessible** - Proper ARIA attributes (`progressbar` role)

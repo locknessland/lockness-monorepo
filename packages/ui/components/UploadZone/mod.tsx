@@ -291,17 +291,16 @@ export const UploadZone: FC<UploadZoneProps> = ({
         <div
             id={id}
             class={cn(
-                'cursor-pointer p-12 flex justify-center bg-card border border-dashed border-border transition-colors duration-200',
+                'cursor-pointer min-h-(--uploadzone-min-height) p-(--uploadzone-padding) flex justify-center bg-(--uploadzone-background) border-[length:--uploadzone-border-width] border-dashed border-(--uploadzone-border-color) rounded-(--uploadzone-border-radius) hover:bg-(--uploadzone-background-hover) transition-colors duration-200',
                 isDragging && 'border-primary bg-primary/5',
                 disabled && 'opacity-50 cursor-not-allowed',
                 className,
             )}
-            style='border-radius: var(--radius)'
             {...props}
         >
             <div class='text-center'>
                 {!hideIcon && (
-                    <span class='inline-flex justify-center items-center size-16'>
+                    <span class='inline-flex justify-center items-center size-(--uploadzone-icon-size) text-(--uploadzone-icon-color)'>
                         {icon || <DefaultUploadIcon />}
                     </span>
                 )}

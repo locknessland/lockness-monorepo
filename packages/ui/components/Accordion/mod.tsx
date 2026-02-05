@@ -134,7 +134,7 @@ export const AccordionItem: FC<AccordionItemProps> = ({
     return (
         <details
             data-value={value}
-            class={cn('border-b border-(--border)', className)}
+            class={cn('border-b border-(--accordion-border-color)', className)}
             {...props}
         >
             {children}
@@ -154,7 +154,7 @@ export const AccordionTrigger: FC<AccordionTriggerProps> = ({
         <summary
             class={cn(
                 'flex cursor-pointer items-center justify-between',
-                'py-4 font-medium transition-all',
+                'py-(--accordion-item-padding) text-(length:--accordion-trigger-font-size) font-(--accordion-trigger-font-weight) transition-all',
                 'hover:underline',
                 '[&::-webkit-details-marker]:hidden',
                 className,
@@ -172,7 +172,7 @@ export const AccordionTrigger: FC<AccordionTriggerProps> = ({
                 stroke-width='2'
                 stroke-linecap='round'
                 stroke-linejoin='round'
-                class='h-4 w-4 shrink-0 transition-transform duration-200 group-open:rotate-180'
+                class='h-4 w-4 shrink-0 transition-transform duration-(--accordion-icon-transition-duration) group-open:rotate-180'
             >
                 <polyline points='6 9 12 15 18 9'></polyline>
             </svg>
@@ -191,8 +191,8 @@ export const AccordionContent: FC<AccordionContentProps> = ({
     return (
         <div
             class={cn(
-                'overflow-hidden text-sm transition-all',
-                'pb-4 pt-0',
+                'overflow-hidden text-(length:--accordion-content-font-size) transition-all',
+                'pb-(--accordion-content-padding-bottom) pt-(--accordion-content-padding-top)',
                 className,
             )}
             {...props}

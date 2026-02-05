@@ -111,10 +111,15 @@ export const Video: FC<VideoProps> = ({
     return (
         <video
             class={cn(
-                'w-full bg-black',
+                'w-full bg-black rounded-(--video-border-radius)',
                 aspectClass,
                 className,
             )}
+            style={`${
+                controls
+                    ? '--video-controls-background: var(--video-controls-background); --video-controls-foreground: var(--video-controls-foreground);'
+                    : ''
+            }`}
             poster={poster}
             controls={controls}
             autoplay={autoplay}

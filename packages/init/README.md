@@ -116,10 +116,10 @@ my-app/
 ├── .env.exemple              # Environment template
 ├── main.ts                   # Application entry point
 ├── cli.ts                    # CLI entry point
-├── kernel.tsx                # Application kernel
 ├── public/                   # Static files
 │   └── css/
 ├── app/
+│   ├── kernel.ts             # Application kernel
 │   ├── controller/           # HTTP controllers
 │   ├── middleware/           # Custom middleware
 │   ├── model/                # Data models
@@ -148,7 +148,7 @@ The init command creates a fully configured project with:
 
 - **deno.json**: Workspace configuration with tasks and imports
 - **.env**: Environment variables (APP_ENV, APP_PORT, DATABASE_URL)
-- **kernel.tsx**: Application bootstrap with middleware configuration
+- **kernel.ts**: Application bootstrap with middleware configuration
 - **main.ts**: HTTP server entry point
 
 ## Customization

@@ -82,13 +82,13 @@ export const Checkbox: FC<CheckboxProps> = ({
         <input
             type='checkbox'
             class={cn(
-                'peer h-4 w-4 shrink-0 rounded-[calc(var(--radius)-2px)',
-                'border border-(--primary)',
+                'peer h-(--checkbox-size) w-(--checkbox-size) shrink-0 rounded-(--checkbox-border-radius)',
+                'border border-(--checkbox-border-color)',
                 'ring-offset-(--background)',
                 'focus-visible:outline-none focus-visible:ring-2',
                 'focus-visible:ring-(--ring) focus-visible:ring-offset-(--ring-offset)',
                 'disabled:cursor-not-allowed disabled:opacity-50',
-                'accent-(--primary)',
+                'accent-(--checkbox-accent-color)',
                 className,
             )}
             {...props}
