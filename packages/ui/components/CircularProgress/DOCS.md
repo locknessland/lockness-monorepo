@@ -28,34 +28,21 @@ import { CircularProgress } from '@lockness/ui/components'
 <CircularProgress value={60} size="xl" showLabel />
 ```
 
-### Custom Stroke Width
-
-```tsx
-<CircularProgress value={60} strokeWidth={1} showLabel />
-<CircularProgress value={60} strokeWidth={4} showLabel />
-```
-
-## Props
-
-| Prop          | Type                                                   | Default     | Description                         |
-| ------------- | ------------------------------------------------------ | ----------- | ----------------------------------- |
-| `value`       | `number`                                               | `0`         | Current progress value (0-100)      |
-| `max`         | `number`                                               | `100`       | Maximum value                       |
-| `variant`     | `'default' \| 'success' \| 'warning' \| 'destructive'` | `'default'` | Visual style variant                |
-| `size`        | `'sm' \| 'default' \| 'lg' \| 'xl'`                    | `'default'` | Size of the circular progress       |
-| `strokeWidth` | `number`                                               | `2`         | Stroke width of the progress circle |
-| `showLabel`   | `boolean`                                              | `false`     | Show percentage label in the center |
-| `class`       | `string`                                               | -           | Additional CSS class names          |
-| `id`          | `string`                                               | -           | Element id attribute                |
-
 ## Variants
 
 | Variant       | Description                                 |
 | ------------- | ------------------------------------------- |
-| `default`     | Primary color (uses `--primary`)            |
+| `default`     | Primary color                               |
 | `success`     | Green color for completed/successful states |
 | `warning`     | Yellow color for warning states             |
 | `destructive` | Red color for error/danger states           |
+
+```tsx
+<CircularProgress value={60} showLabel />
+<CircularProgress value={100} variant="success" showLabel />
+<CircularProgress value={45} variant="warning" showLabel />
+<CircularProgress value={25} variant="destructive" showLabel />
+```
 
 ## Sizes
 
@@ -66,118 +53,86 @@ import { CircularProgress } from '@lockness/ui/components'
 | `lg`      | 6rem      |
 | `xl`      | 8rem      |
 
-## Theming
-
-The CircularProgress component can be customized using CSS variables. Override
-these variables to match your design system.
-
-### Available CSS Variables
-
-| Variable                                | Default            | Description                      |
-| --------------------------------------- | ------------------ | -------------------------------- |
-| `--circular-progress-size-sm`           | `2.5rem`           | Size for sm variant              |
-| `--circular-progress-size-md`           | `4rem`             | Size for default/md variant      |
-| `--circular-progress-size-lg`           | `6rem`             | Size for lg variant              |
-| `--circular-progress-size-xl`           | `8rem`             | Size for xl variant              |
-| `--circular-progress-stroke-width-sm`   | `2`                | Stroke width for sm size         |
-| `--circular-progress-stroke-width-md`   | `3`                | Stroke width for default/md size |
-| `--circular-progress-stroke-width-lg`   | `4`                | Stroke width for lg size         |
-| `--circular-progress-stroke-width-xl`   | `5`                | Stroke width for xl size         |
-| `--circular-progress-track-color`       | `var(--secondary)` | Background track color           |
-| `--circular-progress-indicator-color`   | `var(--primary)`   | Progress indicator color         |
-| `--circular-progress-text-font-size-sm` | `0.75rem`          | Text size for sm variant         |
-| `--circular-progress-text-font-size-md` | `1rem`             | Text size for default/md variant |
-| `--circular-progress-text-font-size-lg` | `1.5rem`           | Text size for lg variant         |
-| `--circular-progress-text-font-size-xl` | `2rem`             | Text size for xl variant         |
-
-### Theming Examples
-
-#### Custom Sizes
-
-```css
-:root {
-    --circular-progress-size-sm: 3rem;
-    --circular-progress-size-md: 5rem;
-    --circular-progress-size-lg: 7rem;
-    --circular-progress-size-xl: 10rem;
-}
+```tsx
+<CircularProgress value={60} size="sm" showLabel />
+<CircularProgress value={60} size="default" showLabel />
+<CircularProgress value={60} size="lg" showLabel />
+<CircularProgress value={60} size="xl" showLabel />
 ```
 
-#### Custom Stroke Widths
+## Stroke Width
 
-```css
-:root {
-    --circular-progress-stroke-width-sm: 1.5;
-    --circular-progress-stroke-width-md: 2.5;
-    --circular-progress-stroke-width-lg: 3.5;
-    --circular-progress-stroke-width-xl: 4.5;
-}
+Customize the thickness of the progress circle.
+
+```tsx
+<CircularProgress value={60} strokeWidth={1} showLabel />
+<CircularProgress value={60} strokeWidth={2} showLabel />
+<CircularProgress value={60} strokeWidth={4} showLabel />
 ```
 
-#### Custom Colors
+## Props
 
-```css
-:root {
-    --circular-progress-track-color: hsl(240 5% 85%);
-    --circular-progress-indicator-color: hsl(262 83% 58%);
-}
+| Prop        | Type                                           | Default   | Description                         |
+| ----------- | ---------------------------------------------- | --------- | ----------------------------------- |
+| value       | `number`                                       | `0`       | Current progress value (0-100)      |
+| max         | `number`                                       | `100`     | Maximum value                       |
+| variant     | `default \| success \| warning \| destructive` | `default` | Visual style variant                |
+| size        | `sm \| default \| lg \| xl`                    | `default` | Size of the circular progress       |
+| strokeWidth | `number`                                       | `3`       | Stroke width of the progress circle |
+| showLabel   | `boolean`                                      | `false`   | Show percentage label in the center |
+| class       | `string`                                       | -         | Additional CSS class names          |
+| id          | `string`                                       | -         | Element id attribute                |
 
-.dark {
-    --circular-progress-track-color: hsl(240 5% 20%);
-    --circular-progress-indicator-color: hsl(262 83% 68%);
-}
+## Accessibility
+
+The component includes proper ARIA attributes:
+
+- `role="progressbar"` for semantic meaning
+- `aria-valuenow` for the current value
+- `aria-valuemin` and `aria-valuemax` for the range
+
+## Examples
+
+### Loading State
+
+```tsx
+<div class='flex items-center gap-4'>
+    <CircularProgress value={75} showLabel />
+    <span>Loading...</span>
+</div>
 ```
 
-#### Custom Label Font Sizes
+### Dashboard Metrics
 
-```css
-:root {
-    --circular-progress-text-font-size-sm: 0.875rem;
-    --circular-progress-text-font-size-md: 1.125rem;
-    --circular-progress-text-font-size-lg: 1.75rem;
-    --circular-progress-text-font-size-xl: 2.5rem;
-}
+```tsx
+<div class='flex gap-8'>
+    <div class='text-center'>
+        <CircularProgress value={85} variant='success' size='lg' showLabel />
+        <p class='mt-2 text-sm'>Performance</p>
+    </div>
+    <div class='text-center'>
+        <CircularProgress value={62} size='lg' showLabel />
+        <p class='mt-2 text-sm'>Progress</p>
+    </div>
+    <div class='text-center'>
+        <CircularProgress
+            value={23}
+            variant='destructive'
+            size='lg'
+            showLabel
+        />
+        <p class='mt-2 text-sm'>Errors</p>
+    </div>
+</div>
 ```
 
-#### Complete Custom Theme
+### Completion Indicator
 
-```css
-:root {
-    /* Sizes */
-    --circular-progress-size-sm: 3rem;
-    --circular-progress-size-md: 5rem;
-    --circular-progress-size-lg: 8rem;
-    --circular-progress-size-xl: 12rem;
-
-    /* Stroke widths */
-    --circular-progress-stroke-width-sm: 2;
-    --circular-progress-stroke-width-md: 3;
-    --circular-progress-stroke-width-lg: 4;
-    --circular-progress-stroke-width-xl: 6;
-
-    /* Colors */
-    --circular-progress-track-color: hsl(210 40% 90%);
-    --circular-progress-indicator-color: hsl(220 90% 56%);
-
-    /* Text sizes */
-    --circular-progress-text-font-size-sm: 0.75rem;
-    --circular-progress-text-font-size-md: 1.25rem;
-    --circular-progress-text-font-size-lg: 2rem;
-    --circular-progress-text-font-size-xl: 3rem;
-}
-
-.dark {
-    --circular-progress-track-color: hsl(210 40% 15%);
-    --circular-progress-indicator-color: hsl(220 90% 66%);
-}
+```tsx
+<CircularProgress
+    value={100}
+    variant='success'
+    size='xl'
+    showLabel
+/>
 ```
-
-## Features
-
-- **SVG-based** - Crisp rendering at any size
-- **Pure CSS** - Smooth animated transitions
-- **Multiple sizes** - 4 preset sizes
-- **Multiple variants** - 4 color variants
-- **Custom stroke width** - Adjustable line thickness
-- **Fully customizable** - CSS variables for theming
-- **Accessible** - Proper ARIA attributes (`progressbar` role)

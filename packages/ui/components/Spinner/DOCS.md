@@ -19,13 +19,13 @@ import { Spinner } from '@lockness/ui/components'
 
 ## Props
 
-| Prop    | Type                                                                                       | Default     | Description                           |
-| ------- | ------------------------------------------------------------------------------------------ | ----------- | ------------------------------------- |
-| size    | `'sm' \| 'md' \| 'lg' \| 'xl'`                                                             | `'md'`      | Size of the spinner                   |
-| variant | `'primary' \| 'secondary' \| 'muted' \| 'destructive' \| 'success' \| 'warning' \| 'info'` | `'primary'` | Color variant                         |
-| label   | `string`                                                                                   | `'Loading'` | Screen reader label for accessibility |
-| class   | `string`                                                                                   | -           | Additional CSS class names            |
-| id      | `string`                                                                                   | -           | Element id attribute                  |
+| Prop    | Type                                                                                     | Default   | Description                           |
+| ------- | ---------------------------------------------------------------------------------------- | --------- | ------------------------------------- |
+| size    | `sm` \| `md` \| `lg` \| `xl`                                                             | `md`      | Size of the spinner                   |
+| variant | `primary` \| `secondary` \| `muted` \| `destructive` \| `success` \| `warning` \| `info` | `primary` | Color variant                         |
+| label   | `string`                                                                                 | `Loading` | Screen reader label for accessibility |
+| class   | `string`                                                                                 | -         | Additional CSS class names            |
+| id      | `string`                                                                                 | -         | Element id attribute                  |
 
 ## Sizes
 
