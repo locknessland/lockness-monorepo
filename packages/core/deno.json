@@ -5,7 +5,7 @@
     "exports": {
         ".": "./mod.ts",
         "./jsx": "./view/jsx.ts",
-        "./jsx-runtime": "./view/jsx-runtime.ts"
+        "./jsx-runtime": "./view/jsx_runtime.ts"
     },
     "publish": {
         "exclude": [

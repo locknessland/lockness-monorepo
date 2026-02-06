@@ -10,7 +10,7 @@
     "publish": {
         "include": [
             "mod.ts",
-            "zod-decorator.ts",
+            "zod_decorator.ts",
             "deno.json",
             "README.md"
         ],

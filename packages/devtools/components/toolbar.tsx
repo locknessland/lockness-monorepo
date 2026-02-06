@@ -10,9 +10,9 @@
 import { collector } from '../collector.ts'
 import type { RequestInfo } from '../types.ts'
 import { icons } from './icons.ts'
-import { LogoButton } from './logo-button.tsx'
+import { LogoButton } from './LogoButton.tsx'
 import { Metrics } from './metrics.tsx'
-import { RequestInfoItem } from './request-info.tsx'
+import { RequestInfoItem } from './RequestInfo.tsx'
 
 // =============================================================================
 // Types

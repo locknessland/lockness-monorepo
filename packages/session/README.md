@@ -34,7 +34,7 @@ The package follows a modular architecture with clear separation of concerns:
 │  Drivers Layer (drivers/)                │
 │  ├─ cookie.ts       - Cookie driver      │
 │  ├─ memory.ts       - Memory driver      │
-│  ├─ deno-kv.ts      - Deno KV driver     │
+│  ├─ deno_kv.ts      - Deno KV driver     │
 │  ├─ redis.ts        - Redis driver       │
 │  └─ mod.ts          - Driver factory     │
 └─────────────────────────────────────────┘

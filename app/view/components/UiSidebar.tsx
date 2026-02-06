@@ -20,7 +20,7 @@ import {
     SparklesIcon,
 } from '@lockness/ui/components'
 import type { FC } from '@lockness/core'
-import { ThemeCustomizer } from './theme-customizer.tsx'
+import { ThemeCustomizer } from './ThemeCustomizer.tsx'
 
 /**
  * Icon component type for sidebar navigation

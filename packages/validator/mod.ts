@@ -21,7 +21,7 @@ export {
     Validate,
     type ValidationErrorHandler,
     type ValidationErrorResponse,
-} from './zod-decorator.ts'
+} from './zod_decorator.ts'
 
 // =============================================================================
 // Custom Validation System

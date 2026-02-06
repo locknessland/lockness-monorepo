@@ -50,7 +50,7 @@ export * from './client.ts'
  * throw new HTTPException(404, { message: 'Not found' })
  * ```
  */
-export * from './http-exception.ts'
+export * from './http_exception.ts'
 
 /**
  * Validator utilities for request validation
@@ -69,7 +69,7 @@ export type { Child, FC, PropsWithChildren } from './jsx.ts'
 /**
  * JSX runtime for JSX/TSX support
  */
-export * from './jsx-runtime.ts'
+export * from './jsx_runtime.ts'
 
 /**
  * JSX renderer middleware for server-side rendering
@@ -82,7 +82,7 @@ export * from './jsx-runtime.ts'
  * )))
  * ```
  */
-export { jsxRenderer, useRequestContext } from './jsx-renderer.ts'
+export { jsxRenderer, useRequestContext } from './jsx_renderer.ts'
 
 // ============================================================================
 // Adapters & Core Helpers
@@ -145,7 +145,7 @@ export { cors } from './cors.ts'
  * })
  * ```
  */
-export { zValidator } from './zod-validator.ts'
+export { zValidator } from './zod_validator.ts'
 
 // ============================================================================
 // Authentication Middleware

@@ -17,8 +17,8 @@ import {
     UserIcon,
 } from '@lockness/ui/components'
 import { Brand } from '../components/brand.tsx'
-import { UiSidebar } from '../components/ui-sidebar.tsx'
-import { ThemeCustomizerScript } from '../components/theme-customizer.tsx'
+import { UiSidebar } from '../components/UiSidebar.tsx'
+import { ThemeCustomizerScript } from '../components/ThemeCustomizer.tsx'
 
 const LlmLinks = (props: { llmSlug?: string }) => {
     if (!props.llmSlug) return null

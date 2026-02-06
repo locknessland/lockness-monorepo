@@ -7,7 +7,7 @@
 
 import { Cache, Context, Controller, Get } from '@lockness/core'
 import { ExampleSection, UiDocLoader } from '../../packages/ui/doc_loader.ts'
-import { UiIndex } from '@view/pages/ui/getting-started.tsx'
+import { UiIndex } from '@view/pages/ui/GettingStarted.tsx'
 import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
 // Force reload to clear cache

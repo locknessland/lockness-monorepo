@@ -8,13 +8,13 @@ import type { Context } from 'hono'
 import type { SessionConfig, SessionDriver } from '../types.ts'
 import { CookieSessionDriver } from './cookie.ts'
 import { MemorySessionDriver } from './memory.ts'
-import { DenoKvSessionDriver } from './deno-kv.ts'
+import { DenoKvSessionDriver } from './deno_kv.ts'
 import { RedisSessionDriver } from './redis.ts'
 
 // Re-export all drivers
 export { CookieSessionDriver } from './cookie.ts'
 export { MemorySessionDriver } from './memory.ts'
-export { DenoKvSessionDriver } from './deno-kv.ts'
+export { DenoKvSessionDriver } from './deno_kv.ts'
 export { RedisSessionDriver } from './redis.ts'
 
 /**

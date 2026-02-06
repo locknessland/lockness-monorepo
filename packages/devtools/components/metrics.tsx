@@ -1,6 +1,6 @@
 import type { LogEntry, RequestInfo } from '../types.ts'
 import { icons } from './icons.ts'
-import { ToolbarItem } from './toolbar-item.tsx'
+import { ToolbarItem } from './ToolbarItem.tsx'
 
 interface MetricsProps {
     data: any
