@@ -4,7 +4,7 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import {
     GalleryGrid,
     GalleryImage,
@@ -68,74 +68,9 @@ const masonryImages = {
     col4: [sampleImages[1], sampleImages[2], sampleImages[3]],
 }
 
-const galleryGridProps: PropDefinition[] = [
-    {
-        name: 'cols',
-        type: '2 | 3 | 4 | 5 | 6',
-        default: '3',
-        description: 'Number of columns',
-    },
-    {
-        name: 'gap',
-        type: 'none | sm | md | lg',
-        default: 'md',
-        description: 'Gap between items',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const galleryJustifiedProps: PropDefinition[] = [
-    {
-        name: 'rowHeight',
-        type: 'xs | sm | md | lg | xl',
-        default: 'md',
-        description: 'Height of each row in the gallery',
-    },
-    {
-        name: 'gap',
-        type: 'none | sm | md | lg',
-        default: 'md',
-        description: 'Gap between items',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const galleryImageProps: PropDefinition[] = [
-    {
-        name: 'src',
-        type: 'string',
-        required: true,
-        description: 'Image source URL',
-    },
-    { name: 'alt', type: 'string', description: 'Image alt text' },
-    {
-        name: 'aspect',
-        type: 'square | video | portrait | auto',
-        default: 'auto',
-        description: 'Aspect ratio',
-    },
-    {
-        name: 'rounded',
-        type: 'none | default | sm | md | lg | full',
-        default: 'default',
-        description: 'Border radius',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Gallery'),
     {
         title: 'View Button on Hover',
         description: 'Gallery items with hover overlay showing a view button.',
@@ -621,19 +556,6 @@ export const examples: ExampleSection[] = [
 <GalleryImage rounded="lg" />
 <GalleryImage rounded="full" />`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable title='GalleryGrid' props={galleryGridProps} />
-                <PropsTable
-                    title='GalleryJustified'
-                    props={galleryJustifiedProps}
-                />
-                <PropsTable title='GalleryImage' props={galleryImageProps} />
             </div>
         ),
     },

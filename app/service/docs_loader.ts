@@ -26,6 +26,8 @@ export interface DocPage {
     readonly content: string
     /** Package name if doc is package-specific, undefined otherwise */
     readonly package?: string
+    /** Relative path to the source file */
+    readonly relativePath: string
 }
 
 /**
@@ -192,6 +194,7 @@ export class DocsLoader {
             description,
             content,
             package: packageName,
+            relativePath: path,
         }
     }
 
@@ -332,25 +335,25 @@ export class DocsLoader {
 
         // Check if it's a dynamic source
         const sourcePath = this.llmsSlugToSource[slug]
-        if (!sourcePath) {
-            throw new Error(`Unknown LLM documentation slug: ${slug}`)
-        }
+        if (sourcePath) {
+            const cwd = Deno.cwd()
+            const path = join(cwd, sourcePath)
 
-        const cwd = Deno.cwd()
-        const path = join(cwd, sourcePath)
-
-        try {
-            let content = await Deno.readTextFile(path)
-            content = await this.transformToLlmFormat(content)
-            if (!isDevelopment) {
-                await this.cache.set(cacheKey, content, 3600)
+            try {
+                let content = await Deno.readTextFile(path)
+                content = await this.transformToLlmFormat(content)
+                if (!isDevelopment) {
+                    await this.cache.set(cacheKey, content, 3600)
+                }
+                return content
+            } catch (error) {
+                throw new Error(
+                    `Failed to read LLM documentation source: ${path} - ${error}`,
+                )
             }
-            return content
-        } catch (error) {
-            throw new Error(
-                `Failed to read LLM documentation source: ${path} - ${error}`,
-            )
         }
+
+        throw new Error(`Unknown LLM documentation slug: ${slug}`)
     }
 
     /**

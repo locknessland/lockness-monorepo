@@ -7,6 +7,7 @@
 import { Card, CardContent, CodeBlock } from '@lockness/ui/components'
 import { Video } from './mod.tsx'
 import type { ExampleSection } from '../../doc_loader.ts'
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 /**
  * Basic usage example
@@ -177,6 +178,8 @@ const AspectRatiosExample = () => (
  * Exported examples array for documentation
  */
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Video'),
     {
         title: 'Basic Usage',
         render: BasicExample,

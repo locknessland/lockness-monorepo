@@ -40,7 +40,7 @@ export function parseHtmlToAst(html: string): MarkdownNode[] {
             // Prevent infinite loop - skip one character
             remaining = remaining.slice(1)
         } else {
-            remaining = remaining.slice(result.consumed).trim()
+            remaining = remaining.slice(result.consumed)
         }
     }
 
@@ -53,58 +53,74 @@ interface ParseResult {
 }
 
 function parseNextElement(html: string): ParseResult {
-    // Skip whitespace
-    const trimmed = html.trimStart()
-    const whitespaceConsumed = html.length - trimmed.length
-
-    if (trimmed.length === 0) {
-        return { node: null, consumed: html.length }
+    // Handle leading whitespace as text
+    const whitespaceMatch = html.match(/^\s+/)
+    if (whitespaceMatch) {
+        return {
+            node: { type: 'text', value: whitespaceMatch[0] },
+            consumed: whitespaceMatch[0].length,
+        }
     }
 
     // Try to match different HTML elements
     let result: ParseResult | null = null
 
-    result = tryParseHeading(trimmed)
-    if (result) return addConsumed(result, whitespaceConsumed)
+    result = tryParseHeading(html)
+    if (result) return result
 
-    result = tryParseCodeBlock(trimmed)
-    if (result) return addConsumed(result, whitespaceConsumed)
+    result = tryParseCodeBlock(html)
+    if (result) return result
 
-    result = tryParseBlockquote(trimmed)
-    if (result) return addConsumed(result, whitespaceConsumed)
+    result = tryParseBlockquote(html)
+    if (result) return result
 
-    result = tryParseList(trimmed)
-    if (result) return addConsumed(result, whitespaceConsumed)
+    result = tryParseList(html)
+    if (result) return result
 
-    result = tryParseTable(trimmed)
-    if (result) return addConsumed(result, whitespaceConsumed)
+    result = tryParseTable(html)
+    if (result) return result
 
-    result = tryParseHr(trimmed)
-    if (result) return addConsumed(result, whitespaceConsumed)
+    result = tryParseHr(html)
+    if (result) return result
 
-    result = tryParseParagraph(trimmed)
-    if (result) return addConsumed(result, whitespaceConsumed)
+    result = tryParseParagraph(html)
+    if (result) return result
+
+    result = tryParseLink(html)
+    if (result) return result
+
+    result = tryParseImage(html)
+    if (result) return result
+
+    result = tryParseInlineCode(html)
+    if (result) return result
+
+    result = tryParseStrong(html)
+    if (result) return result
+
+    result = tryParseEmphasis(html)
+    if (result) return result
+
+    result = tryParseBr(html)
+    if (result) return result
 
     // Fallback: treat as text
-    const textMatch = trimmed.match(/^[^<]+/)
+    // Match until next tag start or end of string
+    const textMatch = html.match(/^[^<]+/)
     if (textMatch) {
         return {
-            node: { type: 'text', value: textMatch[0] },
-            consumed: whitespaceConsumed + textMatch[0].length,
+            node: { type: 'text', value: decodeHtmlEntities(textMatch[0]) },
+            consumed: textMatch[0].length,
         }
     }
 
     // Skip unknown tags
-    const tagMatch = trimmed.match(/^<[^>]+>/)
+    const tagMatch = html.match(/^<[^>]+>/)
     if (tagMatch) {
-        return { node: null, consumed: whitespaceConsumed + tagMatch[0].length }
+        return { node: null, consumed: tagMatch[0].length }
     }
 
-    return { node: null, consumed: whitespaceConsumed + 1 }
-}
-
-function addConsumed(result: ParseResult, extra: number): ParseResult {
-    return { node: result.node, consumed: result.consumed + extra }
+    return { node: null, consumed: 1 }
 }
 
 function tryParseHeading(html: string): ParseResult | null {
@@ -412,4 +428,83 @@ function decodeHtmlEntities(text: string): string {
  */
 function stripHtmlTags(text: string): string {
     return text.replace(/<[^>]*>/g, '')
+}
+
+function tryParseLink(html: string): ParseResult | null {
+    const match = html.match(
+        /^<a\s+href="([^"]*)"(?:\s+title="([^"]*)")?[^>]*>([\s\S]*?)<\/a>/i,
+    )
+    if (!match) return null
+
+    const node: LinkNode = {
+        type: 'link',
+        href: match[1],
+        title: match[2] || undefined,
+        children: parseInlineContent(match[3]),
+    }
+
+    return { node, consumed: match[0].length }
+}
+
+function tryParseImage(html: string): ParseResult | null {
+    const match = html.match(
+        /^<img\s+src="([^"]*)"(?:\s+alt="([^"]*)")?(?:\s+title="([^"]*)")?[^>]*\/?>/i,
+    )
+    if (!match) return null
+
+    const node: ImageNode = {
+        type: 'image',
+        src: match[1],
+        alt: match[2] || undefined,
+        title: match[3] || undefined,
+    }
+
+    return { node, consumed: match[0].length }
+}
+
+function tryParseInlineCode(html: string): ParseResult | null {
+    const match = html.match(/^<code[^>]*>([\s\S]*?)<\/code>/i)
+    if (!match) return null
+
+    const node: InlineCodeNode = {
+        type: 'code',
+        value: decodeHtmlEntities(match[1]),
+    }
+
+    return { node, consumed: match[0].length }
+}
+
+function tryParseStrong(html: string): ParseResult | null {
+    const match = html.match(
+        /^<(?:strong|b)[^>]*>([\s\S]*?)<\/(?:strong|b)>/i,
+    )
+    if (!match) return null
+
+    const node: MarkdownNode = {
+        type: 'strong',
+        children: parseInlineContent(match[1]),
+    }
+
+    return { node, consumed: match[0].length }
+}
+
+function tryParseEmphasis(html: string): ParseResult | null {
+    const match = html.match(
+        /^<(?:em|i)[^>]*>([\s\S]*?)<\/(?:em|i)>/i,
+    )
+    if (!match) return null
+
+    const node: MarkdownNode = {
+        type: 'emphasis',
+        children: parseInlineContent(match[1]),
+    }
+
+    return { node, consumed: match[0].length }
+}
+
+function tryParseBr(html: string): ParseResult | null {
+    const match = html.match(/^<br\s*\/?>/i)
+    if (!match) return null
+
+    return { node: { type: 'br' }, consumed: match[0].length }
 }

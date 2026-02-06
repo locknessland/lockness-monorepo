@@ -27,11 +27,3 @@ export const HomePage = () => (
 | Prop | Type | Default | Description |
 | ---- | ---- | ------- | ----------- |
 | TBD  | TBD  | TBD     | TBD         |
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

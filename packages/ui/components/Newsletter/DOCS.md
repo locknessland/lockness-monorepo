@@ -119,11 +119,3 @@ Create themed sections with different newsletter styles:
     />
 </div>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

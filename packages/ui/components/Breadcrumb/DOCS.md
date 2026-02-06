@@ -163,11 +163,3 @@ Create themed sections with different breadcrumb styles:
     </Breadcrumb>
 </section>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

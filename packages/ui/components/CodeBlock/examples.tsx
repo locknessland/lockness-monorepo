@@ -3,41 +3,8 @@
  */
 
 import { Card, CardContent } from '../Card/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import { CodeBlock, Command, CommandBlock, InlineCode } from './mod.tsx'
-
-const codeBlockProps: PropDefinition[] = [
-    {
-        name: 'children',
-        type: 'string',
-        description: 'The code content to display',
-    },
-    {
-        name: 'lang',
-        type: 'Language',
-        default: 'typescript',
-        description: 'Programming language for syntax highlighting (typesafe)',
-    },
-    {
-        name: 'theme',
-        type: "'default' | 'monokai' | 'github' | 'nord' | 'plain'",
-        default: 'default',
-        description: 'Syntax highlighting theme',
-    },
-]
-
-const inlineCodeProps: PropDefinition[] = [
-    {
-        name: 'children',
-        type: 'string',
-        description: 'The code text to display',
-    },
-    {
-        name: 'id',
-        type: 'string',
-        description: 'Optional HTML id attribute',
-    },
-]
 
 export interface ExampleSection {
     title: string
@@ -45,6 +12,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('CodeBlock'),
     {
         title: 'Inline Code',
         render: () => (
@@ -204,13 +173,5 @@ async function fetchUsers(): Promise<User[]> {
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'CodeBlock / CommandBlock Props',
-        render: () => <PropsTable props={codeBlockProps} />,
-    },
-    {
-        title: 'InlineCode / Command Props',
-        render: () => <PropsTable props={inlineCodeProps} />,
     },
 ]

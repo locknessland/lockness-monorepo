@@ -88,11 +88,3 @@ import { GalleryGrid, GalleryItem } from '@lockness/ui/components'
 | rounded        | `'none' \| 'default' \| 'sm' \| 'md' \| 'lg' \| 'full'` | `'default'`       | Border radius                |
 | class          | `string`                                                | -                 | Additional class names       |
 | imageClass     | `string`                                                | -                 | Additional image class names |
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

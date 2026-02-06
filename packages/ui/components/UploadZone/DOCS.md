@@ -149,11 +149,3 @@ Create themed sections with different upload zone styles:
     />
 </div>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

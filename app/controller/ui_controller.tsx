@@ -10,6 +10,8 @@ import { ExampleSection, UiDocLoader } from '../../packages/ui/doc_loader.ts'
 import { UiIndex } from '@view/pages/ui/getting-started.tsx'
 import { PageUiLayout } from '@view/layouts/ui_layout.tsx'
 
+// Force reload to clear cache
+
 /**
  * Renders the examples sections for a component
  */
@@ -83,7 +85,11 @@ export class UiController {
 
             // Render page with examples only
             return c.html(
-                <PageUiLayout title={doc.title} llmSlug={llmSlug}>
+                <PageUiLayout
+                    title={doc.title}
+                    llmSlug={llmSlug}
+                    filePath={doc.relativePath}
+                >
                     {examples
                         ? <ExamplesRenderer examples={examples} />
                         : (

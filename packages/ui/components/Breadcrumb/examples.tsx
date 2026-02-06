@@ -4,7 +4,7 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -14,51 +14,14 @@ import {
     BreadcrumbSeparator,
 } from './mod.tsx'
 
-const breadcrumbProps: PropDefinition[] = [
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const breadcrumbLinkProps: PropDefinition[] = [
-    { name: 'href', type: 'string', description: 'Link href' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const breadcrumbSeparatorProps: PropDefinition[] = [
-    {
-        name: 'children',
-        type: 'unknown',
-        default: '/',
-        description: 'Separator content',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const breadcrumbPageProps: PropDefinition[] = [
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
 export interface ExampleSection {
     title: string
     render: () => unknown
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Breadcrumb'),
     {
         title: 'Basic Breadcrumb',
         render: () => (
@@ -220,26 +183,6 @@ export const examples: ExampleSection[] = [
   </BreadcrumbList>
 </Breadcrumb>`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable title='Breadcrumb' props={breadcrumbProps} />
-                <PropsTable
-                    title='BreadcrumbLink'
-                    props={breadcrumbLinkProps}
-                />
-                <PropsTable
-                    title='BreadcrumbSeparator'
-                    props={breadcrumbSeparatorProps}
-                />
-                <PropsTable
-                    title='BreadcrumbPage'
-                    props={breadcrumbPageProps}
-                />
             </div>
         ),
     },

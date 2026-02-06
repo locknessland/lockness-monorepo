@@ -26,11 +26,3 @@ import { Kbd } from '@lockness/ui/components'
 | class    | `string`  | -       | Additional CSS class names |
 | id       | `string`  | -       | Element id attribute       |
 | ...props | `unknown` | -       | Additional HTML attributes |
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

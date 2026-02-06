@@ -166,11 +166,3 @@ Create themed sections with different tree view styles:
     </TreeView>
 </div>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

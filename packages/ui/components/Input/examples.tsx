@@ -4,36 +4,9 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { Label } from '../Label/mod.tsx'
 import { Input } from './mod.tsx'
-
-const inputProps: PropDefinition[] = [
-    {
-        name: 'type',
-        type:
-            'text | email | password | number | tel | url | search | date | time | file | hidden',
-        default: 'text',
-        description: 'Input type',
-    },
-    { name: 'name', type: 'string', description: 'Input name attribute' },
-    { name: 'value', type: 'string | number', description: 'Input value' },
-    { name: 'placeholder', type: 'string', description: 'Placeholder text' },
-    { name: 'disabled', type: 'boolean', description: 'Disable input' },
-    { name: 'readonly', type: 'boolean', description: 'Read-only input' },
-    { name: 'required', type: 'boolean', description: 'Required field' },
-    {
-        name: 'autocomplete',
-        type: 'string',
-        description: 'Autocomplete attribute',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -41,6 +14,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Input'),
     {
         title: 'Basic Input',
         render: () => (
@@ -249,9 +224,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={inputProps} />,
     },
 ]

@@ -72,11 +72,3 @@ import { AreaChart, ChartScript } from '@lockness/ui/components'
 | data      | `number[]` | **required** | Dataset values            |
 | color     | `string`   | **required** | Line color                |
 | fillColor | `string`   | -            | Fill color (with opacity) |
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

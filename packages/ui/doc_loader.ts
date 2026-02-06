@@ -24,6 +24,8 @@ export interface ComponentDoc {
     description: string
     /** Full markdown content */
     content: string
+    /** Relative path to the source file */
+    relativePath: string
 }
 
 /**
@@ -182,7 +184,15 @@ export class UiDocLoader {
 
         try {
             const content = await Deno.readTextFile(docPath)
-            const doc = this.parseDoc(slug, componentName, content)
+            // We assume standard structure: packages/ui/components/{Name}/DOCS.md
+            const relativePath =
+                `packages/ui/components/${componentName}/DOCS.md`
+            const doc = this.parseDoc(
+                slug,
+                componentName,
+                content,
+                relativePath,
+            )
 
             // Cache the result
             this.cache.set(slug, doc)
@@ -284,6 +294,7 @@ export class UiDocLoader {
         slug: string,
         name: string,
         content: string,
+        relativePath: string,
     ): ComponentDoc {
         // Extract title from first H1 (# Title)
         const titleMatch = content.match(/^#\s+(.+)$/m)
@@ -300,6 +311,7 @@ export class UiDocLoader {
             title,
             description,
             content,
+            relativePath,
         }
     }
 

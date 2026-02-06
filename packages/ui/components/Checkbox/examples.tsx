@@ -4,23 +4,9 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import { Label } from '../Label/mod.tsx'
 import { Checkbox } from './mod.tsx'
-
-const checkboxProps: PropDefinition[] = [
-    { name: 'name', type: 'string', description: 'Checkbox name attribute' },
-    { name: 'value', type: 'string', description: 'Checkbox value' },
-    { name: 'checked', type: 'boolean', description: 'Checked state' },
-    { name: 'disabled', type: 'boolean', description: 'Disable checkbox' },
-    { name: 'required', type: 'boolean', description: 'Required field' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
 
 export interface ExampleSection {
     title: string
@@ -28,6 +14,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Checkbox'),
     {
         title: 'Basic Checkbox',
         render: () => (
@@ -223,9 +211,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={checkboxProps} />,
     },
 ]

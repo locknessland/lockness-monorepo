@@ -4,84 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import { GaugeProgress } from './mod.tsx'
-
-const gaugeProgressProps: PropDefinition[] = [
-    {
-        name: 'value',
-        type: 'number',
-        default: '0',
-        description: 'Current progress value (0-100)',
-    },
-    {
-        name: 'max',
-        type: 'number',
-        default: '100',
-        description: 'Maximum value',
-    },
-    {
-        name: 'type',
-        type: 'gauge | half',
-        default: 'gauge',
-        description: 'Gauge type: 270° arc or 180° half circle',
-    },
-    {
-        name: 'variant',
-        type: 'default | success | warning | destructive',
-        default: 'default',
-        description: 'Visual style variant',
-    },
-    {
-        name: 'size',
-        type: 'sm | default | lg | xl',
-        default: 'default',
-        description: 'Size of the gauge',
-    },
-    {
-        name: 'strokeWidth',
-        type: 'number',
-        default: '1.5',
-        description: 'Stroke width of the progress arc',
-    },
-    {
-        name: 'trackStrokeWidth',
-        type: 'number',
-        description: 'Stroke width of the background track',
-    },
-    {
-        name: 'strokeLinecap',
-        type: 'round | butt | square',
-        default: 'round',
-        description: 'Shape of the stroke ends',
-    },
-    {
-        name: 'progressColor',
-        type: 'string',
-        description: 'Custom color class for the progress arc',
-    },
-    {
-        name: 'trackColor',
-        type: 'string',
-        description: 'Custom color class for the background track',
-    },
-    {
-        name: 'showLabel',
-        type: 'boolean',
-        default: 'true',
-        description: 'Show the value label in the center',
-    },
-    {
-        name: 'label',
-        type: 'string',
-        description: 'Custom label to display below the value',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
 
 export interface ExampleSection {
     title: string
@@ -89,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('GaugeProgress'),
     {
         title: 'Basic Usage',
         render: () => (
@@ -402,9 +328,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={gaugeProgressProps} />,
     },
 ]

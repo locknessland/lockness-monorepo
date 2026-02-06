@@ -5,7 +5,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
 import { Button } from '../Button/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import {
     Modal,
     ModalBody,
@@ -18,100 +17,7 @@ import {
     ModalTitle,
     ModalTrigger,
 } from './mod.tsx'
-
-const modalProps: PropDefinition[] = [
-    {
-        name: 'id',
-        type: 'string',
-        required: true,
-        description: 'Unique identifier for the modal dialog',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    {
-        name: 'children',
-        type: 'unknown',
-        description: 'Modal content (header, body, footer)',
-    },
-]
-
-const modalTriggerProps: PropDefinition[] = [
-    {
-        name: 'targetId',
-        type: 'string',
-        description: 'ID of the target modal dialog (for native dialog)',
-    },
-    {
-        name: 'href',
-        type: 'string',
-        description: 'URL to load in Unpoly layer (for Unpoly mode)',
-    },
-    {
-        name: 'variant',
-        type: 'primary | secondary | outline | ghost',
-        default: 'primary',
-        description: 'Visual style variant',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'children', type: 'unknown', description: 'Button content' },
-]
-
-const modalHeaderProps: PropDefinition[] = [
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    {
-        name: 'children',
-        type: 'unknown',
-        description: 'Header content (title, description, close button)',
-    },
-]
-
-const modalBodyProps: PropDefinition[] = [
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'children', type: 'unknown', description: 'Body content' },
-]
-
-const modalFooterProps: PropDefinition[] = [
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    {
-        name: 'children',
-        type: 'unknown',
-        description: 'Footer content (buttons, links)',
-    },
-]
-
-const modalCloseProps: PropDefinition[] = [
-    {
-        name: 'size',
-        type: 'sm | md | lg',
-        default: 'sm',
-        description: 'Button size',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'children', type: 'unknown', description: 'Button content' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -119,6 +25,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Modal'),
     {
         title: 'Live Examples',
         render: () => (
@@ -444,19 +352,6 @@ export const examples: ExampleSection[] = [
   Open Unpoly Layer
 </ModalTrigger>`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable props={modalProps} title='Modal' />
-                <PropsTable props={modalTriggerProps} title='ModalTrigger' />
-                <PropsTable props={modalHeaderProps} title='ModalHeader' />
-                <PropsTable props={modalBodyProps} title='ModalBody' />
-                <PropsTable props={modalFooterProps} title='ModalFooter' />
-                <PropsTable props={modalCloseProps} title='ModalClose' />
             </div>
         ),
     },

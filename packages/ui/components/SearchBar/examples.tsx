@@ -4,83 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { SearchBar, SearchBarFilter, SearchBarGroup } from './mod.tsx'
-
-const searchBarProps: PropDefinition[] = [
-    {
-        name: 'variant',
-        type: 'default | ghost | outline | filled',
-        default: 'default',
-        description: 'Visual style variant',
-    },
-    {
-        name: 'size',
-        type: 'sm | md | lg | xl',
-        default: 'md',
-        description: 'Component size',
-    },
-    {
-        name: 'placeholder',
-        type: 'string',
-        default: 'Search...',
-        description: 'Placeholder text',
-    },
-    { name: 'name', type: 'string', description: 'Input name attribute' },
-    { name: 'value', type: 'string', description: 'Input value' },
-    {
-        name: 'showIcon',
-        type: 'boolean',
-        default: 'true',
-        description: 'Show search icon',
-    },
-    {
-        name: 'iconPosition',
-        type: 'left | right',
-        default: 'left',
-        description: 'Icon position',
-    },
-    {
-        name: 'showClear',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show clear button when input has value',
-    },
-    {
-        name: 'shortcut',
-        type: 'string',
-        description: "Keyboard shortcut to display (e.g., '⌘K')",
-    },
-    {
-        name: 'showShortcut',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show keyboard shortcut badge',
-    },
-    {
-        name: 'loading',
-        type: 'boolean',
-        default: 'false',
-        description: 'Loading state',
-    },
-    {
-        name: 'disabled',
-        type: 'boolean',
-        default: 'false',
-        description: 'Disable input',
-    },
-    {
-        name: 'fullWidth',
-        type: 'boolean',
-        default: 'false',
-        description: 'Full width mode',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -88,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('SearchBar'),
     {
         title: 'Basic Usage',
         render: () => (
@@ -414,9 +341,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={searchBarProps} />,
     },
 ]

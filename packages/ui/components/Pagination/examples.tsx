@@ -4,7 +4,6 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import {
     Pagination,
     PaginationContent,
@@ -14,55 +13,7 @@ import {
     PaginationPrevious,
     SimplePagination,
 } from './mod.tsx'
-
-const paginationProps: PropDefinition[] = [
-    {
-        name: 'currentPage',
-        type: 'number',
-        required: true,
-        description: 'Current page number (1-indexed)',
-    },
-    {
-        name: 'totalPages',
-        type: 'number',
-        required: true,
-        description: 'Total number of pages',
-    },
-    {
-        name: 'baseUrl',
-        type: 'string',
-        required: true,
-        description: 'Base URL for pagination links',
-    },
-    {
-        name: 'pageParam',
-        type: 'string',
-        default: 'page',
-        description: 'Query parameter name for page',
-    },
-    {
-        name: 'siblingCount',
-        type: 'number',
-        default: '1',
-        description: 'Number of page numbers to show around current page',
-    },
-    {
-        name: 'showFirstLast',
-        type: 'boolean',
-        description: 'Show first/last page buttons',
-    },
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-    {
-        name: 'up-target',
-        type: 'string',
-        description: 'Unpoly target selector',
-    },
-    {
-        name: 'up-preload',
-        type: 'boolean',
-        description: 'Enable Unpoly preload on hover',
-    },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -70,6 +21,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Pagination'),
     {
         title: 'Basic Pagination',
         render: () => (
@@ -370,9 +323,5 @@ export const examples: ExampleSection[] = [
                 </Card>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={paginationProps} />,
     },
 ]

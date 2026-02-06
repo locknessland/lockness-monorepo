@@ -119,11 +119,3 @@ Create themed sections with different search bar styles:
     />
 </section>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

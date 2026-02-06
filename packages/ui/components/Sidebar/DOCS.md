@@ -81,11 +81,3 @@ import {
 | Prop  | Type     | Default | Description                |
 | ----- | -------- | ------- | -------------------------- |
 | class | `string` | -       | Additional CSS class names |
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

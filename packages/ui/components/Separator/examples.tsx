@@ -4,29 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { Separator } from './mod.tsx'
-
-const separatorProps: PropDefinition[] = [
-    {
-        name: 'orientation',
-        type: 'horizontal | vertical',
-        default: 'horizontal',
-        description: 'Separator orientation',
-    },
-    {
-        name: 'decorative',
-        type: 'boolean',
-        default: 'true',
-        description: 'Whether the separator is decorative (for accessibility)',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -34,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Separator'),
     {
         title: 'Horizontal Separator',
         render: () => (
@@ -133,9 +114,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={separatorProps} />,
     },
 ]

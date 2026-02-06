@@ -4,7 +4,7 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import {
     InputFile,
     SingleImageUpload,
@@ -13,98 +13,6 @@ import {
     UploadZone,
 } from './mod.tsx'
 
-const uploadZoneProps: PropDefinition[] = [
-    {
-        name: 'text',
-        type: 'string',
-        default: 'Drop your file here or',
-        description: 'Main text to display',
-    },
-    {
-        name: 'browseText',
-        type: 'string',
-        default: 'browse',
-        description: 'Browse link text',
-    },
-    {
-        name: 'helperText',
-        type: 'string',
-        default: 'Pick a file up to 2MB.',
-        description: 'Helper text below the main text',
-    },
-    {
-        name: 'isDragging',
-        type: 'boolean',
-        default: 'false',
-        description: 'Whether the zone is in a dragging state',
-    },
-    {
-        name: 'disabled',
-        type: 'boolean',
-        default: 'false',
-        description: 'Whether the zone is disabled',
-    },
-    {
-        name: 'hideIcon',
-        type: 'boolean',
-        default: 'false',
-        description: 'Hide the default icon',
-    },
-    {
-        name: 'icon',
-        type: 'JSX.Element',
-        description: 'Custom icon element to display',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const uploadFilePreviewProps: PropDefinition[] = [
-    {
-        name: 'fileName',
-        type: 'string',
-        required: true,
-        description: 'File name without extension',
-    },
-    {
-        name: 'fileExtension',
-        type: 'string',
-        required: true,
-        description: 'File extension',
-    },
-    {
-        name: 'fileSize',
-        type: 'string',
-        required: true,
-        description: 'File size (formatted string)',
-    },
-    {
-        name: 'progress',
-        type: 'number',
-        default: '0',
-        description: 'Upload progress (0-100)',
-    },
-    {
-        name: 'isComplete',
-        type: 'boolean',
-        default: 'false',
-        description: 'Whether the upload is complete',
-    },
-    {
-        name: 'thumbnailUrl',
-        type: 'string',
-        description: 'Thumbnail URL for images',
-    },
-    {
-        name: 'onRemove',
-        type: '() => void',
-        description: 'Callback when remove button is clicked',
-    },
-]
-
 export interface ExampleSection {
     title: string
     description?: string
@@ -112,6 +20,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('UploadZone'),
     {
         title: 'Basic Usage',
         render: () => (
@@ -462,18 +372,6 @@ export const examples: ExampleSection[] = [
                 <CodeBlock lang='tsx'>
                     {`<InputFile disabled />`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable title='UploadZone' props={uploadZoneProps} />
-                <PropsTable
-                    title='UploadFilePreview'
-                    props={uploadFilePreviewProps}
-                />
             </div>
         ),
     },

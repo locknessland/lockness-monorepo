@@ -4,35 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { Skeleton, SkeletonAvatar, SkeletonCard, SkeletonText } from './mod.tsx'
-
-const skeletonProps: PropDefinition[] = [
-    {
-        name: 'variant',
-        type: 'default | text | heading | avatar | button | image | card',
-        default: 'default',
-        description: 'Skeleton variant for common shapes',
-    },
-    {
-        name: 'lines',
-        type: 'number',
-        default: '1',
-        description: 'Number of lines (for text variant)',
-    },
-    {
-        name: 'animate',
-        type: 'boolean',
-        default: 'true',
-        description: 'Whether to animate the skeleton',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -40,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Skeleton'),
     {
         title: 'Default Skeleton',
         render: () => (
@@ -214,9 +189,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={skeletonProps} />,
     },
 ]

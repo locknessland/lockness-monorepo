@@ -4,51 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { ThemeSwitch, ThemeSwitchScript } from './mod.tsx'
-
-const themeSwitchProps: PropDefinition[] = [
-    {
-        name: 'variant',
-        type: 'classic | toggle | switch',
-        default: 'classic',
-        description: 'Visual variant of the theme switcher',
-    },
-    {
-        name: 'size',
-        type: 'sm | md | lg',
-        default: 'md',
-        description:
-            'Size variant affecting padding, font size, and icon dimensions',
-    },
-    {
-        name: 'darkLabel',
-        type: 'string',
-        default: 'Dark',
-        description: 'Label for dark mode button (classic variant)',
-    },
-    {
-        name: 'lightLabel',
-        type: 'string',
-        default: 'Light',
-        description: 'Label for light mode button (classic variant)',
-    },
-    {
-        name: 'sunIconClass',
-        type: 'string',
-        description: 'Custom CSS class for the sun icon',
-    },
-    {
-        name: 'moonIconClass',
-        type: 'string',
-        description: 'Custom CSS class for the moon icon',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS classes for the container',
-    },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -57,6 +14,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('ThemeSwitch'),
     {
         title: 'Classic Variant',
         description: 'Two buttons style, ideal for headers or footers.',
@@ -226,9 +185,5 @@ export const RootLayout = ({ children }) => (
                 <ThemeSwitchScript />
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={themeSwitchProps} />,
     },
 ]

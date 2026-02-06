@@ -4,7 +4,7 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import {
     AreaChart,
     BarChart,
@@ -12,76 +12,6 @@ import {
     ChartScript,
     LineChart,
 } from './mod.tsx'
-
-const areaChartProps: PropDefinition[] = [
-    {
-        name: 'chartId',
-        type: 'string',
-        required: true,
-        description: 'Unique ID for the chart',
-    },
-    {
-        name: 'labels',
-        type: 'string[]',
-        required: true,
-        description: 'Chart labels (x-axis)',
-    },
-    { name: 'data', type: 'number[]', description: 'Single dataset values' },
-    {
-        name: 'datasets',
-        type: 'ChartDataset[]',
-        description: 'Multiple datasets for comparison',
-    },
-    {
-        name: 'color',
-        type: 'string',
-        default: 'rgb(59, 130, 246)',
-        description: 'Primary color for single dataset',
-    },
-    {
-        name: 'fillColor',
-        type: 'string',
-        default: 'rgba(59, 130, 246, 0.1)',
-        description: 'Fill color for single dataset',
-    },
-    {
-        name: 'curved',
-        type: 'boolean',
-        default: 'false',
-        description: 'Whether to use curved lines',
-    },
-    {
-        name: 'height',
-        type: 'string',
-        default: '300px',
-        description: 'Chart height',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const chartLegendProps: PropDefinition[] = [
-    {
-        name: 'items',
-        type: 'ChartLegendItemProps[]',
-        required: true,
-        description: 'Legend items with label and color',
-    },
-    {
-        name: 'position',
-        type: 'start | center | end',
-        default: 'end',
-        description: 'Position of the legend',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
 
 export interface ExampleSection {
     title: string
@@ -95,6 +25,8 @@ const incomeData = [65, 59, 80, 81, 56, 55, 72]
 const outcomeData = [28, 48, 40, 19, 86, 27, 50]
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Chart'),
     {
         title: 'Installation',
         render: () => (
@@ -493,18 +425,6 @@ export const examples: ExampleSection[] = [
   curved
 />`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable
-                    title='AreaChart / BarChart / LineChart'
-                    props={areaChartProps}
-                />
-                <PropsTable title='ChartLegend' props={chartLegendProps} />
             </div>
         ),
     },

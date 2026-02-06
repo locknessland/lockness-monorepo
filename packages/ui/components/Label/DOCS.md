@@ -80,11 +80,3 @@ Create themed sections with different label styles:
     <input type="text" id="username" />
 </section>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

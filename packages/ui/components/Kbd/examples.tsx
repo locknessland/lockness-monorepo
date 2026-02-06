@@ -5,18 +5,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { Kbd } from './mod.tsx'
-
-const kbdProps: PropDefinition[] = [
-    { name: 'children', type: 'unknown', description: 'Keyboard key content' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 /**
  * Example section with live preview and code
@@ -30,6 +20,8 @@ interface ExampleSection {
  * All examples for the Kbd component
  */
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Kbd'),
     {
         title: 'Basic Keys',
         render: () => (
@@ -254,10 +246,6 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={kbdProps} />,
     },
 ]
 

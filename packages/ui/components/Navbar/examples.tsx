@@ -4,7 +4,6 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import {
     Navbar,
     NavbarBrand,
@@ -13,37 +12,7 @@ import {
     NavbarMenuItem,
     NavbarToggle,
 } from './mod.tsx'
-
-const navbarProps: PropDefinition[] = [
-    {
-        name: 'position',
-        type: 'sticky | fixed | static',
-        default: 'sticky',
-        description: 'Position type',
-    },
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-]
-
-const navbarBrandProps: PropDefinition[] = [
-    { name: 'href', type: 'string', default: '/', description: 'Link href' },
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-]
-
-const navbarContentProps: PropDefinition[] = [
-    {
-        name: 'position',
-        type: 'left | center | right',
-        default: 'center',
-        description: 'Content position',
-    },
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-]
-
-const navbarMenuItemProps: PropDefinition[] = [
-    { name: 'href', type: 'string', description: 'Link href' },
-    { name: 'active', type: 'boolean', description: 'Active state' },
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -51,6 +20,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Navbar'),
     {
         title: 'Basic Navbar',
         render: () => (
@@ -263,20 +234,6 @@ export const examples: ExampleSection[] = [
   </NavbarContent>
 </Navbar>`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable title='Navbar' props={navbarProps} />
-                <PropsTable title='NavbarBrand' props={navbarBrandProps} />
-                <PropsTable title='NavbarContent' props={navbarContentProps} />
-                <PropsTable
-                    title='NavbarMenuItem'
-                    props={navbarMenuItemProps}
-                />
             </div>
         ),
     },

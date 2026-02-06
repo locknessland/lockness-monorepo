@@ -3,59 +3,8 @@
  */
 
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import { Alert, AlertDescription, AlertTitle } from './mod.tsx'
-
-const alertProps: PropDefinition[] = [
-    {
-        name: 'variant',
-        type: 'default | success | warning | destructive',
-        default: 'default',
-        description: 'Visual style variant',
-    },
-    {
-        name: 'showIcon',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show variant icon automatically',
-    },
-    {
-        name: 'icon',
-        type: 'unknown',
-        description: 'Custom icon element (overrides default)',
-    },
-    { name: 'children', type: 'unknown', description: 'Alert content' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-    {
-        name: 'role',
-        type: 'string',
-        default: 'alert',
-        description: 'ARIA role',
-    },
-]
-
-const alertTitleProps: PropDefinition[] = [
-    { name: 'children', type: 'unknown', description: 'Title content' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const alertDescriptionProps: PropDefinition[] = [
-    { name: 'children', type: 'unknown', description: 'Description content' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
 
 export interface ExampleSection {
     title: string
@@ -63,6 +12,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Alert'),
     {
         title: 'Default Alert',
         render: () => (
@@ -158,19 +109,6 @@ export const examples: ExampleSection[] = [
     <AlertDescription>Something went wrong.</AlertDescription>
 </Alert>`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable props={alertProps} title='Alert' />
-                <PropsTable props={alertTitleProps} title='AlertTitle' />
-                <PropsTable
-                    props={alertDescriptionProps}
-                    title='AlertDescription'
-                />
             </div>
         ),
     },

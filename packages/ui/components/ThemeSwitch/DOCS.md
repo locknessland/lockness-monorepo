@@ -38,11 +38,3 @@ import { ThemeSwitch, ThemeSwitchScript } from '@lockness/ui/components'
 | sunIconClass  | `string`                            | -           | Custom CSS class for the sun icon                                       |
 | moonIconClass | `string`                            | -           | Custom CSS class for the moon icon                                      |
 | ...props      | `unknown`                           | -           | Additional HTML attributes passed to the root element                   |
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

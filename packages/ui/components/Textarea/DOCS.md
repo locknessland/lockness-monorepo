@@ -25,12 +25,6 @@ import { Textarea, Label } from '@lockness/ui/components'
 
 ## Examples
 
-### Basic Example
-
-```tsx
-// Add example here
-```
-
 ## Theming
 
 The Textarea component can be fully customized using CSS variables. This allows

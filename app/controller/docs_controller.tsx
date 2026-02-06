@@ -56,6 +56,7 @@ export class DocsController {
                     title={doc.title}
                     currentPath={`/docs/${slug}`}
                     llmPath={slug}
+                    filePath={doc.relativePath}
                 >
                     <div class='max-w-none'>
                         {content}

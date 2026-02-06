@@ -4,7 +4,6 @@ import {
     CopyLink,
     GithubIcon,
     Navbar,
-    NavbarBrand,
     NavbarContent,
     NavbarMenuItem,
     RobotIcon,
@@ -17,6 +16,7 @@ import {
     Title,
     UserIcon,
 } from '@lockness/ui/components'
+import { Brand } from '../components/brand.tsx'
 import { UiSidebar } from '../components/ui-sidebar.tsx'
 import { ThemeCustomizerScript } from '../components/theme-customizer.tsx'
 
@@ -59,10 +59,12 @@ interface PageUiLayoutProps {
     noPadding?: boolean
     /** LLM slug for documentation link (e.g., 'button', 'card') */
     llmSlug?: string
+    filePath?: string
 }
 
 export const PageUiLayout = (
-    { title, children, noPadding = false, llmSlug }: PageUiLayoutProps,
+    { title, children, noPadding = false, llmSlug, filePath }:
+        PageUiLayoutProps,
 ) => {
     return (
         <RootLayout
@@ -72,10 +74,7 @@ export const PageUiLayout = (
             ]}
         >
             <Navbar position='sticky'>
-                <NavbarBrand href='/'>
-                    <span class='text-xl'>🦕</span>
-                    <span class='font-pixel'>Lockness</span>
-                </NavbarBrand>
+                <Brand />
                 <NavbarContent position='center' class='hidden md:flex'>
                     <NavbarMenuItem href='/docs' active={false}>
                         Docs
@@ -125,12 +124,27 @@ export const PageUiLayout = (
                         {!noPadding && (
                             <div class='flex items-center justify-between gap-4 mb-6 pb-4 border-b-2 border-border/50'>
                                 <Title level={1} class='mb-0'>
-                                    {title}
+                                    Lockness UI Component
                                 </Title>
                                 <LlmLinks llmSlug={llmSlug} />
                             </div>
                         )}
                         {children}
+
+                        {filePath && (
+                            <div class='mt-12 pt-6 border-t border-border flex justify-end'>
+                                <Button
+                                    href={`https://github.com/locknessland/lockness/blob/main/${filePath}`}
+                                    target='_blank'
+                                    variant='ghost'
+                                    size='sm'
+                                    class='gap-2 text-muted-foreground hover:text-primary'
+                                >
+                                    <GithubIcon size={16} />
+                                    <span>Edit this page</span>
+                                </Button>
+                            </div>
+                        )}
                     </main>
                 </SidebarInset>
             </SidebarProvider>

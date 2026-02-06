@@ -97,11 +97,3 @@ Create themed sections with different switch styles:
     </div>
 </section>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

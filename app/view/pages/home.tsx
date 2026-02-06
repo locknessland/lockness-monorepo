@@ -21,7 +21,7 @@ import {
     HeroSubtitle,
     HeroTitle,
     Navbar,
-    NavbarBrand,
+    // NavbarBrand,
     NavbarContent,
     NavbarMenuItem,
     Section,
@@ -48,6 +48,7 @@ import {
     UsersIcon,
     ZapIcon,
 } from '@lockness/ui/components'
+import { Brand } from '../components/brand.tsx'
 
 // Stats item component
 const StatItem = (
@@ -88,16 +89,7 @@ export const Home = () => {
             <div class='min-h-screen'>
                 {/* Header */}
                 <Navbar position='fixed'>
-                    <NavbarBrand href='/'>
-                        <div class='w-8 h-8 bg-primary flex items-center justify-center'>
-                            <span class='text-sm font-bold text-primary-foreground'>
-                                L
-                            </span>
-                        </div>
-                        <span class='font-semibold'>
-                            Lockness<span class='text-primary'>JS</span>
-                        </span>
-                    </NavbarBrand>
+                    <Brand href='/' />
 
                     <NavbarContent class='hidden md:flex'>
                         <NavbarMenuItem href='#features'>

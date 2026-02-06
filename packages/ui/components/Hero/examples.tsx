@@ -4,7 +4,7 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import {
     Hero,
     HeroActions,
@@ -26,73 +26,9 @@ export interface ExampleSection {
     render: () => unknown
 }
 
-const heroProps: PropDefinition[] = [
-    {
-        name: 'background',
-        type: 'none | pattern | gradient | dots | grid',
-        default: 'none',
-        description: 'Background style',
-    },
-    {
-        name: 'align',
-        type: 'center | left',
-        default: 'center',
-        description: 'Content alignment',
-    },
-    {
-        name: 'size',
-        type: 'sm | md | lg | xl',
-        default: 'lg',
-        description: 'Vertical padding size',
-    },
-    {
-        name: 'maxWidth',
-        type: 'sm | md | lg | xl | default | full',
-        default: 'default',
-        description: 'Container max width',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const heroTitleProps: PropDefinition[] = [
-    {
-        name: 'size',
-        type: 'sm | md | lg | xl',
-        default: 'xl',
-        description: 'Title size',
-    },
-    {
-        name: 'gradient',
-        type: 'string',
-        description: 'Text with gradient styling',
-    },
-    {
-        name: 'gradientColors',
-        type: 'primary | blue-violet | green-teal | orange-red',
-        description: 'Gradient color scheme',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const heroAnnouncementProps: PropDefinition[] = [
-    { name: 'href', type: 'string', description: 'Link URL' },
-    { name: 'badge', type: 'string', description: 'Badge text shown in pill' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Hero'),
     {
         title: 'Complete Example',
         render: () => (
@@ -536,19 +472,6 @@ export const examples: ExampleSection[] = [
   />
 </Hero>`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable title='Hero' props={heroProps} />
-                <PropsTable title='HeroTitle' props={heroTitleProps} />
-                <PropsTable
-                    title='HeroAnnouncement'
-                    props={heroAnnouncementProps}
-                />
             </div>
         ),
     },

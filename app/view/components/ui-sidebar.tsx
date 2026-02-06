@@ -169,7 +169,7 @@ export const UiSidebar = () => {
                                             <SidebarMenuButton
                                                 href={link.href}
                                                 up-preload
-                                                up-transition='move-left'
+                                                up-transition='cross-fade'
                                             >
                                                 {link.title}
                                             </SidebarMenuButton>

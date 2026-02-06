@@ -24,11 +24,3 @@ import { FooterSection, FooterSectionItem, FooterLink } from '@lockness/ui/compo
 | Prop | Type | Default | Description |
 | ---- | ---- | ------- | ----------- |
 | TBD  | TBD  | TBD     | TBD         |
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

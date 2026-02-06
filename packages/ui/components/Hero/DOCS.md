@@ -200,11 +200,3 @@ Create themed sections with different hero styles:
     </Hero>
 </div>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

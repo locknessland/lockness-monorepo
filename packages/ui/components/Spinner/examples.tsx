@@ -4,36 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { Spinner } from './mod.tsx'
-
-const spinnerProps: PropDefinition[] = [
-    {
-        name: 'size',
-        type: 'sm | md | lg | xl',
-        default: 'md',
-        description: 'Size of the spinner',
-    },
-    {
-        name: 'variant',
-        type:
-            'primary | secondary | muted | destructive | success | warning | info',
-        default: 'primary',
-        description: 'Color variant',
-    },
-    {
-        name: 'label',
-        type: 'string',
-        default: 'Loading',
-        description: 'Screen reader label',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -41,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Spinner'),
     {
         title: 'Basic Usage',
         render: () => (
@@ -239,9 +213,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={spinnerProps} />,
     },
 ]

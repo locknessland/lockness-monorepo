@@ -5,7 +5,7 @@
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
 import { Badge } from '../Badge/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import {
     Table,
     TableBody,
@@ -17,90 +17,6 @@ import {
     TableHeader,
     TableRow,
 } from './mod.tsx'
-
-const tableProps: PropDefinition[] = [
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-    { name: 'children', type: 'unknown', description: 'Table content' },
-    {
-        name: 'striped',
-        type: 'boolean',
-        default: 'false',
-        description: 'Add zebra-striping to table rows',
-    },
-    {
-        name: 'hoverable',
-        type: 'boolean',
-        default: 'false',
-        description: 'Add hover effect to table rows',
-    },
-    {
-        name: 'bordered',
-        type: 'boolean',
-        default: 'false',
-        description: 'Add borders on all sides of the table and cells',
-    },
-]
-
-const tableRowProps: PropDefinition[] = [
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-    { name: 'children', type: 'unknown', description: 'Row cells' },
-    {
-        name: 'selected',
-        type: 'boolean',
-        default: 'false',
-        description: 'Whether the row is selected',
-    },
-    {
-        name: 'href',
-        type: 'string',
-        description: 'Make row clickable with href',
-    },
-]
-
-const tableHeadProps: PropDefinition[] = [
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-    { name: 'children', type: 'unknown', description: 'Header content' },
-    {
-        name: 'sortable',
-        type: 'boolean',
-        default: 'false',
-        description: 'Enable sorting (adds visual indicator)',
-    },
-    {
-        name: 'sortDirection',
-        type: 'asc | desc | null',
-        default: 'null',
-        description: 'Current sort direction',
-    },
-    {
-        name: 'sortHref',
-        type: 'string',
-        description: 'Sort URL for Unpoly navigation',
-    },
-]
-
-const tableCellProps: PropDefinition[] = [
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-    { name: 'children', type: 'unknown', description: 'Cell content' },
-    { name: 'colSpan', type: 'number', description: 'Column span' },
-    { name: 'rowSpan', type: 'number', description: 'Row span' },
-]
-
-const tableEmptyProps: PropDefinition[] = [
-    { name: 'class', type: 'string', description: 'Additional CSS classes' },
-    {
-        name: 'children',
-        type: 'unknown',
-        default: 'No results.',
-        description: 'Empty state message',
-    },
-    {
-        name: 'colSpan',
-        type: 'number',
-        default: '1',
-        description: 'Number of columns to span',
-    },
-]
 
 export interface ExampleSection {
     title: string
@@ -150,6 +66,8 @@ const StatusBadge = ({ status }: { status: string }) => {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Table'),
     {
         title: 'Basic Table',
         render: () => (
@@ -538,18 +456,6 @@ export const examples: ExampleSection[] = [
   <TableCell class="text-right">\${payment.amount}</TableCell>
 </TableRow>`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable props={tableProps} title='Table' />
-                <PropsTable props={tableRowProps} title='TableRow' />
-                <PropsTable props={tableHeadProps} title='TableHead' />
-                <PropsTable props={tableCellProps} title='TableCell' />
-                <PropsTable props={tableEmptyProps} title='TableEmpty' />
             </div>
         ),
     },

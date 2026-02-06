@@ -4,84 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import { Button } from './mod.tsx'
-
-const buttonProps: PropDefinition[] = [
-    {
-        name: 'as',
-        type: 'button | a',
-        default: 'button',
-        description: "Render as a different element (e.g., 'a' for links)",
-    },
-    {
-        name: 'variant',
-        type: 'primary | secondary | outline | ghost | danger',
-        default: 'primary',
-        description: 'Visual style variant',
-    },
-    {
-        name: 'size',
-        type: 'sm | md | lg | xl',
-        default: 'md',
-        description: 'Button size',
-    },
-    {
-        name: 'disabled',
-        type: 'boolean',
-        default: 'false',
-        description: 'Disable button interactions',
-    },
-    { name: 'children', type: 'unknown', description: 'Button content' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    {
-        name: 'type',
-        type: 'button | submit | reset',
-        description: 'Button type attribute (only for button element)',
-    },
-    {
-        name: 'href',
-        type: 'string',
-        description: 'Link href (only for anchor element)',
-    },
-    { name: 'id', type: 'string', description: 'Button id attribute' },
-    {
-        name: 'preload',
-        type: 'boolean',
-        default: 'false',
-        description: 'Enable Unpoly preload on hover (only for links)',
-    },
-    {
-        name: 'transition',
-        type: 'UnpolyTransition',
-        description: 'Unpoly transition animation (only for links)',
-    },
-    {
-        name: 'target',
-        type: 'UnpolyTarget',
-        description: 'Unpoly target selector (only for links)',
-    },
-    {
-        name: 'duration',
-        type: 'number',
-        description: 'Transition duration in milliseconds (only for links)',
-    },
-    {
-        name: 'easing',
-        type: 'UnpolyEasing',
-        description: 'Transition timing function (only for links)',
-    },
-    {
-        name: 'failTransition',
-        type: 'UnpolyTransition',
-        description:
-            'Transition to use when server responds with error (only for links)',
-    },
-]
 
 export interface ExampleSection {
     title: string
@@ -89,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Button'),
     {
         title: 'Variants',
         render: () => (
@@ -136,9 +62,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={buttonProps} />,
     },
 ]

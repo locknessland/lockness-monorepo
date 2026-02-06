@@ -116,11 +116,3 @@ import {
 | yearlyLabel  | `string`                | `'Yearly'`  | Label for yearly option                                  |
 | yearlyBadge  | `string`                | -           | Optional badge text for yearly option (e.g., "Save 20%") |
 | class        | `string`                | -           | Additional CSS class names                               |
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

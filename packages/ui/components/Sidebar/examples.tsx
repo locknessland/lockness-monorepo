@@ -4,7 +4,6 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import {
     Sidebar,
     SidebarContent,
@@ -27,6 +26,7 @@ import {
     SidebarRail,
     SidebarTrigger,
 } from './mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -122,78 +122,9 @@ const MoreIcon = () => (
     </svg>
 )
 
-const sidebarProviderProps: PropDefinition[] = [
-    {
-        name: 'defaultOpen',
-        type: 'boolean',
-        default: 'true',
-        description: 'Whether the sidebar is open by default',
-    },
-    {
-        name: 'side',
-        type: 'left | right',
-        default: 'left',
-        description: 'Which side the sidebar appears on',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    {
-        name: 'style',
-        type: 'Record<string, string | number>',
-        description: 'Inline styles (including CSS custom properties)',
-    },
-]
-
-const sidebarProps: PropDefinition[] = [
-    {
-        name: 'side',
-        type: 'left | right',
-        default: 'left',
-        description: 'Which side the sidebar appears on',
-    },
-    {
-        name: 'variant',
-        type: 'sidebar | floating | inset',
-        default: 'sidebar',
-        description: 'Visual style variant',
-    },
-    {
-        name: 'collapsible',
-        type: 'offcanvas | icon | none',
-        default: 'offcanvas',
-        description: 'Collapse behavior',
-    },
-    {
-        name: 'topOffset',
-        type: 'string',
-        description: "Top offset for navbar (e.g., '16' for 4rem/64px)",
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const sidebarMenuButtonProps: PropDefinition[] = [
-    { name: 'href', type: 'string', description: 'Link URL' },
-    { name: 'isActive', type: 'boolean', description: 'Active state' },
-    {
-        name: 'tooltip',
-        type: 'string',
-        description: 'Tooltip text for collapsed state',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Sidebar'),
     {
         title: 'Interactive Demo',
         render: () => (
@@ -440,22 +371,6 @@ export const examples: ExampleSection[] = [
 --sidebar-border: oklch(0.90 0.010 240)
 --sidebar-ring: oklch(0.35 0.080 240)`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable
-                    title='SidebarProvider'
-                    props={sidebarProviderProps}
-                />
-                <PropsTable title='Sidebar' props={sidebarProps} />
-                <PropsTable
-                    title='SidebarMenuButton'
-                    props={sidebarMenuButtonProps}
-                />
             </div>
         ),
     },

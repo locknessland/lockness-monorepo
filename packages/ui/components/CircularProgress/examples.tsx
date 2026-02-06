@@ -4,53 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import { CircularProgress } from './mod.tsx'
-
-const circularProgressProps: PropDefinition[] = [
-    {
-        name: 'value',
-        type: 'number',
-        default: '0',
-        description: 'Current progress value (0-100)',
-    },
-    {
-        name: 'max',
-        type: 'number',
-        default: '100',
-        description: 'Maximum value',
-    },
-    {
-        name: 'variant',
-        type: 'default | success | warning | destructive',
-        default: 'default',
-        description: 'Visual style variant',
-    },
-    {
-        name: 'size',
-        type: 'sm | default | lg | xl',
-        default: 'default',
-        description: 'Size of the circular progress',
-    },
-    {
-        name: 'strokeWidth',
-        type: 'number',
-        default: '2',
-        description: 'Stroke width of the progress circle',
-    },
-    {
-        name: 'showLabel',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show percentage label in the center',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
 
 export interface ExampleSection {
     title: string
@@ -58,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('CircularProgress'),
     {
         title: 'Basic Usage',
         render: () => (
@@ -190,9 +147,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={circularProgressProps} />,
     },
 ]

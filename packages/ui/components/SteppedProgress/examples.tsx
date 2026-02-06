@@ -4,77 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { SteppedProgress } from './mod.tsx'
-
-const steppedProgressProps: PropDefinition[] = [
-    {
-        name: 'value',
-        type: 'number',
-        default: '0',
-        description: 'Current step (1-based index)',
-    },
-    {
-        name: 'steps',
-        type: 'number',
-        default: '4',
-        description: 'Total number of steps',
-    },
-    {
-        name: 'variant',
-        type: 'default | success | warning | destructive',
-        default: 'default',
-        description: 'Visual style variant',
-    },
-    {
-        name: 'thickness',
-        type: 'number',
-        default: '2.5',
-        description: 'Custom thickness in Tailwind spacing units',
-    },
-    {
-        name: 'innerLabel',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show label inside the progress bar (step X of Y)',
-    },
-    {
-        name: 'endLabel',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show percentage label at the end',
-    },
-    {
-        name: 'showCheck',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show checkmark icon when complete',
-    },
-    {
-        name: 'striped',
-        type: 'boolean',
-        default: 'false',
-        description: 'Display progress with diagonal stripes effect',
-    },
-    {
-        name: 'animated',
-        type: 'boolean',
-        default: 'false',
-        description: 'Animate the stripes (requires striped=true)',
-    },
-    {
-        name: 'outlined',
-        type: 'boolean',
-        default: 'false',
-        description: 'Display progress with a border wrapper around the bar',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -82,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('SteppedProgress'),
     {
         title: 'Basic Usage',
         render: () => (
@@ -458,9 +391,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={steppedProgressProps} />,
     },
 ]

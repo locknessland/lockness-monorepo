@@ -4,76 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './mod.tsx'
-
-const tabsProps: PropDefinition[] = [
-    {
-        name: 'defaultValue',
-        type: 'string',
-        description: 'Default active tab value',
-    },
-    {
-        name: 'name',
-        type: 'string',
-        default: 'tab',
-        description: 'Unique name for this tab group (used for radio buttons)',
-    },
-    {
-        name: 'orientation',
-        type: 'horizontal | vertical',
-        default: 'horizontal',
-        description: 'Orientation of the tabs',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const tabsTriggerProps: PropDefinition[] = [
-    {
-        name: 'value',
-        type: 'string',
-        required: true,
-        description: 'Tab value (should match TabsContent value)',
-    },
-    {
-        name: 'checked',
-        type: 'boolean',
-        description: 'Whether this tab is checked by default',
-    },
-    {
-        name: 'name',
-        type: 'string',
-        description: 'Unique name for radio button group',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const tabsContentProps: PropDefinition[] = [
-    {
-        name: 'value',
-        type: 'string',
-        required: true,
-        description: 'Tab value (should match TabsTrigger value)',
-    },
-    {
-        name: 'name',
-        type: 'string',
-        description: 'Unique name for this tab group',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -81,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Tabs'),
     {
         title: 'Basic Tabs',
         render: () => (
@@ -342,16 +276,6 @@ export const examples: ExampleSection[] = [
                         </ul>
                     </CardContent>
                 </Card>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable title='Tabs' props={tabsProps} />
-                <PropsTable title='TabsTrigger' props={tabsTriggerProps} />
-                <PropsTable title='TabsContent' props={tabsContentProps} />
             </div>
         ),
     },

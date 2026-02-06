@@ -362,21 +362,17 @@ const i18nMiddleware = async (c: Context, next: Next) => {
 This application has a mount point configured in `config/routing.ts`. Try the
 interactive demo:
 
-<div class="my-8 rounded-lg border border-border bg-card p-6">
-    <h3 class="font-pixel text-lg mb-4">🔗 Interactive Mount Point Demo</h3>
-    <p class="text-muted-foreground mb-4">
-        See how the same route behaves with and without locale prefix:
-    </p>
-    <div class="flex flex-wrap gap-2 mb-4">
-        <a href="/demo/mount-points" class="px-4 py-2 bg-muted text-muted-foreground rounded hover:opacity-90">🌍 No Locale</a>
-        <a href="/en/us/demo/mount-points" class="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90">🇺🇸 English (US)</a>
-        <a href="/fr/ca/demo/mount-points" class="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90">🇨🇦 Français (CA)</a>
-        <a href="/es/mx/demo/mount-points" class="px-4 py-2 bg-primary text-primary-foreground rounded hover:opacity-90">🇲🇽 Español (MX)</a>
-    </div>
-    <p class="text-sm text-muted-foreground">
-        The locale prefix is at the <strong>START</strong> of the URL, and the middleware sets context values that the controller can access.
-    </p>
-</div>
+### 🔗 Interactive Mount Point Demo
+
+See how the same route behaves with and without locale prefix:
+
+- [🌍 No Locale](/demo/mount-points)
+- [🇺🇸 English (US)](/en/us/demo/mount-points)
+- [🇨🇦 Français (CA)](/fr/ca/demo/mount-points)
+- [🇲🇽 Español (MX)](/es/mx/demo/mount-points)
+
+The locale prefix is at the **START** of the URL, and the middleware sets
+context values that the controller can access.
 
 ## Related
 

@@ -6,7 +6,7 @@ import { Button } from '../Button/mod.tsx'
 import { Input } from '../Input/mod.tsx'
 import { Label } from '../Label/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import {
     Card,
     CardContent,
@@ -16,42 +16,14 @@ import {
     CardTitle,
 } from './mod.tsx'
 
-const cardProps: PropDefinition[] = [
-    { name: 'children', type: 'unknown', description: 'Card content' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
-
-const cardHeaderProps: PropDefinition[] = [
-    { name: 'children', type: 'unknown', description: 'Header content' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    {
-        name: 'icon',
-        type: 'string',
-        description: 'Optional icon or emoji to display with the content',
-    },
-    {
-        name: 'iconPosition',
-        type: 'left | top | right',
-        default: 'left',
-        description: 'Position of the icon relative to the content',
-    },
-]
-
 export interface ExampleSection {
     title: string
     render: () => unknown
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Card'),
     {
         title: 'Card Variants',
         render: () => (
@@ -236,15 +208,6 @@ export const examples: ExampleSection[] = [
   </CardFooter>
 </Card>`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable props={cardProps} title='Card' />
-                <PropsTable props={cardHeaderProps} title='CardHeader' />
             </div>
         ),
     },

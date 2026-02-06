@@ -27,12 +27,6 @@ import { Checkbox, Label } from '@lockness/ui/components'
 
 ## Examples
 
-### Basic Example
-
-```tsx
-// Add example here
-```
-
 ## Theming
 
 The Checkbox component can be fully customized using CSS variables. This allows

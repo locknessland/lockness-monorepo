@@ -4,24 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 import { Badge } from './mod.tsx'
-
-const badgeProps: PropDefinition[] = [
-    {
-        name: 'variant',
-        type: 'default | secondary | destructive | outline',
-        default: 'default',
-        description: 'Visual style variant',
-    },
-    { name: 'children', type: 'unknown', description: 'Badge content' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
 
 export interface ExampleSection {
     title: string
@@ -29,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Badge'),
     {
         title: 'Variants',
         render: () => (
@@ -91,9 +77,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={badgeProps} />,
     },
 ]

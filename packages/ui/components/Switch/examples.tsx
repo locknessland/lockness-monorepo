@@ -4,23 +4,9 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { Label } from '../Label/mod.tsx'
 import { Switch } from './mod.tsx'
-
-const switchProps: PropDefinition[] = [
-    { name: 'name', type: 'string', description: 'Switch name attribute' },
-    { name: 'value', type: 'string', description: 'Switch value' },
-    { name: 'checked', type: 'boolean', description: 'Checked state' },
-    { name: 'disabled', type: 'boolean', description: 'Disable switch' },
-    { name: 'required', type: 'boolean', description: 'Required field' },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -28,6 +14,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Switch'),
     {
         title: 'Basic Switch',
         render: () => (
@@ -212,9 +200,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={switchProps} />,
     },
 ]

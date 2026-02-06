@@ -121,6 +121,36 @@ For detailed documentation of each component, fetch the corresponding endpoint:
 - https://lockness.land/ui/llms/treeview.txt
 - https://lockness.land/ui/llms/upload-zone.txt
 
+## Component Documentation Standards
+
+When creating new components or updating existing ones, please follow these
+documentation standards to ensure consistency across the library:
+
+1. **DOCS.md is the Single Source of Truth**
+   - This file should contain all technical details, API references, and
+     installation instructions.
+   - Use standard Markdown. **Avoid using raw HTML** (like `<div class="...">`)
+     for styling content; let the Markdown renderer handle the presentation.
+   - Structure:
+     - Title (`# ComponentName`)
+     - Description
+     - Installation command
+     - Usage example (basic)
+     - Props table
+     - Theming / CSS Variables
+
+2. **Examples are for Demonstration**
+   - `examples.tsx` should primarily focus on rendering live examples.
+   - It should render the content of `DOCS.md` first, then display interactive
+     examples.
+   - Include at least 3 distinct, real-world usage scenarios.
+
+3. **Clean Markdown**
+   - Do not try to style the documentation with inline HTML/CSS classes.
+   - Use standard Markdown elements: lists, code blocks, blockquotes,
+     bold/italic text.
+   - Links should be standard Markdown links: `[Label](url)`.
+
 ## Icons
 
 `@lockness/ui` includes a comprehensive icon library based on Lucide icons,

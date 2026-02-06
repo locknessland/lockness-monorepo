@@ -4,64 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { Newsletter, NewsletterSection } from './mod.tsx'
-
-const newsletterProps: PropDefinition[] = [
-    {
-        name: 'variant',
-        type: 'inline | stacked | card | minimal',
-        default: 'inline',
-        description: 'Layout variant',
-    },
-    {
-        name: 'action',
-        type: 'string',
-        default: '#',
-        description: 'Form action URL',
-    },
-    {
-        name: 'method',
-        type: 'get | post',
-        default: 'post',
-        description: 'Form method',
-    },
-    {
-        name: 'placeholder',
-        type: 'string',
-        default: 'Enter your email',
-        description: 'Input placeholder text',
-    },
-    {
-        name: 'buttonText',
-        type: 'string',
-        default: 'Subscribe',
-        description: 'Submit button text',
-    },
-    {
-        name: 'title',
-        type: 'string',
-        description: 'Title text (for stacked/card variants)',
-    },
-    { name: 'description', type: 'string', description: 'Description text' },
-    {
-        name: 'showIcon',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show email icon in input',
-    },
-    {
-        name: 'inputName',
-        type: 'string',
-        default: 'email',
-        description: 'Input name attribute',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -70,6 +14,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Newsletter'),
     {
         title: 'Inline (Default)',
         description:
@@ -345,9 +291,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={newsletterProps} />,
     },
 ]

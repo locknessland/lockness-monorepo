@@ -94,11 +94,3 @@ Create themed sections with different link styles:
     <Link href="/help">Help Center</Link>
 </section>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

@@ -161,11 +161,3 @@ Create themed sections with different navbar styles:
     </Navbar>
 </section>
 ```
-
-## Examples
-
-### Basic Example
-
-```tsx
-// Add example here
-```

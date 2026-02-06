@@ -4,73 +4,9 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { TreeView, TreeViewItem } from './mod.tsx'
 import type { TreeViewDataItem } from './mod.tsx'
-
-const treeViewProps: PropDefinition[] = [
-    {
-        name: 'items',
-        type: 'TreeViewDataItem[]',
-        description: 'Data-driven tree structure (alternative to children)',
-    },
-    {
-        name: 'variant',
-        type: 'interactive | text',
-        default: 'interactive',
-        description: 'Display variant',
-    },
-    {
-        name: 'rootLabel',
-        type: 'string',
-        description: 'Root label for text variant',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const treeViewItemProps: PropDefinition[] = [
-    {
-        name: 'label',
-        type: 'string',
-        required: true,
-        description: 'Item label text',
-    },
-    {
-        name: 'id',
-        type: 'string',
-        description: 'Unique identifier for this item',
-    },
-    {
-        name: 'hasChildren',
-        type: 'boolean',
-        description: 'Whether item has children (is a branch vs leaf)',
-    },
-    {
-        name: 'defaultExpanded',
-        type: 'boolean',
-        description: 'Whether item is initially expanded',
-    },
-    {
-        name: 'selectable',
-        type: 'boolean',
-        description: 'Whether item is selectable',
-    },
-    {
-        name: 'defaultSelected',
-        type: 'boolean',
-        description: 'Whether item is initially selected',
-    },
-    { name: 'icon', type: 'unknown', description: 'Optional icon element' },
-    {
-        name: 'onClick',
-        type: '(event: Event) => void',
-        description: 'Click handler for item selection',
-    },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -179,6 +115,8 @@ const fileSystemData: TreeViewDataItem[] = [
 ]
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('TreeView'),
     {
         title: 'Basic Tree',
         render: () => (
@@ -502,15 +440,6 @@ const FolderIcon = () => (
                         </ul>
                     </CardContent>
                 </Card>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable title='TreeView' props={treeViewProps} />
-                <PropsTable title='TreeViewItem' props={treeViewItemProps} />
             </div>
         ),
     },

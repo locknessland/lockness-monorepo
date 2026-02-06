@@ -4,7 +4,6 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import {
     PricingCard,
     PricingCardAction,
@@ -17,6 +16,7 @@ import {
     PricingSection,
     PricingToggle,
 } from './mod.tsx'
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -24,72 +24,9 @@ export interface ExampleSection {
     render: () => unknown
 }
 
-const pricingCardProps: PropDefinition[] = [
-    {
-        name: 'featured',
-        type: 'boolean',
-        default: 'false',
-        description: 'Whether this tier is emphasized/featured',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const pricingCardHeaderProps: PropDefinition[] = [
-    {
-        name: 'title',
-        type: 'string',
-        required: true,
-        description: 'Tier name displayed as the card title',
-    },
-    {
-        name: 'badge',
-        type: 'string',
-        description: 'Optional badge text displayed above the title',
-    },
-    {
-        name: 'badgeVariant',
-        type: 'default | secondary | destructive | outline',
-        default: 'default',
-        description: 'Visual variant for the badge',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-]
-
-const pricingCardPriceProps: PropDefinition[] = [
-    {
-        name: 'price',
-        type: 'number | string',
-        required: true,
-        description: 'Price value or custom text like "Custom"',
-    },
-    {
-        name: 'period',
-        type: 'string',
-        default: 'month',
-        description: 'Billing period (month, year, etc.)',
-    },
-    {
-        name: 'currency',
-        type: 'string',
-        default: '$',
-        description: 'Currency symbol',
-    },
-    {
-        name: 'description',
-        type: 'string',
-        description: 'Optional description below price',
-    },
-]
-
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Pricing'),
     {
         title: 'Two-Tier Layout',
         description: 'Perfect for simple pricing with free and paid tiers.',
@@ -438,22 +375,6 @@ export const examples: ExampleSection[] = [
   ]}
 />`}
                 </CodeBlock>
-            </div>
-        ),
-    },
-    {
-        title: 'Props',
-        render: () => (
-            <div class='space-y-6'>
-                <PropsTable title='PricingCard' props={pricingCardProps} />
-                <PropsTable
-                    title='PricingCardHeader'
-                    props={pricingCardHeaderProps}
-                />
-                <PropsTable
-                    title='PricingCardPrice'
-                    props={pricingCardPriceProps}
-                />
             </div>
         ),
     },

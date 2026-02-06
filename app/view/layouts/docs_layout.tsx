@@ -9,7 +9,7 @@ import {
     GithubIcon,
     LayersIcon,
     Navbar,
-    NavbarBrand,
+    // NavbarBrand,
     NavbarContent,
     NavbarMenuItem as NavbarLink,
     PlayIcon,
@@ -37,6 +37,7 @@ import {
     UserIcon,
     WrenchIcon,
 } from '@lockness/ui/components'
+import { Brand } from '../components/brand.tsx'
 
 const LlmLinks = (props: { llmPath?: string }) => {
     if (!props.llmPath) return null
@@ -76,6 +77,7 @@ export const DocsLayout = (
         children: unknown
         currentPath: string
         llmPath?: string
+        filePath?: string
     },
 ) => {
     return (
@@ -96,10 +98,7 @@ export const DocsLayout = (
             ]}
         >
             <Navbar position='sticky'>
-                <NavbarBrand href='/'>
-                    <span class='text-xl'>🦕</span>
-                    <span class='font-pixel'>Lockness</span>
-                </NavbarBrand>
+                <Brand />
                 <NavbarContent position='center' class='hidden md:flex'>
                     <NavbarLink href='/docs' active>Docs</NavbarLink>
                     <NavbarLink href='/ui'>UI Components</NavbarLink>
@@ -147,6 +146,21 @@ export const DocsLayout = (
                             <LlmLinks llmPath={props.llmPath} />
                         </div>
                         {props.children}
+
+                        {props.filePath && (
+                            <div class='mt-12 pt-6 border-t border-border flex justify-end'>
+                                <Button
+                                    href={`https://github.com/locknessland/lockness/blob/main/${props.filePath}`}
+                                    target='_blank'
+                                    variant='ghost'
+                                    size='sm'
+                                    class='gap-2 text-muted-foreground hover:text-primary'
+                                >
+                                    <GithubIcon size={16} />
+                                    <span>Edit this page</span>
+                                </Button>
+                            </div>
+                        )}
                     </main>
                 </SidebarInset>
             </SidebarProvider>
@@ -316,7 +330,7 @@ const DocsSidebar = () => {
                                                 <SidebarMenuButton
                                                     href={href}
                                                     up-preload
-                                                    up-transition='move-left'
+                                                    up-transition='cross-fade'
                                                 >
                                                     {link.title}
                                                 </SidebarMenuButton>

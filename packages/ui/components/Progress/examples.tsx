@@ -4,95 +4,8 @@
 
 import { Card, CardContent } from '../Card/mod.tsx'
 import { CodeBlock } from '../CodeBlock/mod.tsx'
-import { type PropDefinition, PropsTable } from '../PropsTable/mod.tsx'
 import { Progress } from './mod.tsx'
-
-const progressProps: PropDefinition[] = [
-    {
-        name: 'value',
-        type: 'number',
-        default: '0',
-        description: 'Current progress value (0-100)',
-    },
-    {
-        name: 'max',
-        type: 'number',
-        default: '100',
-        description: 'Maximum value',
-    },
-    {
-        name: 'variant',
-        type: 'default | success | warning | destructive',
-        default: 'default',
-        description: 'Visual style variant',
-    },
-    {
-        name: 'size',
-        type: 'sm | default | lg',
-        default: 'default',
-        description: 'Size of the progress bar',
-    },
-    {
-        name: 'showLabel',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show percentage label above the bar (left-right layout)',
-    },
-    {
-        name: 'floatingLabel',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show floating label that follows the progress',
-    },
-    {
-        name: 'innerLabel',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show label inside the progress bar',
-    },
-    {
-        name: 'endLabel',
-        type: 'boolean',
-        default: 'false',
-        description: 'Show label at the end (right side) of the progress bar',
-    },
-    {
-        name: 'vertical',
-        type: 'boolean',
-        default: 'false',
-        description: 'Display progress bar vertically',
-    },
-    {
-        name: 'striped',
-        type: 'boolean',
-        default: 'false',
-        description: 'Display progress with diagonal stripes effect',
-    },
-    {
-        name: 'animated',
-        type: 'boolean',
-        default: 'false',
-        description: 'Animate the stripes (requires striped=true)',
-    },
-    {
-        name: 'outlined',
-        type: 'boolean',
-        default: 'false',
-        description: 'Display progress with a border wrapper around the bar',
-    },
-    {
-        name: 'thickness',
-        type: 'number',
-        description:
-            'Custom thickness in Tailwind spacing units (overrides size prop)',
-    },
-    {
-        name: 'class',
-        type: 'string',
-        description: 'Additional CSS class names',
-    },
-    { name: 'id', type: 'string', description: 'Element id attribute' },
-]
+import { createDocsSection } from '../../docs_renderer.tsx'
 
 export interface ExampleSection {
     title: string
@@ -100,6 +13,8 @@ export interface ExampleSection {
 }
 
 export const examples: ExampleSection[] = [
+    // Documentation section - renders DOCS.md content
+    createDocsSection('Progress'),
     {
         title: 'Basic Usage',
         render: () => (
@@ -484,9 +399,5 @@ export const examples: ExampleSection[] = [
                 </CodeBlock>
             </div>
         ),
-    },
-    {
-        title: 'Props',
-        render: () => <PropsTable props={progressProps} />,
     },
 ]
