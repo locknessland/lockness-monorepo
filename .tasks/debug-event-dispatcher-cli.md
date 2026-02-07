@@ -7,6 +7,53 @@ similar to Symfony's `debug:event-dispatcher`. The command should help
 developers see which events exist, which listeners are attached, and allow
 filtering by event name or event class.
 
+## 🧭 Current State (Context)
+
+- Event listeners are registered via
+  `/packages/core/events/listener_discovery.ts` using
+  `dispatcher().on(eventClass, method.bind(instance), meta.options)`.
+- Listener metadata lives in `@lockness/events` via `@Listener` and
+  `getListenerMetadata()`.
+- The runtime dispatcher is created in `@lockness/events/dispatcher.ts` and
+  exposed by `dispatcher()` in `@lockness/events` (re-exported by core).
+- There is currently no public introspection surface to list listeners.
+
+## 📝 Placement Rule (Important)
+
+This command MUST be implemented in the **CLI package** (`/packages/cli`). Do
+not add CLI behavior to **Core** or **Events**. Core/Events only expose the
+runtime and introspection APIs; CLI consumes them.
+
+## 🧩 Desired Debug Data Model
+
+Each registered listener should be represented with:
+
+- `eventName` (string, class name)
+- `eventClass` (constructor name string)
+- `listenerClass` (class name string)
+- `methodName` (string)
+- `priority` (number, default 0)
+
+The CLI should render grouped output by `eventName`.
+
+## 🎨 Output Example (Target)
+
+```text
+Event: KernelBooted (2 listeners)
+   - AppListener@onBoot (priority: 100)
+   - DevtoolsListener@collectRoutes (priority: 0)
+
+Event: RequestCompleted (1 listener)
+   - MetricsListener@track (priority: 10)
+```
+
+## 🔎 Filtering Rules
+
+- Single positional argument filters by substring on event name and listener
+  class name (case-insensitive).
+- `--dispatcher=<name>` is accepted but defaults to the global dispatcher.
+- If no matches, print a friendly message and exit 0.
+
 ## 🎯 Objectives
 
 1. **Expose Listener Introspection**: Provide a safe, public way to read
