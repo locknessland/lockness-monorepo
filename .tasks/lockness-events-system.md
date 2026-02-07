@@ -68,17 +68,116 @@ export class AnalyticsListener {
 
 ## 🏗 Architecture
 
-### 1. Core Components
+### 1. Core Engine: Emittery Wrapper
 
-- **EventDispatcher**: Central engine managing listener registration and event
-  dispatching. Built on `@lockness/events` existing `EventEmitter`.
-- **BaseEvent**: Abstract class for type-safe event data containers.
+The event system is built on
+[emittery](https://github.com/sindresorhus/emittery), a battle-tested async
+event emitter used by AdonisJS (12M+ weekly downloads).
+
+**Why emittery?**
+
+| Feature              | Node.js EventEmitter | Lockness current | Emittery |
+| -------------------- | -------------------- | ---------------- | -------- |
+| Async-first          | ❌ Sync              | ✅ Async         | ✅ Async |
+| Async iterators      | ❌                   | ❌               | ✅       |
+| AbortSignal support  | ❌                   | ❌               | ✅       |
+| Debug mode           | ❌                   | ❌               | ✅       |
+| `emitSerial()`       | ❌                   | ❌               | ✅       |
+| Listener meta events | ❌                   | ❌               | ✅       |
+| Deno compatible      | N/A                  | ✅               | ✅ (ESM) |
+
+**Wrapper approach**: Lockness wraps emittery to add class-based events and
+decorator support while leveraging emittery's robust async handling.
+
+```typescript
+// packages/events/dispatcher.ts
+import Emittery from 'npm:emittery'
+
+export class EventDispatcher {
+    private emitter = new Emittery()
+
+    async emit<T extends BaseEvent>(event: T): Promise<void> {
+        await this.emitter.emit(event.constructor.name, event)
+    }
+
+    on<T extends BaseEvent>(
+        eventClass: new (...args: any[]) => T,
+        listener: (event: T) => void | Promise<void>,
+        options?: { priority?: number },
+    ): () => void {
+        return this.emitter.on(eventClass.name, listener)
+    }
+
+    // Expose emittery features
+    onAny(listener: (eventName: string, data: unknown) => void): () => void {
+        return this.emitter.onAny(listener)
+    }
+
+    events<T extends BaseEvent>(eventClass: new (...args: any[]) => T) {
+        return this.emitter.events(eventClass.name)
+    }
+}
+```
+
+### 2. Package Structure (`@lockness/events`)
+
+All event-related code lives in `@lockness/events`:
+
+```
+packages/events/
+├── mod.ts                 # Public API exports
+├── dispatcher.ts          # EventDispatcher (emittery wrapper)
+├── base_event.ts          # BaseEvent abstract class
+├── decorators.ts          # @Listener decorator
+├── listener_registry.ts   # Metadata storage for decorated listeners
+├── testing.ts             # events().fake() and assertions
+├── kernel_events.ts       # Framework lifecycle events
+└── types.ts               # TypeScript interfaces
+```
+
+**Dependency Impact:**
+
+After implementation, `@lockness/events` will have:
+
+```
+@lockness/events (v0.1.x)
+└── npm:emittery (external)
+```
+
+This keeps the package lightweight with only one external dependency. No
+internal `@lockness/*` dependencies are required, maintaining the current
+position in the dependency tree (Foundation Layer).
+
+**Exports from `mod.ts`:**
+
+```typescript
+// Classes
+export { EventDispatcher } from './dispatcher.ts'
+export { BaseEvent } from './base_event.ts'
+
+// Decorators
+export { Listener } from './decorators.ts'
+
+// Global accessor
+export { configureEvents, events } from './dispatcher.ts'
+
+// Framework events
+export * from './kernel_events.ts'
+
+// Testing utilities
+export { EventBuffer } from './testing.ts'
+```
+
+### 3. Core Components
+
+- **EventDispatcher**: Emittery wrapper with class-based event support
+- **BaseEvent**: Abstract class for type-safe event data containers
 - **@Listener(EventClass, options)**: Decorator to subscribe a service method to
-  an event.
+  an event (defined in `@lockness/events/decorators.ts`)
 - **Container Integration**: Listeners are DI-managed services
-  (`@lockness/container`), enabling dependency injection.
+  (`@lockness/container`), enabling dependency injection
 
-### 2. Lifecycle Events (Framework)
+### 4. Lifecycle Events (Framework)
 
 Events emitted by the framework at critical execution points:
 
@@ -91,7 +190,7 @@ Events emitted by the framework at critical execution points:
 | `KernelEvents.TERMINATE`  | After response sent to client    | Heavy background tasks (stats, emails)  |
 | `KernelEvents.BOOT`       | Once application is initialized  | Plugin init, cache warming              |
 
-### 3. Package Events (Cross-Package Communication)
+### 5. Package Events (Cross-Package Communication)
 
 Events emitted by optional packages for cross-cutting concerns:
 
@@ -103,7 +202,7 @@ Events emitted by optional packages for cross-cutting concerns:
 | `@lockness/queue`   | `JobProcessedEvent`              | Metrics, failure notifications        |
 | `@lockness/cache`   | `CacheHitEvent`/`CacheMissEvent` | Performance monitoring                |
 
-### 4. Business Events (User-Defined)
+### 6. Business Events (User-Defined)
 
 Custom events for application-specific logic:
 
@@ -315,39 +414,80 @@ app/
 
 ## 🛠 Implementation Plan
 
-### Phase 1: Core Infrastructure
+### Phase 1: Core Infrastructure (`@lockness/events`)
 
-- [ ] Extend `@lockness/events` with `BaseEvent` class
-- [ ] Add class-based event dispatching to `EventEmitter`
-- [ ] Create `@Listener` decorator with priority support
-- [ ] Add listener metadata storage (Symbol-based)
+All core event infrastructure lives in `@lockness/events`:
 
-### Phase 2: Framework Integration
+- [ ] Add `npm:emittery` as dependency in `packages/events/deno.json`
+- [ ] Create `base_event.ts` with `BaseEvent` abstract class
+- [ ] Create `dispatcher.ts` with `EventDispatcher` (emittery wrapper)
+- [ ] Create `decorators.ts` with `@Listener` decorator
+- [ ] Create `listener_registry.ts` for metadata storage (Symbol-based)
+- [ ] Create `kernel_events.ts` with framework lifecycle event classes
+- [ ] Create `testing.ts` with `EventBuffer` for `events().fake()`
+- [ ] Update `mod.ts` to export all public APIs
 
-- [ ] Add lifecycle middleware in `@lockness/core` that emits `KernelEvents`
+**File: `packages/events/decorators.ts`**
+
+```typescript
+import { LISTENER_METADATA } from './listener_registry.ts'
+import type { BaseEvent } from './base_event.ts'
+
+export interface ListenerOptions {
+    priority?: number // Higher = executes first (default: 0)
+}
+
+export function Listener<T extends BaseEvent>(
+    eventClass: new (...args: any[]) => T,
+    options: ListenerOptions = {},
+): MethodDecorator {
+    return function (
+        _target: unknown,
+        _context: ClassMethodDecoratorContext,
+    ) {
+        // Store metadata for discovery at boot time
+        // Implementation uses Symbol storage on constructor
+    }
+}
+```
+
+### Phase 2: Framework Integration (`@lockness/core`)
+
+- [ ] Create lifecycle middleware in `@lockness/core` that emits `KernelEvents`
 - [ ] Update `createApp()` to auto-discover listeners in `app/listener/`
-- [ ] Wire listener instances to DI container
+- [ ] Wire listener instances through DI container
+- [ ] Add `listenersDir` option to `@Kernel` decorator config
 
 ### Phase 3: Package Integration
 
-- [ ] Add `QueryExecutedEvent` to `@lockness/drizzle`
-- [ ] Add `MailSentEvent` to `@lockness/mail`
-- [ ] Add `JobProcessedEvent` to `@lockness/queue`
-- [ ] Update `@lockness/devtools` to use events instead of direct collection
+Each package emits its own events:
+
+- [ ] `@lockness/drizzle`: Add `QueryExecutedEvent`
+- [ ] `@lockness/mail`: Add `MailSentEvent`
+- [ ] `@lockness/queue`: Add `JobProcessedEvent`, `JobFailedEvent`
+- [ ] `@lockness/auth`: Add `UserAuthenticatedEvent`, `UserLoggedOutEvent`
+- [ ] `@lockness/cache`: Add `CacheHitEvent`, `CacheMissEvent`
+- [ ] `@lockness/devtools`: Migrate to event-based collection
 
 ### Phase 4: Testing & DX
 
-- [ ] Implement `events().fake()` for testing
-- [ ] Add assertion methods (`assertEmitted`, `assertNotEmitted`, etc.)
-- [ ] Create `deno task cli make:event` command
-- [ ] Create `deno task cli make:listener` command
+- [ ] Implement `events().fake()` returning `EventBuffer`
+- [ ] Add assertion methods (`assertEmitted`, `assertNotEmitted`,
+      `assertEmittedCount`)
+- [ ] Create `deno task cli make:event <Name>` command
+- [ ] Create `deno task cli make:listener <Name>` command
+- [ ] Add stubs in `packages/cli/stubs/`
 
 ### Phase 5: Documentation
 
 - [ ] Write `packages/events/docs/DOCS.md`
-- [ ] Add events guide to main documentation
-- [ ] Document all framework events
+- [ ] Add events guide to `docs/events.md`
+- [ ] Document all framework events with examples
 - [ ] Add migration guide for existing users
+- [ ] Update `AGENTS.md` with events documentation links
+- [ ] Update `docs/dependencies.md` - Run `deno task deps:analyze` to regenerate
+      dependency tree (now includes `npm:emittery`)
+- [ ] Update package dependency documentation in `packages/events/README.md`
 
 ---
 
