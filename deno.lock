@@ -3892,10 +3892,10 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@lockness/contract@~0.1.30",
-      "jsr:@lockness/core@~0.1.30",
-      "jsr:@lockness/drizzle@~0.1.30",
-      "jsr:@lockness/ui@~0.1.30",
+      "jsr:@lockness/contract@0.2",
+      "jsr:@lockness/core@0.2",
+      "jsr:@lockness/drizzle@0.2",
+      "jsr:@lockness/ui@0.2",
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
@@ -3914,21 +3914,21 @@
     "members": {
       "packages/auth": {
         "dependencies": [
-          "jsr:@lockness/contract@~0.1.30",
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1"
         ]
       },
       "packages/cache": {
         "dependencies": [
-          "jsr:@lockness/container@~0.1.30",
-          "jsr:@lockness/contract@~0.1.30",
+          "jsr:@lockness/container@0.2",
+          "jsr:@lockness/contract@0.2",
           "jsr:@std/assert@1"
         ]
       },
       "packages/cli": {
         "dependencies": [
-          "jsr:@lockness/contract@~0.1.30",
+          "jsr:@lockness/contract@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
@@ -3936,13 +3936,13 @@
       },
       "packages/container": {
         "dependencies": [
-          "jsr:@lockness/contract@~0.1.30",
+          "jsr:@lockness/contract@0.2",
           "jsr:@std/assert@1"
         ]
       },
       "packages/contract": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
@@ -3950,11 +3950,11 @@
       },
       "packages/core": {
         "dependencies": [
-          "jsr:@lockness/container@~0.1.30",
-          "jsr:@lockness/contract@~0.1.30",
-          "jsr:@lockness/deprecation-contracts@~0.1.30",
-          "jsr:@lockness/events@~0.1.30",
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/container@0.2",
+          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/deprecation-contracts@0.2",
+          "jsr:@lockness/events@0.2",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/path@1",
@@ -3968,7 +3968,7 @@
       },
       "packages/devtools": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.30"
+          "jsr:@lockness/hono@0.2"
         ]
       },
       "packages/drizzle": {
@@ -3980,7 +3980,7 @@
       },
       "packages/events": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1"
         ]
       },
@@ -3992,7 +3992,7 @@
       },
       "packages/inertia": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1"
         ]
       },
@@ -4018,8 +4018,8 @@
       "packages/markdown": {
         "dependencies": [
           "jsr:@libs/markdown@^2.1.0",
-          "jsr:@lockness/hono@~0.1.30",
-          "jsr:@lockness/ui@~0.1.30",
+          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/ui@0.2",
           "jsr:@std/assert@1",
           "npm:clsx@2.1.1",
           "npm:tailwind-merge@2.6.0"
@@ -4027,8 +4027,8 @@
       },
       "packages/openapi": {
         "dependencies": [
-          "jsr:@lockness/contract@~0.1.30",
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1"
         ]
       },
@@ -4039,13 +4039,13 @@
       },
       "packages/session": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1"
         ]
       },
       "packages/socialite": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/testing@1"
@@ -4062,7 +4062,7 @@
       },
       "packages/ui": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/cli@1",
           "jsr:@std/fs@1",
@@ -4082,7 +4082,7 @@
       },
       "packages/validator": {
         "dependencies": [
-          "jsr:@lockness/hono@~0.1.30",
+          "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1",
           "npm:zod@^3.22.0"
         ]

@@ -27,16 +27,15 @@
  * ```
  */
 
-import { App } from '../app.ts'
-import { container } from '@lockness/container'
+import type { App } from '../app.ts'
 import {
     KERNEL_CONFIG,
     KERNEL_GLOBAL_MIDDLEWARE,
     type KernelConfig,
 } from './kernel_decorators.ts'
 import { type BootHookMeta, KERNEL_BOOT_HOOKS } from './decorators.ts'
-import { discoverMiddlewares } from '../http/resolver.ts'
-import type { ControllerClass } from '../types.ts'
+import type { BootstrapContext } from './bootstrap/types.ts'
+import { runBootstrapSteps } from './bootstrap/registry.ts'
 
 /**
  * Create and bootstrap an App from a decorated Kernel class.
@@ -140,233 +139,22 @@ export async function createApp<T>(KernelClass: new () => T): Promise<App> {
         KERNEL_BOOT_HOOKS
     ] ?? []
 
-    // Step 1: Database connection
-    if (config.database) {
-        try {
-            const drizzleModule = await import('@lockness/drizzle')
-            const Database = drizzleModule.Database
-            const db = container.get(Database)
-
-            // Determine connection URL
-            let url: string | undefined
-            if (typeof config.database === 'object' && config.database.url) {
-                url = config.database.url
-            } else {
-                url = Deno.env.get('DATABASE_URL')
-            }
-
-            // Connect if URL is available
-            if (url) {
-                await db.connect(url)
-            }
-        } catch (error) {
-            // Database package not installed - skip database setup
-            if (
-                error instanceof TypeError &&
-                error.message.includes('Cannot resolve')
-            ) {
-                console.warn(
-                    '⚠️ @lockness/drizzle not found - skipping database setup',
-                )
-            } else {
-                // Re-throw other errors (e.g., connection failures)
-                throw error
-            }
-        }
+    // Build bootstrap context
+    const context: BootstrapContext = {
+        config,
+        kernel,
+        KernelClass,
+        globalMiddlewareProp,
+        bootHooks,
     }
 
-    // Step 2: Session configuration
-    if (config.session) {
-        try {
-            const { configureSession } = await import('@lockness/session')
+    // Run bootstrap steps sequentially
+    await runBootstrapSteps(context)
 
-            // Determine session config
-            const sessionConfig = typeof config.session === 'object'
-                ? config.session
-                : {}
-
-            configureSession({
-                driver: sessionConfig.driver ?? 'cookie',
-                secret: sessionConfig.secret ?? Deno.env.get('APP_KEY') ??
-                    'change-me-in-production',
-                lifetime: sessionConfig.lifetime ?? 7200,
-                secure: sessionConfig.secure ??
-                    (Deno.env.get('APP_ENV') === 'production'),
-            })
-        } catch (error) {
-            // Session package not installed - skip session setup
-            if (
-                error instanceof TypeError &&
-                error.message.includes('Cannot resolve')
-            ) {
-                console.warn(
-                    '⚠️ @lockness/session not found - skipping session setup',
-                )
-            } else {
-                throw error
-            }
-        }
+    // App instance is created and initialized by bootstrap steps
+    if (!context.app) {
+        throw new Error('Bootstrap failed: App instance not created')
     }
 
-    // Step 2.5: Cache configuration
-    if (config.cache) {
-        try {
-            const { configureCache } = await import('@lockness/cache')
-
-            // Determine cache config
-            const cacheConfig = typeof config.cache === 'object'
-                ? config.cache
-                : {}
-
-            configureCache({
-                driver: cacheConfig.driver ?? 'memory',
-                ttl: cacheConfig.ttl ?? 3600,
-                prefix: cacheConfig.prefix ?? 'lockness',
-                kvPath: cacheConfig.kvPath,
-            })
-        } catch (error) {
-            // Cache package not installed - skip cache setup
-            if (
-                error instanceof TypeError &&
-                error.message.includes('Cannot resolve')
-            ) {
-                console.warn(
-                    '⚠️ @lockness/cache not found - skipping cache setup',
-                )
-            } else {
-                throw error
-            }
-        }
-    }
-
-    // Step 3: Create App instance
-    const app = new App()
-
-    // Step 4: Enable devtools in development
-    if (config.devtools && app.isDevelopment) {
-        try {
-            const { enableDevtools } = await import('@lockness/devtools')
-            enableDevtools(app.getHono())
-        } catch (error) {
-            // Devtools package not installed - skip devtools setup
-            if (
-                error instanceof TypeError &&
-                error.message.includes('Cannot resolve')
-            ) {
-                console.warn(
-                    '⚠️ @lockness/devtools not found - skipping devtools setup',
-                )
-            } else {
-                throw error
-            }
-        }
-    }
-
-    // Step 5: Register global middlewares
-    if (globalMiddlewareProp && (kernel as any)[globalMiddlewareProp]) {
-        const middlewares = (kernel as any)[globalMiddlewareProp]
-        if (Array.isArray(middlewares) && middlewares.length > 0) {
-            app.useMiddleware(...middlewares)
-        }
-    }
-
-    // Step 6: Run boot hooks (sorted by priority - highest first)
-    if (bootHooks.length > 0) {
-        const sortedHooks = [...bootHooks].sort((a, b) =>
-            b.priority - a.priority
-        )
-        for (const hook of sortedHooks) {
-            const method = (kernel as any)[hook.method]
-            if (typeof method === 'function') {
-                await method.call(kernel, app)
-            }
-        }
-    }
-
-    // Step 7: Auto-discover named middlewares from middlewaresDir
-    if (config.middlewaresDir) {
-        await discoverMiddlewares(config.middlewaresDir)
-    }
-
-    // Step 7.5: Register event listeners
-    // - Auto-discover from listenersDir (default: ./app/listener)
-    // - Register explicit event listener classes from config.listeners
-    try {
-        const { discoverListeners, registerListeners } = await import(
-            '../events/listener_discovery.ts'
-        )
-
-        // Auto-discover from directory
-        const listenersDir = config.listenersDir ?? './app/listener'
-        await discoverListeners(listenersDir)
-
-        // Register explicit listener classes (from packages or production builds)
-        if (config.listeners && config.listeners.length > 0) {
-            const count = registerListeners(
-                config.listeners as Parameters<typeof registerListeners>[0],
-            )
-            if (count > 0) {
-                console.log(
-                    `✓ Registered ${count} explicit event listener(s)`,
-                )
-            }
-        }
-    } catch (error) {
-        // Silently skip if directory doesn't exist or events package not available
-        if (
-            error instanceof Deno.errors.NotFound ||
-            (error instanceof TypeError &&
-                error.message.includes('Cannot resolve'))
-        ) {
-            // Expected conditions - no action needed
-        } else {
-            // Log unexpected errors but continue bootstrap
-            console.error('⚠️  Error discovering listeners:', error)
-        }
-    }
-
-    // Step 8: Emit KernelBooted event
-    try {
-        const { dispatcher, KernelBooted } = await import('@lockness/events')
-        await dispatcher().emit(
-            new KernelBooted(
-                Deno.env.get('APP_NAME') ?? 'Lockness',
-                Deno.env.get('APP_ENV') ?? 'development',
-            ),
-        )
-    } catch (error) {
-        // Events package not available - silently skip
-        if (
-            error instanceof TypeError &&
-            error.message.includes('Cannot resolve')
-        ) {
-            // Expected - events package not installed
-        } else {
-            // Log unexpected errors but continue
-            console.error('⚠️  Error emitting KernelBooted event:', error)
-        }
-    }
-
-    // Step 9: Initialize app with controllers and static files
-    await app.init({
-        controllersDir: app.isDevelopment ? config.controllersDir : undefined,
-        controllers: app.isDevelopment
-            ? undefined
-            : (config.controllers as ControllerClass[] | undefined),
-        staticDir: config.staticDir,
-        middlewaresDir: config.middlewaresDir,
-        mountPoint: config.mountPoint,
-    })
-
-    // Step 9: Collect routes for devtools (after app.init)
-    if (config.devtools && app.isDevelopment) {
-        try {
-            const { collectAppRoutes } = await import('@lockness/devtools')
-            collectAppRoutes(app)
-        } catch (_error) {
-            // Devtools package not installed - already warned above
-        }
-    }
-
-    return app
+    return context.app
 }

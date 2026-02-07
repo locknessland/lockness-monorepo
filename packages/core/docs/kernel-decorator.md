@@ -70,6 +70,21 @@ Configure session management:
 })
 ```
 
+### Cache Configuration
+
+Configure cache management (optional package):
+
+```typescript
+@Kernel({
+    cache: {
+        driver: 'memory',  // 'memory' | 'deno-kv' | 'redis'
+        ttl: 3600,         // 1 hour
+        prefix: 'lockness',
+        kvPath: './data/kv', // Only for deno-kv driver
+    },
+})
+```
+
 ### DevTools
 
 Enable development tools in development mode:
@@ -191,6 +206,23 @@ export class UserController {
     }
 }
 ```
+
+## Event Listeners
+
+Enable listener discovery and explicit listener registration:
+
+```typescript
+import { listeners } from '@/config/listeners.ts'
+
+@Kernel({
+    listenersDir: './app/listener', // Defaults to ./app/listener
+    listeners, // Explicit listener classes (optional)
+})
+export class AppKernel {}
+```
+
+Listeners are auto-discovered from `listenersDir` and can also be explicitly
+registered via `config.listeners`.
 
 ## Complete Example
 
@@ -349,11 +381,14 @@ Class decorator to configure the application kernel.
 
 - `config.database`: Database configuration (boolean or `DatabaseConfig`)
 - `config.session`: Session configuration (boolean or `SessionConfig`)
+- `config.cache`: Cache configuration (boolean or `CacheConfig`)
 - `config.devtools`: Enable devtools (boolean)
 - `config.staticDir`: Static files directory (string)
 - `config.controllersDir`: Controllers directory for auto-discovery (string)
 - `config.controllers`: Explicit controllers list (array)
 - `config.middlewaresDir`: Middlewares directory for auto-discovery (string)
+- `config.listenersDir`: Listener discovery directory (string)
+- `config.listeners`: Explicit listener classes (array)
 - `config.mountPoints`: Mount points for i18n, API versioning, or multi-tenancy
   (array of `MountPoint`)
 
@@ -398,6 +433,23 @@ interface SessionConfig {
     lifetime?: number
     /** Whether to use secure cookies (default: true in production) */
     secure?: boolean
+}
+```
+
+### `CacheConfig`
+
+Cache configuration options.
+
+```typescript
+interface CacheConfig {
+    /** Cache storage driver (default: 'memory') */
+    driver?: 'memory' | 'deno-kv' | 'redis'
+    /** Default time-to-live in seconds (default: 3600) */
+    ttl?: number
+    /** Path to Deno KV database file (for 'deno-kv' driver) */
+    kvPath?: string
+    /** Prefix for all cache keys (default: 'lockness') */
+    prefix?: string
 }
 ```
 

@@ -1,14 +1,45 @@
 # Kernel Boot Lifecycle
 
 The Lockness kernel provides a clean, declarative way to organize application
-initialization logic using the `@OnBoot` decorator. This enables separation of
-concerns and priority-based execution order for boot tasks.
+initialization logic using the `@Kernel` decorator and `@OnBoot` decorator. This
+enables separation of concerns and priority-based execution order for boot
+tasks.
 
 ## Overview
+
+The kernel bootstrap process is powered by a **step-based pipeline** that
+executes discrete initialization steps in a well-defined order. Each step is
+isolated, testable, and can be extended or customized.
 
 The `@OnBoot` decorator marks methods that should be executed during the kernel
 bootstrap phase. Methods are executed in priority order (highest first),
 allowing you to control the initialization sequence.
+
+### Bootstrap Pipeline
+
+When you call `createApp(KernelClass)`, the framework executes the following
+steps sequentially:
+
+1. **Database** (order: 100) - Connects to database if configured
+2. **Session** (order: 110) - Configures session management
+3. **Cache** (order: 120) - Configures cache system
+4. **App Creation** (order: 200) - Creates the App instance
+5. **Devtools** (order: 210) - Enables devtools in development
+6. **Middleware** (order: 300) - Registers global middlewares
+7. **Boot Hooks** (order: 310) - Executes `@OnBoot` methods
+8. **Middleware Discovery** (order: 400) - Auto-discovers named middlewares
+9. **Listener Registration** (order: 410) - Registers event listeners
+10. **Events** (order: 500) - Emits KernelBooted event
+11. **App Initialization** (order: 550) - Initializes controllers and static
+    files
+12. **Devtools Routes** (order: 600) - Collects routes for devtools
+
+This architecture ensures:
+
+- **Predictable initialization order**
+- **Isolation of concerns** (each step handles one responsibility)
+- **Testability** (steps can be tested independently)
+- **Extensibility** (new steps can be added without modifying core logic)
 
 ## Basic Usage
 
@@ -509,18 +540,78 @@ await runBootHooks(new AppKernel(), app)
 // [3/3] Third task
 ```
 
-## Future Enhancements
+## Bootstrap Step Architecture
 
-The `@OnBoot` decorator is designed to work with the future `@Kernel` decorator,
-which will provide a fully declarative kernel configuration system. This will
-enable patterns like:
+### Internal Implementation
+
+The kernel loader uses a modular bootstrap step system that replaced the
+previous monolithic implementation. This improves:
+
+- **Maintainability**: Each step is isolated in its own file
+- **Testability**: Steps can be unit tested independently
+- **Extensibility**: New steps can be added without modifying existing code
+- **Error Handling**: Centralized optional package import logic
+
+### Bootstrap Step Structure
+
+Each step implements the `BootstrapStep` interface:
 
 ```typescript
-@Kernel({ database: true, session: true })
-export class AppKernel {
-    @OnBoot({ priority: 100 })
-    async initialize(app: App) {/* ... */}
+interface BootstrapStep {
+    id: string // Unique identifier
+    order: number // Execution order (lower = earlier)
+    run(context: BootstrapContext): Promise<void> | void
 }
 ```
 
-See the roadmap for more details on the `@Kernel` decorator implementation.
+The `BootstrapContext` provides shared state across all steps:
+
+```typescript
+interface BootstrapContext {
+    config: KernelConfig // Kernel configuration
+    kernel: unknown // Kernel instance
+    KernelClass: new () => T // Kernel class constructor
+    app?: App // App instance (created during bootstrap)
+    globalMiddlewareProp?: string
+    bootHooks: BootHookMeta[]
+}
+```
+
+### Custom Bootstrap Steps
+
+While the default steps cover most use cases, you can create custom steps for
+advanced scenarios. Steps are executed by `runBootstrapSteps()` which sorts them
+by order and runs them sequentially.
+
+**Example custom step:**
+
+```typescript
+import type {
+    BootstrapContext,
+    BootstrapStep,
+} from '@lockness/core/kernel/bootstrap/types'
+
+const customMonitoringStep: BootstrapStep = {
+    id: 'monitoring',
+    order: 520, // After events, before app initialization
+
+    async run(context: BootstrapContext) {
+        if (!context.app) return
+
+        // Initialize monitoring
+        await initMonitoring({
+            appName: context.config.appName ?? 'Lockness',
+            environment: context.app.isDevelopment ? 'dev' : 'prod',
+        })
+    },
+}
+```
+
+**Note:** Custom step registration is currently internal. For most use cases,
+`@OnBoot` hooks (order: 310) provide sufficient customization.
+
+## Related Documentation
+
+- [Architecture Guide](/docs/architecture.md) - Framework architecture overview
+- [Lifecycle Events](/docs/lifecycle-events.md) - Event system and listeners
+- [Middleware](/packages/core/docs/middleware.md) - Middleware system

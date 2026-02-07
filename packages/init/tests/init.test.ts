@@ -471,9 +471,9 @@ describe('init command', () => {
                 await Deno.readTextFile('default-version-test/deno.json'),
             )
 
-            // Should start with ^0.1. (exact patch version may vary)
+            // Should start with ^0.x. (exact minor/patch may vary)
             expect(denoJson.imports['@lockness/core']).toMatch(
-                /^jsr:@lockness\/core@\^0\.1\.\d+$/,
+                /^jsr:@lockness\/core@\^0\.\d+\.\d+$/,
             )
         } finally {
             Deno.chdir(originalCwd)

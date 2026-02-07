@@ -9,6 +9,34 @@ Lockness follows a **minimal core, optional features** approach:
 - **@lockness/core** - Essential framework only (App, DI, Hono)
 - **Optional packages** - Import explicitly when needed
 
+## Bootstrap Pipeline
+
+The kernel loader uses a modular **bootstrap step architecture** to initialize
+your application. When you call `createApp(KernelClass)`, the following steps
+execute in sequence:
+
+1. **Database** (100) - Database connection
+2. **Session** (110) - Session configuration
+3. **Cache** (120) - Cache system setup
+4. **App Creation** (200) - Create App instance
+5. **Devtools** (210) - Enable devtools (development only)
+6. **Middleware** (300) - Register global middlewares
+7. **Boot Hooks** (310) - Execute `@OnBoot` methods
+8. **Middleware Discovery** (400) - Auto-discover named middlewares
+9. **Listener Registration** (410) - Register event listeners
+10. **Events** (500) - Emit KernelBooted event
+11. **App Initialization** (550) - Initialize controllers and static files
+12. **Devtools Routes** (600) - Collect routes for devtools
+
+**Benefits:**
+
+- ✅ Predictable initialization order
+- ✅ Each step isolated and testable
+- ✅ Optional packages loaded gracefully
+- ✅ Extensible without modifying core
+
+See [Kernel Lifecycle](/docs/kernel) for details.
+
 ## Package System
 
 ### Core Package (@lockness/core)
