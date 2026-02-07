@@ -111,6 +111,13 @@ We should implement Lockness equivalents (Adonis-style):
 - Provide `defineViteConfig()` helper (Lockness-flavored defaults).
 - Provide `ViteAssets` helper to generate script/style tags (manifest-aware).
 - Align conventions with AdonisJS (single build, manifest usage, helpers).
+- Default dev server URL: `http://localhost:5173`.
+- Manifest path: `public/assets/.vite/manifest.json`.
+- `viteAssets()` should prefer dev server when running `deno task dev`.
+- Server reload globs: `app/controller/**`, `app/service/**`,
+  `app/middleware/**`, `app/routes.ts`, `config/**`.
+- Default dev server port: `5173`.
+- Dev server URL may be overridden with `LOCKNESS_VITE_URL`.
 
 ## ✅ Behavior Rules (No Ambiguity)
 
@@ -125,6 +132,31 @@ We should implement Lockness equivalents (Adonis-style):
   `app/view/assets/app.css` and must remain in sync with watcher globs.
 - CSS build command in dev must match current Tailwind task:
   `deno run -A @tailwindcss/cli -i app/view/assets/app.css -o public/css/app.css --watch`.
+- Dev server reload must trigger when any server reload glob changes.
+- When manifest is missing (dev mode), `viteAssets()` must return dev server
+  URLs (no hard failure).
+- When manifest is missing in production, `viteAssets()` must throw with a clear
+  message pointing to `public/assets/.vite/manifest.json`.
+
+## 🧾 Default Values (Authoritative)
+
+```ts
+export const DEFAULTS = {
+    serverEntry: 'main.ts',
+    clientEntry: 'app/client.ts',
+    routeDir: 'app/controller',
+    outDir: 'public/assets',
+    manifestPath: 'public/assets/.vite/manifest.json',
+    devServerUrl: 'http://localhost:5173',
+}
+```
+
+## 🧩 Template Integration (Exact)
+
+- In server-rendered pages/layouts, call `viteAssets('app/client.ts')` and
+  insert the returned `html` inside `<head>`.
+- If a page needs an additional entry, call `viteAssets('path/to/entry.ts')` and
+  append tags in `<head>`.
 
 ## 📝 Detailed Implementation Steps
 
@@ -234,6 +266,7 @@ export function viteAssets(
 - Verify dev server, HMR, and CSS injection.
 - Verify build output structure and manifests.
 - Verify `deno task dev` launches Vite and rebuilds CSS/JS automatically.
+- Verify `viteAssets()` selects dev server URLs when Vite is running.
 
 ## 🔍 Quality Checks
 
