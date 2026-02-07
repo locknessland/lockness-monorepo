@@ -157,6 +157,24 @@ export const DEFAULTS = {
   insert the returned `html` inside `<head>`.
 - If a page needs an additional entry, call `viteAssets('path/to/entry.ts')` and
   append tags in `<head>`.
+- Default placement in this repo:
+  - Root layout: `/app/view/layouts/root.tsx` (inject inside `<head>`).
+  - App layout: `/app/view/layouts/app.tsx` (if root does not exist).
+  - Page-level override: `/app/view/pages/**` (only for extra entries).
+
+## 🔐 CSP + Headers (Exact)
+
+- If CSP is enabled, allow Vite dev server assets and HMR:
+  - `script-src` must include `http://localhost:5173` and `'unsafe-eval'` in
+    dev.
+  - `style-src` must include `http://localhost:5173` and `'unsafe-inline'` in
+    dev (Vite injects styles).
+  - `connect-src` must include `ws://localhost:5173` for HMR.
+- In production, do not add the dev server origins.
+- If using a CSP nonce, `viteAssets()` must accept a nonce attribute and apply
+  it to generated `<script>` tags.
+- If CSP hashes are enforced, document that `viteAssets()` output should be
+  hashed per response (not at build time).
 
 ## 📝 Detailed Implementation Steps
 
@@ -256,7 +274,7 @@ export function defineViteConfig(
 
 export function viteAssets(
     entry: string,
-    options?: { devServerUrl?: string },
+    options?: { devServerUrl?: string; nonce?: string },
 ): Promise<ViteAssetsTagResult>
 ```
 
