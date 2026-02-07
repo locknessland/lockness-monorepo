@@ -24,7 +24,8 @@ Reference material:
 
 ## 🎯 Objectives
 
-1. **Single Dev Command**: Replace dual dev commands with `vite` for dev.
+1. **Single Dev Command**: `deno task dev` must start Vite dev server with HMR,
+   build CSS/JS automatically, and reload server on backend changes.
 2. **Adonis-first Build**: Use a single Vite build output (no SSR build
    environment). Only bundle client assets and manifest.
 3. **Deno-First Resolution**: Support jsr:, npm:, http(s):, file, and local.
@@ -109,6 +110,7 @@ We should implement Lockness equivalents (Adonis-style):
 - Client entry re-exports Lockness client runtime and user entry if present.
 - Provide `defineViteConfig()` helper (Lockness-flavored defaults).
 - Provide `ViteAssets` helper to generate script/style tags (manifest-aware).
+- Align conventions with AdonisJS (single build, manifest usage, helpers).
 
 ## ✅ Behavior Rules (No Ambiguity)
 
@@ -116,6 +118,13 @@ We should implement Lockness equivalents (Adonis-style):
 - Vite `build` must emit a single manifest for client assets only.
 - CSS in dev must be collected and injected into HTML head.
 - HMR must reload when SSR-only modules change.
+- `deno task dev` must launch Vite dev server + HMR and trigger server reloads.
+- CSS pipeline must watch `app/view/assets/app.css` and rebuild when any
+  `app/**/*.ts` or `app/**/*.tsx` changes affect Tailwind classes.
+- Tailwind sources are defined by `@source '../../**/*.tsx'` inside
+  `app/view/assets/app.css` and must remain in sync with watcher globs.
+- CSS build command in dev must match current Tailwind task:
+  `deno run -A @tailwindcss/cli -i app/view/assets/app.css -o public/css/app.css --watch`.
 
 ## 📝 Detailed Implementation Steps
 
@@ -127,6 +136,10 @@ We should implement Lockness equivalents (Adonis-style):
    reference).
 4. Add `define_config.ts` helper similar to Adonis `defineConfig()`.
 5. Add `vite_assets.ts` helper to generate script/style tags from manifest.
+6. Add explicit watch globs for Tailwind in dev:
+  - `app/view/assets/app.css`
+  - `app/**/*.ts`
+  - `app/**/*.tsx`
 
 ### Phase 2: Entry Modules (Client-only)
 
@@ -219,6 +232,7 @@ export function viteAssets(
 - Add a small demo app under `/packages/vite/demo`.
 - Verify dev server, HMR, and CSS injection.
 - Verify build output structure and manifests.
+- Verify `deno task dev` launches Vite and rebuilds CSS/JS automatically.
 
 ## 🔍 Quality Checks
 
