@@ -461,13 +461,13 @@ app/
 All core event infrastructure lives in `@lockness/events`:
 
 - [ ] Add `npm:emittery` as dependency in `packages/events/deno.json`
-- [ ] Create `base_event.ts` with `BaseEvent` abstract class
-- [ ] Create `dispatcher.ts` with `EventDispatcher` (emittery wrapper)
-- [ ] Create `decorators.ts` with `@Listener` decorator
-- [ ] Create `listener_registry.ts` for metadata storage (Symbol-based)
-- [ ] Create `kernel_events.ts` with framework lifecycle event classes
-- [ ] Create `testing.ts` with `EventBuffer` for `events().fake()`
-- [ ] Update `mod.ts` to export all public APIs
+- [x] Create `base_event.ts` with `BaseEvent` abstract class
+- [x] Create `dispatcher.ts` with `EventDispatcher` (emittery wrapper)
+- [x] Create `decorators.ts` with `@Listener` decorator
+- [x] Create `listener_registry.ts` for metadata storage (Symbol-based)
+- [x] Create `kernel_events.ts` with framework lifecycle event classes
+- [x] Create `testing.ts` with `EventBuffer` for `events().fake()`
+- [x] Update `mod.ts` to export all public APIs
 
 **File: `packages/events/decorators.ts`**
 
@@ -496,9 +496,9 @@ export function Listener<T extends BaseEvent>(
 ### Phase 2: Framework Integration (`@lockness/core`)
 
 - [ ] Create lifecycle middleware in `@lockness/core` that emits `KernelEvents`
-- [ ] Update `createApp()` to auto-discover listeners in `app/listener/`
-- [ ] Wire listener instances through DI container
-- [ ] Add `listenersDir` option to `@Kernel` decorator config
+- [x] Update `createApp()` to auto-discover listeners in `app/listener/`
+- [x] Wire listener instances through DI container
+- [x] Add `listenersDir` option to `@Kernel` decorator config
 
 ### Phase 3: Package Integration
 
@@ -513,23 +513,22 @@ Each package emits its own events:
 
 ### Phase 4: Testing & DX
 
-- [ ] Implement `events().fake()` returning `EventBuffer`
-- [ ] Add assertion methods (`assertEmitted`, `assertNotEmitted`,
+- [x] Implement `events().fake()` returning `EventBuffer`
+- [x] Add assertion methods (`assertEmitted`, `assertNotEmitted`,
       `assertEmittedCount`)
-- [ ] Create `deno task cli make:event <Name>` command
-- [ ] Create `deno task cli make:listener <Name>` command
-- [ ] Add stubs in `packages/cli/stubs/`
+- [x] Create `deno task cli make:event <Name>` command
+- [x] Create `deno task cli make:listener <Name>` command
+- [x] Add stubs in `packages/cli/stubs/`
 
 ### Phase 5: Documentation
 
-- [ ] Write `packages/events/docs/DOCS.md`
+- [x] Write `packages/events/docs/DOCS.md`
 - [ ] Add events guide to `docs/events.md`
 - [ ] Document all framework events with examples
 - [ ] Add migration guide for existing users
 - [ ] Update `AGENTS.md` with events documentation links
 - [ ] Update `docs/dependencies.md` - Run `deno task deps:analyze` to regenerate
       dependency tree (now includes `npm:emittery`)
-- [ ] Update package dependency documentation in `packages/events/README.md`
 
 ---
 
