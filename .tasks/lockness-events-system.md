@@ -148,6 +148,48 @@ This keeps the package lightweight with only one external dependency. No
 internal `@lockness/*` dependencies are required, maintaining the current
 position in the dependency tree (Foundation Layer).
 
+**Dependency Tree After Implementation:**
+
+```
+Foundation Layer (no internal deps):
+├── @lockness/contract
+├── @lockness/hono
+└── @lockness/events ←── NEW: npm:emittery (external only)
+
+Implementation Layer (imports events):
+├── @lockness/core ←── NEW import: @lockness/events
+│   └── Emits: KernelEvents.REQUEST, RESPONSE, EXCEPTION, BOOT, TERMINATE
+├── @lockness/drizzle ←── NEW import: @lockness/events
+│   └── Emits: DrizzleEvents.QUERY, MIGRATION
+├── @lockness/mail ←── NEW import: @lockness/events
+│   └── Emits: MailSentEvent
+├── @lockness/auth ←── NEW import: @lockness/events
+│   └── Emits: UserAuthenticatedEvent, UserLogoutEvent
+├── @lockness/session ←── NEW import: @lockness/events
+│   └── Emits: SessionCreatedEvent, SessionDestroyedEvent
+└── @lockness/devtools ←── NEW import: @lockness/events
+    └── Listens: all events for toolbar display
+
+Orchestration Layer:
+└── @lockness/core (re-exports events from @lockness/events)
+```
+
+**No Cycles**: Events sits at the Foundation Layer with zero internal
+dependencies. All other packages import events "downward", maintaining the
+strict acyclic dependency graph (DAG).
+
+**Integration Pattern**: Each package that emits or listens to events adds
+`@lockness/events` to its `deno.json` imports:
+
+```jsonc
+// packages/drizzle/deno.json
+{
+    "imports": {
+        "@lockness/events": "jsr:@lockness/events@^0.1.0" // ← NEW
+    }
+}
+```
+
 **Exports from `mod.ts`:**
 
 ```typescript
