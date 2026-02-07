@@ -137,9 +137,10 @@ We should implement Lockness equivalents (Adonis-style):
 4. Add `define_config.ts` helper similar to Adonis `defineConfig()`.
 5. Add `vite_assets.ts` helper to generate script/style tags from manifest.
 6. Add explicit watch globs for Tailwind in dev:
-  - `app/view/assets/app.css`
-  - `app/**/*.ts`
-  - `app/**/*.tsx`
+
+- `app/view/assets/app.css`
+- `app/**/*.ts`
+- `app/**/*.tsx`
 
 ### Phase 2: Entry Modules (Client-only)
 
