@@ -1,0 +1,15 @@
+import { BaseEvent } from '@lockness/core'
+
+/**
+ * {{ className }} Event
+ *
+ * This event is emitted when {{ description }}.
+ */
+export class {{ className }} extends BaseEvent {
+    constructor(
+        // Add your event properties here
+        // Example: public readonly userId: string,
+    ) {
+        super()
+    }
+}

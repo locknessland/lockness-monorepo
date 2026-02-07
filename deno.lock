@@ -3953,6 +3953,7 @@
           "jsr:@lockness/container@~0.1.30",
           "jsr:@lockness/contract@~0.1.30",
           "jsr:@lockness/deprecation-contracts@~0.1.30",
+          "jsr:@lockness/events@~0.1.30",
           "jsr:@lockness/hono@~0.1.30",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
@@ -3979,6 +3980,7 @@
       },
       "packages/events": {
         "dependencies": [
+          "jsr:@lockness/hono@~0.1.30",
           "jsr:@std/assert@1"
         ]
       },

@@ -39,6 +39,7 @@ import {
     validCountries,
     validLanguages,
 } from './i18n.ts'
+import { listeners } from './listeners.ts'
 
 /**
  * Centralized configuration object with typed namespaces.
@@ -64,6 +65,7 @@ export const config = {
     cache: cacheConfig,
     routing: mountPointConfig,
     compile: compileConfig,
+    listeners,
     i18n: {
         defaultLocale,
         validLanguages,

@@ -93,6 +93,7 @@ export class DocsLoader {
         'installation': 'docs/installation.md',
         'getting-started': 'docs/getting-started.md',
         'architecture': 'docs/architecture.md',
+        'lifecycle-events': 'docs/lifecycle-events.md',
         'testing': 'docs/testing.md',
         'contribution': 'docs/contribution.md',
         'deployment': 'docs/deployment.md',
@@ -244,6 +245,28 @@ export class DocsLoader {
      * LLM content is dynamically generated from these sources.
      */
     private readonly llmsSlugToSource: Record<string, string> = {
+        // General docs
+        'installation': 'docs/installation.md',
+        'getting-started': 'docs/getting-started.md',
+        'architecture': 'docs/architecture.md',
+        'lifecycle-events': 'docs/lifecycle-events.md',
+        'models': 'docs/models.md',
+        'nessy': 'docs/nessy.md',
+        'testing': 'docs/testing.md',
+        'deployment': 'docs/deployment.md',
+        'contribution': 'docs/contribution.md',
+        'packages': 'docs/packages.md',
+        'compilation': 'docs/compilation.md',
+        'dependencies': 'docs/dependencies.md',
+
+        // Core sub-docs - keep separate for readability
+        'middleware': 'packages/core/docs/middleware.md',
+        'compose': 'packages/core/docs/compose.md',
+        'routing': 'packages/core/docs/routing.md',
+        'mount-points': 'packages/core/docs/mount-points.md',
+        'error-handling': 'packages/core/docs/error-handling.md',
+        'components': 'packages/core/docs/components.md',
+
         // Package docs - use DOCS.md
         'authentication': 'packages/auth/docs/DOCS.md',
         'auth-provider': 'packages/auth-provider/docs/DOCS.md',
@@ -268,27 +291,6 @@ export class DocsLoader {
         'storage': 'packages/storage/docs/DOCS.md',
         'upgrade': 'packages/upgrade/docs/DOCS.md',
         'validation': 'packages/validator/docs/DOCS.md',
-
-        // Core sub-docs - keep separate for readability
-        'middleware': 'packages/core/docs/middleware.md',
-        'compose': 'packages/core/docs/compose.md',
-        'routing': 'packages/core/docs/routing.md',
-        'mount-points': 'packages/core/docs/mount-points.md',
-        'error-handling': 'packages/core/docs/error-handling.md',
-        'components': 'packages/core/docs/components.md',
-
-        // General docs
-        'installation': 'docs/installation.md',
-        'getting-started': 'docs/getting-started.md',
-        'architecture': 'docs/architecture.md',
-        'models': 'docs/models.md',
-        'nessy': 'docs/nessy.md',
-        'testing': 'docs/testing.md',
-        'deployment': 'docs/deployment.md',
-        'contribution': 'docs/contribution.md',
-        'packages': 'docs/packages.md',
-        'compilation': 'docs/compilation.md',
-        'dependencies': 'docs/dependencies.md',
     }
 
     /**

@@ -288,7 +288,66 @@ export async function createApp<T>(KernelClass: new () => T): Promise<App> {
         await discoverMiddlewares(config.middlewaresDir)
     }
 
-    // Step 8: Initialize app with controllers and static files
+    // Step 7.5: Register event listeners
+    // - Auto-discover from listenersDir (default: ./app/listener)
+    // - Register explicit event listener classes from config.listeners
+    try {
+        const { discoverListeners, registerListeners } = await import(
+            '../events/listener_discovery.ts'
+        )
+
+        // Auto-discover from directory
+        const listenersDir = config.listenersDir ?? './app/listener'
+        await discoverListeners(listenersDir)
+
+        // Register explicit listener classes (from packages or production builds)
+        if (config.listeners && config.listeners.length > 0) {
+            const count = registerListeners(
+                config.listeners as Parameters<typeof registerListeners>[0],
+            )
+            if (count > 0) {
+                console.log(
+                    `✓ Registered ${count} explicit event listener(s)`,
+                )
+            }
+        }
+    } catch (error) {
+        // Silently skip if directory doesn't exist or events package not available
+        if (
+            error instanceof Deno.errors.NotFound ||
+            (error instanceof TypeError &&
+                error.message.includes('Cannot resolve'))
+        ) {
+            // Expected conditions - no action needed
+        } else {
+            // Log unexpected errors but continue bootstrap
+            console.error('⚠️  Error discovering listeners:', error)
+        }
+    }
+
+    // Step 8: Emit KernelBooted event
+    try {
+        const { dispatcher, KernelBooted } = await import('@lockness/events')
+        await dispatcher().emit(
+            new KernelBooted(
+                Deno.env.get('APP_NAME') ?? 'Lockness',
+                Deno.env.get('APP_ENV') ?? 'development',
+            ),
+        )
+    } catch (error) {
+        // Events package not available - silently skip
+        if (
+            error instanceof TypeError &&
+            error.message.includes('Cannot resolve')
+        ) {
+            // Expected - events package not installed
+        } else {
+            // Log unexpected errors but continue
+            console.error('⚠️  Error emitting KernelBooted event:', error)
+        }
+    }
+
+    // Step 9: Initialize app with controllers and static files
     await app.init({
         controllersDir: app.isDevelopment ? config.controllersDir : undefined,
         controllers: app.isDevelopment

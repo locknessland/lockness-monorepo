@@ -216,7 +216,8 @@ const navSections: readonly NavSection[] = [
             { title: 'Mount Points', name: 'mount-points' },
             { title: 'Error Handling', name: 'error-handling' },
             { title: 'Validation', name: 'validation' },
-            { title: 'Events', name: 'events' },
+            { title: 'Lifecycle Events', name: 'lifecycle-events' },
+            { title: 'Events API', name: 'events' },
         ],
     },
     {

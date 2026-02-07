@@ -13,7 +13,8 @@
         ]
     },
     "imports": {
-        "@std/assert": "jsr:@std/assert@1"
+        "@std/assert": "jsr:@std/assert@1",
+        "@lockness/hono": "jsr:@lockness/hono@^0.1.30"
     },
     "description": "Type-safe event emitter with async support, priorities, wildcards, and isolated event buses"
 }

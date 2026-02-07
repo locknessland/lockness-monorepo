@@ -25,7 +25,8 @@
         "hono": "jsr:@lockness/hono@^0.1.30",
         "@lockness/contract": "jsr:@lockness/contract@^0.1.30",
         "@lockness/container": "jsr:@lockness/container@^0.1.30",
-        "@lockness/deprecation-contracts": "jsr:@lockness/deprecation-contracts@^0.1.30"
+        "@lockness/deprecation-contracts": "jsr:@lockness/deprecation-contracts@^0.1.30",
+        "@lockness/events": "jsr:@lockness/events@^0.1.30"
     },
     "compilerOptions": {
         "jsx": "precompile",

@@ -205,6 +205,37 @@ export interface KernelConfig {
     middlewaresDir?: string
 
     /**
+     * Listeners directory for auto-discovery
+     * Scans for classes with @Listener decorated methods
+     * @example './app/listener'
+     * @default './app/listener'
+     */
+    listenersDir?: string
+
+    /**
+     * Explicit listener classes to register.
+     * Use this to register listeners from packages or for production builds.
+     *
+     * When provided alongside `listenersDir`, both are used:
+     * - Directory listeners are auto-discovered
+     * - Explicit listeners are registered directly
+     *
+     * @example
+     * ```typescript
+     * import { DevtoolsListener } from '@lockness/devtools'
+     * import { CacheInvalidationListener } from '@lockness/cache'
+     *
+     * @Kernel({
+     *     listeners: [
+     *         DevtoolsListener,
+     *         CacheInvalidationListener,
+     *     ],
+     * })
+     * ```
+     */
+    listeners?: unknown[]
+
+    /**
      * Mount point for URL prefixing (i18n, multi-tenancy).
      *
      * When defined, the application is accessible under the mount point's pattern

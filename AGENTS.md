@@ -51,6 +51,7 @@ refer to these files:
 | [architecture.md](docs/architecture.md)                               | Package system & layered design |
 | [getting-started.md](docs/getting-started.md)                         | Quick start tutorial            |
 | [installation.md](docs/installation.md)                               | Installation guide              |
+| [lifecycle-events.md](docs/lifecycle-events.md)                       | Framework Lifecycle Events      |
 | [middleware.md](docs/middleware.md)                                   | Middleware patterns             |
 | [models.md](docs/models.md)                                           | Database models with Drizzle    |
 | [testing.md](docs/testing.md)                                         | Testing best practices          |

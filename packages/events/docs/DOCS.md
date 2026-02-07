@@ -1,88 +1,116 @@
 # Lockness Events
 
-Type-safe event emitter for Deno with async support, priorities, wildcards, and
-event streams.
+Modern, type-safe event system for Deno with async support, class-based events,
+decorator-driven listeners, and full DI integration.
+
+> **New to Lockness Events?** Start with the
+> [Lifecycle Events Guide](/docs/lifecycle-events) for a tutorial-style
+> introduction, best practices, and advanced patterns like Saga and Event
+> Sourcing.
 
 ## Overview
 
-@lockness/events provides a modern event system with:
+@lockness/events provides a comprehensive event system with:
 
 - **Type Safety** - Generic event types with full TypeScript inference
+- **Class-based Events** - Extend `BaseEvent` for structured event data
+- **Decorator Listeners** - `@Listener` decorator for auto-discovered event
+  handlers
+- **DI Integration** - Listeners are managed by the container with full
+  dependency injection
 - **Async Support** - Native async/await for event listeners
 - **Priorities** - Execute listeners in priority order
-- **Once Listeners** - Auto-remove after first execution
-- **Wildcards** - Listen to all events with `onAny()`
-- **Event Streams** - Convert events to async iterables
-- **Isolated Buses** - Create independent event emitters
+- **Framework Events** - Built-in lifecycle events (KernelBooted,
+  RequestStarted, etc.)
+- **Testing Utilities** - `fake()` and assertions for testing event-driven code
+- **Backward Compatible** - String-based events still work via EventEmitter
 
 ## Installation
 
 ```typescript
-import { EventEmitter, events } from '@lockness/events'
+import { BaseEvent, dispatcher, KernelBooted, Listener } from '@lockness/core'
+
+// Or directly from events package
+import { BaseEvent, dispatcher, Listener } from '@lockness/events'
 ```
 
-## Basic Usage
+## Quick Start
 
-### Simple Events
-
-```typescript
-import { EventEmitter } from '@lockness/events'
-
-const emitter = new EventEmitter()
-
-// Register listener
-emitter.on('user:login', (username) => {
-    console.log(`${username} logged in`)
-})
-
-// Emit event
-await emitter.emit('user:login', 'alice')
-```
-
-### Type-Safe Events
-
-Define event types for full type safety:
+### 1. Define an Event
 
 ```typescript
-interface AppEvents {
-    'user:created': { id: number; name: string; email: string }
-    'user:deleted': { id: number }
-    'order:placed': { orderId: string; total: number; items: number }
+// app/events/user_registered.ts
+import { BaseEvent } from '@lockness/core'
+import type { User } from '#models/user'
+
+export class UserRegistered extends BaseEvent {
+    constructor(
+        public readonly user: User,
+        public readonly ipAddress: string,
+    ) {
+        super()
+    }
 }
-
-const emitter = new EventEmitter<AppEvents>()
-
-// Fully typed - TypeScript knows the data structure
-emitter.on('user:created', (data) => {
-    console.log(data.name) // ✅ TypeScript knows data.name exists
-    console.log(data.foo) // ❌ TypeScript error: foo doesn't exist
-})
-
-// Emit with type checking
-await emitter.emit('user:created', {
-    id: 1,
-    name: 'Alice',
-    email: 'alice@example.com',
-})
 ```
 
-## Global Event Emitter
-
-Use a shared global emitter across your application:
+### 2. Create a Listener
 
 ```typescript
-import { configureEvents, events } from '@lockness/events'
+// app/listener/user_listener.ts
+import { Service } from '@lockness/container'
+import { Listener } from '@lockness/core'
+import { UserRegistered } from '#events/user_registered'
 
-// Optional: configure global emitter
-configureEvents()
+@Service()
+export class UserListener {
+    constructor(
+        private mail: MailService,
+        private analytics: AnalyticsService,
+    ) {}
 
-// Use anywhere in your app
-events().on('app:ready', () => {
-    console.log('App is ready!')
-})
+    @Listener(UserRegistered)
+    async sendWelcomeEmail(event: UserRegistered) {
+        await this.mail.send(event.user.email, 'Welcome!', {
+            name: event.user.name,
+        })
+    }
 
-await events().emit('app:ready', null)
+    @Listener(UserRegistered, { priority: 10 })
+    async trackRegistration(event: UserRegistered) {
+        await this.analytics.track('user:registered', {
+            userId: event.user.id,
+            ipAddress: event.ipAddress,
+        })
+    }
+}
 ```
+
+### 3. Emit the Event
+
+```typescript
+// In a controller or service
+import { dispatcher } from '@lockness/core'
+import { UserRegistered } from '#events/user_registered'
+
+export class UserController {
+    @Post('/register')
+    async register(c: Context) {
+        const user = await this.userService.create(data)
+
+        // Emit event - all listeners are invoked automatically
+        await dispatcher().emit(
+            new UserRegistered(user, c.req.header('x-real-ip')),
+        )
+
+        return c.json({ user })
+    }
+}
+```
+
+### 4. Listeners Are Auto-Discovered
+
+Listeners in `app/listener/` are automatically discovered and registered during
+app bootstrap. No manual registration needed!
 
 ## API Reference
 
@@ -560,3 +588,412 @@ emitter.on('event', (data) => {
 
 await emitter.emit('event', 'data') // Now async!
 ```
+
+## Class-Based Events
+
+### BaseEvent Class
+
+All events should extend `BaseEvent` for proper integration with the framework:
+
+```typescript
+import { BaseEvent } from '@lockness/core'
+
+export class OrderPlaced extends BaseEvent {
+    constructor(
+        public readonly orderId: string,
+        public readonly userId: string,
+        public readonly total: number,
+        public readonly items: number,
+    ) {
+        super()
+    }
+}
+```
+
+**BaseEvent Properties:**
+
+- `createdAt: Date` - Timestamp when event was created (set automatically)
+- `eventName: string` - The event class name (e.g., "OrderPlaced")
+
+### EventDispatcher
+
+The `EventDispatcher` wraps the EventEmitter to provide class-based event
+support:
+
+```typescript
+import { dispatcher, EventDispatcher } from '@lockness/core'
+
+// Use global dispatcher
+const d = dispatcher()
+
+// Or create isolated dispatcher
+const myDispatcher = new EventDispatcher()
+
+// Emit class-based events
+await d.emit(new OrderPlaced('ORD-123', 'user-1', 99.99, 3))
+
+// Listen to class-based events
+d.on(OrderPlaced, (event) => {
+    console.log(`Order ${event.orderId} placed`)
+})
+```
+
+**EventDispatcher Methods:**
+
+- `emit(event: BaseEvent)` - Emit a class-based event
+- `on(EventClass, listener, options?)` - Register listener
+- `once(EventClass, listener, options?)` - Register one-time listener
+- `off(EventClass, listener)` - Remove listener
+- `onAny(listener, options?)` - Listen to all events
+- `listenerCount(EventClass)` - Get listener count
+- `removeAllListeners(EventClass?)` - Remove all listeners
+
+## Decorator-Based Listeners
+
+### @Listener Decorator
+
+Mark service methods as event handlers with the `@Listener` decorator:
+
+```typescript
+import { Service } from '@lockness/container'
+import { Listener } from '@lockness/core'
+import { OrderPlaced } from '#events/order_placed'
+
+@Service()
+export class OrderListener {
+    constructor(
+        private mail: MailService,
+        private inventory: InventoryService,
+    ) {}
+
+    @Listener(OrderPlaced)
+    async sendConfirmation(event: OrderPlaced) {
+        await this.mail.send(event.userId, 'Order Confirmation', {
+            orderId: event.orderId,
+            total: event.total,
+        })
+    }
+
+    @Listener(OrderPlaced, { priority: 100 })
+    async updateInventory(event: OrderPlaced) {
+        await this.inventory.decrement(event.items)
+    }
+}
+```
+
+**Listener Options:**
+
+- `priority?: number` - Higher priority executes first (default: 0)
+
+### Auto-Discovery
+
+Listeners in `app/listener/` are automatically discovered during app bootstrap:
+
+```
+app/
+├── listener/
+│   ├── order_listener.ts      # Auto-discovered
+│   ├── user_listener.ts       # Auto-discovered
+│   └── payment_listener.ts    # Auto-discovered
+```
+
+Configure the directory in your kernel (defaults to `./app/listener`):
+
+```typescript
+@Kernel({
+    listenersDir: './app/listener', // Optional, this is the default
+})
+export class AppKernel {
+    // ...
+}
+```
+
+### Registering Package Event Listeners
+
+Packages can export event listener classes. Register them in
+`config/listeners.ts`:
+
+```typescript
+// config/listeners.ts
+import type { ListenerClass } from '@lockness/core'
+import { DevtoolsListener } from '@lockness/devtools'
+import { CacheInvalidationListener } from '@lockness/cache'
+
+export const listeners: ListenerClass[] = [
+    DevtoolsListener,
+    CacheInvalidationListener,
+]
+```
+
+The kernel references this config:
+
+```typescript
+// app/kernel.ts
+import { config } from '../config/mod.ts'
+
+@Kernel({
+    listenersDir: './app/listener',
+    listeners: config.listeners,
+})
+export class AppKernel {}
+```
+
+Both `listenersDir` and `listeners` work together - auto-discovered listeners
+from the directory are registered alongside explicit listener classes.
+
+### Multiple Listeners per Event
+
+You can have multiple methods listening to the same event:
+
+```typescript
+@Service()
+export class NotificationListener {
+    constructor(
+        private mail: MailService,
+        private sms: SMSService,
+        private push: PushService,
+    ) {}
+
+    @Listener(PaymentReceived, { priority: 100 })
+    async sendEmail(event: PaymentReceived) {
+        await this.mail.send(event.userId, 'Payment Received')
+    }
+
+    @Listener(PaymentReceived, { priority: 90 })
+    async sendSMS(event: PaymentReceived) {
+        await this.sms.send(event.phone, 'Payment confirmed')
+    }
+
+    @Listener(PaymentReceived, { priority: 80 })
+    async sendPush(event: PaymentReceived) {
+        await this.push.send(event.userId, 'Payment successful')
+    }
+}
+```
+
+## Framework Lifecycle Events
+
+The framework emits lifecycle events at critical execution points:
+
+### KernelBooted
+
+Emitted when the application kernel has finished bootstrapping:
+
+```typescript
+import { Service } from '@lockness/container'
+import { KernelBooted, Listener } from '@lockness/core'
+
+@Service()
+export class CacheWarmer {
+    constructor(private cache: CacheService) {}
+
+    @Listener(KernelBooted)
+    async warmCache(event: KernelBooted) {
+        console.log(`App "${event.appName}" booted in ${event.environment}`)
+        await this.cache.warmup()
+    }
+}
+```
+
+### RequestStarted
+
+Emitted at the start of each HTTP request:
+
+```typescript
+@Service()
+export class RequestLogger {
+    @Listener(RequestStarted)
+    logRequest(event: RequestStarted) {
+        console.log(`[${event.method}] ${event.path} - ID: ${event.requestId}`)
+    }
+}
+```
+
+### ControllerExecuting
+
+Emitted before controller action execution:
+
+```typescript
+@Service()
+export class ControllerLogger {
+    @Listener(ControllerExecuting)
+    logController(event: ControllerExecuting) {
+        console.log(`→ ${event.controller}.${event.action}()`)
+    }
+}
+```
+
+### ResponsePrepared
+
+Emitted after controller returns response:
+
+```typescript
+@Service()
+export class ResponseLogger {
+    @Listener(ResponsePrepared)
+    logResponse(event: ResponsePrepared) {
+        console.log(`← Status: ${event.statusCode}`)
+    }
+}
+```
+
+### RequestCompleted
+
+Emitted after response sent to client:
+
+```typescript
+@Service()
+export class MetricsCollector {
+    constructor(private metrics: MetricsService) {}
+
+    @Listener(RequestCompleted)
+    async collectMetrics(event: RequestCompleted) {
+        await this.metrics.record({
+            path: event.path,
+            method: event.method,
+            statusCode: event.statusCode,
+            duration: event.duration,
+        })
+    }
+}
+```
+
+### ExceptionOccurred
+
+Emitted when unhandled exception occurs:
+
+```typescript
+@Service()
+export class ErrorReporter {
+    constructor(private sentry: SentryService) {}
+
+    @Listener(ExceptionOccurred)
+    async reportError(event: ExceptionOccurred) {
+        if (event.error.name !== 'HttpException') {
+            await this.sentry.captureException(event.error, {
+                path: event.path,
+                method: event.method,
+            })
+        }
+    }
+}
+```
+
+### KernelTerminating
+
+Emitted when application is shutting down:
+
+```typescript
+@Service()
+export class DatabaseService {
+    constructor(private db: Database) {}
+
+    @Listener(KernelTerminating)
+    async closeConnections(event: KernelTerminating) {
+        console.log(`Shutting down: ${event.reason}`)
+        await this.db.close()
+    }
+}
+```
+
+## Testing Events
+
+### Faking Events
+
+Use `fake()` to capture events during tests:
+
+```typescript
+import { dispatcher, fake, restore } from '@lockness/core'
+import { UserRegistered } from '#events/user_registered'
+
+Deno.test('user registration emits event', async () => {
+    const fakeBuffer = fake()
+
+    await userService.register({ email: 'test@example.com' })
+
+    fakeBuffer.assertEmitted(UserRegistered)
+    fakeBuffer.assertEmittedCount(UserRegistered, 1)
+
+    restore()
+})
+```
+
+### Event Assertions
+
+**assertEmitted(EventClass, predicate?)**
+
+Assert an event was emitted:
+
+```typescript
+fakeBuffer.assertEmitted(UserRegistered)
+
+// With predicate
+fakeBuffer.assertEmitted(UserRegistered, (event) => {
+    return event.user.email === 'test@example.com'
+})
+```
+
+**assertNotEmitted(EventClass)**
+
+Assert an event was NOT emitted:
+
+```typescript
+fakeBuffer.assertNotEmitted(OrderPlaced)
+```
+
+**assertEmittedCount(EventClass, count)**
+
+Assert exact emission count:
+
+```typescript
+fakeBuffer.assertEmittedCount(UserRegistered, 2)
+```
+
+### Inspecting Recorded Events
+
+```typescript
+const fakeBuffer = fake()
+
+// ... emit events ...
+
+// Get all recorded events
+const all = fakeBuffer.all()
+
+// Get events of specific type
+const userEvents = fakeBuffer.allOfType(UserRegistered)
+
+// Get counts
+console.log(fakeBuffer.count()) // Total events
+console.log(fakeBuffer.countOfType(UserRegistered)) // Type count
+
+// Clear recorded events
+fakeBuffer.clear()
+
+restore()
+```
+
+## CLI Commands
+
+### Generate Event
+
+```bash
+deno task cli make:event UserRegistered
+```
+
+Creates: `app/events/user_registered.ts`
+
+### Generate Listener
+
+```bash
+deno task cli make:listener UserListener
+```
+
+Creates: `app/listener/user_listener.ts`
+
+## See Also
+
+- [Lifecycle Events Guide](/docs/lifecycle-events) - Tutorial, best practices,
+  Events vs Middlewares comparison, and advanced patterns
+- [Dependency Injection](/docs/dependency-injection) - Container and `@Service`
+  decorator
+- [Testing Guide](/docs/testing) - General testing documentation

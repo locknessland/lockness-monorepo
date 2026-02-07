@@ -10,6 +10,26 @@
 // deno-lint-ignore-file no-explicit-any
 
 // =============================================================================
+// Class-based Events (New)
+// =============================================================================
+
+export { BaseEvent } from './base_event.ts'
+export {
+    configureEventDispatcher,
+    dispatcher,
+    EventDispatcher,
+} from './dispatcher.ts'
+export { Listener } from './decorators.ts'
+export type { ListenerMetadata, ListenerOptions } from './listener_registry.ts'
+export { getListenerMetadata } from './listener_registry.ts'
+
+// Framework Lifecycle Events
+export * from './kernel_events.ts'
+
+// Testing utilities
+export { EventBuffer, fake, getActiveFake, restore } from './testing.ts'
+
+// =============================================================================
 // Types & Interfaces
 // =============================================================================
 
@@ -162,16 +182,13 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         // Get specific event listeners
         const entries = this.listenerMap.get(event as string) || []
 
-        // Combine with wildcard listeners
-        const allEntries = [...entries, ...this.wildcardListeners]
-
         // Sort by priority
-        allEntries.sort((a, b) => b.priority - a.priority)
+        entries.sort((a, b) => b.priority - a.priority)
 
-        // Execute listeners
-        const toRemove: ListenerEntry[] = []
+        // Execute specific event listeners
+        const toRemoveSpecific: ListenerEntry[] = []
 
-        for (const entry of allEntries) {
+        for (const entry of entries) {
             try {
                 await entry.listener(data)
             } catch (error) {
@@ -182,18 +199,45 @@ export class EventEmitter<Events extends EventMap = EventMap> {
             }
 
             if (entry.once) {
-                toRemove.push(entry)
+                toRemoveSpecific.push(entry)
+            }
+        }
+
+        // Execute wildcard listeners (they receive event name and data)
+        const wildcardCopy = [...this.wildcardListeners]
+        wildcardCopy.sort((a, b) => b.priority - a.priority)
+        const toRemoveWildcard: ListenerEntry[] = []
+
+        for (const entry of wildcardCopy) {
+            try {
+                await entry.listener({ event: String(event), data })
+            } catch (error) {
+                console.error(
+                    `Error in wildcard listener for "${String(event)}":`,
+                    error,
+                )
+            }
+
+            if (entry.once) {
+                toRemoveWildcard.push(entry)
             }
         }
 
         // Remove once listeners
-        for (const entry of toRemove) {
-            const entries = this.listenerMap.get(event as string)
-            if (entries) {
-                const index = entries.indexOf(entry)
+        for (const entry of toRemoveSpecific) {
+            const listenerEntries = this.listenerMap.get(event as string)
+            if (listenerEntries) {
+                const index = listenerEntries.indexOf(entry)
                 if (index !== -1) {
-                    entries.splice(index, 1)
+                    listenerEntries.splice(index, 1)
                 }
+            }
+        }
+
+        for (const entry of toRemoveWildcard) {
+            const index = this.wildcardListeners.indexOf(entry)
+            if (index !== -1) {
+                this.wildcardListeners.splice(index, 1)
             }
         }
 

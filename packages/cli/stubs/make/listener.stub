@@ -1,0 +1,22 @@
+import { Service } from '@lockness/container'
+import { Listener } from '@lockness/core'
+// import { YourEvent } from '#events/your_event'
+
+/**
+ * {{ className }}
+ *
+ * Handles events related to {{ description }}.
+ */
+@Service()
+export class {{ className }} {
+    constructor(
+        // Inject dependencies here
+        // Example: private mail: MailService,
+    ) {}
+
+    // @Listener(YourEvent)
+    // async handleEvent(event: YourEvent) {
+    //     // Handle the event
+    //     console.log('Event received:', event)
+    // }
+}

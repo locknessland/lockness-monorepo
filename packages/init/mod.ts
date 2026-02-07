@@ -24,6 +24,7 @@ export const INIT_STUB_FILES = [
     'config/database.ts.stub',
     'config/routing.ts.stub',
     'config/session.ts.stub',
+    'config/listeners.ts.stub',
     'app/controller/app_controller.tsx.stub',
     'app/kernel.ts.stub',
     'app/routes.ts.stub',

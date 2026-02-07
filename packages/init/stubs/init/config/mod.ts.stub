@@ -32,6 +32,7 @@ import { sessionConfig } from './session.ts'
 import { cacheConfig } from './cache.ts'
 import { mountPointConfig } from './routing.ts'
 import { compileConfig } from './compile.ts'
+import { listeners } from './listeners.ts'
 
 /**
  * Centralized configuration object with typed namespaces.
@@ -56,6 +57,7 @@ export const config = {
     cache: cacheConfig,
     routing: mountPointConfig,
     compile: compileConfig,
+    listeners,
 } as const
 
 /** Check if running in development mode */

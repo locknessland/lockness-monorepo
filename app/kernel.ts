@@ -75,6 +75,12 @@ import { config } from '../config/mod.ts'
     // Auto-discover middlewares decorated with @DeclareMiddleware
     middlewaresDir: './app/middleware',
 
+    // Listeners configuration
+    // Auto-discovery: looks for listeners in ./app/listener (default)
+    // Explicit: use config/listeners.ts to register package listeners
+    listenersDir: './app/listener',
+    listeners: config.listeners,
+
     // Mount point for i18n URL pattern
     // Routes are accessible at root AND under /:langId/:countryId/
     // See config/routing.ts for configuration

@@ -38,6 +38,7 @@ project.
 | `config/session.ts`                 | `packages/init/stubs/init/config/session.ts.stub`                 | ✅    |
 | `config/cache.ts`                   | `packages/init/stubs/init/config/cache.ts.stub`                   | ✅    |
 | `config/compile.ts`                 | `packages/init/stubs/init/config/compile.ts.stub`                 | ✅    |
+| `config/listeners.ts`               | `packages/init/stubs/init/config/listeners.ts.stub`               | ✅    |
 | `app/kernel.ts`                     | `packages/init/stubs/init/app/kernel.ts.stub`                     | ✅    |
 | `app/controller/app_controller.tsx` | `packages/init/stubs/init/app/controller/app_controller.tsx.stub` | ✅    |
 | `app/view/app.ts`                   | `packages/init/stubs/init/app/view/app.ts.stub`                   | ✅    |
@@ -64,6 +65,8 @@ files.
 | `make:command`     | `packages/cli/stubs/make/command.stub`           | `app/command/{name}_command.ts`             |
 | `make:job`         | `packages/cli/stubs/make/job.stub`               | `app/job/{name}_job.ts`                     |
 | `make:component`   | `packages/cli/stubs/make/component.stub`         | `app/view/components/{name}.tsx`            |
+| `make:event`       | `packages/cli/stubs/make/event.stub`             | `app/events/{name}.ts`                      |
+| `make:listener`    | `packages/cli/stubs/make/listener.stub`          | `app/listener/{name}.ts`                    |
 | `make:error-pages` | `packages/cli/stubs/make/error_*.stub` (4 files) | All error pages in `app/view/pages/errors/` |
 
 ### Auth Stubs (`packages/cli/stubs/auth/`)

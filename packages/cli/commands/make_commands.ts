@@ -749,4 +749,96 @@ app.init({
             }
         }
     }, 'Add a new action (method) to an existing controller')
+
+    cli.register('make:event', async (args) => {
+        const name = args[0]
+        if (!name) {
+            console.error(
+                '❌ Please provide an event name (e.g., UserRegistered)',
+            )
+            return
+        }
+
+        const className = name.charAt(0).toUpperCase() + name.slice(1)
+        // Convert PascalCase to snake_case for filename
+        const fileName = `${
+            name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')
+        }.ts`
+        const dirPath = `./app/events`
+        const filePath = `${dirPath}/${fileName}`
+
+        try {
+            const content = await Stub.renderFrom(
+                STUBS_PATH,
+                'make',
+                'event',
+                {
+                    className,
+                    description: className.replace(/([A-Z])/g, ' $1').trim()
+                        .toLowerCase(),
+                },
+            )
+
+            await Deno.mkdir(dirPath, { recursive: true })
+            await Deno.writeTextFile(filePath, content)
+            console.log(`✅ Event created at ${filePath}`)
+            console.log(`\n💡 Next steps:`)
+            console.log(`   1. Define event properties in the constructor`)
+            console.log(
+                `   2. Emit the event: await dispatcher().emit(new ${className}(...))`,
+            )
+            console.log(
+                `   3. Create a listener with: deno task cli make:listener ${className}Listener`,
+            )
+        } catch (error) {
+            console.error(
+                `❌ Failed to create event: ${(error as Error).message}`,
+            )
+        }
+    }, 'Create a new event class')
+
+    cli.register('make:listener', async (args) => {
+        const name = args[0]
+        if (!name) {
+            console.error(
+                '❌ Please provide a listener name (e.g., OrderListener)',
+            )
+            return
+        }
+
+        const className = name.charAt(0).toUpperCase() + name.slice(1)
+        // Convert PascalCase to snake_case for filename
+        const fileName = `${
+            name.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')
+        }.ts`
+        const dirPath = `./app/listener`
+        const filePath = `${dirPath}/${fileName}`
+
+        try {
+            const content = await Stub.renderFrom(
+                STUBS_PATH,
+                'make',
+                'listener',
+                {
+                    className,
+                    description: className.replace(/Listener$/, '').replace(
+                        /([A-Z])/g,
+                        ' $1',
+                    ).trim().toLowerCase(),
+                },
+            )
+
+            await Deno.mkdir(dirPath, { recursive: true })
+            await Deno.writeTextFile(filePath, content)
+            console.log(`✅ Listener created at ${filePath}`)
+            console.log(`\n💡 Next steps:`)
+            console.log(`   1. Import your event class`)
+            console.log(`   2. Add @Listener(YourEvent) decorator to methods`)
+            console.log(`   3. Listeners are auto-discovered on app boot`)
+        } catch (error) {
+            console.error(
+                `❌ Failed to create listener: ${(error as Error).message}`,
+            )
+        }
+    }, 'Create a new event listener class')
 }

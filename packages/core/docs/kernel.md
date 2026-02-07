@@ -239,6 +239,48 @@ class AppKernel {
 }
 ```
 
+### Pattern 4: Event Listeners
+
+Register event listeners from packages via `config/listeners.ts`:
+
+```typescript
+// config/listeners.ts
+import type { ListenerClass } from '@lockness/core'
+import { DevtoolsListener } from '@lockness/devtools'
+
+export const listeners: ListenerClass[] = [
+    DevtoolsListener,
+]
+```
+
+Reference in your kernel:
+
+```typescript
+// app/kernel.ts
+import { config } from '../config/mod.ts'
+
+@Kernel({
+    controllersDir: './app/controller',
+
+    // Auto-discover listeners from directory (default: ./app/listener)
+    listenersDir: './app/listener',
+
+    // Register explicit listener classes from config
+    listeners: config.listeners,
+})
+class AppKernel {
+    @DeclareGlobalMiddleware()
+    globalMiddlewares = []
+}
+```
+
+Listener classes are auto-discovered from `listenersDir` and can also be
+explicitly registered via `config.listeners`. This allows packages to export
+listeners that users can opt-in to use.
+
+See [Lifecycle Events Guide](/docs/lifecycle-events) for more details on
+creating events and listeners.
+
 ## API Reference
 
 ### `@OnBoot(options?)`

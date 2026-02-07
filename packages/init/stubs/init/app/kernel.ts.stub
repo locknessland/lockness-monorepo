@@ -44,6 +44,11 @@ import { config } from '../config/mod.ts'
     controllersDir: './app/controller',
     controllers: controllers,
 
+    // Listeners configuration
+    // Auto-discovery from ./app/listener + explicit listeners from config/listeners.ts
+    listenersDir: './app/listener',
+    listeners: config.listeners,
+
     // Uncomment when you add database support:
     // database: config.database,
 
@@ -203,4 +208,38 @@ export class AppKernel {
  *            await runSeeders()
  *        }
  *    }
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 6. EVENT LISTENERS (event-driven architecture)
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ *    Create event listener classes in `app/listener/`:
+ *
+ *    // app/listener/user_listener.ts
+ *    import { Service } from '@lockness/container'
+ *    import { Listener } from '@lockness/core'
+ *    import { UserRegistered } from '#events/user_registered'
+ *
+ *    @Service()
+ *    export class UserListener {
+ *        @Listener(UserRegistered)
+ *        async sendWelcomeEmail(event: UserRegistered) {
+ *            await this.mail.send(event.user.email, 'Welcome!')
+ *        }
+ *    }
+ *
+ *    Listeners are auto-discovered from `./app/listener` by default.
+ *    To register package listeners or customize:
+ *
+ *    @Kernel({
+ *        listenersDir: './app/listener',  // Custom directory
+ *        listeners: [
+ *            DevtoolsListener,            // From @lockness/devtools
+ *            CacheInvalidationListener,   // From @lockness/cache
+ *        ],
+ *    })
+ *
+ *    CLI commands:
+ *    - `deno task cli make:event UserRegistered`
+ *    - `deno task cli make:listener UserListener`
  */

@@ -5,10 +5,11 @@
  * Re-exports all public APIs including:
  *
  * - **App**: Main application class for bootstrapping
- * - **Decorators**: `@Controller`, `@Get`, `@Post`, `@OnBoot`, etc.
+ * - **Decorators**: `@Controller`, `@Get`, `@Post`, `@OnBoot`, `@Listener`, etc.
  * - **Types**: `Context`, `Next`, `MiddlewareHandler`, etc.
  * - **Helpers**: `asset()`, `route()`, `formatErrorForConsole()`
  * - **Boot Lifecycle**: `runBootHooks()`, `getBootHooks()`
+ * - **Events**: Event system with `@Listener`, `BaseEvent`, `dispatcher()`
  * - **Hono Re-exports**: All Hono middleware and utilities
  *
  * @module @lockness/core
@@ -40,6 +41,37 @@ export * from './routing/generator.ts'
 export * from './exceptions/formatter.ts'
 export * from './exceptions/default_view.tsx'
 export * from './helpers.ts'
+
+// Export events system (decorators, dispatcher, base classes, testing)
+export {
+    BaseEvent,
+    configureEventDispatcher,
+    ControllerExecuting,
+    dispatcher,
+    EventBuffer,
+    EventDispatcher,
+    ExceptionOccurred,
+    // Testing utilities
+    fake,
+    getActiveFake,
+    getListenerMetadata,
+    // Framework lifecycle events
+    KernelBooted,
+    KernelTerminating,
+    Listener,
+    type ListenerMetadata,
+    type ListenerOptions,
+    RequestCompleted,
+    RequestStarted,
+    ResponsePrepared,
+    restore,
+} from '@lockness/events'
+
+// Export listener registration for package authors
+export {
+    type ListenerClass,
+    registerListeners,
+} from './events/listener_discovery.ts'
 
 // Export kernel features (boot lifecycle + declarative configuration)
 export {
