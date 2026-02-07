@@ -282,8 +282,8 @@ const app = await createApp(AppKernel)
 
 ### Core Documentation
 
-- [ ] Update /docs/architecture.md if bootstrap steps are public.
-- [ ] Update /packages/core/docs/kernel.md with step pipeline details.
+- [x] Update /docs/architecture.md if bootstrap steps are public.
+- [x] Update /packages/core/docs/kernel.md with step pipeline details.
 
 ### User Documentation (Package Docs)
 
@@ -305,13 +305,13 @@ const app = await createApp(AppKernel)
 
 ### Unit Tests
 
-- [ ] Test optional import helper behavior (missing package, unexpected error).
-- [ ] Test config normalization helpers.
-- [ ] Test step ordering and skip conditions.
+- [x] Test optional import helper behavior (missing package, unexpected error).
+- [x] Test config normalization helpers.
+- [x] Test step ordering and skip conditions.
 
 ### Integration Tests
 
-- [ ] Ensure existing kernel.test.ts continues to pass.
+- [x] Ensure existing kernel.test.ts continues to pass.
 
 ### Manual Testing
 
@@ -327,10 +327,10 @@ const app = await createApp(AppKernel)
 
 ## ✅ Definition of Done
 
-- [ ] createApp is a thin orchestrator with step runner.
-- [ ] All steps are isolated with minimal shared logic.
-- [ ] Optional imports are centralized and consistent.
-- [ ] Existing tests pass; new tests cover helpers/steps.
+- [x] createApp is a thin orchestrator with step runner.
+- [x] All steps are isolated with minimal shared logic.
+- [x] Optional imports are centralized and consistent.
+- [x] Existing tests pass; new tests cover helpers/steps.
 - [ ] No behavior regressions.
 
 ## 🔗 Related Tasks
