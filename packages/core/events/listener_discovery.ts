@@ -41,12 +41,14 @@ export function registerListeners(listenerClasses: ListenerClass[]): number {
     let registeredCount = 0
 
     for (const listenerClass of listenerClasses) {
+        // Instantiate via DI container first
+        // TC39 Stage 3 decorators populate metadata during instantiation
+        const listenerInstance = container.get(listenerClass)
+
+        // Now check for metadata (populated during instantiation)
         const metadata = getListenerMetadata(listenerClass)
 
         if (metadata.length > 0) {
-            // Instantiate via DI container
-            const listenerInstance = container.get(listenerClass)
-
             // Register each listener method
             metadata.forEach((meta: ListenerMetadata) => {
                 const method = (
@@ -112,16 +114,16 @@ export async function discoverListeners(listenersDir: string): Promise<void> {
         )
 
         // Extract listener classes and register them
+        // Note: TC39 Stage 3 decorators only populate metadata during instantiation,
+        // so we must instantiate first, then check for metadata
         let registeredCount = 0
 
         for (const module of modules) {
             for (const exportedValue of Object.values(module)) {
                 if (typeof exportedValue === 'function') {
-                    // Check if this class has listener metadata
-                    const metadata = getListenerMetadata(exportedValue)
-
-                    if (metadata.length > 0) {
-                        // This is a listener class - instantiate via DI
+                    try {
+                        // Instantiate via DI container first
+                        // This triggers @Listener decorator's addInitializer
                         // Cast to constructor type for container.get()
                         const listenerInstance = container.get(
                             exportedValue as new (
@@ -129,20 +131,28 @@ export async function discoverListeners(listenersDir: string): Promise<void> {
                             ) => unknown,
                         )
 
-                        // Register each listener method
-                        metadata.forEach((meta: ListenerMetadata) => {
-                            const method = (listenerInstance as any)[
-                                meta.methodName
-                            ]
-                            if (typeof method === 'function') {
-                                dispatcher().on(
-                                    meta.eventClass,
-                                    method.bind(listenerInstance),
-                                    meta.options,
-                                )
-                                registeredCount++
-                            }
-                        })
+                        // Now check for metadata (populated during instantiation)
+                        const metadata = getListenerMetadata(exportedValue)
+
+                        if (metadata.length > 0) {
+                            // Register each listener method
+                            metadata.forEach((meta: ListenerMetadata) => {
+                                const method = (listenerInstance as any)[
+                                    meta.methodName
+                                ]
+                                if (typeof method === 'function') {
+                                    dispatcher().on(
+                                        meta.eventClass,
+                                        method.bind(listenerInstance),
+                                        meta.options,
+                                    )
+                                    registeredCount++
+                                }
+                            })
+                        }
+                    } catch {
+                        // Skip non-instantiable exports (interfaces, types, etc.)
+                        continue
                     }
                 }
             }
