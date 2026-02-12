@@ -33,6 +33,7 @@ import { sessionStep } from './steps/session.ts'
 import { cacheStep } from './steps/cache.ts'
 import { appInitializationStep, appInitStep } from './steps/app_init.ts'
 import { devtoolsStep } from './steps/devtools.ts'
+import { lifecycleStep } from './steps/lifecycle.ts'
 import { middlewareStep } from './steps/middleware.ts'
 import { bootHooksStep } from './steps/boot_hooks.ts'
 import { middlewaresDiscoveryStep } from './steps/middlewares_discovery.ts'
@@ -49,6 +50,7 @@ import { devtoolsRoutesStep } from './steps/devtools_routes.ts'
  * - 120: Cache configuration
  * - 200: App instance creation
  * - 210: Devtools enablement
+ * - 250: Lifecycle events middleware
  * - 300: Global middleware registration
  * - 310: Boot hooks execution
  * - 400: Named middleware discovery
@@ -66,6 +68,7 @@ export function getDefaultSteps(): readonly BootstrapStep[] {
         cacheStep,
         appInitStep,
         devtoolsStep,
+        lifecycleStep,
         middlewareStep,
         bootHooksStep,
         middlewaresDiscoveryStep,
