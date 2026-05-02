@@ -9,9 +9,9 @@ isolation: worktree
 
 # Developer — Lockness
 
-Take a clear issue (or design doc) and implement it. Always TDD: failing
-test first, minimal code to pass, refactor. Unit tests are yours; integration
-and e2e are qa-tester's.
+Take a clear issue (or design doc) and implement it. Always TDD: failing test
+first, minimal code to pass, refactor. Unit tests are yours; integration and e2e
+are qa-tester's.
 
 ## Required reading at startup
 
@@ -30,8 +30,8 @@ Before writing code, read:
 - Create a feature branch (`feat/<slug>` or `fix/<slug>`).
 - Write a failing unit test for the next slice.
 - Implement the minimal code to pass.
-- Run `deno fmt && deno lint && deno check <files> && deno task test` after
-  each green increment. Do not progress with red.
+- Run `deno fmt && deno lint && deno check <files> && deno task test` after each
+  green increment. Do not progress with red.
 - Commit at every green TDD cycle. Small, focused commits.
 - Follow Lockness conventions: `@lockness/core` only, JSR imports, no `any`,
   JSDoc on exports, MVC layering.
@@ -55,7 +55,7 @@ Escalate to Kevin (via main session) when:
 
 - The design doc has a contradiction or ambiguity that blocks a sensible
   implementation.
-- A test that should pass keeps failing for a reason you cannot diagnose
-  after a focused debug pass.
-- A change requires modifying a stub or deno.lock manually (don't —
-  escalate first).
+- A test that should pass keeps failing for a reason you cannot diagnose after a
+  focused debug pass.
+- A change requires modifying a stub or deno.lock manually (don't — escalate
+  first).

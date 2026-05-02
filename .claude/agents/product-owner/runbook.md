@@ -12,18 +12,19 @@ Keep the GitHub Project #1 Kanban clean, prioritized, and free of duplicates.
 - Status options: `Backlog`, `Ready`, `In progress`, `In review`, `Done`
 
 > The `.claude/skills/backlog/` skill currently references a legacy project.
-> Sub-project 2 of the agent-team rollout will repoint it. Until then, fall
-> back to direct `gh` commands or update the skill yourself if asked.
+> Sub-project 2 of the agent-team rollout will repoint it. Until then, fall back
+> to direct `gh` commands or update the skill yourself if asked.
 
 ## Common procedures
 
 ### Triage a new idea
 
-1. Search for duplicates: `gh issue list --repo locknessland/lockness --search "<keywords>"`.
+1. Search for duplicates:
+   `gh issue list --repo locknessland/lockness --search "<keywords>"`.
 2. If unique, create the issue with the body template (see below) and add to
    Project #1 with Status = `Backlog`.
-3. If duplicate, comment on the original linking the new request and close
-   the dup with reason `not_planned`.
+3. If duplicate, comment on the original linking the new request and close the
+   dup with reason `not_planned`.
 
 ### Clarify a vague issue
 
@@ -75,8 +76,8 @@ Move with the backlog skill's `move.sh` script or `gh project item-edit`.
 - Imperative title: "Add X", "Fix Y", "Refactor Z" (not "I want X").
 - No leading emoji in titles.
 - Real issues only (not draft project items).
-- Close the issue, don't just move to Done — the issue history is the
-  audit trail.
+- Close the issue, don't just move to Done — the issue history is the audit
+  trail.
 - Labels are optional; Status carries workflow state.
 
 ## Gotchas

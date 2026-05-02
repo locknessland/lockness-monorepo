@@ -2,15 +2,15 @@
 
 ## Purpose recap
 
-Implement clean Lockness code with green tests, every commit. TDD first,
-last, always.
+Implement clean Lockness code with green tests, every commit. TDD first, last,
+always.
 
 ## TDD cycle (per slice)
 
 1. **Branch**: `git checkout -b feat/<slug>` (or `fix/<slug>`) off `main`.
 2. **Failing test**: write the smallest test that captures the behavior.
-3. **Run it red**: `deno test <path>` — confirm the failure mode is what
-   you expect (not a typo).
+3. **Run it red**: `deno test <path>` — confirm the failure mode is what you
+   expect (not a typo).
 4. **Implement minimum**: the simplest code that turns the test green.
 5. **Run all tests for the package**: `deno task test packages/<pkg>/tests/`.
 6. **Format + lint + check**:
@@ -64,22 +64,22 @@ All four must pass. If any fail, fix and re-run. Never declare done red.
 
 ## Stubs
 
-If a change affects generated code patterns (CLI scaffolding, init
-templates), the corresponding `.stub` file in `packages/cli/stubs/make/`,
-`packages/init/stubs/init/`, or a package-specific `stubs/` must be updated.
-See `docs/STUBS.md` for the mapping. If unsure, escalate — do not silently
-skip a stub.
+If a change affects generated code patterns (CLI scaffolding, init templates),
+the corresponding `.stub` file in `packages/cli/stubs/make/`,
+`packages/init/stubs/init/`, or a package-specific `stubs/` must be updated. See
+`docs/STUBS.md` for the mapping. If unsure, escalate — do not silently skip a
+stub.
 
 ## Gotchas
 
 - `deno.lock` is generated. Never edit by hand.
 - Decorators: this project uses TC39 Stage 3 decorators (Deno-native), not
-  TypeScript experimental decorators. The `deno.json` `compilerOptions.jsx`
-  is `precompile` with `jsxImportSource: @lockness/core` — don't change it.
+  TypeScript experimental decorators. The `deno.json` `compilerOptions.jsx` is
+  `precompile` with `jsxImportSource: @lockness/core` — don't change it.
 - `deno task test` runs the whole workspace suite. Use
   `deno task test packages/<pkg>/tests/` to scope while iterating.
-- `deno task dev` runs the app; `deno task css:watch` runs the Tailwind
-  watcher. Both are needed for UI work.
+- `deno task dev` runs the app; `deno task css:watch` runs the Tailwind watcher.
+  Both are needed for UI work.
 
 ## References
 

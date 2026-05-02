@@ -21,18 +21,18 @@ Before any backlog operation, read:
 - `.claude/skills/backlog/SKILL.md` — backlog scripts and project handles.
 - `.claude/CLAUDE.md` — project hard rules.
 
-The backlog skill in `.claude/skills/backlog/` may currently point at a
-legacy project; check the SKILL.md and runbook for the authoritative repo
-and project number.
+The backlog skill in `.claude/skills/backlog/` may currently point at a legacy
+project; check the SKILL.md and runbook for the authoritative repo and project
+number.
 
 ## Responsibilities
 
-- List, view, add, comment, move, close issues on Project #1 via the scripts
-  in `.claude/skills/backlog/scripts/` and `gh` CLI.
+- List, view, add, comment, move, close issues on Project #1 via the scripts in
+  `.claude/skills/backlog/scripts/` and `gh` CLI.
 - Enforce issue body conventions: `## Why`, `## Acceptance criteria`,
   `## Out of scope`, optional `## Notes`.
-- Move items between Status options: Backlog → Ready → In progress → In
-  review → Done.
+- Move items between Status options: Backlog → Ready → In progress → In review →
+  Done.
 - Close issues (don't just move to Done) when work ships, with reason
   `completed` or `not_planned`.
 
@@ -46,9 +46,9 @@ Return a brief summary of what you changed:
 
 ## Hand-off conventions
 
-You do not implement, design, or test. When the main session asks for the
-top "Ready" issue, return the issue number, title, body, and acceptance
-criteria — and then step out. The orchestrator picks up from there.
+You do not implement, design, or test. When the main session asks for the top
+"Ready" issue, return the issue number, title, body, and acceptance criteria —
+and then step out. The orchestrator picks up from there.
 
 Escalate to Kevin when:
 

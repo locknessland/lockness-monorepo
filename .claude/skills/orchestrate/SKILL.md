@@ -12,23 +12,22 @@ Kanban, escalate to the user on blockers.
 
 ## When to invoke this skill
 
-- User says "let's work on issue #N" / "let's pick the next one" / "what's
-  next on the backlog".
+- User says "let's work on issue #N" / "let's pick the next one" / "what's next
+  on the backlog".
 - User says "orchestrate <slug>" or `/orchestrate`.
 - Main session has just shipped one task and the user wants the next.
 
 ## When NOT to invoke
 
-- The user wants to do a single specialist's job manually (e.g. "just write
-  the design doc"). Spawn the specific agent directly — don't run the
-  whole pipeline.
-- The user is debugging or exploring without a backlog issue. Skip the
+- The user wants to do a single specialist's job manually (e.g. "just write the
+  design doc"). Spawn the specific agent directly — don't run the whole
   pipeline.
+- The user is debugging or exploring without a backlog issue. Skip the pipeline.
 
 ## Workflow
 
-The main session executes the steps below itself, spawning sub-agents via
-the Agent tool.
+The main session executes the steps below itself, spawning sub-agents via the
+Agent tool.
 
 ### Step 1: Pick the issue
 
@@ -43,6 +42,7 @@ If the PO returns "no Ready issues", report to the user and stop.
 ### Step 2: Decide if architect is needed
 
 Check the issue body. Architect is **needed** unless the issue is one of:
+
 - Pure typo or doc fix.
 - Version bump (`deno task bump`).
 - Mechanical rename across files.
@@ -59,8 +59,8 @@ Spawn the **architect** sub-agent:
 > <full body>
 >
 > Produce a design doc in `docs/superpowers/specs/<YYYY-MM-DD>-<slug>-design.md`
-> per your runbook. Return the doc path + a 5-line summary + a rough list
-> of files the developer will likely touch."
+> per your runbook. Return the doc path + a 5-line summary + a rough list of
+> files the developer will likely touch."
 
 Wait for the design doc. If the architect escalates (size, hard trade-off,
 missing pre-req), surface that to the user and stop.
@@ -77,33 +77,33 @@ Spawn the **developer** sub-agent (with `isolation: worktree`):
 > point at the issue body>. Follow your TDD runbook. When done, return the
 > branch name, the commit list, and the pre-completion gate result."
 
-Wait for the developer. If the developer escalates (test that should pass
-keeps failing, lock-file change required), surface to the user and stop.
+Wait for the developer. If the developer escalates (test that should pass keeps
+failing, lock-file change required), surface to the user and stop.
 
 ### Step 5: Spawn qa-tester (and docs-writer / devops-sre in parallel if relevant)
 
 Determine parallel dispatches:
 
-- **docs-writer** — needed if the diff touches files exported from any
-  `mod.ts`, public signatures, stubs, or documented behavior. Skip for
-  pure internal refactors.
+- **docs-writer** — needed if the diff touches files exported from any `mod.ts`,
+  public signatures, stubs, or documented behavior. Skip for pure internal
+  refactors.
 - **devops-sre** — needed if the diff touches `.github/workflows/`, the
   `Dockerfile`, `scripts/bump.ts`, `deno.json` of the root, or anything
   release-relevant.
 
 Spawn all needed sub-agents in **parallel** in a single message:
 
-> qa-tester: "Validate the developer's branch <branch> against issue
-> #<num>'s acceptance criteria. Add integration tests if needed. Return
-> the validation report and a verdict."
+> qa-tester: "Validate the developer's branch <branch> against issue #<num>'s
+> acceptance criteria. Add integration tests if needed. Return the validation
+> report and a verdict."
 >
 > docs-writer: "Issue #<num> shipped on branch <branch>. Diff touched
-> <list of files>. Update docs everywhere needed per your runbook. Return
-> the list of files modified."
+> <list of files>. Update docs everywhere needed per your runbook. Return the
+> list of files modified."
 >
 > devops-sre: "Issue #<num> shipped on branch <branch>. Diff touched
-> <CI/release-relevant files>. Update workflows / scripts / Docker as
-> needed. Return what changed."
+> <CI/release-relevant files>. Update workflows / scripts / Docker as needed.
+> Return what changed."
 
 If qa-tester returns ❌, loop back to Step 4 with the qa report.
 
@@ -111,27 +111,28 @@ If qa-tester returns ❌, loop back to Step 4 with the qa report.
 
 Spawn the **code-reviewer** sub-agent:
 
-> "Review the diff on branch <branch> against `main`. Apply your full
-> runbook checklist. Return verdict ✅/❌ + findings."
+> "Review the diff on branch <branch> against `main`. Apply your full runbook
+> checklist. Return verdict ✅/❌ + findings."
 
-If verdict is ❌, loop back to Step 4 with the reviewer's findings. If
-✅, continue.
+If verdict is ❌, loop back to Step 4 with the reviewer's findings. If ✅,
+continue.
 
 ### Step 7: PR + status update
 
-Open a PR (the developer or main session can use `gh pr create`). Then
-spawn the **product-owner**:
+Open a PR (the developer or main session can use `gh pr create`). Then spawn the
+**product-owner**:
 
 > "Issue #<num>: PR opened at <url>. Move issue to 'In review'."
 
-When the PR is merged (manually by Kevin, or via `gh pr merge` if
-authorized), spawn PO again:
+When the PR is merged (manually by Kevin, or via `gh pr merge` if authorized),
+spawn PO again:
 
 > "PR for issue #<num> merged. Close the issue with reason 'completed'."
 
 ### Step 8: Report
 
 Summarize for Kevin:
+
 - Issue #, title.
 - Branch, commits, PR URL.
 - Tests added (unit + integration).
@@ -144,16 +145,16 @@ Summarize for Kevin:
 Stop the pipeline and surface to Kevin when:
 
 - PO reports an empty Ready column (nothing to do).
-- Architect flags a hard trade-off, missing pre-req, or that the issue
-  needs splitting.
+- Architect flags a hard trade-off, missing pre-req, or that the issue needs
+  splitting.
 - Developer flags a stuck failing test or a forced lock-file change.
 - QA reports a contradiction between issue and design.
 - Reviewer ❌ persists after 2 dev iterations.
 
 ## Conventions
 
-- One issue at a time. If parallel issues are desired, run two main
-  sessions (or use Claude Code's agent-teams once it leaves experimental).
+- One issue at a time. If parallel issues are desired, run two main sessions (or
+  use Claude Code's agent-teams once it leaves experimental).
 - Always commit after each green TDD cycle (developer's responsibility).
 - Always update Kanban Status promptly via PO — don't let it drift.
 
@@ -163,5 +164,5 @@ Stop the pipeline and surface to Kevin when:
 - `.claude/agents/<name>/runbook.md` for each role's procedures.
 - `.claude/skills/backlog/SKILL.md` for backlog scripts (used by PO).
 - `.claude/CLAUDE.md` for project hard rules.
-- `docs/superpowers/specs/2026-05-02-agent-team-architecture-design.md` —
-  this skill's own design doc.
+- `docs/superpowers/specs/2026-05-02-agent-team-architecture-design.md` — this
+  skill's own design doc.
