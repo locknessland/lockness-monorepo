@@ -96,7 +96,9 @@
     },
     "exclude": [
         "_dist/",
-        "_lockness_app/"
+        "_lockness_app/",
+        ".claude/skills/*/assets/",
+        ".claude/skills/*/references/"
     ],
     "lockness": {
         "packages": [
