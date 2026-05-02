@@ -6,13 +6,22 @@ allowed-tools: Bash(gh *) Bash(${CLAUDE_SKILL_DIR}/scripts/*.sh) Bash(jq *) Bash
 
 # Backlog skill — Specflow (GitHub Project #4)
 
-The backlog lives on **GitHub Project #4 "Specflow"** (org-owned by `mkrlabs`), backed by issues in **`mkrlabs/specflow`**. There is no local markdown mirror. Everything goes through `gh` CLI — wrappers in `scripts/` cover the common cases; raw `gh api graphql` is documented below for one-offs.
+The backlog lives on **GitHub Project #4 "Specflow"** (org-owned by `mkrlabs`),
+backed by issues in **`mkrlabs/specflow`**. There is no local markdown mirror.
+Everything goes through `gh` CLI — wrappers in `scripts/` cover the common
+cases; raw `gh api graphql` is documented below for one-offs.
 
 ## All mutations go through the Product Owner agent
 
-The main session does not call `add.sh`, `move.sh`, `clarify-comment.sh`, or `gh issue {create,close,edit}` against this repo directly. **Dispatch the `product-owner` subagent** for any mutation: creating issues, clarifying bodies, moving status columns, closing items. The PO is the single owner of the backlog lifecycle (see `.claude/agents/product-owner.md`).
+The main session does not call `add.sh`, `move.sh`, `clarify-comment.sh`, or
+`gh issue {create,close,edit}` against this repo directly. **Dispatch the
+`product-owner` subagent** for any mutation: creating issues, clarifying bodies,
+moving status columns, closing items. The PO is the single owner of the backlog
+lifecycle (see `.claude/agents/product-owner.md`).
 
-This skill's scripts are the **toolbox** the PO uses. The main session may call the read-only ones (`list.sh`, `view.sh`) directly to inspect state, but every write goes through the PO.
+This skill's scripts are the **toolbox** the PO uses. The main session may call
+the read-only ones (`list.sh`, `view.sh`) directly to inspect state, but every
+write goes through the PO.
 
 ## Project handles
 
@@ -52,23 +61,41 @@ gh issue edit   <num> --repo mkrlabs/specflow --title "…" --body "…" --add-l
 
 ## Why we don't use `gh project item-list`
 
-`gh project item-list 4 --owner mkrlabs` and the equivalent `viewer.projectV2(4).items` GraphQL field can return 0 items in some account/permission contexts even when items genuinely exist (verified via direct node queries). The `list.sh` and `move.sh` scripts work around it by querying via `repository.issues[].projectItems[]` filtered by `project.number == 4`. Same data, reverse path through the graph.
+`gh project item-list 4 --owner mkrlabs` and the equivalent
+`viewer.projectV2(4).items` GraphQL field can return 0 items in some
+account/permission contexts even when items genuinely exist (verified via direct
+node queries). The `list.sh` and `move.sh` scripts work around it by querying
+via `repository.issues[].projectItems[]` filtered by `project.number == 4`. Same
+data, reverse path through the graph.
 
 ## Conventions
 
-- **Titles** — short imperative phrases ("Add docx skill", not "I want to add a docx skill"). Lowercase OK; no leading emoji.
-- **Bodies** — once clarified, follow `## Why` / `## Acceptance criteria` / `## Out of scope` / optional `## Notes`. Keep it tight: half a page beats a vague essay.
-- **Labels** — optional. Project #4 has no priority field; Status carries the workflow state.
-- **Drafts** (project items with no underlying issue) are not used. Every task is a real issue.
-- **Closing** — close the issue, don't just move to Done. The repo's issue history is the audit trail.
+- **Titles** — short imperative phrases ("Add docx skill", not "I want to add a
+  docx skill"). Lowercase OK; no leading emoji.
+- **Bodies** — once clarified, follow `## Why` / `## Acceptance criteria` /
+  `## Out of scope` / optional `## Notes`. Keep it tight: half a page beats a
+  vague essay.
+- **Labels** — optional. Project #4 has no priority field; Status carries the
+  workflow state.
+- **Drafts** (project items with no underlying issue) are not used. Every task
+  is a real issue.
+- **Closing** — close the issue, don't just move to Done. The repo's issue
+  history is the audit trail.
 
 ## When NOT to use this skill
 
-- The user is implementing a backlog item — that's normal coding work; only return here when they want to update the item's status afterwards.
-- The user asks about another repo's backlog — this skill is hard-wired to `mkrlabs/specflow` and Project #4.
+- The user is implementing a backlog item — that's normal coding work; only
+  return here when they want to update the item's status afterwards.
+- The user asks about another repo's backlog — this skill is hard-wired to
+  `mkrlabs/specflow` and Project #4.
 
 ## Troubleshooting
 
-- `gh: Not Found (HTTP 404)` on a project command → confirm `gh auth status` shows the `project` scope. If missing: `gh auth refresh -s project`.
-- An issue is on the repo but not on the project board → `gh project item-add 4 --owner mkrlabs --url <issue-url>` (the underlying call works even though `item-list` may not).
-- The Status field/option IDs above don't match a query result → the project layout was edited; refresh with the commands at the top of this file and update both the table and `scripts/move.sh`.
+- `gh: Not Found (HTTP 404)` on a project command → confirm `gh auth status`
+  shows the `project` scope. If missing: `gh auth refresh -s project`.
+- An issue is on the repo but not on the project board →
+  `gh project item-add 4 --owner mkrlabs --url <issue-url>` (the underlying call
+  works even though `item-list` may not).
+- The Status field/option IDs above don't match a query result → the project
+  layout was edited; refresh with the commands at the top of this file and
+  update both the table and `scripts/move.sh`.
