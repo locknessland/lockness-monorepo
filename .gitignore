@@ -30,6 +30,8 @@ _lockness_app
 # LLMs documentations .md ... We only use AGENTS.md in the project
 GEMINI.md
 CLAUDE.md
+# Exception: .claude/CLAUDE.md is project-shared agent context (versioned)
+!.claude/CLAUDE.md
 
 # Nessy CLI wrapper (root only)
 /nessy
