@@ -66,6 +66,7 @@
         "@std/jsonc": "jsr:@std/jsonc@1",
         "@std/testing": "jsr:@std/testing@1",
         "@std/semver": "jsr:@std/semver@1",
+        "@david/jsonc-morph": "jsr:@david/jsonc-morph@^0.3.0",
         "postgres": "npm:postgres@^3.4.4",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "drizzle-kit": "npm:drizzle-kit@beta",
@@ -88,7 +89,10 @@
         "singleQuote": true,
         "proseWrap": "always",
         "lineWidth": 80,
-        "semiColons": false
+        "semiColons": false,
+        "exclude": [
+            "tests/fixtures/bump/"
+        ]
     },
     "compilerOptions": {
         "jsx": "precompile",
@@ -118,7 +122,8 @@
     },
     "lint": {
         "exclude": [
-            ".shadcn-ui/"
+            ".shadcn-ui/",
+            "tests/fixtures/bump/"
         ],
         "rules": {
             "exclude": [

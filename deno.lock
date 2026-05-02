@@ -1,6 +1,7 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@david/jsonc-morph@0.3": "0.3.3",
     "jsr:@libs/markdown@^2.1.0": "2.1.0",
     "jsr:@libs/typing@^4.0.1": "4.0.1",
     "jsr:@std/assert@1": "1.0.17",
@@ -64,6 +65,9 @@
     "npm:zod@^3.22.0": "3.25.76"
   },
   "jsr": {
+    "@david/jsonc-morph@0.3.3": {
+      "integrity": "94c103728102e2b44f549366d19e8de3d236ee28ee78704ab7b53e3bd8c8a1d7"
+    },
     "@libs/markdown@2.1.0": {
       "integrity": "5b0f14fa51bc98323832c465a19c7694ab4bede55c05c281497312b53414d585",
       "dependencies": [
@@ -3892,6 +3896,7 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@david/jsonc-morph@0.3",
       "jsr:@lockness/contract@0.2",
       "jsr:@lockness/core@0.2",
       "jsr:@lockness/drizzle@0.2",

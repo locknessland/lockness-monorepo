@@ -6,6 +6,17 @@
  * including the root deno.jsonc, all package deno.json files, inter-package
  * dependencies, and stub files.
  *
+ * ## Comment preservation strategy
+ *
+ * The root `deno.jsonc` file is edited via `@david/jsonc-morph`, which
+ * operates on the Concrete Syntax Tree (CST) of the file. Only the
+ * touched leaf tokens (`version` value and `@lockness/*` import values)
+ * are replaced in the source text; all comments, blank lines, key order,
+ * and unrelated formatting are preserved byte-for-byte.
+ *
+ * Per-package `packages/*\/deno.json` files are plain JSON by convention
+ * (no comments) and continue to use `JSON.parse` / `JSON.stringify`.
+ *
  * @module scripts/bump
  *
  * @example
@@ -18,6 +29,7 @@
  * ```
  */
 
+import { parse as parseJsonc } from '@david/jsonc-morph'
 import { parse } from '@std/jsonc'
 import { parseArgs } from '@std/cli/parse-args'
 import * as semver from '@std/semver'
@@ -156,38 +168,69 @@ async function collectStubFiles(dirPath: string): Promise<string[]> {
 // =============================================================================
 
 /**
- * Update the root monorepo configuration.
+ * Rewrite the text of a JSONC config, bumping `version` and all
+ * `@lockness/*` import values, while preserving every comment,
+ * blank line, and unrelated token byte-for-byte.
  *
- * Updates both the version field and any Lockness imports.
+ * This is a pure function (no I/O) so it can be snapshot-tested directly.
  *
- * @param newVersion - The new version to set
- * @returns The updated root configuration
+ * @param text - The raw source text of the JSONC file
+ * @param newVersion - The new semver string to write
+ * @returns The rewritten source text with only the targeted tokens changed
+ *
+ * @throws {Error} If the JSONC text is malformed or `version` key is missing
+ *
+ * @example
+ * ```ts
+ * const source = await Deno.readTextFile('deno.jsonc')
+ * const updated = updateRootJsonc(source, '1.2.3')
+ * await Deno.writeTextFile('deno.jsonc', updated)
+ * ```
  */
-async function updateRootConfig(newVersion: string): Promise<RootConfig> {
-    const content = await Deno.readTextFile(ROOT_CONFIG_PATH)
-    const config = parse(content) as unknown as RootConfig
+export function updateRootJsonc(text: string, newVersion: string): string {
+    const root = parseJsonc(text)
+    const obj = root.asObjectOrThrow()
 
-    // Update version
-    config.version = newVersion
+    // Bump the version field
+    obj.getOrThrow('version').setValue(newVersion)
 
-    // Update imports
-    if (config.imports) {
-        for (const [key, value] of Object.entries(config.imports)) {
-            if (isLocknessImport(key, value)) {
-                const updated = updateImportVersion(value, newVersion)
-                if (updated && updated !== value) {
-                    config.imports[key] = updated
-                }
+    // Bump any @lockness/* imports
+    const importsProp = obj.get('imports')
+    if (importsProp) {
+        const importsObj = importsProp.valueIfObjectOrThrow()
+        for (const prop of importsObj.properties()) {
+            const key = prop.nameOrThrow().decodedValue()
+            const valNode = prop.value()
+            if (!valNode || !valNode.isString()) continue
+            const strLit = valNode.asStringLitOrThrow()
+            const current = strLit.decodedValue()
+            if (!isLocknessImport(key, current)) continue
+            const updated = updateImportVersion(current, newVersion)
+            if (updated && updated !== current) {
+                // setRawValue expects the raw JSON token including quotes
+                strLit.setRawValue(`"${updated}"`)
             }
         }
     }
 
-    await Deno.writeTextFile(
-        ROOT_CONFIG_PATH,
-        JSON.stringify(config, null, 4) + '\n',
-    )
+    return root.toString()
+}
 
-    return config
+/**
+ * Update the root monorepo configuration.
+ *
+ * Updates both the version field and any Lockness imports.
+ * Uses {@link updateRootJsonc} to preserve comments in `deno.jsonc`.
+ *
+ * @param newVersion - The new version to set
+ * @returns The updated root configuration (parsed for workspace traversal)
+ */
+async function updateRootConfig(newVersion: string): Promise<RootConfig> {
+    const content = await Deno.readTextFile(ROOT_CONFIG_PATH)
+    const rewritten = updateRootJsonc(content, newVersion)
+    await Deno.writeTextFile(ROOT_CONFIG_PATH, rewritten)
+    // Parse for caller to read workspace list; use @std/jsonc for read-only
+    return parse(rewritten) as unknown as RootConfig
 }
 
 /**

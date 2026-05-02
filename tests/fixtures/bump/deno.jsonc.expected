@@ -1,0 +1,27 @@
+{
+    // Lockness monorepo — root workspace config.
+    // Keep this file commented; bump.ts must preserve these annotations.
+    "version": "9.9.9",
+    /* workspace members — add new packages below */
+    "workspace": [
+        "./packages/core",
+        "./packages/cache"
+    ],
+    /**
+     * Import map.
+     * JSR-only for stdlib; npm: only where unavoidable.
+     */
+    "imports": {
+        // Lockness packages — versions are bumped by scripts/bump.ts
+        "@lockness/core": "jsr:@lockness/core@^9.9.9",
+        "@lockness/cache": "jsr:@lockness/cache@^9.9.9",
+        // stdlib — pinned to major, NOT bumped by bump.ts
+        "@std/assert": "jsr:@std/assert@1",
+        "@std/jsonc": "jsr:@std/jsonc@1"
+    },
+    // formatting settings — do not remove
+    "fmt": {
+        "indentWidth": 4,
+        "singleQuote": true
+    }
+}

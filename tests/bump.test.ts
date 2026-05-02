@@ -14,6 +14,7 @@ import {
     LOCKNESS_VERSION_PATTERN,
     SEMVER_PATTERN,
     updateImportVersion,
+    updateRootJsonc,
     VERSION_EXTRACT_PATTERN,
 } from '../scripts/bump.ts'
 
@@ -186,3 +187,55 @@ Deno.test('LOCKNESS_VERSION_PATTERN - can be used for replacement', () => {
     const replaced = content.replace(LOCKNESS_VERSION_PATTERN, '$1@$20.2.0')
     assertEquals(replaced, 'jsr:@lockness/core@^0.2.0')
 })
+
+// =============================================================================
+// updateRootJsonc Tests — fixture-based comment-preservation
+// =============================================================================
+
+Deno.test(
+    'updateRootJsonc - preserves comments and only bumps version + @lockness/* imports',
+    async () => {
+        const fixtureDir = new URL(
+            './fixtures/bump/',
+            import.meta.url,
+        ).pathname
+        const input = await Deno.readTextFile(
+            `${fixtureDir}deno.jsonc.input`,
+        )
+        const expected = await Deno.readTextFile(
+            `${fixtureDir}deno.jsonc.expected`,
+        )
+
+        const result = updateRootJsonc(input, '9.9.9')
+
+        assertEquals(
+            result,
+            expected,
+            'Output must equal expected fixture byte-for-byte',
+        )
+    },
+)
+
+Deno.test(
+    'updateRootJsonc - preserves comments when no imports section exists',
+    async () => {
+        const fixtureDir = new URL(
+            './fixtures/bump/',
+            import.meta.url,
+        ).pathname
+        const input = await Deno.readTextFile(
+            `${fixtureDir}deno.jsonc.no-imports.input`,
+        )
+        const expected = await Deno.readTextFile(
+            `${fixtureDir}deno.jsonc.no-imports.expected`,
+        )
+
+        const result = updateRootJsonc(input, '9.9.9')
+
+        assertEquals(
+            result,
+            expected,
+            'Output must equal expected fixture byte-for-byte (no imports)',
+        )
+    },
+)

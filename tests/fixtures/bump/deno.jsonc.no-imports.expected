@@ -1,0 +1,10 @@
+{
+    // Minimal config with no imports section — only version gets bumped.
+    // Comments and blank lines must be preserved byte-for-byte.
+    "version": "9.9.9",
+
+    /* workspace */
+    "workspace": [
+        "./packages/core"
+    ]
+}
