@@ -8,9 +8,8 @@ allowed-tools: Bash(gh *) Bash(${CLAUDE_SKILL_DIR}/scripts/*.sh) Bash(jq *) Bash
 
 The backlog lives on **GitHub Project #1 "Lockness Framework"** (org-owned by
 `locknessland`), backed by issues in **`locknessland/lockness`**. There is no
-local markdown mirror. Everything goes through `gh` CLI — wrappers in
-`scripts/` cover the common cases; raw `gh api graphql` is documented below
-for one-offs.
+local markdown mirror. Everything goes through `gh` CLI — wrappers in `scripts/`
+cover the common cases; raw `gh api graphql` is documented below for one-offs.
 
 ## All mutations go through the Product Owner agent
 
