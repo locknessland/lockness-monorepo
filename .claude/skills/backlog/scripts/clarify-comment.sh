@@ -14,5 +14,5 @@ if [[ -z "$COMMENT" ]]; then
   exit 1
 fi
 
-gh issue comment "$ISSUE" --repo mkrlabs/specflow --body "$COMMENT" >/dev/null
+gh issue comment "$ISSUE" --repo locknessland/lockness --body "$COMMENT" >/dev/null
 echo "comment posted on #$ISSUE"

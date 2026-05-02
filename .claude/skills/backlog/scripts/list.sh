@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# List items on Project #4 with their Status, going through the issue side
+# List items on Project #1 with their Status, going through the issue side
 # (gh project item-list can return 0 in some account/permission contexts —
 # we work around it by querying via repository.issues[].projectItems[]).
 # Usage: list.sh [STATUS]
@@ -10,7 +10,7 @@ FILTER="${1:-}"
 
 JSON=$(gh api graphql -f query='
   query {
-    repository(owner:"mkrlabs", name:"specflow") {
+    repository(owner:"locknessland", name:"lockness") {
       issues(first:100, states:OPEN) {
         nodes {
           number title
@@ -35,7 +35,7 @@ JSON=$(gh api graphql -f query='
 ROWS=$(echo "$JSON" | jq -r '
   .data.repository.issues.nodes[]
   | . as $issue
-  | (.projectItems.nodes[] | select(.project.number == 4)) as $item
+  | (.projectItems.nodes[] | select(.project.number == 1)) as $item
   | (
       ($item.fieldValues.nodes[]
         | select(.field?.name == "Status")
