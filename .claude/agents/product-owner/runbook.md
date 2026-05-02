@@ -48,12 +48,12 @@ Move with the backlog skill's `move.sh` script or `gh project item-edit`.
 
 1. Confirm the related PR is merged.
 2. `gh issue close <num> --repo locknessland/lockness --reason completed`.
-3. **Always verify and move Status to Done manually** — Project #1's
-   automation is NOT currently configured to auto-move on close (verified
-   2026-05-02 against issue #94: closing left Status stuck at "In review").
-   Run `.claude/skills/backlog/scripts/move.sh <num> Done` after closing.
-   If Kevin enables Project automation later, this manual step can be
-   removed from the runbook.
+3. **Always verify and move Status to Done manually** — Project #1's automation
+   is NOT currently configured to auto-move on close (verified 2026-05-02
+   against issue #94: closing left Status stuck at "In review"). Run
+   `.claude/skills/backlog/scripts/move.sh <num> Done` after closing. If Kevin
+   enables Project automation later, this manual step can be removed from the
+   runbook.
 
 ## Issue body template
 

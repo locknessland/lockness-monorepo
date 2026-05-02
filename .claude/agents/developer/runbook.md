@@ -7,14 +7,14 @@ always.
 
 ## Branch hygiene at start
 
-When you create a feature branch off `main`, the repo's pre-commit hook may
-have left unstaged formatting drift in `docs/` or other files from a previous
-commit on `main` (the linter reformats post-commit; the new working-tree
-version isn't auto-staged). Right after `git checkout -b feat/<slug>`:
+When you create a feature branch off `main`, the repo's pre-commit hook may have
+left unstaged formatting drift in `docs/` or other files from a previous commit
+on `main` (the linter reformats post-commit; the new working-tree version isn't
+auto-staged). Right after `git checkout -b feat/<slug>`:
 
-1. Run `git status --short` — if you see `M` on files outside the scope of
-   your task, run `git checkout -- <path>` to discard the drift on this
-   branch. The drift will be re-swept on `main` later.
+1. Run `git status --short` — if you see `M` on files outside the scope of your
+   task, run `git checkout -- <path>` to discard the drift on this branch. The
+   drift will be re-swept on `main` later.
 2. Only then start the TDD cycle below.
 
 This avoids accidentally committing stray formatting changes alongside your
