@@ -69,15 +69,27 @@ Ask the PO to move the issue to "In progress":
 
 > "Move issue #<num> to 'In progress'."
 
-### Step 4: Spawn developer
+### Step 4: Spawn the implementer
 
-Spawn the **developer** sub-agent (with `isolation: worktree`):
+Pick the right implementer based on the diff scope (the architect's design doc
+should name one — if not, decide here):
+
+- **developer** — product code: `app/`, `packages/*` (everything except pure
+  release plumbing). Uses `isolation: worktree`.
+- **devops-sre** — release/CI plumbing: `scripts/bump.ts`, `.github/workflows/*`,
+  `Dockerfile`, root-level `deno.jsonc` changes that are release-related. No
+  worktree (works on a normal feature branch).
+
+If unsure, default to **developer**. Both follow the same TDD discipline; the
+split is who owns the file area being changed.
+
+Spawn the chosen implementer:
 
 > "Implement issue #<num>: <title>. <If design doc exists, point at it; else
 > point at the issue body>. Follow your TDD runbook. When done, return the
 > branch name, the commit list, and the pre-completion gate result."
 
-Wait for the developer. If the developer escalates (test that should pass keeps
+Wait for the implementer. If they escalate (test that should pass keeps
 failing, lock-file change required), surface to the user and stop.
 
 ### Step 5: Spawn qa-tester (and docs-writer / devops-sre in parallel if relevant)

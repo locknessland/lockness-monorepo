@@ -21,7 +21,15 @@ lifecycle (see `.claude/agents/product-owner.md`).
 
 This skill's scripts are the **toolbox** the PO uses. The main session may call
 the read-only ones (`list.sh`, `view.sh`) directly to inspect state, but every
-write goes through the PO.
+write goes through the PO — **with one carve-out**:
+
+**Mechanical Status moves are exempt.** When a Status change is a deterministic
+step inside an established workflow (e.g. orchestrate Step 3b "move to In
+progress" once architect ships, or Step 7 "move to In review" once a PR opens),
+the main session may call `move.sh <num> <Status>` directly. No PO judgment is
+involved — the trigger condition fully determines the new Status. This avoids
+spinning up a sub-agent for a one-line bash call. Issue creation, body
+clarification, and triage decisions still go through the PO.
 
 ## Project handles
 

@@ -4,6 +4,18 @@
 
 Get green code from `main` to JSR (and to production) safely and atomically.
 
+## Branch hygiene at start
+
+When you create a feature branch off `main` (e.g.
+`git checkout -b feat/<slug>`), the repo's pre-commit hook may have left
+unstaged formatting drift in `docs/` or other files from a previous commit on
+`main`. Right after the branch is created:
+
+1. Run `git status --short` — if you see `M` on files outside your task scope,
+   run `git checkout -- <path>` to discard the drift on this branch.
+2. Only then start the implementation. This keeps the PR diff clean for the
+   code-reviewer.
+
 ## CI workflows in this repo
 
 ### `.github/workflows/test.yml`
