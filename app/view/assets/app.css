@@ -345,20 +345,16 @@
     --link-primary-foreground: var(--primary-foreground);
     --link-secondary-background: var(--secondary);
     --link-secondary-background-hover: oklch(
-        from
-        var(--secondary)
+        from var(--secondary)
         calc(l - 0.05)
-        c
-        h
+        c h
     );
     --link-secondary-foreground: var(--secondary-foreground);
     --link-danger-background: var(--destructive);
     --link-danger-background-hover: oklch(
-        from
-        var(--destructive)
+        from var(--destructive)
         calc(l - 0.05)
-        c
-        h
+        c h
     );
     --link-danger-foreground: var(--destructive-foreground);
     --link-default-color: var(--foreground);
