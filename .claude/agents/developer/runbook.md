@@ -42,6 +42,11 @@ feature, which would muddy the diff for the code-reviewer.
 - Imports: `jsr:@lockness/...` and `jsr:@std/...`. Never `import "hono"`.
 - Types: explicit return types on exports. No `any` without
   `// deno-lint-ignore no-explicit-any` + justification.
+- **Naming**: follow the **Deno official style guide**
+  (https://docs.deno.com/runtime/contributing/style_guide.md). PascalCase for
+  classes/types/interfaces/enums; camelCase for functions/methods/fields/locals.
+  **Plain names for interfaces** — no `I*` prefix, no `*Interface` suffix
+  (Deno's own examples and `@std/*` use plain names).
 - JSDoc on every exported declaration (description + `@param`/`@returns`/
   `@throws`/`@example` where relevant).
 - MVC layering:
@@ -98,6 +103,10 @@ stub.
 
 ## References
 
+- **https://docs.deno.com/runtime/contributing/style_guide.md** — official Deno
+  style guide. Always consult before introducing a new naming pattern, file
+  layout convention, or stylistic choice that isn't already covered by the
+  Lockness rules above.
 - `docs/getting-started.md`
 - `docs/middleware.md`
 - `docs/models.md`
