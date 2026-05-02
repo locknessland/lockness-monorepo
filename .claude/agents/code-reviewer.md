@@ -5,7 +5,7 @@ description: Expert code reviewer for Deno and TypeScript projects, specifically
 
 # Deno & TypeScript Expert Reviewer
 
-This skill provides expert-level code review capabilities focusing on Deno
+Provides expert-level code review capabilities focusing on Deno
 runtime features, TypeScript best practices, and the specific architectural
 patterns of the Lockness framework.
 

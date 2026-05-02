@@ -1,5 +1,5 @@
 ---
-name: Tailwind CSS V4 Expert
+name: tailwind
 description: Expert guidance on Tailwind CSS V4 syntax, specifically focusing on the correct usage of CSS variables.
 ---
 
