@@ -34,8 +34,9 @@ Hono functionalities.
 - **ORM Integration**: Drizzle ORM with PostgreSQL
 - **Production Ready**: Compile to standalone binaries with `deno compile`
 
-> **Important**: Do NOT add Hono to your imports manually. Lockness manages its
-> own Hono version to ensure compatibility.
+> Framework-wide rules (no direct `hono` import, JSR-only specifiers, Tailwind
+> v4 CSS-variable syntax, pre-completion gate, etc.) live in
+> [.claude/CLAUDE.md](.claude/CLAUDE.md).
 
 ---
 
@@ -270,6 +271,12 @@ Auto-discovery, custom error pages, formatted console output. See:
 
 - [error-handling.md](packages/core/docs/error-handling.md)
 
+### Lifecycle Events
+
+Boot/request/response/shutdown hooks with priority ordering. See:
+
+- [lifecycle-events.md](docs/lifecycle-events.md)
+
 ### Caching
 
 Decorator-based response caching, multiple drivers. See:
@@ -336,49 +343,10 @@ Evolution management with Devtools integration. See:
 
 ---
 
-## 🎨 Tailwind CSS v4 - CSS Variables Syntax
+## 🎨 Tailwind CSS v4 — Quick Reference
 
-> **CRITICAL**: This project uses Tailwind CSS v4. When using CSS variables in
-> utility classes, you MUST use **parentheses `()`** syntax, NOT brackets `[]`.
-
-### ✅ Correct Syntax (Tailwind v4)
-
-```tsx
-// Use parentheses for CSS variable references
-'bg-(--my-background)'
-'text-(--my-color)'
-'px-(--my-padding)'
-'rounded-(--my-radius)'
-'border-(--my-border-color)'
-'h-(--my-height)'
-'w-(--my-width)'
-'gap-(--my-gap)'
-```
-
-### ❌ Incorrect Syntax (Will NOT resolve variables)
-
-```tsx
-// Brackets are for arbitrary VALUES, not CSS variable references
-'bg-[--my-background]' // ❌ Won't work - treated as literal string
-'px-[--my-padding]' // ❌ Won't work - no padding applied
-'h-[--my-height]' // ❌ Won't work
-```
-
-### Special Cases
-
-```tsx
-// For font-size with CSS variables, use the length modifier:
-'text-[length:--font-size-var]'
-
-// For colors with opacity:
-'bg-(--primary)/50'
-
-// Arbitrary values (actual CSS values, not variables):
-'px-[0.75rem]' // ✅ Correct - this is a direct value
-'h-[200px]' // ✅ Correct - this is a direct value
-```
-
-### Quick Reference
+The hard rule lives in [.claude/CLAUDE.md](.claude/CLAUDE.md) (rule #4):
+parentheses for CSS variables, brackets for literal values.
 
 | Purpose            | Syntax                    | Example                   |
 | ------------------ | ------------------------- | ------------------------- |
@@ -391,36 +359,22 @@ Evolution management with Devtools integration. See:
 
 ## ⚙️ Development Workflow
 
-### Quality Assurance
+The pre-completion quality gate
+(`deno fmt && deno lint && deno check && deno
+task test`) is enforced by
+[.claude/CLAUDE.md](.claude/CLAUDE.md) rule #5.
 
-Every code modification must be validated:
-
-```bash
-deno fmt && deno lint
-```
-
-### Stub Synchronization
-
-When modifying source files with corresponding stubs, update both. See
-[STUBS.md](docs/STUBS.md) for mappings.
-
-### Version Management
-
-Use `deno task bump <version>` to update all packages atomically.
-
-### Development Mode
-
-Multi-terminal workflow:
+### Dev mode (multi-terminal)
 
 ```bash
-# Terminal 1 - CSS Watcher
+# Terminal 1 — CSS watcher
 deno task css:watch
 
-# Terminal 2 - Development Server
+# Terminal 2 — Dev server
 deno task dev
 ```
 
-### CLI Commands
+### Common CLI commands
 
 ```bash
 deno task cli init                    # Scaffold new project
@@ -428,91 +382,41 @@ deno task cli make:controller <Name>  # Create controller
 deno task cli make:model <Name> -a    # Create model with all
 deno task cli make:middleware <Name>  # Create middleware
 deno task cli db:migrate              # Apply migrations
-deno task cli db:studio               # Launch Drizzle Studio
 deno task cli router:list             # List all routes
 deno task cli tinker                  # Interactive REPL
 ```
 
-### Production Deployment
-
-**Option 1: Deno Deploy** (recommended)
-
-- Entry point: `main.ts`
-- Build: `deno task routes:generate && deno task css:build`
-
-**Option 2: Standalone Binary**
-
-```bash
-deno task compile
-```
-
-Output: `_dist/lockness` - self-contained executable
-
-**Option 3: Direct Execution**
-
-```bash
-deno task start
-```
-
-See [deployment.md](docs/deployment.md) and
-[compilation.md](docs/compilation.md).
+Full command reference: [nessy.md](docs/nessy.md). Workspace/package commands:
+[packages.md](docs/packages.md). Stub mappings: [STUBS.md](docs/STUBS.md).
+Version bumping: `deno task bump <version>` — details in
+[packages.md](docs/packages.md).
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing, 🚀 Deployment, 🐳 Docker, 🔄 Upgrading
 
-Deterministic time control, in-memory mocks, fast execution. See
-[testing.md](docs/testing.md).
+These topics live in their dedicated docs — AGENTS.md does not duplicate the
+detail:
 
-```bash
-deno task test            # Run tests
-deno task test:coverage   # With coverage
-deno task test:watch      # Watch mode
-```
-
----
-
-## 🐳 Docker
-
-Production-ready Dockerfile with multi-stage build. See
-[deployment.md](docs/deployment.md).
-
-```bash
-docker build -t my-lockness-app .
-docker run -p 8888:8888 --env-file .env.production my-lockness-app
-```
-
----
-
-## 🔄 Upgrading
-
-Use `@lockness/upgrade`:
-
-```bash
-deno run -Ar jsr:@lockness/upgrade           # Latest version
-deno run -Ar jsr:@lockness/upgrade 0.2.0     # Specific version
-deno run -Ar jsr:@lockness/upgrade --dry-run # Preview
-```
+- **Testing** (FakeTime, in-memory mocks, coverage):
+  [testing.md](docs/testing.md)
+- **Deployment** (Deno Deploy, standalone binary, direct exec, Docker):
+  [deployment.md](docs/deployment.md)
+- **Binary compilation** (`deno task compile`, asset management):
+  [compilation.md](docs/compilation.md)
+- **Upgrading** (`jsr:@lockness/upgrade`): see
+  [installation.md](docs/installation.md) and
+  [contribution.md](docs/contribution.md)
 
 ---
 
 ## 🌊 Contributing
 
-See [contribution.md](docs/contribution.md) for full guidelines.
+Full guidelines in [contribution.md](docs/contribution.md). High-level
+reminders:
 
-### Key Rules
-
-1. **Exports**: Expose public APIs through `mod.ts`
-2. **Workspaces**: Don't manually add `@lockness/*` to root imports
-3. **Registry**: Register new libraries in workspace array
-4. **Version**: Use `deno task bump <version>` for releases
-5. **GitHub**: [locknessland/lockness](https://github.com/locknessland/lockness)
-
-### Package Development Standards
-
-- Entry point: `mod.ts`
-- Tests in `tests/` directory with `*.test.ts` naming
-- Use named workspace imports for cross-package dependencies
-- Define exports in `deno.json`
-
-See package-specific READMEs for detailed contribution guidelines.
+- Public APIs go through `mod.ts`
+- Don't manually add `@lockness/*` to root imports — workspaces handle it
+- Register new libraries in the workspace array
+- Use `deno task bump <version>` for releases
+- Repo: [locknessland/lockness](https://github.com/locknessland/lockness)
