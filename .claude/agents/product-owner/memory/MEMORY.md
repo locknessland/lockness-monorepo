@@ -32,4 +32,9 @@ sessions and isn't captured elsewhere:
 
 ## Entries
 
-<!-- (this stub starts empty — the PO populates it as it learns) -->
+- [Autonomous orphan-status sweep](autonomous-sweep.md) — every grooming pass
+  cleans closed-without-Done / merged-but-stuck items unprompted; no user
+  yes/no.
+- [Prefer REST over GraphQL](prefer-rest-over-graphql.md) — REST is the default
+  for any `gh` call; GraphQL only for Project V2 fields where no REST equivalent
+  exists.
