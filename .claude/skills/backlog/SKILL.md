@@ -38,13 +38,15 @@ clarification, classification, and triage decisions still go through the PO.
 Configuration is loaded by `_config.sh` from `.specflow/backlog-config.yml`. The
 cached identifiers below are filled on first script invocation.
 
-| Thing           | Value                                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------------- |
-| Repo            | `locknessland/lockness`                                                                                 |
-| Project number  | `1` (owner: `locknessland`, org-owned)                                                                  |
-| Project node ID | `PVT_kwDOCgOOI84BLfQw`                                                                                  |
-| Status field ID | `PVTSSF_lADOCgOOI84BLfQwzg7C_9o`                                                                        |
-| Status options  | Backlog `1f6e6607` · Ready `289e2594` · In progress `da4b8f3f` · In review `b7e316c4` · Done `1c701f60` |
+| Thing             | Value                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| Repo              | `locknessland/lockness`                                                                                 |
+| Project number    | `1` (owner: `locknessland`, org-owned)                                                                  |
+| Project node ID   | `PVT_kwDOCgOOI84BLfQw`                                                                                  |
+| Status field ID   | `PVTSSF_lADOCgOOI84BLfQwzg7C_9o`                                                                        |
+| Status options    | Backlog `1f6e6607` · Ready `289e2594` · In progress `da4b8f3f` · In review `b7e316c4` · Done `1c701f60` |
+| Priority field ID | `PVTSSF_lADOCgOOI84BLfQwzg7DAQU`                                                                        |
+| Priority options  | P0 `79628723` · P1 `0a877460` · P2 `da944a9c` · P3 `2355d55e`                                           |
 
 If the project layout changes, refresh with:
 

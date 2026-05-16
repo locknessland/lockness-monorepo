@@ -43,3 +43,6 @@ CLAUDE.md
 .specflow/upgrade-pending.json
 .specflow/upgrade-staging/
 # --- End Specflow: gitignore ---
+
+# Claude Code runtime locks (session-scoped, never committed)
+.claude/scheduled_tasks.lock
