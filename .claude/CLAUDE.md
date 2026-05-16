@@ -36,12 +36,51 @@ blockers, not preferences.
 ## Source of truth for tasks
 
 The backlog source of truth is **GitHub Project #1** of `locknessland/lockness`
-(https://github.com/orgs/locknessland/projects/1/views/1). The legacy `.tasks/`
-folder is being phased out — do not create new task files there.
+(https://github.com/orgs/locknessland/projects/1/views/1). Reads/writes go
+through the `/backlog` skill or the SpecFlow product-owner agent — both share
+the same `gh` CLI backend (config in `.specflow/backlog-config.yml`). The legacy
+`.tasks/` folder has been removed.
 
-## Agents and runbooks
+## Agents, skills, and workflows
 
-Specialist sub-agents live in `.claude/agents/<name>.md`. Each has a runbook at
-`.claude/agents/<name>/runbook.md` with procedures and conventions specific to
-its role. The orchestration workflow is in
-`.claude/skills/orchestrate/SKILL.md`.
+Specialist sub-agents live in `.claude/agents/<name>.md`. Some carry a runbook
+at `.claude/agents/<name>/runbook.md` with procedures specific to their role.
+
+Two complementary workflows coexist:
+
+- **`/orchestrate`** — Lockness multi-agent dispatch (product-owner → architect
+  → developer → qa-tester → code-reviewer, with docs-writer / devops-sre in
+  parallel when relevant). Use for backlog issues that map to our team layout.
+  Skill at `.claude/skills/orchestrate/SKILL.md`.
+- **`/specflow specify "<feature>"`** — SpecFlow chained pipeline (clarify →
+  plan → tasks → analyze → implement → review → merge). Use for greenfield
+  features needing a written spec + plan + tasks tree before implementation.
+  Skill at `.claude/skills/specflow/SKILL.md`.
+
+New specifications live under `.specflow/specs/<feature>/`. Project principles
+for the SpecFlow pipeline live in `.specflow/memory/constitution.md` — it
+complements (it does not replace) the hard rules above.
+
+## Optional Claude Code integrations
+
+Set up if useful to your workflow.
+
+- **Periodic maintenance** — `/loop 1h` runs `.claude/loop.md` every hour. The
+  bundled default delegates to `/specflow groom`. See
+  https://code.claude.com/docs/fr/scheduled-tasks.
+- **Goal-directed sessions** — `/goal <condition>` keeps turns running until a
+  fast model judges the condition met. See https://code.claude.com/docs/fr/goal.
+- **Multi-session dispatch (`claude agents`)** — terminal UI listing background
+  Claude sessions; spawns agents with isolated git worktrees under
+  `.claude/worktrees/`. Requires Claude Code v2.1.139+. See
+  https://code.claude.com/docs/fr/agent-view.
+- **Async notifications** — install Telegram / Discord / iMessage channel
+  plugins for long-task pings. See https://code.claude.com/docs/fr/channels.
+- **Headless / CI** — `claude -p "<prompt>"` runs non-interactively. SpecFlow
+  ships `.claude/scripts/dispatch-agent.sh <agent-name> "<prompt>"` which
+  auto-derives `--allowedTools` from agent frontmatter. See
+  https://code.claude.com/docs/fr/headless.
+- **Deep links** — `claude-cli://open?repo=<owner>/<repo>&q=<prompt>` opens a
+  fresh session pre-filled. See https://code.claude.com/docs/fr/deep-links.
+- **MCP servers** — connect external tools via `.mcp.json`. See
+  https://code.claude.com/docs/fr/mcp.

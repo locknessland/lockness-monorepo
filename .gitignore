@@ -36,3 +36,10 @@ CLAUDE.md
 # Nessy CLI wrapper (root only)
 /nessy
 /nessy.cmd
+
+# --- Specflow: gitignore ---
+*.specflow.bak
+.specflow/logs/
+.specflow/upgrade-pending.json
+.specflow/upgrade-staging/
+# --- End Specflow: gitignore ---
