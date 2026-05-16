@@ -44,49 +44,79 @@ Runs on `release: published`. Steps:
 > Both workflows use `deno-version: v2.x`. Bump with caution — pin a specific
 > minor if you need stability.
 
-## Version bump flow
+## Release pipeline — automated via SpecFlow
 
-The `scripts/bump.ts` script updates everything in one shot:
+The full chain from "I want to ship" to "JSR has new packages" is two slash
+commands. No manual `deno task bump`, no manual `gh release create`. CI does the
+publish.
 
-- Root `deno.jsonc` `version` field.
-- Each `packages/*/deno.json` `version` field.
-- Inter-package `imports` pointing at `jsr:@lockness/...` versions.
-- Stub files in `packages/*/stubs/` referencing pinned Lockness versions.
+```
+/specflow tag-version [--bump major|minor|patch]
+   └─ .specflow/scripts/release/tag.sh
+         ├─ refuses dirty working tree
+         ├─ deno task bump --<bump>            ← scripts/bump.ts
+         │     ├─ rewrites deno.jsonc (version + @lockness/* imports)
+         │     ├─ rewrites every packages/*/deno.json
+         │     └─ rewrites packages/*/stubs/*.stub
+         ├─ git add -A && git commit -m "chore(release): vX.Y.Z"
+         ├─ git tag -a vX.Y.Z -m "Release vX.Y.Z ..."
+         └─ git push origin <branch> && git push origin vX.Y.Z
 
-### Usage
-
-```bash
-# Explicit version
-deno task bump 0.3.0
-
-# Or by semver bump type
-deno task bump --major     # X.0.0
-deno task bump --minor     # 0.X.0
-deno task bump --patch     # 0.0.X
+/specflow release-version
+   └─ .specflow/scripts/release/release-github.sh
+         ├─ baseline = previous DEPLOYED tag (skips tags w/o release)
+         ├─ categorized notes from Conventional-Commits buckets
+         └─ gh release create vX.Y.Z --notes-file -
+              └─ event: release: published
+                   └─ .github/workflows/publish.yml
+                         ├─ deno fmt --check
+                         ├─ deno lint
+                         ├─ deno task test -A
+                         └─ deno publish                ← JSR
 ```
 
-After running, verify:
+Default `--bump patch`. `bump.ts` reads the current version from `deno.jsonc`
+and increments — the latest git tag is informative but not authoritative; the
+deno.jsonc field is the source of truth for "what version is next."
 
-```bash
-git diff --stat   # check that all packages got the bump
-deno task test    # green
-```
+## File map
 
-## Release flow (JSR publish)
+| Path                                                | Owner of...                                                                   |
+| --------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `.specflow/scripts/release/tag.sh`                  | bump → commit → tag → push orchestration (Lockness-customized SemVer mode)    |
+| `.specflow/scripts/release/release-github.sh`       | categorized release notes + `gh release create`                               |
+| `scripts/bump.ts`                                   | atomic monorepo version rewrite (`deno.jsonc`, `packages/*/deno.json`, stubs) |
+| `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
+| `.github/workflows/test.yml`                        | PR gate: fmt/lint/check/test                                                  |
+| `.claude/skills/specflow/phases/tag-version.md`     | `/specflow tag-version` skill contract                                        |
+| `.claude/skills/specflow/phases/release-version.md` | `/specflow release-version` skill contract                                    |
 
-1. Confirm `main` is green (latest CI passed).
-2. Decide the new version (semver: breaking → major, feature → minor, fix →
-   patch).
-3. `deno task bump <X.Y.Z>` (or with a flag).
-4. Inspect the diff: `git diff`.
-5. Run the local pre-publish gate:
-   `deno fmt --check && deno lint && deno task test -A`.
-6. Commit: `git commit -am "chore: bump version to <X.Y.Z>"`.
-7. Push: `git push origin main`.
-8. Create a GitHub Release:
-   `gh release create vX.Y.Z --title "vX.Y.Z" --notes "<changelog>"`.
-9. The `publish.yml` workflow runs and publishes to JSR.
-10. Verify on https://jsr.io/@lockness — packages appear at the new version.
+## Invariants
+
+- **Bump-driven mode never runs on a dirty tree.** `tag.sh` refuses; commit or
+  stash first. The bump commit must contain only the version files.
+- **The tag points at the bump commit, not before.** Any other commit would
+  cause JSR to publish the old version.
+- **Never run `deno publish` locally** after creating the release. CI is the
+  publisher — duplicate publish will fail and pollute the audit trail.
+- **Never amend a pushed annotated tag.** Tags are immutable on origin once
+  pushed. If wrong: delete remote (`git push --delete origin vX.Y.Z`), delete
+  local, re-run `/specflow tag-version`.
+- **Never edit `deno.lock` by hand.** It is generated.
+- **Manual mode (`tag.sh <sha>`) does not bump.** It only tags existing commits
+  — useful for back-tagging historical releases, never for new releases.
+
+## Debug — symptom → cause → check
+
+| Symptom                                                   | Probable cause                                                             | Check                                                                               |
+| --------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| JSR publishes the previous version                        | Tag points before the bump commit                                          | `git show <tag>:deno.jsonc` — confirm `version` matches the tag                     |
+| `tag.sh` exits "working tree has uncommitted changes"     | Dirty tree (often deno-fmt hook output)                                    | `git status --short`; commit or `git stash`                                         |
+| `tag.sh` exits "tag already exists — refusing to clobber" | Same version tagged before; bump didn't move the version                   | `cat deno.jsonc \| grep '"version"'` vs `git tag --list 'v*' \| sort -V \| tail`    |
+| `tag.sh` exits "deno task bump produced no file changes"  | bump.ts ran but couldn't find the version field, or already at target      | Re-run `deno task bump --patch` manually and inspect                                |
+| `publish.yml` doesn't trigger                             | Release not in "published" state (still draft), or workflow file edited    | GitHub UI → Releases → confirm not draft; check `on: release: types: [published]`   |
+| `publish.yml` runs but `deno publish` fails on auth       | Trusted publishing not configured, or `id-token: write` permission missing | `.github/workflows/publish.yml` permissions block; JSR package "Trusted publishers" |
+| `publish.yml` fails on `deno fmt --check`                 | Drift slipped past local hook                                              | Run `deno fmt` locally on the bump commit, force-push not possible — open a new tag |
 
 ## Deployment options
 
