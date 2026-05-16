@@ -27,6 +27,12 @@ review.
 8. **MVC layering.** Controllers thin (delegate to services). Services hold
    business logic. Models / repositories handle persistence. No direct DB
    queries in controllers.
+9. **Commit discipline.** Commit own work proactively. One category per commit
+   (Conventional Commits — `feat` / `fix` / `chore` / `docs` / `refactor` /
+   `test` / `build` / `ci` / `style` / `perf`). Split mixed-category changes
+   into multiple commits. Linear history only (fast-forward, no merge commits
+   when avoidable). Atomicity beats brevity: 4 small focused commits beat 1
+   sprawling one.
 
 ## Engineering methodology
 

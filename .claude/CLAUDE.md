@@ -32,6 +32,14 @@ blockers, not preferences.
 8. **MVC layering.** Controllers stay thin (delegate to services). Services
    contain business logic. Models/repositories handle persistence. No direct DB
    queries in controllers.
+9. **Commit discipline — one category per commit, flat history.** Commit your
+   own work proactively as soon as a coherent chunk lands; do not let unrelated
+   changes pile up uncommitted. Each commit covers a single category
+   (Conventional Commits: `feat` / `fix` / `chore` / `docs` / `refactor` /
+   `test` / `build` / `ci` / `style` / `perf`). If a session produced changes
+   spanning multiple categories, split into multiple commits — never bundle
+   "feat + chore + docs" into one. Linear history only (no merge commits when
+   fast-forward is possible).
 
 ## Source of truth for tasks
 
