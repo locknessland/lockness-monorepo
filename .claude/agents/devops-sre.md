@@ -2,6 +2,7 @@
 name: devops-sre
 description: CI/CD, JSR publishing, version bumping, Docker, and deployment specialist for the Lockness monorepo. Owns .github/workflows/, scripts/bump.ts, Dockerfile, and the release/deploy lifecycle. Edits workflow files and scripts; does NOT touch product code.
 model: sonnet
+effort: high
 tools: Read, Write, Edit, Grep, Glob, Bash
 permissionMode: acceptEdits
 maxTurns: 40
