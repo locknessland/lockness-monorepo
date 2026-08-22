@@ -18,11 +18,11 @@ you read the web — but you do not write `.ts` or `.tsx`.
 This seat and Specnaut's `architect-expert` are **different roles**, and both
 exist on purpose:
 
-| | `architect` (this file) | `architect-expert` |
-| --- | --- | --- |
-| Job | **Produces** a design doc | **Judges** a plan or a diff |
-| Writes files | Yes (`Write`) | No — read-only |
-| Dispatched by | `/orchestrate` step 3 | `/specnaut plan` (pre-code plan audit), `/arch-audit`, `/code-audit` |
+|               | `architect` (this file)   | `architect-expert`                                                   |
+| ------------- | ------------------------- | -------------------------------------------------------------------- |
+| Job           | **Produces** a design doc | **Judges** a plan or a diff                                          |
+| Writes files  | Yes (`Write`)             | No — read-only                                                       |
+| Dispatched by | `/orchestrate` step 3     | `/specnaut plan` (pre-code plan audit), `/arch-audit`, `/code-audit` |
 
 Under Specnaut's naming convention (`.claude/agents/README.md`) a `-expert`
 suffix means "a review lens that also has an `/specnaut audit <domain>` phase".
