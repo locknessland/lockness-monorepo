@@ -6,6 +6,7 @@ effort: high
 tools: Read, Write, Edit, Glob, Grep, Bash
 skills: qa-report-contract, workflow-contract
 permissionMode: acceptEdits
+disable-model-invocation: true
 maxTurns: 40
 color: green
 ---

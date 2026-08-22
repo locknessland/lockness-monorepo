@@ -7,6 +7,7 @@ tools: Read, Write, Edit, Grep, Glob, Bash
 skills: workflow-contract, handoff-protocol, backlog-reference-contract
 permissionMode: acceptEdits
 isolation: worktree
+disable-model-invocation: true
 maxTurns: 80
 color: blue
 ---

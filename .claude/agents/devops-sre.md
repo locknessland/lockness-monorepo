@@ -5,6 +5,7 @@ model: opus
 effort: high
 tools: Read, Write, Edit, Grep, Glob, Bash
 permissionMode: acceptEdits
+disable-model-invocation: true
 maxTurns: 40
 color: orange
 ---
