@@ -5,6 +5,7 @@ set -e
 JSON_MODE=false
 DRY_RUN=false
 ALLOW_EXISTING=false
+BRANCH_ONLY=false
 SHORT_NAME=""
 BRANCH_NUMBER=""
 USE_TIMESTAMP=false
@@ -19,6 +20,9 @@ while [ $i -le $# ]; do
             ;;
         --dry-run)
             DRY_RUN=true
+            ;;
+        --branch-only)
+            BRANCH_ONLY=true
             ;;
         --allow-existing-branch)
             ALLOW_EXISTING=true
@@ -71,18 +75,21 @@ while [ $i -le $# ]; do
             LINKED_ISSUE="$next_arg"
             ;;
         --help|-h)
-            echo "Usage: $0 [--json] [--dry-run] [--allow-existing-branch] [--short-name <name>] [--number N] [--timestamp] [--issue <id>] <feature_description>"
+            echo "Usage: $0 [--json] [--dry-run] [--branch-only] [--allow-existing-branch] [--short-name <name>] [--number N] [--timestamp] [--issue <id>] <feature_description>"
             echo ""
             echo "Options:"
             echo "  --json              Output in JSON format"
             echo "  --dry-run           Compute branch name and paths without creating branches, directories, or files"
+            echo "  --branch-only       Create ONLY the git branch — skip the spec directory + spec file."
+            echo "                      Used by cloud-mode /specnaut implement, where the spec lives on"
+            echo "                      SpecNaut Cloud and the branch is created at implement (not specify)."
             echo "  --allow-existing-branch  Switch to branch if it already exists instead of failing"
             echo "  --short-name <name> Provide a custom short name (2-4 words) for the branch"
             echo "  --number N          Specify branch number manually (overrides auto-detection)"
             echo "  --timestamp         Use timestamp prefix (YYYYMMDD-HHMMSS) instead of sequential numbering"
             echo "  --issue <id>        Link this feature to a backlog issue (id is a positive integer);"
-            echo "                      surfaces in JSON output and is persisted to .specflow/feature.json"
-            echo "                      so /specflow merge can close the loop on the project board."
+            echo "                      surfaces in JSON output and is persisted to .specnaut/feature.json"
+            echo "                      so /specnaut merge can close the loop on the project board."
             echo "  --help, -h          Show this help message"
             echo ""
             echo "Examples:"
@@ -225,7 +232,7 @@ fi
 
 cd "$REPO_ROOT"
 
-SPECS_DIR="$REPO_ROOT/.specflow/specs"
+SPECS_DIR="$REPO_ROOT/.specnaut/specs"
 if [ "$DRY_RUN" != true ]; then
     mkdir -p "$SPECS_DIR"
 fi
@@ -345,7 +352,7 @@ if [ ${#BRANCH_NAME} -gt $MAX_BRANCH_LENGTH ]; then
 fi
 
 FEATURE_DIR="$SPECS_DIR/$BRANCH_NAME"
-SPEC_FILE="$FEATURE_DIR/spec.md"
+SPEC_FILE="$FEATURE_DIR/plan.md"
 
 if [ "$DRY_RUN" != true ]; then
     if [ "$HAS_GIT" = true ]; then
@@ -387,15 +394,20 @@ if [ "$DRY_RUN" != true ]; then
         >&2 echo "[specify] Warning: Git repository not detected; skipped branch creation for $BRANCH_NAME"
     fi
 
-    mkdir -p "$FEATURE_DIR"
+    # --branch-only: create the branch above but skip the spec directory + file.
+    # In cloud spec mode the spec lives on SpecNaut Cloud, so /specnaut implement
+    # only needs the branch (the decoupling point — no local .specnaut/specs/ dir).
+    if [ "$BRANCH_ONLY" != true ]; then
+        mkdir -p "$FEATURE_DIR"
 
-    if [ ! -f "$SPEC_FILE" ]; then
-        TEMPLATE=$(resolve_template "spec-template" "$REPO_ROOT") || true
-        if [ -n "$TEMPLATE" ] && [ -f "$TEMPLATE" ]; then
-            cp "$TEMPLATE" "$SPEC_FILE"
-        else
-            echo "Warning: Spec template not found; created empty spec file" >&2
-            touch "$SPEC_FILE"
+        if [ ! -f "$SPEC_FILE" ]; then
+            TEMPLATE=$(resolve_template "plan-template" "$REPO_ROOT") || true
+            if [ -n "$TEMPLATE" ] && [ -f "$TEMPLATE" ]; then
+                cp "$TEMPLATE" "$SPEC_FILE"
+            else
+                echo "Warning: Spec template not found; created empty spec file" >&2
+                touch "$SPEC_FILE"
+            fi
         fi
     fi
 

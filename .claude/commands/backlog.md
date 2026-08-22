@@ -11,17 +11,19 @@ $ARGUMENTS
 
 ## Dispatch
 
-| Input pattern       | Action                                     |
-| ------------------- | ------------------------------------------ |
-| _(empty)_ or `list` | Show backlog overview                      |
-| `next`              | Recommend top 3 tasks with workflow advice |
-| `add <title>`       | Create a new task                          |
-| `update <id>`       | Update an existing task                    |
-| `estimate <id>`     | Estimate complexity for a task             |
-| `status`            | Dashboard summary                          |
-| `groom`             | Full grooming session                      |
-| `brief <id>`        | Generate PO business brief                 |
-| `<number>`          | Show details for task NNN                  |
+| Input pattern       | Action                                      |
+|---------------------|---------------------------------------------|
+| _(empty)_ or `list` | Show backlog overview                       |
+| `next`              | Recommend top 3 tasks with workflow advice  |
+| `add <title>`       | Create a new task                           |
+| `update <id>`       | Update an existing task                     |
+| `estimate <id>`     | Estimate complexity for a task              |
+| `status`            | Dashboard summary                           |
+| `groom`             | Full grooming session                       |
+| `brief <id>`        | Generate PO business brief                  |
+| `<number>`          | Show details for task NNN                   |
+
+**Backlog references** follow the `backlog-reference-contract` skill — read it; never restate it here.
 
 ## Rules
 
@@ -31,25 +33,26 @@ $ARGUMENTS
 2. After any mutation (add / update / groom / estimate), the orchestrator
    commits the backlog changes with a message like
    `chore(backlog): add task NNN — <short title>` or
-   `chore(backlog): update task NNN — <what changed>`. Stage only the files the
-   product-owner agent reports as touched.
+   `chore(backlog): update task NNN — <what changed>`. Stage only the
+   files the product-owner agent reports as touched.
 
 ## Backlog storage
 
 The product-owner agent reads and writes the backlog directly to whichever
 backend the project uses. When the backend is local Markdown:
 
-- Index: `.specflow/backlog.md`
-- Task files: `.specflow/backlog/NNN-slug.md`
+- Index: `.specnaut/backlog.md`
+- Task files: `.specnaut/backlog/NNN-slug.md`
 
-When the backend is remote (GitHub Issues + Project V2, GitLab, etc.) the agent
-talks to that backend directly — the CLI does not push or pull on its own.
+When the backend is remote (GitHub Issues + Project V2, GitLab, etc.) the
+agent talks to that backend directly — the CLI does not push or pull on
+its own.
 
 ## Frontmatter schema
 
 The product-owner agent owns the canonical schema (see
-`.claude/agents/product-owner.md` or the equivalent path for your harness). Do
-not duplicate it here — the dispatcher defers to the agent.
+`.claude/agents/product-owner.md` or the equivalent path for your harness).
+Do not duplicate it here — the dispatcher defers to the agent.
 
 ## Quick reference
 

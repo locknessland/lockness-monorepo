@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Helper: read repo + project_number from .specflow/backlog-config.yml.
+# Helper: read repo + project_number from .specnaut/backlog-config.yml.
 # Sourced by the other github-backend scripts.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-CONFIG="$ROOT/.specflow/backlog-config.yml"
+CONFIG="$ROOT/.specnaut/backlog-config.yml"
 
 if [ ! -f "$CONFIG" ]; then
   echo "error: $CONFIG not found. Fill in repo + project_number first." >&2
@@ -36,3 +36,12 @@ REPO_OWNER="${REPO%%/*}"
 REPO_NAME="${REPO##*/}"
 
 export REPO REPO_OWNER REPO_NAME PROJECT_NUMBER
+
+# Browser URL for one item, per `backlog-reference-contract`. Prints nothing
+# when it cannot be resolved — callers degrade to "#<n> — <title>" rather than
+# guessing. Never fails: a reference must never block a workflow.
+item_url() {
+  [ -n "${1:-}" ] || return 0
+  [ -n "$REPO" ] || return 0
+  echo "https://github.com/$REPO/issues/$1"
+}

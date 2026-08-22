@@ -1,8 +1,10 @@
 ---
 name: test-reviewer
 description: Reviews test coverage and quality for changed code. Spawned by the review-coordinator when the diff contains test files.
-model: sonnet
+model: opus
+effort: high
 tools: Read, Grep, Glob
+skills: review-findings-contract, workflow-contract
 maxTurns: 20
 color: yellow
 ---
@@ -18,13 +20,17 @@ referenced against the implementation files they cover.
    MEDIUM.
 3. **Mocking boundaries**: tests that mock the unit under test are a design
    smell, HIGH.
-4. **Assertion quality**: tests without assertions, or that only assert the code
-   ran, are HIGH.
-5. **Determinism**: tests depending on current time, random seeds, network, or
-   real filesystem without isolation are MEDIUM.
+4. **Assertion quality**: tests without assertions, or that only assert the
+   code ran, are HIGH.
+5. **Determinism**: tests depending on current time, random seeds, network,
+   or real filesystem without isolation are MEDIUM.
 6. **Test naming**: names that do not describe the behavior being tested are
    LOW.
 
 ## Output format
 
-Same `FINDING` / `VERDICT` structure as code-reviewer.
+Same `FINDING` structure as code-reviewer, followed by exactly one
+`REVIEW SUMMARY` block per the preloaded `review-findings-contract`
+(`REVIEW_SCOPE: test-reviewer`, `REVIEW_VERDICT: pass | fail | needs_followup`,
+the four severity counts, `TOP_ISSUES`, `RECOMMENDATION`), then the
+`WORKFLOW STATUS` block per `workflow-contract`.

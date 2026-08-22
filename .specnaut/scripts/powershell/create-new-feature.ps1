@@ -29,8 +29,8 @@ if ($Help) {
     Write-Host "  -Number N           Specify branch number manually (overrides auto-detection)"
     Write-Host "  -Timestamp          Use timestamp prefix (YYYYMMDD-HHMMSS) instead of sequential numbering"
     Write-Host "  -Issue <id>         Link this feature to a backlog issue (positive integer);"
-    Write-Host "                      surfaces in JSON output and is persisted to .specflow/feature.json"
-    Write-Host "                      so /specflow merge can close the loop on the project board."
+    Write-Host "                      surfaces in JSON output and is persisted to .specnaut/feature.json"
+    Write-Host "                      so /specnaut merge can close the loop on the project board."
     Write-Host "  -Help               Show this help message"
     Write-Host ""
     Write-Host "Examples:"
@@ -186,7 +186,7 @@ $hasGit = Test-HasGit
 
 Set-Location $repoRoot
 
-$specsDir = Join-Path $repoRoot '.specflow' 'specs'
+$specsDir = Join-Path $repoRoot '.specnaut' 'specs'
 if (-not $DryRun) {
     New-Item -ItemType Directory -Path $specsDir -Force | Out-Null
 }
@@ -300,7 +300,7 @@ if ($branchName.Length -gt $maxBranchLength) {
 }
 
 $featureDir = Join-Path $specsDir $branchName
-$specFile = Join-Path $featureDir 'spec.md'
+$specFile = Join-Path $featureDir 'plan.md'
 
 if (-not $DryRun) {
     if ($hasGit) {
@@ -360,7 +360,7 @@ if (-not $DryRun) {
     New-Item -ItemType Directory -Path $featureDir -Force | Out-Null
 
     if (-not (Test-Path -PathType Leaf $specFile)) {
-        $template = Resolve-Template -TemplateName 'spec-template' -RepoRoot $repoRoot
+        $template = Resolve-Template -TemplateName 'plan-template' -RepoRoot $repoRoot
         if ($template -and (Test-Path $template)) {
             Copy-Item $template $specFile -Force
         } else {

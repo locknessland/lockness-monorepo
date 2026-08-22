@@ -68,7 +68,7 @@ function Get-CurrentBranch {
     }
 
     # For non-git repos, try to find the latest feature directory
-    $specsDir = Join-Path $repoRoot ".specflow" "specs"
+    $specsDir = Join-Path $repoRoot ".specnaut" "specs"
     
     if (Test-Path $specsDir) {
         $latestFeature = ""
@@ -129,7 +129,7 @@ function Test-HasGit {
 
 # Strip a single optional path segment (e.g. gitflow "feat/004-name" -> "004-name").
 # Only when the full name is exactly two slash-free segments; otherwise returns the raw name.
-function Get-SpecflowEffectiveBranchName {
+function Get-SpecnautEffectiveBranchName {
     param([string]$Branch)
     if ($Branch -match '^([^/]+)/([^/]+)$') {
         return $Matches[2]
@@ -150,7 +150,7 @@ function Test-FeatureBranch {
     }
 
     $raw = $Branch
-    $Branch = Get-SpecflowEffectiveBranchName $raw
+    $Branch = Get-SpecnautEffectiveBranchName $raw
     
     # Accept sequential prefix (3+ digits) but exclude malformed timestamps
     # Malformed: 7-or-8 digit date + 6-digit time with no trailing slug (e.g. "2026031-143022" or "20260319-143022")
@@ -164,14 +164,14 @@ function Test-FeatureBranch {
     return $true
 }
 
-# Resolve .specflow/specs/<feature-dir> by numeric/timestamp prefix (mirrors scripts/bash/common.sh find_feature_dir_by_prefix).
+# Resolve .specnaut/specs/<feature-dir> by numeric/timestamp prefix (mirrors scripts/bash/common.sh find_feature_dir_by_prefix).
 function Find-FeatureDirByPrefix {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
         [Parameter(Mandatory = $true)][string]$Branch
     )
-    $specsDir = Join-Path $RepoRoot '.specflow' 'specs'
-    $branchName = Get-SpecflowEffectiveBranchName $Branch
+    $specsDir = Join-Path $RepoRoot '.specnaut' 'specs'
+    $branchName = Get-SpecnautEffectiveBranchName $Branch
 
     $prefix = $null
     if ($branchName -match '^(\d{8}-\d{6})-') {
@@ -220,9 +220,9 @@ function Get-FeaturePathsEnv {
 
     # Resolve feature directory.  Priority:
     #   1. SPECIFY_FEATURE_DIRECTORY env var (explicit override)
-    #   2. .specflow/feature.json "feature_directory" key (persisted by /specflow.specify)
+    #   2. .specnaut/feature.json "feature_directory" key (persisted by /specnaut.specify)
     #   3. Branch-name-based prefix lookup (same as scripts/bash/common.sh)
-    $featureJson = Join-Path $repoRoot '.specflow/feature.json'
+    $featureJson = Join-Path $repoRoot '.specnaut/feature.json'
     if ($env:SPECIFY_FEATURE_DIRECTORY) {
         $featureDir = $env:SPECIFY_FEATURE_DIRECTORY
         # Normalize relative paths to absolute under repo root
@@ -234,7 +234,7 @@ function Get-FeaturePathsEnv {
         try {
             $featureConfig = $featureJsonRaw | ConvertFrom-Json
         } catch {
-            [Console]::Error.WriteLine("ERROR: Failed to parse .specflow/feature.json: $_")
+            [Console]::Error.WriteLine("ERROR: Failed to parse .specnaut/feature.json: $_")
             exit 1
         }
         if ($featureConfig.feature_directory) {
@@ -255,13 +255,9 @@ function Get-FeaturePathsEnv {
         CURRENT_BRANCH = $currentBranch
         HAS_GIT       = $hasGit
         FEATURE_DIR   = $featureDir
-        FEATURE_SPEC  = Join-Path $featureDir 'spec.md'
+        FEATURE_SPEC  = Join-Path $featureDir 'plan.md'
         IMPL_PLAN     = Join-Path $featureDir 'plan.md'
         TASKS         = Join-Path $featureDir 'tasks.md'
-        RESEARCH      = Join-Path $featureDir 'research.md'
-        DATA_MODEL    = Join-Path $featureDir 'data-model.md'
-        QUICKSTART    = Join-Path $featureDir 'quickstart.md'
-        CONTRACTS_DIR = Join-Path $featureDir 'contracts'
     }
 }
 
@@ -303,24 +299,24 @@ function Get-Python3Command {
 }
 
 # Resolve a template name to a file path using the priority stack:
-#   1. .specflow/templates/overrides/
-#   2. .specflow/presets/<preset-id>/templates/ (sorted by priority from .registry)
-#   3. .specflow/extensions/<ext-id>/templates/
-#   4. .specflow/templates/ (core)
+#   1. .specnaut/templates/overrides/
+#   2. .specnaut/presets/<preset-id>/templates/ (sorted by priority from .registry)
+#   3. .specnaut/extensions/<ext-id>/templates/
+#   4. .specnaut/templates/ (core)
 function Resolve-Template {
     param(
         [Parameter(Mandatory=$true)][string]$TemplateName,
         [Parameter(Mandatory=$true)][string]$RepoRoot
     )
 
-    $base = Join-Path $RepoRoot '.specflow/templates'
+    $base = Join-Path $RepoRoot '.specnaut/templates'
 
     # Priority 1: Project overrides
     $override = Join-Path $base "overrides/$TemplateName.md"
     if (Test-Path $override) { return $override }
 
     # Priority 2: Installed presets (sorted by priority from .registry)
-    $presetsDir = Join-Path $RepoRoot '.specflow/presets'
+    $presetsDir = Join-Path $RepoRoot '.specnaut/presets'
     if (Test-Path $presetsDir) {
         $registryFile = Join-Path $presetsDir '.registry'
         $sortedPresets = @()
@@ -355,7 +351,7 @@ function Resolve-Template {
     }
 
     # Priority 3: Extension-provided templates
-    $extDir = Join-Path $RepoRoot '.specflow/extensions'
+    $extDir = Join-Path $RepoRoot '.specnaut/extensions'
     if (Test-Path $extDir) {
         foreach ($ext in Get-ChildItem -Path $extDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '.*' } | Sort-Object Name) {
             $candidate = Join-Path $ext.FullName "templates/$TemplateName.md"
@@ -379,7 +375,7 @@ function Resolve-TemplateContent {
         [Parameter(Mandatory=$true)][string]$RepoRoot
     )
 
-    $base = Join-Path $RepoRoot '.specflow/templates'
+    $base = Join-Path $RepoRoot '.specnaut/templates'
 
     # Collect all layers (highest priority first)
     $layerPaths = @()
@@ -393,7 +389,7 @@ function Resolve-TemplateContent {
     }
 
     # Priority 2: Installed presets (sorted by priority from .registry)
-    $presetsDir = Join-Path $RepoRoot '.specflow/presets'
+    $presetsDir = Join-Path $RepoRoot '.specnaut/presets'
     if (Test-Path $presetsDir) {
         $registryFile = Join-Path $presetsDir '.registry'
         $sortedPresets = @()
@@ -503,7 +499,7 @@ except Exception:
     }
 
     # Priority 3: Extension-provided templates (always "replace")
-    $extDir = Join-Path $RepoRoot '.specflow/extensions'
+    $extDir = Join-Path $RepoRoot '.specnaut/extensions'
     if (Test-Path $extDir) {
         foreach ($ext in Get-ChildItem -Path $extDir -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '.*' } | Sort-Object Name) {
             $candidate = Join-Path $ext.FullName "templates/$TemplateName.md"
