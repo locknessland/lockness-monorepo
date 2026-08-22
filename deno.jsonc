@@ -91,7 +91,24 @@
         "lineWidth": 80,
         "semiColons": false,
         "exclude": [
-            "tests/fixtures/bump/"
+            "tests/fixtures/bump/",
+            // Specnaut-managed trees: their content is hashed in
+            // .specnaut/installed.lock. Reformatting them makes every file
+            // look "customized" to `specnaut upgrade`, which then refuses to
+            // update it -- that is how .specnaut/scripts/bash/common.sh ended
+            // up stale and broken. Leave them exactly as the CLI writes them.
+            ".specnaut/",
+            ".claude/skills/",
+            ".claude/agents/",
+            ".claude/commands/",
+            ".claude/hooks/",
+            // Same reason, for the CLI-owned files that sit at .claude/ root.
+            // .claude/CLAUDE.md and AGENTS.md are deliberately NOT here: we
+            // hand-maintain them (reconciled --accept-current), so they are
+            // ours to format.
+            ".claude/loop.md",
+            ".claude/security-patterns.yaml",
+            ".claude/claude-security-guidance.md"
         ]
     },
     "compilerOptions": {
