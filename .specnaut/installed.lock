@@ -1,7 +1,7 @@
 version: 2
 harness: claude
 backlog_backend: github
-version_scheme: date
+version_scheme: semver
 spec_backend: local
 templates_version: 3.1.0
 entries:
