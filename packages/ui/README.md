@@ -100,26 +100,26 @@ to customize the entire look and feel without touching component code.
 All components use standardized color tokens:
 
 ```css
---background          /* Page background */
---foreground          /* Default text color */
---card                /* Card background */
---card-foreground     /* Card text color */
---popover             /* Popover background */
---popover-foreground  /* Popover text */
---primary             /* Primary action color */
---primary-foreground  /* Primary text on primary bg */
---secondary           /* Secondary elements */
---secondary-foreground /* Secondary text */
---muted               /* Muted backgrounds */
---muted-foreground    /* Muted text */
---accent              /* Accent elements */
---accent-foreground   /* Accent text */
---destructive         /* Danger/error color */
---destructive-foreground /* Destructive text */
---border              /* Border color */
---input               /* Input border color */
---ring                /* Focus ring color */
---radius              /* Border radius (0.625rem default) */
+--background /* Page background */
+    --foreground /* Default text color */
+    --card /* Card background */
+    --card-foreground /* Card text color */
+    --popover /* Popover background */
+    --popover-foreground /* Popover text */
+    --primary /* Primary action color */
+    --primary-foreground /* Primary text on primary bg */
+    --secondary /* Secondary elements */
+    --secondary-foreground /* Secondary text */
+    --muted /* Muted backgrounds */
+    --muted-foreground /* Muted text */
+    --accent /* Accent elements */
+    --accent-foreground /* Accent text */
+    --destructive /* Danger/error color */
+    --destructive-foreground /* Destructive text */
+    --border /* Border color */
+    --input /* Input border color */
+    --ring /* Focus ring color */
+    --radius /* Border radius (0.625rem default) */
 ```
 
 ## 📦 Available Components
