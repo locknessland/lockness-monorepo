@@ -1,0 +1,467 @@
+.claude/agents/code-reviewer.md:21:- `.specflow/memory/constitution.md` — SpecFlow invariants.
+.claude/agents/code-reviewer.md:3:description: Pre-merge review specialist for the Lockness framework. Verdicts on SOLID, type safety, JSDoc completeness, Lockness conventions (no direct hono, JSR imports), and MVC structure. Read-only — produces a verdict + actionable comments, never edits. Spawned by review-coordinator during /specflow review, or by /orchestrate.
+.claude/agents/code-reviewer.md:39:2. **Constitution compliance** — read `.specflow/memory/constitution.md`. Any
+.claude/agents/developer.md:21:3. Read `.specflow/memory/constitution.md` for additional invariants.
+.claude/agents/developer.md:24:5. If a SpecFlow feature directory is in context (`.specflow/specs/<feature>/`),
+.claude/agents/developer.md:28:7. **Read the `## Domain Model` block** — in `spec.md` (SpecFlow path) or in the
+.claude/agents/developer/memory/MEMORY.md:28:  `.specflow/memory/constitution.md`.
+.claude/agents/devops-sre.md:20:3. Read `.specflow/memory/constitution.md` for non-negotiable invariants (often
+.claude/agents/devops-sre/memory/MEMORY.md:31:  `.specflow/memory/constitution.md`.
+.claude/agents/devops-sre/runbook.md:104:  local, re-run `/specflow tag-version`.
+.claude/agents/devops-sre/runbook.md:47:## Release pipeline — automated via SpecFlow
+.claude/agents/devops-sre/runbook.md:54:/specflow tag-version [--bump major|minor|patch]
+.claude/agents/devops-sre/runbook.md:55:   └─ .specflow/scripts/release/tag.sh
+.claude/agents/devops-sre/runbook.md:65:/specflow release-version
+.claude/agents/devops-sre/runbook.md:66:   └─ .specflow/scripts/release/release-github.sh
+.claude/agents/devops-sre/runbook.md:86:| `.specflow/scripts/release/tag.sh`                  | bump → commit → tag → push orchestration (Lockness-customized SemVer mode)    |
+.claude/agents/devops-sre/runbook.md:87:| `.specflow/scripts/release/release-github.sh`       | categorized release notes + `gh release create`                               |
+.claude/agents/devops-sre/runbook.md:91:| `.claude/skills/specflow/phases/tag-version.md`     | `/specflow tag-version` skill contract                                        |
+.claude/agents/devops-sre/runbook.md:92:| `.claude/skills/specflow/phases/release-version.md` | `/specflow release-version` skill contract                                    |
+.claude/agents/product-owner.md:165:### Needs a SpecFlow spec (`/specflow specify`)
+.claude/agents/product-owner.md:193:context, workflow recommendation (SpecFlow spec vs direct), quick-win indicator
+.claude/agents/product-owner.md:21:3. Read `.specflow/memory/constitution.md` for SpecFlow invariants.
+.claude/agents/product-owner.md:244:If a `spec.md` is attached, write this block into the spec (the SpecFlow
+.claude/agents/product-owner.md:3:description: Product Owner and backlog guardian for Lockness. Owns GitHub Project #1 (locknessland/lockness) — triages, clarifies, classifies, prioritizes, epic/sub-task linking, and closes issues. Recommends workflow (Specflow spec vs direct implementation). Does NOT write production code, design docs, or tests.
+.claude/agents/product-owner.md:36:3. **Workflow advice** — decide whether a task needs a full SpecFlow spec
+.claude/agents/product-owner.md:37:   (`/specflow specify`) or can go straight to implementation.
+.claude/agents/qa-tester.md:25:- `.specflow/memory/constitution.md` — invariants.
+.claude/agents/qa-tester.md:3:description: Integration + e2e + manual validation specialist for the Lockness framework. Validates issue acceptance criteria. Does NOT redo unit tests (developer's job) and does NOT edit production code. Spawned by /orchestrate after developer ships, or by /specflow implement after the review gate passes.
+.claude/agents/review-coordinator.md:16:  `/specflow review`).
+.claude/agents/review-coordinator.md:20:1. Always spawn `code-reviewer` and `security-auditor` in parallel, passing them
+.claude/agents/review-coordinator.md:3:description: Coordinates parallel structural review agents (code, security, tests) and aggregates their findings. Use when /specflow review is running Phase 1.
+.claude/agents/review-coordinator.md:32:  security-auditor   : <…>
+.claude/agents/review-coordinator.md:5:tools: Read, Grep, Glob, Bash, Agent(code-reviewer, security-auditor, test-reviewer)
+.claude/agents/security-auditor.md:15:Spawned by the `review-coordinator` during `/specflow review`. Review ONLY the
+.claude/agents/security-auditor.md:2:name: security-auditor
+.claude/agents/security-auditor.md:3:description: Reviews code for security issues — input validation, authz, secrets, injection, SSRF, path traversal, silent error swallowing. Two dispatch shapes — (1) PR review (spawned by the review-coordinator during /specflow review), (2) alert triage (spawned by /release after the security-preflight workflow surfaces open GitHub security alerts).
+.claude/agents/security-auditor/memory/MEMORY.md:3:Index of persistent notes for the `security-auditor` subagent. Each entry below
+.claude/agents/specflow-expert.md:104:`.specflow/installed.lock` (`templates_version`, `harness`, `backlog_backend`),
+.claude/agents/specflow-expert.md:105:`specflow --version`, `uname -srm`.
+.claude/agents/specflow-expert.md:117:`https://github.com/mkrlabs/specflow/issues/new?title=…&body=…&labels=bug,from%3Aspecflow-expert`
+.claude/agents/specflow-expert.md:131:Read `.specflow/upgrade-pending.json`. If absent, respond:
+.claude/agents/specflow-expert.md:133:> No recent upgrade marker. Run `specflow upgrade` first, then dispatch me again
+.claude/agents/specflow-expert.md:141:`WebFetch https://api.github.com/repos/mkrlabs/specflow/releases/tags/v<TAG>`,
+.claude/agents/specflow-expert.md:152:`specflow reconcile --status` pending list, offer branch
+.claude/agents/specflow-expert.md:153:`specflow-upgrade-v{to}` [Y/n].
+.claude/agents/specflow-expert.md:158:`git checkout -b specflow-upgrade-v{to} && git add -A && git commit -m "chore: specflow upgrade v{from} → v{to}"`.
+.claude/agents/specflow-expert.md:176:Run `specflow reconcile --status`, parse JSON. For each pending path: show diff
+.claude/agents/specflow-expert.md:179:- `k`: `specflow reconcile <path> --accept-current`; commit
+.claude/agents/specflow-expert.md:181:- `t`: `specflow reconcile <path> --accept-upstream`; commit
+.claude/agents/specflow-expert.md:183:- `m`: dispatch `developer` to merge local + `.specflow/upgrade-staging/<path>`;
+.claude/agents/specflow-expert.md:184:  then `specflow reconcile <path> --accept-current`; commit
+.claude/agents/specflow-expert.md:186:- `v`: `diff -u <path> .specflow/upgrade-staging/<path>`, re-prompt with
+.claude/agents/specflow-expert.md:19:You are the **Specflow expert**. Your job is to explain how Specflow works,
+.claude/agents/specflow-expert.md:193:`.specflow/upgrade-pending.json`; if on review branch, final commit
+.claude/agents/specflow-expert.md:194:`chore: complete specflow upgrade review v{from} → v{to}`. Tell user to open a
+.claude/agents/specflow-expert.md:2:name: specflow-expert
+.claude/agents/specflow-expert.md:202:### What Specflow is
+.claude/agents/specflow-expert.md:209:<https://specflow.makerlabs.dev/llms.txt>. Source:
+.claude/agents/specflow-expert.md:210:<https://github.com/mkrlabs/specflow>.
+.claude/agents/specflow-expert.md:213:`curl -fsSL https://raw.githubusercontent.com/mkrlabs/specflow/main/install.sh | bash`
+.claude/agents/specflow-expert.md:214:or `brew tap mkrlabs/tap && brew install specflow`.
+.claude/agents/specflow-expert.md:220:**Different from upstream Spec Kit:** auto-chained pipeline (`/specflow specify`
+.claude/agents/specflow-expert.md:223:Claude Code plugin distribution (`specflow-plugin` marketplace).
+.claude/agents/specflow-expert.md:226:security-auditor, test-reviewer, qa-tester, workflow-manager, devops-sre,
+.claude/agents/specflow-expert.md:227:specflow-expert.
+.claude/agents/specflow-expert.md:231:- `specflow init [--here] [--ai <harness>] [--backlog <backend>] [--backlog-url <url>]`
+.claude/agents/specflow-expert.md:233:- `specflow upgrade` — refresh templates. On apply writes
+.claude/agents/specflow-expert.md:234:  `.specflow/upgrade-pending.json` (`{from,to,at}`) + staging dir
+.claude/agents/specflow-expert.md:235:  (`.specflow/upgrade-staging/<path>`, consumed by `specflow reconcile`); both
+.claude/agents/specflow-expert.md:237:  `@specflow-expert review-upgrade` handoff.
+.claude/agents/specflow-expert.md:238:- `specflow reconcile --status` — list files pending post-upgrade reconciliation
+.claude/agents/specflow-expert.md:240:- `specflow reconcile <path> --accept-upstream` — take the new template version
+.claude/agents/specflow-expert.md:242:- `specflow reconcile <path> --accept-current` — keep local version (re-stamps
+.claude/agents/specflow-expert.md:244:- `specflow check [--project]` — verify scaffold integrity.
+.claude/agents/specflow-expert.md:245:- `specflow self-update` — replace binary with latest release, verifying SHA256.
+.claude/agents/specflow-expert.md:246:- `specflow --version` — print binary + bundled templates version.
+.claude/agents/specflow-expert.md:253:`gh issue close --reason completed`. `/specflow groom` catches items closed via
+.claude/agents/specflow-expert.md:34:2. If you need the user's installed Specflow version, read it from
+.claude/agents/specflow-expert.md:35:   `.specflow/installed.lock` (key `specflow_version` or `templates_version`).
+.claude/agents/specflow-expert.md:4:    Answers questions about Specflow itself — how it works, its commands,
+.claude/agents/specflow-expert.md:45:1. Fetch `https://specflow.makerlabs.dev/llms.txt` — the canonical current docs.
+.claude/agents/specflow-expert.md:47:   `https://api.github.com/repos/mkrlabs/specflow/releases/latest` and extract
+.claude/agents/specflow-expert.md:49:   `https://api.github.com/repos/mkrlabs/specflow/releases` and filter the
+.claude/agents/specflow-expert.md:53:   here's what was current at scaffold time of your installed Specflow version.
+.claude/agents/specflow-expert.md:54:   For the latest, run `specflow self-update` and ask me again."
+.claude/agents/specflow-expert.md:6:    Trigger me when the user asks "how does specflow", "what is /specflow X",
+.claude/agents/specflow-expert.md:64:your `description` ("how does specflow X", "what is /specflow Y", "explain",
+.claude/agents/specflow-expert.md:65:"quoi de neuf", etc.). Do NOT run it on a manual `/specflow-expert` invocation
+.claude/agents/specflow-expert.md:68:1. Read `.specflow/installed.lock` and extract the `templates_version` field. If
+.claude/agents/specflow-expert.md:7:    "explain specflow", "quoi de neuf specflow", "what's new in specflow",
+.claude/agents/specflow-expert.md:70:2. `WebFetch` `https://specflow.makerlabs.dev/version.json`. Expect
+.claude/agents/specflow-expert.md:78:   > 📦 Specflow v{version} is available (you have v{templates_version}) — run
+.claude/agents/specflow-expert.md:79:   > `specflow upgrade` to pull in the new templates.
+.claude/agents/specflow-expert.md:83:5. Do **not** suggest `specflow upgrade --force` automatically. You may mention
+.claude/agents/specflow-expert.md:9:    invocations (`specflow init`, `specflow upgrade`, `/specflow specify`,
+.claude/agents/specflow-expert.md:98:bug") OR a Specflow failure pattern just surfaced (`specflow ... error:`,
+.claude/CLAUDE.md:48:through the `/backlog` skill or the SpecFlow product-owner agent — both share
+.claude/CLAUDE.md:49:the same `gh` CLI backend (config in `.specflow/backlog-config.yml`). The legacy
+.claude/CLAUDE.md:63:- **`/specflow specify "<feature>"`** — SpecFlow chained pipeline (clarify →
+.claude/CLAUDE.md:66:  Skill at `.claude/skills/specflow/SKILL.md`.
+.claude/CLAUDE.md:68:New specifications live under `.specflow/specs/<feature>/`. Project principles
+.claude/CLAUDE.md:69:for the SpecFlow pipeline live in `.specflow/memory/constitution.md` — it
+.claude/CLAUDE.md:77:  bundled default delegates to `/specflow groom`. See
+.claude/CLAUDE.md:87:- **Headless / CI** — `claude -p "<prompt>"` runs non-interactively. SpecFlow
+.claude/commands/backlog.md:42:- Index: `.specflow/backlog.md`
+.claude/commands/backlog.md:43:- Task files: `.specflow/backlog/NNN-slug.md`
+.claude/commands/specflow.md:14:Invoke the **specflow** skill (at `.claude/skills/specflow/SKILL.md`) using the
+.claude/commands/specflow.md:2:description: Specflow workflow router — dispatches to the specflow skill (router phases live at .claude/skills/specflow/phases/<phase>.md). `/specflow <phase> [args]` runs a single phase.
+.claude/commands/specflow.md:23:`/specflow specify "..."` directly. The router auto-chains the rest of the
+.claude/hooks/check-backlog-prereqs.sh:10:LOCK="$(pwd)/.specflow/installed.lock"
+.claude/hooks/check-backlog-prereqs.sh:2:# Self-gates on .specflow/installed.lock: if the project's backlog
+.claude/hooks/log-subagent.sh:13:LOG_DIR="$ROOT/.specflow/logs"
+.claude/hooks/log-subagent.sh:2:# Append a structured JSON line to .specflow/logs/agents.jsonl per
+.claude/hooks/protect-generated.sh:2:# Soft-warn on edits to Specflow-generated files.
+.claude/hooks/protect-generated.sh:23:  *.specflow/installed.lock|*/.specflow/installed.lock)
+.claude/hooks/protect-generated.sh:25:warn: .specflow/installed.lock is generated by `specflow init` / `specflow
+.claude/hooks/protect-generated.sh:28:      `specflow upgrade` instead.
+.claude/hooks/protect-generated.sh:7:# that get regenerated by `specflow upgrade`, not to enforce.
+.claude/loop.md:11:1. Invoke the `/specflow groom` skill — it grooms the backlog, surfaces stale
+.claude/loop.md:22:- **One-off check**: just `/specflow groom` (no loop) — runs once and exits.
+.claude/loop.md:4:Specflow ships a sensible default below — edit freely to match this project's
+.claude/loop.md:9:Run a hygiene pass on this Specflow project:
+.claude/scripts/dispatch-agent.sh:54:# `Read, Bash(git log *), Agent(code-reviewer, security-auditor)` — naive
+.claude/skills/backlog/SKILL.md:13:CLI; wrappers under `.specflow/scripts/backlog/` cover the common operations.
+.claude/skills/backlog/SKILL.md:162:  `.specflow/backlog-config.yml` (and re-cache IDs on next script run).
+.claude/skills/backlog/SKILL.md:38:Configuration is loaded by `_config.sh` from `.specflow/backlog-config.yml`. The
+.claude/skills/backlog/SKILL.md:5:allowed-tools: Bash(gh *) Bash(.specflow/scripts/backlog/*.sh) Bash(jq *) Bash(column *) Bash(sort *)
+.claude/skills/backlog/SKILL.md:58:…and update `.specflow/backlog-config.yml`.
+.claude/skills/backlog/SKILL.md:63:.specflow/scripts/backlog/list.sh [Status]                              # all items, optional Status filter
+.claude/skills/backlog/SKILL.md:64:.specflow/scripts/backlog/view.sh <number>                              # one issue + comments
+.claude/skills/backlog/SKILL.md:65:.specflow/scripts/backlog/add.sh "<title>" [body] [labels-csv]          # create issue + attach to project
+.claude/skills/backlog/SKILL.md:66:.specflow/scripts/backlog/add.sh --parent <num> "<title>" ...           # create sub-issue under parent epic
+.claude/skills/backlog/SKILL.md:67:.specflow/scripts/backlog/move.sh <number> <Status>                     # Backlog|Ready|"In progress"|"In review"|Done
+.claude/skills/backlog/SKILL.md:68:.specflow/scripts/backlog/clarify-comment.sh <number> "<question>"      # leave a question on the issue
+.claude/skills/backlog/SKILL.md:69:.specflow/scripts/backlog/cascade-check.sh <number>                     # epic close gate (exit 0 = safe, 11 = blocked)
+.claude/skills/backlog/SKILL.md:70:.specflow/scripts/backlog/detect-fields.sh                              # discover native Priority/Size fields
+.claude/skills/backlog/SKILL.md:71:.specflow/scripts/backlog/set-field.sh <num> <Priority|Size|IssueType> <value>  # set native field; exit 10/11 = label fallback, 12 = not on project
+.claude/skills/backlog/SKILL.md:72:.specflow/scripts/backlog/ensure-labels.sh                              # idempotently bootstrap semantic labels
+.claude/skills/backlog/SKILL.md:92:switching MCP on/off requires no SpecFlow change.
+.claude/skills/specflow-auto/SKILL.md:10:- `/specflow specify "<feature>"` — runs the full chain automatically (specify →
+.claude/skills/specflow-auto/SKILL.md:13:- `/specflow specify --manual "<feature>"` — runs `specify` only, no chain.
+.claude/skills/specflow-auto/SKILL.md:14:- `/specflow <phase> <args>` — mid-chain re-entry with artefact detection (chain
+.claude/skills/specflow-auto/SKILL.md:18:See `phases/auto-chain.md` (in the `specflow` skill) for the full chain
+.claude/skills/specflow-auto/SKILL.md:2:name: specflow-auto
+.claude/skills/specflow-auto/SKILL.md:23:your project after running `specflow upgrade`, it means muscle-memory
+.claude/skills/specflow-auto/SKILL.md:24:invocations of `/specflow-auto` keep working — but you should switch to the new
+.claude/skills/specflow-auto/SKILL.md:3:description: DEPRECATED — /specflow now auto-chains by default since v1.5.0. This skill is kept as an alias for one release and will be removed in the next major version.
+.claude/skills/specflow-auto/SKILL.md:6:# /specflow-auto is deprecated
+.claude/skills/specflow-auto/SKILL.md:8:Auto-chain is now the default behavior of `/specflow`. Use:
+.claude/skills/specflow-review/SKILL.md:13:# Specflow review (auto-invoke alias)
+.claude/skills/specflow-review/SKILL.md:16:review phase from natural-language prompts (the main `specflow` skill is
+.claude/skills/specflow-review/SKILL.md:2:name: specflow-review
+.claude/skills/specflow-review/SKILL.md:20:executing the procedure in `.claude/skills/specflow/phases/review.md`. Pass any
+.claude/skills/specflow/phases/analyze.md:13:- Check if `.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/analyze.md:229:- If CRITICAL issues exist: Recommend resolving before `/specflow implement`
+.claude/skills/specflow/phases/analyze.md:231:- Provide explicit command suggestions: e.g., "Run /specflow specify --manual to
+.claude/skills/specflow/phases/analyze.md:232:  refine the spec without re-cascading", "Run /specflow plan --once to
+.claude/skills/specflow/phases/analyze.md:233:  regenerate the plan only, or /specflow plan to cascade through tasks →
+.claude/skills/specflow/phases/analyze.md:243:After reporting, check if `.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/analyze.md:276:- If no hooks are registered or `.specflow/extensions.yml` does not exist, skip
+.claude/skills/specflow/phases/analyze.md:48:- If no hooks are registered or `.specflow/extensions.yml` does not exist, skip
+.claude/skills/specflow/phases/analyze.md:55:implementation. This command MUST run only after `/specflow tasks` has
+.claude/skills/specflow/phases/analyze.md:69:update outside `/specflow analyze`.
+.claude/skills/specflow/phases/auto-chain.md:114:  `/specflow clarify` quota; the rest can be asked later.
+.claude/skills/specflow/phases/auto-chain.md:119:`/specflow implement`. If compaction occurs mid-chain, inform the user and let
+.claude/skills/specflow/phases/auto-chain.md:26:After `/specflow clarify` finishes:
+.claude/skills/specflow/phases/auto-chain.md:29:  to `/specflow plan`.
+.claude/skills/specflow/phases/auto-chain.md:3:This file carries the chain mechanics that the `/specflow` router follows when
+.claude/skills/specflow/phases/auto-chain.md:31:  `/specflow clarify` format) and wait for answers. Once the spec is updated,
+.claude/skills/specflow/phases/auto-chain.md:39:- `/specflow plan` — generates plan + research + data-model + contracts +
+.claude/skills/specflow/phases/auto-chain.md:41:- `/specflow tasks` — generates tasks.md.
+.claude/skills/specflow/phases/auto-chain.md:42:- `/specflow analyze` — cross-artifact consistency check. On LOW/MEDIUM
+.claude/skills/specflow/phases/auto-chain.md:45:- `/specflow implement` — runs the developer → review-coordinator → qa-tester
+.claude/skills/specflow/phases/auto-chain.md:47:- `/specflow review` — final quality scan.
+.claude/skills/specflow/phases/auto-chain.md:51:After `/specflow review` passes, ALWAYS stop and present a compact summary
+.claude/skills/specflow/phases/auto-chain.md:52:before invoking `/specflow merge`. The summary must include:
+.claude/skills/specflow/phases/auto-chain.md:61:Then ask explicitly: "Ready to merge? (yes to run /specflow merge, no to stay on
+.claude/skills/specflow/phases/auto-chain.md:63:`/specflow merge`. After merge, the chain ends.
+.claude/skills/specflow/phases/auto-chain.md:68:`/specflow plan 042`, `/specflow implement 042`), apply this context-aware
+.claude/skills/specflow/phases/auto-chain.md:79:"Downstream artefacts" means files under `.specflow/specs/<feature>/` produced
+.claude/skills/specflow/phases/checklist.md:161:**Important**: Each `/specflow checklist` command invocation uses a short,
+.claude/skills/specflow/phases/checklist.md:236:`.specflow/extensions.yml`)**: Skip silently if the file is absent or
+.claude/skills/specflow/phases/checklist.md:31:`.specflow/extensions.yml`)**: Skip silently if the file is absent or
+.claude/skills/specflow/phases/clarify.md:12:`.specflow/extensions.yml`)**: Skip silently if the file is absent or
+.claude/skills/specflow/phases/clarify.md:181:     surface them as Outstanding and recommend running `/specflow clarify`
+.claude/skills/specflow/phases/clarify.md:182:     again. The downstream `/specflow implement` step will refuse to proceed
+.claude/skills/specflow/phases/clarify.md:194:     `/specflow plan` or run `/specflow clarify` again.
+.claude/skills/specflow/phases/clarify.md:201:- If spec file missing, instruct user to run `/specflow specify` first (do not
+.claude/skills/specflow/phases/clarify.md:217:**Check extension hooks (`hooks.after_clarify` in `.specflow/extensions.yml`)**:
+.claude/skills/specflow/phases/clarify.md:30:invoking `/specflow plan`. If the user explicitly states they are skipping
+.claude/skills/specflow/phases/clarify.md:42:     `/specflow specify` or verify feature branch environment.
+.claude/skills/specflow/phases/constitution.md:101:   - Read `.specflow/templates/spec-template.md` for scope/requirements
+.claude/skills/specflow/phases/constitution.md:104:   - Read `.specflow/templates/tasks-template.md` and ensure task categorization
+.claude/skills/specflow/phases/constitution.md:107:   - Read each command file in `.specflow/templates/commands/*.md` (including
+.claude/skills/specflow/phases/constitution.md:13:- Check if `.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/constitution.md:130:7. Write the completed constitution back to `.specflow/memory/constitution.md`
+.claude/skills/specflow/phases/constitution.md:156:`.specflow/memory/constitution.md` file.
+.claude/skills/specflow/phases/constitution.md:161:`.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/constitution.md:195:- If no hooks are registered or `.specflow/extensions.yml` does not exist, skip
+.claude/skills/specflow/phases/constitution.md:48:- If no hooks are registered or `.specflow/extensions.yml` does not exist, skip
+.claude/skills/specflow/phases/constitution.md:53:You are updating the project constitution at `.specflow/memory/constitution.md`.
+.claude/skills/specflow/phases/constitution.md:59:**Note**: If `.specflow/memory/constitution.md` does not exist yet, it should
+.claude/skills/specflow/phases/constitution.md:60:have been initialized from `.specflow/templates/constitution-template.md` during
+.claude/skills/specflow/phases/constitution.md:65:1. Load the existing constitution at `.specflow/memory/constitution.md`.
+.claude/skills/specflow/phases/constitution.md:99:   - Read `.specflow/templates/plan-template.md` and ensure any "Constitution
+.claude/skills/specflow/phases/groom.md:1:# /specflow groom
+.claude/skills/specflow/phases/groom.md:155:Walk `.specflow/specs/` (if present) and surface any feature directory that is
+.claude/skills/specflow/phases/groom.md:158:- Has `spec.md` but no `plan.md` → flag as "needs `/specflow plan`".
+.claude/skills/specflow/phases/groom.md:159:- Has `plan.md` but no `tasks.md` → flag as "needs `/specflow tasks`".
+.claude/skills/specflow/phases/groom.md:161:  `/specflow implement`".
+.claude/skills/specflow/phases/groom.md:178:specflow-groom report
+.claude/skills/specflow/phases/groom.md:211:- For PR review on a specific PR → invoke `code-reviewer` / `security-auditor`
+.claude/skills/specflow/phases/groom.md:213:- For implementing a spec → invoke `/specflow implement` directly.
+.claude/skills/specflow/phases/groom.md:30:  marker `🤖 specflow-groom` at the start of any comment).
+.claude/skills/specflow/phases/groom.md:60:     - **Leave a clarification comment** marked with the `🤖 specflow-groom`
+.claude/skills/specflow/phases/groom.md:85:   Specflow project ships with these as the canonical surface — they group on
+.claude/skills/specflow/phases/groom.md:9:`/specflow groom` or schedules it with `/loop 1h /specflow groom`.
+.claude/skills/specflow/phases/groom.md:99:Use the bundled scripts at `.specflow/scripts/backlog/`:
+.claude/skills/specflow/phases/implement.md:13:- Check if `.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/implement.md:211:tasks are incomplete or missing, suggest running `/specflow tasks` first to
+.claude/skills/specflow/phases/implement.md:215:    `.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/implement.md:249:    - If no hooks are registered or `.specflow/extensions.yml` does not exist,
+.claude/skills/specflow/phases/implement.md:48:- If no hooks are registered or `.specflow/extensions.yml` does not exist, skip
+.claude/skills/specflow/phases/implement.md:98:     `/specflow clarify` to fill the section before re-attempting
+.claude/skills/specflow/phases/implement.md:99:     `/specflow implement`.
+.claude/skills/specflow/phases/merge.md:10:- All Specflow phases must have completed successfully (clarify, plan, tasks,
+.claude/skills/specflow/phases/merge.md:28:   1. Read `.specflow/feature.json`. Extract `linked_issue`
+.claude/skills/specflow/phases/merge.md:31:   2. Detect the backend by checking `.specflow/installed.lock`
+.claude/skills/specflow/phases/merge.md:33:      of `.specflow/backlog-config.yml` (github/gitlab) vs
+.claude/skills/specflow/phases/merge.md:34:      `.specflow/backlog.md` (local).
+.claude/skills/specflow/phases/merge.md:36:      `bash .specflow/scripts/backlog/cascade-check.sh <linked_issue>`. Exit 11
+.claude/skills/specflow/phases/merge.md:44:      `bash .specflow/scripts/backlog/move.sh <linked_issue> Done`. This is the
+.claude/skills/specflow/phases/merge.md:63:   merged) — the user answers `no` in step 8.4 and re-runs `/specflow merge` on
+.claude/skills/specflow/phases/plan.md:105:   - If no hooks are registered or `.specflow/extensions.yml` does not exist,
+.claude/skills/specflow/phases/plan.md:13:- Check if `.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/plan.md:152:   - Update the plan reference between the `<!-- SPECFLOW START -->` and
+.claude/skills/specflow/phases/plan.md:153:     `<!-- SPECFLOW END -->` markers in `__CONTEXT_FILE__` to point to the plan
+.claude/skills/specflow/phases/plan.md:47:- If no hooks are registered or `.specflow/extensions.yml` does not exist, skip
+.claude/skills/specflow/phases/plan.md:72:   `.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/release-version.md:10:- `/specflow release-version` — generate notes for the latest tag
+.claude/skills/specflow/phases/release-version.md:101:bash .specflow/scripts/release/release-local.sh             # latest tag → RELEASE_NOTES_<tag>.md
+.claude/skills/specflow/phases/release-version.md:102:bash .specflow/scripts/release/release-local.sh v1.2.3      # specific tag
+.claude/skills/specflow/phases/release-version.md:103:bash .specflow/scripts/release/release-local.sh --out NOTES.md v1.2.3
+.claude/skills/specflow/phases/release-version.md:11:- `/specflow release-version v1.2.3` — generate notes for a specific tag
+.claude/skills/specflow/phases/release-version.md:116:BODY=$(bash .specflow/scripts/release/release.sh v1.2.3)
+.claude/skills/specflow/phases/release-version.md:12:- `/specflow release-version --baseline v1.2.0` — override the baseline (use
+.claude/skills/specflow/phases/release-version.md:136:/specflow tag-version             → annotated tag created + pushed
+.claude/skills/specflow/phases/release-version.md:137:/specflow release-version         → categorized release notes (stdout)
+.claude/skills/specflow/phases/release-version.md:26:bash .specflow/scripts/release/release.sh "$@"
+.claude/skills/specflow/phases/release-version.md:55:bash .specflow/scripts/release/release-github.sh           # latest tag
+.claude/skills/specflow/phases/release-version.md:56:bash .specflow/scripts/release/release-github.sh v1.2.3    # specific tag
+.claude/skills/specflow/phases/release-version.md:57:bash .specflow/scripts/release/release-github.sh --draft   # create as draft
+.claude/skills/specflow/phases/release-version.md:58:bash .specflow/scripts/release/release-github.sh \
+.claude/skills/specflow/phases/release-version.md:84:bash .specflow/scripts/release/release-gitlab.sh           # latest tag
+.claude/skills/specflow/phases/release-version.md:85:bash .specflow/scripts/release/release-gitlab.sh v1.2.3    # specific tag
+.claude/skills/specflow/phases/release-version.md:86:bash .specflow/scripts/release/release-gitlab.sh \
+.claude/skills/specflow/phases/review.md:24:  with `.specflow/memory/constitution.md`.
+.claude/skills/specflow/phases/review.md:25:- `security-auditor` (always) — input validation, auth/authz, secret handling,
+.claude/skills/specflow/phases/review.md:67:  security-auditor    : …
+.claude/skills/specflow/phases/review.md:87:`/specflow merge` on "yes". If FAIL, stop and report to the user.
+.claude/skills/specflow/phases/specify.md:102:      for fields the input does not let you fill — `/specflow clarify` resolves
+.claude/skills/specflow/phases/specify.md:12:`.specflow/extensions.yml`)**: Skip silently if the file is absent or
+.claude/skills/specflow/phases/specify.md:144:   Items marked incomplete require spec updates before `/specflow clarify` or
+.claude/skills/specflow/phases/specify.md:145:   `/specflow plan`
+.claude/skills/specflow/phases/specify.md:188:   - Readiness for next phase (`/specflow clarify` or `/specflow plan`)
+.claude/skills/specflow/phases/specify.md:191:   `.specflow/extensions.yml`)**: Same rules as Pre-Execution Checks. For each
+.claude/skills/specflow/phases/specify.md:26:The text the user typed after `/specflow specify` is the feature description. Do
+.claude/skills/specflow/phases/specify.md:47:   Specs live under `.specflow/specs/` unless the user provides
+.claude/skills/specflow/phases/specify.md:52:   2. Otherwise auto-generate under `.specflow/specs/`:
+.claude/skills/specflow/phases/specify.md:53:      - Check `.specflow/init-options.json` for `branch_numbering`
+.claude/skills/specflow/phases/specify.md:58:      - Set `SPECIFY_FEATURE_DIRECTORY` to `.specflow/specs/<directory-name>`
+.claude/skills/specflow/phases/specify.md:64:   - Persist to `.specflow/feature.json`:
+.claude/skills/specflow/phases/specify.md:68:     Write the actual resolved path (e.g., `.specflow/specs/003-user-auth`), not
+.claude/skills/specflow/phases/specify.md:69:     the literal string. This lets downstream commands (`/specflow plan`,
+.claude/skills/specflow/phases/specify.md:70:     `/specflow tasks`, etc.) locate the feature directory.
+.claude/skills/specflow/phases/specify.md:72:     **`linked_issue`**: when the user invokes `/specflow specify` with
+.claude/skills/specflow/phases/specify.md:81:   - Create only one feature per `/specflow specify` invocation.
+.claude/skills/specflow/phases/tag-version.md:10:- `/specflow tag-version` — tag HEAD with the next version
+.claude/skills/specflow/phases/tag-version.md:11:- `/specflow tag-version <sha>` — tag a specific commit
+.claude/skills/specflow/phases/tag-version.md:12:- `/specflow tag-version --bump minor` — SemVer projects only: bump minor
+.claude/skills/specflow/phases/tag-version.md:14:- `/specflow tag-version --no-push` — skip pushing to `origin`
+.claude/skills/specflow/phases/tag-version.md:19:project at `specflow init`** (one of SemVer `v1.2.3` or date-based `vYY.M.Da`).
+.claude/skills/specflow/phases/tag-version.md:24:bash .specflow/scripts/release/tag.sh "$@"
+.claude/skills/specflow/phases/tag-version.md:43:  not publish a release. Run `/specflow release-version` after this to publish
+.claude/skills/specflow/phases/tag-version.md:47:  project-specific and lives outside Specflow's tag/release flow.
+.claude/skills/specflow/phases/tag-version.md:51:The generic SpecFlow doctrine is "the git tag is the version, the script does
+.claude/skills/specflow/phases/tag-version.md:63:Manual mode (`tag.sh <commit-sha>`) skips the bump step and keeps SpecFlow's
+.claude/skills/specflow/phases/tag-version.md:71:On success, suggest `/specflow release-version` as the natural next step. Do NOT
+.claude/skills/specflow/phases/tasks.md:104:   `.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/tasks.md:13:- Check if `.specflow/extensions.yml` exists in the project root.
+.claude/skills/specflow/phases/tasks.md:138:   - If no hooks are registered or `.specflow/extensions.yml` does not exist,
+.claude/skills/specflow/phases/tasks.md:47:- If no hooks are registered or `.specflow/extensions.yml` does not exist, skip
+.claude/skills/specflow/SKILL.md:101:Default behavior: `/specflow specify "..."` runs the entire chain in one
+.claude/skills/specflow/SKILL.md:111:/specflow specify "Add OAuth2 login"
+.claude/skills/specflow/SKILL.md:113:    → /specflow clarify  (STOP #1 only if [NEEDS CLARIFICATION] markers remain)
+.claude/skills/specflow/SKILL.md:114:    → /specflow plan
+.claude/skills/specflow/SKILL.md:115:    → /specflow tasks
+.claude/skills/specflow/SKILL.md:116:    → /specflow analyze
+.claude/skills/specflow/SKILL.md:117:    → /specflow implement
+.claude/skills/specflow/SKILL.md:118:    → /specflow review
+.claude/skills/specflow/SKILL.md:120:    → /specflow merge  (on "yes")
+.claude/skills/specflow/SKILL.md:126:/specflow specify --manual "Add OAuth2 login"
+.claude/skills/specflow/SKILL.md:132:/specflow plan 042 --once       # regenerate plan.md only, do not cascade
+.claude/skills/specflow/SKILL.md:133:/specflow plan 042 --continue   # regenerate plan.md AND cascade tasks → review
+.claude/skills/specflow/SKILL.md:2:name: specflow
+.claude/skills/specflow/SKILL.md:22:# Specflow router
+.claude/skills/specflow/SKILL.md:3:description: Specflow workflow router — entry point for the spec-driven pipeline. `/specflow <phase> [args]` dispatches to a single phase (specify, clarify, plan, tasks, analyze, implement, review, merge, constitution, checklist, groom, tag-version, release-version). `/specflow` with no args prints the workflow overview.
+.gitignore:40:# --- Specflow: gitignore ---
+.gitignore:41:*.specflow.bak
+.gitignore:42:.specflow/logs/
+.gitignore:43:.specflow/upgrade-pending.json
+.gitignore:44:.specflow/upgrade-staging/
+.gitignore:45:# --- End Specflow: gitignore ---
+.specflow/backlog-config.yml:1:# backlog-config.yml — generated by `specflow init --backlog github`
+.specflow/backlog.md:10:  on `/specflow groom` until they're ready.
+.specflow/backlog.md:19:`.specflow/backlog/NNN-*.md`):
+.specflow/backlog.md:32:The PO assigns size + priority during the `/specflow groom` pass.
+.specflow/backlog.md:4:> `.specflow/backlog/NNN-slug.md` with frontmatter; this index lists items
+.specflow/installed.lock:107:  .claude/skills/specflow-auto/SKILL.md:
+.specflow/installed.lock:111:  .claude/skills/specflow-review/SKILL.md:
+.specflow/installed.lock:115:  .claude/skills/specflow/SKILL.md:
+.specflow/installed.lock:119:  .claude/skills/specflow/phases/analyze.md:
+.specflow/installed.lock:123:  .claude/skills/specflow/phases/auto-chain.md:
+.specflow/installed.lock:127:  .claude/skills/specflow/phases/checklist.md:
+.specflow/installed.lock:131:  .claude/skills/specflow/phases/clarify.md:
+.specflow/installed.lock:135:  .claude/skills/specflow/phases/constitution.md:
+.specflow/installed.lock:139:  .claude/skills/specflow/phases/groom.md:
+.specflow/installed.lock:143:  .claude/skills/specflow/phases/implement.md:
+.specflow/installed.lock:147:  .claude/skills/specflow/phases/merge.md:
+.specflow/installed.lock:151:  .claude/skills/specflow/phases/plan.md:
+.specflow/installed.lock:155:  .claude/skills/specflow/phases/release-version.md:
+.specflow/installed.lock:159:  .claude/skills/specflow/phases/review.md:
+.specflow/installed.lock:163:  .claude/skills/specflow/phases/specify.md:
+.specflow/installed.lock:167:  .claude/skills/specflow/phases/tag-version.md:
+.specflow/installed.lock:171:  .claude/skills/specflow/phases/tasks.md:
+.specflow/installed.lock:179:  .specflow/LABELS.md:
+.specflow/installed.lock:183:  .specflow/backlog.md:
+.specflow/installed.lock:187:  .specflow/memory/constitution.md:
+.specflow/installed.lock:191:  .specflow/scripts/backlog/_config.sh:
+.specflow/installed.lock:195:  .specflow/scripts/backlog/add.sh:
+.specflow/installed.lock:199:  .specflow/scripts/backlog/cascade-check.sh:
+.specflow/installed.lock:203:  .specflow/scripts/backlog/clarify-comment.sh:
+.specflow/installed.lock:207:  .specflow/scripts/backlog/detect-fields.sh:
+.specflow/installed.lock:211:  .specflow/scripts/backlog/ensure-labels.sh:
+.specflow/installed.lock:215:  .specflow/scripts/backlog/list.sh:
+.specflow/installed.lock:219:  .specflow/scripts/backlog/move.sh:
+.specflow/installed.lock:223:  .specflow/scripts/backlog/set-field.sh:
+.specflow/installed.lock:227:  .specflow/scripts/backlog/view.sh:
+.specflow/installed.lock:231:  .specflow/scripts/bash/check-prerequisites.sh:
+.specflow/installed.lock:235:  .specflow/scripts/bash/common.sh:
+.specflow/installed.lock:239:  .specflow/scripts/bash/create-new-feature.sh:
+.specflow/installed.lock:243:  .specflow/scripts/bash/setup-plan.sh:
+.specflow/installed.lock:247:  .specflow/scripts/powershell/check-prerequisites.ps1:
+.specflow/installed.lock:251:  .specflow/scripts/powershell/common.ps1:
+.specflow/installed.lock:255:  .specflow/scripts/powershell/create-new-feature.ps1:
+.specflow/installed.lock:259:  .specflow/scripts/powershell/setup-plan.ps1:
+.specflow/installed.lock:263:  .specflow/scripts/release/release-github.sh:
+.specflow/installed.lock:267:  .specflow/scripts/release/release-gitlab.sh:
+.specflow/installed.lock:271:  .specflow/scripts/release/release-local.sh:
+.specflow/installed.lock:275:  .specflow/scripts/release/release.sh:
+.specflow/installed.lock:279:  .specflow/scripts/release/tag.sh:
+.specflow/installed.lock:283:  .specflow/templates/agent-file-template.md:
+.specflow/installed.lock:287:  .specflow/templates/checklist-template.md:
+.specflow/installed.lock:291:  .specflow/templates/constitution-template.md:
+.specflow/installed.lock:295:  .specflow/templates/plan-template.md:
+.specflow/installed.lock:299:  .specflow/templates/spec-template.md:
+.specflow/installed.lock:303:  .specflow/templates/tasks-template.md:
+.specflow/installed.lock:51:  .claude/agents/security-auditor.md:
+.specflow/installed.lock:55:  .claude/agents/security-auditor/memory/MEMORY.md:
+.specflow/installed.lock:59:  .claude/agents/specflow-expert.md:
+.specflow/installed.lock:79:  .claude/commands/specflow.md:
+.specflow/LABELS.md:1:# Specflow semantic labels
+.specflow/LABELS.md:24:.specflow/scripts/backlog/ensure-labels.sh
+.specflow/LABELS.md:29:Run once after `specflow init` (or any time you want to bring an existing repo
+.specflow/LABELS.md:3:Specflow ships a canonical set of generic, semantic labels that every project
+.specflow/LABELS.md:35:.specflow/scripts/backlog/ensure-labels.sh
+.specflow/LABELS.md:48:- **Don't rename Specflow's labels.** The `product-owner` agent recognises them
+.specflow/LABELS.md:52:- **`priority:*` and `size:*` labels are deprecated.** Specflow now writes those
+.specflow/memory/constitution.md:117:- **No local Markdown mirror.** No `.specflow/backlog/` task files.
+.specflow/memory/constitution.md:126:- **`/specflow specify "<feature>"`** — greenfield feature requiring a spec →
+.specflow/memory/constitution.md:138:- **Specs** — `.specflow/specs/<feature>/` (`spec.md`, `plan.md`, `tasks.md`,
+.specflow/memory/constitution.md:140:- **Constitution** — this file (`.specflow/memory/constitution.md`).
+.specflow/memory/constitution.md:3:> Invariants of the Lockness framework. Specflow commands and review agents read
+.specflow/scripts/backlog/_config.sh:2:# Helper: read repo + project_number from .specflow/backlog-config.yml.
+.specflow/scripts/backlog/_config.sh:7:CONFIG="$ROOT/.specflow/backlog-config.yml"
+.specflow/scripts/backlog/ensure-labels.sh:2:# Bootstrap the Specflow semantic label set on the configured GitHub repo.
+.specflow/scripts/backlog/ensure-labels.sh:31:echo "Bootstrapping Specflow semantic labels on $REPO …"
+.specflow/scripts/bash/check-prerequisites.sh:118:    echo "Run /specflow specify first to create the feature structure." >&2
+.specflow/scripts/bash/check-prerequisites.sh:124:    echo "Run /specflow plan first to create the implementation plan." >&2
+.specflow/scripts/bash/check-prerequisites.sh:131:    echo "Run /specflow tasks first to create the task list." >&2
+.specflow/scripts/bash/common.sh:162:    local specs_dir="$repo_root/.specflow/specs"
+.specflow/scripts/bash/common.sh:176:    # Search for directories in .specflow/specs/ that start with this prefix
+.specflow/scripts/bash/common.sh:212:    #   2. .specflow/feature.json "feature_directory" key (persisted by /specflow specify)
+.specflow/scripts/bash/common.sh:219:    elif [[ -f "$repo_root/.specflow/feature.json" ]]; then
+.specflow/scripts/bash/common.sh:222:            _fd=$(jq -r '.feature_directory // empty' "$repo_root/.specflow/feature.json" 2>/dev/null)
+.specflow/scripts/bash/common.sh:225:            _fd=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('feature_directory',''))" "$repo_root/.specflow/feature.json" 2>/dev/null)
+.specflow/scripts/bash/common.sh:228:            _fd=$(grep -o '"feature_directory"[[:space:]]*:[[:space:]]*"[^"]*"' "$repo_root/.specflow/feature.json" 2>/dev/null | sed 's/.*"\([^"]*\)"$/\1/')
+.specflow/scripts/bash/common.sh:295:#   1. .specflow/templates/overrides/
+.specflow/scripts/bash/common.sh:296:#   2. .specflow/presets/<preset-id>/templates/ (sorted by priority from .registry)
+.specflow/scripts/bash/common.sh:297:#   3. .specflow/extensions/<ext-id>/templates/
+.specflow/scripts/bash/common.sh:298:#   4. .specflow/templates/ (core)
+.specflow/scripts/bash/common.sh:302:    local base="$repo_root/.specflow/templates"
+.specflow/scripts/bash/common.sh:309:    local presets_dir="$repo_root/.specflow/presets"
+.specflow/scripts/bash/common.sh:317:            if sorted_presets=$(SPECFLOW_REGISTRY="$registry_file" python3 -c "
+.specflow/scripts/bash/common.sh:320:    with open(os.environ['SPECFLOW_REGISTRY']) as f:
+.specflow/scripts/bash/common.sh:356:    local ext_dir="$repo_root/.specflow/extensions"
+.specflow/scripts/bash/common.sh:386:    local base="$repo_root/.specflow/templates"
+.specflow/scripts/bash/common.sh:400:    local presets_dir="$repo_root/.specflow/presets"
+.specflow/scripts/bash/common.sh:405:            if sorted_presets=$(SPECFLOW_REGISTRY="$registry_file" python3 -c "
+.specflow/scripts/bash/common.sh:408:    with open(os.environ['SPECFLOW_REGISTRY']) as f:
+.specflow/scripts/bash/common.sh:429:                            result=$(SPECFLOW_MANIFEST="$manifest" SPECFLOW_TMPL="$template_name" python3 -c "
+.specflow/scripts/bash/common.sh:438:    with open(os.environ['SPECFLOW_MANIFEST']) as f:
+.specflow/scripts/bash/common.sh:441:        if t.get('name') == os.environ['SPECFLOW_TMPL'] and t.get('type', 'template') == 'template':
+.specflow/scripts/bash/common.sh:506:    local ext_dir="$repo_root/.specflow/extensions"
+.specflow/scripts/bash/common.sh:64:    local specs_dir="$repo_root/.specflow/specs"
+.specflow/scripts/bash/create-new-feature.sh:228:SPECS_DIR="$REPO_ROOT/.specflow/specs"
+.specflow/scripts/bash/create-new-feature.sh:84:            echo "                      surfaces in JSON output and is persisted to .specflow/feature.json"
+.specflow/scripts/bash/create-new-feature.sh:85:            echo "                      so /specflow merge can close the loop on the project board."
+.specflow/scripts/powershell/check-prerequisites.ps1:104:    Write-Output "Run /specflow.tasks first to create the task list."
+.specflow/scripts/powershell/check-prerequisites.ps1:91:    Write-Output "Run /specflow.specify first to create the feature structure."
+.specflow/scripts/powershell/check-prerequisites.ps1:97:    Write-Output "Run /specflow.plan first to create the implementation plan."
+.specflow/scripts/powershell/common.ps1:132:function Get-SpecflowEffectiveBranchName {
+.specflow/scripts/powershell/common.ps1:153:    $Branch = Get-SpecflowEffectiveBranchName $raw
+.specflow/scripts/powershell/common.ps1:167:# Resolve .specflow/specs/<feature-dir> by numeric/timestamp prefix (mirrors scripts/bash/common.sh find_feature_dir_by_prefix).
+.specflow/scripts/powershell/common.ps1:173:    $specsDir = Join-Path $RepoRoot '.specflow' 'specs'
+.specflow/scripts/powershell/common.ps1:174:    $branchName = Get-SpecflowEffectiveBranchName $Branch
+.specflow/scripts/powershell/common.ps1:223:    #   2. .specflow/feature.json "feature_directory" key (persisted by /specflow.specify)
+.specflow/scripts/powershell/common.ps1:225:    $featureJson = Join-Path $repoRoot '.specflow/feature.json'
+.specflow/scripts/powershell/common.ps1:237:            [Console]::Error.WriteLine("ERROR: Failed to parse .specflow/feature.json: $_")
+.specflow/scripts/powershell/common.ps1:306:#   1. .specflow/templates/overrides/
+.specflow/scripts/powershell/common.ps1:307:#   2. .specflow/presets/<preset-id>/templates/ (sorted by priority from .registry)
+.specflow/scripts/powershell/common.ps1:308:#   3. .specflow/extensions/<ext-id>/templates/
+.specflow/scripts/powershell/common.ps1:309:#   4. .specflow/templates/ (core)
+.specflow/scripts/powershell/common.ps1:316:    $base = Join-Path $RepoRoot '.specflow/templates'
+.specflow/scripts/powershell/common.ps1:323:    $presetsDir = Join-Path $RepoRoot '.specflow/presets'
+.specflow/scripts/powershell/common.ps1:358:    $extDir = Join-Path $RepoRoot '.specflow/extensions'
+.specflow/scripts/powershell/common.ps1:382:    $base = Join-Path $RepoRoot '.specflow/templates'
+.specflow/scripts/powershell/common.ps1:396:    $presetsDir = Join-Path $RepoRoot '.specflow/presets'
+.specflow/scripts/powershell/common.ps1:506:    $extDir = Join-Path $RepoRoot '.specflow/extensions'
+.specflow/scripts/powershell/common.ps1:71:    $specsDir = Join-Path $repoRoot ".specflow" "specs"
+.specflow/scripts/powershell/create-new-feature.ps1:189:$specsDir = Join-Path $repoRoot '.specflow' 'specs'
+.specflow/scripts/powershell/create-new-feature.ps1:32:    Write-Host "                      surfaces in JSON output and is persisted to .specflow/feature.json"
+.specflow/scripts/powershell/create-new-feature.ps1:33:    Write-Host "                      so /specflow merge can close the loop on the project board."
+.specflow/scripts/release/tag.sh:12:#     new commit. This is what `/specflow tag-version` runs.
+.specflow/scripts/release/tag.sh:19:# happens after `/specflow release-version` creates the GitHub release
+.specflow/specs/agent-team-architecture/spec.md:18:- The `.claude/skills/backlog/SKILL.md` exists but points to `mkrlabs/specflow`
+.specflow/templates/checklist-template.md:13:  The __SPECFLOW_COMMAND_CHECKLIST__ command MUST replace these with actual items based on:
+.specflow/templates/checklist-template.md:6:**Note**: This checklist is generated by the `__SPECFLOW_COMMAND_CHECKLIST__`
+.specflow/templates/constitution-template.md:5:## Engineering methodology (Specflow baseline)
+.specflow/templates/constitution-template.md:7:> Specflow ships these as opinionated defaults. Amend, soften, or remove per
+.specflow/templates/plan-template.md:49:.specflow/specs/[###-feature]/
+.specflow/templates/plan-template.md:5:`/.specflow/specs/[###-feature-name]/spec.md`
+.specflow/templates/plan-template.md:50:├── plan.md              # This file (__SPECFLOW_COMMAND_PLAN__ command output)
+.specflow/templates/plan-template.md:51:├── research.md          # Phase 0 output (__SPECFLOW_COMMAND_PLAN__ command)
+.specflow/templates/plan-template.md:52:├── data-model.md        # Phase 1 output (__SPECFLOW_COMMAND_PLAN__ command)
+.specflow/templates/plan-template.md:53:├── quickstart.md        # Phase 1 output (__SPECFLOW_COMMAND_PLAN__ command)
+.specflow/templates/plan-template.md:54:├── contracts/           # Phase 1 output (__SPECFLOW_COMMAND_PLAN__ command)
+.specflow/templates/plan-template.md:55:└── tasks.md             # Phase 2 output (__SPECFLOW_COMMAND_TASKS__ command - NOT created by __SPECFLOW_COMMAND_PLAN__)
+.specflow/templates/plan-template.md:7:**Note**: This template is filled in by the `__SPECFLOW_COMMAND_PLAN__` command.
+.specflow/templates/plan-template.md:8:See `.specflow/templates/plan-template.md` for the execution workflow.
+.specflow/templates/spec-template.md:112:  ACTION REQUIRED: Populated by the Product Owner during /specflow clarify.
+.specflow/templates/tasks-template.md:34:  The __SPECFLOW_COMMAND_TASKS__ command MUST replace these with actual tasks based on:
+.specflow/templates/tasks-template.md:7:**Input**: Design documents from `/.specflow/specs/[###-feature-name]/`
+AGENTS.md:43:## 🛤️ Workflows: Specflow + Orchestrate
+AGENTS.md:47:- **`/specflow specify "<feature>"`** — chained pipeline (clarify → plan → tasks
+AGENTS.md:50:  live under `.specflow/specs/<feature>/`. The SpecFlow constitution is
+AGENTS.md:51:  `.specflow/memory/constitution.md`.
