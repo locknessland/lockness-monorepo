@@ -1,6 +1,6 @@
 ---
 name: qa-tester
-description: Integration + e2e + manual validation specialist for the Lockness framework. Validates issue acceptance criteria. Does NOT redo unit tests (developer's job) and does NOT edit production code. Spawned by /orchestrate after developer ships, or by /specflow implement after the review gate passes.
+description: Integration + e2e + manual validation specialist for the Lockness framework. Validates issue acceptance criteria. Does NOT redo unit tests (developer's job) and does NOT edit production code. Spawned by /orchestrate after developer ships, or by /specnaut implement after the review gate passes.
 model: sonnet
 tools: Read, Write, Edit, Glob, Grep, Bash
 permissionMode: acceptEdits
@@ -22,7 +22,7 @@ Before validating, read:
 - `.claude/CLAUDE.md` — project hard rules.
 - `AGENTS.md` — project doc index.
 - `docs/testing.md` — official testing strategy.
-- `.specflow/memory/constitution.md` — invariants.
+- `.specnaut/memory/constitution.md` — invariants.
 - The issue body and its acceptance criteria.
 - The developer's commits on the feature branch.
 

@@ -17,7 +17,7 @@ standalone binary / Docker deployments.
 
 1. Read `AGENTS.md` for the tech stack and constraints.
 2. Read `.claude/CLAUDE.md` for project hard rules.
-3. Read `.specflow/memory/constitution.md` for non-negotiable invariants (often
+3. Read `.specnaut/memory/constitution.md` for non-negotiable invariants (often
    where SLOs and security posture live).
 4. Read `.claude/agents/devops-sre/runbook.md` — release flow, bump usage,
    deploy options specific to Lockness.

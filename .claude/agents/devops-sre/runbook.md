@@ -44,15 +44,15 @@ Runs on `release: published`. Steps:
 > Both workflows use `deno-version: v2.x`. Bump with caution — pin a specific
 > minor if you need stability.
 
-## Release pipeline — automated via SpecFlow
+## Release pipeline — automated via Specnaut
 
 The full chain from "I want to ship" to "JSR has new packages" is two slash
 commands. No manual `deno task bump`, no manual `gh release create`. CI does the
 publish.
 
 ```
-/specflow tag-version [--bump major|minor|patch]
-   └─ .specflow/scripts/release/tag.sh
+/specnaut tag-version [--bump major|minor|patch]
+   └─ .specnaut/scripts/release/tag.sh
          ├─ refuses dirty working tree
          ├─ deno task bump --<bump>            ← scripts/bump.ts
          │     ├─ rewrites deno.jsonc (version + @lockness/* imports)
@@ -62,8 +62,8 @@ publish.
          ├─ git tag -a vX.Y.Z -m "Release vX.Y.Z ..."
          └─ git push origin <branch> && git push origin vX.Y.Z
 
-/specflow release-version
-   └─ .specflow/scripts/release/release-github.sh
+/specnaut release-version
+   └─ .specnaut/scripts/release/release-github.sh
          ├─ baseline = previous DEPLOYED tag (skips tags w/o release)
          ├─ categorized notes from Conventional-Commits buckets
          └─ gh release create vX.Y.Z --notes-file -
@@ -83,13 +83,13 @@ deno.jsonc field is the source of truth for "what version is next."
 
 | Path                                                | Owner of...                                                                   |
 | --------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `.specflow/scripts/release/tag.sh`                  | bump → commit → tag → push orchestration (Lockness-customized SemVer mode)    |
-| `.specflow/scripts/release/release-github.sh`       | categorized release notes + `gh release create`                               |
+| `.specnaut/scripts/release/tag.sh`                  | bump → commit → tag → push orchestration (Lockness-customized SemVer mode)    |
+| `.specnaut/scripts/release/release-github.sh`       | categorized release notes + `gh release create`                               |
 | `scripts/bump.ts`                                   | atomic monorepo version rewrite (`deno.jsonc`, `packages/*/deno.json`, stubs) |
 | `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
 | `.github/workflows/test.yml`                        | PR gate: fmt/lint/check/test                                                  |
-| `.claude/skills/specflow/phases/tag-version.md`     | `/specflow tag-version` skill contract                                        |
-| `.claude/skills/specflow/phases/release-version.md` | `/specflow release-version` skill contract                                    |
+| `.claude/skills/specnaut/phases/tag-version.md`     | `/specnaut tag-version` skill contract                                        |
+| `.claude/skills/specnaut/phases/release-version.md` | `/specnaut release-version` skill contract                                    |
 
 ## Invariants
 
@@ -101,7 +101,7 @@ deno.jsonc field is the source of truth for "what version is next."
   publisher — duplicate publish will fail and pollute the audit trail.
 - **Never amend a pushed annotated tag.** Tags are immutable on origin once
   pushed. If wrong: delete remote (`git push --delete origin vX.Y.Z`), delete
-  local, re-run `/specflow tag-version`.
+  local, re-run `/specnaut tag-version`.
 - **Never edit `deno.lock` by hand.** It is generated.
 - **Manual mode (`tag.sh <sha>`) does not bump.** It only tags existing commits
   — useful for back-tagging historical releases, never for new releases.

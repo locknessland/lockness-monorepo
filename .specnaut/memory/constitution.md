@@ -1,6 +1,6 @@
 # Lockness — Project Constitution
 
-> Invariants of the Lockness framework. Specflow commands and review agents read
+> Invariants of the Lockness framework. Specnaut commands and review agents read
 > this at every step. The **hard rules** are mirrored in
 > [.claude/CLAUDE.md](../../.claude/CLAUDE.md) (always loaded into agent
 > contexts). The doc index lives in [AGENTS.md](../../AGENTS.md).
@@ -41,8 +41,8 @@ review.
 - **Domain-Driven Design** — pure domain (no I/O), application layer (use cases
   / ports), infrastructure layer (adapters), presentation layer talks only to
   use cases.
-- **Domain Model gate** — every spec or PO brief contains a `## Domain Model`
-  block (bounded context, vocabulary, entities, value objects, invariants, out
+- **Domain Model gate** — every `plan.md` or PO brief contains a `## Domain
+  Model` block (bounded context, vocabulary, entities, value objects, invariants, out
   of scope). Developer refuses to implement without it.
 - **Boy Scout Rule with escalation** — small in-scope cleanups inline; large
   cleanups surfaced as tech-debt tickets via the PO intake protocol.
@@ -114,7 +114,7 @@ review.
 ## Backlog & process
 
 - **Source of truth** — GitHub Project #1 of `locknessland/lockness`.
-- **No local Markdown mirror.** No `.specflow/backlog/` task files.
+- **No local Markdown mirror.** No `.specnaut/backlog/` task files.
 - **Classification gate** — every item exits with Size, Priority, Issue Type,
   and ≥1 classifying label (see `product-owner` agent).
 - **Status workflow** — Backlog → Ready → In progress → In review → Done.
@@ -123,9 +123,11 @@ review.
 
 ## When to use which workflow
 
-- **`/specflow specify "<feature>"`** — greenfield feature requiring a spec →
-  plan → tasks chain. Complexity ≥ 8 story points, new entities, new user flows,
-  API contract design.
+- **`/specnaut plan "<feature>"`** — greenfield feature requiring the
+  plan → tasks → implement → review → merge chain. Complexity ≥ 8 story points,
+  new entities, new user flows, API contract design. Discovery, specification
+  and clarification happen inside `plan`; there is no separate `specify` or
+  `clarify` phase.
 - **`/orchestrate`** — backlog issue with clear scope (≤ 5 story points, bug
   fix, refactor, small enhancement, docs, tooling).
 - **Direct developer dispatch** — trivial: one-file rename, lint fix, config
@@ -135,9 +137,12 @@ review.
 
 - **Code** — `packages/*/`, `app/`, `scripts/`, `config/`.
 - **Docs** — `docs/`, `packages/*/docs/`, `packages/ui/components/*/DOCS.md`.
-- **Specs** — `.specflow/specs/<feature>/` (`spec.md`, `plan.md`, `tasks.md`,
-  `review.md`).
-- **Constitution** — this file (`.specflow/memory/constitution.md`).
+- **Specs** — `.specnaut/specs/<feature>/`. A v3 feature produces exactly two
+  artefacts: `plan.md` and `tasks.md`. Directories created before the v3
+  migration also contain `spec.md`, `research.md`, `data-model.md`,
+  `quickstart.md`, `contracts/` or `checklists/` — those are historical records
+  and are not rewritten.
+- **Constitution** — this file (`.specnaut/memory/constitution.md`).
 - **Agents** — `.claude/agents/<name>.md` (+ optional
   `.claude/agents/<name>/runbook.md`).
 - **Skills** — `.claude/skills/<name>/SKILL.md`.

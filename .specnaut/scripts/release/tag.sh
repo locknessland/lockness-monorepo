@@ -9,14 +9,14 @@
 #     every `packages/*/deno.json`, inter-package `jsr:@lockness/*`
 #     imports, and stub files in one atomic step. The script then
 #     commits those changes as `chore(release): vX.Y.Z` and tags the
-#     new commit. This is what `/specflow tag-version` runs.
+#     new commit. This is what `/specnaut tag-version` runs.
 #
 #   tag.sh [--bump <major|minor|patch>] [--no-push] <commit-sha>
 #     Manual mode. Tags an existing commit. No file edits, no commit.
 #     SemVer math runs locally from the latest tag.
 #
 # `publish.yml` triggers on `release: published`, so the JSR publish
-# happens after `/specflow release-version` creates the GitHub release
+# happens after `/specnaut release-version` creates the GitHub release
 # from the tag this script produced.
 set -euo pipefail
 

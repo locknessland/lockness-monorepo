@@ -1,0 +1,2 @@
+.claude/agents/specnaut-guide.md:121:`https://github.com/specnaut/specnaut-cli/issues/new?title=…&body=…&labels=bug,from%3Aspecnaut-expert`
+.specnaut/specs/agent-team-architecture/spec.md:18:- The `.claude/skills/backlog/SKILL.md` exists but points to `mkrlabs/specflow`

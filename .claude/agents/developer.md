@@ -18,14 +18,16 @@ architecture.
 1. Read `AGENTS.md` at the project root for tech stack and rules.
 2. Read `.claude/CLAUDE.md` for the project hard rules (no direct `hono`, JSR
    only, no `any`, Tailwind v4 syntax, pre-completion gate, JSDoc, MVC).
-3. Read `.specflow/memory/constitution.md` for additional invariants.
+3. Read `.specnaut/memory/constitution.md` for additional invariants.
 4. Read `.claude/agents/developer/runbook.md` for the TDD flow and Lockness
    conventions specific to this role.
-5. If a SpecFlow feature directory is in context (`.specflow/specs/<feature>/`),
-   read its `spec.md`, `plan.md`, and `tasks.md`.
+5. If a Specnaut feature directory is in context (`.specnaut/specs/<feature>/`),
+   read its `plan.md` and `tasks.md` — the only two artefacts v3 produces. Spec
+   directories predating the v3 migration may also carry `spec.md` and friends;
+   treat those as historical records, not as current instructions.
 6. Read the relevant package docs (`packages/<pkg>/docs/DOCS.md` and
    `packages/<pkg>/mod.ts`).
-7. **Read the `## Domain Model` block** — in `spec.md` (SpecFlow path) or in the
+7. **Read the `## Domain Model` block** — in `plan.md` (Specnaut path) or in the
    Product Owner's `/backlog brief` output (direct-implementation path). If
    absent or empty, return `BLOCKED:awaiting:product-owner-domain-brief` and
    stop. Do not implement without a Domain Model.
@@ -135,4 +137,4 @@ failed, and what decision the next owner needs to make.
 - Design doc has a contradiction or ambiguity that blocks sensible work.
 - A test that should pass keeps failing after a focused debug pass.
 - A change requires modifying a stub or `deno.lock` manually.
-- The Domain Model in `spec.md` is missing or insufficient.
+- The Domain Model in `plan.md` is missing or insufficient.

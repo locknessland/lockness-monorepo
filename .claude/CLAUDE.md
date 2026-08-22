@@ -45,8 +45,8 @@ blockers, not preferences.
 
 The backlog source of truth is **GitHub Project #1** of `locknessland/lockness`
 (https://github.com/orgs/locknessland/projects/1/views/1). Reads/writes go
-through the `/backlog` skill or the SpecFlow product-owner agent — both share
-the same `gh` CLI backend (config in `.specflow/backlog-config.yml`). The legacy
+through the `/backlog` skill or the Specnaut product-owner agent — both share
+the same `gh` CLI backend (config in `.specnaut/backlog-config.yml`). The legacy
 `.tasks/` folder has been removed.
 
 ## Agents, skills, and workflows
@@ -60,21 +60,39 @@ Two complementary workflows coexist:
   → developer → qa-tester → code-reviewer, with docs-writer / devops-sre in
   parallel when relevant). Use for backlog issues that map to our team layout.
   Skill at `.claude/skills/orchestrate/SKILL.md`.
-- **`/specflow specify "<feature>"`** — SpecFlow chained pipeline (clarify →
-  plan → tasks → analyze → implement → review → merge). Use for greenfield
-  features needing a written spec + plan + tasks tree before implementation.
-  Skill at `.claude/skills/specflow/SKILL.md`.
+- **`/specnaut plan "<feature>"`** — Specnaut chained pipeline: **plan → tasks
+  → implement → review → merge** (five phases, not nine). Use for greenfield
+  features needing a written plan + tasks tree before implementation.
+  Skill at `.claude/skills/specnaut/SKILL.md`.
 
-New specifications live under `.specflow/specs/<feature>/`. Project principles
-for the SpecFlow pipeline live in `.specflow/memory/constitution.md` — it
+Specnaut v3 facts worth knowing before you invoke it:
+
+- **Discovery, specification and clarification all happen inside `plan`.** There
+  is no `specify`, `clarify`, `brainstorm`, `checklist` or `list-skills` phase —
+  invoking one of those names prints the phase index and stops.
+- **`analyze` was replaced, not moved.** Its job is now a binding decision table
+  inside `plan.md` plus two plan audits (`architect-expert` + `security-expert`)
+  dispatched in parallel *before any code exists*.
+- **A feature produces exactly two artefacts**: `plan.md` and `tasks.md`.
+- **`--manual` is the only surviving flag.** `--once`, `--continue`, `--lite`
+  and `--full` are gone; re-entry is inferred from which artefacts exist.
+- **There are exactly two stops**: the end of `plan`, and the `review` verdict.
+- **`merge` does not open a PR by default** — it fast-forwards the base locally
+  and squashes by scope. A PR is opt-in via `--pr`.
+
+New specifications live under `.specnaut/specs/<feature>/`. Project principles
+for the Specnaut pipeline live in `.specnaut/memory/constitution.md` — it
 complements (it does not replace) the hard rules above.
+
+Spec directories written before the v3 migration are **historical records**, not
+live rules. `plan` reads them without failing; do not rewrite them.
 
 ## Optional Claude Code integrations
 
 Set up if useful to your workflow.
 
 - **Periodic maintenance** — `/loop 1h` runs `.claude/loop.md` every hour. The
-  bundled default delegates to `/specflow groom`. See
+  bundled default delegates to `/specnaut groom`. See
   https://code.claude.com/docs/fr/scheduled-tasks.
 - **Goal-directed sessions** — `/goal <condition>` keeps turns running until a
   fast model judges the condition met. See https://code.claude.com/docs/fr/goal.
@@ -84,7 +102,7 @@ Set up if useful to your workflow.
   https://code.claude.com/docs/fr/agent-view.
 - **Async notifications** — install Telegram / Discord / iMessage channel
   plugins for long-task pings. See https://code.claude.com/docs/fr/channels.
-- **Headless / CI** — `claude -p "<prompt>"` runs non-interactively. SpecFlow
+- **Headless / CI** — `claude -p "<prompt>"` runs non-interactively. Specnaut
   ships `.claude/scripts/dispatch-agent.sh <agent-name> "<prompt>"` which
   auto-derives `--allowedTools` from agent frontmatter. See
   https://code.claude.com/docs/fr/headless.

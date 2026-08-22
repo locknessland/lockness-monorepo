@@ -40,15 +40,17 @@ Hono functionalities.
 
 ---
 
-## 🛤️ Workflows: Specflow + Orchestrate
+## 🛤️ Workflows: Specnaut + Orchestrate
 
 Lockness uses two complementary workflows. Pick the one that fits the task.
 
-- **`/specflow specify "<feature>"`** — chained pipeline (clarify → plan → tasks
-  → analyze → implement → review → merge). Use for greenfield features needing a
-  written spec + plan + tasks tree before implementation. New specifications
-  live under `.specflow/specs/<feature>/`. The SpecFlow constitution is
-  `.specflow/memory/constitution.md`.
+- **`/specnaut plan "<feature>"`** — chained pipeline: **plan → tasks →
+  implement → review → merge**. Use for greenfield features needing a written
+  plan + tasks tree before implementation. Discovery, specification and
+  clarification all happen inside `plan`; a feature produces exactly two
+  artefacts, `plan.md` and `tasks.md`. New specifications live under
+  `.specnaut/specs/<feature>/`. The Specnaut constitution is
+  `.specnaut/memory/constitution.md`.
 - **`/orchestrate`** — Lockness multi-agent dispatch (product-owner → architect
   → developer → qa-tester → code-reviewer, with docs-writer / devops-sre in
   parallel). Use for backlog issues that map cleanly to our team layout. Skill

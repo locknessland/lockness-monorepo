@@ -2,7 +2,7 @@
 name: backlog
 description: Manage Lockness's product backlog directly on GitHub Project #1 ("Lockness Framework", org locknessland). Use when the user asks to "list the backlog", "add to the backlog", "what's next", "move task X to in-progress / done", "open an issue for Y", or any backlog/project management on this repo. Source of truth is GitHub — there is no local markdown copy.
 argument-hint: [list|next|add|update|estimate|status|groom|brief] [args]
-allowed-tools: Bash(gh *) Bash(.specflow/scripts/backlog/*.sh) Bash(jq *) Bash(column *) Bash(sort *)
+allowed-tools: Bash(gh *) Bash(.specnaut/scripts/backlog/*.sh) Bash(jq *) Bash(column *) Bash(sort *)
 ---
 
 # Backlog skill — Lockness (GitHub Project #1)
@@ -10,7 +10,7 @@ allowed-tools: Bash(gh *) Bash(.specflow/scripts/backlog/*.sh) Bash(jq *) Bash(c
 The backlog lives on **GitHub Project #1 "Lockness Framework"** (org-owned by
 `locknessland`), backed by issues in **`locknessland/lockness`**. **No local
 markdown mirror** — GitHub is the source of truth. Everything goes through `gh`
-CLI; wrappers under `.specflow/scripts/backlog/` cover the common operations.
+CLI; wrappers under `.specnaut/scripts/backlog/` cover the common operations.
 
 ## All mutations go through the Product Owner agent
 
@@ -35,7 +35,7 @@ clarification, classification, and triage decisions still go through the PO.
 
 ## Project handles
 
-Configuration is loaded by `_config.sh` from `.specflow/backlog-config.yml`. The
+Configuration is loaded by `_config.sh` from `.specnaut/backlog-config.yml`. The
 cached identifiers below are filled on first script invocation.
 
 | Thing             | Value                                                                                                   |
@@ -55,21 +55,21 @@ gh project field-list 1 --owner locknessland --format json | jq '.fields[] | sel
 gh project view 1 --owner locknessland --format json | jq '.id'
 ```
 
-…and update `.specflow/backlog-config.yml`.
+…and update `.specnaut/backlog-config.yml`.
 
 ## Scripts (preferred path)
 
 ```bash
-.specflow/scripts/backlog/list.sh [Status]                              # all items, optional Status filter
-.specflow/scripts/backlog/view.sh <number>                              # one issue + comments
-.specflow/scripts/backlog/add.sh "<title>" [body] [labels-csv]          # create issue + attach to project
-.specflow/scripts/backlog/add.sh --parent <num> "<title>" ...           # create sub-issue under parent epic
-.specflow/scripts/backlog/move.sh <number> <Status>                     # Backlog|Ready|"In progress"|"In review"|Done
-.specflow/scripts/backlog/clarify-comment.sh <number> "<question>"      # leave a question on the issue
-.specflow/scripts/backlog/cascade-check.sh <number>                     # epic close gate (exit 0 = safe, 11 = blocked)
-.specflow/scripts/backlog/detect-fields.sh                              # discover native Priority/Size fields
-.specflow/scripts/backlog/set-field.sh <num> <Priority|Size|IssueType> <value>  # set native field; exit 10/11 = label fallback, 12 = not on project
-.specflow/scripts/backlog/ensure-labels.sh                              # idempotently bootstrap semantic labels
+.specnaut/scripts/backlog/list.sh [Status]                              # all items, optional Status filter
+.specnaut/scripts/backlog/view.sh <number>                              # one issue + comments
+.specnaut/scripts/backlog/add.sh "<title>" [body] [labels-csv]          # create issue + attach to project
+.specnaut/scripts/backlog/add.sh --parent <num> "<title>" ...           # create sub-issue under parent epic
+.specnaut/scripts/backlog/move.sh <number> <Status>                     # Backlog|Ready|"In progress"|"In review"|Done
+.specnaut/scripts/backlog/clarify-comment.sh <number> "<question>"      # leave a question on the issue
+.specnaut/scripts/backlog/cascade-check.sh <number>                     # epic close gate (exit 0 = safe, 11 = blocked)
+.specnaut/scripts/backlog/detect-fields.sh                              # discover native Priority/Size fields
+.specnaut/scripts/backlog/set-field.sh <num> <Priority|Size|IssueType> <value>  # set native field; exit 10/11 = label fallback, 12 = not on project
+.specnaut/scripts/backlog/ensure-labels.sh                              # idempotently bootstrap semantic labels
 ```
 
 For closing or editing, use `gh` directly — no wrapper needed:
@@ -89,7 +89,7 @@ the structured `mcp__github__*` tools (`mcp__github__list_issues`,
 `mcp__github__get_issue`, etc.). They return JSON, no shell parsing needed.
 
 Otherwise the PO falls back to the shell scripts above. The skill is path-aware:
-switching MCP on/off requires no SpecFlow change.
+switching MCP on/off requires no Specnaut change.
 
 ## Why we don't use `gh project item-list`
 
@@ -159,4 +159,4 @@ children under the parent's `Sub-issues progress` field.
   `gh project item-add 1 --owner locknessland --url <issue-url>`.
 - The Status field/option IDs above don't match a query result → the project
   layout was edited; refresh with the commands above and update
-  `.specflow/backlog-config.yml` (and re-cache IDs on next script run).
+  `.specnaut/backlog-config.yml` (and re-cache IDs on next script run).
