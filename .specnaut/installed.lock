@@ -3,7 +3,7 @@ harness: claude
 backlog_backend: github
 version_scheme: date
 spec_backend: local
-templates_version: 3.0.1
+templates_version: 3.1.0
 entries:
   .claude/CLAUDE.md:
     sha256: cc39eba673e636abca2300cc3fbd580345f79b0e42203316475062d5160771f8
@@ -54,9 +54,9 @@ entries:
     installed_at: '2026-08-22T14:53:31.462Z'
     templates_version: 3.0.1
   .claude/agents/product-owner/memory/MEMORY.md:
-    sha256: 441095011d6114c657fc2cb678822ce09d3bfbbd9c2c7ce617e2ece9f8338bf4
-    installed_at: '2026-08-22T14:53:31.514Z'
-    templates_version: 3.0.1
+    sha256: d5bc3d0fc9deabce625732abae50bca7a0a8ed27b7292f9b2d576e6b232da944
+    installed_at: '2026-08-22T15:26:45.171Z'
+    templates_version: 3.1.0
   .claude/agents/qa-tester.md:
     sha256: b5d5158c2b604027f2ff2645083fa4886a6791010d3fe723786f74b242b75651
     installed_at: '2026-08-22T14:53:31.412Z'
@@ -142,9 +142,9 @@ entries:
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
   .claude/skills/backlog/SKILL.md:
-    sha256: d967446f91f30f81b7d10418ebfd6e22b1d6f120d45ee94b1e1c9de31bf362d3
-    installed_at: '2026-08-22T14:53:31.539Z'
-    templates_version: 3.0.1
+    sha256: 4f7aef8852739c374b4393683431778b979d94ecf59adfc85f91e4ed4f40f712
+    installed_at: '2026-08-22T15:26:45.171Z'
+    templates_version: 3.1.0
   .claude/skills/brainstorming/SKILL.md:
     sha256: 19034fa701725f606edfdfe5a7bad8f549fbb1c97041beaa5c933bb433be67fe
     installed_at: '2026-08-22T14:41:22.318Z'
@@ -222,17 +222,17 @@ entries:
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
   .claude/skills/specnaut/phases/groom.md:
-    sha256: c5b86b2c81ee86d45fc4d978ad0c9f99854cfce5bd491ac10376e23e254aa8ae
-    installed_at: '2026-08-22T14:41:22.318Z'
-    templates_version: 3.0.1
+    sha256: 74acf0941b2c0c4087470783612f0fb2cc174b2f72810bf4fd5dc9b944016bc7
+    installed_at: '2026-08-22T15:26:45.171Z'
+    templates_version: 3.1.0
   .claude/skills/specnaut/phases/implement.md:
     sha256: 807f418b02a8251d887231b08b3ca901daacf37959fe14e89778fd85da8382fb
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
   .claude/skills/specnaut/phases/merge.md:
-    sha256: 9ba37de181a81e27e8acc8aa13df98bb7f058fcbfed910e21bea2d8636d3d740
-    installed_at: '2026-08-22T14:41:22.318Z'
-    templates_version: 3.0.1
+    sha256: 5118d8ac067bd40ac0ccebb936b31f45e06aefbc2fb836623e2349c9a8147473
+    installed_at: '2026-08-22T15:26:45.171Z'
+    templates_version: 3.1.0
   .claude/skills/specnaut/phases/plan-audits.md:
     sha256: 0c3a1e3c4f9e26ca4976a17d487795123bac87bc7cb293a61a35643c01f16549
     installed_at: '2026-08-22T14:41:22.318Z'
@@ -909,6 +909,10 @@ entries:
     sha256: feab0488e44d91a89c9d8c0f8398e1936ec851835966dacc0052fab570c3f7dd
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
+  .specnaut/scripts/backlog/move-batch.sh:
+    sha256: d76677b601e512362127f1b669cdc75f85fe818396d782a922a8849f7d351c7e
+    installed_at: '2026-08-22T15:26:45.171Z'
+    templates_version: 3.1.0
   .specnaut/scripts/backlog/move.sh:
     sha256: 0972b521ed011a9a388e111a85ae0556c19385089a13502ba81747b329a20ad9
     installed_at: '2026-08-22T14:47:00.510Z'
@@ -921,6 +925,10 @@ entries:
     sha256: 954e63d49637ddfa44397764bfeff370e82dd2d055d655bfc69f10ae8f8862ee
     installed_at: '2026-08-22T14:47:00.598Z'
     templates_version: 3.0.1
+  .specnaut/scripts/backlog/sweep-closed.sh:
+    sha256: f4c0995e05b349bb6a2b30f1bbb25a47e5c00a0986cb70e908617752fa8c5efa
+    installed_at: '2026-08-22T15:26:45.171Z'
+    templates_version: 3.1.0
   .specnaut/scripts/backlog/view.sh:
     sha256: d005d127063b76d9504e40992e595abff754c3c8cdc3da75e825b652285ae595
     installed_at: '2026-08-22T14:41:22.318Z'
@@ -978,9 +986,9 @@ entries:
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
   .specnaut/scripts/release/tag.sh:
-    sha256: 4d8883d704f8437c2e7934da0b923452bdcfe1bf852165197936091ab55cad12
-    installed_at: '2026-08-22T14:53:31.588Z'
-    templates_version: 3.0.1
+    sha256: d0fd0456c930ec457a5980e888dcc5f76f05fdffb30a0208d3681c8ab3ffd39d
+    installed_at: '2026-08-22T15:26:45.171Z'
+    templates_version: 3.1.0
   .specnaut/templates/agent-file-template.md:
     sha256: 55ed438c2e861444ef22f45fe5238f3ebf0dc1cb6e53067d7232fbbf4ce82892
     installed_at: '2026-08-22T14:41:22.318Z'
@@ -996,8 +1004,4 @@ entries:
   .specnaut/templates/tasks-template.md:
     sha256: 5770a1442dc3b6b5174e819cb2a60fe7a28260cb06529fb060de22431dae3c97
     installed_at: '2026-08-22T14:47:01.437Z'
-    templates_version: 3.0.1
-  AGENTS.md:
-    sha256: 761f5e7e1b35767cdc5409a1d458bf5aae26241181a4d22aa646ffd2e7f295f8
-    installed_at: '2026-08-22T14:53:31.613Z'
     templates_version: 3.0.1
