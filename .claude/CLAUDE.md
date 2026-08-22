@@ -60,10 +60,10 @@ Two complementary workflows coexist:
   → developer → qa-tester → code-reviewer, with docs-writer / devops-sre in
   parallel when relevant). Use for backlog issues that map to our team layout.
   Skill at `.claude/skills/orchestrate/SKILL.md`.
-- **`/specnaut plan "<feature>"`** — Specnaut chained pipeline: **plan → tasks
-  → implement → review → merge** (five phases, not nine). Use for greenfield
-  features needing a written plan + tasks tree before implementation.
-  Skill at `.claude/skills/specnaut/SKILL.md`.
+- **`/specnaut plan "<feature>"`** — Specnaut chained pipeline: **plan → tasks →
+  implement → review → merge** (five phases, not nine). Use for greenfield
+  features needing a written plan + tasks tree before implementation. Skill at
+  `.claude/skills/specnaut/SKILL.md`.
 
 Specnaut v3 facts worth knowing before you invoke it:
 
@@ -72,7 +72,7 @@ Specnaut v3 facts worth knowing before you invoke it:
   invoking one of those names prints the phase index and stops.
 - **`analyze` was replaced, not moved.** Its job is now a binding decision table
   inside `plan.md` plus two plan audits (`architect-expert` + `security-expert`)
-  dispatched in parallel *before any code exists*.
+  dispatched in parallel _before any code exists_.
 - **A feature produces exactly two artefacts**: `plan.md` and `tasks.md`.
 - **`--manual` is the only surviving flag.** `--once`, `--continue`, `--lite`
   and `--full` are gone; re-entry is inferred from which artefacts exist.
