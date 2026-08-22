@@ -107,6 +107,10 @@
             // hand-maintain them (reconciled --accept-current), so they are
             // ours to format.
             ".claude/loop.md",
+            // Rewritten (re-indented to 2 spaces) by every `specnaut upgrade`,
+            // while deno fmt wants indentWidth 4 -- an endless tug of war on a
+            // file the CLI owns and the lock does not even track.
+            ".claude/settings.json",
             ".claude/security-patterns.yaml",
             ".claude/claude-security-guidance.md"
         ]
