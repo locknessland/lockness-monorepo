@@ -48,7 +48,10 @@ const DEFAULT_OPTIONS: ResolvedChannelOptions = {
  */
 export class SSEChannel {
     private readonly clients = new Map<string, ClientEntry>()
-    private readonly heartbeatIntervals = new Map<string, number>()
+    private readonly heartbeatIntervals = new Map<
+        string,
+        ReturnType<typeof setInterval>
+    >()
     private readonly encoder = new TextEncoder()
     private readonly formatter: SSEFormatter
 

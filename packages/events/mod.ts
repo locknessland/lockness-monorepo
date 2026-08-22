@@ -432,7 +432,7 @@ export function waitForEvent<T = unknown>(
     timeout?: number,
 ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-        let timer: number | undefined
+        let timer: ReturnType<typeof setTimeout> | undefined
 
         const listener = (data: T) => {
             if (timer) clearTimeout(timer)

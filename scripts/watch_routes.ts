@@ -28,7 +28,7 @@ async function watchControllers() {
     const watcher = Deno.watchFs(CONTROLLER_DIR)
 
     // Debounce mechanism to avoid multiple rapid regenerations
-    let debounceTimer: number | null = null
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     for await (const event of watcher) {
         // Only react to create, modify, remove events on controller files
