@@ -66,6 +66,20 @@ work rather than judging it", so `architect` is already correctly named. Both se
 were kept; merging them would have broken both workflows. Documented in
 `.claude/agents/architect.md` so they are not merged later.
 
+**Keeping a customized file silently drops what upstream added to it.** The five
+Specnaut-managed seats we had customized (code-reviewer, developer, product-owner,
+qa-tester, devops-sre) kept our bodies -- and lost the `skills:` declarations v3
+added: `review-findings-contract`, `workflow-contract`, `handoff-protocol`,
+`backlog-reference-contract`, `qa-report-contract`. Those contracts are what make an
+agent emit the machine-readable block the `review-coordinator` and the phase
+machinery parse. The agents would still have run and still looked fine, returning
+prose the pipeline cannot consume. Grafted the declarations onto our bodies.
+
+`review-coordinator` was a sharper version of the same problem: its frontmatter
+declared `Agent(code-reviewer, security-auditor, test-reviewer)`. That seat no
+longer exists, and the failure would have surfaced only when a review actually
+tried to fan out. Reconciling it to upstream fixed the name.
+
 **Orphan templates.** `spec-template.md` and `checklist-template.md` survived the
 directory move but are absent from the v3 lock — they belong to the deleted
 `specify` and `checklist` phases. Removed.
@@ -81,3 +95,28 @@ session's setting instead of a tier default. Both pinned to `effort: high`.
   (`packages/events/mod.ts`, `packages/sse/channel.ts`, `scripts/watch_routes.ts`).
   They fail the repo-wide pre-commit hook, so the markdown-only commits on this
   branch used `--no-verify`. Unrelated to this migration; worth its own ticket.
+
+## Verification performed
+
+- `specnaut check --project` -> all checks passed; lock matches bundled 3.0.1.
+- `specnaut reconcile --status` -> 0 pending.
+- Every agent name referenced in `.claude/skills/`, `.claude/agents/`,
+  `.claude/commands/`, `AGENTS.md` and `.claude/CLAUDE.md` resolves to a seat that
+  exists on disk: **0 dangling references** across 17 seats.
+- Every seat's frontmatter parses and its `name:` matches its filename.
+- `architect-expert` and `security-expert` are both present at `model: opus` /
+  `effort: xhigh`, and both are the names `plan-audits.md` dispatches.
+- `.specnaut/scripts/bash/common.sh` no longer resolves any `.specflow/` path.
+
+## Open decisions for the maintainer
+
+1. **A live `/specnaut plan` run** has not been executed. Dispatch was verified
+   statically (name resolution, frontmatter validity, dispatch targets), which
+   covers the dangling-seat failure mode, but a real run is the only thing that
+   exercises the harness end to end. It spawns two xhigh Opus plan audits and
+   creates a throwaway feature branch, so it is left as an explicit call.
+2. **Model tier.** Five seats (code-reviewer, developer, devops-sre,
+   product-owner, qa-tester) run on `model: sonnet` while Specnaut v3's own fleet
+   is uniformly `opus`. Their reasoning budget is now pinned explicitly, so
+   nothing is silently inherited, but the tier itself is a cost decision and was
+   deliberately not changed as part of a rename.
