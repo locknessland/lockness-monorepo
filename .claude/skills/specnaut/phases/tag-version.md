@@ -49,13 +49,29 @@ What the script does:
   production — in the recommended model, deploys are triggered by a
   *published release*, not by tags or branch pushes. See
   `/specnaut release-version` → "From release to production (CD)".
-- It does **not** edit version fields in `package.json` / `Cargo.toml`
-  / `pyproject.toml` / etc. The git tag **is** the version — single
-  source of truth.
 - It does **not** run tests, lint, or any quality gate. Run those
   yourself before tagging if your project needs them — the contract
   there is project-specific and lives outside Specnaut's tag/release
   flow.
+
+## Lockness override — `tag.sh` DOES bump version files
+
+The generic Specnaut doctrine is "the git tag is the version, the
+script does not touch `package.json` / `deno.json` / etc." **This
+project overrides that.** In bump-driven mode (no `<commit-sha>`
+argument), `tag.sh` runs `deno task bump --<bump>`, which atomically
+rewrites `deno.jsonc`, every `packages/*/deno.json`, all
+`jsr:@lockness/*` inter-package imports, and every stub file. The
+script then commits those changes as `chore(release): vX.Y.Z` and tags
+that commit.
+
+Why: JSR publishes from the `version` field in each `deno.json` — not
+from git tags. Tagging without bumping would publish stale versions.
+See `.claude/agents/devops-sre/runbook.md` for the full release
+pipeline.
+
+Manual mode (`tag.sh <commit-sha>`) skips the bump step and keeps
+Specnaut's original "tag an existing commit" semantic.
 
 ## After running
 

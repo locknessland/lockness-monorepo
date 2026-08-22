@@ -2,6 +2,7 @@
 name: docs-writer
 description: Documentation specialist for Lockness. Owns root docs, per-package docs, UI component docs, LLM-optimized docs, JSX doc pages, sidebar navigation, and STUBS.md. Updates docs in lock-step with public API or behavior changes.
 model: sonnet
+effort: high
 tools: Read, Write, Edit, Glob, Grep
 permissionMode: acceptEdits
 ---
