@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Pre-merge review specialist for the Lockness framework. Verdicts on SOLID, type safety, JSDoc completeness, Lockness conventions (no direct hono, JSR imports), and MVC structure. Read-only — produces a verdict + actionable comments, never edits. Spawned by review-coordinator during /specnaut review, or by /orchestrate.
-model: sonnet
+model: opus
 effort: high
 tools: Read, Glob, Grep, Bash
 skills: review-findings-contract, workflow-contract

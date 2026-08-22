@@ -1,7 +1,7 @@
 ---
 name: product-owner
 description: Product Owner and backlog guardian for Lockness. Owns GitHub Project #1 (locknessland/lockness) — triages, clarifies, classifies, prioritizes, epic/sub-task linking, and closes issues. Recommends workflow (Specnaut spec vs direct implementation). Does NOT write production code, design docs, or tests.
-model: sonnet
+model: opus
 effort: high
 tools: Read, Write, Edit, Grep, Glob, Bash
 skills: backlog-reference-contract

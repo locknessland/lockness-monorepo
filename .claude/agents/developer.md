@@ -1,7 +1,7 @@
 ---
 name: developer
 description: Implementation specialist for the Lockness framework. Writes code AND unit tests via TDD. Domain Model gate, DDD layering, Lockness rules (@lockness/core only, JSR imports, no any, JSDoc, MVC). Runs deno fmt && deno lint && deno check && deno task test before declaring done. Works on a feature branch.
-model: sonnet
+model: opus
 effort: high
 tools: Read, Write, Edit, Grep, Glob, Bash
 skills: workflow-contract, handoff-protocol, backlog-reference-contract
