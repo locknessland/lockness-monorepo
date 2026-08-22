@@ -4,6 +4,7 @@ description: Implementation specialist for the Lockness framework. Writes code A
 model: sonnet
 effort: high
 tools: Read, Write, Edit, Grep, Glob, Bash
+skills: workflow-contract, handoff-protocol, backlog-reference-contract
 permissionMode: acceptEdits
 isolation: worktree
 maxTurns: 80

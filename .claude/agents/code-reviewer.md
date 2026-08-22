@@ -4,6 +4,7 @@ description: Pre-merge review specialist for the Lockness framework. Verdicts on
 model: sonnet
 effort: high
 tools: Read, Glob, Grep, Bash
+skills: review-findings-contract, workflow-contract
 permissionMode: default
 maxTurns: 20
 color: yellow

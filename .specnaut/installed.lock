@@ -6,9 +6,9 @@ spec_backend: local
 templates_version: 3.0.1
 entries:
   .claude/CLAUDE.md:
-    sha256: 37fb65b0751972064010adaea92f13467217ee9153dd07f945aace27816d6a2a
-    installed_at: '2026-05-16T06:10:06.901Z'
-    templates_version: 1.6.0
+    sha256: cc39eba673e636abca2300cc3fbd580345f79b0e42203316475062d5160771f8
+    installed_at: '2026-08-22T14:53:31.564Z'
+    templates_version: 3.0.1
   .claude/agents/README.md:
     sha256: 710f26fb085d1f28864aa629192b47ade2a59a693bbc82b00da14c611b52b1ad
     installed_at: '2026-08-22T14:41:22.318Z'
@@ -22,25 +22,25 @@ entries:
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
   .claude/agents/code-reviewer.md:
-    sha256: 6e21c79d78ae31210b656e6dd06b7568fc9ff7f44af1199a54ff9ab4c3af89f8
-    installed_at: '2026-05-16T06:10:06.901Z'
-    templates_version: 1.6.0
+    sha256: 45c23a30b0d33a5b5a9c95c6dd11d15961d9e8e023304bd64b91f29eaaf61211
+    installed_at: '2026-08-22T14:53:31.383Z'
+    templates_version: 3.0.1
   .claude/agents/dependency-expert.md:
     sha256: 9cdd45f2295caeb1f6cd41d4151dbe0affc439c73360b9cdd392ad3a96819926
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
   .claude/agents/developer.md:
-    sha256: d9623d906e0d9b8aeef67da63b978b9e540b2babf58db215e44afaa8291b2126
-    installed_at: '2026-05-16T06:10:06.901Z'
-    templates_version: 1.6.0
+    sha256: d9a22a5e8005d1bfa794b44a788167d043cc0ef00f2bdf3c877e49a822ddce38
+    installed_at: '2026-08-22T14:53:31.437Z'
+    templates_version: 3.0.1
   .claude/agents/developer/memory/MEMORY.md:
     sha256: cae2dc429454630df5b3155dbdf7f00f38ff9b9af8a80e0eebac09e516b385e3
     installed_at: '2026-08-22T14:47:00.104Z'
     templates_version: 3.0.1
   .claude/agents/devops-sre.md:
-    sha256: 09771acac9c0a0677b6cbcc97b72943db504569d3789630695262c1991484432
-    installed_at: '2026-05-16T06:10:06.901Z'
-    templates_version: 1.6.0
+    sha256: 486ef6dd7eb88ac4133be629145dfbe8a42b9925e2da1ab861580a33aeb7f7f9
+    installed_at: '2026-08-22T14:53:31.488Z'
+    templates_version: 3.0.1
   .claude/agents/devops-sre/memory/MEMORY.md:
     sha256: f013a300d7256b9d8fa34c9aa4842ce690d2478bd2740a1aa5d01db7292f705b
     installed_at: '2026-08-22T14:47:00.302Z'
@@ -50,17 +50,17 @@ entries:
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
   .claude/agents/product-owner.md:
-    sha256: edc91362890cd3971f0b8fafdf26d272885e0dd2acdfcea2b6b9b3997630871e
-    installed_at: '2026-05-16T06:10:06.901Z'
-    templates_version: 1.6.0
+    sha256: 9ff1f74d2d90df671257a51a34e073a3058ccded5c7f40cb2c814198fdf790dd
+    installed_at: '2026-08-22T14:53:31.462Z'
+    templates_version: 3.0.1
   .claude/agents/product-owner/memory/MEMORY.md:
-    sha256: d5bc3d0fc9deabce625732abae50bca7a0a8ed27b7292f9b2d576e6b232da944
-    installed_at: '2026-05-16T06:10:06.901Z'
-    templates_version: 1.6.0
+    sha256: 441095011d6114c657fc2cb678822ce09d3bfbbd9c2c7ce617e2ece9f8338bf4
+    installed_at: '2026-08-22T14:53:31.514Z'
+    templates_version: 3.0.1
   .claude/agents/qa-tester.md:
-    sha256: b4274bebe36a819badf80d9f9a4a5255622bb0c3d3765c8619112061a7f94c83
-    installed_at: '2026-05-16T06:10:06.901Z'
-    templates_version: 1.6.0
+    sha256: b5d5158c2b604027f2ff2645083fa4886a6791010d3fe723786f74b242b75651
+    installed_at: '2026-08-22T14:53:31.412Z'
+    templates_version: 3.0.1
   .claude/agents/qa-tester/memory/MEMORY.md:
     sha256: e9daa6823de30d5b0f4bb739cfbda5f07416843c9ffc41cdea9f63b04537f34a
     installed_at: '2026-08-22T14:47:00.184Z'
@@ -142,9 +142,9 @@ entries:
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
   .claude/skills/backlog/SKILL.md:
-    sha256: ce323b55290035395e054f79fd841c1200395102fabd2157ba3fa1af5d473ae6
-    installed_at: '2026-05-16T06:10:06.901Z'
-    templates_version: 1.6.0
+    sha256: d967446f91f30f81b7d10418ebfd6e22b1d6f120d45ee94b1e1c9de31bf362d3
+    installed_at: '2026-08-22T14:53:31.539Z'
+    templates_version: 3.0.1
   .claude/skills/brainstorming/SKILL.md:
     sha256: 19034fa701725f606edfdfe5a7bad8f549fbb1c97041beaa5c933bb433be67fe
     installed_at: '2026-08-22T14:41:22.318Z'
@@ -978,8 +978,8 @@ entries:
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
   .specnaut/scripts/release/tag.sh:
-    sha256: d0fd0456c930ec457a5980e888dcc5f76f05fdffb30a0208d3681c8ab3ffd39d
-    installed_at: '2026-08-22T14:41:22.318Z'
+    sha256: 4d8883d704f8437c2e7934da0b923452bdcfe1bf852165197936091ab55cad12
+    installed_at: '2026-08-22T14:53:31.588Z'
     templates_version: 3.0.1
   .specnaut/templates/agent-file-template.md:
     sha256: 55ed438c2e861444ef22f45fe5238f3ebf0dc1cb6e53067d7232fbbf4ce82892
@@ -998,6 +998,6 @@ entries:
     installed_at: '2026-08-22T14:47:01.437Z'
     templates_version: 3.0.1
   AGENTS.md:
-    sha256: 77b49675737b222a4e1e86d350c8b70bace2929909b4ce5807fc768eb48fb69a
-    installed_at: '2026-05-16T06:10:06.901Z'
-    templates_version: 1.6.0
+    sha256: 761f5e7e1b35767cdc5409a1d458bf5aae26241181a4d22aa646ffd2e7f295f8
+    installed_at: '2026-08-22T14:53:31.613Z'
+    templates_version: 3.0.1

@@ -4,6 +4,7 @@ description: Integration + e2e + manual validation specialist for the Lockness f
 model: sonnet
 effort: high
 tools: Read, Write, Edit, Glob, Grep, Bash
+skills: qa-report-contract, workflow-contract
 permissionMode: acceptEdits
 maxTurns: 40
 color: green

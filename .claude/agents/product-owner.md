@@ -4,6 +4,7 @@ description: Product Owner and backlog guardian for Lockness. Owns GitHub Projec
 model: sonnet
 effort: high
 tools: Read, Write, Edit, Grep, Glob, Bash
+skills: backlog-reference-contract
 permissionMode: default
 maxTurns: 30
 color: cyan
