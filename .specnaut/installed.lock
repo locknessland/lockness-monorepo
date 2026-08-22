@@ -1,0 +1,1003 @@
+version: 2
+harness: claude
+backlog_backend: github
+version_scheme: date
+spec_backend: local
+templates_version: 3.0.1
+entries:
+  .claude/CLAUDE.md:
+    sha256: 37fb65b0751972064010adaea92f13467217ee9153dd07f945aace27816d6a2a
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/README.md:
+    sha256: 710f26fb085d1f28864aa629192b47ade2a59a693bbc82b00da14c611b52b1ad
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/agents/accessibility-expert.md:
+    sha256: d15e85996108bd25a5379b666ed1d59e30fc86499f89b224f08d483797ba6f58
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/agents/architect-expert.md:
+    sha256: 498231c6594e652d5b9beacb644a8acd1685df7b94ada85bce568e9bdd8237fc
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/agents/code-reviewer.md:
+    sha256: 6e21c79d78ae31210b656e6dd06b7568fc9ff7f44af1199a54ff9ab4c3af89f8
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/dependency-expert.md:
+    sha256: 9cdd45f2295caeb1f6cd41d4151dbe0affc439c73360b9cdd392ad3a96819926
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/agents/developer.md:
+    sha256: d9623d906e0d9b8aeef67da63b978b9e540b2babf58db215e44afaa8291b2126
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/developer/memory/MEMORY.md:
+    sha256: 5d7a1f80e200daa42a07e175dc30a07cdfb935d35c2143fab41a5e6fe3a07d54
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/devops-sre.md:
+    sha256: 09771acac9c0a0677b6cbcc97b72943db504569d3789630695262c1991484432
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/devops-sre/memory/MEMORY.md:
+    sha256: d91cd15e700449659c9a0c249436d4c16f20a8418924ecd5ae61aaff600357b3
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/performance-expert.md:
+    sha256: 65a53a8ffcb68b778210a5456552d8abc291aaaebad827d8107d4eb614d541eb
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/agents/product-owner.md:
+    sha256: edc91362890cd3971f0b8fafdf26d272885e0dd2acdfcea2b6b9b3997630871e
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/product-owner/memory/MEMORY.md:
+    sha256: d5bc3d0fc9deabce625732abae50bca7a0a8ed27b7292f9b2d576e6b232da944
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/qa-tester.md:
+    sha256: b4274bebe36a819badf80d9f9a4a5255622bb0c3d3765c8619112061a7f94c83
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/qa-tester/memory/MEMORY.md:
+    sha256: e9daa6823de30d5b0f4bb739cfbda5f07416843c9ffc41cdea9f63b04537f34a
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/review-coordinator.md:
+    sha256: 2f1b163bf3771dd514136d53a9aac585777eb5952b789318ae9f3cc56c188c1b
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/security-expert.md:
+    sha256: ebc4672b7f558f8ff22f554550f6f6c3e5e09a02367f8ebf63386a46752f6bf1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/agents/security-expert/memory/MEMORY.md:
+    sha256: e07fb7fa7dfd10897eee530976df27e12079d4ba4a30494c4d19ce80d5e09026
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/agents/specnaut-guide.md:
+    sha256: 8cc6be73d9f419d27435a92ee7f8d89dc48376406abaf5f1cec776d37d822413
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/agents/test-reviewer.md:
+    sha256: 3750450851278b2dcafe2c0bbb3e737acfc897045b6455e26bad1293fa486c11
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/ui-ux-designer.md:
+    sha256: b98f04b91b73181a829b6edf9af44dfa68e934ea5ac488fd44f413144528120e
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/agents/workflow-manager.md:
+    sha256: d4ad22f1736cd34f3ec58c26d9e134a03b8ed820438ca9055c6e817bef004bbc
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/claude-security-guidance.md:
+    sha256: 0b96bf6ccab109e17beaaba37a08c34a499cf115f5bebf4342036dfbe6929264
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/commands/backlog.md:
+    sha256: acbefb3da1e5f439d2e1764185633607628397c6948ba10d50fd4e0ed7f3f381
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/commands/specnaut.md:
+    sha256: 20dbc8dc66665a36e5c36f4b9c5601816e5b08172ceace277db56bbca9ca2e25
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/hooks/check-backlog-prereqs.sh:
+    sha256: 537c00b2d3b0e6f5ad78eba550811cdf327c4673fcb44fcb99f6c0abe18de04e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/hooks/log-subagent.sh:
+    sha256: 163962fd20ed5d92b4608a1a3b80210ea5a53250069437bf72f8e99b72ed50f3
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/hooks/protect-generated.sh:
+    sha256: f6dcfb22410454559383b528c2c2f9cdc57384b18e6e7c9e96b83a2f5621cec6
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/loop.md:
+    sha256: 15e48dcd83364d7a5a8a20709f71f52fca5e60bb031b8f1ba220c027b97ca300
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/scripts/dispatch-agent.sh:
+    sha256: 32fd87e229c102941ee368b135c373ed413cf7a696b2bd61840d9dd6b4412f60
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/security-patterns.yaml:
+    sha256: 177249b562fdaba79794489e74a9475e4085cd860a0d637bd6d02d311ecedc61
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/a11y-audit/SKILL.md:
+    sha256: 756fb79d2f6210ea1ad31173e2ad5b3e796b6beb86fa3af855e3332fcfa906d5
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/arch-audit/SKILL.md:
+    sha256: 2d93295eb98e8775b4c4ecd417033ae2662d6a3e49c4f5a7d1e3d15b321f8d0a
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/backlog-reference-contract/SKILL.md:
+    sha256: bc20c12f21ee19e4597f6230d974726d448e28ea38822f17d8d0841ee7536eca
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/backlog/SKILL.md:
+    sha256: ce323b55290035395e054f79fd841c1200395102fabd2157ba3fa1af5d473ae6
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0
+  .claude/skills/brainstorming/SKILL.md:
+    sha256: 19034fa701725f606edfdfe5a7bad8f549fbb1c97041beaa5c933bb433be67fe
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/code-audit/SKILL.md:
+    sha256: 8af89c179a997cf78224fbdb6fa60bc4ea00f2b37facff3861a17788a9401bb0
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/dep-audit/SKILL.md:
+    sha256: e4621a6bf5e2e219cccc00129dc75c4b060ece22b5c7ec6de2e06163134bb33f
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/executing-plans/SKILL.md:
+    sha256: 9ee548604abc61195957bffb861dd6cb4887e0157469fb72c707787d6500606a
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/handoff-protocol/SKILL.md:
+    sha256: acc0d05736dca4008f2889e5997b141f57724a39b5b258746d7bacf227af76ad
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/perf-audit/SKILL.md:
+    sha256: 259a52aca3db165fee72274baff128997fad4e201dac37092e3d23d014c23837
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/qa-report-contract/SKILL.md:
+    sha256: 25aa590dc17862c58ce23081e84473857d2b57893a93d2c272451db884b5a71c
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/requesting-code-review/SKILL.md:
+    sha256: e6b7e0e2e555e74455a959fe685f8c336a8fcd2489af158691ed4ecfbd473926
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/review-findings-contract/SKILL.md:
+    sha256: fcebd98c2b99e0385c1081a169a5c1f8a5b25f6f2207444fd151d071f50f9d4d
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/sec-audit/SKILL.md:
+    sha256: 2b0d725cf2da4914c577f794f278b8b630ebcb29cc5799ffb185ec6bc3f2d745
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut-review/SKILL.md:
+    sha256: 2c2d97d8557777a47d99c9e17d35422d15be253b9becf2ae530e37d341059588
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/SKILL.md:
+    sha256: e56e3fe646135571a923bf58e3fdea924a1276626ebc6e093aa028d6f302c9b9
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/audit-accessibility.md:
+    sha256: 48a5bc59a37ee05ffab5f468403ec5261a805d5960ef9961cc8ca0bfccc0e13b
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/audit-architecture.md:
+    sha256: 4cb1c3ca47ae88bece4aa5f87410122e84112b3f69bde7cb18e6e2d7e0c8366b
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/audit-dependencies.md:
+    sha256: 6d09fb85a15a574316cd0e6f21e6312f7c7de82a9838a9419e2b0e1735346074
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/audit-performance.md:
+    sha256: 36c17bcc481e909e48747b117d7a6e69ff254576d011f4f29fe01aaa0e93fed9
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/audit-security.md:
+    sha256: 2ba57315df46e5147463545b9c9dce45ccd800d2854d737d3bb40b0f6bdb0914
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/auto-chain.md:
+    sha256: 002704f1f3a87d1b23303eb41c3fa31cc5de5856703cbf6ff8ee01391c57d793
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/constitution.md:
+    sha256: 7952146fcc37613cb48b36f8abd8b2c2faf1350da0929af7f7b0fe6ebfa5269b
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/groom.md:
+    sha256: c5b86b2c81ee86d45fc4d978ad0c9f99854cfce5bd491ac10376e23e254aa8ae
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/implement.md:
+    sha256: 807f418b02a8251d887231b08b3ca901daacf37959fe14e89778fd85da8382fb
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/merge.md:
+    sha256: 9ba37de181a81e27e8acc8aa13df98bb7f058fcbfed910e21bea2d8636d3d740
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/plan-audits.md:
+    sha256: 0c3a1e3c4f9e26ca4976a17d487795123bac87bc7cb293a61a35643c01f16549
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/plan.md:
+    sha256: da95f1f87f5d888ca1811364199943c60dc7aae84353bc1743c35fe4cbe227b2
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/release-version.md:
+    sha256: 9e1a8093682db8c0b11cc7a6be1bf2cd152438a25b8a56d48363e46e46458481
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/review.md:
+    sha256: 01a9e9de71d96a1579f3fbaa1246a85d517daaed114fa16783b29b42dcb392ad
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/tag-version.md:
+    sha256: ae3f18170e69c877da427298ce44b423a3187285bf6b096a44eb74c053659e8e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/specnaut/phases/tasks.md:
+    sha256: 0bea8f63022b7c8586a05e81d166083416a00e404df63e40aa1bf33044a07302
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/status-audit/SKILL.md:
+    sha256: ebe3deb19feb885ec1022ee40a7771d653d86f719a56d2d7377d746465a9081a
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/subagent-driven-development/SKILL.md:
+    sha256: 636e47fe65bcfbdbcd8fc519e703a381e8446eb9f9ebbdaafe7c0ca1339e2ab2
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/using-specnaut/SKILL.md:
+    sha256: 19f5f47acd989bebedaa37caee7ad1c33903d5979d24734c796915b815b93796
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/verification-before-completion/SKILL.md:
+    sha256: 6c9a7ea140dc82c4b66da4fd3db5ef3e4d7ef15fb6d96fc92dd27b1572f7f2e4
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/workflow-contract/SKILL.md:
+    sha256: c57a33fad3ca222f6ef08f66cac4a76d4a0f08d132782081fd74a32b635ef7c7
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .claude/skills/writing-plans/SKILL.md:
+    sha256: dcfc995dc8cef8d65457180f3b3e137a982be66e7f5d70cc529da906f7092629
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .gitignore:
+    sha256: e30dd631107be47de1f675ee0eea383286b14b1078f168a7e618fa2e1af7b5aa
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/LABELS.md:
+    sha256: 621e5616435c27527ee0a95576b834e38876e652a6bf7bcebd219665769ba98a
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/backlog.md:
+    sha256: 6d4d5b7b45dcb70b0ce014aaa660a19e7080f7937b9216e097d8304477ce7533
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/harness-tools.md:
+    sha256: 039dd3870245373e0679f5b2ba672e5825d9c86eecdd0366833d5ab719bd73e6
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/logs/README.md:
+    sha256: f1942b8b5a6c0386e2340e235c0454b7e4a5925077809576338585035a77e1ee
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/00-triage.md:
+    sha256: 7f65dbdfdc890120dd01710c0889cf531ea924d77aa8bffed67889ac60b92398
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/01-images-and-text-alternatives.md:
+    sha256: cbbea2905333ac19c0bfec18d49eb15b4665ae368003f081ad21bc007216454a
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/02-structure-and-semantics.md:
+    sha256: 87d6552d574d72f3fd539d87fc9248d94849a6db64138ea3a52fc90b59760be3
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/03-forms-and-labels.md:
+    sha256: dcc98287fd72745038863b5e05a2a367cbcdc1be3972e634daafc41d3392d946
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/04-keyboard-and-focus.md:
+    sha256: 9e0f499b8edd2db2b0b3d27430ca082d6151c58cda14f083cd63cb5f0ba2ae3f
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/05-aria-and-custom-widgets.md:
+    sha256: 034e39c1dce7dcf33c53d6c431a680b314f42d674fdf0e81e176b8f0b66b6331
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/06-color-and-contrast.md:
+    sha256: 96d187d28c857ae14dabd6b870337872fb54fb907f0aaf0cd03454422c9c9de8
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/07-text-zoom-and-reflow.md:
+    sha256: 9d8d6042dd3f78f4cbe299b36778221b1801e05963c77be6875391e5e8285359
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/08-time-motion-and-media.md:
+    sha256: afe16136090672a1787ba60f04b6d000481142a2fd30339ba66ebc65c0c4b3f5
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/09-navigation-and-language.md:
+    sha256: 6d76da59a0d48855343a3b98e69294497b878736a5d76ba7fc79839994ee811b
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/10-dynamic-updates-and-status.md:
+    sha256: 2169224fe04c9fc80d852c02c08a4b89b7ba4b4c49462bc3433ed45763cab83c
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/a11y/README.md:
+    sha256: 8b84ef1a681ef8b9499676632665109673869d3d599b949c57ba672913d7b340
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/README.md:
+    sha256: 201456bc6b0efb3ce225da799be6166f49f6931746869a0198567c2e84636bda
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/ddd-and-clean-code.md:
+    sha256: 4cb8faee07cbbcc6de584df1c1628cc4d3d1ffac96eb9fb5bd02b0bcd454a98f
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/abstract-factory.md:
+    sha256: fc51ccdb40eaad5fc799b2686493b35d9d844276bf7e3acc7466c25fb7426c48
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/adapter.md:
+    sha256: 13c30356b342623eb56e05ec777f05454414a09a0a23cbf97a42c37b0facef5e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/bridge.md:
+    sha256: 2d7829a0bb15d5a1706cdce1ff9b652c318c45ce534fee0ff35abb886710eb2d
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/builder.md:
+    sha256: c9743c9744b40c3c3ff6c804161e49f01ab306aae777fbc18f50d63d406db0e9
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/chain-of-responsibility.md:
+    sha256: 3ff0e222f2af4e3b2efa6bb043e29db1b18e05d08ef4ed70f9855acc54e56909
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/command.md:
+    sha256: ffab8b37082815d51cd170e3d05de5d8342f06fb73404c6f50c700924510b882
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/composite.md:
+    sha256: fae4d564cdfbf0f2d4b32ff461c09694132f77a936d556e87a6f4f1091140214
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/decorator.md:
+    sha256: 33df5e3af6a01e2920bab54e5ebfecb1dbebde41fe096112fb621061a28206bb
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/facade.md:
+    sha256: 278ea413472c1fc25eb6fa48b255b2b7b4264fe0c71802d6cf92ef8aa8142fce
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/factory-method.md:
+    sha256: f7f3447ac1311b8d15f247b4b96c6815945f8782ab4adc588c4d5e96b6f86bca
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/flyweight.md:
+    sha256: d2003819522265e0af1799ca5ae04f5d9645ced269f54d6ae45bb4da41683114
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/interpreter.md:
+    sha256: edc6e6294e533a2efa8b35e9527af951ad9b82a4b54edd22d8a3120f39730680
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/iterator.md:
+    sha256: f2113236b1abd28f4482be0d181cf704e25b1d1d77d32aad71b69b28b9fa8fff
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/mediator.md:
+    sha256: ce2854c94b6ea7738f0daf7e29cf06fbbcbcc4465543bc8cc04179d7aa6e7d65
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/memento.md:
+    sha256: 193dc49ed056700bfbe20c134677fd6b1d2f2516bded4e77b6eb6204a2179e95
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/observer.md:
+    sha256: c92a3ec0c85ad33ea1be5d4a6b728c4a4c40d4746bc6ce19aec9d64392e1c29e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/prototype.md:
+    sha256: b96761fc5a1d57a48a2780fe6e1b800509e83c520f5c2d10d086c3a8b13e7efb
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/proxy.md:
+    sha256: 46a1436dba1b7cc76c0807e38dbd5eb0234859d3b0e1956c363f0a8aa01c7877
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/singleton.md:
+    sha256: c0e291f2837c558fd1ced06e94c083ddaff1e30b71a8ea862388f3dd0bd74aa3
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/state.md:
+    sha256: 2a5e24bd03a3b2640b59ba9a08b96b0ee483cab5276c2328bfdcdc24bc2f3ee1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/strategy.md:
+    sha256: 2b434796f18d9e157cbd204322c1bc4413b16f9c6c988afaebcaa2c5698de63e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/template-method.md:
+    sha256: bc24425760ce0387294b5fae98bdb6a8d64411898f391407812b88da305c932a
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/patterns/visitor.md:
+    sha256: e20ce822096c08a08d081d08041fd75b5ccdb59459917b33d5f33b443577bcff
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/add-parameter.md:
+    sha256: f1602b7e9fbfbd2572f33f7f0866da9ffb27152cab6edb08f42b443df401c513
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/change-association-to-bidirectional.md:
+    sha256: 575d97ca4c2adf9eacff9c4afc41bc423810a8b5dd21798d225e8e756573e437
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/change-association-to-unidirectional.md:
+    sha256: 01d4372135da0cc96a7f52aa68767a2062cc4c6bef01a3d22a2ec807f9faa892
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/change-reference-to-value.md:
+    sha256: 7cb31d5019af7f2b260926bd34f53c17f7ab26fda8af09da6f22b76ee36c9b7f
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/change-value-to-reference.md:
+    sha256: a5f1db14c27c0e8a2037449badd9616bd1afaa98c71b1bdd1d624c9d6463e252
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/collapse-hierarchy.md:
+    sha256: 2fe70ac51f6111b3c08696a42dc50e0aa17e21074e2ace7630a1f63410cb537e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/consolidate-conditional-expression.md:
+    sha256: 3620b1e8efd23dd869b497172a201fa7dd0e77ee5e83fea750482b8aa0bac8f0
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/consolidate-duplicate-conditional-fragments.md:
+    sha256: d6623dc87f39d95d9d31caa9f87042f2169f906072f36c8c93485cd016fb2d54
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/decompose-conditional.md:
+    sha256: 4898b91fc6c7a90cdcbef64e5928544fae067b0249498da6e15e81818528afe0
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/duplicate-observed-data.md:
+    sha256: 348808898206b19d5a77ef0ed5cee491d437726bb2aaef49f0f1f705372b4bcb
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/encapsulate-collection.md:
+    sha256: 4891eb00162af4f7539fd749a3f1935725ecb7113be34549b6bb5485a0713729
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/encapsulate-field.md:
+    sha256: 3e5aea97e755796e33761f75e3496355979f3caa81cebdad5dabd9dc86f35e0e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/extract-class.md:
+    sha256: 211df6132d3dc3124484a66bc48e54334355566ba6a98e16c2621deca84e7f5e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/extract-interface.md:
+    sha256: 49a9ec3b76ac04fe5bf7874a3b032ab4228e47dd3d0f78e6399b9df3991dea8b
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/extract-method.md:
+    sha256: 54187cb475936850bf9c5910e3b99898d19a4598dea896c857b817d8c162bac9
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/extract-subclass.md:
+    sha256: 11b146d5de5728332f867dbbe0c21951ee7eeb95f65f70a687ebe77eec83f49c
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/extract-superclass.md:
+    sha256: d7238db30381e9cbdedd0756dd474973a084748330c2b0662d81a5d02a0d42f1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/extract-variable.md:
+    sha256: acf3395546a86c1a97d12868e05845de28530a1ffebec3627c085f465fa5c445
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/form-template-method.md:
+    sha256: b63eaa537f615c25c5c5aafb722f2e5310a68eaed856179ba94f8dc495e720b4
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/hide-delegate.md:
+    sha256: 9d584264b1151c4b504e24d30b7770d31f7af820b0afbbbb3034b107bc20900f
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/hide-method.md:
+    sha256: f077f02b8303591c2e1cff375faea6ed948886db3f48043f98067bb10f9074fe
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/inline-class.md:
+    sha256: dc65cae31997e43c6402893332f338afdad1009f3bde181493ec1a6e08a7ed44
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/inline-method.md:
+    sha256: eca0b8169d6e11375a7edf873a1b4f4d0369cafb00ef9e45d9ce3a39d61f46af
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/inline-temp.md:
+    sha256: c2c4a4402bc1592f4a5f2012e41c9173d8cc07dcb0be6d472a592dea1cacc40c
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/introduce-assertion.md:
+    sha256: 04a8aa77df7e53064284de04c8d9a2b8e699163923c257c4de9d9186752538ad
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/introduce-foreign-method.md:
+    sha256: d4a14a80d7c506d5bbde3256d48de6ad121ef71abef68d3a9e7e2fe6062e4e21
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/introduce-local-extension.md:
+    sha256: 78b41ad5a50119f3f77de8c52d5e20f887afb3efe635c03b083b42f49b72b616
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/introduce-null-object.md:
+    sha256: 4ea916bb11a68447d5e1eb905deab14f030304c0561631e5b05b19f6e6129dfd
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/introduce-parameter-object.md:
+    sha256: 53bfe978e5b7609aa771a09aa1cc64b25e8d49be5b9999b0559571651122807f
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/introduce-special-case.md:
+    sha256: 41e4753d0faea81c1350ef1f1098e721432d49e14e15d158fddc6678102adc24
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/move-field.md:
+    sha256: e1cdec7c7f4ce9608b0c6a6927b2662c2354e2ccc467989626166c598eab4fa5
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/move-method.md:
+    sha256: e1f5281d502f992faf126f38a5cf2525bbd1b468a9721e7592e1f69c9498f710
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/parameterize-method.md:
+    sha256: 35e2e9f276a7e6c11cbe18ab5e805f221e3b2f3c880a28b36256c88ea02188e2
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/preserve-whole-object.md:
+    sha256: 4f5c0c80f03071b3710799d7f69f54e5cc3f48b4087148077647336b9a8c5cdc
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/pull-up-constructor-body.md:
+    sha256: 4e02173e81dbf921b954e72159f56cd7f04be7fd3dec04ac94d9c17b0f64e782
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/pull-up-field.md:
+    sha256: 57dde9234eb735d4d05b69a2cf388030481fea9bb6e83c2fd4a327624325d2e6
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/pull-up-method.md:
+    sha256: cd851ee7e343943692424628338c702c9579f6a4c80d808015b6d317290e9d1d
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/push-down-field.md:
+    sha256: 6523a0b339231c4d3164d58a9a2d5049665a61e4702a842e2b8401409783369b
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/push-down-method.md:
+    sha256: c6d5cb28cf029cec99348adeba92b9d64bb524a13fbe3440f0e3e49c4924a1dd
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/remove-assignments-to-parameters.md:
+    sha256: dc042ba9992fa32b2d440b2e7fe7adc3c6571054f2cb557b7251cf88ea3c8a3b
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/remove-control-flag.md:
+    sha256: b98a78c6c8223ab65366f34e348bc7b4482b33226e27422b9fb8108a3ffc1524
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/remove-middle-man.md:
+    sha256: 94da435cee8afdc3be64bf3042b646a027499b9c1b26667d855305b03f1deb8d
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/remove-parameter.md:
+    sha256: 470746b528f2998bce0c0148f258ee3e5e9d4eabce635d25cc3e76d53180c7d0
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/remove-setting-method.md:
+    sha256: e1fab6dd050a173b9eb9b276b5ebcca16fbb4b2fb7279a38c5f44e98da91170c
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/rename-method.md:
+    sha256: 8f6329287d4974e1c0962dd32af2a30c0fa8198da5110d37573dc90255ed8340
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-array-with-object.md:
+    sha256: 6482bd66dcc6d3c9de832dbcf4630b1f106827a0da28aae30e2097b147fbeeb9
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-conditional-with-polymorphism.md:
+    sha256: 70afc24c0aaf5a66651210baed3ea21a62d12e140ab965a6f794394ef1813b01
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-constructor-with-factory-method.md:
+    sha256: dddcba9f23660db2407ae49ab598e819f4b8fedff64358b2fed8e710a6330b8d
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-data-value-with-object.md:
+    sha256: 83d65cd8f24eecd5959d20d08ab93561d1f845d25107cbebfce92b570d78f051
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-delegation-with-inheritance.md:
+    sha256: b7c7981f4fcc3cf81d527f8a8fd8d6190dd11e9893d541c702456224e15e07fe
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-error-code-with-exception.md:
+    sha256: 83c71a6898be1de046bf69c0e39ec7ad24fa2071190481461585da572962a1e4
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-exception-with-test.md:
+    sha256: 0ac8f0a21f73acb75a7572654ec13d261a6a43087d70d737ffafebf9ef381dc1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-inheritance-with-delegation.md:
+    sha256: 353b128af63d54435f72e39e6b7a0628c38f728307e64af1914599e4d52eabed
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-magic-number-with-symbolic-constant.md:
+    sha256: c13ec396266862218202bdfa384b2c4e53f81552b0a5d378225c58be77b07c7c
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-method-with-method-object.md:
+    sha256: 0dda626daac4bf41b8c2e9230ba189ad115179dc23dadf79196f54d8d29cc090
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-nested-conditional-with-guard-clauses.md:
+    sha256: bb9fe1cba41b020d7d41b2ffda371bb3590667fd99c1a2f3819cfdd3096eb5d5
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-parameter-with-explicit-methods.md:
+    sha256: 7296bfe4109adf6493308aa4de519ba26e08abc98d15454555f296a84b7ca231
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-parameter-with-method-call.md:
+    sha256: 90145ff3e44fe734629b87cc5efd033d41acf0bd5fc19313bb82fdddcdefea05
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-subclass-with-fields.md:
+    sha256: 5f7804ac801c3d501ab7b71d2eb72b8e2cbd1f0af5dfb8f65b8b2d41c4acb742
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-temp-with-query.md:
+    sha256: 8b9bc4d295abefb8227e201e26e7b8d11fdecf9a35bbd8289505028f9b158546
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-type-code-with-class.md:
+    sha256: 74439db54da54671b8da3b67d3d279360c1ac970051e65cf4d9dec1bd2d42117
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-type-code-with-state-strategy.md:
+    sha256: d780077a7aefba7225744f14da3d7547ea795edb06dd0c8f6a50a779a532dd7a
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/replace-type-code-with-subclasses.md:
+    sha256: bfc5fd3736ffd0319572065ba1fa9d3af72f51738f6da7b1a8c23974fd526e6f
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/self-encapsulate-field.md:
+    sha256: e1fa29beeaf0f130aea27d76090c2a825460389a8366e180982d7f90b4e5f501
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/separate-query-from-modifier.md:
+    sha256: 1de5f9c865753e9f4d1f4745e08666f6231a364fce8d23c750944c8df4b69160
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/split-temporary-variable.md:
+    sha256: 9fdb14dcaba48a793e8b159db002171922e0aba6378835caf4f55f33f3341a8f
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/refactorings/substitute-algorithm.md:
+    sha256: 6c605a54432c7c5ddc776e6b363158e3b4fda2629f1ac724e30eebcd3e88ffa1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/alternative-classes.md:
+    sha256: 864c6a84e953d9da01b787b838579078fe78602da768030b83f54962c7a87d73
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/anemic-domain-model.md:
+    sha256: 4ee90c3f2fc43f3a99c8ffac5bc15766bcd54121baef3b093b954efad56e3d1d
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/circular-dependency.md:
+    sha256: 0f7715f367e087cb113e5cacc573b8b7ef4eb2be30b3d33c917c9ff0797baa41
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/comments.md:
+    sha256: 46a6d1597db9ea70f9c0a10705cf15b8055f15c320c0d76c95ac1cbc44c9dc63
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/data-class.md:
+    sha256: a1ee533a85f456e376b7a248ffa293a817cb047aa6fe2eb288356baba8c061d8
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/data-clumps.md:
+    sha256: d161476b6d0f31a52d9d0e2cd1cdb5297ef7db27b46ba4eda0ccef05a486c7ba
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/dead-code.md:
+    sha256: 8452c023b42b927beff4b8fd48625efa96f94b0b05df69652f8b0cab0c415372
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/deep-nesting.md:
+    sha256: da4a7a3649f2275733df940d86111987aa8029ac6adc551af123f9fa868fc583
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/divergent-change.md:
+    sha256: 8014f2db7ccf6beaa14b09a8b81a4d6d5d5a32cee8282057b7681b4ac182a292
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/duplicate-code.md:
+    sha256: d0a918fbfcf330e34d3becf57002a1c215820c36726f8409805cff7d4a2760d9
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/feature-envy.md:
+    sha256: 8e3012ff36bf2fc6a0dc4387198359b6ca800b24197e87f9e742640592195261
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/god-file.md:
+    sha256: 0ef9702ea919d6cffd5f238ca13636b1070247052f07106510c3874d7121af79
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/implicit-global.md:
+    sha256: e94beeae50323f5befc5121efe926529553eeb4259a75b9ce961e176080df4af
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/inappropriate-intimacy.md:
+    sha256: 6b48e1afd5690d2bcbd45bbd40d5f550f4a40d83f28b02b9501d5d10e6b109be
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/large-class.md:
+    sha256: 923efbb421877066faf55d9c75b45149d2b56fcb72b226af9ff4598255c27949
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/layer-violation.md:
+    sha256: ab7205c73c5ac5e00ce548c389bc64aa5e98b2fc2fef57852ada9f1ec47c059f
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/lazy-class.md:
+    sha256: a3d773fb19f08507a2092539a41538e734190665da5b0e1e80273b82c2a0e228
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/long-method.md:
+    sha256: 160fdda8ee0bb7ad42da7f955fc3e716ba3ca42b89739f721d80a0a9588bfa39
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/long-parameter-list.md:
+    sha256: b6ba9a0c85318625fc31c9f63d5ebb0197f3261c6a11af5dffa4b45f5d3d2e95
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/message-chains.md:
+    sha256: e4c5d13cfec88bf8929481955325948a0490c2089f7304fff0c18346b985fd99
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/middle-man.md:
+    sha256: fcbb356867cec893f864adde3429479eedb2e386e636dad2eea265efe1fd88f1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/parallel-inheritance-hierarchies.md:
+    sha256: e5f9fde206ba8005e4e175761461be0a2dd8f9b405e3503f04efe38843ec10e4
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/primitive-obsession.md:
+    sha256: 321d7eee1612a018f09753552613d4f384ab0b5936a0d3828599db1e2e543ab1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/refused-bequest.md:
+    sha256: c699a25ed843b586487c282f5cdf91b58d723f1642b2cd18c416c90a03d7b528
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/shotgun-surgery.md:
+    sha256: cc79c02a4f74a3593f5123f0cabbffe524f9ded5e88ee211e10c46ca8585a12b
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/silent-catch.md:
+    sha256: dd138fcd85c3defd090c1ced990740b6403fdd4e9e5e78116972214d4fbbb677
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/speculative-generality.md:
+    sha256: 93b0fd8cf0ab5bc861fb5d91fe9797288c9b8d661dc9a6e4d547c17185525637
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/switch-statements.md:
+    sha256: 7cf51359a2e841de9f1326deaf4fe4a7a67c445ee11fa7e14a10cd1a3fd25dcc
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/architecture/smells/temporary-field.md:
+    sha256: d349b83d5d30da0ed0326785244a70f4c1a501a32bdd52563810f21a87ae856e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/00-triage.md:
+    sha256: aa1eae09cadffe2b251e0809601d727098a05528581a5b6d9d793b8973e310a1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/01-access-control.md:
+    sha256: db13c28fa189f46fcd64da276d102c4ed30ff593e7ef85d86145f5fd9c7b932a
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/02-authentication-and-sessions.md:
+    sha256: 0063bdf59ca5238a654983c0ecdd2b1411fa17ccda80318232bf2e200ec0a7ec
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/03-injection-and-input.md:
+    sha256: 6f9ad476349894e4246602a1680cdb14c9f83cdecf6abc513401d6ebd200ab52
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/04-cryptography-and-secrets.md:
+    sha256: ef6a9f0b5b409577e7ecc789c6b17cbc2a5409f0b50d47de5e4d8114b203278c
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/05-configuration-and-hardening.md:
+    sha256: c66c4a495173c44b8e0792d9535e1af73fa93303e6163120f4050171796657c5
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/06-supply-chain-and-integrity.md:
+    sha256: f65a330310c7e26c92797d82c6c51f0e5c47bfa2def2035b08c2c656a5ff29ac
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/07-data-protection.md:
+    sha256: 530c9864166f6e45613032aebaeedb080910610de42e93c5f7d319e9a45b97d8
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/08-logging-and-error-handling.md:
+    sha256: a1506c20139a05eaf5ce6d022bfe563bf510896f7b140cb41abbe503a7011b82
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/09-design-and-business-logic.md:
+    sha256: 3bdecc347d6d8dbda577703ebe55cd9ef54026d36ea491d857e627c498af6efc
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/10-language-footguns.md:
+    sha256: 883cfd9a193c7bbf81be5870062789a494f96c38f75d6e923d968ead2bc29f80
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/memory/security/README.md:
+    sha256: 00a65f26e0f36e75cf9f3cef6ee22396a188c5128a55a93847b5160e8006e594
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/_config.sh:
+    sha256: 282d925a1c0f58ec3f0a694c8047ee6339b1bd47909bb42452dc392f3835f86e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/add.sh:
+    sha256: 09fe193abdde276779e0f0f34a4e630a429800a7b4c98d6baa0f6b7adf4db888
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/cascade-check.sh:
+    sha256: 9ae8be2da87348db04ba8d06007deaf44e23ab23fdead905ad0e03409314a2bc
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/clarify-comment.sh:
+    sha256: 4e2e6d132aa19745c727ec94fed296c636a093858e496d6f314d8be89e66f026
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/detect-fields.sh:
+    sha256: 101656a93c94abc238fa80de7f9318c18f96a0644c07db1ae0ca7d83b29274a1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/ensure-labels.sh:
+    sha256: 541757ed0f3eacde1a8e5f87b001685370624c4979179e46d7e8f54993351740
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/list.sh:
+    sha256: feab0488e44d91a89c9d8c0f8398e1936ec851835966dacc0052fab570c3f7dd
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/move.sh:
+    sha256: 0972b521ed011a9a388e111a85ae0556c19385089a13502ba81747b329a20ad9
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/propagate-parent-status.sh:
+    sha256: 68bb862aa9a751931b8ce178d19b58e982ac2c1b00fc7a91e74e4fd561d10810
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/set-field.sh:
+    sha256: 954e63d49637ddfa44397764bfeff370e82dd2d055d655bfc69f10ae8f8862ee
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/backlog/view.sh:
+    sha256: d005d127063b76d9504e40992e595abff754c3c8cdc3da75e825b652285ae595
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/bash/check-prerequisites.sh:
+    sha256: f4501dc0d788508c7d5c5c51aa414bef878319501baf1ac7f1c61c3cf6391093
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/bash/common.sh:
+    sha256: 50418ba27831b973647bc5b4a802a685104a6966a9ae908bf005c61c0e827f6e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/bash/create-new-feature.sh:
+    sha256: d521a39b745f836ba9e56790022c9e5c923d4df356001b740a035e6b749ac781
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/bash/setup-plan.sh:
+    sha256: bcaa0ccbf45b7d9ea9bff04006500d7eb28a2bdf82bcc819986b21e5294bf76c
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/code-audit/collect-audit-scope.sh:
+    sha256: 937852886a39e1afb604dccafc4ef81361188dac84f6bf26c951d8e409690509
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/powershell/check-prerequisites.ps1:
+    sha256: 0e54d9180aa680b86183f5b2d3711190d537d32676b0bd861a64a4ef022f16fd
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/powershell/common.ps1:
+    sha256: 07dade01391b8cc896f2bb549c6d765ce5338ac5c4b1ad2b0c402bd0e5cf8fa5
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/powershell/create-new-feature.ps1:
+    sha256: 8bbf1ae283f7e8e49871951d501d863174f1fc6932362d4f6a4c0bfdce9aa0e2
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/powershell/setup-plan.ps1:
+    sha256: c13ec3f33330e74aa088979c69bf35fe641301aaa50b2c1203c10ce94bcad338
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/release/release-github.sh:
+    sha256: 66efd1be7dff6904e3fcfdf9b4f789952822d47ec4ede464ec5322c119bbbbf8
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/release/release-gitlab.sh:
+    sha256: f804523eef81c8b6be39261eed662dd0df5d582b435d7235ff96e53cb4e4489e
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/release/release-local.sh:
+    sha256: 23e7a566bf4dbfdbe4ab1780bef81f0615c23844fdf772f6ccd799915df1e4d9
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/release/release.sh:
+    sha256: 1523ccd8e7caaaafe3f4d2de7e76455231e2b0c2f855fbeb9106ad21465f91b1
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/scripts/release/tag.sh:
+    sha256: d0fd0456c930ec457a5980e888dcc5f76f05fdffb30a0208d3681c8ab3ffd39d
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/templates/agent-file-template.md:
+    sha256: 55ed438c2e861444ef22f45fe5238f3ebf0dc1cb6e53067d7232fbbf4ce82892
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/templates/constitution-template.md:
+    sha256: fc2f41e82f38737ed90eccbefc8bcdecd5405e8e2585679443531ad2be273ac3
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/templates/plan-template.md:
+    sha256: c248e660bcf38df0ed24e7a6ce5a0c7f458e36f9ed15d9b6d9974962a88ecdea
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  .specnaut/templates/tasks-template.md:
+    sha256: 5770a1442dc3b6b5174e819cb2a60fe7a28260cb06529fb060de22431dae3c97
+    installed_at: '2026-08-22T14:41:22.318Z'
+    templates_version: 3.0.1
+  AGENTS.md:
+    sha256: 77b49675737b222a4e1e86d350c8b70bace2929909b4ce5807fc768eb48fb69a
+    installed_at: '2026-05-16T06:10:06.901Z'
+    templates_version: 1.6.0

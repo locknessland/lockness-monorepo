@@ -37,12 +37,12 @@ CLAUDE.md
 /nessy
 /nessy.cmd
 
-# --- Specflow: gitignore ---
-*.specflow.bak
-.specflow/logs/
-.specflow/upgrade-pending.json
-.specflow/upgrade-staging/
-# --- End Specflow: gitignore ---
-
+# --- Specnaut: gitignore ---
+*.specnaut.bak
+.specnaut/logs/
+.specnaut/upgrade-pending.json
+.specnaut/upgrade-staging/
+.specnaut/specs/.cache/
+# --- End Specnaut: gitignore ---
 # Claude Code runtime locks (session-scoped, never committed)
 .claude/scheduled_tasks.lock

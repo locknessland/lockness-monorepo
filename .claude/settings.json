@@ -1,53 +1,53 @@
 {
-    "hooks": {
-        "PreToolUse": [
-            {
-                "matcher": "Edit|Write",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/protect-sensitive-files.sh"
-                    },
-                    {
-                        "type": "command",
-                        "command": ".claude/hooks/protect-generated.sh",
-                        "timeout": 5
-                    }
-                ]
-            }
-        ],
-        "SubagentStart": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": ".claude/hooks/log-subagent.sh start",
-                        "timeout": 5
-                    }
-                ]
-            }
-        ],
-        "SubagentStop": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": ".claude/hooks/log-subagent.sh stop",
-                        "timeout": 5
-                    }
-                ]
-            }
-        ],
-        "SessionStart": [
-            {
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": ".claude/hooks/check-backlog-prereqs.sh",
-                        "timeout": 10
-                    }
-                ]
-            }
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/.claude/hooks/protect-sensitive-files.sh"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/protect-generated.sh",
+            "timeout": 5
+          }
         ]
-    }
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/log-subagent.sh start",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/log-subagent.sh stop",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-backlog-prereqs.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
 }
