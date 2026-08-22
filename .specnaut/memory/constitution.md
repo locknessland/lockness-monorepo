@@ -42,8 +42,8 @@ review.
   / ports), infrastructure layer (adapters), presentation layer talks only to
   use cases.
 - **Domain Model gate** — every `plan.md` or PO brief contains a `## Domain
-  Model` block (bounded context, vocabulary, entities, value objects, invariants, out
-  of scope). Developer refuses to implement without it.
+  Model` block (bounded context, vocabulary, entities, value objects,
+  invariants, out of scope). Developer refuses to implement without it.
 - **Boy Scout Rule with escalation** — small in-scope cleanups inline; large
   cleanups surfaced as tech-debt tickets via the PO intake protocol.
 - **SOLID / DRY / KISS / YAGNI** — apply universally. DRY only for _semantic_
@@ -124,10 +124,10 @@ review.
 ## When to use which workflow
 
 - **`/specnaut plan "<feature>"`** — greenfield feature requiring the
-  plan → tasks → implement → review → merge chain. Complexity ≥ 8 story points,
-  new entities, new user flows, API contract design. Discovery, specification
-  and clarification happen inside `plan`; there is no separate `specify` or
-  `clarify` phase.
+  plan → tasks → implement → review → merge chain. Complexity ≥ 8 story
+  points, new entities, new user flows, API contract design. Discovery,
+  specification and clarification happen inside `plan`; there is no separate
+  `specify` or `clarify` phase.
 - **`/orchestrate`** — backlog issue with clear scope (≤ 5 story points, bug
   fix, refactor, small enhancement, docs, tooling).
 - **Direct developer dispatch** — trivial: one-file rename, lint fix, config
@@ -140,8 +140,8 @@ review.
 - **Specs** — `.specnaut/specs/<feature>/`. A v3 feature produces exactly two
   artefacts: `plan.md` and `tasks.md`. Directories created before the v3
   migration also contain `spec.md`, `research.md`, `data-model.md`,
-  `quickstart.md`, `contracts/` or `checklists/` — those are historical records
-  and are not rewritten.
+  `quickstart.md`, `contracts/` or `checklists/` — those are historical
+  records and are not rewritten.
 - **Constitution** — this file (`.specnaut/memory/constitution.md`).
 - **Agents** — `.claude/agents/<name>.md` (+ optional
   `.claude/agents/<name>/runbook.md`).
