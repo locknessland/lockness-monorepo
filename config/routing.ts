@@ -16,8 +16,9 @@
  * ```
  */
 
-import type { MountPoint } from '@lockness/core'
+import { constrainedParam, type MountPoint } from '@lockness/core'
 import { i18nMiddleware } from '../app/middleware/i18n_middleware.ts'
+import { validCountries, validLanguages } from './i18n.ts'
 
 /**
  * Mount point configuration for i18n URL prefixing.
@@ -43,6 +44,20 @@ import { i18nMiddleware } from '../app/middleware/i18n_middleware.ts'
  * ```
  */
 export const mountPointConfig: MountPoint = {
-    pattern: '/:langId/:countryId',
+    /**
+     * Built from `config/i18n.ts`, never written as a literal.
+     *
+     * The codes have exactly one home. Restating them here — as an alternation,
+     * or as a looser `[a-z]{2}` shorthand — would be a second spelling of the
+     * same rule, and the two would drift.
+     *
+     * The constraint is what stops this mount being a catch-all. Left
+     * unconstrained, `/:langId/:countryId` matches any two leading segments, so
+     * `/.well-known/appspecific/com.chrome.devtools.json` reaches
+     * {@link i18nMiddleware} as `langId=".well-known"`.
+     */
+    pattern: `/${constrainedParam('langId', validLanguages)}/${
+        constrainedParam('countryId', validCountries)
+    }`,
     middleware: i18nMiddleware,
 }

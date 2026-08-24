@@ -7,6 +7,8 @@
  * @module @lockness/core/error_formatter
  */
 
+import { safeForLog } from '../logging/sanitize.ts'
+
 /**
  * Options for formatting error output.
  */
@@ -59,12 +61,17 @@ export interface FormatErrorOptions {
 export function formatErrorForConsole(
     error: Error,
     status: number,
-    path: string,
+    rawPath: string,
     options: FormatErrorOptions = {},
 ): void {
     const isDev = options.isDevelopment ??
         Deno.env.get('APP_ENV') === 'development'
     const showStack = options.showStackTrace ?? true
+
+    // The path is request-derived and arrives percent-decoded, so it can carry
+    // real newlines and ANSI escapes. These lines are themselves ANSI-coloured
+    // and land in an operator's terminal — encode before interpolating.
+    const path = safeForLog(rawPath)
 
     // For 404s in development, just show a simple colored message
     if (status === 404 && isDev) {

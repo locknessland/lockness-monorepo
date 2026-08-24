@@ -3,6 +3,7 @@ import {
     type IMiddleware,
     Middleware,
     type Next,
+    safeForLog,
 } from '@lockness/core'
 
 /**
@@ -12,13 +13,19 @@ import {
 export class LoggerMiddleware implements IMiddleware {
     async handle(c: Context, next: Next) {
         const start = Date.now()
-        console.log(`→ ${c.req.method} ${c.req.path}`)
+
+        // `c.req.path` is percent-DECODED by Hono's getPath, and decodeURI
+        // decodes %0A / %0D / %1B — so an un-encoded path forges log lines and
+        // drives the operator's terminal. Encode before it reaches the sink.
+        const path = safeForLog(c.req.path)
+
+        console.log(`→ ${c.req.method} ${path}`)
 
         await next()
 
         const duration = Date.now() - start
         console.log(
-            `← ${c.req.method} ${c.req.path} ${c.res.status} (${duration}ms)`,
+            `← ${c.req.method} ${path} ${c.res.status} (${duration}ms)`,
         )
     }
 }
