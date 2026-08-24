@@ -187,7 +187,7 @@ Total > 7 → P0/critical, 5–7 → P1/high, 3–5 → P2/medium, < 3 → P3/lo
 ### `/backlog` or `/backlog list`
 
 List issues on Project #1, grouped by Status. Use `list.sh` from
-`.claude/skills/backlog/scripts/`.
+`.specnaut/scripts/backlog/`.
 
 ### `/backlog next`
 

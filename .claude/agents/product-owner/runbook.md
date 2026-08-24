@@ -51,7 +51,7 @@ Move with the backlog skill's `move.sh` script or `gh project item-edit`.
 3. **Always verify and move Status to Done manually** — Project #1's automation
    is NOT currently configured to auto-move on close (verified 2026-05-02
    against issue #94: closing left Status stuck at "In review"). Run
-   `.claude/skills/backlog/scripts/move.sh <num> Done` after closing. If Kevin
+   `.specnaut/scripts/backlog/move.sh <num> Done` after closing. If Kevin
    enables Project automation later, this manual step can be removed from the
    runbook.
 
@@ -97,5 +97,5 @@ Move with the backlog skill's `move.sh` script or `gh project item-edit`.
 ## References
 
 - `.claude/skills/backlog/SKILL.md`
-- `.claude/skills/backlog/scripts/{list,view,add,move,clarify-comment}.sh`
+- `.specnaut/scripts/backlog/{list,view,add,move,clarify-comment}.sh`
 - `.claude/CLAUDE.md`
