@@ -389,8 +389,8 @@ Class decorator to configure the application kernel.
 - `config.middlewaresDir`: Middlewares directory for auto-discovery (string)
 - `config.listenersDir`: Listener discovery directory (string)
 - `config.listeners`: Explicit listener classes (array)
-- `config.mountPoints`: Mount points for i18n, API versioning, or multi-tenancy
-  (array of `MountPoint`)
+- `config.mountPoint`: A single mount point for i18n, API versioning, or
+  multi-tenancy (one `MountPoint`, not an array)
 
 **Example:**
 
@@ -399,9 +399,14 @@ Class decorator to configure the application kernel.
     database: { url: Deno.env.get('DATABASE_URL') },
     session: { driver: 'cookie', lifetime: 7200 },
     devtools: true,
-    mountPoints: [
-        { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-    ],
+    mountPoint: {
+        // Constrain the params. An open `/:langId/:countryId` matches any two
+        // leading segments, so unrelated paths reach i18nMiddleware.
+        pattern: `/${constrainedParam('langId', validLanguages)}/${
+            constrainedParam('countryId', validCountries)
+        }`,
+        middleware: i18nMiddleware,
+    },
 })
 export class AppKernel {}
 ```
@@ -459,7 +464,12 @@ Mount point configuration for URL pattern-based routing extensions.
 
 ```typescript
 interface MountPoint {
-    /** URL pattern with Hono path parameters (e.g., '/:langId/:countryId') */
+    /**
+     * URL pattern with Hono path parameters. Constrain them — build it with
+     * `constrainedParam()` rather than writing a literal, e.g.
+     * `/:langId{(?:en|fr)}/:countryId{(?:us|ca)}`. An unconstrained
+     * `/:langId/:countryId` matches any two leading segments.
+     */
     pattern: string
     /** Optional middleware executed for requests matching this pattern */
     middleware?: (c: Context, next: Next) => Promise<void | Response>

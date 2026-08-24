@@ -19,7 +19,7 @@ import {
 /**
  * Controller for mount point demo
  *
- * Mount point is configured in app/kernel.tsx with pattern /:langId/:countryId
+ * Mount point is configured in config/routing.ts, built from config/i18n.ts
  * This controller's routes are accessible:
  * - /demo/mount-points → no locale (root access)
  * - /fr/ca/demo/mount-points → locale set by middleware

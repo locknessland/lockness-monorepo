@@ -37,11 +37,19 @@ export const LOCALES: Record<
 // Code Example
 // =============================================================================
 
-const KERNEL_CODE = `// app/kernel.tsx - Mount point with locale prefix at START
+const KERNEL_CODE =
+    `// config/routing.ts — build the pattern, never write it as a literal
+import { constrainedParam } from '@lockness/core'
+import { validCountries, validLanguages } from './i18n.ts'
+
 @Kernel({
     controllers: controllers,
     mountPoint: {
-        pattern: '/:langId/:countryId',
+        // Constrained: an open /:langId/:countryId matches ANY two leading
+        // segments, so /.well-known/... would reach this middleware.
+        pattern: \`/\${constrainedParam('langId', validLanguages)}/\${
+            constrainedParam('countryId', validCountries)
+        }\`,
         middleware: async (c: Context, next: Next) => {
             c.set('langId', c.req.param('langId'))
             c.set('countryId', c.req.param('countryId'))

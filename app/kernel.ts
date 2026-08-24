@@ -82,7 +82,7 @@ import { config } from '../config/mod.ts'
     listeners: config.listeners,
 
     // Mount point for i18n URL pattern
-    // Routes are accessible at root AND under /:langId/:countryId/
+    // Routes are accessible at root AND under the constrained locale mount
     // See config/routing.ts for configuration
     mountPoint: config.routing,
 

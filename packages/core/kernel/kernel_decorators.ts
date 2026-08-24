@@ -247,7 +247,11 @@ export interface KernelConfig {
      * ```typescript
      * @Kernel({
      *     mountPoint: {
-     *         pattern: '/:langId/:countryId',
+     *         // Constrain the params — an open `/:a/:b` matches any two
+     *         // leading segments and hands unrelated paths to the middleware.
+     *         pattern: `/${constrainedParam('langId', validLanguages)}/${
+     *             constrainedParam('countryId', validCountries)
+     *         }`,
      *         middleware: i18nMiddleware,
      *     },
      * })

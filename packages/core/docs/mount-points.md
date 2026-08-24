@@ -13,7 +13,7 @@ Mount points work by mounting your controllers at **two entry points**:
 2. **Pattern mount** - Routes are ALSO accessible under the mount point pattern
 
 ```
-With mount point pattern: /:langId/:countryId
+With mount point pattern: /:langId{(?:en|fr)}/:countryId{(?:us|ca)}
 
 Your controller routes are accessible at:
   /products           → ProductController (no locale context)
@@ -65,11 +65,15 @@ keeps the kernel clean and makes mount point configuration easy to modify:
 
 ```typescript
 // config/routing.ts
-import type { MountPoint } from '@lockness/core'
+import { constrainedParam, type MountPoint } from '@lockness/core'
 import { i18nMiddleware } from '../app/middleware/i18n_middleware.ts'
+import { validCountries, validLanguages } from './i18n.ts'
 
 export const mountPointConfig: MountPoint = {
-    pattern: '/:langId/:countryId',
+    // Built, never a literal — the codes have one home, in config/i18n.ts.
+    pattern: `/${constrainedParam('langId', validLanguages)}/${
+        constrainedParam('countryId', validCountries)
+    }`,
     middleware: i18nMiddleware,
 }
 ```
@@ -108,7 +112,9 @@ import { Context, Kernel, Next } from '@lockness/core'
 @Kernel({
     controllersDir: './app/controller',
     mountPoint: {
-        pattern: '/:langId/:countryId',
+        pattern: `/${constrainedParam('langId', validLanguages)}/${
+            constrainedParam('countryId', validCountries)
+        }`,
         middleware: async (c: Context, next: Next) => {
             c.set('langId', c.req.param('langId'))
             c.set('countryId', c.req.param('countryId'))
@@ -127,7 +133,9 @@ const app = new App()
 await app.init({
     controllers: [UserController, ProductController],
     mountPoint: {
-        pattern: '/:langId/:countryId',
+        pattern: `/${constrainedParam('langId', validLanguages)}/${
+            constrainedParam('countryId', validCountries)
+        }`,
         middleware: i18nMiddleware,
     },
 })
@@ -138,8 +146,10 @@ await app.init({
 ```typescript
 interface MountPoint {
     /**
-     * URL pattern with Hono path parameters.
-     * Example: '/:langId/:countryId'
+     * URL pattern with Hono path parameters. **Constrain them.**
+     * Build it with `constrainedParam()` rather than writing a literal:
+     * an unconstrained `/:langId/:countryId` matches ANY two leading
+     * segments. Example: '/:langId{(?:en|fr)}/:countryId{(?:us|ca)}'
      */
     pattern: string
 
@@ -209,7 +219,9 @@ const i18nMiddleware = async (c: Context, next: Next) => {
 
 @Kernel({
     mountPoint: {
-        pattern: '/:langId/:countryId',
+        pattern: `/${constrainedParam('langId', validLanguages)}/${
+            constrainedParam('countryId', validCountries)
+        }`,
         middleware: i18nMiddleware,
     },
 })
@@ -248,20 +260,28 @@ This approach:
 
 ## Static Files
 
-Static files are registered **before** the mount point in the routing chain:
+Static files are registered on the root app **before** the mount point:
 
 ```typescript
 @Kernel({
     staticDir: 'public',  // Served at /css, /js, /img, /favicon.ico
     mountPoint: {
-        pattern: '/:langId/:countryId',
+        pattern: `/${constrainedParam('langId', validLanguages)}/${
+            constrainedParam('countryId', validCountries)
+        }`,
     },
 })
 ```
 
-This ensures `/css/app.css` is served correctly and not intercepted by the
-`/:langId/:countryId` pattern (which would match `langId="css"`,
-`countryId="app.css"`).
+An existing static file is therefore served first: `serveStatic` is registered
+at `/*` on the root app before `mountManager.setup()` runs, and it
+short-circuits the chain by responding.
+
+**Registration order protects a path only when an earlier handler actually
+responds.** On a miss, `serveStatic` calls `next()` and the path continues to
+the mount — so a request for a _missing_ two-segment asset (`/css/missing.css`)
+still reaches the mount middleware. Only constraining the mount params keeps it
+out.
 
 ## Context Values
 
@@ -339,8 +359,9 @@ const i18nMiddleware = async (c: Context, next: Next) => {
 1. **Always handle undefined context values** - Controllers may be accessed at
    root without mount point middleware running
 
-2. **Static files first** - Lockness handles this automatically, but be aware
-   that static file paths won't trigger mount point middleware
+2. **Static files first, but only when they exist** - an existing file is served
+   before the mount runs. A _missing_ file falls through to the mount, so
+   constrain your mount params rather than relying on ordering
 
 3. **Validate parameters** - Check that URL parameters are valid in middleware
    before setting context

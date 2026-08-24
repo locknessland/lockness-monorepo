@@ -43,10 +43,18 @@ import type { MountPoint } from '@lockness/core'
  * }
  *
  * // 2. Update this file to import the middleware
+ * import { constrainedParam } from '@lockness/core'
  * import { i18nMiddleware } from '../app/middleware/i18n_middleware.ts'
+ * import { validCountries, validLanguages } from './i18n.ts'
  *
  * export const mountPointConfig: MountPoint = {
- *     pattern: '/:langId/:countryId',
+ *     // Build the pattern — never write it as a literal. An unconstrained
+ *     // `/:langId/:countryId` matches ANY two leading segments, so
+ *     // `/.well-known/appspecific/...` reaches your i18n middleware as
+ *     // `langId=".well-known"`. Lockness warns at boot if you leave it open.
+ *     pattern: `/${constrainedParam('langId', validLanguages)}/${
+ *         constrainedParam('countryId', validCountries)
+ *     }`,
  *     middleware: i18nMiddleware,
  * }
  *
@@ -66,9 +74,13 @@ import type { MountPoint } from '@lockness/core'
 export const mountPointConfig: MountPoint | undefined = undefined
 
 // Uncomment when you create an i18n middleware:
+// import { constrainedParam } from '@lockness/core'
 // import { i18nMiddleware } from '../app/middleware/i18n_middleware.ts'
+// import { validCountries, validLanguages } from './i18n.ts'
 //
 // export const mountPointConfig: MountPoint = {
-//     pattern: '/:langId/:countryId',
+//     pattern: `/${constrainedParam('langId', validLanguages)}/${
+//         constrainedParam('countryId', validCountries)
+//     }`,
 //     middleware: i18nMiddleware,
 // }

@@ -158,11 +158,16 @@ export class AppKernel {
  *    Mount point configuration is externalized in config/routing.ts:
  *
  *    // config/routing.ts
- *    import type { MountPoint } from '@lockness/core'
+ *    import { constrainedParam, type MountPoint } from '@lockness/core'
  *    import { i18nMiddleware } from '../app/middleware/i18n_middleware.ts'
+ *    import { validCountries, validLanguages } from './i18n.ts'
  *
  *    export const mountPointConfig: MountPoint = {
- *        pattern: '/:langId/:countryId',
+ *        // Constrain the params, or the mount matches any two leading
+ *        // segments and hands unrelated paths to your middleware.
+ *        pattern: `/${constrainedParam('langId', validLanguages)}/${
+ *            constrainedParam('countryId', validCountries)
+ *        }`,
  *        middleware: i18nMiddleware,
  *    }
  *

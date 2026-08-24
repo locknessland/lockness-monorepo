@@ -104,10 +104,14 @@ export interface RouteInfo {
  * await app.init({
  *     controllers: [UserController, ProductController],
  *     staticDir: 'public',
- *     mountPoints: [
- *         { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
- *         { pattern: '/api/:version', middleware: apiVersionMiddleware },
- *     ],
+ *     // One mount point, singular. Constrain its params: an open
+ *     // `/:a/:b` matches any two leading segments.
+ *     mountPoint: {
+ *         pattern: `/${constrainedParam('langId', validLanguages)}/${
+ *             constrainedParam('countryId', validCountries)
+ *         }`,
+ *         middleware: i18nMiddleware,
+ *     },
  * })
  * ```
  *
@@ -427,10 +431,12 @@ export class App {
      * await app.init({
      *     controllersDir: './app/controller',
      *     staticDir: 'public',
-     *     mountPoints: [
-     *         { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-     *         { pattern: '/api/:version', middleware: apiVersionMiddleware },
-     *     ],
+     *     mountPoint: {
+     *         pattern: `/${constrainedParam('langId', validLanguages)}/${
+     *             constrainedParam('countryId', validCountries)
+     *         }`,
+     *         middleware: i18nMiddleware,
+     *     },
      * })
      */
     async init(

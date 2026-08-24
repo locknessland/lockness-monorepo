@@ -379,15 +379,21 @@ The `app.init()` method accepts a configuration object:
 - `middlewaresDir`: Directory for auto-discovering `@DeclareMiddleware`
   decorated classes.
 - `staticDir`: Directory for serving static files.
-- `mountPoints`: Array of mount point configurations for multi-pattern routing.
+- `mountPoint`: A single mount point — one pattern the app is additionally
+  mounted under (i18n, API versioning, multi-tenancy). Singular: one only.
 - `middlewares`: Named middlewares (legacy, prefer `@DeclareMiddleware`).
 - Note: `globalMiddlewares` and `errorHandler` are now configured via fluent API
 
-### Multi-Mount Routing
+### Mount Point Routing
 
-Mount points allow you to serve the same controllers under different URL
-patterns, enabling powerful patterns like internationalization, API versioning,
-and multi-tenancy.
+A mount point serves the same controllers under an additional URL prefix,
+enabling internationalization, API versioning, or multi-tenancy.
+
+**Constrain your params.** An open `/:langId/:countryId` matches _any_ two
+leading segments, so `/.well-known/appspecific/com.chrome.devtools.json` is
+handed to your locale middleware as `langId=".well-known"`. Build the pattern
+with `constrainedParam` instead of writing it as a literal — Lockness warns at
+boot if a mount gates traffic through an unconstrained param.
 
 #### Basic Usage
 
@@ -396,18 +402,25 @@ import { App, type Context, type Next } from '@lockness/core'
 
 const app = new App()
 
+import { constrainedParam } from '@lockness/core'
+
+const validLanguages = ['en', 'fr'] as const
+const validCountries = ['us', 'ca'] as const
+
 await app.init({
     controllersDir: './app/controller',
     staticDir: 'public',
-    mountPoints: [
-        { pattern: '/:langId/:countryId' },
-        { pattern: '/api/:version' },
-    ],
+    mountPoint: {
+        pattern: `/${constrainedParam('langId', validLanguages)}/${
+            constrainedParam('countryId', validCountries)
+        }`,
+    },
 })
 
 // Controllers now accessible at:
-// - /fr/ca/users (i18n pattern)
-// - /api/v1/users (versioned API pattern)
+// - /users        (root, no locale context)
+// - /fr/ca/users  (under the mount)
+// - /zz/zz/users  404 — the constraint rejects it at the router
 ```
 
 #### Mount Point Interface
@@ -444,9 +457,12 @@ const i18nMiddleware = async (c: Context, next: Next) => {
 
 await app.init({
     controllersDir: './app/controller',
-    mountPoints: [
-        { pattern: '/:langId/:countryId', middleware: i18nMiddleware },
-    ],
+    mountPoint: {
+        pattern: `/${constrainedParam('langId', validLanguages)}/${
+            constrainedParam('countryId', validCountries)
+        }`,
+        middleware: i18nMiddleware,
+    },
 })
 ```
 
@@ -467,9 +483,10 @@ const apiVersionMiddleware = async (c: Context, next: Next) => {
 
 await app.init({
     controllersDir: './app/controller',
-    mountPoints: [
-        { pattern: '/api/:version', middleware: apiVersionMiddleware },
-    ],
+    mountPoint: {
+        pattern: `/api/${constrainedParam('version', ['v1', 'v2', 'v3'])}`,
+        middleware: apiVersionMiddleware,
+    },
 })
 ```
 
@@ -494,9 +511,10 @@ export class UserController {
 - **Zero Controller Changes**: Controllers work under all mount points
   automatically
 - **Context Extraction**: Mount middleware can extract/validate path parameters
-- **Multiple Patterns**: Same app accessible via different URL structures
+- **One Mount Point**: `mountPoint` is singular — the app is mounted at root and
+  under **one** additional pattern
 - **Static Files**: Served globally, not under mount points
-- **Default Behavior**: Omitting `mountPoints` mounts at root `/` (backward
+- **Default Behavior**: Omitting `mountPoint` mounts at root `/` (backward
   compatible)
 
 #### Common Use Cases
@@ -520,7 +538,7 @@ The framework uses a dual-layer routing architecture to enable mount points:
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  rootHono (Public Layer)                                         │
-│  ├── Mount Points: /:langId/:countryId/*, /api/:version/*       │
+│  ├── Mount Point: /:langId{(?:en|fr)}/:countryId{(?:us|ca)}/*   │
 │  ├── Mount-specific middleware (i18n, versioning, etc.)         │
 │  ├── Static Files (/css, /js, /img) - served globally           │
 │  └── 404 Not Found Handler                                      │
