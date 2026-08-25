@@ -185,10 +185,6 @@ entries:
     sha256: 2b0d725cf2da4914c577f794f278b8b630ebcb29cc5799ffb185ec6bc3f2d745
     installed_at: '2026-08-22T14:41:22.318Z'
     templates_version: 3.0.1
-  .claude/skills/specnaut-review/SKILL.md:
-    sha256: 2c2d97d8557777a47d99c9e17d35422d15be253b9becf2ae530e37d341059588
-    installed_at: '2026-08-22T14:41:22.318Z'
-    templates_version: 3.0.1
   .claude/skills/specnaut/SKILL.md:
     sha256: e56e3fe646135571a923bf58e3fdea924a1276626ebc6e093aa028d6f302c9b9
     installed_at: '2026-08-22T14:41:22.318Z'
