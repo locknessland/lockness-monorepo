@@ -877,7 +877,7 @@ MIT
 
 ## 🔗 Links
 
-- [Lockness Framework](https://github.com/locknessland/lockness)
+- [Lockness Framework](https://github.com/locknessland/lockness-monorepo)
 - [Unpoly Documentation](https://unpoly.com)
 - [Tailwind CSS](https://tailwindcss.com)
 - [Hono JSX](https://hono.dev/guides/jsx)

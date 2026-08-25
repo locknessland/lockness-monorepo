@@ -109,7 +109,7 @@ function printSuccess(dryRun: boolean): void {
         console.log("⚠️  Don't forget to:")
         console.log('  - Review the changes with git diff')
         console.log(
-            '  - Check the changelog at https://github.com/locknessland/lockness/releases',
+            '  - Check the changelog at https://github.com/locknessland/lockness-monorepo/releases',
         )
         console.log('  - Test your application\n')
     }

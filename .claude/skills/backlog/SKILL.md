@@ -1,14 +1,14 @@
 ---
 name: backlog
-description: Manage Lockness's product backlog directly on GitHub Project #1 ("Lockness Framework", org locknessland). Use when the user asks to "list the backlog", "add to the backlog", "what's next", "move task X to in-progress / done", "open an issue for Y", or any backlog/project management on this repo. Source of truth is GitHub — there is no local markdown copy.
+description: Manage Lockness's product backlog directly on GitHub Project #2 ("Lockness Monorepo 🦕", org locknessland). Use when the user asks to "list the backlog", "add to the backlog", "what's next", "move task X to in-progress / done", "open an issue for Y", or any backlog/project management on this repo. Source of truth is GitHub — there is no local markdown copy.
 argument-hint: [list|next|add|update|estimate|status|groom|brief] [args]
 allowed-tools: Bash(gh *) Bash(.specnaut/scripts/backlog/*.sh) Bash(jq *) Bash(column *) Bash(sort *)
 ---
 
-# Backlog skill — Lockness (GitHub Project #1)
+# Backlog skill — Lockness (GitHub Project #2)
 
-The backlog lives on **GitHub Project #1 "Lockness Framework"** (org-owned by
-`locknessland`), backed by issues in **`locknessland/lockness`**. **No local
+The backlog lives on **GitHub Project #2 "Lockness Monorepo 🦕"** (org-owned by
+`locknessland`), backed by issues in **`locknessland/lockness-monorepo`**. **No local
 markdown mirror** — GitHub is the source of truth. Everything goes through `gh`
 CLI; wrappers under `.specnaut/scripts/backlog/` cover the common operations.
 
@@ -40,13 +40,13 @@ cached identifiers below are filled on first script invocation.
 
 | Thing             | Value                                                                                                   |
 | ----------------- | ------------------------------------------------------------------------------------------------------- |
-| Repo              | `locknessland/lockness`                                                                                 |
+| Repo              | `locknessland/lockness-monorepo`                                                                                 |
 | Project number    | `1` (owner: `locknessland`, org-owned)                                                                  |
-| Project node ID   | `PVT_kwDOCgOOI84BLfQw`                                                                                  |
-| Status field ID   | `PVTSSF_lADOCgOOI84BLfQwzg7C_9o`                                                                        |
-| Status options    | Backlog `1f6e6607` · Ready `289e2594` · In progress `da4b8f3f` · In review `b7e316c4` · Done `1c701f60` |
-| Priority field ID | `PVTSSF_lADOCgOOI84BLfQwzg7DAQU`                                                                        |
-| Priority options  | P0 `79628723` · P1 `0a877460` · P2 `da944a9c` · P3 `2355d55e`                                           |
+| Project node ID   | `PVT_kwDOCgOOI84BhcrF`                                                                                  |
+| Status field ID   | `PVTSSF_lADOCgOOI84BhcrFzhgYYBU`                                                                        |
+| Status options    | Backlog `f75ad846` · Ready `61e4505c` · In progress `47fc9ee4` · In review `df73e18b` · Done `98236657` |
+| Priority field ID | `PVTSSF_lADOCgOOI84BhcrFzhgYag0`                                                                        |
+| Priority options  | P0 `9491da28` · P1 `3ff5b5dd` · P2 `4e289589` · P3 `1873e065`                                           |
 
 If the project layout changes, refresh with:
 
@@ -75,9 +75,9 @@ gh project view 1 --owner locknessland --format json | jq '.id'
 For closing or editing, use `gh` directly — no wrapper needed:
 
 ```bash
-gh issue close  <num> --repo locknessland/lockness --reason completed   # or not_planned
-gh issue reopen <num> --repo locknessland/lockness
-gh issue edit   <num> --repo locknessland/lockness --title "…" --body "…" --add-label "…" --remove-label "…"
+gh issue close  <num> --repo locknessland/lockness-monorepo --reason completed   # or not_planned
+gh issue reopen <num> --repo locknessland/lockness-monorepo
+gh issue edit   <num> --repo locknessland/lockness-monorepo --title "…" --body "…" --add-label "…" --remove-label "…"
 ```
 
 ## Two paths to GitHub: MCP (preferred) and shell (always available)
@@ -116,7 +116,7 @@ filtered by `project.number == 1`. Same data, reverse path through the graph.
   projects/orgs without the native field. Exit codes: `10` = field/type absent
   (label fallback), `11` = value unrecognised (add option or fix call), `12` =
   issue not on project.
-- **Priority** — Project #1 has a separate `Priority` single-select field. Use
+- **Priority** — Project #2 has a separate `Priority` single-select field. Use
   it (alongside Status) when ordering the backlog. Status alone carries workflow
   state, not order.
 - **Drafts** (project items with no underlying issue) are not used. Every task
@@ -149,7 +149,7 @@ children under the parent's `Sub-issues progress` field.
 - The user is implementing a backlog item — that's normal coding work; only
   return here when they want to update the item's status afterwards.
 - The user asks about another repo's backlog — this skill is hard-wired to
-  `locknessland/lockness` and Project #1.
+  `locknessland/lockness-monorepo` and Project #2.
 
 ## Troubleshooting
 

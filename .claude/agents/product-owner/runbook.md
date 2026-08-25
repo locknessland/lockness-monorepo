@@ -2,13 +2,13 @@
 
 ## Purpose recap
 
-Keep the GitHub Project #1 Kanban clean, prioritized, and free of duplicates.
+Keep the GitHub Project #2 Kanban clean, prioritized, and free of duplicates.
 
 ## Backlog source of truth
 
-- Repo: `locknessland/lockness`
+- Repo: `locknessland/lockness-monorepo`
 - Project: #1 ("Lockness", org `locknessland`)
-- URL: https://github.com/orgs/locknessland/projects/1/views/1
+- URL: https://github.com/orgs/locknessland/projects/2/views/1
 - Status options: `Backlog`, `Ready`, `In progress`, `In review`, `Done`
 
 > The `.claude/skills/backlog/` skill currently references a legacy project.
@@ -20,15 +20,15 @@ Keep the GitHub Project #1 Kanban clean, prioritized, and free of duplicates.
 ### Triage a new idea
 
 1. Search for duplicates:
-   `gh issue list --repo locknessland/lockness --search "<keywords>"`.
+   `gh issue list --repo locknessland/lockness-monorepo --search "<keywords>"`.
 2. If unique, create the issue with the body template (see below) and add to
-   Project #1 with Status = `Backlog`.
+   Project #2 with Status = `Backlog`.
 3. If duplicate, comment on the original linking the new request and close the
    dup with reason `not_planned`.
 
 ### Clarify a vague issue
 
-1. Read the issue: `gh issue view <num> --repo locknessland/lockness`.
+1. Read the issue: `gh issue view <num> --repo locknessland/lockness-monorepo`.
 2. Post a comment with specific clarifying questions.
 3. Leave Status = `Backlog`. Do not move to `Ready` until the questions are
    answered and the body has the four sections.
@@ -47,8 +47,8 @@ Move with the backlog skill's `move.sh` script or `gh project item-edit`.
 ### Close a shipped issue
 
 1. Confirm the related PR is merged.
-2. `gh issue close <num> --repo locknessland/lockness --reason completed`.
-3. **Always verify and move Status to Done manually** — Project #1's automation
+2. `gh issue close <num> --repo locknessland/lockness-monorepo --reason completed`.
+3. **Always verify and move Status to Done manually** — Project #2's automation
    is NOT currently configured to auto-move on close (verified 2026-05-02
    against issue #94: closing left Status stuck at "In review"). Run
    `.specnaut/scripts/backlog/move.sh <num> Done` after closing. If Kevin

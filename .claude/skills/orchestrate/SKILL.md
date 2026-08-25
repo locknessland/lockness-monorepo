@@ -33,8 +33,8 @@ Agent tool.
 
 Spawn the **product-owner** sub-agent:
 
-> "Give me the top issue in the Ready column of Project #1
-> (`locknessland/lockness`). Return: number, title, full body, and the
+> "Give me the top issue in the Ready column of Project #2
+> (`locknessland/lockness-monorepo`). Return: number, title, full body, and the
 > acceptance criteria. If Ready is empty, say so."
 
 If the PO returns "no Ready issues", report to the user and stop.

@@ -107,7 +107,7 @@ async function main() {
         console.log('   deno task cli docs:generate\n')
         console.log('📚 Documentation:')
         console.log(
-            '   https://github.com/locknessland/lockness/tree/main/packages/openapi\n',
+            '   https://github.com/locknessland/lockness-monorepo/tree/main/packages/openapi\n',
         )
     } else {
         console.log('\n✓ @lockness/openapi is already configured\n')

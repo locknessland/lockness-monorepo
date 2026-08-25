@@ -56,8 +56,8 @@ Lockness uses two complementary workflows. Pick the one that fits the task.
   parallel). Use for backlog issues that map cleanly to our team layout. Skill
   at `.claude/skills/orchestrate/SKILL.md`.
 
-Backlog source of truth: GitHub Project #1 (`locknessland/lockness`). Managed
-via the `/backlog` skill or the `product-owner` agent.
+Backlog source of truth: GitHub Project #2 (`locknessland/lockness-monorepo`).
+Managed via the `/backlog` skill or the `product-owner` agent.
 
 ---
 
@@ -440,7 +440,8 @@ reminders:
 - Don't manually add `@lockness/*` to root imports — workspaces handle it
 - Register new libraries in the workspace array
 - Use `deno task bump <version>` for releases
-- Repo: [locknessland/lockness](https://github.com/locknessland/lockness)
+- Repo:
+  [locknessland/lockness-monorepo](https://github.com/locknessland/lockness-monorepo)
 
 <!-- --- Specnaut: chain-stops --- -->
 

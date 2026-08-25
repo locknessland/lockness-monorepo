@@ -72,7 +72,7 @@ deno run -Ar jsr:@lockness/upgrade 0.2.0 --dry-run
 
 ⚠️  Don't forget to:
   - Review the changes with git diff
-  - Check the changelog at https://github.com/locknessland/lockness/releases
+  - Check the changelog at https://github.com/locknessland/lockness-monorepo/releases
   - Test your application
 ```
 
@@ -263,7 +263,7 @@ Read the changelog before upgrading:
 
 ```bash
 # Visit changelog
-open https://github.com/locknessland/lockness/releases
+open https://github.com/locknessland/lockness-monorepo/releases
 ```
 
 ### 3. Test Thoroughly
@@ -401,11 +401,11 @@ The upgrade tool:
 ## Contributing
 
 Found a bug or have a feature request? Open an issue on
-[GitHub](https://github.com/locknessland/lockness/issues).
+[GitHub](https://github.com/locknessland/lockness-monorepo/issues).
 
 ## Links
 
-- [Lockness Framework](https://github.com/locknessland/lockness)
+- [Lockness Framework](https://github.com/locknessland/lockness-monorepo)
 - [JSR Package Registry](https://jsr.io/@lockness/upgrade)
 - [Documentation](https://lockness.land/docs)
-- [Changelog](https://github.com/locknessland/lockness/releases)
+- [Changelog](https://github.com/locknessland/lockness-monorepo/releases)

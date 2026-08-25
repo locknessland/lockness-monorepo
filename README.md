@@ -38,7 +38,7 @@ public/             # Static assets
 
 ````bash
 # Clone the repository
-git clone https://github.com/locknessland/lockness.git
+git clone https://github.com/locknessland/lockness-monorepo.git
 cd lockness
 
 # Copy environment file

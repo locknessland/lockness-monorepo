@@ -105,7 +105,7 @@ export const AuthLayout: FC<AuthLayoutProps> = ({ title, children }) => {
                         </a>
                         <ThemeSwitch variant='toggle' />
                         <a
-                            href='https://github.com/locknessland/lockness'
+                            href='https://github.com/locknessland/lockness-monorepo'
                             target='_blank'
                             class='inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
                         >

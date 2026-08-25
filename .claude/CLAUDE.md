@@ -43,8 +43,9 @@ blockers, not preferences.
 
 ## Source of truth for tasks
 
-The backlog source of truth is **GitHub Project #1** of `locknessland/lockness`
-(https://github.com/orgs/locknessland/projects/1/views/1). Reads/writes go
+The backlog source of truth is **GitHub Project #2** of
+`locknessland/lockness-monorepo`
+(https://github.com/orgs/locknessland/projects/2/views/1). Reads/writes go
 through the `/backlog` skill or the Specnaut product-owner agent — both share
 the same `gh` CLI backend (config in `.specnaut/backlog-config.yml`). The legacy
 `.tasks/` folder has been removed.

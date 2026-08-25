@@ -114,7 +114,7 @@ review.
 
 ## Backlog & process
 
-- **Source of truth** — GitHub Project #1 of `locknessland/lockness`.
+- **Source of truth** — GitHub Project #2 of `locknessland/lockness-monorepo`.
 - **No local Markdown mirror.** No `.specnaut/backlog/` task files.
 - **Classification gate** — every item exits with Size, Priority, Issue Type,
   and ≥1 classifying label (see `product-owner` agent).

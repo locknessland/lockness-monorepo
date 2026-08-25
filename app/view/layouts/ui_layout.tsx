@@ -92,7 +92,7 @@ export const PageUiLayout = (
                         <UserIcon size={20} />
                     </a>
                     <a
-                        href='https://github.com/locknessland/lockness'
+                        href='https://github.com/locknessland/lockness-monorepo'
                         target='_blank'
                         class='inline-flex items-center text-muted-foreground hover:text-primary transition-colors'
                     >
@@ -134,7 +134,7 @@ export const PageUiLayout = (
                         {filePath && (
                             <div class='mt-12 pt-6 border-t border-border flex justify-end'>
                                 <Button
-                                    href={`https://github.com/locknessland/lockness/blob/main/${filePath}`}
+                                    href={`https://github.com/locknessland/lockness-monorepo/blob/main/${filePath}`}
                                     target='_blank'
                                     variant='ghost'
                                     size='sm'

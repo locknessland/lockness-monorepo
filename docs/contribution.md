@@ -70,7 +70,7 @@ This command automatically:
 ## Contributing
 
 1. **Fork the repository**:
-   [locknessland/lockness](https://github.com/locknessland/lockness)
+   [locknessland/lockness-monorepo](https://github.com/locknessland/lockness-monorepo)
 2. **Create a branch**: `git checkout -b feature/my-new-feature`
 3. **Make your changes**: Ensure you follow the `mod.ts` convention for exports.
 4. **Test your changes**: Run `deno task test` to verify everything works.
