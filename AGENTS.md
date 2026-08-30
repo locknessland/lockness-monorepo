@@ -156,6 +156,86 @@ refer to these files:
 | [STUBS.md](docs/STUBS.md)                               | Stub synchronization            |
 | [ui-components-documentation.md](docs/ui-components.md) | UI components overview          |
 
+### Per-package agent briefs (`packages/*/AGENTS.md`)
+
+Each package carries an `AGENTS.md` — role, public surface, dependency edges in
+both directions, where to work, and known pitfalls. These are written for an
+agent about to change the package; the `README.md` beside each one is the
+user-facing doc.
+
+**Foundation — imported by everything, importing nothing**
+
+- [`@lockness/contract`](packages/contract/AGENTS.md) — Shared types and
+  decorator declarations. No runtime code, no imports — the cycle-breaker.
+- [`@lockness/hono`](packages/hono/AGENTS.md) — The pinned Hono re-export layer.
+  Internal; hard rule #1 exists because of it.
+- [`@lockness/container`](packages/container/AGENTS.md) — IoC container —
+  `@Service`, `@Inject`, lifetimes, circular-dependency detection.
+
+**Framework**
+
+- [`@lockness/core`](packages/core/AGENTS.md) — The framework. The only package
+  a user application imports directly.
+- [`@lockness/cli`](packages/cli/AGENTS.md) — The command system behind
+  `./nessy`, plus the `make:*` stub tree.
+- [`@lockness/events`](packages/events/AGENTS.md) — Class-based events,
+  dispatcher, listener discovery, test doubles.
+- [`@lockness/init`](packages/init/AGENTS.md) — Project scaffolding —
+  `lockness init` and the stub tree every new app starts from.
+
+**Identity and request state**
+
+- [`@lockness/auth`](packages/auth/AGENTS.md) — Guards decide how identity is
+  proven; the authenticator binds them to providers.
+- [`@lockness/auth-provider`](packages/auth-provider/AGENTS.md) — ORM-agnostic
+  user providers for `@lockness/auth` (base / drizzle / kysely).
+- [`@lockness/session`](packages/session/AGENTS.md) — Session management across
+  cookie, memory, Deno KV and Redis drivers.
+- [`@lockness/socialite`](packages/socialite/AGENTS.md) — OAuth2 / OIDC social
+  authentication with normalised user payloads.
+- [`@lockness/validator`](packages/validator/AGENTS.md) — Rules, async
+  validation, sanitisers and a Zod decorator bridge.
+
+**Data**
+
+- [`@lockness/drizzle`](packages/drizzle/AGENTS.md) — Drizzle ORM integration
+  for PostgreSQL — `Database` service, `db:*` commands, stubs.
+
+**Infrastructure services**
+
+- [`@lockness/cache`](packages/cache/AGENTS.md) — Multi-driver cache with
+  tagging. Loaded optionally by core at boot.
+- [`@lockness/queue`](packages/queue/AGENTS.md) — Background job processing with
+  multiple drivers.
+- [`@lockness/storage`](packages/storage/AGENTS.md) — File storage over local
+  and cloud drivers.
+- [`@lockness/mail`](packages/mail/AGENTS.md) — Email sending with pluggable
+  drivers and a fluent message builder.
+- [`@lockness/logger`](packages/logger/AGENTS.md) — Structured logging — levels,
+  transports, formatters, metadata.
+- [`@lockness/sse`](packages/sse/AGENTS.md) — Server-Sent Events: channels,
+  connection manager, wire formatter.
+
+**View layer**
+
+- [`@lockness/ui`](packages/ui/AGENTS.md) — The component library — 90 files,
+  Hono JSX and Tailwind v4.
+- [`@lockness/markdown`](packages/markdown/AGENTS.md) — Markdown rendered to JSX
+  through `@lockness/ui` components.
+- [`@lockness/inertia`](packages/inertia/AGENTS.md) — Inertia.js server adapter
+  — partial reloads, shared props, the response protocol.
+
+**Tooling and developer experience**
+
+- [`@lockness/devtools`](packages/devtools/AGENTS.md) — The debug bar and
+  dashboard at `/_devtools`. Dev-only.
+- [`@lockness/openapi`](packages/openapi/AGENTS.md) — Generates an OpenAPI 3.0
+  document from route metadata.
+- [`@lockness/upgrade`](packages/upgrade/AGENTS.md) — Rewrites a project's
+  `@lockness/*` specifiers to the latest published versions.
+- [`@lockness/deprecation-contracts`](packages/deprecation-contracts/AGENTS.md)
+  — A convention for raising, collecting and rendering deprecation notices.
+
 ### Package Documentation (`packages/*/docs/`)
 
 | Package                                                                           | Description             |
