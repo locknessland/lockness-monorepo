@@ -19,7 +19,7 @@ architecture.
 ## First action in every session
 
 1. Read `AGENTS.md` at the project root for tech stack and rules.
-2. Read `.claude/CLAUDE.md` for the project hard rules (no direct `hono`, JSR
+2. Read `AGENTS.md` for the project hard rules (no direct `hono`, JSR
    only, no `any`, Tailwind v4 syntax, pre-completion gate, JSDoc, MVC).
 3. Read `.specnaut/memory/constitution.md` for additional invariants.
 4. Read `.claude/agents/developer/runbook.md` for the TDD flow and Lockness

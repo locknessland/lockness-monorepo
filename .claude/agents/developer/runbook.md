@@ -113,4 +113,4 @@ stub.
 - `docs/testing.md`
 - `docs/STUBS.md`
 - `AGENTS.md`
-- `.claude/CLAUDE.md`
+- `AGENTS.md`

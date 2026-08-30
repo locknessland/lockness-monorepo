@@ -2,10 +2,10 @@
 
 > Invariants of the Lockness framework. Specnaut commands and review agents read
 > this at every step. The **hard rules** are mirrored in
-> [.claude/CLAUDE.md](../../.claude/CLAUDE.md) (always loaded into agent
+> [AGENTS.md](../../AGENTS.md) (always loaded into agent
 > contexts). The doc index lives in [AGENTS.md](../../AGENTS.md).
 
-## Hard rules (mirrored from CLAUDE.md)
+## Hard rules (mirrored from AGENTS.md)
 
 These are blockers, not preferences. Violations are FAIL findings in every
 review.
@@ -147,4 +147,4 @@ review.
 - **Agents** — `.claude/agents/<name>.md` (+ optional
   `.claude/agents/<name>/runbook.md`).
 - **Skills** — `.claude/skills/<name>/SKILL.md`.
-- **Hard rules / Claude entry-point** — `.claude/CLAUDE.md`.
+- **Hard rules / Claude entry-point** — `AGENTS.md`.

@@ -82,4 +82,4 @@ Integration + e2e + manual. No unit tests, no production-code edits.
 - `docs/testing.md`
 - `docs/getting-started.md` (for golden-path commands)
 - `AGENTS.md`
-- `.claude/CLAUDE.md`
+- `AGENTS.md`

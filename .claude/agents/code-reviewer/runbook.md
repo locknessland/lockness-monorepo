@@ -61,4 +61,4 @@ Block bad merges. Approve clean ones. Be specific, terse, and actionable.
 - `docs/dependencies.md`
 - `docs/STUBS.md`
 - `docs/testing.md`
-- `.claude/CLAUDE.md` (project hard rules)
+- `AGENTS.md` (project hard rules)

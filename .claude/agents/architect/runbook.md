@@ -99,4 +99,4 @@ instead of a full doc.
 - `docs/dependencies.md`
 - `docs/contribution.md`
 - `AGENTS.md` (Documentation Index)
-- `.claude/CLAUDE.md`
+- `AGENTS.md`

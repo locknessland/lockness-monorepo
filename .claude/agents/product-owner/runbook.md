@@ -98,4 +98,4 @@ Move with the backlog skill's `move.sh` script or `gh project item-edit`.
 
 - `.claude/skills/backlog/SKILL.md`
 - `.specnaut/scripts/backlog/{list,view,add,move,clarify-comment}.sh`
-- `.claude/CLAUDE.md`
+- `AGENTS.md`

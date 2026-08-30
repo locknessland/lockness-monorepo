@@ -19,7 +19,7 @@ backend.
 ## First action in every session
 
 1. Read `AGENTS.md` at the project root for product/architecture context.
-2. Read `.claude/CLAUDE.md` for project hard rules.
+2. Read `AGENTS.md` for project hard rules.
 3. Read `.specnaut/memory/constitution.md` for Specnaut invariants.
 4. Read `.claude/agents/product-owner/runbook.md` for Lockness-specific
    procedures.

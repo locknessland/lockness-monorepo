@@ -35,29 +35,99 @@ Hono functionalities.
 - **Production Ready**: Compile to standalone binaries with `deno compile`
 
 > Framework-wide rules (no direct `hono` import, JSR-only specifiers, Tailwind
-> v4 CSS-variable syntax, pre-completion gate, etc.) live in
-> [.claude/CLAUDE.md](.claude/CLAUDE.md).
+> v4 CSS-variable syntax, pre-completion gate, etc.) are the
+> [hard rules](#-hard-rules-every-agent-must-respect) below.
 
 ---
 
-## 🛤️ Workflows: Specnaut + Orchestrate
+## ⚖️ Hard rules every agent must respect
 
-Lockness uses two complementary workflows. Pick the one that fits the task.
+These rules apply to **every** sub-agent and to the main session. Violations are
+blockers, not preferences.
 
-- **`/specnaut plan "<feature>"`** — chained pipeline: **plan → tasks →
-  implement → review → merge**. Use for greenfield features needing a written
-  plan + tasks tree before implementation. Discovery, specification and
-  clarification all happen inside `plan`; a feature produces exactly two
-  artefacts, `plan.md` and `tasks.md`. New specifications live under
-  `.specnaut/specs/<feature>/`. The Specnaut constitution is
-  `.specnaut/memory/constitution.md`.
+1. **No direct `hono` import.** Always import from `@lockness/core`. Lockness
+   re-exports the Hono APIs it supports, on a pinned version. Direct imports
+   break compatibility.
+2. **JSR-only imports for Lockness and stdlib.** Use `jsr:@lockness/...` and
+   `jsr:@std/...`. Avoid `npm:` specifiers unless a package is JSR-unavailable
+   AND the use case justifies it (document the why in a code comment).
+3. **No `any` in exported APIs.** Use `unknown` + type guards when a type is
+   genuinely uncertain. Exception requires a
+   `// deno-lint-ignore no-explicit-any` comment with justification.
+4. **Tailwind v4 CSS-variable syntax.** Use `bg-(--my-var)` (parentheses), NOT
+   `bg-[--my-var]` (brackets). Brackets are for arbitrary literal values like
+   `px-[0.75rem]`, not for variable references.
+5. **Pre-completion gate on every code change.** Before declaring a code task
+   done, run `deno fmt && deno lint && deno check <files> && deno task test`. If
+   any step fails, fix and re-run — do not declare done with red checks.
+6. **Never modify `deno.lock` manually.** It is generated. If a dependency
+   change requires it, run the relevant `deno cache` or `deno task` command.
+7. **JSDoc on public APIs.** Every exported class, method, function, interface,
+   and type carries a description, `@param`, `@returns`, `@throws`, and
+   `@example` where applicable. File-level `@fileoverview` and `@module` tags on
+   public modules.
+8. **MVC layering.** Controllers stay thin (delegate to services). Services
+   contain business logic. Models/repositories handle persistence. No direct DB
+   queries in controllers.
+9. **Commit discipline — one category per commit, flat history.** Commit your
+   own work proactively as soon as a coherent chunk lands; do not let unrelated
+   changes pile up uncommitted. Each commit covers a single category
+   (Conventional Commits: `feat` / `fix` / `chore` / `docs` / `refactor` /
+   `test` / `build` / `ci` / `style` / `perf`). If a session produced changes
+   spanning multiple categories, split into multiple commits — never bundle
+   "feat + chore + docs" into one. Linear history only (no merge commits when
+   fast-forward is possible).
+
+---
+
+## 🛤️ Agents, skills, and workflows
+
+Specialist sub-agents live in `.claude/agents/<name>.md`. Some carry a runbook
+at `.claude/agents/<name>/runbook.md` with procedures specific to their role.
+
+Two complementary workflows coexist:
+
 - **`/orchestrate`** — Lockness multi-agent dispatch (product-owner → architect
   → developer → qa-tester → code-reviewer, with docs-writer / devops-sre in
-  parallel). Use for backlog issues that map cleanly to our team layout. Skill
-  at `.claude/skills/orchestrate/SKILL.md`.
+  parallel when relevant). Use for backlog issues that map to our team layout.
+  Skill at `.claude/skills/orchestrate/SKILL.md`.
+- **`/specnaut plan "<feature>"`** — Specnaut chained pipeline: **plan → tasks →
+  implement → review → merge** (five phases, not nine). Use for greenfield
+  features needing a written plan + tasks tree before implementation. Skill at
+  `.claude/skills/specnaut/SKILL.md`.
 
-Backlog source of truth: GitHub Project #2 (`locknessland/lockness-monorepo`).
-Managed via the `/backlog` skill or the `product-owner` agent.
+Specnaut v3 facts worth knowing before you invoke it:
+
+- **Discovery, specification and clarification all happen inside `plan`.** There
+  is no `specify`, `clarify`, `brainstorm`, `checklist` or `list-skills` phase —
+  invoking one of those names prints the phase index and stops.
+- **`analyze` was replaced, not moved.** Its job is now a binding decision table
+  inside `plan.md` plus two plan audits (`architect-expert` + `security-expert`)
+  dispatched in parallel _before any code exists_.
+- **A feature produces exactly two artefacts**: `plan.md` and `tasks.md`.
+- **`--manual` is the only surviving flag.** `--once`, `--continue`, `--lite`
+  and `--full` are gone; re-entry is inferred from which artefacts exist.
+- **There are exactly two stops**: the end of `plan`, and the `review` verdict.
+- **`merge` does not open a PR by default** — it fast-forwards the base locally
+  and squashes by scope. A PR is opt-in via `--pr`.
+
+New specifications live under `.specnaut/specs/<feature>/`. Project principles
+for the Specnaut pipeline live in `.specnaut/memory/constitution.md` — it
+complements (it does not replace) the hard rules above.
+
+Spec directories written before the v3 migration are **historical records**, not
+live rules. `plan` reads them without failing; do not rewrite them.
+
+---
+
+## 📋 Source of truth for tasks
+
+The backlog source of truth is **GitHub Project #2** of
+`locknessland/lockness-monorepo`
+(https://github.com/orgs/locknessland/projects/2/views/1). Reads/writes go
+through the `/backlog` skill or the Specnaut product-owner agent — both share
+the same `gh` CLI backend (config in `.specnaut/backlog-config.yml`). The legacy
+`.tasks/` folder has been removed.
 
 ---
 
@@ -68,23 +138,23 @@ refer to these files:
 
 ### Root Documentation (`docs/`)
 
-| Topic                                                                 | Description                     |
-| --------------------------------------------------------------------- | ------------------------------- |
-| [architecture.md](docs/architecture.md)                               | Package system & layered design |
-| [getting-started.md](docs/getting-started.md)                         | Quick start tutorial            |
-| [installation.md](docs/installation.md)                               | Installation guide              |
-| [lifecycle-events.md](docs/lifecycle-events.md)                       | Framework Lifecycle Events      |
-| [middleware.md](docs/middleware.md)                                   | Middleware patterns             |
-| [models.md](docs/models.md)                                           | Database models with Drizzle    |
-| [testing.md](docs/testing.md)                                         | Testing best practices          |
-| [deployment.md](docs/deployment.md)                                   | Production deployment           |
-| [compilation.md](docs/compilation.md)                                 | Binary compilation              |
-| [nessy.md](docs/nessy.md)                                             | Nessy CLI wrapper               |
-| [packages.md](docs/packages.md)                                       | Package management              |
-| [contribution.md](docs/contribution.md)                               | Contributing guide              |
-| [dependencies.md](docs/dependencies.md)                               | Dependency graph                |
-| [STUBS.md](docs/STUBS.md)                                             | Stub synchronization            |
-| [ui-components-documentation.md](docs/ui-components-documentation.md) | UI components overview          |
+| Topic                                                   | Description                     |
+| ------------------------------------------------------- | ------------------------------- |
+| [architecture.md](docs/architecture.md)                 | Package system & layered design |
+| [getting-started.md](docs/getting-started.md)           | Quick start tutorial            |
+| [installation.md](docs/installation.md)                 | Installation guide              |
+| [lifecycle-events.md](docs/lifecycle-events.md)         | Framework Lifecycle Events      |
+| [middleware.md](docs/middleware.md)                     | Middleware patterns             |
+| [models.md](docs/models.md)                             | Database models with Drizzle    |
+| [testing.md](docs/testing.md)                           | Testing best practices          |
+| [deployment.md](docs/deployment.md)                     | Production deployment           |
+| [compilation.md](docs/compilation.md)                   | Binary compilation              |
+| [nessy.md](docs/nessy.md)                               | Nessy CLI wrapper               |
+| [packages.md](docs/packages.md)                         | Package management              |
+| [contribution.md](docs/contribution.md)                 | Contributing guide              |
+| [dependencies.md](docs/dependencies.md)                 | Dependency graph                |
+| [STUBS.md](docs/STUBS.md)                               | Stub synchronization            |
+| [ui-components-documentation.md](docs/ui-components.md) | UI components overview          |
 
 ### Package Documentation (`packages/*/docs/`)
 
@@ -366,8 +436,7 @@ Evolution management with Devtools integration. See:
 
 ## 🎨 Tailwind CSS v4 — Quick Reference
 
-The hard rule lives in [.claude/CLAUDE.md](.claude/CLAUDE.md) (rule #4):
-parentheses for CSS variables, brackets for literal values.
+Hard rule #4 above: parentheses for CSS variables, brackets for literal values.
 
 | Purpose            | Syntax                    | Example                   |
 | ------------------ | ------------------------- | ------------------------- |
@@ -381,9 +450,7 @@ parentheses for CSS variables, brackets for literal values.
 ## ⚙️ Development Workflow
 
 The pre-completion quality gate
-(`deno fmt && deno lint && deno check && deno
-task test`) is enforced by
-[.claude/CLAUDE.md](.claude/CLAUDE.md) rule #5.
+(`deno fmt && deno lint && deno check && deno task test`) is hard rule #5 above.
 
 ### Dev mode (multi-terminal)
 
@@ -442,6 +509,32 @@ reminders:
 - Use `deno task bump <version>` for releases
 - Repo:
   [locknessland/lockness-monorepo](https://github.com/locknessland/lockness-monorepo)
+
+---
+
+## 🔌 Optional Claude Code integrations
+
+Set up if useful to your workflow.
+
+- **Periodic maintenance** — `/loop 1h` runs `.claude/loop.md` every hour. The
+  bundled default delegates to `/specnaut groom`. See
+  https://code.claude.com/docs/fr/scheduled-tasks.
+- **Goal-directed sessions** — `/goal <condition>` keeps turns running until a
+  fast model judges the condition met. See https://code.claude.com/docs/fr/goal.
+- **Multi-session dispatch (`claude agents`)** — terminal UI listing background
+  Claude sessions; spawns agents with isolated git worktrees under
+  `.claude/worktrees/`. Requires Claude Code v2.1.139+. See
+  https://code.claude.com/docs/fr/agent-view.
+- **Async notifications** — install Telegram / Discord / iMessage channel
+  plugins for long-task pings. See https://code.claude.com/docs/fr/channels.
+- **Headless / CI** — `claude -p "<prompt>"` runs non-interactively. Specnaut
+  ships `.claude/scripts/dispatch-agent.sh <agent-name> "<prompt>"` which
+  auto-derives `--allowedTools` from agent frontmatter. See
+  https://code.claude.com/docs/fr/headless.
+- **Deep links** — `claude-cli://open?repo=<owner>/<repo>&q=<prompt>` opens a
+  fresh session pre-filled. See https://code.claude.com/docs/fr/deep-links.
+- **MCP servers** — connect external tools via `.mcp.json`. See
+  https://code.claude.com/docs/fr/mcp.
 
 <!-- --- Specnaut: chain-stops --- -->
 

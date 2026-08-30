@@ -18,7 +18,7 @@ standalone binary / Docker deployments.
 ## First action in every session
 
 1. Read `AGENTS.md` for the tech stack and constraints.
-2. Read `.claude/CLAUDE.md` for project hard rules.
+2. Read `AGENTS.md` for project hard rules.
 3. Read `.specnaut/memory/constitution.md` for non-negotiable invariants (often
    where SLOs and security posture live).
 4. Read `.claude/agents/devops-sre/runbook.md` — release flow, bump usage,

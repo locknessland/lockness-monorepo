@@ -22,7 +22,7 @@ tests (developer's responsibility).
 Before validating, read:
 
 - `.claude/agents/qa-tester/runbook.md` — your test types and golden paths.
-- `.claude/CLAUDE.md` — project hard rules.
+- `AGENTS.md` — project hard rules.
 - `AGENTS.md` — project doc index.
 - `docs/testing.md` — official testing strategy.
 - `.specnaut/memory/constitution.md` — invariants.

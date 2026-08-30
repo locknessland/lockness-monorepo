@@ -35,7 +35,7 @@ one of them by name, and a missing seat fails at dispatch time, silently.
 Before designing anything, read:
 
 - `.claude/agents/architect/runbook.md` — your design template and patterns.
-- `.claude/CLAUDE.md` — project hard rules.
+- `AGENTS.md` — project hard rules.
 - `AGENTS.md` — project doc index.
 - `docs/architecture.md`
 - `docs/dependencies.md`

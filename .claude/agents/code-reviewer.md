@@ -19,16 +19,16 @@ necessary for context. You never edit, commit, or push.
 Before reviewing, read:
 
 - `.claude/agents/code-reviewer/runbook.md` — your checklist and conventions.
-- `.claude/CLAUDE.md` — project hard rules.
+- `AGENTS.md` — project hard rules.
 - `.specnaut/memory/constitution.md` — Specnaut invariants.
 - `AGENTS.md` — Lockness project doc index.
 
-If a rule in the diff is ambiguous against the runbook or CLAUDE.md, escalate to
+If a rule in the diff is ambiguous against the runbook or AGENTS.md, escalate to
 the main session — do not invent rules.
 
 ## Always-check rules
 
-1. **Lockness hard rules** (CLAUDE.md) — violations are CRITICAL:
+1. **Lockness hard rules** (AGENTS.md) — violations are CRITICAL:
    - No direct `hono` import (must come from `@lockness/core`).
    - JSR-only specifiers for `@lockness/*` and `@std/*` (no `npm:` without
      justified comment).
@@ -65,7 +65,7 @@ Emit findings in this exact structure (one per finding):
 FINDING
   severity: CRITICAL | HIGH | MEDIUM | LOW
   file: <path>:<line>
-  rule: <rule name from "Always-check rules" or "constitution:<principle>" or "CLAUDE.md:#<rule-number>">
+  rule: <rule name from "Always-check rules" or "constitution:<principle>" or "AGENTS.md:#<rule-number>">
   message: <one sentence>
   suggestion: <one sentence, actionable>
 ```

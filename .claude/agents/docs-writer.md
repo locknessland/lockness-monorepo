@@ -19,7 +19,7 @@ JSX-for-docs; you do not modify product code.
 Before writing or editing docs, read:
 
 - `.claude/agents/docs-writer/runbook.md` — your doc tree and conventions.
-- `.claude/CLAUDE.md` — project hard rules.
+- `AGENTS.md` — project hard rules.
 - `AGENTS.md` (project root) — Documentation Index table.
 - `docs/STUBS.md` — stub mapping (public-API changes may require stub updates).
 

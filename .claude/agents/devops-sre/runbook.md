@@ -170,5 +170,5 @@ Multi-stage Dockerfile, runs as non-root, includes health check.
 - `docs/deployment.md`
 - `docs/compilation.md`
 - `Dockerfile`
-- `.claude/CLAUDE.md`
+- `AGENTS.md`
 - `AGENTS.md`

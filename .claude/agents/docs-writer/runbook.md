@@ -98,4 +98,4 @@ doc.
 - `docs/STUBS.md`
 - `.tasks/.template.md` (Documentation Updates Checklist section — useful
   reference even though `.tasks/` is being phased out)
-- `.claude/CLAUDE.md`
+- `AGENTS.md`
