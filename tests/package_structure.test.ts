@@ -28,6 +28,11 @@ const REQUIRED_FILES = {
         description: 'Package entry point',
         minLength: 10,
     },
+    'AGENTS.md': {
+        description:
+            'Agent-facing brief: role, public surface, dependency edges, pitfalls',
+        minLength: 400,
+    },
 } as const
 
 type RequiredFile = keyof typeof REQUIRED_FILES
@@ -120,6 +125,25 @@ Deno.test('Package Structure - all packages should have mod.ts', async (t) => {
     assertEquals(missing.length, 0, `Missing mod.ts: ${missing.join(', ')}`)
 })
 
+Deno.test('Package Structure - all packages should have AGENTS.md', async (t) => {
+    const missing: string[] = []
+
+    for (const pkg of PACKAGES) {
+        if (EXEMPTIONS[pkg]?.includes('AGENTS.md')) continue
+
+        await t.step(`checking ${pkg}/AGENTS.md`, async () => {
+            const filePath = join('packages', pkg, 'AGENTS.md')
+            const hasFile = await exists(filePath)
+
+            if (!hasFile) missing.push(pkg)
+
+            assert(hasFile, `Package "${pkg}" is missing AGENTS.md`)
+        })
+    }
+
+    assertEquals(missing.length, 0, `Missing AGENTS.md: ${missing.join(', ')}`)
+})
+
 // =============================================================================
 // Test: Files should not be empty
 // =============================================================================
@@ -142,6 +166,41 @@ Deno.test('Package Structure - README.md files should not be empty', async (t) =
                     content.trim().length >= minLength,
                     `Package "${pkg}" README.md is too short (${content.trim().length} chars, min ${minLength})`,
                 )
+            }
+        })
+    }
+})
+
+Deno.test('Package Structure - AGENTS.md files should be substantive', async (t) => {
+    for (const pkg of PACKAGES) {
+        if (EXEMPTIONS[pkg]?.includes('AGENTS.md')) continue
+
+        await t.step(`checking ${pkg}/AGENTS.md content`, async () => {
+            const filePath = join('packages', pkg, 'AGENTS.md')
+
+            if (await exists(filePath)) {
+                const content = await Deno.readTextFile(filePath)
+                const minLength = REQUIRED_FILES['AGENTS.md'].minLength
+
+                assert(
+                    content.trim().length >= minLength,
+                    `Package "${pkg}" AGENTS.md is too short (${content.trim().length} chars, min ${minLength})`,
+                )
+
+                // A brief without these is a stub, not a brief.
+                for (
+                    const heading of [
+                        '## Public surface',
+                        '## Dependencies',
+                        '## Where to work',
+                        '## Pitfalls',
+                    ]
+                ) {
+                    assert(
+                        content.includes(heading),
+                        `Package "${pkg}" AGENTS.md is missing the "${heading}" section`,
+                    )
+                }
             }
         })
     }
