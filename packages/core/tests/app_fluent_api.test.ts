@@ -4,10 +4,14 @@
 
 import { assertEquals, assertExists } from '@std/assert'
 import { App } from '../app.ts'
-import type { Context, IMiddleware, MiddlewareHandler } from '../types.ts'
+import type {
+    Context,
+    MiddlewareContract,
+    MiddlewareHandler,
+} from '../types.ts'
 
 // Mock middleware class for testing
-class MockMiddleware implements IMiddleware {
+class MockMiddleware implements MiddlewareContract {
     handle: MiddlewareHandler = async (_c, next) => {
         await next()
     }

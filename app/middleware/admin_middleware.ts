@@ -1,7 +1,7 @@
 import {
     type Context,
     DeclareMiddleware,
-    type IMiddleware,
+    type MiddlewareContract,
     type Next,
 } from '@lockness/core'
 
@@ -25,7 +25,7 @@ import {
  * ```
  */
 @DeclareMiddleware('admin')
-export class AdminMiddleware implements IMiddleware {
+export class AdminMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         // Example: Check if user has admin role
         // In a real app, you'd get this from the context after auth middleware

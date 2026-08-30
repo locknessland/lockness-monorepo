@@ -174,10 +174,14 @@ deno task cli db:seed User    # Run specific seeder
 Create your own CLI commands:
 
 ```typescript
-import { Command, type CommandContext, type ICommand } from '@lockness/cli'
+import {
+    Command,
+    type CommandContext,
+    type CommandContract,
+} from '@lockness/cli'
 
 @Command('greet', 'Say hello to someone')
-export class GreetCommand implements ICommand {
+export class GreetCommand implements CommandContract {
     async handle(ctx: CommandContext) {
         const name = ctx.arg(0) || 'World'
 
@@ -234,10 +238,14 @@ Your own commands are automatically discovered from `app/command/` as long as
 they use the `@Command` decorator and the class is exported.
 
 ```typescript
-import { Command, type CommandContext, type ICommand } from '@lockness/cli'
+import {
+    Command,
+    type CommandContext,
+    type CommandContract,
+} from '@lockness/cli'
 
 @Command('greet', 'Say hello')
-export class GreetCommand implements ICommand {
+export class GreetCommand implements CommandContract {
     async handle(ctx: CommandContext) {
         console.log(`Hello, ${ctx.arg(0) || 'World'}!`)
     }

@@ -11,7 +11,7 @@ import type { CacheDriver } from './types.ts'
 import { getCacheConfig } from './config.ts'
 import { DenoKvCacheDriver } from './drivers/deno_kv_driver.ts'
 import { MemoryCacheDriver } from './drivers/memory_driver.ts'
-import type { ICache } from '@lockness/contract'
+import type { CacheContract } from '@lockness/contract'
 
 /**
  * Global cache driver instance (lazy-initialized).
@@ -86,7 +86,7 @@ export function setCacheDriver(driver: CacheDriver): void {
  * ```
  * @see {@link CacheStore}
  */
-export class CacheStore implements ICache {
+export class CacheStore implements CacheContract {
     /** @internal Tags applied to all operations */
     private readonly tags: readonly string[]
 

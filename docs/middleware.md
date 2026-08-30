@@ -5,8 +5,8 @@ for clean, maintainable code.
 
 ## Overview
 
-Middlewares in Lockness are classes that implement the `IMiddleware` interface.
-They can be:
+Middlewares in Lockness are classes that implement the `MiddlewareContract`
+interface. They can be:
 
 1. **Declared** with `@DeclareMiddleware` for automatic registration
 2. **Used** with `@UseMiddleware` or `@Use` on controllers and routes
@@ -21,12 +21,12 @@ They can be:
 import {
     type Context,
     DeclareMiddleware,
-    type IMiddleware,
+    type MiddlewareContract,
     type Next,
 } from '@lockness/core'
 
 @DeclareMiddleware('auth')
-export class AuthMiddleware implements IMiddleware {
+export class AuthMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         const token = c.req.header('Authorization')
 
@@ -98,7 +98,7 @@ the global middleware registry.
 
 ```typescript
 @DeclareMiddleware('rate-limit')
-export class RateLimitMiddleware implements IMiddleware {
+export class RateLimitMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         const ip = c.req.header('x-forwarded-for') || 'unknown'
 
@@ -206,7 +206,7 @@ export class AppKernel {
 
 ```typescript
 @DeclareMiddleware('admin')
-export class AdminMiddleware implements IMiddleware {
+export class AdminMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         const user = c.get('user')
 
@@ -223,7 +223,7 @@ export class AdminMiddleware implements IMiddleware {
 
 ```typescript
 @DeclareMiddleware('tenant')
-export class TenantMiddleware implements IMiddleware {
+export class TenantMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         const tenantId = c.req.param('tenantId')
         const tenant = await db.query.tenants.findFirst({
@@ -244,7 +244,7 @@ export class TenantMiddleware implements IMiddleware {
 
 ```typescript
 @DeclareMiddleware('maintenance')
-export class MaintenanceMiddleware implements IMiddleware {
+export class MaintenanceMiddleware implements MiddlewareContract {
     async handle(c: Context, _next: Next) {
         const isMaintenanceMode = Deno.env.get('MAINTENANCE') === 'true'
 
@@ -416,7 +416,7 @@ await app.init({
 ```typescript
 // app/middleware/auth_middleware.ts
 @DeclareMiddleware('auth')
-export class AuthMiddleware implements IMiddleware {
+export class AuthMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         return await authMiddleware()(c, next)
     }

@@ -14,7 +14,7 @@ Deno.test('make:command', async (t) => {
         })
 
         assertStringIncludes(content, 'export class GreetCommand')
-        assertStringIncludes(content, 'implements ICommand')
+        assertStringIncludes(content, 'implements CommandContract')
     })
 
     await t.step('includes Command decorator', async () => {

@@ -9,8 +9,8 @@
 
 import type { MiddlewareHandler } from 'hono'
 import type {
-    IMiddleware,
     MiddlewareClass,
+    MiddlewareContract,
     MiddlewareInput,
     MiddlewareRegistry,
 } from '../types.ts'
@@ -215,7 +215,7 @@ export class MiddlewareResolver {
             )
             return null
         }
-        const instance = new MiddlewareClassRef() as IMiddleware
+        const instance = new MiddlewareClassRef() as MiddlewareContract
         return instance.handle.bind(instance)
     }
 
@@ -238,7 +238,7 @@ export class MiddlewareResolver {
         ) {
             // Class middleware
             const instance =
-                new (middleware as MiddlewareClass)() as IMiddleware
+                new (middleware as MiddlewareClass)() as MiddlewareContract
             return instance.handle.bind(instance)
         } else {
             // Plain function middleware (like sessionMiddleware())

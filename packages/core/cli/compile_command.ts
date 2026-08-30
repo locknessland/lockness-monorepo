@@ -26,11 +26,11 @@ export interface CommandContext {
     getFlag(name: string): string | undefined
 }
 
-export interface ICommand {
+export interface CommandContract {
     handle(ctx: CommandContext): Promise<void>
 }
 
-export class CompileCommand implements ICommand {
+export class CompileCommand implements CommandContract {
     // We'll use a property instead of decorator to avoid dependency on CLI package
     static readonly _commandName = 'compile'
     static readonly _commandDescription =

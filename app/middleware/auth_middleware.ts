@@ -1,7 +1,7 @@
 import {
     type Context,
     DeclareMiddleware,
-    type IMiddleware,
+    type MiddlewareContract,
     type Next,
 } from '@lockness/core'
 
@@ -24,7 +24,7 @@ import {
  * ```
  */
 @DeclareMiddleware('auth')
-export class AuthMiddleware implements IMiddleware {
+export class AuthMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         // Example: Check for Authorization header or session
         const authHeader = c.req.header('Authorization')

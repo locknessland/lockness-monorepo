@@ -10,7 +10,7 @@ import {
     Controller,
     DeclareMiddleware,
     Get,
-    type IMiddleware,
+    type MiddlewareContract,
     type Next,
     UseMiddleware,
 } from '../mod.ts'
@@ -21,7 +21,7 @@ Deno.test('App integration - declared middlewares are automatically registered',
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('integration-auth')
-    class IntegrationAuthMiddleware implements IMiddleware {
+    class IntegrationAuthMiddleware implements MiddlewareContract {
         async handle(c: Context, next: Next) {
             c.set('authenticated', true)
             return next()
@@ -55,7 +55,7 @@ Deno.test('App integration - multiple declared middlewares work together', async
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('step1')
-    class Step1Middleware implements IMiddleware {
+    class Step1Middleware implements MiddlewareContract {
         async handle(c: Context, next: Next) {
             const steps = c.get('steps') || []
             steps.push('step1')
@@ -65,7 +65,7 @@ Deno.test('App integration - multiple declared middlewares work together', async
     }
 
     @DeclareMiddleware('step2')
-    class Step2Middleware implements IMiddleware {
+    class Step2Middleware implements MiddlewareContract {
         async handle(c: Context, next: Next) {
             const steps = c.get('steps') || []
             steps.push('step2')
@@ -75,7 +75,7 @@ Deno.test('App integration - multiple declared middlewares work together', async
     }
 
     @DeclareMiddleware('step3')
-    class Step3Middleware implements IMiddleware {
+    class Step3Middleware implements MiddlewareContract {
         async handle(c: Context, next: Next) {
             const steps = c.get('steps') || []
             steps.push('step3')
@@ -113,7 +113,7 @@ Deno.test('App integration - declared middleware can block requests', async () =
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('block')
-    class BlockMiddleware implements IMiddleware {
+    class BlockMiddleware implements MiddlewareContract {
         async handle(_c: Context, _next: Next) {
             return new Response('Blocked', { status: 403 })
         }
@@ -146,7 +146,7 @@ Deno.test('App integration - backward compatibility with @Use decorator', async 
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('compat')
-    class CompatMiddleware implements IMiddleware {
+    class CompatMiddleware implements MiddlewareContract {
         async handle(c: Context, next: Next) {
             c.set('compat', true)
             return next()

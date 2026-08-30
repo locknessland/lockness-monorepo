@@ -8,7 +8,7 @@
  */
 
 import { ServiceNotFoundError } from './errors.ts'
-import type { Constructor, IContainer, ServiceToken } from './types.ts'
+import type { Constructor, ContainerContract, ServiceToken } from './types.ts'
 
 /**
  * Dependency Injection Container.
@@ -16,7 +16,7 @@ import type { Constructor, IContainer, ServiceToken } from './types.ts'
  * Manages service instances with automatic singleton creation.
  * Services are lazily instantiated on first access.
  *
- * @implements {IContainer}
+ * @implements {ContainerContract}
  *
  * @example
  * ```ts
@@ -29,7 +29,7 @@ import type { Constructor, IContainer, ServiceToken } from './types.ts'
  * container.set(Config, new Config({ debug: true }))
  * ```
  */
-export class Container implements IContainer {
+export class Container implements ContainerContract {
     /**
      * Internal service registry.
      * @internal

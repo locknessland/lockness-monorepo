@@ -1,7 +1,7 @@
 import {
     type Context,
-    type IMiddleware,
     Middleware,
+    type MiddlewareContract,
     type Next,
     safeForLog,
 } from '@lockness/core'
@@ -10,7 +10,7 @@ import {
  * Logger middleware - logs all incoming requests
  */
 @Middleware()
-export class LoggerMiddleware implements IMiddleware {
+export class LoggerMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         const start = Date.now()
 

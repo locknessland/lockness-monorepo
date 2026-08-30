@@ -7,7 +7,12 @@
  * @module @service/docs_loader
  */
 
-import { CacheServiceToken, ICache, Inject, Service } from '@lockness/core'
+import {
+    CacheContract,
+    CacheServiceToken,
+    Inject,
+    Service,
+} from '@lockness/core'
 import { join } from 'node:path'
 import { exists } from '@std/fs'
 import { isDevelopment } from '@/config/app.ts'
@@ -50,7 +55,7 @@ export interface DocPage {
 export class DocsLoader {
     /** Global cache service */
     @Inject(CacheServiceToken)
-    accessor cache!: ICache
+    accessor cache!: CacheContract
 
     /**
      * Mapping of URL slugs to file paths.

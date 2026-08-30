@@ -10,7 +10,7 @@ Lockness provides a powerful decorator-based middleware system:
 ```typescript
 // 1. Declare a middleware with a name
 @DeclareMiddleware('auth')
-export class AuthMiddleware implements IMiddleware {
+export class AuthMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         // Your middleware logic
         await next()
@@ -132,7 +132,7 @@ This creates `app/middleware/auth_middleware.ts`:
 import {
     type Context,
     DeclareMiddleware,
-    type IMiddleware,
+    type MiddlewareContract,
     type Next,
 } from '@lockness/core'
 
@@ -143,7 +143,7 @@ import {
  * Use it in controllers with @UseMiddleware('auth')
  */
 @DeclareMiddleware('auth')
-export class AuthMiddleware implements IMiddleware {
+export class AuthMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         const authHeader = c.req.header('Authorization')
 
@@ -168,7 +168,7 @@ middlewares in that directory are auto-discovered and registered.
 ```typescript
 // Middleware is registered as 'admin' - no manual registration needed!
 @DeclareMiddleware('admin')
-export class AdminMiddleware implements IMiddleware {
+export class AdminMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         const user = c.get('user')
         if (!user?.isAdmin) {
@@ -295,7 +295,7 @@ export class ApiController {
 
 ```typescript
 @DeclareMiddleware('logger')
-export class LoggerMiddleware implements IMiddleware {
+export class LoggerMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         const start = Date.now()
         await next()
@@ -309,7 +309,7 @@ export class LoggerMiddleware implements IMiddleware {
 
 ```typescript
 @DeclareMiddleware('cors')
-export class CorsMiddleware implements IMiddleware {
+export class CorsMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         c.header('Access-Control-Allow-Origin', '*')
         c.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE')
@@ -324,7 +324,7 @@ export class CorsMiddleware implements IMiddleware {
 const requests = new Map<string, number>()
 
 @DeclareMiddleware('rate-limit')
-export class RateLimitMiddleware implements IMiddleware {
+export class RateLimitMiddleware implements MiddlewareContract {
     async handle(c: Context, next: Next) {
         const ip = c.req.header('x-forwarded-for') || 'unknown'
         const count = requests.get(ip) || 0
@@ -464,7 +464,7 @@ export class AdminController { ... }
 The `compose()` function accepts:
 
 - **Hono middleware functions**: `cors()`, `logger()`, `sessionMiddleware()`
-- **Lockness class middlewares**: Classes implementing `IMiddleware`
+- **Lockness class middlewares**: Classes implementing `MiddlewareContract`
 - **Named middlewares**: String names registered via `@DeclareMiddleware`
 - **Composed middlewares**: Output of another `compose()` call
 

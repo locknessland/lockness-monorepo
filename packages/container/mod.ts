@@ -1,4 +1,8 @@
-export type { Constructor, IContainer, ServiceToken } from '@lockness/contract'
+export type {
+    Constructor,
+    ContainerContract,
+    ServiceToken,
+} from '@lockness/contract'
 
 export { Container, container } from './container.ts'
 export { Inject, Service } from './decorators.ts'

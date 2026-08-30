@@ -29,7 +29,7 @@ export type ServiceToken<T = unknown> = Constructor<T> | symbol | string
 /**
  * Full container interface for resolution and registration.
  */
-export interface IContainer {
+export interface ContainerContract {
     get<T>(token: Constructor<T> | ServiceToken<T>): T
     set<T>(token: Constructor<T> | ServiceToken<T>, instance: T): void
     has(token: ServiceToken): boolean
@@ -53,7 +53,7 @@ export interface Route {
  * This interface must be implemented by the cache provider
  * and registered in the container using CacheServiceToken.
  */
-export interface ICache {
+export interface CacheContract {
     /** Get an item from the cache */
     get<T>(key: string): Promise<T | null>
     /** Store an item in the cache */
@@ -105,14 +105,14 @@ export type ControllerClass =
     & (new (...args: any[]) => Record<string, any>)
     & ControllerMetadata
 
-export interface IMiddleware {
+export interface MiddlewareContract {
     handle: MiddlewareHandler
 }
 
 /**
  * Middleware class type
  */
-export type MiddlewareClass = new () => IMiddleware
+export type MiddlewareClass = new () => MiddlewareContract
 
 /**
  * Middleware input - can be a class or a handler function

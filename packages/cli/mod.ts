@@ -106,14 +106,14 @@ export interface CommandContext {
  * @example
  * ```ts
  * @Command('greet', 'Greet someone')
- * class GreetCommand implements ICommand {
+ * class GreetCommand implements CommandContract {
  *   async handle(ctx: CommandContext): Promise<void> {
  *     console.log(`Hello, ${ctx.arg(0) || 'World'}!`)
  *   }
  * }
  * ```
  */
-export interface ICommand {
+export interface CommandContract {
     /**
      * Execute the command.
      * @param ctx - The command context with arguments and flags
@@ -135,7 +135,7 @@ export interface CommandMetadata {
 /**
  * Type for command class constructors with metadata.
  */
-export type CommandClass = (new () => ICommand) & CommandMetadata
+export type CommandClass = (new () => CommandContract) & CommandMetadata
 
 /**
  * Decorator to mark a class as a CLI command.
@@ -149,7 +149,7 @@ export type CommandClass = (new () => ICommand) & CommandMetadata
  * @example
  * ```ts
  * @Command('greet', 'Greet someone by name')
- * class GreetCommand implements ICommand {
+ * class GreetCommand implements CommandContract {
  *   async handle(ctx: CommandContext): Promise<void> {
  *     console.log(`Hello, ${ctx.arg(0)}!`)
  *   }

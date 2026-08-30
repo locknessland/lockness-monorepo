@@ -1,7 +1,7 @@
-import { Command, type CommandContext, type ICommand } from '@lockness/cli'
+import { Command, type CommandContext, type CommandContract } from '@lockness/cli'
 
 @Command('{{ commandName }}', 'Description of {{ commandName }} command')
-export class {{ className }}Command implements ICommand {
+export class {{ className }}Command implements CommandContract {
     async handle(ctx: CommandContext) {
         const name = ctx.arg(0) || 'World'
         

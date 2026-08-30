@@ -10,13 +10,13 @@ import {
     declaredMiddlewares,
     DeclareMiddleware,
 } from '../routing/decorators.ts'
-import type { Context, IMiddleware, Next } from '../types.ts'
+import type { Context, MiddlewareContract, Next } from '../types.ts'
 
 Deno.test('MiddlewareResolver - mergeDeclaredMiddlewares adds declared middlewares to registry', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('declared-auth')
-    class DeclaredAuthMiddleware implements IMiddleware {
+    class DeclaredAuthMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
@@ -33,7 +33,7 @@ Deno.test('MiddlewareResolver - mergeDeclaredMiddlewares adds declared middlewar
 Deno.test('MiddlewareResolver - declared middlewares take precedence over manual registration', () => {
     declaredMiddlewares.clear()
 
-    class ManualAuthMiddleware implements IMiddleware {
+    class ManualAuthMiddleware implements MiddlewareContract {
         value = 'manual'
         async handle(_c: Context, next: Next) {
             return next()
@@ -41,7 +41,7 @@ Deno.test('MiddlewareResolver - declared middlewares take precedence over manual
     }
 
     @DeclareMiddleware('auth')
-    class DeclaredAuthMiddleware implements IMiddleware {
+    class DeclaredAuthMiddleware implements MiddlewareContract {
         value = 'declared'
         async handle(_c: Context, next: Next) {
             return next()
@@ -61,21 +61,21 @@ Deno.test('MiddlewareResolver - resolves multiple declared middlewares', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('one')
-    class MiddlewareOne implements IMiddleware {
+    class MiddlewareOne implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
     }
 
     @DeclareMiddleware('two')
-    class MiddlewareTwo implements IMiddleware {
+    class MiddlewareTwo implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
     }
 
     @DeclareMiddleware('three')
-    class MiddlewareThree implements IMiddleware {
+    class MiddlewareThree implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }

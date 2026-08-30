@@ -1,8 +1,8 @@
 import type {
     Context,
     ControllerClass,
-    IMiddleware,
     MiddlewareClass,
+    MiddlewareContract,
     MiddlewareHandler,
     MiddlewareInput,
     MiddlewareRegistry,
@@ -14,8 +14,8 @@ import type {
 export type {
     Context,
     ControllerClass,
-    IMiddleware,
     MiddlewareClass,
+    MiddlewareContract,
     MiddlewareHandler,
     MiddlewareInput,
     MiddlewareRegistry,

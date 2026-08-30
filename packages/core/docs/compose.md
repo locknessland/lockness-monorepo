@@ -92,12 +92,12 @@ const stack = composeMiddleware(
 
 The `compose()` function accepts any combination of:
 
-| Type                     | Example              | Description                         |
-| ------------------------ | -------------------- | ----------------------------------- |
-| **Hono functions**       | `cors()`, `logger()` | Built-in Hono middleware            |
-| **Class middlewares**    | `AuthMiddleware`     | Classes implementing `IMiddleware`  |
-| **Named middlewares**    | `'auth'`, `'admin'`  | Registered via `@DeclareMiddleware` |
-| **Composed middlewares** | `authStack`          | Output of another `compose()` call  |
+| Type                     | Example              | Description                               |
+| ------------------------ | -------------------- | ----------------------------------------- |
+| **Hono functions**       | `cors()`, `logger()` | Built-in Hono middleware                  |
+| **Class middlewares**    | `AuthMiddleware`     | Classes implementing `MiddlewareContract` |
+| **Named middlewares**    | `'auth'`, `'admin'`  | Registered via `@DeclareMiddleware`       |
+| **Composed middlewares** | `authStack`          | Output of another `compose()` call        |
 
 ## Nested Composition
 

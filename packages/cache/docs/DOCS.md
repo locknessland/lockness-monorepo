@@ -106,7 +106,7 @@ async stats(c: Context) { ... }
 When using the `server` or `both` strategy, Lockness:
 
 1. Generates a cache key (the URL or your custom key).
-2. Checks the global `ICache` provider (resolved from the container).
+2. Checks the global `CacheContract` provider (resolved from the container).
 3. If a hit occurs, it returns a new `Response` object with the cached body,
    headers, and status code.
 4. If a miss occurs, it executes the route handler.

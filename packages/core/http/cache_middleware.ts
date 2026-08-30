@@ -1,8 +1,8 @@
 import type { MiddlewareHandler } from 'hono'
 import {
+    type CacheContract,
     type CacheOptions,
     CacheServiceToken,
-    type ICache,
 } from '@lockness/contract'
 import { container } from '@lockness/container'
 
@@ -11,7 +11,7 @@ import { container } from '@lockness/container'
  *
  * This middleware supports:
  * - 'http' strategy: Sets Cache-Control headers using Hono's cache middleware.
- * - 'server' strategy: Intercepts the response and stores it in the global ICache provider.
+ * - 'server' strategy: Intercepts the response and stores it in the global CacheContract provider.
  * - 'both' strategy: Combines both server-side and client-side caching.
  *
  * @param options - Cache configuration from the decorator
@@ -34,10 +34,10 @@ export function cacheDecoratorMiddleware(
             const cacheKey = options.key || c.req.url
 
             // Try to resolve cache service from container
-            let cache: ICache | null = null
+            let cache: CacheContract | null = null
             try {
                 if (container.has(CacheServiceToken)) {
-                    cache = container.get<ICache>(CacheServiceToken)
+                    cache = container.get<CacheContract>(CacheServiceToken)
                 }
             } catch {
                 // Silently ignore container resolution errors

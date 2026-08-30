@@ -7,7 +7,7 @@
 import { assertEquals } from '@std/assert'
 import { compose, composeMiddleware } from '../http/compose.ts'
 import { DeclareMiddleware } from '../routing/decorators.ts'
-import type { Context, IMiddleware, Next } from '../types.ts'
+import type { Context, MiddlewareContract, Next } from '../types.ts'
 
 // Mock Context for testing
 function createMockContext(): Context {
@@ -90,7 +90,7 @@ Deno.test('compose - handles single middleware', async () => {
 Deno.test('compose - resolves class middlewares', async () => {
     const order: string[] = []
 
-    class TestMiddleware implements IMiddleware {
+    class TestMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             order.push('class-middleware')
             await next()
@@ -111,7 +111,7 @@ Deno.test('compose - resolves named middlewares from registry', async () => {
     const order: string[] = []
 
     @DeclareMiddleware('test-compose')
-    class TestComposeMiddleware implements IMiddleware {
+    class TestComposeMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             order.push('named-middleware')
             await next()
@@ -141,7 +141,7 @@ Deno.test('compose - mixes different middleware types', async () => {
     }
 
     // Class middleware
-    class ClassMiddleware implements IMiddleware {
+    class ClassMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             order.push('class')
             await next()

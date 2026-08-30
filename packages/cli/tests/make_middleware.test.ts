@@ -12,7 +12,7 @@ Deno.test('make:middleware', async (t) => {
         })
 
         assertStringIncludes(content, 'export class AuthMiddleware')
-        assertStringIncludes(content, 'implements IMiddleware')
+        assertStringIncludes(content, 'implements MiddlewareContract')
     })
 
     await t.step('includes handle method', async () => {
@@ -29,7 +29,7 @@ Deno.test('make:middleware', async (t) => {
             className: 'CorsMiddleware',
         })
 
-        assertStringIncludes(content, 'IMiddleware')
+        assertStringIncludes(content, 'MiddlewareContract')
         assertStringIncludes(content, 'Context')
     })
 })

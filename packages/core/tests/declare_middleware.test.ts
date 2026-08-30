@@ -9,7 +9,7 @@ import {
     Controller,
     DeclareMiddleware,
     Get,
-    type IMiddleware,
+    type MiddlewareContract,
     type Next,
     UseMiddleware,
 } from '../mod.ts'
@@ -24,7 +24,7 @@ Deno.test('@DeclareMiddleware - registers middleware in global registry', () => 
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('test-auth')
-    class TestAuthMiddleware implements IMiddleware {
+    class TestAuthMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
@@ -40,21 +40,21 @@ Deno.test('@DeclareMiddleware - multiple middlewares can be registered', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('auth')
-    class AuthMiddleware implements IMiddleware {
+    class AuthMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
     }
 
     @DeclareMiddleware('admin')
-    class AdminMiddleware implements IMiddleware {
+    class AdminMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
     }
 
     @DeclareMiddleware('rate-limit')
-    class RateLimitMiddleware implements IMiddleware {
+    class RateLimitMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
@@ -70,7 +70,7 @@ Deno.test('@DeclareMiddleware - stores name as metadata on class', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('metadata-test')
-    class MetadataMiddleware implements IMiddleware {
+    class MetadataMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
@@ -84,7 +84,7 @@ Deno.test('@UseMiddleware - applies named middleware to controller method', () =
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('method-auth')
-    class MethodAuthMiddleware implements IMiddleware {
+    class MethodAuthMiddleware implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
@@ -116,21 +116,21 @@ Deno.test('@UseMiddleware - multiple named middlewares can stack', () => {
     declaredMiddlewares.clear()
 
     @DeclareMiddleware('auth')
-    class Auth implements IMiddleware {
+    class Auth implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
     }
 
     @DeclareMiddleware('admin')
-    class Admin implements IMiddleware {
+    class Admin implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
     }
 
     @DeclareMiddleware('rate-limit')
-    class RateLimit implements IMiddleware {
+    class RateLimit implements MiddlewareContract {
         async handle(_c: Context, next: Next) {
             return next()
         }
@@ -180,10 +180,10 @@ Deno.test({
             middlewareFile,
             `
 import { DeclareMiddleware } from '${decoratorsPath}'
-import type { IMiddleware, Context, Next } from '${typesPath}'
+import type { MiddlewareContract, Context, Next } from '${typesPath}'
 
 @DeclareMiddleware('temp-auth')
-export class TempAuthMiddleware implements IMiddleware {
+export class TempAuthMiddleware implements MiddlewareContract {
     async handle(_c: Context, next: Next) {
         return next()
     }
