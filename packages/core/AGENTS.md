@@ -40,6 +40,7 @@ This brief does not repeat it.
 | Error rendering                          | `exceptions/*.ts`                                      |
 | Log sanitisation                         | `logging/sanitize.ts`                                  |
 | Optional-package loading                 | `kernel/bootstrap/helpers.ts`                          |
+| Rate limiting (`@Throttle`)              | `http/throttle_middleware.ts`                          |
 
 ## Pitfalls
 

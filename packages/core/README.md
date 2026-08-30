@@ -602,6 +602,19 @@ The framework uses a dual-layer routing architecture to enable mount points:
   name or class).
 - `@Use(middleware)`: _(Deprecated)_ Use `@UseMiddleware` instead.
 
+**Rate limiting:**
+
+- `@Throttle(limit, window, options?)`: Limits how often a route may be called.
+  Applies to a controller class or a single method; a method-level rule
+  **replaces** the controller-level one rather than stacking with it.
+- `@ThrottleLogin()`: Preset — 5 requests per minute, for credential checks.
+- `@ThrottleSensitive()`: Preset — 3 per hour, for destructive operations.
+- `@ThrottleApi()`: Preset — 100 per minute, for general API traffic.
+- `@ThrottleHeavy()`: Preset — 10 per minute, for expensive handlers.
+
+See [docs/throttling.md](docs/throttling.md) for windows, client identification
+and the 429 response.
+
 **Dependency Injection:**
 
 - `@Service()`: Declares a class as a service.

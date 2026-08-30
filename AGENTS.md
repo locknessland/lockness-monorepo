@@ -245,6 +245,7 @@ user-facing doc.
 | [core/docs/routing.md](packages/core/docs/routing.md)                             | Routing system          |
 | [core/docs/middleware.md](packages/core/docs/middleware.md)                       | Core middleware         |
 | [core/docs/mount-points.md](packages/core/docs/mount-points.md)                   | Multi-mount routing     |
+| [core/docs/throttling.md](packages/core/docs/throttling.md)                       | Rate limiting           |
 | [core/docs/compose.md](packages/core/docs/compose.md)                             | Middleware composition  |
 | [core/docs/error-handling.md](packages/core/docs/error-handling.md)               | Error handling system   |
 | [core/docs/components.md](packages/core/docs/components.md)                       | JSX components          |
@@ -409,6 +410,7 @@ versioning). See:
 
 - [routing.md](packages/core/docs/routing.md)
 - [mount-points.md](packages/core/docs/mount-points.md)
+- [throttling.md](packages/core/docs/throttling.md)
 
 ### Middleware
 
