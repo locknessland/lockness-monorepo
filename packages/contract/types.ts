@@ -6,6 +6,7 @@ import type {
     Next,
     ValidationTargets,
 } from 'hono'
+import type { ThrottleConfig } from './routing/throttle.ts'
 
 export type { MiddlewareHandler, Next, ValidationTargets }
 
@@ -99,6 +100,10 @@ export interface ControllerMetadata {
     _validators?: Record<string, any[]>
     /** Cache configuration by method name */
     _cacheConfigs?: Record<string, CacheOptions>
+    /** Throttle configuration by method name */
+    _throttleConfigs?: Record<string, ThrottleConfig>
+    /** Controller-wide throttle, applied to every route that has none of its own */
+    _throttle?: ThrottleConfig
 }
 
 export type ControllerClass =

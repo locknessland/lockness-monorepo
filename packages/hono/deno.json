@@ -80,6 +80,7 @@
         "hono/client": "npm:hono@4.11.1/client",
         "hono/http-exception": "npm:hono@4.11.1/http-exception",
         "hono/serve-static": "npm:hono@4.11.1/serve-static",
+        "hono-rate-limiter": "npm:hono-rate-limiter@0.5.3",
         "@hono/zod-validator": "npm:@hono/zod-validator@0.7.6"
     },
     "description": "Hono bridge for Lockness framework providing centralized Hono dependency management across the ecosystem"

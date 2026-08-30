@@ -13,6 +13,7 @@ import { namedRoutes } from './router.ts'
 import type { Context, ControllerClass, Route } from '../types.ts'
 import type { RouteInfo } from '../app.ts'
 import { cacheDecoratorMiddleware } from '../http/cache_middleware.ts'
+import { throttleDecoratorMiddleware } from '../http/throttle_middleware.ts'
 
 /** HTTP methods supported by the router */
 type HttpMethod =
@@ -192,6 +193,8 @@ export class RouteRegistry {
         const validators: Record<string, ValidatorEntry[]> =
             Controller._validators || {}
         const cacheConfigs = Controller._cacheConfigs || {}
+        const throttleConfigs = Controller._throttleConfigs || {}
+        const controllerThrottle = Controller._throttle
         const controllerName = Controller.name
 
         const registrations: RouteRegistration[] = []
@@ -218,6 +221,15 @@ export class RouteRegistry {
                 ? [cacheDecoratorMiddleware(cacheConfig)]
                 : []
 
+            // Get throttle middleware. A method-level @Throttle REPLACES the
+            // controller-wide one rather than stacking with it, so a route can
+            // be made deliberately more permissive than its controller default.
+            const throttleConfig = throttleConfigs[route.methodName] ??
+                controllerThrottle
+            const throttleMiddleware = throttleConfig
+                ? [throttleDecoratorMiddleware(throttleConfig)]
+                : []
+
             // Collect middleware names for display
             const middlewareNames = this.collectMiddlewareNames(
                 route.methodName,
@@ -240,6 +252,9 @@ export class RouteRegistry {
                 method: route.method.toLowerCase() as HttpMethod,
                 handler,
                 middlewares: [
+                    // Throttle runs first: a rejected request must not reach the
+                    // cache, the validators or any user middleware.
+                    ...throttleMiddleware,
                     ...cacheMiddleware, // Cache runs early to return hit immediately
                     ...routeValidators,
                     ...routeMiddlewares,
