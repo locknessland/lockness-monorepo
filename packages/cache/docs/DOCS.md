@@ -115,6 +115,84 @@ When using the `server` or `both` strategy, Lockness:
 
 ---
 
+## Method-level Caching with `@Cached`
+
+`@Cache` (above) caches an **HTTP response** for a route. `@Cached` caches a
+**method's return value**, wherever that method lives — a service, a repository,
+anything. The two are unrelated despite the one-letter difference, and can be
+used together.
+
+```ts
+import { Cached, CacheInvalidate } from '@lockness/cache'
+
+class ReportService {
+    @Cached('5m')
+    async monthly(year: number, month: number) {
+        return await db.expensiveAggregate(year, month)
+    }
+
+    @CacheInvalidate({ tags: ['reports'] })
+    async publish(id: number) {
+        await db.publish(id)
+    }
+}
+```
+
+### The method must be `async`
+
+A TC39 method decorator may only return a replacement with the **same
+signature**, and reading the cache is asynchronous. A synchronous method
+therefore cannot be wrapped without changing its type, which the language
+forbids — decorating one is a compile error, not a silent surprise at runtime.
+
+### Keys
+
+With no `key`, the key is derived as `ClassName.method(args)`. Arguments are
+serialised with sorted object keys, so `find({ a: 1, b: 2 })` and
+`find({ b: 2, a: 1 })` are one entry rather than two.
+
+```ts
+@Cached({ ttl: '1h', key: 'all-active-users' })          // fixed
+@Cached({ ttl: '1h', key: (tenant, id) => `${tenant}:${id}` }) // derived
+```
+
+### TTL
+
+A bare number is **seconds**, matching `set(key, value, 3600)`. Strings carry
+their unit: `'30s'`, `'5m'`, `'2h'`, `'1d'`. A malformed TTL throws when the
+class is defined, not on first call — it is an authoring mistake and should
+surface at authoring time.
+
+> Note the asymmetry with `@Throttle` in `@lockness/core`, where a bare number
+> is **milliseconds**. Each decorator follows the convention of the API it
+> fronts.
+
+### Options
+
+| Option      | Effect                                                     |
+| ----------- | ---------------------------------------------------------- |
+| `ttl`       | How long to keep the value. Omit for no expiry.            |
+| `key`       | Fixed string, or a function of the arguments.              |
+| `tags`      | Tags for group invalidation through `flushByTag`.          |
+| `condition` | Return `false` to bypass the cache for that call entirely. |
+
+A call bypassed by `condition` is neither read from nor written to the cache.
+
+### `null` is never cached
+
+The store cannot distinguish a stored `null` from a miss. Caching it would make
+every later call a miss anyway, while hiding that it was doing so — so a `null`
+result is returned and not stored.
+
+### Invalidation
+
+`@CacheInvalidate({ key?, tags?, timing? })` drops entries around a write.
+`timing` defaults to `'after'`, which runs only when the method **succeeded** —
+a method that threw changed nothing, so the cache is still correct. Use
+`'before'` when the entry must go regardless of the outcome.
+
+---
+
 ## Basic Operations
 
 ### Get and Set

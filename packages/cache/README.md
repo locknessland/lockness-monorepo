@@ -87,6 +87,37 @@ const config = await remember('config', () => {
 })
 ```
 
+### Method Caching with `@Cached`
+
+Caches a method's return value. The method must be `async` — a TC39 decorator
+cannot change the signature it decorates, and reading the cache is asynchronous.
+
+```ts
+import { Cached, CacheInvalidate } from '@lockness/cache'
+
+class ReportService {
+    @Cached('5m')
+    async monthly(year: number) {
+        return await db.aggregate(year)
+    }
+
+    @Cached({ ttl: '1h', tags: ['reports'], key: (id) => `report:${id}` })
+    async byId(id: number) {
+        return await db.report(id)
+    }
+
+    @CacheInvalidate({ tags: ['reports'] })
+    async publish(id: number) {
+        await db.publish(id)
+    }
+}
+```
+
+Without an explicit `key`, one is derived as `ClassName.method(args)`. A bare
+number TTL is **seconds**; strings carry their unit (`'5m'`, `'2h'`). Not to be
+confused with `@Cache` from `@lockness/core`, which caches an HTTP _response_
+for a route. See [docs/DOCS.md](docs/DOCS.md#method-level-caching-with-cached).
+
 ### Tags for Grouping
 
 ```typescript
