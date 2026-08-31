@@ -36,8 +36,11 @@ jobs:
             - name: Type check
               run: deno check
 
-            - name: Run fmt
-              run: deno fmt
+            - name: Check formatting
+              run: deno fmt --check
+
+            - name: Dependency integrity
+              run: deno task deps:analyze
 
             - name: Run tests
               run: deno task test
