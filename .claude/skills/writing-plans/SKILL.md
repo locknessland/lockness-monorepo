@@ -23,7 +23,7 @@ Use when:
 - The user describes a feature and says "write a plan"
 - You hit a non-trivial change mid-task and need to step back before
   coding
-- A `/specnaut groom` pass surfaces a Ready item that needs design before
+- A `/board groom` pass surfaces a Ready item that needs design before
   implementation
 
 Do **not** use when:
@@ -198,15 +198,13 @@ checklist yourself — it is not a subagent dispatch.**
    tasks? A function called `clearLayers()` in Task 3 but
    `clearFullLayers()` in Task 7 is a bug.
 
-4. **Specnaut conventions** — do file paths follow the hexagonal
-   layout? Do you respect the byte-identity plugin-sync contract
-   (`templates/core/...` plus `plugin/...` twin) for any new template
-   files? Are manifest entries added if you scaffold new files?
+4. **Project conventions** — do the file paths follow the layout this
+   codebase already uses? Does every artifact this project generates
+   from a source of truth have a regeneration step in the plan?
 
-5. **Smoke / audit** — if you touched any scaffolded skill or script,
-   does the plan include a step to update
-   `.claude/skills/test-sandbox/scripts/smoke-*.sh` and re-run
-   `audit.sh`?
+5. **Test coverage** — does every behaviour the plan adds or changes
+   have a step that pins it? A plan that ends at "implement" and never
+   names a test is a plan that cannot be verified.
 
 Fix issues inline. No need to re-review — just fix and move on.
 

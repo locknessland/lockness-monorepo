@@ -32,6 +32,5 @@ preserved:
   - .claude/skills/specnaut/phases/tag-version.md
   - .specnaut/scripts/release/tag.sh
 
-  # Carries this project's handles: Project #2, locknessland, the cached
-  # PVTSSF_ field IDs, and the mechanical-move carve-out.
+  # Locally edited in 1cae2e2 (removed the specnaut-review auto-invoke alias).
   - .claude/skills/using-specnaut/SKILL.md

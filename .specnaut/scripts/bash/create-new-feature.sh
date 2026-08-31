@@ -294,6 +294,84 @@ else
     BRANCH_SUFFIX=$(generate_branch_name "$FEATURE_DESCRIPTION")
 fi
 
+# --- Epic detection: one branch per epic, never one per child -------------
+# An epic with N children used to cost N branches and N merge decisions for
+# one unit of work. The board already models the relationship natively; the
+# scripts did not know an issue could have a parent.
+#
+# Detection is automatic and there is no new flag (D1): the item's own link
+# says which path this is. The branch name is unchanged (D2) and derived from
+# the EPIC, so it does not depend on which child was worked first.
+#
+# Like the card move below, this never fails the run and reports EVERY
+# outcome. Delegation follows the same pattern too — an installed script under
+# .specnaut/scripts/backlog/, so this file stays backend-agnostic and contains
+# no gh/glab/API call of its own.
+EPIC_ISSUE=""
+EPIC_BRANCH=""
+if [ -n "$LINKED_ISSUE" ]; then
+    _parent_sh="$REPO_ROOT/.specnaut/scripts/backlog/parent-of.sh"
+    _cascade_sh="$REPO_ROOT/.specnaut/scripts/backlog/cascade-check.sh"
+
+    # #563 shipped both enumerators for every backend, so there is no longer a
+    # backend that cannot answer. The branch that distinguished "this backend
+    # ships no enumerator" from "no script installed" is GONE rather than left
+    # standing unreachable — an unreachable branch is a second shape of the
+    # same rule, and the next reader has to work out which one is live.
+    if [ ! -x "$_parent_sh" ] || [ ! -x "$_cascade_sh" ]; then
+        echo "# no backlog parent-of.sh / cascade-check.sh installed — epic detection did NOT run; treating issue $LINKED_ISSUE as standalone" >&2
+    else
+        _p_rc=0
+        _p_out=$(bash "$_parent_sh" "$LINKED_ISSUE" 2>&1) || _p_rc=$?
+        case "$_p_rc" in
+            0)
+                EPIC_ISSUE="$_p_out"
+                echo "# issue $LINKED_ISSUE is a child of epic #$EPIC_ISSUE — the branch belongs to the epic" >&2
+                ;;
+            10)
+                _c_rc=0
+                bash "$_cascade_sh" "$LINKED_ISSUE" >/dev/null 2>&1 || _c_rc=$?
+                if [ "$_c_rc" -eq 11 ]; then
+                    EPIC_ISSUE="$LINKED_ISSUE"
+                    echo "# issue $LINKED_ISSUE is an epic with open children — one branch for the whole epic" >&2
+                else
+                    echo "# issue $LINKED_ISSUE has no parent and no open children — standalone, unchanged" >&2
+                fi
+                ;;
+            *)
+                echo "# could not resolve the parent of issue $LINKED_ISSUE (exit $_p_rc): $_p_out" >&2
+                echo "# treating it as standalone — the branch is created either way" >&2
+                ;;
+        esac
+    fi
+fi
+
+# When this invocation belongs to an epic, reuse the epic's existing branch
+# rather than minting a second one. The link is `.specnaut/feature.json`,
+# which lives at a fixed path and is committed on the branch — so this reads
+# git, parses no branch name (D2) and introduces no state file (D16).
+if [ -n "$EPIC_ISSUE" ] && [ "$HAS_GIT" = true ]; then
+    _cur=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    for _b in $(git for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null); do
+        _fj=$(git show "$_b:.specnaut/feature.json" 2>/dev/null || true)
+        [ -n "$_fj" ] || continue
+        _li=$(printf '%s' "$_fj" | jq -r '.linked_issue // empty' 2>/dev/null || true)
+        if [ "$_li" = "$EPIC_ISSUE" ]; then
+            EPIC_BRANCH="$_b"
+            break
+        fi
+    done
+    if [ -n "$EPIC_BRANCH" ]; then
+        if [ "$EPIC_BRANCH" = "$_cur" ]; then
+            echo "# already on the epic's branch '$EPIC_BRANCH' — reusing it, no branch created" >&2
+        else
+            echo "# epic #$EPIC_ISSUE already has branch '$EPIC_BRANCH' — reusing it, no branch created" >&2
+        fi
+    else
+        echo "# epic #$EPIC_ISSUE has no branch yet — creating one for it" >&2
+    fi
+fi
+
 # Warn if --number and --timestamp are both specified
 if [ "$USE_TIMESTAMP" = true ] && [ -n "$BRANCH_NUMBER" ]; then
     >&2 echo "[specify] Warning: --number is ignored when --timestamp is used"
@@ -349,6 +427,14 @@ if [ ${#BRANCH_NAME} -gt $MAX_BRANCH_LENGTH ]; then
     >&2 echo "[specify] Warning: Branch name exceeded GitHub's 244-byte limit"
     >&2 echo "[specify] Original: $ORIGINAL_BRANCH_NAME (${#ORIGINAL_BRANCH_NAME} bytes)"
     >&2 echo "[specify] Truncated to: $BRANCH_NAME (${#BRANCH_NAME} bytes)"
+fi
+
+# An epic's second, third and ninth child all land on the branch the epic
+# already has. Overriding here, after the name was computed, keeps the
+# standalone path byte-for-byte unchanged: nothing above this line knows an
+# epic exists.
+if [ -n "$EPIC_BRANCH" ]; then
+    BRANCH_NAME="$EPIC_BRANCH"
 fi
 
 FEATURE_DIR="$SPECS_DIR/$BRANCH_NAME"
@@ -413,6 +499,43 @@ if [ "$DRY_RUN" != true ]; then
 
     # Inform the user how to persist the feature variable in their own shell
     printf '# To persist: export SPECIFY_FEATURE=%q\n' "$BRANCH_NAME" >&2
+fi
+
+# --- Move the linked item into In progress -------------------------------
+# The workflow used to contain exactly ONE board write — `move.sh <id> Done`,
+# at merge — so a card could sit in the intake column through an entire
+# implementation while the board said nobody was working on anything.
+#
+# This lives in the script rather than in the phase prose because prose asks
+# to be remembered. Creating the branch and moving the card are one command,
+# so one cannot happen without the other.
+#
+# It never fails the run: by this point the branch exists and the spec
+# directory is written, and exiting non-zero would describe a feature that
+# was not created. Every outcome is reported, including "nothing was moved" —
+# silence is what let the drift go unnoticed.
+if [ "$DRY_RUN" != true ]; then
+    if [ -z "$LINKED_ISSUE" ]; then
+        echo "# no --issue given, so no backlog item was moved" >&2
+    else
+        # On an epic, the card that moves is the EPIC's (D15). A child's card
+        # moves when the loop reaches it, which is not this script's job — and
+        # moving it here would put every child In progress at branch creation,
+        # which is exactly the lie the card columns exist to avoid.
+        _move_target="${EPIC_ISSUE:-$LINKED_ISSUE}"
+        _move_sh="$REPO_ROOT/.specnaut/scripts/backlog/move.sh"
+        if [ ! -x "$_move_sh" ]; then
+            echo "# no backlog move.sh installed — issue $_move_target NOT moved; move it by hand" >&2
+        elif _move_out=$(bash "$_move_sh" "$_move_target" "In progress" 2>&1); then
+            echo "# $_move_out" >&2
+            if [ -n "$EPIC_ISSUE" ] && [ "$EPIC_ISSUE" != "$LINKED_ISSUE" ]; then
+                echo "# child issue $LINKED_ISSUE was NOT moved — its card moves when the loop reaches it" >&2
+            fi
+        else
+            echo "# could not move issue $_move_target to In progress: $_move_out" >&2
+            echo "# the branch was created; the board was NOT updated" >&2
+        fi
+    fi
 fi
 
 # Compute the LINKED_ISSUE JSON value: integer when set, JSON null otherwise.

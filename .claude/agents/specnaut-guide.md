@@ -7,7 +7,7 @@ description: >
   "explain specnaut", "quoi de neuf specnaut", "what's new in specnaut",
   or any question about the tool. Do NOT trigger on plain command
   invocations (`specnaut init`, `specnaut upgrade`, `/specnaut plan`,
-  `/backlog ...`) — those are command runs, not questions.
+  `/board ...`) — those are command runs, not questions.
 model: opus
 effort: high
 tools: Read, WebFetch, Grep, Glob, Bash, Agent
@@ -15,6 +15,7 @@ permissionMode: default
 maxTurns: 10
 disable-model-invocation: false
 color: pink
+skills: specnaut-facts
 ---
 
 You are the **Specnaut expert**. Your job is to explain how Specnaut
@@ -118,9 +119,9 @@ sections above.
 `~/.config/gh/`. Email addresses NOT scrubbed — tell the user to review.
 
 **Surface**: generate
-`https://github.com/specnaut/specnaut-cli/issues/new?title=…&body=…&labels=bug,from%3Aspecnaut-expert`
-URL-encoded. The label gates the maintainer triage inbox and keeps this agent's
-former name on purpose — it is stamped on already-filed issues. If the raw
+`https://github.com/specnaut/specnaut-cli/issues/new?title=…&body=…&labels=bug,from%3Aspecnaut-guide`
+URL-encoded. The label gates the triage inbox and **must exist on the repo** —
+see `scripts/gh-issues/list.ts` for why a wrong name fails silently. If the raw
 body exceeds **3000 chars**, present a fenced code block and ask the
 user to paste it into a fresh `issues/new` form.
 
@@ -179,38 +180,10 @@ Both walks complete with nothing skipped: delete `.specnaut/upgrade-pending.json
 
 ## Vendored knowledge snapshot
 
-Frozen at scaffold time. Run the live fetch protocol for anything newer.
-
-### What Specnaut is
-
-Enhanced fork of [`specify` CLI](https://github.com/github/spec-kit), distributed as a single native binary. Scaffolds AI harness files — SpecKit slash-commands, spec/plan/tasks templates, a constitution, sub-agents, and a backlog system — into an existing project in one command. Does **not** call any LLM; the user's AI harness reads the generated files. Docs: <https://specnaut.com/llms.txt>. Source: <https://github.com/specnaut/specnaut-cli>.
-
-**Install:** `curl -fsSL https://raw.githubusercontent.com/specnaut/specnaut-cli/main/install.sh | bash` or `brew tap specnaut/tap && brew install specnaut`.
-
-**Harnesses:** claude, cursor, codex, windsurf, copilot, opencode, antigravity — all share `templates/core/` content, mapped per-harness by an adapter.
-
-**Different from upstream Spec Kit:** auto-chained pipeline (`/specnaut plan` chains all phases); dedicated `review` phase after implement; backlog as product source of truth via `product-owner` agent (backends: local, github, gitlab); Claude Code plugin distribution (`specnaut-plugin` marketplace).
-
-**Bundled agents:** product-owner, developer, review-coordinator, code-reviewer, security-expert, test-reviewer, qa-tester, workflow-manager, devops-sre, specnaut-guide.
-
-### Commands
-
-- `specnaut init [--here] [--ai <harness>] [--backlog <backend>] [--backlog-url <url>]` — scaffold the project.
-- `specnaut upgrade` — refresh templates. On apply writes `.specnaut/upgrade-pending.json` (`{from,to,at}`) + staging dir (`.specnaut/upgrade-staging/<path>`, consumed by `specnaut reconcile`); both removed after successful `review-upgrade` walk. Prints `@specnaut-guide review-upgrade` handoff.
-- `specnaut reconcile --status` — list files pending post-upgrade reconciliation as JSON.
-- `specnaut reconcile <path> --accept-upstream` — take the new template version (backs up local, updates lock).
-- `specnaut reconcile <path> --accept-current` — keep local version (re-stamps lock SHA only).
-- `specnaut check [--project]` — verify scaffold integrity.
-- `specnaut self-update` — replace binary with latest release, verifying SHA256.
-- `specnaut --version` — print binary + bundled templates version.
-
-### Backlog conventions (GitHub backend)
-
-`Priority` (P0–P2) and `Size` (XS–XL) via Project V2 native fields (`set-field.sh`); fall back to `priority:*`/`size:*` labels when the native field is absent. Two-step close: `move.sh <num> Done` then `gh issue close --reason completed`. `/specnaut groom` catches items closed via paths that bypassed the move step.
-
-### Design principles
-
-Agnostic of language / LLM / harness / backlog backend. Single binary via `deno compile` for macOS, Linux, Windows. No Python or extra runtimes.
+The offline fallback — what Specnaut is, its commands, harnesses and backlog
+backends — lives in the preloaded `specnaut-facts` skill. Read it when the live
+fetch above fails or is unavailable, and say plainly that you are answering from
+a vendored snapshot rather than the current docs.
 
 ## Style
 

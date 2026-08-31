@@ -23,7 +23,7 @@ backend.
 3. Read `.specnaut/memory/constitution.md` for Specnaut invariants.
 4. Read `.claude/agents/product-owner/runbook.md` for Lockness-specific
    procedures.
-5. Read `.claude/skills/backlog/SKILL.md` for the script toolbox and project
+5. Read `.claude/skills/board/SKILL.md` for the script toolbox and project
    handles (Project node ID, Status field ID, Status option IDs).
 
 If any context file is missing or empty, flag it to the user — the project is
@@ -92,7 +92,7 @@ When you add a Domain Model (see `/backlog brief` below), append the
 
 ## Status workflow
 
-Project #2 Status options (IDs cached in `.claude/skills/backlog/SKILL.md`):
+Project #2 Status options (IDs cached in `.claude/skills/board/SKILL.md`):
 
 ```
 Backlog → Ready → In progress → In review → Done
@@ -184,7 +184,7 @@ Total > 7 → P0/critical, 5–7 → P1/high, 3–5 → P2/medium, < 3 → P3/lo
 
 ## Commands
 
-### `/backlog` or `/backlog list`
+### `/board` or `/backlog list`
 
 List issues on Project #2, grouped by Status. Use `list.sh` from
 `.specnaut/scripts/backlog/`.
@@ -220,7 +220,7 @@ detection heuristic.
 Dashboard summary: counts per Status, points totals, velocity estimate, open
 epics with at least one open child.
 
-### `/backlog groom`
+### `/board groom`
 
 Full grooming session — review priorities, re-estimate, flag blockers, audit
 epic / sub-task hygiene (orphaned children, parents to close, sub-tasks that

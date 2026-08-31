@@ -12,7 +12,7 @@ not surface a yes/no question to the user**.
 Items closed but still sitting in Backlog/Ready, or merged PRs whose issues are
 still in In progress/In review, are mechanical inconsistencies. Asking before
 fixing them wastes a round-trip on something the PO is meant to own. This rule
-was set after a `/backlog groom` pass surfaced 36 closed items attached to the
+was set after a `/board groom` pass surfaced 36 closed items attached to the
 project without Status and the PO asked for confirmation — Kevin clarified that
 this is exactly the kind of thing the PO should fix unprompted.
 

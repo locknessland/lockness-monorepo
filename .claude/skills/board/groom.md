@@ -1,16 +1,18 @@
+# groom — board and delivery hygiene
 
-# /specnaut groom
+Keeps the backlog and delivery pipeline flowing without human intervention.
+Reachable as **`/board groom`** — the only door. The `/specnaut` router
+carries no `groom` verb.
 
-A maintenance pass that keeps the project's backlog and review pipeline
-flowing without human intervention. Designed to be invoked manually or
-on a timer via `/loop`.
+**Owned by `/board`** — see "Which skill owns what" in `SKILL.md`. Orphan
+**spec** detection used to live here and does not belong to it; it moved to the
+specnaut skill's `phases/auto-chain.md`.
 
-This skill is **manual-only** (`disable-model-invocation: true`) — it
-should not auto-trigger on casual user prompts. The user invokes it
-explicitly with `/specnaut groom` or schedules it with
-`/loop 1h /specnaut groom`.
+Auto-invocable: the router advertises "groom the backlog" and "run a hygiene
+pass", and this file honours them. Also invoked explicitly, or scheduled with
+`/loop 1h /board groom`.
 
-## What this skill does
+## What this pass does
 
 A grooming pass runs three independent checks. Each is delegated to the
 right subagent so this skill stays small and the heavy lifting is owned
@@ -20,6 +22,11 @@ by the agent that has the right tools and prompt for the job.
 
 Dispatch the **`product-owner`** subagent to clarify any items currently
 in the `Backlog` column (i.e. not yet promoted to `Ready`).
+
+Epic and sub-task hygiene — orphaned children, parents due to close, sub-tasks
+that escaped a closed epic — is part of this dispatch and is specified in the
+`product-owner` agent's contract. Do not restate those rules here, and do not
+assume a run covered them unless the PO reports on them.
 
 The PO must respect the column model: items in `Backlog` need more
 information / sizing / prioritisation; items in `Ready` are picked up by
@@ -57,14 +64,21 @@ The PO will:
      - `P1` — must-have for the next sprint or release
      - `P2` — important but deferrable; standard work
      - `P3` — nice-to-have / long horizon; pick up when slack appears
-  3a. **Set Roadmap dates (soft).** GitHub backend only — Roadmap view inputs:
-     - **Target date** when promoting Backlog → Ready (`set-field.sh <num> TargetDate <YYYY-MM-DD>`).
-       Use a best-estimate planned-delivery date; revise when scope shifts.
-     - **Start date** when moving Ready → In Progress (`set-field.sh <num> StartDate <YYYY-MM-DD>`).
-       Today's date when picking up the work.
-     - **Estimate** (optional) story-point or day count (`set-field.sh <num> Estimate <N>`).
-     Missing dates do NOT block; they emit a warn-only line in the final
-     report (see "⚠ Roadmap dates missing" below).
+  3a. **Set Roadmap dates — soft, and only if the board has the fields.**
+     GitHub backend only. Date / Estimate are *optional* Project V2 fields the
+     user adds themselves; a board carrying only `Status` / `Priority` / `Size`
+     is ordinary, not misconfigured. **Gate first** on the once-per-run
+     `detect-fields.sh`, which emits `TARGETDATE_FIELD_ID=` /
+     `STARTDATE_FIELD_ID=` / `ESTIMATE_FIELD_ID=` **empty** when the field is
+     absent:
+     - **Both IDs empty → skip this step entirely.** Set nothing, warn nothing,
+       omit the "⚠ Roadmap dates missing" section. Never report a value as
+       unset when it cannot be set at all.
+     - **Field present** — `set-field.sh <num> TargetDate <YYYY-MM-DD>` on
+       Backlog → Ready (best-estimate delivery date), `StartDate` on
+       Ready → In Progress (today), `Estimate <N>` optional. A missing *value*
+       on a field that exists never blocks: it emits a `⚠ no target date set`
+       / `⚠ no start date set` line in the final report and the run moves on.
   4. **Decide the outcome:**
      - **Promote to `Ready`** when the body is clear, both labels are
        applied, AND no scope decisions remain.
@@ -87,12 +101,6 @@ The PO will:
   the PO MUST capture the failure reason and surface it under "⚠ size /
   priority missing" in the final report — silent skip is a contract
   violation.
-
-  Step 3a (Roadmap dates) is **soft** — never blocking. When the PO
-  promotes Backlog → Ready or moves Ready → In Progress, it SHOULD set
-  the appropriate date; when it doesn't (because the date is genuinely
-  unknown), it surfaces a `⚠ no target date set` or `⚠ no start date set`
-  line in the final report and moves on.
 
 The PO must respect the standard backlog skill — do not bypass its
 scripts.
@@ -121,29 +129,24 @@ Use the bundled scripts at `.specnaut/scripts/backlog/`:
 
 - `detect-fields.sh` — emits eval-friendly env lines listing the
   `Priority` / `Size` field IDs and option IDs (case-insensitive name
-  match). Run **once per groom run**, not per ticket.
+  match), plus `STARTDATE_FIELD_ID` / `TARGETDATE_FIELD_ID` /
+  `ESTIMATE_FIELD_ID` — **empty when the board carries no such field**,
+  which is the gate step 3a reads. Run **once per groom run**, not per
+  ticket.
 - `set-field.sh <issue> <Priority|Size> <value>` — writes the field if
-  present. Exit codes:
-  - `0` → wrote the field, do not apply a label for this dimension.
-  - `10` → no such native field (e.g. user added neither `Priority` nor
-    `Size` to their project). Caller MUST apply the corresponding label
-    (`priority:P2` / `size:M`) instead.
-  - `11` → field exists but the value option is missing (only
-    `priority:P3` today). Caller MUST apply the matching label.
-  - `12` → issue is not on the project. Caller MUST report the
-    discrepancy under "⚠ size / priority missing" — neither path can
-    persist the value.
+  present. Exit `0` wrote it (do NOT also label); `10` no such field and
+  `11` no such option (only `priority:P3` today) — caller MUST apply the
+  matching label instead; `12` issue not on the project — caller MUST
+  report it under "⚠ size / priority missing", since neither path can
+  persist the value.
 
-**Label fallback** (for exit code `10` / `11` only):
+**Label fallback** (exit `10` / `11` only) — `gh label list`, then
+`gh label create "<name>" --color <hex> --description "<desc>"` if absent,
+then `gh issue edit <num> --add-label …` (`--remove-label` to swap on a
+re-groom). All `--repo <owner>/<repo>`. Suggested colors:
 
-- `gh label list --repo <owner>/<repo>` to enumerate existing labels.
-- `gh label create "<name>" --color <hex> --description "<desc>" --repo <owner>/<repo>`
-  to create one if absent. Suggested colors:
-  - `size:XS` `#c2e0c6` · `size:S` `#bfdadc` · `size:M` `#bfd4f2` · `size:L` `#d4c5f9` · `size:XL` `#f9d0c4`
-  - `priority:P0` `#b60205` · `priority:P1` `#d93f0b` · `priority:P2` `#fbca04` · `priority:P3` `#0e8a16`
-- `gh issue edit <num> --add-label "size:M" --add-label "priority:P2" --repo <owner>/<repo>`
-  to apply (use `--remove-label` to swap a previously-assigned label
-  when re-grooming).
+- `size:XS` `#c2e0c6` · `size:S` `#bfdadc` · `size:M` `#bfd4f2` · `size:L` `#d4c5f9` · `size:XL` `#f9d0c4`
+- `priority:P0` `#b60205` · `priority:P1` `#d93f0b` · `priority:P2` `#fbca04` · `priority:P3` `#0e8a16`
 
 ##### GitLab backend
 
@@ -182,71 +185,19 @@ Where it applies: list open PRs waiting on review or CI for more than 48 hours,
 so the user can decide whether to ping, close, or merge. Read-only; do not
 mutate PRs.
 
-### 4. Orphan spec detection
-
-Walk `.specnaut/specs/` (if present) and surface any feature directory
-that is missing the next expected artefact:
-
-- Has `spec.md` but no `plan.md` → flag as "needs `/specnaut plan`".
-- Has `plan.md` but no `tasks.md` → flag as "needs `/specnaut tasks`".
-- Has `tasks.md` but no `installed` markers in commits → flag as
-  "needs `/specnaut implement`".
-
-This is also read-only; never delete or modify spec files.
 
 **`<backlog-reference>`** below means a reference built per the
 `backlog-reference-contract` skill: the number **and** the title, wrapped in a
 backend-resolved link — never a bare `#<num>`. Read that contract for the format
 and the degradation ladder; do not restate it here.
 
+
 ## Output format
 
-End with a single summary block. **The per-ticket lines and the
-size/priority-missing escalation block are mandatory contract output,
-not optional** — they are how the user verifies the sizing + priority
-contract was honoured.
-
-Per-ticket lines should note when a value was persisted as a label
-fallback rather than a native field — typically because the project
-has no `Priority` / `Size` field, or because `priority:P3` does not
-match a 3-level field. This makes the field-vs-label routing visible
-in the report.
-
-```
-specnaut-groom report
-─────────────────────
-⚠  groom completed with <K> un-sized/un-prioritised tickets — re-run or fix manually
-    (only emitted when K > 0, at the very top of the summary)
-
-Backlog:    <N> items reviewed, <P> promoted to Ready, <C> awaiting clarification
-            <R> body rewrites, <S> sized, <Z> prioritised
-
-Per-ticket:
-  ↳ <backlog-reference> → promoted/comment/closure-recommended
-       size=<X> + priority=<P> (field)
-  ↳ <backlog-reference> → comment
-       size=<X> (field) + priority=P3 (label fallback — no native option)
-  ↳ ...
-
-⚠ size / priority missing:
-  ↳ <backlog-reference> — <reason: e.g. gh label create failed (rate-limited)>
-  ↳ ...
-  (omit this whole section when K == 0)
-
-⚠ Roadmap dates missing (GitHub backend, soft):
-  ↳ <backlog-reference> — Ready since <date>, no target date set
-  ↳ <backlog-reference> — In progress, no start date set
-  ↳ ...
-  (omit this whole section when no dates are missing)
-
-Stale PRs:  <S> open PRs idle > 48h
-Orphan specs: <O> spec directories missing the next artefact
-
-Next action: <one-line recommendation, or "no action needed">
-```
-
-If nothing needed action, say so explicitly. The point of the skill is
-to be a **no-op when the project is healthy**.
+End with a single summary block — read `groom-report.md` and follow it. The
+per-ticket lines and the size/priority-missing escalation block are **mandatory
+contract output, not optional**: they are how the user verifies the sizing and
+priority contract was honoured.
 
 ## When NOT to use this skill
 

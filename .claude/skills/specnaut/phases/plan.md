@@ -30,10 +30,10 @@ result. Non-empty `condition`s are deferred to the HookExecutor.
 Judge the input on one question: **can this be planned as written?** A brief naming an outcome, an
 actor and a rough scope can; "something to keep track of runs" cannot.
 
-When it cannot, run a short discovery dialogue **before** writing anything: **one question at a
-time** via the harness's structured question mechanism, 2–4 real options each, recommendation first
-— never a numbered wall of prose. Offer 2–3 genuinely different shapes, not three phrasings of one.
-Stop as soon as you can state the outcome, the actor, and what is out of scope.
+When it cannot, run a short discovery dialogue **before** writing anything. How a question is put
+is decided by the `response-style-contract` skill — read it; never restate it here. What is specific
+to discovery: offer genuinely different **shapes**, not three phrasings of one, and stop as soon as
+you can state the outcome, the actor, and what is out of scope.
 
 Then **continue into step 2 in the same turn.** Discovery opens this phase; it is not a phase of its
 own, and not a reason to hand control back.
@@ -57,6 +57,11 @@ Persist `{ "feature_directory": "<resolved dir>", "linked_issue": <N or null> }`
 `.specnaut/feature.json` — the resolved path, not the literal string, since downstream phases locate
 the feature from it. `linked_issue` is the backlog item id when `--issue <N>` was passed (or a hook
 returned one); `merge` reads it to close the item, and its absence is a no-op downstream.
+
+**The card moves itself.** With `--issue <N>`, `create-new-feature.sh` moves that item to
+`In progress` as part of creating the branch, and reports the outcome — including when nothing
+moved. Do **not** move it yourself as well: the workflow's board writes have one home each, this
+one and `merge`'s move to `Done`.
 
 **One feature per invocation.** The feature directory name and the branch name are independent.
 
@@ -89,6 +94,7 @@ One file, read whole by whoever implements. Twelve sections, in order, **none op
    `## Visual Prototyping with Claude Artifacts` subsection. Detect that surface with the SAME
    signals the accessibility gate uses — the `accessibility-expert` FE-surface list; don't invent a second
    heuristic. No front-end surface → the plan **must not mention** artifacts at all.
+   The plan's requirements follow the `mobile-first-contract` skill — read it; never restate it here.
 9. **Risks** — each with its mitigation.
 10. **Architecture audit** — findings, and what was done with each. Step 6.
 11. **Security audit** — same, and kept **separate**: the two answer different questions and a
@@ -124,6 +130,10 @@ opinion**.
 
 ### 6. 🔒 The two audits — MANDATORY, and they audit the PLAN, not the code
 
+**An epic is one plan.** If the item has open sub-issues, write **one**
+`plan.md` covering every child — one decision table, one stop — not one per
+child. `phases/epic-loop.md` has the rest.
+
 Read `phases/plan-audits.md` and follow it. It dispatches `architect-expert` and
 `security-expert` on `plan.md` **in the same message**, before a single line is written, and it
 carries the eight questions they are asked and the rule that their findings land **in `plan.md`**.
@@ -143,8 +153,9 @@ chain's two stops. Present, in this order:
    plan, or accepted the objection with a reason. Never as a formality that passed, never folded
    together.
 3. **The open questions** — business rules, thresholds, what happens to existing data, anything
-   where two readings lead to materially different work. **One at a time**, 2–4 real options each,
-   recommendation first, ordered so the answer that invalidates the most others comes first.
+   where two readings lead to materially different work. Put them per the
+   `response-style-contract` skill, ordered so the answer that invalidates the most others comes
+   first.
 4. **Anything you decided yourself** because the code or a standing decision already answered it —
    one line each, so a wrong assumption is visible rather than buried.
 

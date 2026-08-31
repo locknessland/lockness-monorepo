@@ -17,7 +17,7 @@ plan → tasks → implement → review → merge
 
 1. **The end of `plan`.** Always. The architecture is presented as a proposal with the alternatives
    that were rejected and why; both audits' findings are presented **separately**; the open
-   questions are asked **one at a time**. See `phases/plan.md` step 8.
+   the open questions are asked. See `phases/plan.md` step 8.
 2. **The review verdict.** Its findings are triaged, then the merge is requested. There is no
    separate pre-merge stop — the verdict and the merge question are the same moment.
 
@@ -168,3 +168,38 @@ being invoked:
 Long features (≥13 story points or ≥30 tasks) may exhaust context during `implement`. If compaction
 occurs mid-chain, say so and let the user resume from a fresh session — the re-entry detection above
 picks up where the previous run stopped.
+
+## Orphan spec detection — the chain, inspected at rest
+
+The flow above describes a chain moving forward in one session. This check reads
+the same chain across the whole project at rest, and names the phase each stalled
+feature is missing. It was part of `groom` until the backlog//specnaut ownership
+line was drawn: grooming is backlog management, while this reads spec artefacts
+and prescribes specnaut phases, so it belongs on this side of the line.
+
+Run it when asked to audit the spec pipeline, and from a grooming pass when the
+project keeps specs locally.
+
+Walk `.specnaut/specs/` (if present) and surface any feature directory
+that is missing the next expected artefact.
+
+**Current-pipeline artefacts** — a 3.x feature produces these in this order:
+
+- Has `plan.md` but no `tasks.md` → flag as "needs `/specnaut tasks`".
+- Has `tasks.md` but no `installed` markers in commits → flag as
+  "needs `/specnaut implement`".
+
+**Legacy, pre-3.x only** — kept deliberately, not an oversight:
+
+- Has `spec.md` but no `plan.md` → flag as "needs `/specnaut plan`".
+
+  **3.x writes no `spec.md`.** The artefact was removed in 2.0.0 and no phase
+  produces one, so this rule can only ever match a feature directory left
+  behind by a 1.x project. It stays because projects are told to keep
+  `.specnaut/specs/**` as historical records, and a pre-migration spec that
+  never got a plan is exactly the thing worth surfacing. Do not read it as
+  evidence that the current pipeline emits `spec.md`, and do not delete it as
+  dead code — `tests/templates/removed_artefacts_test.ts` carries a matching
+  allowlist entry recording the same decision.
+
+This is also read-only; never delete or modify spec files.

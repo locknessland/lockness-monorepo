@@ -174,7 +174,7 @@ Stop the pipeline and surface to Kevin when:
 
 - `.claude/agents/<name>.md` for each role.
 - `.claude/agents/<name>/runbook.md` for each role's procedures.
-- `.claude/skills/backlog/SKILL.md` for backlog scripts (used by PO).
+- `.claude/skills/board/SKILL.md` for backlog scripts (used by PO).
 - `AGENTS.md` for project hard rules.
 - `docs/superpowers/specs/2026-05-02-agent-team-architecture-design.md` — this
   skill's own design doc.

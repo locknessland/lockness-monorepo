@@ -1,7 +1,7 @@
 ---
 name: specnaut
-description: Specnaut workflow router — entry point for the spec-driven pipeline. `/specnaut <phase> [args]` dispatches to a single phase (plan, tasks, implement, review, merge, constitution, groom, tag-version, release-version, audit). `/specnaut` with no args prints the workflow overview.
-argument-hint: <plan|tasks|implement|review|merge|constitution|groom|tag-version|release-version|audit> [args]
+description: Specnaut workflow router — entry point for the spec-driven pipeline. `/specnaut <phase> [args]` dispatches to a single phase (plan, tasks, implement, review, merge, constitution, tag-version, release-version, audit). `/specnaut` with no args prints the workflow overview.
+argument-hint: <plan|tasks|implement|review|merge|constitution|tag-version|release-version|audit> [args]
 when_to_use: |
   Trigger phrases that should route here:
   - plan: "plan a feature", "spec out a feature", "write a spec", "build a technical plan", "I have a rough idea", "help me figure out what to build", "I don't know exactly what I want yet", "clarify requirements"
@@ -10,13 +10,14 @@ when_to_use: |
   - review: "review the implementation", "run quality gates"
   - merge: "merge the branch", "ship the feature"
   - constitution: "update the constitution", "edit project rules"
-  - groom: "groom the backlog", "run a hygiene pass"
   - tag-version: "tag a version", "create a release tag", "bump the version"
   - release-version: "release", "publish a release", "create release notes"
   - audit: "audit security / performance / accessibility / architecture / dependencies", "scan the codebase for X issues"
 ---
 
 # Specnaut router
+
+**Response style** — brevity, visual order, questions as selections, badge colours — follows the `response-style-contract` skill; read it, never restate it here.
 
 `$ARGUMENTS` carries the user's input. Parse it as `[--manual] <phase> [rest]`:
 
@@ -48,7 +49,6 @@ when_to_use: |
 | `review` | `phases/review.md` | The quality battery on a frozen tree. Its verdict is the merge request. |
 | `merge` | `phases/merge.md` | Pre-merge validation and merge the feature branch. |
 | `constitution` | `phases/constitution.md` | Edit the project's `constitution.md` rules. |
-| `groom` | `phases/groom.md` | Backlog hygiene pass via the product-owner agent. |
 | `tag-version` | `phases/tag-version.md` | Bump + create an annotated git tag using the project's versioning scheme. |
 | `release-version` | `phases/release-version.md` | Generate categorized release notes for a tag (default: latest). |
 | `audit security` | `phases/audit-security.md` | Read-only project-wide security sweep; emits a findings report. |
@@ -57,12 +57,28 @@ when_to_use: |
 | `audit architecture` | `phases/audit-architecture.md` | Read-only project-wide architectural sweep — hex-layer violations, circular deps, god files, bounded-context leaks. |
 | `audit dependencies` | `phases/audit-dependencies.md` | Read-only multi-manifest dependency-hygiene sweep. |
 
-`phases/plan-audits.md` and `phases/auto-chain.md` are **contract docs, not routable phases** —
-`plan` loads the first at its step 6, the router loads the second when it chains. Naming either as a
-phase prints the index and stops.
+## Which skill owns what
+
+`/specnaut` owns the **specification** phases tied to the project, and code
+implementation, planning and review. `/board` owns **backlog management**.
+`/specnaut` does not own everything.
+
+The line decides where a new capability lands, not where a file happens to sit
+today. Grooming is backlog management, so it is reached only as `/board
+groom` — this router does not carry a `groom` verb at all. Orphan
+spec detection sits on this side and lives in `phases/auto-chain.md`, because it
+reads spec artefacts and prescribes specnaut phases.
+
+`phases/plan-audits.md`, `phases/merge-squash.md`, `phases/epic-commits.md`,
+`phases/quality-gates.md`, `phases/epic-fixups.md`, `phases/merge-close.md`,
+`phases/epic-loop.md` and `phases/auto-chain.md` are **contract docs, not routable phases** — `plan` loads the first at its
+step 6, `merge` loads the second at its step 4, `implement` loads the third when the item is an epic,
+`implement` and `merge` share the fourth, `merge` loads the fifth before an epic merge and the sixth
+after any push, `implement` loads the seventh on an epic, and the router loads the eighth when it
+chains. Naming any of them as a phase prints the index and stops.
 
 Chainable phases are: `plan`, `tasks`, `implement`, `review`. The others (`merge`, `constitution`,
-`groom`, `tag-version`, `release-version`, `audit <axis>`) are one-shot regardless of chain mode.
+`tag-version`, `release-version`, `audit <axis>`) are one-shot regardless of chain mode.
 
 The accessibility phase is FE-gated — projects without front-end source receive a one-line "skipped
 — no FE surface" response instead of an empty report. The dependencies phase aborts with "skipped —
@@ -80,7 +96,7 @@ behaviour, and do not route it silently.
 |------|----------------------------|
 | `brainstorm` | `plan`, step 1 — the discovery dialogue when the input is too fuzzy to plan. |
 | `specify` | `plan` — the same document, sections 1–4. |
-| `clarify` | `plan`, step 8 — questions asked one at a time at the stop, before any code exists. |
+| `clarify` | `plan`, step 8 — questions asked at the stop, before any code exists. |
 | `analyze` | Replaced, not moved. With one document there are no artefacts to hold in agreement; the plan-time architecture and security audits are its successor and run *before* the code. |
 | `checklist` | `plan`'s success criteria and decision table. |
 | `list-skills` | `.specnaut/installed.lock` is readable directly. |
@@ -100,7 +116,7 @@ Unknown phase → print the phase index and stop.
 After the phase procedure completes successfully:
 
 - `CHAIN_MODE == off` (the user passed `--manual`) → stop. Report the phase outcome.
-- Phase is not chainable (`merge`, `constitution`, `groom`, `tag-version`, `release-version`,
+- Phase is not chainable (`merge`, `constitution`, `tag-version`, `release-version`,
   `audit <axis>`) → stop.
 - Otherwise → read `phases/auto-chain.md` and follow it.
 
@@ -125,7 +141,7 @@ plan → tasks → implement → review → merge
 **There are exactly two stops in this chain**, and no third:
 
 1. **The end of `plan`** — the architecture is presented with its alternatives, both audits' findings
-   are presented separately, and the open questions are asked one at a time. Always.
+   are presented separately, and the open questions are asked. Always.
 2. **The review verdict** — which *is* the merge request. There is no separate pre-merge stop.
 
 Every other boundary is crossed by invoking the next phase yourself, in the same turn. See
@@ -138,7 +154,7 @@ Every other boundary is crossed by invoking the next phase yourself, in the same
   → discovery dialogue only if the brief is too fuzzy to plan
   → writes plan.md (one document)
   → architecture + security audits run concurrently on the plan
-  → STOP 1 — architecture proposal, audit findings, questions one at a time
+  → STOP 1 — architecture proposal, audit findings, the open questions
   → /specnaut tasks       (same turn as the last answer)
   → /specnaut implement   (same turn)
   → /specnaut review      (same turn)

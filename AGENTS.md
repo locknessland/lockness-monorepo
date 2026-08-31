@@ -160,8 +160,8 @@ live rules. `plan` reads them without failing; do not rewrite them.
 The backlog source of truth is **GitHub Project #2** of
 `locknessland/lockness-monorepo`
 (https://github.com/orgs/locknessland/projects/2/views/1). Reads/writes go
-through the `/backlog` skill or the Specnaut product-owner agent — both share
-the same `gh` CLI backend (config in `.specnaut/backlog-config.yml`). The legacy
+through the `/board` skill or the Specnaut product-owner agent — both share the
+same `gh` CLI backend (config in `.specnaut/backlog-config.yml`). The legacy
 `.tasks/` folder has been removed.
 
 ---
@@ -672,7 +672,7 @@ no third:
 
 1. **The end of `plan`** — the architecture is presented with the alternatives
    that were rejected, both audits' findings are presented separately, and the
-   open questions are asked one at a time.
+   open questions are asked.
 2. **The review verdict** — which _is_ the merge request. There is no separate
    pre-merge stop.
 
@@ -713,3 +713,31 @@ merge**, in which case that is their instruction and it is followed without a
 second confirmation.
 
 <!-- --- End Specnaut: chain-stops --- -->
+
+<!-- --- Specnaut: ui-defaults --- -->
+
+## UI defaults
+
+_Owned by Specnaut — this section is not a placeholder to fill in. Edit the rest
+freely._
+
+**Any UI you build — web or native — follows the `mobile-first-contract`
+skill.** Read it; never restate it here. It is a **default, not a mandate**: a
+project whose target surface is genuinely narrower says so once, in
+`.specnaut/memory/constitution.md`, and is not asked again.
+
+<!-- --- End Specnaut: ui-defaults --- -->
+
+<!-- --- Specnaut: response-style --- -->
+
+## Response style
+
+_Owned by Specnaut — this section is not a placeholder to fill in. Edit the rest
+freely._
+
+**How you answer — brevity, visual order, how a question is put, and what a
+badge colour means — follows the `response-style-contract` skill.** Read it;
+never restate it here. It is in force on **every** turn, not only when a skill
+or an agent is involved.
+
+<!-- --- End Specnaut: response-style --- -->

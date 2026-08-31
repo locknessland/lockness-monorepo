@@ -11,9 +11,11 @@ Keep the GitHub Project #2 Kanban clean, prioritized, and free of duplicates.
 - URL: https://github.com/orgs/locknessland/projects/2/views/1
 - Status options: `Backlog`, `Ready`, `In progress`, `In review`, `Done`
 
-> The `.claude/skills/backlog/` skill currently references a legacy project.
-> Sub-project 2 of the agent-team rollout will repoint it. Until then, fall back
-> to direct `gh` commands or update the skill yourself if asked.
+> The board skill is `.claude/skills/board/SKILL.md` — `backlog` was renamed and
+> absorbed into it by Specnaut 4.2.0 (2026-08-31), and the old skill is deleted.
+> Handles come from `.specnaut/backlog-config.yml`
+> (`locknessland/lockness-monorepo`, project 2); the Lockness-specific
+> conventions were ported into the board skill's project-notes section.
 
 ## Common procedures
 
@@ -62,7 +64,7 @@ Two consequences:
   `gh issue close` alone still works but leaves Status behind, so prefer
   `move.sh`.
 - **`move.sh <num> Done` is no longer a harmless status correction.** The
-  mechanical-move carve-out in `.claude/skills/backlog/SKILL.md` lets the main
+  mechanical-move carve-out in `.claude/skills/board/SKILL.md` lets the main
   session move Status without PO judgement; that carve-out does **not** extend
   to `Done`, because it now ends the issue. Only move to `Done` when the work
   is genuinely finished.
@@ -111,6 +113,6 @@ when closing left Status stuck at "In review"). The automation was added since.
 
 ## References
 
-- `.claude/skills/backlog/SKILL.md`
+- `.claude/skills/board/SKILL.md`
 - `.specnaut/scripts/backlog/{list,view,add,move,clarify-comment}.sh`
 - `AGENTS.md`

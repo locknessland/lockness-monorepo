@@ -4,6 +4,7 @@ description: Owns the project's `DESIGN.md` design system. Three modes auto-sele
 model: opus
 effort: high
 tools: Read, Edit, Write, Glob, Grep
+skills: mobile-first-contract
 maxTurns: 30
 disable-model-invocation: true
 color: pink
@@ -110,15 +111,21 @@ When in discovery mode, write this skeleton, filled in:
 
 ## Typography
 
-| Role     | Family                     | Weight    | Size   | Line height |
-| -------- | -------------------------- | --------- | ------ | ----------- |
-| Display  | <e.g. Inter, ui-sans-serif> | 700       | 48px   | 1.1         |
-| H1       | Inter                       | 700       | 32px   | 1.2         |
-| H2       | Inter                       | 600       | 24px   | 1.3         |
-| H3       | Inter                       | 600       | 18px   | 1.4         |
-| Body     | Inter                       | 400       | 16px   | 1.6         |
-| Caption  | Inter                       | 400       | 13px   | 1.5         |
-| Code     | JetBrains Mono              | 400       | 14px   | 1.5         |
+| Role    | Family                      | Weight | Size (narrow → wide)   | Line height |
+| ------- | --------------------------- | ------ | ---------------------- | ----------- |
+| Display | <e.g. Inter, ui-sans-serif> | 700    | `--fs-display` 32 → 48 | 1.1         |
+| H1      | Inter                       | 700    | `--fs-h1` 26 → 32      | 1.2         |
+| H2      | Inter                       | 600    | `--fs-h2` 21 → 24      | 1.3         |
+| H3      | Inter                       | 600    | `--fs-h3` 17 → 18      | 1.4         |
+| Body    | Inter                       | 400    | `--fs-body` 16         | 1.6         |
+| Caption | Inter                       | 400    | `--fs-caption` 13      | 1.5         |
+| Code    | JetBrains Mono              | 400    | `--fs-code` 14         | 1.5         |
+
+The Size column is a **token and a range**, not a number. A single fixed value
+at every width is what the Responsive section calls non-conforming — and a
+skeleton that ships one teaches the opposite of the contract. Roles that
+genuinely do not scale (Body, Caption, Code) say so by carrying one value; the
+ones that do carry both ends and are interpolated or stepped at `--bp-*`.
 
 **Pairings rule of thumb:** one sans (Inter / IBM Plex Sans) for UI,
 one mono (JetBrains Mono / IBM Plex Mono) for code blocks. Add a
@@ -152,6 +159,11 @@ rather than tinting toward middle grey.
 `--space-4` 16 · `--space-5` 20 · `--space-6` 24 · `--space-8` 32 ·
 `--space-10` 40 · `--space-12` 48 · `--space-16` 64 · `--space-24` 96
 
+The ladder is one set of steps; what changes across widths is **which step a
+given role uses**, declared alongside the breakpoints. A layout that reaches
+for the same `--space-*` at every width is the fixed scale the Responsive
+section rules out.
+
 No raw pixel values in components. Off-grid sizes are a code-review
 block.
 
@@ -168,6 +180,30 @@ block.
 | `--shadow-md`   | `0 4px 8px rgb(0 0 0 / 0.08)` | Hover, dropdowns |
 | `--shadow-lg`   | `0 10px 24px rgb(0 0 0 / 0.12)` | Modals, popovers |
 
+## Responsive and adaptive
+
+**Mobile-first is assumed** — you never ask whether the user wants it. Ask
+about the exception only when their brief signals a genuinely narrow target
+(an operator console, an internal dashboard, a stated desktop-only audience).
+If they confirm one, **tell them where it goes and stop** — the
+`mobile-first-contract` skill names the file and the exact sentence. You own
+`DESIGN.md` and write nothing else, so recording it is theirs to do, not
+yours.
+
+`DESIGN.md` is where the **values** live. Declare, as tokens:
+
+- `--bp-*` — the breakpoint ladder, smallest first. Name them for intent, not
+  for devices; a device list dates and a ladder does not.
+- `--touch-min` — the minimum hit area for anything interactive. One number,
+  used everywhere; a primitive that states its own is a second decider.
+- Type and spacing scales that carry a narrow value and a wide one, or a rule
+  for interpolating between them. What "adapts" means is the contract's to
+  define, not this file's.
+
+Author the narrow layout first and treat wider ones as enhancement. What each
+of those obligations means is the `mobile-first-contract` skill's to say — read
+it; never restate it here.
+
 ## Component primitives
 
 For each primitive, declare states + a one-line behaviour rule. Don't
@@ -177,7 +213,7 @@ ship implementation code here — the developer agent does that.
   States: rest, hover, active, focus-visible (2px ring `--brand-accent`),
   disabled (opacity 0.5, no events).
 - **Input** — border `--neutral-300`, focus border `--brand-primary`,
-  error border `--danger`. Min height 40px (touch-friendly).
+  error border `--danger`. Min height `--touch-min` (see Responsive).
 - **Card** — surface `--neutral-50`, border `--neutral-100`,
   radius `--radius-md`, shadow `--shadow-sm`.
 - **Modal** — overlay `rgb(0 0 0 / 0.4)`, surface `--neutral-0`,
