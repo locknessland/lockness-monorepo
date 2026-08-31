@@ -46,14 +46,29 @@ Move with the backlog skill's `move.sh` script or `gh project item-edit`.
 
 ### Close a shipped issue
 
-1. Confirm the related PR is merged.
-2. `gh issue close <num> --repo locknessland/lockness-monorepo --reason completed`.
-3. **Always verify and move Status to Done manually** — Project #2's automation
-   is NOT currently configured to auto-move on close (verified 2026-05-02
-   against issue #94: closing left Status stuck at "In review"). Run
-   `.specnaut/scripts/backlog/move.sh <num> Done` after closing. If Kevin
-   enables Project automation later, this manual step can be removed from the
-   runbook.
+1. Confirm the work actually shipped.
+2. `.specnaut/scripts/backlog/move.sh <num> Done`.
+3. Verify the state: `gh issue view <num> --json state,stateReason` should read
+   `CLOSED` / `COMPLETED`.
+
+**⚠️ Moving to Done now CLOSES the issue.** Project #2 has an "Auto-close
+issue" workflow, so the move is the close — `gh issue close` afterwards returns
+"already closed". Measured 2026-08-31 on #122: `move.sh 122 Done` at 16:52:02
+closed it, and the follow-up comment landed at 16:52:08, six seconds later.
+
+Two consequences:
+
+- The old two-step (close, then move) is one step. Closing with
+  `gh issue close` alone still works but leaves Status behind, so prefer
+  `move.sh`.
+- **`move.sh <num> Done` is no longer a harmless status correction.** The
+  mechanical-move carve-out in `.claude/skills/backlog/SKILL.md` lets the main
+  session move Status without PO judgement; that carve-out does **not** extend
+  to `Done`, because it now ends the issue. Only move to `Done` when the work
+  is genuinely finished.
+
+This reverses the note that stood here from 2026-05-02 (verified against #94,
+when closing left Status stuck at "In review"). The automation was added since.
 
 ## Issue body template
 

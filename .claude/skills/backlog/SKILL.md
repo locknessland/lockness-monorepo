@@ -25,6 +25,11 @@ This skill's scripts are the **toolbox** the PO uses. The main session may call
 the read-only ones (`list.sh`, `view.sh`) directly to inspect state, but every
 write goes through the PO — **with one carve-out**:
 
+**⚠️ `Done` is never a mechanical move.** Project #2 has an "Auto-close issue"
+workflow, so `move.sh <num> Done` **closes the issue**. Measured 2026-08-31 on
+#122. The exemption below covers `In progress` and `In review`; moving to `Done`
+ends the item and stays a PO decision.
+
 **Mechanical Status moves are exempt.** When a Status change is a deterministic
 step inside an established workflow (e.g. `/orchestrate` Step 3b "move to In
 progress" once architect ships, or Step 7 "move to In review" once a PR opens),
