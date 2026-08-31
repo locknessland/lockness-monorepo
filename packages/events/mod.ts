@@ -179,11 +179,19 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         event: K,
         data: EventData<Events, K>,
     ): Promise<void> {
-        // Get specific event listeners
-        const entries = this.listenerMap.get(event as string) || []
-
-        // Sort by priority
-        entries.sort((a, b) => b.priority - a.priority)
+        // A SNAPSHOT, not the live array. `off()` splices the array held in the
+        // map, so iterating it directly meant a listener removing itself
+        // mid-dispatch shifted its neighbour out from under the cursor — and
+        // that neighbour silently never ran. An abort handler is exactly that
+        // shape, which is why this had to be right before signals could land.
+        //
+        // The wildcard path below has always copied; this brings the two to one
+        // behaviour rather than leaving the asymmetry to be rediscovered.
+        //
+        // No sort here: `on()` sorts at registration, which is the single home
+        // for order, and a sort at dispatch time is a second one that could
+        // disagree with it.
+        const entries = [...(this.listenerMap.get(event as string) ?? [])]
 
         // Execute specific event listeners
         const toRemoveSpecific: ListenerEntry[] = []
@@ -203,9 +211,10 @@ export class EventEmitter<Events extends EventMap = EventMap> {
             }
         }
 
-        // Execute wildcard listeners (they receive event name and data)
+        // Execute wildcard listeners (they receive event name and data).
+        // Copied for the same reason, and likewise unsorted: `onAny()` sorts at
+        // registration.
         const wildcardCopy = [...this.wildcardListeners]
-        wildcardCopy.sort((a, b) => b.priority - a.priority)
         const toRemoveWildcard: ListenerEntry[] = []
 
         for (const entry of wildcardCopy) {

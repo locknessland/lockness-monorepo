@@ -517,3 +517,79 @@ Deno.test('EventEmitter - error handling', async () => {
     // Despite first listener throwing, second should execute
     assertEquals(errorCaught, true)
 })
+
+// =============================================================================
+// Dispatch immunity to concurrent modification — FR-000 / US0
+// =============================================================================
+
+Deno.test('emit - a listener that removes itself does not skip the next one', async () => {
+    // `emit()` used to iterate the LIVE array held in listenerMap while `off()`
+    // spliced that same array, so removing index 0 mid-dispatch shifted index 1
+    // out from under the cursor. An abort handler is exactly this shape, which
+    // is why this had to be fixed before AbortSignal support could land.
+    const emitter = new EventEmitter()
+    const ran: string[] = []
+
+    const a = () => {
+        ran.push('A')
+        emitter.off('x', a)
+    }
+    const b = () => void ran.push('B')
+    const c = () => void ran.push('C')
+
+    emitter.on('x', a)
+    emitter.on('x', b)
+    emitter.on('x', c)
+
+    await emitter.emit('x', null)
+
+    assertEquals(ran, ['A', 'B', 'C'], 'B was in the dispatch and must run')
+})
+
+Deno.test('emit - the wildcard path has the same immunity', async () => {
+    // It always did: `emit()` spread wildcardListeners into a copy. This pins
+    // the behaviour the specific-event path was brought up to match, so the two
+    // cannot drift apart again.
+    const emitter = new EventEmitter()
+    const ran: string[] = []
+
+    const a = (payload: unknown) => {
+        ran.push('A')
+        emitter.offAny(a as never)
+        void payload
+    }
+    const b = () => void ran.push('B')
+
+    emitter.onAny(a as never)
+    emitter.onAny(b as never)
+
+    await emitter.emit('x', null)
+
+    assertEquals(ran, ['A', 'B'])
+})
+
+Deno.test('emit - a listener added during a dispatch runs in the NEXT one, not this one', async () => {
+    // The other half of "the dispatch runs the listeners that existed when it
+    // started" — invariant 3. Without the snapshot this depends on where the
+    // priority sort happened to place the new entry.
+    const emitter = new EventEmitter()
+    const ran: string[] = []
+
+    const late = () => void ran.push('late')
+    const first = () => {
+        ran.push('first')
+        emitter.on('x', late)
+    }
+
+    emitter.on('x', first)
+
+    await emitter.emit('x', null)
+    assertEquals(
+        ran,
+        ['first'],
+        'the late listener was not part of this dispatch',
+    )
+
+    await emitter.emit('x', null)
+    assertEquals(ran, ['first', 'first', 'late'], 'and it is part of the next')
+})
