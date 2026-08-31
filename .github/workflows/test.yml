@@ -45,5 +45,8 @@ jobs:
             - name: Agent briefs up to date
               run: deno task agents:brief --check
 
+            - name: Published-shape resolution
+              run: deno task publish:check
+
             - name: Run tests
               run: deno task test

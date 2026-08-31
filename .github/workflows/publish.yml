@@ -28,11 +28,34 @@ jobs:
             - name: Lint
               run: deno lint
 
-            # 3. Lance tous les tests du workspace
-            # L'option -A donne toutes les perms pour les tests (adaptable selon besoins)
-            - name: Run Tests
-              run: deno task test -A
+            # 3. Type-check the whole workspace
+            - name: Type check
+              run: deno check
 
-            # 4. Publie seulement si tout est vert
+            # 4. Cycles, declaration drift, tier policy
+            - name: Dependency integrity
+              run: deno task deps:analyze
+
+            # 5. Package briefs must match the code they describe
+            - name: Agent briefs up to date
+              run: deno task agents:brief --check
+
+            # 6. Tests. `deno task test` already carries -A.
+            - name: Run Tests
+              run: deno task test
+
+            # 7. THE pre-publish gate.
+            #
+            # `deno publish --dry-run` runs inside the workspace, where a bare
+            # `@lockness/x` specifier resolves by workspace member *name*
+            # whether or not the importing package declares it — so it passes
+            # for a package that ships a manifest a consumer cannot resolve.
+            # This check copies each package out of the workspace and proves it
+            # resolves alone. It is the only step that catches that class of
+            # defect before the version is permanently on JSR.
+            - name: Published-shape resolution
+              run: deno task publish:check
+
+            # 8. Publie seulement si tout est vert
             - name: Publish to JSR
               run: deno publish
