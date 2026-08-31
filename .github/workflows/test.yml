@@ -42,5 +42,8 @@ jobs:
             - name: Dependency integrity
               run: deno task deps:analyze
 
+            - name: Agent briefs up to date
+              run: deno task agents:brief --check
+
             - name: Run tests
               run: deno task test
