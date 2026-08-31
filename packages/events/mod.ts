@@ -13,7 +13,25 @@
 // Class-based Events (New)
 // =============================================================================
 
+import { createEventQueue, type StreamOptions } from './stream.ts'
+import { debugLog } from './debug.ts'
+
 export { BaseEvent } from './base_event.ts'
+export { debugLog, isDebugEnabled, setEventsDebug } from './debug.ts'
+export type { DebugRecord } from './debug.ts'
+export {
+    createEventQueue,
+    DEFAULT_BUFFER_SIZE,
+    DEFAULT_OVERFLOW,
+    MAX_BUFFER_SIZE,
+    OVERFLOW_POLICIES,
+} from './stream.ts'
+export type {
+    EventQueue,
+    OverflowPolicy,
+    OverflowReport,
+    StreamOptions,
+} from './stream.ts'
 export {
     configureEventDispatcher,
     dispatcher,
@@ -42,6 +60,22 @@ export type EventListener<T = unknown> = (data: T) => void | Promise<void>
  * Listener configuration
  */
 export interface ListenerConfig {
+    /**
+     * Removes this listener when the signal aborts.
+     *
+     * An **already-aborted** signal means the listener is never registered at
+     * all — not registered and then removed. A signalled listener is also
+     * exempt from the `maxListeners` warning, because the request-scoped
+     * pattern this enables (`{ signal: c.req.raw.signal }`) is one registration
+     * per request and would otherwise warn about a leak that is not happening.
+     *
+     * @example
+     * ```ts
+     * emitter.on(SomeEvent, handle, { signal: c.req.raw.signal })
+     * ```
+     */
+    signal?: AbortSignal
+
     priority?: number // Higher priority executes first (default: 0)
     once?: boolean // Remove after first execution
 }
@@ -53,6 +87,16 @@ interface ListenerEntry<T = unknown> {
     listener: EventListener<T>
     priority: number
     once: boolean
+    /**
+     * Cleanup owed by this entry, run by {@link EventEmitter} when it is
+     * removed — by any path.
+     *
+     * This is why an entry is **not** a value object: it is identified by
+     * reference in the removal gate, because the thing to detach cannot be
+     * looked up from the listener function alone. Two registrations of one
+     * bound method are two entries with two different cleanups.
+     */
+    dispose?: () => void
 }
 
 /**
@@ -90,6 +134,66 @@ export class EventEmitter<Events extends EventMap = EventMap> {
     private maxListeners = 10
 
     /**
+     * The one place an entry enters a bucket.
+     *
+     * `on()` and `onAny()` both come through here. They have to: `onAny()` does
+     * **not** delegate to `on()` — it owns a separate array with a separate
+     * removal path — so "registration is decided in `on()`" would leave the
+     * wildcard path with nowhere to inherit that decision from.
+     *
+     * @param bucket - The array this kind of listener lives in.
+     * @param entry - The entry to add.
+     */
+    #register(
+        bucket: ListenerEntry[],
+        entry: ListenerEntry,
+        signal?: AbortSignal,
+        event = '*',
+    ): boolean {
+        // Refused BEFORE the push, so an already-aborted signal means the
+        // listener never existed. Registering and then removing would be
+        // observable through listenerCount between the two, and would run any
+        // bookkeeping a registration implies.
+        if (signal?.aborted) return false
+
+        if (signal) {
+            const onAbort = () => this.#unregister(bucket, entry)
+            signal.addEventListener('abort', onAbort, { once: true })
+            // Stored on the entry so EVERY removal path detaches it — the
+            // handler outliving its listener is the leak this feature exists
+            // to avoid, one indirection out.
+            entry.dispose = () => signal.removeEventListener('abort', onAbort)
+        }
+
+        bucket.push(entry)
+        // Sorted at REGISTRATION, which is what makes priority hold for a
+        // listener added after the first emit. `emit()` deliberately does not
+        // sort: a second sort is a second decision that can disagree.
+        bucket.sort((a, b) => b.priority - a.priority)
+        debugLog({ phase: 'register', event, listenerCount: bucket.length })
+        return true
+    }
+
+    /**
+     * The one place an entry leaves a bucket, and the only place its cleanup runs.
+     *
+     * `off()`, `offAny()` and `removeAllListeners()` all come through here.
+     * `removeAllListeners()` especially: it is the path that never calls
+     * `off()`, so anything wired into removal there alone would leak.
+     *
+     * @param bucket - The array the entry lives in.
+     * @param entry - The entry to remove. A no-op if it is already gone.
+     */
+    #unregister(bucket: ListenerEntry[], entry: ListenerEntry): void {
+        const index = bucket.indexOf(entry)
+        if (index !== -1) bucket.splice(index, 1)
+        // Runs even when the entry was already out of the bucket: a removal
+        // asked for twice must still leave nothing behind, and must not throw.
+        entry.dispose?.()
+        entry.dispose = undefined
+    }
+
+    /**
      * Register an event listener
      */
     on<K extends EventName<Events>>(
@@ -108,15 +212,24 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         }
 
         const entries = this.listenerMap.get(event as string)!
-        entries.push(entry as ListenerEntry)
+        if (
+            !this.#register(
+                entries,
+                entry as ListenerEntry,
+                config?.signal,
+                event as string,
+            )
+        ) {
+            return this
+        }
 
-        // Sort by priority (higher first)
-        entries.sort((a, b) => b.priority - a.priority)
-
-        // Warn about too many listeners
-        if (entries.length > this.maxListeners) {
+        // Warn about too many listeners — counting only the ones that have no
+        // signal to end them. See ListenerConfig.signal.
+        const unsignalled =
+            entries.filter((e) => e.dispose === undefined).length
+        if (unsignalled > this.maxListeners) {
             console.warn(
-                `Warning: Possible EventEmitter memory leak detected. ${entries.length} ${
+                `Warning: Possible EventEmitter memory leak detected. ${unsignalled} ${
                     String(event)
                 } listeners added. ` +
                     `Use emitter.setMaxListeners() to increase limit.`,
@@ -147,10 +260,10 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         const entries = this.listenerMap.get(event as string)
         if (!entries) return this
 
-        const index = entries.findIndex((entry) => entry.listener === listener)
-        if (index !== -1) {
-            entries.splice(index, 1)
-        }
+        const entry = entries.find((candidate) =>
+            candidate.listener === listener
+        )
+        if (entry) this.#unregister(entries, entry)
 
         if (entries.length === 0) {
             this.listenerMap.delete(event as string)
@@ -164,11 +277,31 @@ export class EventEmitter<Events extends EventMap = EventMap> {
      */
     removeAllListeners<K extends EventName<Events>>(event?: K): this {
         if (event) {
+            const entries = this.listenerMap.get(event as string)
+            if (entries) {
+                // Through the gate, so each entry's cleanup runs. Iterating a
+                // copy because the gate splices the live array.
+                for (const entry of [...entries]) {
+                    this.#unregister(entries, entry)
+                }
+            }
             this.listenerMap.delete(event as string)
-        } else {
-            this.listenerMap.clear()
-            this.wildcardListeners = []
+            return this
         }
+
+        for (const entries of this.listenerMap.values()) {
+            for (const entry of [...entries]) this.#unregister(entries, entry)
+        }
+        this.listenerMap.clear()
+
+        for (const entry of [...this.wildcardListeners]) {
+            this.#unregister(this.wildcardListeners, entry)
+        }
+        // `length = 0`, not `= []`: the array's identity is captured by the
+        // removal gate's callers, and swapping it would strand them on a
+        // detached array.
+        this.wildcardListeners.length = 0
+
         return this
     }
 
@@ -193,10 +326,23 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         // disagree with it.
         const entries = [...(this.listenerMap.get(event as string) ?? [])]
 
+        debugLog({
+            phase: 'emit',
+            event: String(event),
+            listenerCount: entries.length,
+        })
+
         // Execute specific event listeners
         const toRemoveSpecific: ListenerEntry[] = []
 
+        let dispatchIndex = 0
         for (const entry of entries) {
+            debugLog({
+                phase: 'dispatch',
+                event: String(event),
+                listenerCount: entries.length,
+                index: dispatchIndex++,
+            })
             try {
                 await entry.listener(data)
             } catch (error) {
@@ -232,22 +378,27 @@ export class EventEmitter<Events extends EventMap = EventMap> {
             }
         }
 
-        // Remove once listeners
-        for (const entry of toRemoveSpecific) {
-            const listenerEntries = this.listenerMap.get(event as string)
-            if (listenerEntries) {
-                const index = listenerEntries.indexOf(entry)
-                if (index !== -1) {
-                    listenerEntries.splice(index, 1)
-                }
+        // Remove once listeners — through the gate, like every other removal.
+        // These two loops used to splice directly, which meant `dispose` never
+        // ran and a `once(…, { signal })` left its abort handler attached to a
+        // signal that may outlive the process's interest in it. The gate exists
+        // precisely so there is one answer to "what else goes with a removal",
+        // and two callers inside this very file were bypassing it.
+        const listenerEntries = this.listenerMap.get(event as string)
+        if (listenerEntries) {
+            for (const entry of toRemoveSpecific) {
+                this.#unregister(listenerEntries, entry)
+            }
+            // `off()` deletes an emptied key; this path did not, so
+            // `eventNames()` reported an event with no listeners depending on
+            // how its last one happened to be removed.
+            if (listenerEntries.length === 0) {
+                this.listenerMap.delete(event as string)
             }
         }
 
         for (const entry of toRemoveWildcard) {
-            const index = this.wildcardListeners.indexOf(entry)
-            if (index !== -1) {
-                this.wildcardListeners.splice(index, 1)
-            }
+            this.#unregister(this.wildcardListeners, entry)
         }
 
         return
@@ -278,8 +429,7 @@ export class EventEmitter<Events extends EventMap = EventMap> {
             once: config?.once ?? false,
         }
 
-        this.wildcardListeners.push(entry)
-        this.wildcardListeners.sort((a, b) => b.priority - a.priority)
+        this.#register(this.wildcardListeners, entry, config?.signal)
 
         return this
     }
@@ -288,13 +438,61 @@ export class EventEmitter<Events extends EventMap = EventMap> {
      * Remove a wildcard listener
      */
     offAny(listener: EventListener<{ event: string; data: unknown }>): this {
-        const index = this.wildcardListeners.findIndex((entry) =>
-            entry.listener === listener
+        const entry = this.wildcardListeners.find((candidate) =>
+            candidate.listener === listener
         )
-        if (index !== -1) {
-            this.wildcardListeners.splice(index, 1)
-        }
+        if (entry) this.#unregister(this.wildcardListeners, entry)
         return this
+    }
+
+    /**
+     * Every event, as an async iterable of `{ event, data }`.
+     *
+     * The same shape {@link onAny} delivers, deliberately: a tuple would be a
+     * second shape for one concept, and `onAny` was here first. Built on the
+     * one bounded queue, so it buffers and drops exactly as
+     * {@link eventStream} does.
+     *
+     * **It creates no new capability.** `onAny()` already hands every event to
+     * any in-process caller with no gate. What is new is *retention*: a
+     * buffered frame keeps a reference to everything its event carries, and for
+     * the framework's own lifecycle events that is the request `Context`.
+     * Size the buffer accordingly.
+     *
+     * Ending the iteration — `break`, an exception in the loop body, or
+     * `return()` — detaches the wildcard listener.
+     *
+     * @param options - Buffer size and overflow policy.
+     * @returns Every event, in dispatch order.
+     * @throws {RangeError} If `bufferSize` is outside `1..MAX_BUFFER_SIZE`.
+     * @throws {TypeError} If `onOverflow` names no known policy.
+     *
+     * @example
+     * ```ts
+     * for await (const { event, data } of emitter.anyEvent()) {
+     *     console.log(event)
+     *     if (enough) break // detaches
+     * }
+     * ```
+     */
+    anyEvent(
+        options?: StreamOptions,
+    ): AsyncIterableIterator<{ event: string; data: unknown }> {
+        type Frame = { event: string; data: unknown }
+
+        // Same const-pair shape as eventStream(): neither body runs before both
+        // bindings exist.
+        const listener: EventListener<Frame> = (frame: Frame) =>
+            queue.push(frame)
+
+        const queue = createEventQueue<Frame>(
+            '*',
+            () => this.offAny(listener),
+            options,
+        )
+
+        this.onAny(listener)
+        return queue.stream
     }
 
     /**
@@ -464,58 +662,47 @@ export function waitForEvent<T = unknown>(
 // =============================================================================
 
 /**
- * Convert events to an async iterable stream
+ * Convert one event into an async iterable stream.
+ *
+ * **Bounded.** The buffer holds {@link DEFAULT_BUFFER_SIZE} frames unless told
+ * otherwise, and drops the oldest beyond that, reporting the episode. It used
+ * to be an unbounded array: a consumer that stopped pulling grew it for the
+ * life of the process with nothing said about it.
+ *
+ * The listener is detached when the iteration ends — by `break`, by an
+ * exception in the loop body, or by calling `return()`.
+ *
+ * @param emitter - The emitter to listen on.
+ * @param event - The event name.
+ * @param options - Buffer size and overflow policy.
+ * @returns An async iterable of the event's payloads.
+ * @throws {RangeError} If `bufferSize` is outside `1..MAX_BUFFER_SIZE`.
+ * @throws {TypeError} If `onOverflow` names no known policy.
+ *
+ * @example
+ * ```ts
+ * for await (const payload of eventStream(emitter, 'tick')) {
+ *     if (done) break // detaches
+ * }
+ * ```
  */
 export function eventStream<T = unknown>(
     emitter: EventEmitter,
     event: string,
-): AsyncIterable<T> {
-    const queue: T[] = []
-    const waiting: Array<(value: IteratorResult<T>) => void> = []
-    let done = false
+    options?: StreamOptions,
+): AsyncIterableIterator<T> {
+    // `listener` names `queue` in its body and `queue` names `listener` in its
+    // detach callback. Both are const: neither body runs until after both
+    // bindings are initialised, so there is no temporal-dead-zone hazard here.
+    const listener: EventListener<T> = (data: T) => queue.push(data)
 
-    const listener = (data: T) => {
-        if (waiting.length > 0) {
-            const resolve = waiting.shift()!
-            resolve({ value: data, done: false })
-        } else {
-            queue.push(data)
-        }
-    }
+    const queue = createEventQueue<T>(
+        event,
+        () => emitter.off(event as never, listener as EventListener<unknown>),
+        options,
+    )
 
-    emitter.on(event as any, listener as EventListener<any>)
+    emitter.on(event as never, listener as EventListener<unknown>)
 
-    return {
-        [Symbol.asyncIterator]() {
-            return {
-                next(): Promise<IteratorResult<T>> {
-                    if (queue.length > 0) {
-                        return Promise.resolve({
-                            value: queue.shift()!,
-                            done: false,
-                        })
-                    }
-
-                    if (done) {
-                        return Promise.resolve({
-                            value: undefined as unknown as T,
-                            done: true,
-                        })
-                    }
-
-                    return new Promise<IteratorResult<T>>((resolve) => {
-                        waiting.push(resolve)
-                    })
-                },
-                return(): Promise<IteratorResult<T>> {
-                    done = true
-                    emitter.off(event as any, listener as EventListener<any>)
-                    return Promise.resolve({
-                        value: undefined as unknown as T,
-                        done: true,
-                    })
-                },
-            }
-        },
-    }
+    return queue.stream
 }

@@ -56,7 +56,7 @@
         "deprecation-contracts": { "tier": "implementation", "allow": [] },
         "devtools": { "tier": "implementation", "allow": ["hono"] },
         "drizzle": { "tier": "implementation", "allow": ["cli", "container"] },
-        "events": { "tier": "implementation", "allow": ["hono"] },
+        "events": { "tier": "implementation", "allow": ["contract", "hono"] },
         "inertia": { "tier": "implementation", "allow": ["hono"] },
         "init": { "tier": "implementation", "allow": ["cli"] },
         "logger": { "tier": "implementation", "allow": [] },

@@ -28,6 +28,7 @@
 import type { BootstrapContext, BootstrapStep } from './types.ts'
 
 // Import all step implementations
+import { eventsDebugStep } from './steps/events_debug.ts'
 import { databaseStep } from './steps/database.ts'
 import { sessionStep } from './steps/session.ts'
 import { cacheStep } from './steps/cache.ts'
@@ -65,6 +66,9 @@ import { devtoolsRoutesStep } from './steps/devtools_routes.ts'
  */
 export function getDefaultSteps(): readonly BootstrapStep[] {
     return [
+        // Order 10 — before anything can emit, so the switch is on for the
+        // boot it was turned on to diagnose.
+        eventsDebugStep,
         databaseStep,
         sessionStep,
         cacheStep,

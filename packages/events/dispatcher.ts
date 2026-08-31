@@ -7,9 +7,13 @@
  * @module @lockness/events/dispatcher
  */
 
-import { EventEmitter } from './mod.ts'
+import {
+    EventEmitter,
+    type EventListener,
+    type ListenerConfig,
+    type StreamOptions,
+} from './mod.ts'
 import type { BaseEvent } from './base_event.ts'
-import type { EventListener } from './mod.ts'
 
 /**
  * Event dispatcher that supports both class-based and string-based events.
@@ -79,7 +83,7 @@ export class EventDispatcher {
     on<T extends BaseEvent>(
         eventClass: new (...args: any[]) => T,
         listener: EventListener<T>,
-        options?: { priority?: number },
+        options?: ListenerConfig,
     ): () => void {
         const eventName = eventClass.name
         this.emitter.on(eventName, listener, options)
@@ -98,7 +102,7 @@ export class EventDispatcher {
     once<T extends BaseEvent>(
         eventClass: new (...args: any[]) => T,
         listener: EventListener<T>,
-        options?: { priority?: number },
+        options?: ListenerConfig,
     ): void {
         const eventName = eventClass.name
         this.emitter.once(eventName, listener, options)
@@ -126,9 +130,29 @@ export class EventDispatcher {
      */
     onAny(
         listener: EventListener<{ event: string; data: unknown }>,
-        options?: { priority?: number },
+        options?: ListenerConfig,
     ): void {
         this.emitter.onAny(listener, options)
+    }
+
+    /**
+     * Every event, as an async iterable of `{ event, data }`.
+     *
+     * Forwarded to the emitter. The dispatcher adds nothing — see
+     * {@link EventEmitter.anyEvent}.
+     *
+     * @param options - Buffer size and overflow policy.
+     * @returns Every event, in dispatch order.
+     *
+     * @example
+     * ```ts
+     * for await (const { event } of dispatcher().anyEvent()) console.log(event)
+     * ```
+     */
+    anyEvent(
+        options?: StreamOptions,
+    ): AsyncIterableIterator<{ event: string; data: unknown }> {
+        return this.emitter.anyEvent(options)
     }
 
     /**

@@ -49,24 +49,47 @@ export {
     BaseEvent,
     configureEventDispatcher,
     ControllerExecuting,
+    // Streams, signals and the debug switch — #135. Core re-exports a NAMED
+    // list, so anything absent from it is unreachable from an application even
+    // though @lockness/events exports it.
+    createEventQueue,
+    debugLog,
+    DEFAULT_BUFFER_SIZE,
+    DEFAULT_OVERFLOW,
     dispatcher,
     EventBuffer,
     EventDispatcher,
+    EventEmitter,
+    eventStream,
     ExceptionOccurred,
     // Testing utilities
     fake,
     getActiveFake,
     getListenerMetadata,
+    isDebugEnabled,
     // Framework lifecycle events
     KernelBooted,
     KernelTerminating,
     Listener,
     type ListenerMetadata,
     type ListenerOptions,
+    MAX_BUFFER_SIZE,
+    OVERFLOW_POLICIES,
     RequestCompleted,
     RequestStarted,
     ResponsePrepared,
     restore,
+    setEventsDebug,
+    waitForEvent,
+} from '@lockness/events'
+export type {
+    DebugRecord,
+    EventListener,
+    EventQueue,
+    ListenerConfig,
+    OverflowPolicy,
+    OverflowReport,
+    StreamOptions,
 } from '@lockness/events'
 
 // Export listener registration for package authors

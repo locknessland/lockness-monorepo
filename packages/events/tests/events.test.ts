@@ -593,3 +593,217 @@ Deno.test('emit - a listener added during a dispatch runs in the NEXT one, not t
     await emitter.emit('x', null)
     assertEquals(ran, ['first', 'first', 'late'], 'and it is part of the next')
 })
+
+// =============================================================================
+// AbortSignal — FR-001..FR-005, FR-015 / US2
+// =============================================================================
+
+Deno.test('on - aborting the signal removes the listener', async () => {
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    let ran = 0
+
+    emitter.on('x', () => void ran++, { signal: controller.signal })
+    await emitter.emit('x', null)
+    assertEquals(ran, 1)
+
+    controller.abort()
+    await emitter.emit('x', null)
+    assertEquals(ran, 1, 'the listener is gone')
+    assertEquals(emitter.listenerCount('x'), 0)
+})
+
+Deno.test('on - an ALREADY-aborted signal never registers the listener', async () => {
+    // Not "registered then immediately removed": never registered. The
+    // difference is observable through listenerCount between the two calls.
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    controller.abort()
+
+    let ran = 0
+    emitter.on('x', () => void ran++, { signal: controller.signal })
+
+    assertEquals(emitter.listenerCount('x'), 0)
+    await emitter.emit('x', null)
+    assertEquals(ran, 0)
+})
+
+Deno.test('on - aborting after off() is a no-op and does not throw', async () => {
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    const fn = () => {}
+
+    emitter.on('x', fn, { signal: controller.signal })
+    emitter.off('x', fn)
+    controller.abort()
+
+    await emitter.emit('x', null)
+})
+
+Deno.test('off - detaches the abort handler, not just the listener', async () => {
+    // The assertion lands on the SIGNAL's behaviour, not on listenerCount():
+    // an orphaned handler lives on the AbortSignal, not in listenerMap, so
+    // listenerCount() returns to its prior value whether or not it leaked.
+    //
+    // Observable consequence: if the stale handler is still attached, aborting
+    // removes the RE-registered listener that has nothing to do with it.
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    let ran = 0
+    const fn = () => void ran++
+
+    emitter.on('x', fn, { signal: controller.signal })
+    emitter.off('x', fn)
+
+    emitter.on('x', fn) // re-registered, deliberately WITHOUT a signal
+    controller.abort() // the stale handler, if any, fires here
+
+    await emitter.emit('x', null)
+    assertEquals(ran, 1, 'the second registration must survive the abort')
+})
+
+Deno.test('removeAllListeners - detaches abort handlers too', async () => {
+    // removeAllListeners() is the one removal path that never calls off(), so
+    // anything wired into off() alone leaks here.
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    let ran = 0
+    const fn = () => void ran++
+
+    emitter.on('x', fn, { signal: controller.signal })
+    emitter.removeAllListeners()
+
+    emitter.on('x', fn)
+    controller.abort()
+
+    await emitter.emit('x', null)
+    assertEquals(ran, 1, 'the second registration must survive the abort')
+})
+
+Deno.test('onAny - a signalled wildcard listener is removed on abort', async () => {
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    let ran = 0
+
+    emitter.onAny(() => void ran++, { signal: controller.signal })
+    await emitter.emit('x', null)
+    assertEquals(ran, 1)
+
+    controller.abort()
+    await emitter.emit('x', null)
+    assertEquals(
+        ran,
+        1,
+        'the wildcard path has its own array and its own removal',
+    )
+})
+
+Deno.test('once + signal - whichever fires first wins, and the other is a no-op', async () => {
+    const emitter = new EventEmitter()
+
+    // once fires first
+    const a = new AbortController()
+    let ranA = 0
+    emitter.once('x', () => void ranA++, { signal: a.signal })
+    await emitter.emit('x', null)
+    a.abort()
+    await emitter.emit('x', null)
+    assertEquals(ranA, 1)
+
+    // abort fires first
+    const b = new AbortController()
+    let ranB = 0
+    emitter.once('y', () => void ranB++, { signal: b.signal })
+    b.abort()
+    await emitter.emit('y', null)
+    assertEquals(ranB, 0)
+})
+
+Deno.test('on - a signalled listener is exempt from the maxListeners warning', () => {
+    // US2's own pattern is one registration per request. Without this exemption
+    // the framework emits a "possible memory leak" line per request past the
+    // tenth concurrent one — a client-controlled log flood, warning about
+    // something that is not happening.
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    const lines: unknown[][] = []
+    const original = console.warn
+    console.warn = (...args: unknown[]) => void lines.push(args)
+
+    try {
+        for (let i = 0; i < 15; i++) {
+            emitter.on('x', () => {}, { signal: controller.signal })
+        }
+        assertEquals(lines.length, 0, 'no warning for signalled listeners')
+
+        // The warning still works for listeners that have no signal.
+        for (let i = 0; i < 15; i++) emitter.on('y', () => {})
+        assertEquals(lines.length > 0, true, 'unsignalled listeners still warn')
+    } finally {
+        console.warn = original
+        controller.abort()
+    }
+})
+
+Deno.test('once + signal - the auto-removal detaches the abort handler too', async () => {
+    // The review found this: emit()'s `once` cleanup spliced the array directly
+    // instead of going through the removal gate, so `dispose` never ran and the
+    // abort handler outlived the listener it belonged to. N once-listeners with
+    // one long-lived signal left N dead handlers on it, each retaining the entry
+    // and the emitter.
+    //
+    // The harm is retention, not misbehaviour: #unregister keys on the ENTRY
+    // object, so a stale handler firing later finds nothing and does nothing.
+    // Re-registering and aborting therefore proves nothing. The assertion has
+    // to land on the signal, by counting the detach the removal owes it.
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    const signal = controller.signal
+
+    let attached = 0
+    let detached = 0
+    const addListener = signal.addEventListener.bind(signal)
+    const removeListener = signal.removeEventListener.bind(signal)
+    signal.addEventListener = ((...args: Parameters<typeof addListener>) => {
+        attached++
+        return addListener(...args)
+    }) as typeof signal.addEventListener
+    signal.removeEventListener = ((
+        ...args: Parameters<typeof removeListener>
+    ) => {
+        detached++
+        return removeListener(...args)
+    }) as typeof signal.removeEventListener
+
+    let ran = 0
+    emitter.once('x', () => void ran++, { signal })
+    assertEquals(attached, 1, 'registration attached one abort handler')
+
+    await emitter.emit('x', null)
+
+    assertEquals(ran, 1, 'the once listener fired')
+    assertEquals(emitter.listenerCount('x'), 0, 'and was removed')
+    assertEquals(
+        detached,
+        1,
+        'the removal owes the signal a detach — one attached, one detached',
+    )
+
+    controller.abort()
+})
+
+Deno.test('once - a consumed listener leaves no empty bucket behind', async () => {
+    // off() deletes the map key when the bucket empties; the once path did not,
+    // so eventNames() reported an event with no listeners depending on how the
+    // last one was removed. One removal gate, one behaviour.
+    const emitter = new EventEmitter()
+    emitter.once('gone', () => {})
+    await emitter.emit('gone', null)
+
+    assertEquals(emitter.listenerCount('gone'), 0)
+    assertEquals(
+        emitter.eventNames().includes('gone'),
+        false,
+        'an event nobody listens to is not an event name',
+    )
+})
