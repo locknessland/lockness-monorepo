@@ -28,7 +28,12 @@ async function watchControllers() {
     const watcher = Deno.watchFs(CONTROLLER_DIR)
 
     // Debounce mechanism to avoid multiple rapid regenerations
-    let debounceTimer: number | null = null
+    // `ReturnType<typeof setTimeout>`, not `number`. A scaffolded project sets
+    // nodeModulesDir: "auto", which brings @types/node in and widens the return
+    // to `Timeout` — so `number` fails `deno check` in every project the
+    // scaffolder has ever produced. Same convention as the framework's own
+    // timer registry.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     for await (const event of watcher) {
         // Only react to create, modify, remove events on controller files
