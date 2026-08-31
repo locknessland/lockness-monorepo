@@ -92,12 +92,18 @@ definition, not 27 — package knowledge lives in each `packages/<pkg>/AGENTS.md
 versioned beside the code, while role knowledge stays in
 `.claude/agents/<role>/memory/`.
 
-`package-expert` is the one seat scoped to a single package rather than a role.
-Dispatch it with the package named in the prompt; it loads that package's
-`AGENTS.md` and dependency contract and stays inside the boundary. There is one
-definition, not 27 — package knowledge lives in each `packages/<pkg>/AGENTS.md`,
-versioned beside the code, while role knowledge stays in
-`.claude/agents/<role>/memory/`.
+Two skills own the mechanics that sit either side of those workflows:
+
+- **`/git`** — the single entry point for git operations: a pre-flight that
+  classifies the working tree by path, the one-category-per-commit rule, scoped
+  parallel reviews over a diff, and push behind the full gate. It is the only
+  home of the gate definition and the recurring-failure playbooks. Skill at
+  `.claude/skills/git/SKILL.md`.
+- **`/ship`** — release the framework. Owns no procedure: it delegates to
+  `/git push`, `/specnaut tag-version` and `/specnaut release-version`, and
+  holds the standing decisions — why versioning is lockstep, and why a JSR
+  publish needs the user's explicit consent every single time. Skill at
+  `.claude/skills/ship/SKILL.md`.
 
 Two complementary workflows coexist:
 
