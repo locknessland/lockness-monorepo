@@ -85,6 +85,20 @@ blockers, not preferences.
 Specialist sub-agents live in `.claude/agents/<name>.md`. Some carry a runbook
 at `.claude/agents/<name>/runbook.md` with procedures specific to their role.
 
+`package-expert` is the one seat scoped to a single package rather than a role.
+Dispatch it with the package named in the prompt; it loads that package's
+`AGENTS.md` and dependency contract and stays inside the boundary. There is one
+definition, not 27 — package knowledge lives in each `packages/<pkg>/AGENTS.md`,
+versioned beside the code, while role knowledge stays in
+`.claude/agents/<role>/memory/`.
+
+`package-expert` is the one seat scoped to a single package rather than a role.
+Dispatch it with the package named in the prompt; it loads that package's
+`AGENTS.md` and dependency contract and stays inside the boundary. There is one
+definition, not 27 — package knowledge lives in each `packages/<pkg>/AGENTS.md`,
+versioned beside the code, while role knowledge stays in
+`.claude/agents/<role>/memory/`.
+
 Two complementary workflows coexist:
 
 - **`/orchestrate`** — Lockness multi-agent dispatch (product-owner → architect
