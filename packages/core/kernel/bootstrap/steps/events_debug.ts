@@ -44,7 +44,21 @@ export const eventsDebugStep: BootstrapStep = {
     order: 10,
 
     run() {
-        const raw = Deno.env.get('LOCKNESS_EVENTS_DEBUG')?.trim().toLowerCase()
+        // A DENIED permission reads as "off", never as a throw. `Deno.env.get`
+        // raises `NotCapable` rather than returning undefined when the process
+        // has no `--allow-env`, and this step runs at order 10 — so without the
+        // guard a binary compiled with a narrowed permission set fails to boot,
+        // because of a diagnostic feature that is off by default.
+        //
+        // Moving the read out of `@lockness/events` and into core did NOT solve
+        // this, though the plan claimed it did. It moved WHERE the permission is
+        // needed; it never removed the need. Both were required.
+        let raw: string | undefined
+        try {
+            raw = Deno.env.get('LOCKNESS_EVENTS_DEBUG')?.trim().toLowerCase()
+        } catch {
+            return
+        }
         if (raw === undefined || raw === '') return
 
         if (OFF.includes(raw)) {
