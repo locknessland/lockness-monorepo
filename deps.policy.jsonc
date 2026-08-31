@@ -1,0 +1,96 @@
+// Dependency policy for the Lockness monorepo — the hand-written INPUT.
+//
+// `docs/dependencies.md` is the generated OUTPUT; do not edit that file.
+// `deno task deps:analyze` checks the real module graph against this one and
+// fails on any edge that is not permitted here.
+//
+// `allow` — the exhaustive set of STATIC edges a package may have. Measured
+//   from `deno info`, so it covers value imports, type imports, aliased
+//   specifiers (`"hono": "jsr:@lockness/hono"`) and literal dynamic imports.
+//
+// `soft`  — the exhaustive set of OPTIONAL packages loaded at runtime through
+//   `tryImportOptionalPackage('<name>', …)`. The specifier is a string
+//   ARGUMENT, so it appears in no module graph and no static tool can see it.
+//   Declaring it here is the only way it is checked at all. A soft edge is
+//   deliberately NOT declared in the package's own `deno.json`: the consuming
+//   application installs it, or the feature stays off.
+//
+// Widening this file is a `chore(deps)` commit of its own — never bundled with
+// the change that needed the widening.
+{
+    // Cycles that already existed when the guard was introduced. Each needs a
+    // ticket, and removing the entry is what closes it. A NEW cycle fails the
+    // build — adding it here to go green is explicitly not the remedy.
+    "knownCycles": [
+        {
+            "cycle": ["markdown", "ui"],
+            "issue": 0,
+            "why": "packages/ui/docs_renderer.tsx imports @lockness/markdown, which imports @lockness/ui/components. createDocsSection is used by 36 examples.tsx files, so untangling it is a design decision."
+        }
+    ],
+    "tiers": {
+        "foundation": 0,
+        "implementation": 1,
+        "orchestration": 2
+    },
+    "packages": {
+        // ---- Foundation: imported by everything, importing (almost) nothing.
+        // NOTE: `contract` is not dependency-free — it takes Hono's types
+        // through the `hono` alias. Every such import is `import type`, so the
+        // edge erases at runtime, but it is a real edge and is declared.
+        "hono": { "tier": "foundation", "allow": [] },
+        "contract": { "tier": "foundation", "allow": ["hono"] },
+        "container": { "tier": "foundation", "allow": ["contract"] },
+
+        // ---- Implementation
+        "auth": {
+            "tier": "implementation",
+            "allow": ["contract", "events", "hono", "session"]
+        },
+        "auth-provider": { "tier": "implementation", "allow": ["auth"] },
+        "cache": {
+            "tier": "implementation",
+            "allow": ["container", "contract"]
+        },
+        "cli": { "tier": "implementation", "allow": ["contract", "queue"] },
+        "deprecation-contracts": { "tier": "implementation", "allow": [] },
+        "devtools": { "tier": "implementation", "allow": ["hono"] },
+        "drizzle": { "tier": "implementation", "allow": ["cli", "container"] },
+        "events": { "tier": "implementation", "allow": ["hono"] },
+        "inertia": { "tier": "implementation", "allow": ["hono"] },
+        "init": { "tier": "implementation", "allow": ["cli"] },
+        "logger": { "tier": "implementation", "allow": [] },
+        "mail": { "tier": "implementation", "allow": [] },
+        "markdown": { "tier": "implementation", "allow": ["hono", "ui"] },
+        "openapi": {
+            "tier": "implementation",
+            "allow": ["cli", "contract", "hono"]
+        },
+        "queue": { "tier": "implementation", "allow": [] },
+        "scheduler": { "tier": "implementation", "allow": [] },
+        "session": { "tier": "implementation", "allow": ["hono"] },
+        "socialite": { "tier": "implementation", "allow": ["hono"] },
+        "sse": { "tier": "implementation", "allow": [] },
+        "storage": { "tier": "implementation", "allow": [] },
+        // `ui` reaches `markdown` from `docs_renderer.tsx`, and `markdown`
+        // reaches `ui` back — see `knownCycles` above.
+        "ui": { "tier": "implementation", "allow": ["hono", "markdown"] },
+        "upgrade": { "tier": "implementation", "allow": [] },
+        "validator": { "tier": "implementation", "allow": ["hono"] },
+
+        // ---- Orchestration: the only package a user application imports.
+        "core": {
+            "tier": "orchestration",
+            "allow": ["container", "contract", "events", "hono", "scheduler"],
+            "soft": [
+                "cache",
+                "container",
+                "devtools",
+                "drizzle",
+                "events",
+                "logger",
+                "session"
+            ]
+        }
+    }
+}
