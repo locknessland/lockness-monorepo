@@ -144,6 +144,22 @@ export class EventEmitter<Events extends EventMap = EventMap> {
      * @param bucket - The array this kind of listener lives in.
      * @param entry - The entry to add.
      */
+    /**
+     * A copy of a bucket, taken before a dispatch iterates it.
+     *
+     * **One helper, both paths.** The decision table names a single home for
+     * "a dispatch is immune to concurrent modification", and two identical
+     * inline spreads are not that home — they are the shape that drifts when
+     * one of them later grows a filter and the other does not, recreating the
+     * specific/wildcard asymmetry FR-000 removed.
+     *
+     * @param bucket - The live array.
+     * @returns A snapshot nothing else holds.
+     */
+    #snapshot(bucket: ListenerEntry[]): ListenerEntry[] {
+        return [...bucket]
+    }
+
     #register(
         bucket: ListenerEntry[],
         entry: ListenerEntry,
@@ -184,13 +200,23 @@ export class EventEmitter<Events extends EventMap = EventMap> {
      * @param bucket - The array the entry lives in.
      * @param entry - The entry to remove. A no-op if it is already gone.
      */
-    #unregister(bucket: ListenerEntry[], entry: ListenerEntry): void {
+    #unregister(
+        bucket: ListenerEntry[],
+        entry: ListenerEntry,
+        event = '*',
+    ): void {
         const index = bucket.indexOf(entry)
         if (index !== -1) bucket.splice(index, 1)
         // Runs even when the entry was already out of the bucket: a removal
         // asked for twice must still leave nothing behind, and must not throw.
         entry.dispose?.()
         entry.dispose = undefined
+        // Reported, because a listener that VANISHES is the case debugging is
+        // switched on for. Without this the `unregister` phase was declared in
+        // DebugRecord and emitted by nobody: the developer sees `register` and
+        // `emit` lines, never a removal, and concludes the removal path did not
+        // run when it did.
+        debugLog({ phase: 'unregister', event, listenerCount: bucket.length })
     }
 
     /**
@@ -207,11 +233,12 @@ export class EventEmitter<Events extends EventMap = EventMap> {
             once: config?.once ?? false,
         }
 
-        if (!this.listenerMap.has(event as string)) {
-            this.listenerMap.set(event as string, [])
-        }
-
-        const entries = this.listenerMap.get(event as string)!
+        // The bucket is inserted only once the registration has TAKEN.
+        // Creating it first left an empty array under the name whenever
+        // `#register` refused — an already-aborted signal — so `eventNames()`
+        // reported an event nobody listens to. An existing bucket is reused, so
+        // a refusal never disturbs listeners already registered under it.
+        const entries = this.listenerMap.get(event as string) ?? []
         if (
             !this.#register(
                 entries,
@@ -222,6 +249,7 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         ) {
             return this
         }
+        this.listenerMap.set(event as string, entries)
 
         // Warn about too many listeners — counting only the ones that have no
         // signal to end them. See ListenerConfig.signal.
@@ -324,7 +352,9 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         // No sort here: `on()` sorts at registration, which is the single home
         // for order, and a sort at dispatch time is a second one that could
         // disagree with it.
-        const entries = [...(this.listenerMap.get(event as string) ?? [])]
+        const entries = this.#snapshot(
+            this.listenerMap.get(event as string) ?? [],
+        )
 
         debugLog({
             phase: 'emit',
@@ -360,7 +390,7 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         // Execute wildcard listeners (they receive event name and data).
         // Copied for the same reason, and likewise unsorted: `onAny()` sorts at
         // registration.
-        const wildcardCopy = [...this.wildcardListeners]
+        const wildcardCopy = this.#snapshot(this.wildcardListeners)
         const toRemoveWildcard: ListenerEntry[] = []
 
         for (const entry of wildcardCopy) {

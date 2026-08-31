@@ -16,10 +16,6 @@
  * @module @lockness/contract/logging/sanitize
  */
 
-/**
- * C0 controls, DEL, and the C1 range — everything that can forge a log line or
- * drive a terminal.
- */
 /** Longest value written into a log line before truncation. */
 const MAX_LENGTH = 512
 
@@ -56,6 +52,8 @@ export function safeForLog(value: string): string {
         // them exactly as it splits on LF. decodeURI turns %e2%80%a8 into
         // U+2028 the same way it turns %0a into LF, so the request shape
         // that motivated this function reaches them too.
+        // C0 controls, DEL, and the C1 range — everything that can forge a
+        // log line or drive a terminal.
         const isControl = code < 0x20 || code === 0x7f ||
             (code >= 0x80 && code <= 0x9f) ||
             code === 0x2028 || code === 0x2029

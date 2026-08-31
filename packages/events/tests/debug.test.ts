@@ -59,6 +59,28 @@ Deno.test('debug - reports registration, emit and dispatch when switched on', as
     assertEquals(isDebugEnabled(), false, 'and it went back off')
 })
 
+Deno.test('debug - a removal is reported, not only a registration', async () => {
+    // The `unregister` phase was declared in DebugRecord and emitted by nobody.
+    // A developer chasing a listener that VANISHES — the case debugging exists
+    // for — saw register and emit lines, never a removal, and concluded the
+    // removal path had not run when it had.
+    const lines = await captured(() => {
+        setEventsDebug(true)
+        try {
+            const emitter = new EventEmitter()
+            const fn = () => {}
+            emitter.on('Vanishing', fn)
+            emitter.off('Vanishing', fn)
+        } finally {
+            setEventsDebug(false)
+        }
+    })
+
+    const joined = lines.join('\n')
+    assertStringIncludes(joined, 'unregister')
+    assertStringIncludes(joined, 'Vanishing')
+})
+
 Deno.test('debug - a payload never reaches a line', async () => {
     // The assertion the whole design exists for. `debugLog` has no string
     // parameter and no rest parameter, so there is nowhere for this marker to

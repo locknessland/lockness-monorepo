@@ -807,3 +807,39 @@ Deno.test('once - a consumed listener leaves no empty bucket behind', async () =
         'an event nobody listens to is not an event name',
     )
 })
+
+Deno.test('on - a REFUSED registration leaves no empty bucket behind', () => {
+    // `on()` created the map entry before `#register()` had a chance to refuse,
+    // so a listener rejected for an already-aborted signal still left an empty
+    // array under its name. `eventNames()` then reported an event nobody
+    // listens to — the same inconsistency the once path had, from the other
+    // direction.
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    controller.abort()
+
+    emitter.on('never-registered', () => {}, { signal: controller.signal })
+
+    assertEquals(emitter.listenerCount('never-registered'), 0)
+    assertEquals(
+        emitter.eventNames().includes('never-registered'),
+        false,
+        'a refused registration is not an event name',
+    )
+})
+
+Deno.test('on - a refused registration does not disturb an existing bucket', async () => {
+    // The other half: refusing must not delete listeners that were already
+    // there under the same name.
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    controller.abort()
+
+    let ran = 0
+    emitter.on('shared', () => void ran++)
+    emitter.on('shared', () => {}, { signal: controller.signal })
+
+    assertEquals(emitter.listenerCount('shared'), 1)
+    await emitter.emit('shared', null)
+    assertEquals(ran, 1, 'the pre-existing listener survived')
+})

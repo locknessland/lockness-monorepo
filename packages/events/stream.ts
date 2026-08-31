@@ -200,8 +200,10 @@ export function createEventQueue<T>(
             return Promise.resolve({ value: undefined as never, done: true })
         },
 
-        // An exception in the loop body calls this. The listener must come off
-        // here too, or a throwing consumer leaks exactly what `break` does not.
+        // A MANUAL `.throw()` calls this. `for await` does not: measured, a
+        // body that throws triggers `return()`, exactly as `break` does — so
+        // `return()` above is what covers both, and this is the extra door.
+        // It closes too, or a caller driving the iterator by hand leaks.
         throw(error?: unknown): Promise<IteratorResult<T>> {
             close()
             return Promise.reject(error)
