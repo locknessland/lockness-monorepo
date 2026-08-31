@@ -152,8 +152,13 @@ async function checkPackage(name: string, scratch: string): Promise<Result> {
  */
 async function existsOnJsr(name: string): Promise<boolean | null> {
     try {
+        // The registry API, NOT `jsr.io/@scope/name/meta.json`. `meta.json`
+        // only appears once a version has been published, so a package that
+        // was created correctly but has no versions yet — exactly the case
+        // this check exists for — reads as 404 there and blocks forever.
+        // The API returns the package record with `versionCount: 0`.
         const response = await fetch(
-            `https://jsr.io/@lockness/${name}/meta.json`,
+            `https://api.jsr.io/scopes/lockness/packages/${name}`,
             { signal: AbortSignal.timeout(15_000) },
         )
         // Drain the body so the connection closes and the process can exit.
