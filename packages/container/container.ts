@@ -7,8 +7,20 @@
  * @module @lockness/container/container
  */
 
-import { ServiceNotFoundError } from './errors.ts'
+import { CircularDependencyError, ServiceNotFoundError } from './errors.ts'
 import type { Constructor, ContainerContract, ServiceToken } from './types.ts'
+
+/**
+ * Render a token for an error message.
+ *
+ * @param token - A class constructor, symbol or string token.
+ * @returns A human-readable name.
+ */
+function describeToken(token: ServiceToken | Constructor<unknown>): string {
+    if (typeof token === 'function') return token.name || 'AnonymousClass'
+    if (typeof token === 'symbol') return token.description ?? 'Symbol()'
+    return String(token)
+}
 
 /**
  * Dependency Injection Container.
@@ -37,6 +49,18 @@ export class Container implements ContainerContract {
     private readonly services = new Map<ServiceToken, unknown>()
 
     /**
+     * Tokens whose constructors are currently running, in entry order.
+     *
+     * Only the construction path is tracked. `@Inject` resolves on first
+     * property *read*, which happens after the constructor returns and is
+     * therefore not on this stack — that laziness is what lets ordinary
+     * mutual references work, and it is deliberately left alone.
+     *
+     * @internal
+     */
+    private readonly constructing: ServiceToken[] = []
+
+    /**
      * Get or create an instance of a service.
      *
      * If the service doesn't exist and the token is a class constructor,
@@ -46,6 +70,8 @@ export class Container implements ContainerContract {
      * @param token - The class constructor or token to resolve
      * @returns The singleton instance of the service
      * @throws {ServiceNotFoundError} When token is not a constructor and not registered
+     * @throws {CircularDependencyError} When a constructor re-enters a
+     * construction already in progress
      *
      * @example
      * ```ts
@@ -58,10 +84,23 @@ export class Container implements ContainerContract {
      */
     get<T>(token: Constructor<T> | ServiceToken<T>): T {
         if (!this.services.has(token)) {
-            if (typeof token === 'function') {
-                this.services.set(token, new token())
-            } else {
+            if (typeof token !== 'function') {
                 throw new ServiceNotFoundError(token as symbol | string)
+            }
+
+            if (this.constructing.includes(token)) {
+                const start = this.constructing.indexOf(token)
+                throw new CircularDependencyError([
+                    ...this.constructing.slice(start).map(describeToken),
+                    describeToken(token),
+                ])
+            }
+
+            this.constructing.push(token)
+            try {
+                this.services.set(token, new token())
+            } finally {
+                this.constructing.pop()
             }
         }
         return this.services.get(token) as T

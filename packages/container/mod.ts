@@ -7,4 +7,4 @@ export type {
 export { Container, container } from './container.ts'
 export { Inject, Service } from './decorators.ts'
 export { bind, createContainer, resolve } from './helpers.ts'
-export { ServiceNotFoundError } from './errors.ts'
+export { CircularDependencyError, ServiceNotFoundError } from './errors.ts'
