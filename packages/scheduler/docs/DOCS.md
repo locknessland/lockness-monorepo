@@ -67,8 +67,12 @@ type, so `@Schedule` returns the original and lets the runner own the timeout.
 ## Expressions and presets
 
 Standard 5-field cron: minute, hour, day-of-month, month, day-of-week. Each
-field takes `*`, a value, a range `1-5`, a list `1,3,5`, or a step `*/15` or
-`10-20/5`.
+field takes `*`, a value, a range `1-5`, a list `1,3,5`, or a step `*/15`,
+`10-20/5` or `5/15`.
+
+**A step on a bare single value runs to the top of the field.** `5/15` in the
+minute field is `5-59/15` — minutes 5, 20, 35 and 50 — which is what Vixie cron
+means by it, so a crontab pasted in from a Linux box keeps its meaning here.
 
 | Preset                | Expression     | Fires                             |
 | :-------------------- | :------------- | :-------------------------------- |
@@ -189,7 +193,15 @@ async fragile(signal: AbortSignal) { … }
 ```
 
 - `retries: 2` means **three** executions at most.
-- Retries are abandoned when the next occurrence arrives.
+- **Retries are abandoned when the next occurrence arrives**, and the
+  abandonment is reported at warn level. A chain whose backoffs outlast the
+  schedule's own period would otherwise overlap the run it was meant to precede
+  — `retryDelay: 90_000` on an every-minute task is the shape. The arriving
+  occurrence runs normally; it is not skipped against the chain it just cut
+  short.
+- Size the backoff against the period, not against the sink you are retrying:
+  `retries × retryDelay` longer than one period means the last attempts never
+  happen.
 - An `onError` that itself throws is contained and logged. It cannot stop the
   retry chain and it cannot prevent re-arming — a task must not be able to die
   silently because its logging sink was down.
@@ -202,19 +214,27 @@ task's arguments. A `drizzle`/`postgres` error's stack carries the failing
 statement and its bound parameters, and stdout is collected somewhere with
 broader access than the database.
 
-To route failures into your own logger, inject a reporter:
+**With `@lockness/logger` installed you need do nothing**: the boot step wires
+it into the reporter port, so failures reach the application's logging rather
+than raw `console.error`.
+
+To route them somewhere else instead, install your own reporter before boot:
 
 ```ts
 import { Scheduler, setScheduler } from '@lockness/core'
-import { logger } from '@lockness/logger'
 
 setScheduler(
     new Scheduler({
-        error: (msg, fields) => logger().error(msg, fields),
-        warn: (msg, fields) => logger().warn(msg, fields),
+        error: (msg, fields) => mySink.error(msg, fields),
+        warn: (msg, fields) => mySink.warn(msg, fields),
     }),
 )
 ```
+
+Yours wins — the boot step asks `scheduler().hasReporter` first and installs the
+logger-backed one only when nothing is there. It installs it **in place**
+(`setReporter`) rather than replacing the instance, so any task registered
+before boot survives.
 
 ## Discovery and the kernel
 
