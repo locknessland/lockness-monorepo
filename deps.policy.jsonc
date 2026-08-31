@@ -24,8 +24,8 @@
     "knownCycles": [
         {
             "cycle": ["markdown", "ui"],
-            "issue": 0,
-            "why": "packages/ui/docs_renderer.tsx imports @lockness/markdown, which imports @lockness/ui/components. createDocsSection is used by 36 examples.tsx files, so untangling it is a design decision."
+            "issue": 127,
+            "why": "packages/ui/docs_renderer.tsx imports @lockness/markdown, which imports @lockness/ui/components. createDocsSection is used by 34 examples.tsx files, so untangling it is a design decision."
         }
     ],
     "tiers": {
