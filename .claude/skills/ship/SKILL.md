@@ -33,29 +33,66 @@ release has not been given in words, stop at the tag and ask.
 `--dry-run` runs everything up to and including the tag, and stops before the
 release. Prefer it when unsure.
 
-## The state of the rail, as of 2026-08-31
+## The state of the rail
 
-Check these before assuming the pipeline works — it has never fired on this
-repository:
+**The pipeline works.** `v0.2.0` shipped on 2026-08-31 — the repository's first
+tag and first release — and all 27 packages are on JSR with Sigstore provenance.
+[#122] and [#134] are closed.
+
+Getting there hit four blockers. Three are now guarded by checks; **the fourth
+recurs every time a package is added**, so read it before any release that
+introduces one.
+
+### 1. Every package must EXIST on JSR before it can be published
+
+`deno publish` is **atomic across the workspace**: one package the registry has
+never heard of aborts all 27. `@lockness/scheduler` was new and stopped the
+first attempt dead.
 
 ```bash
-git tag -l | head              # expected: empty
-gh release list --limit 5      # expected: empty
+deno task publish:check --registry
 ```
 
-`publish.yml` triggers on `release: published`. Releases lived on the retired
-repository and were not migrated, so `locknessland/lockness-monorepo` has zero
-releases and the workflow has never run here. All packages sit at `0.1.30` on
-JSR while the workspace is at `0.2.0`. That is [#122].
+It prints `https://jsr.io/new?scope=lockness&package=<name>` for anything
+missing. Creating the package is a manual step in the JSR UI — nothing here can
+do it for you.
 
-[#134] — bare `@lockness/*` specifiers shipping unresolvable manifests — was the
-blocker underneath it. The manifests are fixed; `deno task deps:analyze` check B
-is what keeps them fixed. **Re-verify before the first real publish**, because a
-green check here is the only thing standing between a release and 27 broken
-packages:
+### 2. Every package must LINK to this repository
+
+JSR authorises GitHub Actions publishing through OIDC by matching the package's
+`githubRepository` against the repo running the workflow. Mismatched or unset,
+publishing fails with:
+
+```
+Failed to publish @lockness/hono@0.2.0: The actor that this request was
+authenticated for is not authorized to access this resource. (actorNotAuthorized)
+```
+
+This is what a **newly created package** looks like: JSR creates it unlinked.
 
 ```bash
-deno task deps:analyze          # check B must be green
+deno task jsr:link --dry-run                 # read-only, no token
+JSR_TOKEN=jsrt_xxx deno task jsr:link        # writes the link
+```
+
+The token needs **full API access**, not the package-scoped variant — writing
+package settings is refused with `missingPermission` otherwise. It is needed
+only for this one operation: publishing itself uses OIDC and no secret. Revoke
+it afterwards.
+
+### 3 and 4. Manifests and resolution — already guarded
+
+Every real import must be declared in its own package's `deno.json`, and each
+package must resolve standalone outside the workspace. `deno task deps:analyze`
+(check B) and `deno task publish:check` enforce both, and `publish.yml` runs
+them before `deno publish`. Nothing to do by hand.
+
+### Verify the state before starting
+
+```bash
+git tag -l | tail -3
+gh release list --limit 3
+deno task publish:check --registry     # must exit 0
 ```
 
 ## Steps
@@ -91,17 +128,39 @@ Only after explicit consent (see above). This is the step that publishes.
 The notes must state that numbering continues from `0.1.30` published under the
 retired repository, so the JSR version history stays readable.
 
-### 4. Watch
+### 4. Watch — and never read the run through a pipe
 
 ```bash
-gh run watch          # publish.yml
+gh run watch <run-id> --repo locknessland/lockness-monorepo --exit-status >/dev/null 2>&1
+echo "EXIT=$?"
 ```
 
-Then confirm what actually landed, rather than trusting the run:
+**Do not pipe this into `tail` or `head`.** `$?` after a pipeline is the *last*
+command's status, so `gh run watch … | tail -25` reports `0` for a run that
+failed. That happened on the v0.2.0 release: the publish step had failed, the
+pipe returned 0, and it read as success.
+
+### 5. Verify against JSR, not against the run
+
+A green run is not evidence that anything was published — the first v0.2.0
+attempt exited 0 through a pipe while publishing nothing at all. Ask the
+registry:
 
 ```bash
-deno run -A -r jsr:@lockness/core@<version> --help 2>&1 | head -3
+for d in packages/*/; do p=$(basename "$d")
+  v=$(curl -s "https://api.jsr.io/scopes/lockness/packages/$p" \
+      | python3 -c "import json,sys;print(json.load(sys.stdin).get('latestVersion') or 'NONE')")
+  [ "$v" = "<version>" ] || echo "  ❌ $p = $v"
+done
 ```
+
+Provenance should be present too — `rekorLogId` non-null on
+`api.jsr.io/scopes/lockness/packages/<name>/versions/<version>`. A null there
+means the publish did not come from GitHub Actions OIDC.
+
+**A fresh version cannot be installed for 24 hours.** Deno's minimum dependency
+age blocks recently published versions against supply-chain attacks. That is
+expected, not a fault; `--min-dep-age 0` bypasses it for a smoke test.
 
 ## Why versioning is lockstep — and when to revisit
 

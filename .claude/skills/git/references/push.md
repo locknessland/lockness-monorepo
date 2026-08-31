@@ -33,6 +33,24 @@ Steps 4 and 5 are cheap and catch classes of damage the other four cannot see at
 all. Do not drop them because the diff "is only docs" — a docs-only diff can
 still stale a generated block.
 
+**CI runs a seventh step the pre-push hook does not**: `deno task publish:check`,
+which copies each package outside the workspace and type-checks it alone. It is
+kept out of the hook because it needs the network; it is in `test.yml` and again
+in `publish.yml` right before `deno publish`.
+
+### Reading a GitHub Actions run
+
+The same pipe trap, in the form that actually bit:
+
+```bash
+gh run watch <id> --repo <owner>/<repo> --exit-status >/dev/null 2>&1
+echo "EXIT=$?"
+```
+
+Piping `gh run watch` into `tail` reports the pipe's status. On the v0.2.0
+release that turned a failed publish into an apparent success, and the error was
+only found by asking JSR what had actually been published.
+
 ## Checking the exit code correctly
 
 ```bash
