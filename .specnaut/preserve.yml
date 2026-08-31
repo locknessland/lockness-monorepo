@@ -1,0 +1,37 @@
+# Files this project deliberately diverges on. `specnaut upgrade` skips them.
+#
+# Why this file exists: `specnaut reconcile <p> --accept-current` re-stamps the
+# lock with the LOCAL content's sha, so the next upgrade reads "unchanged
+# locally" and overwrites it. That silently destroyed tag.sh, the backlog skill
+# and the PO memory during the 3.0.1 → 3.1.0 migration. Declaring a path here
+# is what makes the divergence durable instead of one upgrade deep.
+#
+# `specnaut upgrade --reset-preserved` ignores this file for one run — use it
+# only when you intend to take upstream.
+preserved:
+  # ⛔ CRITICAL: a SYMLINK to ../AGENTS.md. Upstream ships a 67-line pointer
+  # stub; the local target is 715 lines of hand-written project instructions.
+  # Accepting upstream writes THROUGH the symlink and destroys AGENTS.md.
+  - .claude/CLAUDE.md
+
+  # Lockness-specific agents. Upstream's versions are generic templates —
+  # its devops-sre is about Terraform/GCP/AWS, ours is about JSR publishing
+  # and scripts/bump.ts; its code-reviewer is a DRY/YAGNI checklist, ours
+  # carries the framework's hard rules. Reviewed 2026-08-31 against the
+  # staged 4.2.0 bundle: upstream adds no frontmatter key we lack.
+  - .claude/agents/code-reviewer.md
+  - .claude/agents/developer.md
+  - .claude/agents/devops-sre.md
+  - .claude/agents/product-owner.md
+  - .claude/agents/qa-tester.md
+  - .claude/agents/product-owner/memory/MEMORY.md
+
+  # Documents the Lockness override that upstream's doctrine contradicts:
+  # here `tag.sh` DOES bump version files, via `deno task bump`, because JSR
+  # publishes from the `version` field in each deno.json — not from the tag.
+  - .claude/skills/specnaut/phases/tag-version.md
+  - .specnaut/scripts/release/tag.sh
+
+  # Carries this project's handles: Project #2, locknessland, the cached
+  # PVTSSF_ field IDs, and the mechanical-move carve-out.
+  - .claude/skills/using-specnaut/SKILL.md
