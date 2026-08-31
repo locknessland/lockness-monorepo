@@ -4006,6 +4006,7 @@
       },
       "packages/events": {
         "dependencies": [
+          "jsr:@lockness/contract@0.2",
           "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1"
         ]

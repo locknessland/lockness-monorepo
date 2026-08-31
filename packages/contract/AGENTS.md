@@ -27,12 +27,12 @@ it.
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                                                                                                        |
-| :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `hono` _(type-only)_                                                                                                                                            |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                                                               |
-| Imported by                                    | `auth`, `cache`, `cli`, `container`, `core`, `openapi`                                                                                                          |
-| **Must never import**                          | `auth`, `auth-provider`, `cache`, `cli`, `container`, `core`, `drizzle`, `init`, `openapi` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                                                                                                  |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Imports (static)                               | `hono` _(type-only)_                                                                                                                                                      |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                                                                         |
+| Imported by                                    | `auth`, `cache`, `cli`, `container`, `core`, `events`, `openapi`                                                                                                          |
+| **Must never import**                          | `auth`, `auth-provider`, `cache`, `cli`, `container`, `core`, `drizzle`, `events`, `init`, `openapi` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
@@ -44,12 +44,12 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                              |
-| :-------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| function  | `Cache`, `CacheKey`, `CacheTTL`, `ComposeMiddleware`, `Controller`, `DeclareMiddleware`, `Middleware`, `Throttle`, `ThrottleApi`, `ThrottleHeavy`, `ThrottleLogin`, `ThrottleSensitive`, `Use`, `UseMiddleware`, `compose`, `composeMiddleware`, `generateRoutesContent`, `generateRoutesFile`, `parseTimeWindow`, `scanControllers` |
-| interface | `CacheContract`, `CacheOptions`, `ContainerContract`, `ControllerInfo`, `ControllerMetadata`, `ControllerWithMetadata`, `GenerateRoutesResult`, `MiddlewareContract`, `Route`, `RouteMetadata`, `RouteOptions`, `ThrottleConfig`, `ThrottleOptions`, `ThrottleStoreContract`                                                         |
-| typeAlias | `ComposableMiddleware`, `Constructor`, `Context`, `ControllerClass`, `FileExtension`, `MiddlewareClass`, `MiddlewareHandler`, `MiddlewareInput`, `MiddlewareRegistry`, `Next`, `ServiceToken`, `ThrottleKey`, `TimeWindow`, `ValidationTargets`                                                                                      |
-| variable  | `CacheServiceToken`, `Delete`, `Get`, `MIDDLEWARE_NAME_KEY`, `Patch`, `Post`, `Put`, `declaredMiddlewares`                                                                                                                                                                                                                           |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                            |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| function  | `Cache`, `CacheKey`, `CacheTTL`, `ComposeMiddleware`, `Controller`, `DeclareMiddleware`, `Middleware`, `Throttle`, `ThrottleApi`, `ThrottleHeavy`, `ThrottleLogin`, `ThrottleSensitive`, `Use`, `UseMiddleware`, `compose`, `composeMiddleware`, `generateRoutesContent`, `generateRoutesFile`, `parseTimeWindow`, `safeForLog`, `scanControllers` |
+| interface | `CacheContract`, `CacheOptions`, `ContainerContract`, `ControllerInfo`, `ControllerMetadata`, `ControllerWithMetadata`, `GenerateRoutesResult`, `MiddlewareContract`, `Route`, `RouteMetadata`, `RouteOptions`, `ThrottleConfig`, `ThrottleOptions`, `ThrottleStoreContract`                                                                       |
+| typeAlias | `ComposableMiddleware`, `Constructor`, `Context`, `ControllerClass`, `FileExtension`, `MiddlewareClass`, `MiddlewareHandler`, `MiddlewareInput`, `MiddlewareRegistry`, `Next`, `ServiceToken`, `ThrottleKey`, `TimeWindow`, `ValidationTargets`                                                                                                    |
+| variable  | `CacheServiceToken`, `Delete`, `Get`, `MIDDLEWARE_NAME_KEY`, `Patch`, `Post`, `Put`, `declaredMiddlewares`                                                                                                                                                                                                                                         |
 
 Anything not listed is internal and free to change.
 
@@ -76,9 +76,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-**This package has no tests.** 8 source files ship untested — treat any change
-here as unguarded, and add coverage for what you touch rather than trusting the
-suite.
+1 test file for 9 source files:
+
+- `packages/contract/tests/log_sanitize.test.ts`
 
 <!-- /generated:tests -->
 
@@ -94,8 +94,11 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: **it has no tests.** Anything you change here is
-unguarded by the suite — add coverage for it.
+Then, specific to this package: run its 1 test file directly —
+
+```bash
+deno test -A packages/contract/
+```
 
 <!-- /generated:gate -->
 

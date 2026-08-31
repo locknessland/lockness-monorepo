@@ -23,7 +23,7 @@ names does not belong here._
 
 | Direction                                      | Packages                                                                                             |
 | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `hono` _(type-only)_                                                                                 |
+| Imports (static)                               | `contract`, `hono` _(type-only)_                                                                     |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                    |
 | Imported by                                    | `auth`, `core`                                                                                       |
 | **Must never import**                          | `auth`, `auth-provider`, `core` — each already reaches this package, so importing one closes a cycle |
@@ -38,12 +38,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `BaseEvent`, `ControllerExecuting`, `EventBuffer`, `EventDispatcher`, `EventEmitter`, `ExceptionOccurred`, `KernelBooted`, `KernelTerminating`, `RequestCompleted`, `RequestStarted`, `ResponsePrepared`                               |
-| function  | `Listener`, `configureEventDispatcher`, `configureEvents`, `createEventBus`, `dispatcher`, `emit`, `emitSync`, `eventStream`, `events`, `fake`, `getActiveFake`, `getListenerMetadata`, `off`, `on`, `once`, `restore`, `waitForEvent` |
-| interface | `ListenerConfig`, `ListenerMetadata`, `ListenerOptions`                                                                                                                                                                                |
-| typeAlias | `EventData`, `EventListener`, `EventMap`, `EventName`                                                                                                                                                                                  |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                    |
+| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `BaseEvent`, `ControllerExecuting`, `EventBuffer`, `EventDispatcher`, `EventEmitter`, `ExceptionOccurred`, `KernelBooted`, `KernelTerminating`, `RequestCompleted`, `RequestStarted`, `ResponsePrepared`                                                                                                   |
+| function  | `Listener`, `configureEventDispatcher`, `configureEvents`, `createEventBus`, `createEventQueue`, `debugLog`, `dispatcher`, `emit`, `emitSync`, `eventStream`, `events`, `fake`, `getActiveFake`, `getListenerMetadata`, `isDebugEnabled`, `off`, `on`, `once`, `restore`, `setEventsDebug`, `waitForEvent` |
+| interface | `DebugRecord`, `EventQueue`, `ListenerConfig`, `ListenerMetadata`, `ListenerOptions`, `OverflowReport`, `StreamOptions`                                                                                                                                                                                    |
+| typeAlias | `EventData`, `EventListener`, `EventMap`, `EventName`, `OverflowPolicy`                                                                                                                                                                                                                                    |
+| variable  | `DEFAULT_BUFFER_SIZE`, `DEFAULT_OVERFLOW`, `MAX_BUFFER_SIZE`, `OVERFLOW_POLICIES`                                                                                                                                                                                                                          |
 
 Anything not listed is internal and free to change.
 
@@ -71,10 +72,12 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-2 test files for 7 source files:
+4 test files for 9 source files:
 
 - `packages/events/tests/class_based_events.test.ts`
+- `packages/events/tests/debug.test.ts`
 - `packages/events/tests/events.test.ts`
+- `packages/events/tests/stream.test.ts`
 
 <!-- /generated:tests -->
 
@@ -90,7 +93,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 2 test files directly —
+Then, specific to this package: run its 4 test files directly —
 
 ```bash
 deno test -A packages/events/
