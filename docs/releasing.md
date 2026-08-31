@@ -78,6 +78,46 @@ Two checks hold the line, and both must be green before a release:
   dependencies; it is what caught `@lockness/cli` importing an undeclared
   `@std/jsonc`.
 
+## Read-only package mirrors
+
+Each package is also published to `locknessland/<package>` as a **generated shop
+window**. `deno task mirror` does it.
+
+Why they exist: a monorepo gives no per-package GitHub presence, so someone
+searching for "deno scheduler" lands on nothing. The mirrors answer that, and
+nothing else — **they are never used to publish**. Publishing stays atomic from
+the monorepo, with OIDC provenance. This is the Laravel / Symfony shape
+(`illuminate/database` is literally described `[READ ONLY] Subtree split ...`),
+minus their reason for it: Composer resolves from git, JSR does not.
+
+| Property     | Value                                                                 |
+| :----------- | :-------------------------------------------------------------------- |
+| History      | **one commit per release**, subject `Release v<version>`              |
+| Root         | the package directory itself — `mod.ts`, not `packages/<name>/mod.ts` |
+| Tag          | `v<version>`, matching the monorepo                                   |
+| Description  | `[READ ONLY] … Source, issues and pull requests: <monorepo>`          |
+| Issues / PRs | **on the monorepo**, never on a mirror                                |
+
+**Not `git subtree split`.** That replays every monorepo commit that ever
+touched the directory. Each sync instead builds a single commit whose _tree is_
+the package directory, with `git commit-tree`, parented on the mirror's previous
+commit — so the history reads as a list of releases.
+
+```bash
+deno task mirror --dry-run    # report, touch nothing
+deno task mirror --create     # create any missing mirror repository
+deno task mirror              # sync every package at the current version
+deno task mirror --flatten    # initial import only: one commit, no parent
+```
+
+`--flatten` drops the parent, so it rewrites a mirror's history. It is for the
+first import; do not use it afterwards, or the release history disappears.
+
+A contributor who only cares about one package can still work from the monorepo
+cheaply: `deno test -A packages/session/` runs that package's suite in under a
+second, and cross-package changes — the majority, given 252 cross-package
+references — are only possible there.
+
 ## Version history
 
 Versions `0.1.x` up to and including **`0.1.30`** were published from the

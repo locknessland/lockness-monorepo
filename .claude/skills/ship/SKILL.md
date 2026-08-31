@@ -16,6 +16,7 @@ duplicating one is how the two copies drift:
 | Version bump + annotated tag | **`/specnaut tag-version`** |
 | Categorised notes + GitHub Release | **`/specnaut release-version`** |
 | Actual JSR publish | `.github/workflows/publish.yml`, on `release: published` |
+| Read-only package mirrors | `deno task mirror` — discovery only, never a publish path |
 
 `/ship` exists to run them in the right order, once, and to hold the standing
 decisions so they are not re-litigated every release.
@@ -161,6 +162,19 @@ means the publish did not come from GitHub Actions OIDC.
 **A fresh version cannot be installed for 24 hours.** Deno's minimum dependency
 age blocks recently published versions against supply-chain attacks. That is
 expected, not a fault; `--min-dep-age 0` bypasses it for a smoke test.
+
+### 6. Refresh the read-only mirrors
+
+```bash
+deno task mirror
+```
+
+One commit per package, subject `Release v<version>`, tagged to match. They are
+discovery surfaces only — never a publish path — so this step cannot break a
+release that already shipped. **Never `--flatten` here**: that rewrites each
+mirror's history and erases the release list. It is for an initial import.
+
+If a package was added this cycle, `--create` makes its mirror first.
 
 ## Why versioning is lockstep — and when to revisit
 
