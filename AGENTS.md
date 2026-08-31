@@ -53,9 +53,19 @@ blockers, not preferences.
 1. **No direct `hono` import.** Always import from `@lockness/core`. Lockness
    re-exports the Hono APIs it supports, on a pinned version. Direct imports
    break compatibility.
-2. **JSR-only imports for Lockness and stdlib.** Use `jsr:@lockness/...` and
-   `jsr:@std/...`. Avoid `npm:` specifiers unless a package is JSR-unavailable
-   AND the use case justifies it (document the why in a code comment).
+2. **JSR-only dependencies, declared per package.** Dependencies come from JSR,
+   not npm and not a URL registry. Avoid `npm:` specifiers unless a package is
+   JSR-unavailable AND the use case justifies it (document the why in a code
+   comment).
+
+   The rule is about the **registry**, not the spelling. In source, write the
+   **bare** specifier (`from '@lockness/cli'`, `from '@std/path'`); in the
+   importing package's own `deno.json`, declare it **fully qualified and
+   pinned** (`"@lockness/cli": "jsr:@lockness/cli@^0.2.0"`). Inside the
+   workspace a bare specifier resolves by workspace member _name_, so an
+   undeclared import works locally and ships a package a consumer cannot
+   resolve. `deno task deps:analyze` and `deno task publish:check` enforce it.
+   See [releasing.md](docs/releasing.md).
 3. **No `any` in exported APIs.** Use `unknown` + type guards when a type is
    genuinely uncertain. Exception requires a
    `// deno-lint-ignore no-explicit-any` comment with justification.
@@ -163,23 +173,24 @@ refer to these files:
 
 ### Root Documentation (`docs/`)
 
-| Topic                                                   | Description                     |
-| ------------------------------------------------------- | ------------------------------- |
-| [architecture.md](docs/architecture.md)                 | Package system & layered design |
-| [getting-started.md](docs/getting-started.md)           | Quick start tutorial            |
-| [installation.md](docs/installation.md)                 | Installation guide              |
-| [lifecycle-events.md](docs/lifecycle-events.md)         | Framework Lifecycle Events      |
-| [middleware.md](docs/middleware.md)                     | Middleware patterns             |
-| [models.md](docs/models.md)                             | Database models with Drizzle    |
-| [testing.md](docs/testing.md)                           | Testing best practices          |
-| [deployment.md](docs/deployment.md)                     | Production deployment           |
-| [compilation.md](docs/compilation.md)                   | Binary compilation              |
-| [nessy.md](docs/nessy.md)                               | Nessy CLI wrapper               |
-| [packages.md](docs/packages.md)                         | Package management              |
-| [contribution.md](docs/contribution.md)                 | Contributing guide              |
-| [dependencies.md](docs/dependencies.md)                 | Dependency graph                |
-| [STUBS.md](docs/STUBS.md)                               | Stub synchronization            |
-| [ui-components-documentation.md](docs/ui-components.md) | UI components overview          |
+| Topic                                                   | Description                      |
+| ------------------------------------------------------- | -------------------------------- |
+| [architecture.md](docs/architecture.md)                 | Package system & layered design  |
+| [getting-started.md](docs/getting-started.md)           | Quick start tutorial             |
+| [installation.md](docs/installation.md)                 | Installation guide               |
+| [lifecycle-events.md](docs/lifecycle-events.md)         | Framework Lifecycle Events       |
+| [middleware.md](docs/middleware.md)                     | Middleware patterns              |
+| [models.md](docs/models.md)                             | Database models with Drizzle     |
+| [testing.md](docs/testing.md)                           | Testing best practices           |
+| [deployment.md](docs/deployment.md)                     | Production deployment            |
+| [releasing.md](docs/releasing.md)                       | Release model and JSR publishing |
+| [compilation.md](docs/compilation.md)                   | Binary compilation               |
+| [nessy.md](docs/nessy.md)                               | Nessy CLI wrapper                |
+| [packages.md](docs/packages.md)                         | Package management               |
+| [contribution.md](docs/contribution.md)                 | Contributing guide               |
+| [dependencies.md](docs/dependencies.md)                 | Dependency graph                 |
+| [STUBS.md](docs/STUBS.md)                               | Stub synchronization             |
+| [ui-components-documentation.md](docs/ui-components.md) | UI components overview           |
 
 ### Per-package agent briefs (`packages/*/AGENTS.md`)
 
