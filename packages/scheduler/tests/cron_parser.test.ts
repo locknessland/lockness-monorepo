@@ -141,3 +141,63 @@ Deno.test('nextRun - never returns a non-zero seconds or milliseconds value', ()
     assertEquals(r.getUTCSeconds(), 0)
     assertEquals(r.getUTCMilliseconds(), 0)
 })
+
+// ============================================================================
+// Steps on a bare single value — #130
+// ============================================================================
+
+Deno.test('parse - a step on a bare single value runs to the top of the field', () => {
+    // Before #130 the step was parsed and then discarded, so this expanded to
+    // [5]: one run an hour where four were asked for, and nothing said so.
+    assertEquals(parse('5/15 * * * *').minute, [5, 20, 35, 50])
+})
+
+Deno.test('parse - the same rule applies to every field, not just the minute', () => {
+    assertEquals(parse('* 5/6 * * *').hour, [5, 11, 17, 23])
+    assertEquals(parse('0 0 10/7 * *').dayOfMonth, [10, 17, 24, 31])
+    assertEquals(parse('0 0 1 3/4 *').month, [3, 7, 11])
+    assertEquals(parse('0 0 * * 2/2').dayOfWeek, [2, 4, 6])
+})
+
+Deno.test('parse - a step on a single value is exactly its explicit range form', () => {
+    assertEquals(parse('5/15 * * * *').minute, parse('5-59/15 * * * *').minute)
+    assertEquals(parse('* 5/6 * * *').hour, parse('* 5-23/6 * * *').hour)
+})
+
+Deno.test('parse - a step still applies inside a list, per entry', () => {
+    // The entry with a step extends; the bare one does not.
+    assertEquals(parse('5/20,40 * * * *').minute, [5, 25, 40, 45])
+})
+
+Deno.test('parse - a value without a step is still exactly that value', () => {
+    // The regression guard for the fix: extending must require a '/'.
+    assertEquals(parse('5 * * * *').minute, [5])
+    assertEquals(parse('5,7 * * * *').minute, [5, 7])
+    assertEquals(parse('*/15 * * * *').minute, [0, 15, 30, 45])
+    assertEquals(parse('10-20/5 * * * *').minute, [10, 15, 20])
+})
+
+Deno.test('parse - a step whose stride overshoots the field yields the value alone', () => {
+    assertEquals(parse('50/30 * * * *').minute, [50])
+})
+
+// ============================================================================
+// The search horizon and the non-leap century — #130
+// ============================================================================
+
+Deno.test('nextRun - 29 February resolves across a non-leap century', () => {
+    // 2100 is divisible by 100 and not by 400, so it is a common year: the next
+    // 29 February after 2096 is in 2104. A four-year horizon threw RangeError
+    // here, for an expression that is perfectly satisfiable.
+    assertEquals(
+        nextRun('0 0 29 2 *', t('2096-03-01T00:00:00Z')),
+        t('2104-02-29T00:00:00Z'),
+    )
+})
+
+Deno.test('nextRun - the ordinary leap case is unaffected', () => {
+    assertEquals(
+        nextRun('0 0 29 2 *', t('2026-03-01T00:00:00Z')),
+        t('2028-02-29T00:00:00Z'),
+    )
+})

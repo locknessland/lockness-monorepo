@@ -24,11 +24,20 @@ const FIELDS = [
 /**
  * How far ahead `nextRun` will search before giving up.
  *
- * Four years crosses a full leap cycle, so any expression that can ever match
- * matches inside it. An expression that cannot — `0 0 30 2 *` — hits the bound
- * and throws instead of looping forever.
+ * **Eight years, not four.** Four crosses a normal leap cycle, but not the
+ * century rule: 2100, 2200 and 2300 are divisible by 100 and not by 400, so
+ * they are common years. `0 0 29 2 *` evaluated in March 2096 next matches on
+ * 2104-02-29 — a gap of just under eight years — and a four-year bound threw
+ * `RangeError` for an expression that is genuinely satisfiable. Eight covers
+ * that worst case with room to spare, and it is the worst case: no other rule
+ * in the Gregorian calendar skips a 29 February.
+ *
+ * The cost of widening is nothing measurable. The search skips whole months and
+ * whole days rather than stepping minute by minute, so an unsatisfiable
+ * expression such as `0 0 30 2 *` still exhausts the bound in a few hundred
+ * iterations and throws instead of looping forever.
  */
-const HORIZON_YEARS = 4
+const HORIZON_YEARS = 8
 
 /** A bare integer token. Anything else — aliases, decimals, junk — is rejected. */
 const INTEGER = /^\d+$/
@@ -52,7 +61,7 @@ function expandField(
     const fail = (why: string): never => {
         throw new TypeError(
             `Invalid ${field.name} field "${token}" in cron expression: ${why}. ` +
-                `Accepted: *, a value ${field.min}-${field.max}, a range a-b, a list a,b,c, or a step */n.`,
+                `Accepted: *, a value ${field.min}-${field.max}, a range a-b, a list a,b,c, or a step */n, a-b/n or a/n.`,
         )
     }
 
@@ -88,8 +97,20 @@ function expandField(
                 }
             }
             lo = Number(bounds[0])
-            hi = bounds.length === 2 ? Number(bounds[1]) : lo
-            if (hi < lo) fail(`range ${lo}-${hi} is inverted`)
+            if (bounds.length === 2) {
+                hi = Number(bounds[1])
+                if (hi < lo) fail(`range ${lo}-${hi} is inverted`)
+            } else if (stepText !== undefined) {
+                // A step on a bare single value runs to the top of the field:
+                // `5/15` is `5-59/15`, which is what Vixie cron — and therefore
+                // every crontab a user might paste in — already means by it.
+                // Before this, the step was parsed and then silently discarded,
+                // so `5/15 * * * *` expanded to `[5]`: one run an hour where
+                // four were asked for, with nothing said about it.
+                hi = field.max
+            } else {
+                hi = lo
+            }
         }
 
         if (lo < field.min || hi > field.max) {
@@ -109,6 +130,11 @@ function expandField(
  * (with seconds) and name aliases (`JAN`, `MON`) are deliberately unsupported
  * and rejected rather than silently mis-parsed.
  *
+ * **A step applied to a bare single value runs to the top of the field.**
+ * `5/15` in the minute field is `5-59/15` — minutes 5, 20, 35 and 50 — which is
+ * what Vixie cron means by it, so a crontab pasted in from a Linux box keeps its
+ * meaning here. A step on `*` or on an explicit range behaves as it reads.
+ *
  * @param expression - The expression to parse.
  * @returns The expanded field lists.
  * @throws {TypeError} Naming the offending field and token.
@@ -117,6 +143,7 @@ function expandField(
  * ```ts
  * parse('0 3 * * *').hour // [3]
  * parse('*\/15 * * * *').minute // [0, 15, 30, 45]
+ * parse('5/15 * * * *').minute // [5, 20, 35, 50] — a step extends to the max
  * ```
  */
 export function parse(expression: string): CronExpression {
@@ -182,8 +209,9 @@ function dayMatches(e: CronExpression, date: Date): boolean {
  * @param from - The reference instant. Never read from the clock here.
  * @returns The next matching instant, with seconds and milliseconds zeroed.
  * @throws {TypeError} If the expression is malformed.
- * @throws {RangeError} If nothing matches within the 4-year search horizon —
- * `0 0 30 2 *` is the canonical case.
+ * @throws {RangeError} If nothing matches within the search horizon — eight
+ * years, wide enough for a 29 February crossing a non-leap century.
+ * `0 0 30 2 *` is the canonical case of an expression that never matches.
  *
  * @example
  * ```ts
