@@ -94,7 +94,7 @@ export class Stub {
             }
 
             for (const [key, value] of Object.entries(data)) {
-                const regex = new RegExp(`{{ ${key} }}`, 'g')
+                const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g')
                 content = content.replace(regex, value)
             }
             return content
@@ -151,7 +151,7 @@ export class Stub {
             }
 
             for (const [key, value] of Object.entries(data)) {
-                const regex = new RegExp(`{{ ${key} }}`, 'g')
+                const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g')
                 content = content.replace(regex, value)
             }
 
@@ -174,7 +174,13 @@ export class Stub {
      * @param sourceDir - Source directory path or URL containing stubs
      * @param targetDir - Target directory path to create files in
      * @param data - Key-value pairs for placeholder replacement
-     * @param fileList - Required for remote URLs: explicit list of files to fetch
+     * @param fileList - The files to take, as paths relative to `sourceDir`.
+     * **Required for a remote URL**, where there is nothing to enumerate.
+     * Optional locally, where omitting it copies the whole tree — but when it
+     * IS given it is honoured, so a local scaffold and a remote one from the
+     * same list produce the same project. They used not to: the local branch
+     * ignored the list and copied everything, so a caller selecting a subset
+     * got its subset from JSR and the entire tree from a checkout.
      * @throws {Error} When scaffolding from URL without fileList
      *
      * @example
@@ -218,7 +224,10 @@ export class Stub {
 
                     let content = await response.text()
                     for (const [key, value] of Object.entries(data)) {
-                        const regex = new RegExp(`{{ ${key} }}`, 'g')
+                        const regex = new RegExp(
+                            `\\{\\{\\s*${key}\\s*\\}\\}`,
+                            'g',
+                        )
                         content = content.replace(regex, value)
                     }
 
@@ -236,7 +245,44 @@ export class Stub {
             return
         }
 
-        // Local filesystem scaffolding
+        // Local filesystem, explicit list: take exactly what was asked for, in
+        // the order it was asked for. Order is load-bearing — a caller layering
+        // an overlay over a base relies on the later write winning.
+        if (fileList && fileList.length > 0) {
+            await Deno.mkdir(targetDir, { recursive: true })
+
+            for (const file of fileList) {
+                const sourcePath = join(sourceDir, file)
+                const targetPath = join(targetDir, file.replace('.stub', ''))
+
+                let content: string
+                try {
+                    content = await Deno.readTextFile(sourcePath)
+                } catch (error) {
+                    // Loud, not skipped. A missing stub means the manifest and
+                    // the tree disagree, and the project that results is
+                    // quietly incomplete in a way nobody notices until it is
+                    // run.
+                    throw new Error(
+                        `Stub "${file}" is listed but missing from ${sourceDir}: ${
+                            (error as Error).message
+                        }`,
+                    )
+                }
+
+                for (const [key, value] of Object.entries(data)) {
+                    const regex = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g')
+                    content = content.replace(regex, value)
+                }
+
+                await Deno.mkdir(dirname(targetPath), { recursive: true })
+                await Deno.writeTextFile(targetPath, content)
+            }
+
+            return
+        }
+
+        // Local filesystem scaffolding, whole tree
         const walk = async (currentSource: string, currentTarget: string) => {
             const entries = []
             for await (const entry of Deno.readDir(currentSource)) {
@@ -256,7 +302,10 @@ export class Stub {
                 } else if (entry.isFile) {
                     let content = await Deno.readTextFile(sourcePath)
                     for (const [key, value] of Object.entries(data)) {
-                        const regex = new RegExp(`{{ ${key} }}`, 'g')
+                        const regex = new RegExp(
+                            `\\{\\{\\s*${key}\\s*\\}\\}`,
+                            'g',
+                        )
                         content = content.replace(regex, value)
                     }
                     await Deno.mkdir(dirname(targetPath), { recursive: true })
