@@ -13,6 +13,8 @@
         ]
     },
     "imports": {
+        "@lockness/cli": "jsr:@lockness/cli@^0.2.0",
+        "@lockness/container": "jsr:@lockness/container@^0.2.0",
         "@std/path": "jsr:@std/path@^1.0.0",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "postgres": "npm:postgres@^3.4.4"

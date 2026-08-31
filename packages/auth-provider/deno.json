@@ -18,5 +18,8 @@
                 "no-explicit-any"
             ]
         }
+    },
+    "imports": {
+        "@lockness/auth": "jsr:@lockness/auth@^0.2.0"
     }
 }

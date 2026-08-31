@@ -19,14 +19,15 @@
         ]
     },
     "imports": {
+        "@lockness/markdown": "jsr:@lockness/markdown@^0.2.0",
         "@std/assert": "jsr:@std/assert@1",
         "@std/cli": "jsr:@std/cli@1",
         "@std/fs": "jsr:@std/fs@1",
         "@std/path": "jsr:@std/path@1",
-        "hono": "jsr:@lockness/hono@^0.2.0",
         "clsx": "npm:clsx@2.1.1",
-        "tailwind-merge": "npm:tailwind-merge@2.6.0",
-        "highlight.js": "npm:highlight.js@11.11.1"
+        "highlight.js": "npm:highlight.js@11.11.1",
+        "hono": "jsr:@lockness/hono@^0.2.0",
+        "tailwind-merge": "npm:tailwind-merge@2.6.0"
     },
     "compilerOptions": {
         "jsx": "precompile",

@@ -3929,8 +3929,15 @@
       "packages/auth": {
         "dependencies": [
           "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/events@0.2",
           "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/session@0.2",
           "jsr:@std/assert@1"
+        ]
+      },
+      "packages/auth-provider": {
+        "dependencies": [
+          "jsr:@lockness/auth@0.2"
         ]
       },
       "packages/cache": {
@@ -3943,6 +3950,7 @@
       "packages/cli": {
         "dependencies": [
           "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/queue@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
@@ -3988,6 +3996,8 @@
       },
       "packages/drizzle": {
         "dependencies": [
+          "jsr:@lockness/cli@0.2",
+          "jsr:@lockness/container@0.2",
           "jsr:@std/path@1",
           "npm:drizzle-orm@~0.36.3",
           "npm:postgres@^3.4.4"
@@ -4014,6 +4024,7 @@
       },
       "packages/init": {
         "dependencies": [
+          "jsr:@lockness/cli@0.2",
           "jsr:@std/cli@1",
           "jsr:@std/expect@1",
           "jsr:@std/fs@1",
@@ -4043,6 +4054,7 @@
       },
       "packages/openapi": {
         "dependencies": [
+          "jsr:@lockness/cli@0.2",
           "jsr:@lockness/contract@0.2",
           "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1"
@@ -4087,6 +4099,7 @@
       "packages/ui": {
         "dependencies": [
           "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/markdown@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/cli@1",
           "jsr:@std/fs@1",
