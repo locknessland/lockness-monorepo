@@ -1,42 +1,31 @@
-# Quality gate tiers.
+# Quality gates for the Specnaut epic loop.
 #
-# Two tiers, declared by YOU. Specnaut runs what is written here and
-# interprets nothing — it does not know what a test is, what your runner is
-# called, or what any of these commands do. That is deliberate: naming a tool
-# in a shipped file would tie Specnaut to a stack it has no business knowing
-# about.
+# `run-gate.sh <fast|full>` reads a tier from here and `eval`s each entry in a
+# subshell from the repository root, stopping at the first non-zero exit. An
+# entry may chain with `&&`. An absent file or an empty tier is a no-op, not a
+# failure.
 #
-#   fast_gate — runs after EVERY commit while an epic's children are being
-#               worked. Keep it short. Its intended content is a surface pass:
-#               unit tests, an agent review, type checking. If it takes
-#               minutes, the loop it exists to make affordable stops being
-#               affordable.
-#
-#   full_gate — runs ONCE, before the merge to the default branch, and never
-#               per child. This is where a long-running end-to-end suite
-#               belongs — the kind that drives a real browser, boots real
-#               services, or takes tens of minutes.
-#
-# Each key is a flat list of shell command strings, run in order, from the
-# repository root. A non-zero exit from any one of them fails that tier.
-#
-# The format is deliberately narrow so a shell script can read it without a
-# YAML library: a top-level key, then `  - ` items, one command per line. No
-# nesting, no anchors, no multi-line scalars.
-#
-# Leaving a list empty is a valid choice, not a broken configuration —
-# Specnaut reports that the tier is not declared and carries on exactly as it
-# did before this file existed.
-#
-# Example shape (the commands are yours; these are placeholders):
-#
-#   fast_gate:
-#     - <your unit test command>
-#     - <your type checker>
-#   full_gate:
-#     - <your unit test command>
-#     - <your end-to-end suite>
+# These tiers differ by FREQUENCY, not thoroughness. Nothing here runs in CI —
+# `.github/workflows/test.yml` and the git hooks are unchanged and remain the
+# real gate before a push.
 
-fast_gate: []
+# After every child commit inside an epic. Kept to what is fast and offline:
+# roughly a second, no network. These three catch the overwhelming majority of
+# what breaks between one child and the next.
+fast_gate:
+  - deno fmt --check && deno lint && deno check
 
-full_gate: []
+# Once, before the epic merges. Adds the three checks that need the network or
+# a full workspace walk, and the suite.
+#
+#   deps:analyze     re-runs `deno info` over every package
+#   agents:brief     regenerates and compares every package brief
+#   publish:check    copies all 27 packages out of the workspace, hits JSR
+#
+# Running those after each child would cost far more than they catch there.
+full_gate:
+  - deno fmt --check && deno lint && deno check
+  - deno task deps:analyze
+  - deno task agents:brief --check
+  - deno task publish:check
+  - deno task test
