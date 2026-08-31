@@ -6,7 +6,13 @@
  * sanitizers, which do not fail on a leaked setTimeout.
  */
 
-import { assert, assertEquals, assertExists, assertThrows } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertExists,
+    assertStrictEquals,
+    assertThrows,
+} from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
     MAX_RETRIES,
@@ -511,7 +517,9 @@ Deno.test('a failing task does not stop the others', async () => {
 Deno.test('scheduler() - is a shared instance, replaceable for tests', () => {
     const custom = new Scheduler(quiet)
     setScheduler(custom)
-    assertEquals(scheduler(), custom)
+    // STRICT. The line below already compares with `===`, so the two halves
+    // of this test disagreed about what they were measuring.
+    assertStrictEquals(scheduler(), custom)
     setScheduler(undefined)
     assertEquals(scheduler() === custom, false)
     setScheduler(undefined)

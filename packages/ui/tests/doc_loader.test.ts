@@ -2,7 +2,7 @@
  * Tests for UiDocLoader service
  */
 
-import { assertEquals, assertRejects } from '@std/assert'
+import { assertEquals, assertRejects, assertStrictEquals } from '@std/assert'
 import { UiDocLoader } from '../doc_loader.ts'
 
 Deno.test('UiDocLoader - load() returns parsed documentation', async () => {
@@ -33,8 +33,9 @@ Deno.test('UiDocLoader - load() caches results', async () => {
     const doc1 = await loader.load('buttons')
     const doc2 = await loader.load('buttons')
 
-    // Should return same instance from cache
-    assertEquals(doc1, doc2)
+    // STRICT: a cache that re-parsed and returned an equal object would pass
+    // structural equality while caching nothing.
+    assertStrictEquals(doc1, doc2)
 })
 
 Deno.test('UiDocLoader - clearCache() removes cached docs', async () => {

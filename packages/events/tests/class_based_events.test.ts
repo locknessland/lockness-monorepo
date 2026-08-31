@@ -2,7 +2,7 @@
  * Tests for class-based events, EventDispatcher, and @Listener decorator
  */
 
-import { assertEquals, assertExists } from '@std/assert'
+import { assertEquals, assertExists, assertStrictEquals } from '@std/assert'
 import {
     BaseEvent,
     configureEventDispatcher,
@@ -227,14 +227,20 @@ Deno.test('dispatcher - returns global dispatcher', () => {
     const d1 = dispatcher()
     const d2 = dispatcher()
 
-    assertEquals(d1, d2)
+    // STRICT: this is an identity claim. `assertEquals` is structural, and two
+    // freshly-constructed EventDispatchers with no listeners compare equal — so
+    // it passes for an implementation that returns a new instance every call,
+    // which is the one thing this test exists to rule out.
+    assertStrictEquals(d1, d2)
 })
 
 Deno.test('configureEventDispatcher - creates new global dispatcher', () => {
     const d1 = configureEventDispatcher()
     const d2 = dispatcher()
 
-    assertEquals(d1, d2)
+    // Same reason: the claim is that dispatcher() now hands back the instance
+    // configureEventDispatcher just installed, not one that looks like it.
+    assertStrictEquals(d1, d2)
 })
 
 // =============================================================================

@@ -2,14 +2,16 @@
  * Tests for DevtoolsCollector
  */
 
-import { assertEquals, assertExists } from '@std/assert'
+import { assertEquals, assertExists, assertStrictEquals } from '@std/assert'
 import { DevtoolsCollector } from '../collector.ts'
 
 Deno.test('DevtoolsCollector - Singleton instance', () => {
     const instance1 = DevtoolsCollector.getInstance()
     const instance2 = DevtoolsCollector.getInstance()
 
-    assertEquals(instance1, instance2, 'Should return same instance')
+    // STRICT: the message already says "same instance"; assertEquals cannot
+    // check that, and passes for two fresh collectors with equal state.
+    assertStrictEquals(instance1, instance2, 'Should return same instance')
 })
 
 Deno.test('DevtoolsCollector - Add and retrieve routes', () => {

@@ -2,7 +2,7 @@
  * Tests for @lockness/logger - Global instance & Isolated instances
  */
 
-import { assertEquals, assertExists } from '@std/assert'
+import { assertEquals, assertExists, assertStrictEquals } from '@std/assert'
 import {
     configureLogger,
     createLogger,
@@ -27,7 +27,8 @@ Deno.test('Logger - Global instance', async (t) => {
     await t.step('logger() returns global instance', () => {
         const log1 = logger()
         const log2 = logger()
-        assertEquals(log1, log2)
+        // STRICT: "returns global instance" is an identity claim.
+        assertStrictEquals(log1, log2)
     })
 
     await t.step('global helper functions work', async () => {

@@ -3,7 +3,7 @@
  * Tests for @lockness/container - Dependency Injection
  */
 
-import { assertEquals, assertExists } from '@std/assert'
+import { assertEquals, assertExists, assertStrictEquals } from '@std/assert'
 import {
     bind,
     container,
@@ -77,7 +77,9 @@ Deno.test('Container - Basic operations', async (t) => {
         const instance2 = container.get<AnotherService>(AnotherService)
 
         assertEquals(instance1.getId(), instance2.getId())
-        assertEquals(instance1, instance2)
+        // STRICT: a singleton claim is about the reference. Structural equality
+        // passes for two separately-constructed services with equal fields.
+        assertStrictEquals(instance1, instance2)
     })
 
     await t.step('container.has checks service existence', () => {
@@ -142,8 +144,9 @@ Deno.test('Container - Decorators', async (t) => {
         const instance1 = container.get<DependentService>(DependentService)
         const instance2 = container.get<DependentService>(DependentService)
 
-        // Note: comparing potentially undefined values
-        assertEquals(instance1, instance2)
+        // STRICT: the claim is that the container hands back the same
+        // instance, not an equal one.
+        assertStrictEquals(instance1, instance2)
     })
 })
 
