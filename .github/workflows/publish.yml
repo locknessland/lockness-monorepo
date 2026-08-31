@@ -53,8 +53,13 @@ jobs:
             # This check copies each package out of the workspace and proves it
             # resolves alone. It is the only step that catches that class of
             # defect before the version is permanently on JSR.
+            # `--registry` also asks JSR whether each package exists. A package
+            # must be created there before anything can be published to it, and
+            # `deno publish` is atomic across the workspace — one missing
+            # package aborts all 27. This is a pre-publish gate only; CI and the
+            # pre-push hook run the same task without the flag.
             - name: Published-shape resolution
-              run: deno task publish:check
+              run: deno task publish:check --registry
 
             # 8. Publie seulement si tout est vert
             - name: Publish to JSR

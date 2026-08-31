@@ -20,6 +20,12 @@
  * The second is the expected state for an unreleased version and must not be
  * confused with the first.
  *
+ * It also asks JSR whether each package **exists in the registry**. A package
+ * must be created there before anything can be published to it, and
+ * `deno publish` publishes the workspace atomically — so one missing package
+ * aborts all 27. That is how the v0.2.0 release failed: `@lockness/scheduler`
+ * was new and had never been created on jsr.io.
+ *
  * @example
  * ```bash
  * deno task publish:check
@@ -138,6 +144,29 @@ async function checkPackage(name: string, scratch: string): Promise<Result> {
 }
 
 /**
+ * Ask JSR whether a package exists in the registry.
+ *
+ * @param name - Short package name.
+ * @returns `true` when it exists, `false` when JSR has never seen it,
+ * `null` when the registry could not be reached.
+ */
+async function existsOnJsr(name: string): Promise<boolean | null> {
+    try {
+        const response = await fetch(
+            `https://jsr.io/@lockness/${name}/meta.json`,
+            { signal: AbortSignal.timeout(15_000) },
+        )
+        // Drain the body so the connection closes and the process can exit.
+        await response.body?.cancel()
+        if (response.status === 404) return false
+        if (!response.ok) return null
+        return true
+    } catch {
+        return null
+    }
+}
+
+/**
  * Run the check for every package.
  */
 async function main(): Promise<void> {
@@ -164,6 +193,51 @@ async function main(): Promise<void> {
         )
     }
     await Deno.remove(scratch, { recursive: true }).catch(() => {})
+
+    // Registry existence is a PRE-PUBLISH gate, not a pre-push one: a package
+    // that has never been created on JSR is only a problem at publish time, and
+    // failing every push over it would block unrelated work. Hence the flag —
+    // `publish.yml` passes it, CI and the pre-push hook do not.
+    if (!Deno.args.includes('--registry')) {
+        console.log(
+            '\n✅ Every package resolves standalone (registry existence not checked; pass --registry)',
+        )
+        const resolutionFailed = results.filter((r) => !r.ok)
+        if (resolutionFailed.length > 0) Deno.exit(1)
+        return
+    }
+
+    console.log('\n🌐 Checking registry existence...\n')
+    const missing: string[] = []
+    let unreachable = 0
+    for (const name of names) {
+        const exists = await existsOnJsr(name)
+        if (exists === null) {
+            unreachable++
+            console.log(`  ⚠️  ${name.padEnd(24)} registry unreachable`)
+        } else if (!exists) {
+            missing.push(name)
+            console.log(`  ❌ ${name.padEnd(24)} does not exist on JSR`)
+        }
+    }
+    if (missing.length === 0 && unreachable === 0) {
+        console.log('  ✅ every package exists on JSR')
+    }
+    if (missing.length > 0) {
+        console.error(
+            `\n❌ ${missing.length} package(s) must be created on JSR before any publish.`,
+        )
+        console.error(
+            '   `deno publish` is atomic across the workspace — one missing',
+        )
+        console.error('   package aborts all of them. Create each here:')
+        for (const name of missing) {
+            console.error(
+                `   https://jsr.io/new?scope=lockness&package=${name}`,
+            )
+        }
+        Deno.exit(1)
+    }
 
     const failed = results.filter((r) => !r.ok)
     if (failed.length > 0) {
