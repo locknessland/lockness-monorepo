@@ -4008,7 +4008,9 @@
         "dependencies": [
           "jsr:@lockness/contract@0.2",
           "jsr:@lockness/hono@0.2",
-          "jsr:@std/assert@1"
+          "jsr:@std/assert@1",
+          "jsr:@std/fs@1",
+          "jsr:@std/path@1"
         ]
       },
       "packages/hono": {

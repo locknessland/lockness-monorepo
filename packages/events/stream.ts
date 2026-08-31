@@ -71,6 +71,13 @@ export interface StreamOptions {
  * default, unlike debug output, so it is the one line no flag protects; a
  * typed record is what makes the payload unrepresentable rather than merely
  * discouraged.
+ *
+ * The narrow claim, stated precisely: **this writer** cannot carry a payload,
+ * and neither can `debugLog`. The package as a whole still can — `emit()`'s
+ * catch logs the error object a listener threw, and a listener handed the
+ * `Context` can throw a value derived from it. That is the ordinary
+ * log-the-error pattern and is left as it is; what is not left is the broader
+ * claim, which was wrong.
  */
 export interface OverflowReport {
     /** The event name the stream is bound to, or `'*'` for a wildcard stream. */
@@ -255,9 +262,14 @@ function defaultReport(r: OverflowReport): void {
     const what = r.ended
         ? `dropped ${r.dropped} event(s)`
         : `is full and has started dropping events`
-    // Encoded, like every other line this package writes. This one matters
-    // more than the debug lines, not less: those are off by default and this
-    // one is not, so it was the only unencoded write left in the package.
+    // Encoded, like every other line this package writes. This one matters more
+    // than the debug lines, not less: those are off by default and this one is
+    // not.
+    //
+    // An earlier version of this comment claimed it was "the only unencoded
+    // write left in the package". That was false when written — `mod.ts` had
+    // three, since fixed. The claim is dropped rather than restated, because a
+    // "this is the last one" assertion is exactly the kind that rots.
     console.warn(
         `⚠️  Event stream for "${
             safeForLog(r.event)

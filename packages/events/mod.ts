@@ -15,6 +15,7 @@
 
 import { createEventQueue, type StreamOptions } from './stream.ts'
 import { debugLog } from './debug.ts'
+import { safeForLog } from '@lockness/contract'
 
 export { BaseEvent } from './base_event.ts'
 export { debugLog, isDebugEnabled, setEventsDebug } from './debug.ts'
@@ -173,7 +174,8 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         if (signal?.aborted) return false
 
         if (signal) {
-            const onAbort = () => this.#unregister(bucket, entry)
+            const onAbort = () =>
+                this.#unregister(bucket, entry, event, this.listenerMap)
             signal.addEventListener('abort', onAbort, { once: true })
             // Stored on the entry so EVERY removal path detaches it — the
             // handler outliving its listener is the leak this feature exists
@@ -187,6 +189,26 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         // sort: a second sort is a second decision that can disagree.
         bucket.sort((a, b) => b.priority - a.priority)
         debugLog({ phase: 'register', event, listenerCount: bucket.length })
+
+        // The growth warning lives HERE, in the single registration gate, so it
+        // covers wildcards too. It used to live in `on()` alone, which left
+        // `onAny()` — and therefore `anyEvent()`, which registers exclusively
+        // through it — with no diagnostic at all. Each wildcard listener owns a
+        // queue holding up to bufferSize frames, so that is the path where
+        // silent growth costs the most.
+        //
+        // Only listeners with no signal are counted: the request-scoped pattern
+        // is one registration per request and would otherwise warn on every
+        // request past the tenth.
+        const unsignalled = bucket.filter((e) => e.dispose === undefined).length
+        if (unsignalled > this.maxListeners) {
+            console.warn(
+                `Warning: Possible EventEmitter memory leak detected. ${unsignalled} ${
+                    safeForLog(event)
+                } listeners added. ` +
+                    `Use emitter.setMaxListeners() to increase limit.`,
+            )
+        }
         return true
     }
 
@@ -204,6 +226,14 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         bucket: ListenerEntry[],
         entry: ListenerEntry,
         event = '*',
+        /**
+         * Passed when the bucket belongs to a named event, so an emptied key is
+         * deleted rather than left behind. `off()` and the `once` cleanup both
+         * do this; the ABORT path did not, and it is the one this feature
+         * added — a dynamically-named event registered against a request signal
+         * left one Map key per name, for the life of the process.
+         */
+        owner?: Map<string, ListenerEntry[]>,
     ): void {
         const index = bucket.indexOf(entry)
         if (index !== -1) bucket.splice(index, 1)
@@ -217,6 +247,7 @@ export class EventEmitter<Events extends EventMap = EventMap> {
         // `emit` lines, never a removal, and concludes the removal path did not
         // run when it did.
         debugLog({ phase: 'unregister', event, listenerCount: bucket.length })
+        if (owner && bucket.length === 0) owner.delete(event)
     }
 
     /**
@@ -250,19 +281,6 @@ export class EventEmitter<Events extends EventMap = EventMap> {
             return this
         }
         this.listenerMap.set(event as string, entries)
-
-        // Warn about too many listeners — counting only the ones that have no
-        // signal to end them. See ListenerConfig.signal.
-        const unsignalled =
-            entries.filter((e) => e.dispose === undefined).length
-        if (unsignalled > this.maxListeners) {
-            console.warn(
-                `Warning: Possible EventEmitter memory leak detected. ${unsignalled} ${
-                    String(event)
-                } listeners added. ` +
-                    `Use emitter.setMaxListeners() to increase limit.`,
-            )
-        }
 
         return this
     }
@@ -377,7 +395,9 @@ export class EventEmitter<Events extends EventMap = EventMap> {
                 await entry.listener(data)
             } catch (error) {
                 console.error(
-                    `Error in event listener for "${String(event)}":`,
+                    `Error in event listener for "${
+                        safeForLog(String(event))
+                    }":`,
                     error,
                 )
             }
@@ -398,7 +418,9 @@ export class EventEmitter<Events extends EventMap = EventMap> {
                 await entry.listener({ event: String(event), data })
             } catch (error) {
                 console.error(
-                    `Error in wildcard listener for "${String(event)}":`,
+                    `Error in wildcard listener for "${
+                        safeForLog(String(event))
+                    }":`,
                     error,
                 )
             }

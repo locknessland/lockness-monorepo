@@ -62,7 +62,9 @@ export function isDebugEnabled(): boolean {
  *
  * **Closed on purpose, and with no string field.** FR-012 forbids a payload
  * reaching a log, and a rule about behaviour is one interpolation away from
- * being broken forever. A `debugLog(message: string)` — or a rest parameter —
+ * being broken forever. Scope, stated precisely: this makes a payload
+ * unrepresentable in a DEBUG line. `emit()`'s catch is a separate,
+ * unconditional writer that logs whatever a listener threw. A `debugLog(message: string)` — or a rest parameter —
  * would satisfy every word of that rule while making the violation trivial. A
  * record with no free-text field makes a payload *unrepresentable*, which the
  * type checker enforces at every future call site without anyone remembering.
