@@ -207,6 +207,8 @@ user-facing doc.
   tagging. Loaded optionally by core at boot.
 - [`@lockness/queue`](packages/queue/AGENTS.md) — Background job processing with
   multiple drivers.
+- [`@lockness/scheduler`](packages/scheduler/AGENTS.md) — Cron-based task
+  scheduling — `@Schedule`, presets, retries, graceful stop.
 - [`@lockness/storage`](packages/storage/AGENTS.md) — File storage over local
   and cloud drivers.
 - [`@lockness/mail`](packages/mail/AGENTS.md) — Email sending with pluggable
@@ -253,6 +255,7 @@ user-facing doc.
 | [session/docs/DOCS.md](packages/session/docs/DOCS.md)                             | Session management      |
 | [cache/docs/DOCS.md](packages/cache/docs/DOCS.md)                                 | Caching system          |
 | [queue/docs/DOCS.md](packages/queue/docs/DOCS.md)                                 | Background jobs         |
+| [scheduler/docs/DOCS.md](packages/scheduler/docs/DOCS.md)                         | Cron task scheduling    |
 | [mail/docs/DOCS.md](packages/mail/docs/DOCS.md)                                   | Email sending           |
 | [storage/docs/DOCS.md](packages/storage/docs/DOCS.md)                             | File storage            |
 | [validator/docs/DOCS.md](packages/validator/docs/DOCS.md)                         | Request validation      |
@@ -370,6 +373,7 @@ See [architecture.md](docs/architecture.md) for detailed package structure.
 
 - `@lockness/session` - Session management
 - `@lockness/queue` - Background job processing
+- `@lockness/scheduler` - Cron-based task scheduling
 - `@lockness/cache` - Caching system
 - `@lockness/mail` - Email sending
 - `@lockness/storage` - File storage

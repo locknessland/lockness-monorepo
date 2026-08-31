@@ -119,6 +119,27 @@ class SendEmailJob extends Job {
 registerJob('send-email', SendEmailJob)
 ```
 
+#### @lockness/scheduler
+
+**For:** Recurring work on a clock — digests, purges, syncs\
+**Skip if:** Nothing runs on a schedule
+
+```typescript
+import { daily, Schedule } from '@lockness/core'
+
+export class ReportService {
+    @Schedule('0 3 * * *', { name: 'nightly-digest' })
+    async digest() {
+        // runs daily at 03:00 UTC
+    }
+}
+```
+
+Times are UTC and state is in-process. Two replicas each run every task, so
+either run the scheduler on one replica (`SCHEDULER_ENABLED=0` on the others) or
+make each body idempotent. See
+[scheduler/docs/DOCS.md](../packages/scheduler/docs/DOCS.md).
+
 #### @lockness/cache
 
 **For:** Application-level caching system\
@@ -307,6 +328,7 @@ const app = await createApp(AppKernel)
 - @lockness/session
 - @lockness/auth
 - @lockness/queue
+- @lockness/scheduler
 - @lockness/cache
 - @lockness/mail
 - @lockness/storage

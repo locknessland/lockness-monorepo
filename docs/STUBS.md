@@ -67,6 +67,7 @@ files.
 | `make:component`   | `packages/cli/stubs/make/component.stub`         | `app/view/components/{name}.tsx`            |
 | `make:event`       | `packages/cli/stubs/make/event.stub`             | `app/events/{name}.ts`                      |
 | `make:listener`    | `packages/cli/stubs/make/listener.stub`          | `app/listener/{name}.ts`                    |
+| `make:schedule`    | `packages/cli/stubs/make/schedule.stub`          | `app/schedule/{name}.ts`                    |
 | `make:error-pages` | `packages/cli/stubs/make/error_*.stub` (4 files) | All error pages in `app/view/pages/errors/` |
 
 ### Auth Stubs (`packages/cli/stubs/auth/`)
