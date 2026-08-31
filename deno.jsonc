@@ -49,6 +49,7 @@
         "deps:analyze": "deno run -A scripts/deps_analyzer.ts",
         "agents:brief": "deno run -A scripts/agents_brief.ts",
         "publish:check": "deno run -A scripts/publish_check.ts",
+        "jsr:link": "deno run --allow-net=api.jsr.io --allow-read --allow-env scripts/jsr_link_repos.ts",
         "hooks:install": "deno run -A scripts/install_hooks.ts",
         "init": "deno run -Ar packages/init/mod.ts _lockness_app",
         "ui": "deno run -Ar packages/ui/mod.ts"
