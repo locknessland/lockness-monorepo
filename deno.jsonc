@@ -47,6 +47,7 @@
         "routes:watch": "deno run -A scripts/watch_routes.ts",
         "bump": "deno run -A ./scripts/bump.ts",
         "deps:analyze": "deno run -A scripts/deps_analyzer.ts",
+        "agents:brief": "deno run -A scripts/agents_brief.ts",
         "hooks:install": "deno run -A scripts/install_hooks.ts",
         "init": "deno run -Ar packages/init/mod.ts _lockness_app",
         "ui": "deno run -Ar packages/ui/mod.ts"

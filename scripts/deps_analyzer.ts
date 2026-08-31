@@ -565,11 +565,37 @@ function initPolicy(
  * Exits non-zero when any check fails, so CI gates on it.
  */
 async function main(): Promise<void> {
+    const quiet = Deno.args.includes('--json')
     const packages = await readPackages()
-    console.log(`🔍 Scanning ${packages.size} packages...`)
+    if (!quiet) console.log(`🔍 Scanning ${packages.size} packages...`)
 
     const staticEdges = await buildGraph(packages)
-    console.log(`📦 Resolved ${staticEdges.length} cross-package references`)
+    if (!quiet) {
+        console.log(
+            `📦 Resolved ${staticEdges.length} cross-package references`,
+        )
+    }
+
+    if (Deno.args.includes('--json')) {
+        // The graph has one home. Anything else that needs it — the agent-brief
+        // generator, for one — reads it from here rather than re-deriving it.
+        const policyRaw = await Deno.readTextFile(POLICY_PATH).catch(() => null)
+        const parsed: Policy | null = policyRaw === null
+            ? null
+            : JSON.parse(stripJsonc(policyRaw))
+        console.log(JSON.stringify({
+            packages: [...packages.values()].map((p) => ({
+                name: p.name,
+                version: p.version,
+                declared: [...p.declared].sort(),
+                entries: p.entries,
+            })),
+            edges: staticEdges,
+            soft: parsed === null ? [] : softEdges(parsed),
+            policy: parsed,
+        }))
+        return
+    }
 
     if (Deno.args.includes('--init')) {
         await Deno.writeTextFile(
