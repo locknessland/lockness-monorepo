@@ -201,8 +201,11 @@ user-facing doc.
 
 **Foundation — imported by everything, importing nothing**
 
-- [`@lockness/contract`](packages/contract/AGENTS.md) — Shared types and
-  decorator declarations. No runtime code, no imports — the cycle-breaker.
+- [`@lockness/contract`](packages/contract/AGENTS.md) — Shared types, decorator
+  declarations, and `safeForLog`, the log encoder every layer needs and only the
+  foundation can offer — `core` imports `events`, so the encoder cannot live in
+  `core` if the emitter is to reach it. Almost no runtime code, and still the
+  cycle-breaker.
 - [`@lockness/hono`](packages/hono/AGENTS.md) — The pinned Hono re-export layer.
   Internal; hard rule #1 exists because of it.
 - [`@lockness/container`](packages/container/AGENTS.md) — IoC container —

@@ -290,18 +290,104 @@ try {
 
 ### Event Stream
 
-Convert events to async iterables:
+Convert one event to an async iterable:
 
 ```typescript
 import { eventStream } from '@lockness/events'
 
-const stream = eventStream<number>(emitter, 'tick')
-
-for await (const value of stream) {
+for await (const value of eventStream<number>(emitter, 'tick')) {
     console.log(value)
-    if (value >= 10) break
+    if (value >= 10) break // detaches the listener
 }
 ```
+
+The listener comes off when the iteration ends — by `break`, by an exception in
+the loop body, or by calling `return()`.
+
+### Every event, as an iterable
+
+`onAny()` is a callback; `anyEvent()` is the same thing you can `for await`
+over. It yields the **same shape** — `{ event, data }` — because two shapes for
+one concept is one too many.
+
+```typescript
+for await (const { event, data } of emitter.anyEvent()) {
+    console.log(event)
+    if (enough) break
+}
+```
+
+It grants no access `onAny()` did not already grant. What it adds is
+**retention**: see the buffer section below.
+
+### Buffers are bounded
+
+Both streams buffer, and the buffer has a ceiling. A consumer that stops pulling
+does not grow it without limit — it drops, and says so.
+
+```typescript
+emitter.anyEvent({ bufferSize: 256, onOverflow: 'drop-oldest' })
+```
+
+| Option       | Default         | Meaning                                                             |
+| :----------- | :-------------- | :------------------------------------------------------------------ |
+| `bufferSize` | `1024`          | Frames held before dropping starts. `1..1_000_000`.                 |
+| `onOverflow` | `'drop-oldest'` | `'drop-oldest'` keeps the newest, `'drop-newest'` keeps the oldest. |
+
+An unrecognised policy is **refused**, not quietly defaulted, and a `bufferSize`
+outside its bounds throws. `Number.isInteger(1e21)` is `true`, which is why the
+upper bound exists at all: without it that value passes a "positive integer"
+check and the buffer is unbounded again behind an API that says it is not.
+
+**`bufferSize` is a developer-supplied constant. Never derive it from request
+input** — a bound a client chooses is not a bound.
+
+An overflow is reported twice per episode and no more: once when dropping
+starts, once when it stops, with the running total. The report carries the event
+name, the count and the bound — **never the dropped frame**, because a frame
+here is a lifecycle event holding the request `Context` with its headers and
+session cookie.
+
+> **Sizing.** A buffered frame is a _reference_ to everything its event carries,
+> not a copy of a value. The arithmetic you own is
+> `streams × bufferSize × sizeof(Context)`, and the number of concurrent streams
+> is yours to bound — this package bounds the depth of one, not how many exist.
+> If a controller opens a stream per request, that count is client-controlled.
+
+### Cancelling with a signal
+
+Every registration takes an `AbortSignal`. Aborting removes the listener; an
+already-aborted signal never registers it.
+
+```typescript
+emitter.on('tick', handle, { signal: c.req.raw.signal })
+```
+
+This is the request-scoped pattern, and it is why a signalled listener is exempt
+from the `maxListeners` warning — one registration per request would otherwise
+emit one warning line per request past the tenth concurrent one.
+
+Removing a listener detaches its abort handler too, by **every** removal path:
+`off()`, `offAny()` and `removeAllListeners()`.
+
+### Debugging a listener that does not fire
+
+```bash
+LOCKNESS_EVENTS_DEBUG=1 deno task dev
+```
+
+Logs registration, emit and per-listener dispatch, naming the event and the
+listener count. Accepted values are `1` / `true` / `on` / `yes` and `0` /
+`false` / `off` / `no`; anything else fails the boot rather than being guessed
+at.
+
+**A debug line never contains a payload.** Not by convention — `debugLog` takes
+a closed record with no free-text field, so there is nowhere to put one.
+
+`@lockness/core` reads the variable during bootstrap and calls
+`setEventsDebug()`. `@lockness/events` itself makes no `Deno` call, so it adds
+no permission requirement to your application; call `setEventsDebug(true)`
+directly if you want it on without the variable.
 
 ## Use Cases
 

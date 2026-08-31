@@ -9,10 +9,15 @@ priorities, and wildcards.
 - ⚡ **Async Support**: Handle both sync and async event listeners
 - 🏆 **Priorities**: Execute listeners in priority order
 - 🔄 **Once Listeners**: Auto-remove after first execution
-- 🌐 **Wildcard**: Listen to all events with `onAny()`
-- 📊 **Event Stream**: Convert events to async iterables
+- 🌐 **Wildcard**: Listen to all events with `onAny()`, or iterate them with
+  `anyEvent()`
+- 📊 **Event Stream**: Convert events to async iterables, with a **bounded**
+  buffer
+- 🛑 **Cancellable**: Pass an `AbortSignal` to any registration
+- 🔎 **Debuggable**: `LOCKNESS_EVENTS_DEBUG=1` explains why a listener did not
+  fire
 - 🎪 **Isolated Buses**: Create independent event emitters
-- 🧪 **Well-tested**: 29 tests covering all operations
+- 🧪 **Well-tested**: 91 tests covering all operations
 
 ## Installation
 
@@ -271,18 +276,48 @@ try {
 
 ### Utility: Event Stream
 
-Convert events to an async iterable stream.
+Convert events to an async iterable stream. The buffer is **bounded** — a
+consumer that stops pulling drops frames rather than growing without limit, and
+the episode is reported.
 
 ```typescript
 import { eventStream } from '@lockness/events'
 
-const stream = eventStream<number>(emitter, 'tick')
-
-for await (const value of stream) {
+for await (const value of eventStream<number>(emitter, 'tick')) {
     console.log(value)
-    if (value >= 10) break
+    if (value >= 10) break // detaches the listener
+}
+
+// Every event, same shape as onAny() delivers
+for await (const { event, data } of emitter.anyEvent({ bufferSize: 256 })) {
+    console.log(event)
 }
 ```
+
+`bufferSize` defaults to 1024 and `onOverflow` to `'drop-oldest'`. A buffered
+frame retains everything its event carries, so size it against
+`streams × bufferSize`. **Never derive `bufferSize` from request input.**
+
+### Utility: Cancelling with a signal
+
+```typescript
+emitter.on('tick', handle, { signal: c.req.raw.signal })
+```
+
+Aborting removes the listener; an already-aborted signal never registers it.
+Signalled listeners are exempt from the `maxListeners` warning, because one
+registration per request would otherwise warn on every request past the tenth.
+
+### Debugging
+
+```bash
+LOCKNESS_EVENTS_DEBUG=1 deno task dev
+```
+
+Registration, emit and dispatch, with the event name and listener count — and
+never a payload: `debugLog` takes a closed record with no free-text field.
+
+See [docs/DOCS.md](docs/DOCS.md) for the full detail.
 
 ## Use Cases
 
