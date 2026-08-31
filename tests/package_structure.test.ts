@@ -191,15 +191,30 @@ Deno.test('Package Structure - AGENTS.md files should be substantive', async (t)
                 // A brief without these is a stub, not a brief.
                 for (
                     const heading of [
+                        '## Invariants',
+                        '## Dependency contract',
                         '## Public surface',
-                        '## Dependencies',
                         '## Where to work',
                         '## Pitfalls',
+                        '## Tests',
+                        '## Before you call it done',
                     ]
                 ) {
                     assert(
                         content.includes(heading),
                         `Package "${pkg}" AGENTS.md is missing the "${heading}" section`,
+                    )
+                }
+
+                // The generated blocks must be present and closed. A brief
+                // whose markers were hand-edited away stops being refreshed by
+                // `deno task agents:brief` and starts drifting silently — the
+                // exact failure the generator exists to prevent.
+                for (const marker of ['deps', 'surface', 'tests', 'gate']) {
+                    assert(
+                        content.includes(`<!-- generated:${marker} -->`) &&
+                            content.includes(`<!-- /generated:${marker} -->`),
+                        `Package "${pkg}" AGENTS.md is missing the "${marker}" generated block`,
                     )
                 }
             }
