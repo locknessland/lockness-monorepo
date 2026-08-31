@@ -4,7 +4,7 @@
 
 ## Overview
 
-The Lockness monorepo contains **26 packages** with the following dependency
+The Lockness monorepo contains **27 packages** with the following dependency
 structure:
 
 ## ✅ No Circular Dependencies
@@ -30,317 +30,351 @@ The dependency graph is acyclic (DAG).
 ## Complete Dependency Tree
 
 ```
-auth (v0.1.30)
-├── contract (v0.1.30)
-│   └── hono (v0.1.30)
-└── hono (v0.1.30)
+auth (v0.2.0)
+├── contract (v0.2.0)
+│   └── hono (v0.2.0)
+└── hono (v0.2.0)
 
-auth-provider (v0.1.30)
+auth-provider (v0.2.0)
 
-cache (v0.1.30)
-├── container (v0.1.30)
-│   └── contract (v0.1.30)
-└── contract (v0.1.30)
-    └── hono (v0.1.30)
+cache (v0.2.0)
+├── container (v0.2.0)
+│   └── contract (v0.2.0)
+└── contract (v0.2.0)
+    └── hono (v0.2.0)
 
-cli (v0.1.30)
-└── contract (v0.1.30)
-    └── hono (v0.1.30)
+cli (v0.2.0)
+└── contract (v0.2.0)
+    └── hono (v0.2.0)
 
-container (v0.1.30)
-└── contract (v0.1.30)
-    └── hono (v0.1.30)
+container (v0.2.0)
+└── contract (v0.2.0)
+    └── hono (v0.2.0)
 
-contract (v0.1.30)
-└── hono (v0.1.30)
+contract (v0.2.0)
+└── hono (v0.2.0)
 
-core (v0.1.30)
-├── container (v0.1.30)
-│   └── contract (v0.1.30)
-├── contract (v0.1.30)
-│   └── hono (v0.1.30)
-├── deprecation-contracts (v0.1.30)
-└── hono (v0.1.30)
+core (v0.2.0)
+├── container (v0.2.0)
+│   └── contract (v0.2.0)
+├── contract (v0.2.0)
+│   └── hono (v0.2.0)
+├── deprecation-contracts (v0.2.0)
+├── events (v0.2.0)
+│   └── hono (v0.2.0)
+├── hono (v0.2.0)
+└── scheduler (v0.2.0)
+    ├── container (v0.2.0)
+    └── contract (v0.2.0)
 
-deprecation-contracts (v0.1.30)
+deprecation-contracts (v0.2.0)
 
-devtools (v0.1.30)
-└── hono (v0.1.30)
+devtools (v0.2.0)
+└── hono (v0.2.0)
 
-drizzle (v0.1.30)
+drizzle (v0.2.0)
 
-events (v0.1.30)
+events (v0.2.0)
+└── hono (v0.2.0)
 
-hono (v0.1.30)
+hono (v0.2.0)
 
-inertia (v0.1.30)
-└── hono (v0.1.30)
+inertia (v0.2.0)
+└── hono (v0.2.0)
 
-init (v0.1.30)
+init (v0.2.0)
 
-logger (v0.1.30)
+logger (v0.2.0)
 
-mail (v0.1.30)
+mail (v0.2.0)
 
-markdown (v0.1.30)
-├── hono (v0.1.30)
-└── ui (v0.1.30)
-    └── hono (v0.1.30)
+markdown (v0.2.0)
+├── hono (v0.2.0)
+└── ui (v0.2.0)
+    └── hono (v0.2.0)
 
-openapi (v0.1.30)
-├── contract (v0.1.30)
-│   └── hono (v0.1.30)
-└── hono (v0.1.30)
+openapi (v0.2.0)
+├── contract (v0.2.0)
+│   └── hono (v0.2.0)
+└── hono (v0.2.0)
 
-queue (v0.1.30)
+queue (v0.2.0)
 
-session (v0.1.30)
-└── hono (v0.1.30)
+scheduler (v0.2.0)
+├── container (v0.2.0)
+│   └── contract (v0.2.0)
+└── contract (v0.2.0)
+    └── hono (v0.2.0)
 
-socialite (v0.1.30)
-└── hono (v0.1.30)
+session (v0.2.0)
+└── hono (v0.2.0)
 
-sse (v0.1.30)
+socialite (v0.2.0)
+└── hono (v0.2.0)
 
-storage (v0.1.30)
+sse (v0.2.0)
 
-ui (v0.1.30)
-└── hono (v0.1.30)
+storage (v0.2.0)
 
-upgrade (v0.1.30)
+ui (v0.2.0)
+└── hono (v0.2.0)
 
-validator (v0.1.30)
-└── hono (v0.1.30)
+upgrade (v0.2.0)
+
+validator (v0.2.0)
+└── hono (v0.2.0)
 ```
 
 ## Package Details
 
 ### @lockness/auth
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-├── @lockness/hono (v0.1.30)
-└── @lockness/contract (v0.1.30)
-    └── @lockness/hono (v0.1.30)
+├── @lockness/hono (v0.2.0)
+└── @lockness/contract (v0.2.0)
+    └── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/auth-provider
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/cache
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-├── @lockness/contract (v0.1.30)
-│   └── @lockness/hono (v0.1.30)
-└── @lockness/container (v0.1.30)
-    └── @lockness/contract (v0.1.30)
+├── @lockness/contract (v0.2.0)
+│   └── @lockness/hono (v0.2.0)
+└── @lockness/container (v0.2.0)
+    └── @lockness/contract (v0.2.0)
 ```
 
 ### @lockness/cli
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-└── @lockness/contract (v0.1.30)
-    └── @lockness/hono (v0.1.30)
+└── @lockness/contract (v0.2.0)
+    └── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/container
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-└── @lockness/contract (v0.1.30)
-    └── @lockness/hono (v0.1.30)
+└── @lockness/contract (v0.2.0)
+    └── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/contract
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-└── @lockness/hono (v0.1.30)
+└── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/core
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-├── @lockness/hono (v0.1.30)
-├── @lockness/contract (v0.1.30)
-│   └── @lockness/hono (v0.1.30)
-├── @lockness/container (v0.1.30)
-│   └── @lockness/contract (v0.1.30)
-└── @lockness/deprecation-contracts (v0.1.30)
+├── @lockness/hono (v0.2.0)
+├── @lockness/contract (v0.2.0)
+│   └── @lockness/hono (v0.2.0)
+├── @lockness/container (v0.2.0)
+│   └── @lockness/contract (v0.2.0)
+├── @lockness/deprecation-contracts (v0.2.0)
+├── @lockness/events (v0.2.0)
+│   └── @lockness/hono (v0.2.0)
+└── @lockness/scheduler (v0.2.0)
+    ├── @lockness/container (v0.2.0)
+    └── @lockness/contract (v0.2.0)
 ```
 
 ### @lockness/deprecation-contracts
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/devtools
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-└── @lockness/hono (v0.1.30)
+└── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/drizzle
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/events
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
-**Dependencies**: None
+**Dependencies**:
+
+```
+└── @lockness/hono (v0.2.0)
+```
 
 ### @lockness/hono
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/inertia
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-└── @lockness/hono (v0.1.30)
+└── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/init
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/logger
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/mail
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/markdown
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-├── @lockness/ui (v0.1.30)
-│   └── @lockness/hono (v0.1.30)
-└── @lockness/hono (v0.1.30)
+├── @lockness/ui (v0.2.0)
+│   └── @lockness/hono (v0.2.0)
+└── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/openapi
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-├── @lockness/contract (v0.1.30)
-│   └── @lockness/hono (v0.1.30)
-└── @lockness/hono (v0.1.30)
+├── @lockness/contract (v0.2.0)
+│   └── @lockness/hono (v0.2.0)
+└── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/queue
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
-### @lockness/session
+### @lockness/scheduler
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-└── @lockness/hono (v0.1.30)
+├── @lockness/contract (v0.2.0)
+│   └── @lockness/hono (v0.2.0)
+└── @lockness/container (v0.2.0)
+    └── @lockness/contract (v0.2.0)
+```
+
+### @lockness/session
+
+**Version**: 0.2.0
+
+**Dependencies**:
+
+```
+└── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/socialite
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-└── @lockness/hono (v0.1.30)
+└── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/sse
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/storage
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/ui
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-└── @lockness/hono (v0.1.30)
+└── @lockness/hono (v0.2.0)
 ```
 
 ### @lockness/upgrade
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**: None
 
 ### @lockness/validator
 
-**Version**: 0.1.30
+**Version**: 0.2.0
 
 **Dependencies**:
 
 ```
-├── @lockness/hono (v0.1.30)
+├── @lockness/hono (v0.2.0)
 └── @lockness/hono/zod-validator (v?)
 ```
 

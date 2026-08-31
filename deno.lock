@@ -3969,6 +3969,7 @@
           "jsr:@lockness/deprecation-contracts@0.2",
           "jsr:@lockness/events@0.2",
           "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/scheduler@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/path@1",
@@ -4050,6 +4051,14 @@
       "packages/queue": {
         "dependencies": [
           "jsr:@std/assert@1"
+        ]
+      },
+      "packages/scheduler": {
+        "dependencies": [
+          "jsr:@lockness/container@0.2",
+          "jsr:@lockness/contract@0.2",
+          "jsr:@std/assert@1",
+          "jsr:@std/testing@1"
         ]
       },
       "packages/session": {
