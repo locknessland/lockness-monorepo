@@ -6,7 +6,7 @@
  * sanitizers, which do not fail on a leaked setTimeout.
  */
 
-import { assert, assertEquals, assertThrows } from '@std/assert'
+import { assert, assertEquals, assertExists, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
     MAX_RETRIES,
@@ -852,4 +852,163 @@ Deno.test('setReporter - a failure reaches the reporter installed after the fact
         'the late-installed reporter receives failures',
     )
     s.stop()
+})
+
+// ============================================================================
+// Coverage the review left open — #133
+// ============================================================================
+
+Deno.test('runNow - an out-of-band run on an ACTIVE task does not shift its next occurrence', async () => {
+    // The paused case was already pinned. This is the other half of the
+    // contract: runNow never reschedules an active task.
+    //
+    // On `nextRunAt` alone this could not fail: #arm recomputes the occurrence
+    // absolutely, from the clock, so re-arming an occurrence that has not yet
+    // fired lands on the same instant — a stray #arm inside runNow would be
+    // invisible. `pendingTimers` is the half that bites: it catches a runNow
+    // that cancels the schedule, arms a second timer beside it, or leaves the
+    // task armed under a different key. The nextRunAt assertion states the
+    // contract; the timer assertions are what enforce it.
+    const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
+    try {
+        const s = new Scheduler(quiet)
+        let ran = 0
+        s.register({
+            expression: hourly,
+            body: () => {
+                ran++
+            },
+            options: { name: 'tick' },
+        })
+        s.start()
+
+        const before = s.getStats().tasks[0].nextRunAt
+        assertExists(before)
+
+        await time.tickAsync(30 * 60_000)
+        await s.runNow('tick')
+
+        assertEquals(ran, 1)
+        assertEquals(s.getStats().tasks[0].paused, false, 'still active')
+        assertEquals(
+            s.getStats().tasks[0].nextRunAt?.getTime(),
+            before.getTime(),
+            'the calendar is unmoved by an out-of-band run',
+        )
+        assertEquals(s.getStats().pendingTimers, 1)
+        s.stop()
+    } finally {
+        time.restore()
+    }
+})
+
+Deno.test('register - a task registered AFTER start() is armed immediately', async () => {
+    const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
+    try {
+        const s = new Scheduler(quiet)
+        s.start()
+        assertEquals(s.getStats().pendingTimers, 0)
+
+        let ran = 0
+        s.register({
+            expression: everyMinute,
+            body: () => {
+                ran++
+            },
+            options: { name: 'late' },
+        })
+
+        assertEquals(
+            s.getStats().pendingTimers,
+            1,
+            'armed without a second start() that a booted app never issues',
+        )
+        assertExists(s.getStats().tasks[0].nextRunAt)
+
+        await time.tickAsync(60_000)
+        assertEquals(ran, 1, 'and it actually fires')
+        s.stop()
+    } finally {
+        time.restore()
+    }
+})
+
+Deno.test('register - a task registered after start() with enabled:false is still not armed', () => {
+    const s = new Scheduler(quiet)
+    s.start()
+    s.register({
+        expression: everyMinute,
+        body: () => {},
+        options: { name: 'off', enabled: false },
+    })
+    assertEquals(s.getStats().pendingTimers, 0, 'enabled:false stays terminal')
+    assertEquals(s.getStats().tasks[0].enabled, false)
+    s.stop()
+})
+
+Deno.test('getStats - every field is asserted, and a FAILED run still counts as a run', async () => {
+    const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
+    try {
+        const s = new Scheduler(quiet)
+        s.register({
+            expression: hourly,
+            body: () => {
+                throw new Error('nope')
+            },
+            options: { name: 'failing' },
+        })
+        s.register({
+            expression: hourly,
+            body: () => {},
+            options: { name: 'paused-one' },
+        })
+        s.register({
+            expression: hourly,
+            body: () => {},
+            options: { name: 'off', enabled: false },
+        })
+        s.start()
+        s.pause('paused-one')
+
+        const before = s.getStats().tasks[0]
+        assertEquals(before.name, 'failing')
+        assertEquals(before.enabled, true)
+        assertEquals(before.paused, false)
+        assertEquals(before.lastRunAt, null)
+        assertExists(before.nextRunAt)
+        assertEquals(before.runCount, 0)
+        assertEquals(before.failureCount, 0)
+        assertEquals(before.skippedCount, 0)
+        assertEquals(before.lastError, null)
+
+        await s.runNow('failing')
+
+        const after = s.getStats().tasks[0]
+        assertEquals(after.runCount, 1, 'a run that failed is still a run')
+        assertEquals(after.failureCount, 1)
+        assertEquals(after.lastError, { name: 'Error', message: 'nope' })
+        assertExists(after.lastRunAt)
+        assertEquals(after.skippedCount, 0, 'nothing overlapped')
+
+        const paused = s.getStats().tasks[1]
+        assertEquals(paused.paused, true)
+        assertEquals(paused.nextRunAt, null, 'a paused task has no occurrence')
+
+        const disabled = s.getStats().tasks[2]
+        assertEquals(disabled.enabled, false)
+        assertEquals(disabled.nextRunAt, null)
+
+        assertEquals(s.getStats().stopped, false)
+        assertEquals(
+            s.getStats().pendingTimers,
+            1,
+            'only "failing" is armed — one paused, one disabled',
+        )
+
+        s.stop()
+        assertEquals(s.getStats().stopped, true)
+        assertEquals(s.getStats().pendingTimers, 0)
+    } finally {
+        time.restore()
+    }
 })
