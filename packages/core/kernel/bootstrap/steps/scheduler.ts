@@ -59,7 +59,8 @@ async function buildReporter(): Promise<
  * - Skip entirely when `SCHEDULER_ENABLED` is set to a falsy value, so a
  *   multi-replica operator has a one-variable answer rather than a code change
  * - Wire the application's logger into the Scheduler's reporter port, so
- *   failures do not fall back to raw `console.error` (FR-020)
+ *   failures do not fall back to raw `console.error` (FR-020) — unless the
+ *   application already installed a reporter of its own, which wins
  * - Discover from `schedulesDir`, and register the explicit `schedules` list
  * - Start the scheduler and log the **armed** count unconditionally
  * - **Re-throw** parse and registration failures. A schedule that cannot be
@@ -99,13 +100,24 @@ export const schedulerStep: BootstrapStep = {
         const { discoverSchedules, registerSchedules } = await import(
             '../../../scheduler/schedule_discovery.ts'
         )
-        const { DEFAULT_SCHEDULES_DIR, Scheduler, scheduler, setScheduler } =
-            await import('@lockness/scheduler')
+        const { DEFAULT_SCHEDULES_DIR, scheduler } = await import(
+            '@lockness/scheduler'
+        )
 
         // Install the reporter BEFORE discovery, because discovery registers
         // into whichever instance `scheduler()` returns.
+        //
+        // In PLACE, not by swapping the shared instance. `setScheduler(new
+        // Scheduler(reporter))` discarded two things it had no business
+        // discarding: any task an application registered imperatively before
+        // boot, and the application's own reporter — the one `docs/DOCS.md`
+        // tells people to install with `setScheduler(new Scheduler({ … }))`,
+        // which was silently overwritten whenever @lockness/logger happened to
+        // be present. `hasReporter` is what makes the application's choice win.
         const reporter = await buildReporter()
-        if (reporter) setScheduler(new Scheduler(reporter))
+        if (reporter && !scheduler().hasReporter) {
+            scheduler().setReporter(reporter)
+        }
 
         // The constant, not a restated literal. Restating it is the duplication
         // that already ships for listeners — steps/listeners.ts:33 hardcodes

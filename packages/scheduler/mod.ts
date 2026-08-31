@@ -33,6 +33,7 @@ export type { ScheduleMetadata } from './decorators.ts'
 export {
     MAX_RETRIES,
     NAME_PATTERN,
+    resolveTaskName,
     Scheduler,
     scheduler,
     setScheduler,

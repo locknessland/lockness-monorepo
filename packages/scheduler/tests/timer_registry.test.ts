@@ -183,3 +183,37 @@ Deno.test('TimerRegistry - clear() releases a pending sleep rather than strandin
         time.restore()
     }
 })
+
+Deno.test('TimerRegistry - has() distinguishes a pending timer from an absent one', () => {
+    const time = new FakeTime()
+    try {
+        const r = new TimerRegistry()
+        assertEquals(r.has('a'), false)
+        r.arm('a', 5_000, () => {})
+        assertEquals(r.has('a'), true)
+        r.cancel('a')
+        assertEquals(r.has('a'), false, 'cancelling clears it')
+    } finally {
+        time.restore()
+    }
+})
+
+Deno.test('TimerRegistry - setReporter installs a reporter after construction', () => {
+    // The Scheduler is built before core has resolved the application's logger,
+    // so the reporter has to be installable in place rather than only via the
+    // constructor. A clamped delay is the observable that proves it took.
+    const time = new FakeTime()
+    try {
+        const warned: string[] = []
+        const r = new TimerRegistry()
+        r.setReporter({ error: () => {}, warn: (m) => void warned.push(m) })
+
+        r.arm('a', MIN_DELAY_MS - 1, () => {})
+
+        assertEquals(warned.length, 1, 'the clamp went to the reporter')
+        assertEquals(warned[0].includes('clamped'), true)
+        r.clear()
+    } finally {
+        time.restore()
+    }
+})

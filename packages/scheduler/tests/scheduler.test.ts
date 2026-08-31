@@ -6,7 +6,7 @@
  * sanitizers, which do not fail on a leaked setTimeout.
  */
 
-import { assertEquals, assertThrows } from '@std/assert'
+import { assert, assertEquals, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
     MAX_RETRIES,
@@ -647,12 +647,17 @@ Deno.test('retryDelay is actually honoured, measured in elapsed time', async () 
     // asserted a resolver flag and a final attempt count, both of which a
     // sleep() that resolved immediately still satisfied — so a backoff that had
     // silently become a no-op passed clean, firing every attempt in one tick.
+    //
+    // Hourly, not every-minute: the whole chain (two 30s backoffs) has to fit
+    // inside one period, or the second occurrence abandons it half way and this
+    // measures the abandonment instead of the delay. That interaction has its
+    // own test — 'a retry chain is abandoned when the next occurrence arrives'.
     const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
     try {
         const s = new Scheduler(quiet)
         let attempts = 0
         s.register({
-            expression: everyMinute,
+            expression: hourly,
             body: () => {
                 attempts++
                 throw new Error('always fails')
@@ -661,7 +666,7 @@ Deno.test('retryDelay is actually honoured, measured in elapsed time', async () 
         })
         s.start()
 
-        await time.tickAsync(60_000)
+        await time.tickAsync(60 * 60_000)
         assertEquals(
             attempts,
             1,
@@ -709,4 +714,142 @@ Deno.test('a task named like a retry key does not cancel another task schedule',
     } finally {
         time.restore()
     }
+})
+
+// ============================================================================
+// A retry chain does not outlive its own occurrence — #132
+// ============================================================================
+
+Deno.test('a retry chain is abandoned when the next occurrence arrives', async () => {
+    // A backoff longer than the schedule's period used to let a retry chain
+    // outlive the occurrence that started it and overlap the run it was meant
+    // to precede. stop() abandoned it; the next occurrence did not.
+    const time = new FakeTime(new Date('2026-03-01T10:00:00Z'))
+    try {
+        const warned: string[] = []
+        const s = new Scheduler({
+            error: () => {},
+            warn: (message) => void warned.push(message),
+        })
+        let attempts = 0
+        s.register({
+            expression: everyMinute,
+            // Only the first execution fails, so a later attempt can only be
+            // the abandoned chain's retry — which is what this is looking for.
+            body: () => {
+                attempts++
+                if (attempts === 1) throw new Error('the first run fails')
+            },
+            // 90s of backoff against a 60s period: the chain would reach its
+            // second attempt at t+150s, a full occurrence after its own.
+            options: { name: 'flaky', retries: 5, retryDelay: 90_000 },
+        })
+        s.start()
+
+        await time.tickAsync(60_000)
+        // One more drain: the backoff is armed a microtask after the timer
+        // callback returns, not inside it.
+        await time.tickAsync(0)
+        assertEquals(
+            attempts,
+            1,
+            'occurrence 1 ran and its retry is backing off',
+        )
+        assertEquals(
+            s.getStats().pendingTimers,
+            2,
+            'the schedule and the backoff',
+        )
+
+        await time.tickAsync(60_000)
+        assertEquals(
+            attempts,
+            2,
+            'occurrence 2 ran — abandoning the chain must not cost the occurrence too',
+        )
+        assertEquals(
+            s.getStats().pendingTimers,
+            1,
+            'only the schedule remains; the backoff was cancelled, not left to elapse',
+        )
+        assert(
+            warned.some((m) => m.includes('retry chain abandoned')),
+            'the abandonment is reported at warn level, not dropped silently',
+        )
+
+        // t+150s is where occurrence 1's second attempt would have landed.
+        await time.tickAsync(30_000)
+        assertEquals(
+            attempts,
+            2,
+            'the abandoned backoff never fired: no retry outlived its own occurrence',
+        )
+
+        s.stop()
+    } finally {
+        time.restore()
+    }
+})
+
+Deno.test('a retry chain within its own period is left alone', () => {
+    // The guard for the fix above: abandoning must key on the occurrence, not
+    // simply on time passing.
+    const s = new Scheduler(quiet)
+    s.register({
+        expression: hourly,
+        body: () => {
+            throw new Error('fails')
+        },
+        options: { name: 'flaky', retries: 2, retryDelay: 1_000 },
+    })
+    // Registered but never started: no occurrence can arrive, so nothing is
+    // abandoned and the task is simply armed-free.
+    assertEquals(s.getStats().pendingTimers, 0)
+    s.stop()
+})
+
+// ============================================================================
+// The reporter is installable in place — #132
+// ============================================================================
+
+Deno.test('setReporter - installs a reporter without replacing the instance', () => {
+    const s = new Scheduler()
+    assertEquals(s.hasReporter, false, 'none by default')
+
+    s.register({
+        expression: hourly,
+        body: () => {},
+        options: { name: 'registered-before-boot' },
+    })
+
+    const seen: string[] = []
+    s.setReporter({ error: (m) => void seen.push(m), warn: () => {} })
+
+    assertEquals(s.hasReporter, true)
+    assertEquals(
+        s.getStats().tasks.map((t) => t.name),
+        ['registered-before-boot'],
+        'installing a reporter must not cost the tasks already registered',
+    )
+})
+
+Deno.test('setReporter - a failure reaches the reporter installed after the fact', async () => {
+    const s = new Scheduler()
+    s.register({
+        expression: hourly,
+        body: () => {
+            throw new Error('boom')
+        },
+        options: { name: 'failing' },
+    })
+
+    const errors: string[] = []
+    s.setReporter({ error: (m) => void errors.push(m), warn: () => {} })
+
+    await s.runNow('failing')
+    assert(
+        errors.some((m) => m.includes('Scheduled task failed')),
+        'the late-installed reporter receives failures',
+    )
+    s.stop()
 })

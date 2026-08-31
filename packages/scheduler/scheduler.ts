@@ -46,6 +46,13 @@ interface Task {
     failureCount: number
     skippedCount: number
     lastError: { name: string; message: string } | null
+    /**
+     * Bumped every time a scheduled occurrence fires.
+     *
+     * A run captures the value it started under; a retry asks whether it still
+     * holds. That is how a retry chain learns its own schedule has moved on.
+     */
+    generation: number
 }
 
 /** What {@link Scheduler.register} accepts. */
@@ -60,6 +67,38 @@ export interface TaskRegistration {
     className?: string
     /** The method's name, used for the default task name. */
     methodName?: string
+}
+
+/**
+ * Resolve the name a registration will claim.
+ *
+ * **Identity is decided here and nowhere else.** {@link Scheduler.register}
+ * calls it, and so does core's schedule discovery — which needs the name
+ * *before* registering in order to say which two source files collided. A
+ * second derivation in discovery would be a second definition of identity, and
+ * the two would drift.
+ *
+ * @param registration - The registration whose name to resolve.
+ * @returns The resolved name.
+ * @throws {TypeError} If the derived name is not a legal task name.
+ *
+ * @example
+ * ```ts
+ * resolveTaskName({ expression: '0 3 * * *', body: fn, className: 'Reports', methodName: 'nightly' })
+ * // 'Reports.nightly'
+ * ```
+ */
+export function resolveTaskName(registration: TaskRegistration): string {
+    const { options, className, methodName } = registration
+    const name = options?.name ??
+        `${className ?? 'Anonymous'}.${methodName ?? 'anonymous'}`
+    if (!NAME_PATTERN.test(name)) {
+        throw new TypeError(
+            `Derived task name "${name}" does not match ${NAME_PATTERN.source}. ` +
+                `Pass an explicit \`name\` option.`,
+        )
+    }
+    return name
 }
 
 /**
@@ -137,7 +176,7 @@ export function validateScheduleOptions(options: ScheduleOptions = {}): void {
 export class Scheduler {
     readonly #tasks = new Map<string, Task>()
     readonly #timers: TimerRegistry
-    readonly #reporter: SchedulerReporter | undefined
+    #reporter: SchedulerReporter | undefined
     #started = false
     #stopped = false
 
@@ -152,8 +191,43 @@ export class Scheduler {
         this.#timers = new TimerRegistry(reporter)
     }
 
+    /** Whether a reporter has been installed, by constructor or by {@link setReporter}. */
+    get hasReporter(): boolean {
+        return this.#reporter !== undefined
+    }
+
+    /**
+     * Install a reporter on an already-constructed scheduler.
+     *
+     * `@lockness/core` calls this at boot, once it has resolved the
+     * application's logger. It sets the reporter **in place** rather than
+     * replacing the shared instance, which matters twice: a replacement
+     * discards every task registered imperatively before boot, and it discards
+     * an application's own reporter — the one `docs/DOCS.md` tells people to
+     * install with `setScheduler(new Scheduler({ … }))`. Core asks
+     * {@link hasReporter} first, so an application-supplied reporter wins.
+     *
+     * @param reporter - Where failures and clamps are reported from now on.
+     *
+     * @example
+     * ```ts
+     * if (!scheduler().hasReporter) scheduler().setReporter(myReporter)
+     * ```
+     */
+    setReporter(reporter: SchedulerReporter): void {
+        this.#reporter = reporter
+        this.#timers.setReporter(reporter)
+    }
+
     /**
      * Register a task, resolving and claiming its name.
+     *
+     * **Registering after {@link start} is legal, and the task is armed
+     * immediately** rather than waiting for a second `start()` that a booted
+     * application never issues. This is what lets a task be registered from a
+     * request handler, a plugin loaded late, or a test. The one exception is a
+     * task declared `enabled: false`, which is never armed; and registering on
+     * a stopped scheduler throws, because `stop()` is terminal.
      *
      * @param registration - The task to register.
      * @returns The task's resolved name.
@@ -164,19 +238,11 @@ export class Scheduler {
         if (this.#stopped) {
             throw new Error('Cannot register a task on a stopped scheduler.')
         }
-        const { expression, body, options = {}, className, methodName } =
-            registration
+        const { expression, body, options = {} } = registration
 
         validateScheduleOptions(options)
 
-        const name = options.name ??
-            `${className ?? 'Anonymous'}.${methodName ?? 'anonymous'}`
-        if (!NAME_PATTERN.test(name)) {
-            throw new TypeError(
-                `Derived task name "${name}" does not match ${NAME_PATTERN.source}. ` +
-                    `Pass an explicit \`name\` option.`,
-            )
-        }
+        const name = resolveTaskName(registration)
         if (this.#tasks.has(name)) {
             throw new Error(
                 `A task named "${name}" is already registered. ` +
@@ -197,6 +263,7 @@ export class Scheduler {
             failureCount: 0,
             skippedCount: 0,
             lastError: null,
+            generation: 0,
         })
 
         // Registering after start() is legal — arm it immediately.
@@ -344,8 +411,36 @@ export class Scheduler {
             // Arming first is also what makes overlap:'skip' meaningful: the
             // next occurrence still arrives on time, and is skipped.
             this.#arm(name)
+            this.#abandonRetries(name)
             void this.#run(name)
         })
+    }
+
+    /**
+     * Tell any in-flight retry chain for this task that its schedule moved on.
+     *
+     * A retry chain with a backoff longer than the schedule's period would
+     * otherwise outlive its own occurrence and overlap the run it was meant to
+     * precede. Bumping the generation is what the chain checks; cancelling the
+     * backoff is what stops it sleeping out a delay whose occurrence has
+     * already passed. `cancel()` **resolves** a pending sleep rather than
+     * rejecting it, so nothing is left awaiting.
+     */
+    #abandonRetries(name: string): void {
+        const task = this.#tasks.get(name)
+        if (task === undefined) return
+
+        // Parked in a backoff, or actually executing? Only the first can be
+        // abandoned freely: its body is not running, so the `running` slot it
+        // holds protects nothing — and leaving that slot held would make the
+        // arriving occurrence skip itself against a chain that is being torn
+        // down in the same tick, losing BOTH. A chain whose body is mid-flight
+        // keeps its slot; overlap: 'skip' still means what it says.
+        const parked = this.#timers.has(`retry:${name}`)
+
+        task.generation++
+        this.#timers.cancel(`retry:${name}`)
+        if (parked) task.running = false
     }
 
     /** Run one task, honouring the overlap policy. */
@@ -368,6 +463,10 @@ export class Scheduler {
             return
         }
 
+        // Captured, not read live: this run's retries belong to THIS occurrence,
+        // and #abandonRetries bumps the task's counter when the next one fires.
+        const generation = task.generation
+
         task.running = true
         task.lastRunAt = new Date()
         try {
@@ -381,7 +480,19 @@ export class Scheduler {
                 // belongs to nobody: it survives stop() and runs another attempt
                 // after shutdown, while pendingTimers reports zero.
                 (ms) => this.#timers.sleep(`retry:${name}`, ms),
-                () => !this.#stopped,
+                () => {
+                    if (this.#stopped) return false
+                    if (task.generation !== generation) {
+                        // Reported, not dropped: a retry policy that quietly
+                        // stops retrying looks exactly like one that succeeded.
+                        this.#reporter?.warn(
+                            'Scheduled task retry chain abandoned: the next occurrence arrived first.',
+                            { task: name },
+                        )
+                        return false
+                    }
+                    return true
+                },
             )
             task.runCount++
             if (!outcome.ok) {
@@ -389,7 +500,11 @@ export class Scheduler {
                 task.lastError = outcome.error
             }
         } finally {
-            task.running = false
+            // Only if this run still owns the slot. A superseded chain that
+            // reaches its `finally` after the next occurrence has started would
+            // otherwise clear the flag out from under the live run, and the
+            // occurrence after that would overlap it.
+            if (task.generation === generation) task.running = false
         }
     }
 }

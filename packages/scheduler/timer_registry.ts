@@ -67,7 +67,7 @@ export class TimerRegistry {
     readonly #entries = new Map<string, Entry>()
     /** Pending {@link sleep} resolvers, so cancelling never strands a caller. */
     readonly #resolvers = new Map<string, () => void>()
-    readonly #reporter: SchedulerReporter | undefined
+    #reporter: SchedulerReporter | undefined
 
     /**
      * @param reporter - Where a clamped delay is reported. Falls back to
@@ -77,9 +77,39 @@ export class TimerRegistry {
         this.#reporter = reporter
     }
 
+    /**
+     * Install the reporter after construction.
+     *
+     * `@lockness/core` cannot pass one to the constructor: the shared scheduler
+     * — and therefore this registry — may already exist by the time the
+     * bootstrap step resolves the application's logger. Setting it in place is
+     * what lets core wire logging in without replacing the instance, and
+     * replacing the instance is what used to discard every task an application
+     * had registered before boot.
+     *
+     * @param reporter - Where a clamped delay is reported from now on.
+     */
+    setReporter(reporter: SchedulerReporter): void {
+        this.#reporter = reporter
+    }
+
     /** How many timers are currently pending. The assertion FR-009 makes. */
     get size(): number {
         return this.#entries.size
+    }
+
+    /**
+     * Is a timer currently armed under `key`?
+     *
+     * The Scheduler asks this to tell a retry chain parked in its backoff from
+     * one whose body is actually executing — only the former can be abandoned
+     * without cutting a run short.
+     *
+     * @param key - The key to look for.
+     * @returns Whether a timer is pending under it.
+     */
+    has(key: string): boolean {
+        return this.#entries.has(key)
     }
 
     /** Every key currently armed. */
