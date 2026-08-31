@@ -1,26 +1,59 @@
 # `@lockness/contract` — agent brief
 
 Shared types, interfaces and decorator declarations with **no runtime
-behaviour**. It exists to break dependency cycles: eight packages import it and
-it imports nothing. If a type is needed by two packages that must not know about
-each other, it belongs here.
+behaviour**. It exists to break dependency cycles: if a type is needed by two
+packages that must not know about each other, it belongs here.
+
+It is not dependency-free — it takes Hono's types through the `hono` alias in
+its own `deno.json`. Every one of those is an `import type`, so the edge erases
+at compile time and the package still emits no runtime import. That distinction
+is the invariant, not "imports nothing".
 
 User-facing documentation: [README.md](README.md). This brief does not repeat
 it.
 
+## Invariants
+
+- **Every `@lockness/*` import here must be `import type`.** The package takes
+  Hono's types through the `hono` alias in its own `deno.json`; because those
+  are type-only they erase at compile time and the package emits no runtime
+  import. A single value import would turn the framework's cycle-breaker into a
+  cycle participant. `deno task deps:analyze` marks the edge _(type-only)_ — if
+  that annotation disappears, the invariant broke.
+- **Renaming an exported symbol is a breaking change for every importer at
+  once**, because the whole workspace ships on one version.
+
+## Dependency contract
+
+<!-- generated:deps -->
+
+| Direction                                      | Packages                                                                                                                                                        |
+| :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                               | `hono` _(type-only)_                                                                                                                                            |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                                                               |
+| Imported by                                    | `auth`, `cache`, `cli`, `container`, `core`, `openapi`                                                                                                          |
+| **Must never import**                          | `auth`, `auth-provider`, `cache`, `cli`, `container`, `core`, `drizzle`, `init`, `openapi` — each already reaches this package, so importing one closes a cycle |
+
+Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
+deliberately **not** declared in this package's `deno.json`: the consuming
+application installs it, or the feature stays off.
+
+<!-- /generated:deps -->
+
 ## Public surface
 
-| Specifier                    | File             |
-| ---------------------------- | ---------------- |
-| `@lockness/contract`         | `mod.ts`         |
-| `@lockness/contract/http`    | `http/mod.ts`    |
-| `@lockness/contract/routing` | `routing/mod.ts` |
+<!-- generated:surface -->
 
-## Dependencies
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                              |
+| :-------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| function  | `Cache`, `CacheKey`, `CacheTTL`, `ComposeMiddleware`, `Controller`, `DeclareMiddleware`, `Middleware`, `Throttle`, `ThrottleApi`, `ThrottleHeavy`, `ThrottleLogin`, `ThrottleSensitive`, `Use`, `UseMiddleware`, `compose`, `composeMiddleware`, `generateRoutesContent`, `generateRoutesFile`, `parseTimeWindow`, `scanControllers` |
+| interface | `CacheContract`, `CacheOptions`, `ContainerContract`, `ControllerInfo`, `ControllerMetadata`, `ControllerWithMetadata`, `GenerateRoutesResult`, `MiddlewareContract`, `Route`, `RouteMetadata`, `RouteOptions`, `ThrottleConfig`, `ThrottleOptions`, `ThrottleStoreContract`                                                         |
+| typeAlias | `ComposableMiddleware`, `Constructor`, `Context`, `ControllerClass`, `FileExtension`, `MiddlewareClass`, `MiddlewareHandler`, `MiddlewareInput`, `MiddlewareRegistry`, `Next`, `ServiceToken`, `ThrottleKey`, `TimeWindow`, `ValidationTargets`                                                                                      |
+| variable  | `CacheServiceToken`, `Delete`, `Get`, `MIDDLEWARE_NAME_KEY`, `Patch`, `Post`, `Put`, `declaredMiddlewares`                                                                                                                                                                                                                           |
 
-- **Imports:** nothing — bottom of the dependency graph
-- **Imported by:** `@lockness/auth`, `@lockness/cache`, `@lockness/cli`,
-  `@lockness/container`, `@lockness/core`, `@lockness/openapi`
+Anything not listed is internal and free to change.
+
+<!-- /generated:surface -->
 
 ## Where to work
 
@@ -39,5 +72,35 @@ it.
 - Renaming an exported type here is a breaking change for eight packages at
   once.
 
-_7 source files, 0 test files. Framework-wide rules live in the root
-[AGENTS.md](../../AGENTS.md)._
+## Tests
+
+<!-- generated:tests -->
+
+**This package has no tests.** 8 source files ship untested — treat any change
+here as unguarded, and add coverage for what you touch rather than trusting the
+suite.
+
+<!-- /generated:tests -->
+
+## Before you call it done
+
+<!-- generated:gate -->
+
+The framework-wide gate, from the repository root:
+
+```bash
+deno fmt && deno lint && deno check && deno task test
+deno task deps:analyze     # cycles, declaration drift, tier policy
+deno task agents:brief     # refresh this file's generated blocks
+```
+
+Then, specific to this package: **it has no tests.** Anything you change here is
+unguarded by the suite — add coverage for it.
+
+<!-- /generated:gate -->
+
+---
+
+_Framework-wide rules live in the root [AGENTS.md](../../AGENTS.md). The
+dependency contract, public surface and test sections are generated by
+`deno task agents:brief` — edit the code, not those blocks._
