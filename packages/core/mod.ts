@@ -180,3 +180,45 @@ export async function registerCoreCommands(cli: any) {
     const { CompileCommand } = await import('./cli/compile_command.ts')
     cli.registerCommand(CompileCommand)
 }
+
+// ============================================================================
+// Scheduler (@lockness/scheduler)
+// ============================================================================
+
+export {
+    daily,
+    DEFAULT_SCHEDULES_DIR,
+    everyFifteenMinutes,
+    everyFiveMinutes,
+    everyMinute,
+    everyTenMinutes,
+    everyThirtyMinutes,
+    getScheduleMetadata,
+    hourly,
+    monthly,
+    nextRun,
+    PRESETS,
+    Schedule,
+    Scheduler,
+    scheduler,
+    setScheduler,
+    weekdays,
+    weekends,
+    weekly,
+    yearly,
+} from '@lockness/scheduler'
+export type {
+    OverlapPolicy,
+    ScheduleMetadata,
+    ScheduleOptions,
+    SchedulerLock,
+    SchedulerReporter,
+    SchedulerStats,
+    TaskFailure,
+    TaskStats,
+} from '@lockness/scheduler'
+export {
+    discoverSchedules,
+    registerSchedules,
+} from './scheduler/schedule_discovery.ts'
+export type { ScheduleClass } from './scheduler/schedule_discovery.ts'

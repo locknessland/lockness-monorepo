@@ -236,6 +236,33 @@ export interface KernelConfig {
     listeners?: unknown[]
 
     /**
+     * Directory scanned for classes with `@Schedule` decorated methods.
+     *
+     * Defaults to {@link DEFAULT_SCHEDULES_DIR} — linked rather than restated,
+     * so the path has one home. A missing directory is a no-op.
+     *
+     * **Must be a constant in application source.** Its contents are imported
+     * and executed at boot under the process's permissions, so an
+     * environment-derived value turns configuration into code execution.
+     *
+     * @example './app/schedule'
+     */
+    schedulesDir?: string
+
+    /**
+     * Explicit classes carrying `@Schedule` methods.
+     *
+     * Used alongside `schedulesDir` for packages and for compiled builds, where
+     * directory scanning is unavailable.
+     *
+     * @example
+     * ```typescript
+     * @Kernel({ schedules: [ReportService, CleanupService] })
+     * ```
+     */
+    schedules?: unknown[]
+
+    /**
      * Mount point for URL prefixing (i18n, multi-tenancy).
      *
      * When defined, the application is accessible under the mount point's pattern

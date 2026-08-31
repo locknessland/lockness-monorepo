@@ -1,0 +1,28 @@
+import { Service } from '@lockness/container'
+import { daily, Schedule } from '@lockness/core'
+
+/**
+ * {{ className }}
+ *
+ * Scheduled tasks for {{ description }}.
+ *
+ * Classes in `app/schedule/` are discovered and started at boot. Times are UTC.
+ */
+@Service()
+export class {{ className }} {
+    constructor(
+        // Inject dependencies here
+        // Example: private mail: MailService,
+    ) {}
+
+    /**
+     * Runs daily at midnight UTC.
+     *
+     * The body must be idempotent: a run can be terminated mid-flight by a
+     * deploy, and two replicas of this app would each run this task.
+     */
+    @Schedule(daily, { name: '{{ taskName }}' })
+    async run(_signal: AbortSignal): Promise<void> {
+        console.log('{{ className }} ran')
+    }
+}

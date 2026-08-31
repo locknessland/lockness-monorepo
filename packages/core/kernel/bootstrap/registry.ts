@@ -39,6 +39,7 @@ import { bootHooksStep } from './steps/boot_hooks.ts'
 import { middlewaresDiscoveryStep } from './steps/middlewares_discovery.ts'
 import { listenersStep } from './steps/listeners.ts'
 import { eventsStep } from './steps/events.ts'
+import { schedulerStep } from './steps/scheduler.ts'
 import { devtoolsRoutesStep } from './steps/devtools_routes.ts'
 
 /**
@@ -57,6 +58,7 @@ import { devtoolsRoutesStep } from './steps/devtools_routes.ts'
  * - 410: Event listener registration
  * - 500: KernelBooted event emission
  * - 550: App initialization (controllers, static files)
+ * - 560: Scheduler discovery and start
  * - 600: Devtools route collection
  *
  * @returns Array of bootstrap steps in execution order
@@ -75,6 +77,7 @@ export function getDefaultSteps(): readonly BootstrapStep[] {
         listenersStep,
         eventsStep,
         appInitializationStep,
+        schedulerStep,
         devtoolsRoutesStep,
     ]
 }
