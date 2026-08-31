@@ -170,7 +170,9 @@ user-facing doc.
 - [`@lockness/hono`](packages/hono/AGENTS.md) — The pinned Hono re-export layer.
   Internal; hard rule #1 exists because of it.
 - [`@lockness/container`](packages/container/AGENTS.md) — IoC container —
-  `@Service`, `@Inject`, lifetimes, circular-dependency detection.
+  `@Service`, `@Inject`, lifetimes. Injection is lazy, so services may hold each
+  other; only a constructor cycle is a fault, and it raises
+  `CircularDependencyError`.
 
 **Framework**
 

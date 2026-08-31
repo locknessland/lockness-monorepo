@@ -1,8 +1,10 @@
 # `@lockness/container` — agent brief
 
 The IoC container: `@Service` registers, `@Inject` resolves, and the container
-handles lifetimes and circular-dependency detection. Every other package that
-does dependency injection resolves through this one.
+handles lifetimes. Injection is lazy — a service may hold a reference to one
+that holds it back — and only a constructor that re-enters an unfinished
+construction raises `CircularDependencyError`. Every other package that does
+dependency injection resolves through this one.
 
 User-facing documentation: [README.md](README.md) ·
 [docs/DOCS.md](docs/DOCS.md). This brief does not repeat it.
