@@ -1,0 +1,15 @@
+/**
+ * Controllers Registry
+ *
+ * The explicit list used in production and by `deno task compile`. In
+ * development the kernel discovers `app/controller/` instead, so this file
+ * only has to be right when you ship.
+ *
+ * Regenerate it with `deno task routes:generate`.
+ */
+
+import { AppController } from '@controller/app_controller.ts'
+
+export const controllers = [
+    AppController,
+]

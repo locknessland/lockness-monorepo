@@ -1,0 +1,90 @@
+import {
+    type Context,
+    Controller,
+    Get,
+    Post,
+    ThrottleLogin,
+} from '@lockness/core'
+import { AuthRequired, getAuth } from '@lockness/auth'
+import { ApiDoc } from '@lockness/openapi'
+import { container } from '@lockness/container'
+import { Database } from '@lockness/drizzle'
+import { createUserProvider } from '../auth/user_provider.ts'
+
+/** What `POST /auth/token` expects. */
+interface Credentials {
+    email?: unknown
+    password?: unknown
+}
+
+/**
+ * Issuing and using an access token — the pair this kit exists to demonstrate.
+ *
+ * Requires a database. Set `DATABASE_URL`, run `deno task db:migrate`, and
+ * insert a user whose `password` column holds a hash from
+ * `hashPassword()` in `@lockness/auth`.
+ */
+@Controller('/auth')
+export class TokenController {
+    /**
+     * Exchange credentials for a bearer token.
+     *
+     * `@ThrottleLogin()` rather than `@ThrottleApi()`: this is the endpoint
+     * someone brute-forces, and it deserves the stricter budget.
+     */
+    @Post('/token', { name: 'auth.token' })
+    @ThrottleLogin()
+    @ApiDoc({
+        summary: 'Issue an access token',
+        description: 'Exchanges an email and password for a bearer token.',
+        tags: ['auth'],
+    })
+    async token(c: Context) {
+        const body = await c.req.json().catch(() => ({})) as Credentials
+        const { email, password } = body
+
+        if (typeof email !== 'string' || typeof password !== 'string') {
+            return c.json(
+                { error: 'email and password are required' },
+                422,
+            )
+        }
+
+        const db = container.get<Database>(Database)
+        const provider = createUserProvider(db.db)
+        const user = await provider.findByCredentials(email, password)
+
+        if (!user) {
+            // One message for "no such user" and for "wrong password". Two
+            // messages is an account-enumeration oracle.
+            return c.json({ error: 'Invalid credentials' }, 401)
+        }
+
+        const token = await provider.createToken(user, 'api')
+        return c.json({ token: token.value, type: 'Bearer' }, 201)
+    }
+
+    /**
+     * The sample authenticated endpoint.
+     *
+     * `@AuthRequired()` runs the `api` guard, which reads
+     * `Authorization: Bearer <token>` and 401s when it does not verify.
+     */
+    @Get('/me', { name: 'auth.me' })
+    // The guard is NAMED, not left to default. `@AuthRequired()` with no
+    // argument falls back to the literal string 'web' — it does not read
+    // `authConfig.default` — so on this kit, whose only guard is 'api', the
+    // bare form fails the request with "Guard \"web\" is not configured".
+    @AuthRequired('api')
+    @ApiDoc({
+        summary: 'The authenticated user',
+        description: 'Requires `Authorization: Bearer <token>`.',
+        tags: ['auth'],
+    })
+    me(c: Context) {
+        // `getAuth(c)` is the authenticator the middleware installed;
+        // `@AuthRequired()` has already refused the request if there is
+        // no valid token, so `user` is populated by the time we get here.
+        return c.json({ user: getAuth(c).user })
+    }
+}

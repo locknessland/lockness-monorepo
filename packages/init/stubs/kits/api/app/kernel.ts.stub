@@ -1,0 +1,95 @@
+/**
+ * @fileoverview Application Kernel — the api kit.
+ *
+ * A JSON API: controllers, a database, a token guard and CORS. No view layer,
+ * no session, no static assets beyond whatever you drop in `public/`.
+ *
+ * @module app/kernel
+ */
+
+import {
+    cors,
+    DeclareGlobalMiddleware,
+    Kernel,
+} from '@lockness/core'
+import { initializeAuthMiddleware } from '@lockness/auth'
+import { authConfig } from './auth/guards.ts'
+
+/**
+ * The allowed origins, read from `CORS_ORIGIN`.
+ *
+ * @returns `'*'` for any origin, or the comma-separated list.
+ */
+function corsOrigin(): string | string[] {
+    const raw = (Deno.env.get('CORS_ORIGIN') ?? '*').trim()
+    if (raw === '*') return '*'
+    return raw.split(',').map((origin) => origin.trim()).filter((o) => o !== '')
+}
+import { controllers } from './routes.ts'
+import { config } from '../config/mod.ts'
+
+/**
+ * Application Kernel for {{ projectName }}.
+ *
+ * @example Start it
+ * ```typescript
+ * const app = await createApp(AppKernel)
+ * app.listen(8888)
+ * ```
+ */
+@Kernel({
+    /** Controllers: discovered in development, listed for production. */
+    controllersDir: './app/controller',
+    controllers: controllers,
+
+    /** Named middlewares, discovered by their `@DeclareMiddleware('name')`. */
+    middlewaresDir: './app/middleware',
+
+    /** Event listeners, auto-discovered from `./app/listener`. */
+    listenersDir: './app/listener',
+    listeners: config.listeners,
+
+    /**
+     * Postgres, through Drizzle.
+     *
+     * With `DATABASE_URL` unset the kernel skips the connection and the app
+     * boots anyway — only the routes that read the database fail. That is
+     * deliberate: a fresh scaffold should run before you have provisioned
+     * anything.
+     */
+    database: config.database,
+
+    /** Response and query caching. See config/cache.ts. */
+    cache: config.cache,
+
+    /** `deno task compile` reads this. See config/compile.ts. */
+    compile: config.compile,
+})
+export class AppKernel {
+    /**
+     * Global middleware stack — every request, in array order.
+     *
+     * CORS first: a rejected pre-flight must not reach the authenticator, and
+     * a browser reading an error needs the header on the error too.
+     *
+     * `CORS_ORIGIN` defaults to `*` so the scaffold works from any front end
+     * on day one. **Narrow it before you ship** — `*` with credentials is
+     * refused by every browser, and without credentials it still means any
+     * page on the internet can read your responses.
+     */
+    @DeclareGlobalMiddleware()
+    globalMiddlewares: unknown[] = [
+        cors({
+            // A STRING when it is '*', an array otherwise. Hono treats the
+            // string '*' as "any origin"; inside an array it is matched
+            // literally, so `['*']` allows exactly the origin named `*` — which
+            // is nothing, silently, with no header on the response and no error
+            // anywhere to say so.
+            origin: corsOrigin(),
+            allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+            allowHeaders: ['Authorization', 'Content-Type'],
+            maxAge: 86_400,
+        }),
+        initializeAuthMiddleware(authConfig),
+    ]
+}

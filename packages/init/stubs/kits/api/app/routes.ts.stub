@@ -1,0 +1,16 @@
+/**
+ * Controllers Registry
+ *
+ * The explicit list used in production and by `deno task compile`. In
+ * development the kernel discovers `app/controller/` instead.
+ *
+ * Regenerate it with `deno task routes:generate`.
+ */
+
+import { HealthController } from '@controller/health_controller.ts'
+import { TokenController } from '@controller/token_controller.ts'
+
+export const controllers = [
+    HealthController,
+    TokenController,
+]

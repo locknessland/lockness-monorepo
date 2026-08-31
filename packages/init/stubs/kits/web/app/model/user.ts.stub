@@ -1,0 +1,21 @@
+import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+
+/**
+ * The users table.
+ *
+ * `password` holds a **hash**, never a password. Write it with
+ * `hashPassword()` from `@lockness/auth`.
+ */
+export const users = pgTable('users', {
+    id: serial('id').primaryKey(),
+    email: text('email').notNull().unique(),
+    password: text('password').notNull(),
+    name: text('name'),
+    createdAt: timestamp('created_at').defaultNow(),
+    updatedAt: timestamp('updated_at').defaultNow(),
+})
+
+/** A row as it comes back from a select. */
+export type User = typeof users.$inferSelect
+/** A row as it goes into an insert. */
+export type NewUser = typeof users.$inferInsert

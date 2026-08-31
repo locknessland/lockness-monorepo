@@ -1,49 +1,32 @@
 import { parseArgs } from '@std/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import { type Cli, Stub } from '@lockness/cli'
+import { DEFAULT_KIT, type KitName, KITS, resolveKit } from './kits.ts'
 
-// Explicit file list for JSR (when running from https://)
-export const INIT_STUB_FILES = [
-    '.dockerignore.stub',
-    '.env.exemple.stub',
-    '.gitignore.stub',
-    'cli.ts.stub',
-    'deno.json.stub',
-    'Dockerfile.stub',
-    'main.ts.stub',
-    'postcss.config.js.stub',
-    'public/img/lockness-logo.svg',
-    'README.md.stub',
-    'scripts/dev.sh.stub',
-    'scripts/generate_routes.ts.stub',
-    'scripts/watch_routes.ts.stub',
-    'config/mod.ts.stub',
-    'config/app.ts.stub',
-    'config/cache.ts.stub',
-    'config/compile.ts.stub',
-    'config/database.ts.stub',
-    'config/routing.ts.stub',
-    'config/session.ts.stub',
-    'config/listeners.ts.stub',
-    'app/controller/app_controller.tsx.stub',
-    'app/kernel.ts.stub',
-    'app/routes.ts.stub',
-    'app/view/app.ts.stub',
-    'app/view/assets/app.css.stub',
-    'app/view/components/ui.tsx.stub',
-    'app/view/layouts/main_layout.tsx.stub',
-    'app/view/pages/home.tsx.stub',
+export { DEFAULT_KIT, KITS, resolveKit } from './kits.ts'
+export type { Kit, KitName } from './kits.ts'
+
+/**
+ * The web kit's file list, kept as a named export for compatibility.
+ *
+ * It used to be hand-maintained beside the stub tree and passed to remote
+ * scaffolding only. {@link KITS} is the source of truth now, and this is
+ * derived from it — the two cannot drift, and a caller that imported this name
+ * still gets what it always got, because `web` is the default kit.
+ *
+ * @deprecated Read `KITS.web` (or `KITS[kit]`) instead.
+ */
+export const INIT_STUB_FILES: readonly string[] = [
+    ...KITS.web.base,
+    ...KITS.web.overlay,
 ]
 
-// Binary files that need special handling (not included in remote scaffolding)
-export const BINARY_FILES = [
-    'public/favicon.ico',
-    'public/favicon-16x16.png',
-    'public/favicon-32x32.png',
-    'public/apple-touch-icon.png',
-    'public/android-chrome-192x192.png',
-    'public/android-chrome-512x512.png',
-]
+/**
+ * Binary files, which are copied rather than templated.
+ *
+ * @deprecated Read `KITS[kit].binaries` instead.
+ */
+export const BINARY_FILES: readonly string[] = KITS.web.binaries
 
 /**
  * Parse init command arguments with version support
@@ -57,25 +40,29 @@ export const BINARY_FILES = [
 function parseInitArgs(args: string[]): {
     projectName: string
     use?: string
+    kit?: string
     help?: boolean
     version?: boolean
 } {
     const parsed = parseArgs(args, {
-        string: ['use'],
+        string: ['use', 'kit'],
         boolean: ['help', 'version'],
         alias: {
             'u': 'use',
+            'k': 'kit',
             'h': 'help',
             'v': 'version',
         },
         default: {
             'use': undefined,
+            'kit': undefined,
         },
     })
 
     return {
         projectName: String(parsed._[0] || 'lockness-app'),
         use: parsed['use'] as string | undefined,
+        kit: parsed['kit'] as string | undefined,
         help: parsed.help as boolean | undefined,
         version: parsed.version as boolean | undefined,
     }
@@ -168,9 +155,19 @@ Usage:
   deno run -A jsr:@lockness/init <project-name> [options]
 
 Options:
+  --kit, -k <name>       Starter kit: ${
+        Object.keys(KITS).join(' | ')
+    } (default: ${DEFAULT_KIT})
   --use, -u <version>    Specify framework version (default: latest)
   --help, -h             Show this help message
   --version, -v          Show init package version
+
+Kits:
+${
+        Object.entries(KITS).map(([name, kit]) =>
+            `  ${name.padEnd(21)}${kit.summary}`
+        ).join('\n')
+    }
 
 Version Formats:
   0.1.15         Exact version (will use ^0.1.15)
@@ -179,8 +176,14 @@ Version Formats:
   latest         Latest stable version
 
 Examples:
-  # Latest version (default)
+  # Latest version, web kit (both are the default)
   deno run -A jsr:@lockness/init my-app
+
+  # A JSON API, no view layer
+  deno run -A jsr:@lockness/init my-api --kit api
+
+  # The smallest possible starting point
+  deno run -A jsr:@lockness/init my-app --kit slim
 
   # Specific version
   deno run -A jsr:@lockness/init my-app --use 0.1.15
@@ -193,9 +196,44 @@ Examples:
 `)
 }
 
+/**
+ * Where a kit's two stub trees live, local checkout or JSR alike.
+ *
+ * @param kit - The kit being scaffolded.
+ * @returns The base directory, the kit's overlay directory, and whether they
+ * are remote — which decides how binaries are handled.
+ */
+function stubRoots(
+    kit: KitName,
+): { base: string; overlay: string; isRemote: boolean } {
+    if (import.meta.url.startsWith('file://')) {
+        const here = dirname(fromFileUrl(import.meta.url))
+        return {
+            base: join(here, 'stubs', 'init'),
+            overlay: join(here, 'stubs', 'kits', kit),
+            isRemote: false,
+        }
+    }
+    return {
+        base: new URL('./stubs/init', import.meta.url).href,
+        overlay: new URL(`./stubs/kits/${kit}`, import.meta.url).href,
+        isRemote: true,
+    }
+}
+
 export function registerInitCommand(cli: Cli) {
     cli.register('init', async (args: string[]) => {
-        const { projectName, use } = parseInitArgs(args)
+        const { projectName, use, kit: rawKit } = parseInitArgs(args)
+
+        // Resolve the kit BEFORE anything is written. A typo'd --kit must not
+        // leave half a project on disk.
+        let kit: KitName
+        try {
+            kit = resolveKit(rawKit)
+        } catch (error) {
+            console.error(`❌ ${(error as Error).message}`)
+            Deno.exit(1)
+        }
 
         // Resolve version (validate and normalize)
         let resolvedVersion: string
@@ -206,37 +244,41 @@ export function registerInitCommand(cli: Cli) {
             Deno.exit(1)
         }
 
-        // Handle both local file:// and remote https:// URLs
-        let stubsDir: string
-        const isRemote = !import.meta.url.startsWith('file://')
-
-        if (import.meta.url.startsWith('file://')) {
-            const currentFile = fromFileUrl(import.meta.url)
-            stubsDir = join(dirname(currentFile), 'stubs', 'init')
-        } else {
-            // When running from JSR, use URL
-            stubsDir = new URL('./stubs/init', import.meta.url).href
+        const { base, overlay, isRemote } = stubRoots(kit)
+        const definition = KITS[kit]
+        const data = {
+            projectName: String(projectName),
+            locknessVersion: resolvedVersion,
         }
 
         console.log(`🌊 Scaffolding Lockness project: ${projectName}`)
+        console.log(`🎒 Kit: ${kit} — ${definition.summary}`)
         console.log(`📦 Framework version: ${resolvedVersion}`)
 
         try {
+            // Base first, overlay second. The overlay is allowed to replace a
+            // base file, and does for deno.json, the kernel and the README —
+            // so the order here is the mechanism, not an incidental.
             await Stub.scaffoldFrom(
-                stubsDir,
+                base,
                 String(projectName),
-                {
-                    projectName: String(projectName),
-                    locknessVersion: resolvedVersion,
-                },
-                isRemote ? INIT_STUB_FILES : undefined,
+                data,
+                definition.base,
+            )
+            await Stub.scaffoldFrom(
+                overlay,
+                String(projectName),
+                data,
+                definition.overlay,
             )
 
-            // Copy binary files (only in local mode, as they can't be read as text)
+            // Binaries are copied, never templated. Remotely there is nothing
+            // to copy from — `fetch` would give us text — so they are skipped,
+            // exactly as before kits existed.
             if (!isRemote) {
-                for (const file of BINARY_FILES) {
+                for (const file of definition.binaries) {
                     try {
-                        const sourcePath = join(stubsDir, file)
+                        const sourcePath = join(base, file)
                         const targetPath = join(projectName, file)
                         await Deno.mkdir(dirname(targetPath), {
                             recursive: true,
@@ -252,13 +294,9 @@ export function registerInitCommand(cli: Cli) {
                 }
             }
 
-            // Create empty directories that might not be in stubs
-            const dirs = [
-                'public',
-                'public/css',
-            ]
-
-            for (const dir of dirs) {
+            // Directories the app writes into at runtime, which therefore have
+            // no stub to create them.
+            for (const dir of definition.directories) {
                 await Deno.mkdir(`${projectName}/${dir}`, { recursive: true })
             }
 
@@ -285,16 +323,21 @@ export function registerInitCommand(cli: Cli) {
             console.log('\n✅ Done! To get started:')
             console.log(`  cd ${projectName}`)
             console.log('  deno task dev')
+            console.log(`\n${definition.omits}`)
         } catch (error) {
             console.error(
                 `❌ Initialization failed: ${(error as Error).message}`,
             )
+            // Non-zero, or a failed scaffold looks like a successful one to
+            // everything downstream: a CI step, a `&&` chain, and the person
+            // who now has half a project and a green terminal.
+            Deno.exit(1)
         }
     }, 'Initialize a new Lockness project')
 }
 
 if (import.meta.main) {
-    const { projectName, use, help, version } = parseInitArgs(Deno.args)
+    const { projectName, use, kit, help, version } = parseInitArgs(Deno.args)
 
     // Handle --help flag
     if (help) {
@@ -341,6 +384,9 @@ if (import.meta.main) {
             const args = [projectName]
             if (use) {
                 args.push('--use', use)
+            }
+            if (kit) {
+                args.push('--kit', kit)
             }
             return handler(args)
         },

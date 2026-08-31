@@ -1,0 +1,15 @@
+-- {{ projectName }} — initial schema.
+--
+-- Apply with `deno task db:migrate` once DATABASE_URL is set.
+
+CREATE TABLE IF NOT EXISTS "users" (
+    "id"         serial PRIMARY KEY,
+    "email"      text NOT NULL UNIQUE,
+    "password"   text NOT NULL,
+    "name"       text,
+    "created_at" timestamp DEFAULT now(),
+    "updated_at" timestamp DEFAULT now()
+);
+
+-- Every login looks a user up by email, and the UNIQUE constraint above
+-- already indexes it. No second index is needed here.

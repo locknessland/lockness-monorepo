@@ -1,0 +1,138 @@
+# {{ projectName }}
+
+Built with the **api** starter kit — a JSON API with bearer-token
+authentication, CORS, rate limiting, OpenAPI annotations and Drizzle. No view
+layer.
+
+## Run it
+
+```bash
+deno task dev      # http://localhost:8888
+deno task test     # the smoke tests — no database needed
+```
+
+`GET /` answers immediately. Everything else needs a database.
+
+## Add the database
+
+The scaffold boots without one on purpose: `DATABASE_URL` is commented out in
+`.env`, so the kernel skips the connection instead of printing a failure on
+every reload. When you are ready:
+
+```bash
+# .env
+DATABASE_URL=postgres://user:pass@localhost:5432/{{ projectName }}
+```
+
+```bash
+deno task db:migrate
+```
+
+Then create a user. The `password` column holds a **hash** — never a password:
+
+```ts
+import { hashPassword } from '@lockness/auth'
+await db.insert(users).values({
+    email: 'you@example.com',
+    password: await hashPassword('correct horse battery staple'),
+})
+```
+
+## Get a token, use a token
+
+```bash
+curl -X POST localhost:8888/auth/token \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"correct horse battery staple"}'
+# → { "token": "...", "type": "Bearer" }
+
+curl localhost:8888/auth/me -H 'Authorization: Bearer <token>'
+# → { "user": { "id": 1, "email": "you@example.com", "name": null } }
+```
+
+The plaintext token is returned **once**. Only its hash is stored, so a dump of
+`access_tokens` is not a set of working credentials — and a lost token is
+reissued, not recovered.
+
+## What is here
+
+```text
+app/
+├── auth/
+│   ├── guards.ts         # the 'api' TokenGuard
+│   └── user_provider.ts  # the two lookups the provider needs
+├── controller/
+│   ├── health_controller.ts  # GET /
+│   └── token_controller.ts   # POST /auth/token, GET /auth/me
+├── model/user.ts         # users + access_tokens
+├── kernel.ts             # CORS, auth, database, cache
+└── routes.ts             # explicit registry, for production
+config/                   # app, cache, compile, database, listeners
+database/migrations/      # 0000_create_users.sql
+tests/smoke.test.ts
+```
+
+## Rate limiting
+
+Routes carry a budget through decorators from `@lockness/core`:
+
+| Decorator             | Budget          | Use for                     |
+| :-------------------- | :-------------- | :-------------------------- |
+| `@ThrottleApi()`      | 100 / minute    | ordinary endpoints          |
+| `@ThrottleLogin()`    | strict          | credential exchange         |
+| `@ThrottleSensitive()`| strict          | password reset, 2FA         |
+| `@ThrottleHeavy()`    | 10 / minute     | reports, exports, uploads   |
+| `@Throttle(n, '1m')`  | whatever you say| anything else               |
+
+`POST /auth/token` uses `@ThrottleLogin()` rather than the API budget, because
+that is the endpoint someone brute-forces.
+
+## CORS
+
+`CORS_ORIGIN` in `.env`, comma-separated, `*` by default so the scaffold works
+from any front end on day one. **Narrow it before you ship.** With credentials
+a browser refuses `*` outright; without them it still means any page on the
+internet can read your responses.
+
+## OpenAPI
+
+Routes are annotated with `@ApiDoc` from `@lockness/openapi`. To serve the
+document and a Swagger UI, add a controller:
+
+```ts
+import { generateOpenAPISpec, serveSwaggerUI } from '@lockness/openapi'
+
+@Controller('/docs')
+export class DocsController {
+    @Get('/openapi.json')
+    spec(c: Context) {
+        return c.json(generateOpenAPISpec(controllers, { title: '{{ projectName }}' }))
+    }
+}
+```
+
+## What is deliberately missing
+
+No JSX, no Tailwind, no session. A JSON API that authenticates with a cookie is
+a CSRF surface nobody asked for; a bearer token is the whole of the request
+state here.
+
+Want views? Scaffold the web kit instead:
+
+```bash
+deno run -A jsr:@lockness/init my-app --kit=web
+```
+
+## Commands
+
+```bash
+deno task cli make:controller Product
+deno task cli make:model Product -a
+deno task cli router:list
+deno task cli db:migrate
+deno task routes:generate
+```
+
+## Documentation
+
+<https://lockness.land/docs>

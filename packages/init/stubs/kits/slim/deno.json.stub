@@ -1,0 +1,37 @@
+{
+    "workspace": [],
+    "nodeModulesDir": "auto",
+    "tasks": {
+        "dev": "deno run -A --watch --env main.ts",
+        "start": "deno run -A --env-file=.env.production.local main.ts",
+        "cli": "deno run -A --env cli.ts",
+        "routes:generate": "deno run -A scripts/generate_routes.ts",
+        "routes:watch": "deno run -A scripts/watch_routes.ts",
+        "test": "deno test -A"
+    },
+    "imports": {
+        "@/": "./",
+        "@controller/": "./app/controller/",
+        "@service/": "./app/service/",
+        "@middleware/": "./app/middleware/",
+        "@kernel": "./app/kernel.ts",
+        "@std/assert": "jsr:@std/assert@1",
+        "@std/cli": "jsr:@std/cli@1",
+        "@std/fs": "jsr:@std/fs@1",
+        "@std/path": "jsr:@std/path@1",
+        "@lockness/core": "jsr:@lockness/core@{{ locknessVersion }}",
+        "@lockness/cli": "jsr:@lockness/cli@{{ locknessVersion }}"
+    },
+    "fmt": {
+        "indentWidth": 4,
+        "useTabs": false,
+        "singleQuote": true,
+        "proseWrap": "always",
+        "lineWidth": 80,
+        "semiColons": false
+    },
+    "compilerOptions": {
+        "jsx": "precompile",
+        "jsxImportSource": "@lockness/core"
+    }
+}

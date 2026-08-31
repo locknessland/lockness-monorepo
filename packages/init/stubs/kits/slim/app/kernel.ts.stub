@@ -1,0 +1,66 @@
+/**
+ * @fileoverview Application Kernel — the slim kit.
+ *
+ * The whole configuration of {{ projectName }}: a static directory, where the
+ * controllers live, and an empty global middleware stack. Everything else the
+ * framework offers is opt-in, and this file is where you opt in.
+ *
+ * @module app/kernel
+ */
+
+import { DeclareGlobalMiddleware, Kernel } from '@lockness/core'
+import { controllers } from './routes.ts'
+import { config } from '../config/mod.ts'
+
+/**
+ * Application Kernel.
+ *
+ * @example Add a package
+ * ```typescript
+ * // 1. deno add jsr:@lockness/session
+ * // 2. create config/session.ts and export it from config/mod.ts
+ * // 3. name it here:
+ * @Kernel({ session: config.session })
+ * ```
+ */
+@Kernel({
+    /** Served as-is from `/`. */
+    staticDir: 'public',
+
+    /**
+     * Controllers. Auto-discovered from the directory in development, and
+     * taken from the explicit list when compiled — `deno task routes:generate`
+     * keeps that list in step.
+     */
+    controllersDir: './app/controller',
+    controllers: controllers,
+
+    /** Named middlewares, discovered by their `@Middleware('name')`. */
+    middlewaresDir: './app/middleware',
+
+    /** Event listeners, auto-discovered from `./app/listener`. */
+    listenersDir: './app/listener',
+    listeners: config.listeners,
+
+    /** `deno task compile` reads this. See config/compile.ts. */
+    compile: config.compile,
+})
+export class AppKernel {
+    /**
+     * Global middleware stack — runs on every request, in array order.
+     *
+     * Empty on purpose. `ExampleMiddleware` is registered by name instead, so
+     * it costs nothing until a route asks for it with
+     * `@UseMiddleware('example')`.
+     *
+     * @example Run it on everything instead
+     * ```typescript
+     * import { ExampleMiddleware } from '@middleware/example_middleware.ts'
+     *
+     * @DeclareGlobalMiddleware()
+     * globalMiddlewares: unknown[] = [ExampleMiddleware]
+     * ```
+     */
+    @DeclareGlobalMiddleware()
+    globalMiddlewares: unknown[] = []
+}

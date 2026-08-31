@@ -1,0 +1,119 @@
+# {{ projectName }}
+
+Built with the **web** starter kit — the full framework: JSX views rendered on
+the server, Tailwind v4, cookie sessions, session authentication and Drizzle.
+
+## Run it
+
+```bash
+deno task css:build   # once, to produce public/css/app.css
+deno task dev         # http://localhost:8888
+deno task test        # the smoke tests — no database needed
+```
+
+Two terminals during development, so the stylesheet rebuilds as you edit:
+
+```bash
+deno task css:watch   # terminal 1
+deno task dev         # terminal 2
+```
+
+## Add the database
+
+The scaffold boots without one on purpose: `DATABASE_URL` is commented out in
+`.env`, so the kernel skips the connection instead of printing a failure on
+every reload. When you are ready:
+
+```bash
+# .env
+DATABASE_URL=postgres://user:pass@localhost:5432/{{ projectName }}
+```
+
+```bash
+deno task db:migrate
+```
+
+Then create a user. The `password` column holds a **hash** — never a password:
+
+```ts
+import { hashPassword } from '@lockness/auth'
+await db.insert(users).values({
+    email: 'you@example.com',
+    password: await hashPassword('correct horse battery staple'),
+})
+```
+
+Sign in at `/auth/login`; `/auth/profile` is the page that requires it.
+
+## What is here
+
+```text
+app/
+├── auth/
+│   ├── guards.ts         # the 'web' SessionGuard
+│   └── user_provider.ts  # the two lookups the provider needs
+├── controller/
+│   ├── app_controller.tsx   # GET /
+│   └── auth_controller.tsx  # login, logout, profile
+├── model/user.ts
+├── view/
+│   ├── app.ts            # the renderer
+│   ├── assets/app.css    # Tailwind entry point
+│   ├── components/ui.tsx
+│   ├── layouts/main_layout.tsx
+│   └── pages/{home,login}.tsx
+├── kernel.ts             # session, auth, database, cache
+└── routes.ts             # explicit registry, for production
+config/                   # app, cache, compile, database, routing, session, listeners
+database/migrations/      # 0000_create_users.sql
+public/                   # static files, compiled CSS, favicons
+tests/smoke.test.ts
+```
+
+## The two things worth knowing
+
+**Middleware order is load-bearing.** In `app/kernel.ts` the session comes
+before the authenticator. Swap them and every request is anonymous, with
+nothing to say why.
+
+**The guard is called `web` for a reason.** `@AuthRequired()` with no argument
+looks for a guard literally named `web` — it does not read `authConfig.default`.
+Rename it and every bare `@AuthRequired()` stops working; pass the name
+explicitly (`@AuthRequired('admin')`) when you add others.
+
+## Tailwind v4
+
+CSS variables use **parentheses**, arbitrary literals use brackets:
+
+```html
+<div class="bg-(--primary) px-[0.75rem]">
+```
+
+`bg-[--primary]` is the v3 spelling and silently does nothing in v4.
+
+## What is deliberately missing
+
+Email, queues, storage and the scheduler are not wired in. Each is one package
+and three steps — install it, add a `config/` module, name it in `@Kernel`.
+
+Want less? Two lighter kits:
+
+```bash
+deno run -A jsr:@lockness/init my-api --kit=api   # JSON API, tokens, OpenAPI
+deno run -A jsr:@lockness/init my-app --kit=slim  # one controller, nothing else
+```
+
+## Commands
+
+```bash
+deno task cli make:controller Product
+deno task cli make:model Product -a
+deno task cli make:middleware Admin
+deno task cli router:list
+deno task cli db:migrate
+deno task routes:generate
+```
+
+## Documentation
+
+<https://lockness.land/docs>

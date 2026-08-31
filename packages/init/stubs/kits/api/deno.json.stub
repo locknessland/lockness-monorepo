@@ -1,0 +1,48 @@
+{
+    "workspace": [],
+    "nodeModulesDir": "auto",
+    "tasks": {
+        "dev": "deno run -A --watch --env main.ts",
+        "start": "deno run -A --env-file=.env.production.local main.ts",
+        "cli": "deno run -A --env cli.ts",
+        "routes:generate": "deno run -A scripts/generate_routes.ts",
+        "routes:watch": "deno run -A scripts/watch_routes.ts",
+        "db:migrate": "deno run -A --env cli.ts db:migrate",
+        "test": "deno test -A"
+    },
+    "imports": {
+        "@/": "./",
+        "@controller/": "./app/controller/",
+        "@service/": "./app/service/",
+        "@middleware/": "./app/middleware/",
+        "@model/": "./app/model/",
+        "@repository/": "./app/repository/",
+        "@kernel": "./app/kernel.ts",
+        "@std/assert": "jsr:@std/assert@1",
+        "@std/cli": "jsr:@std/cli@1",
+        "@std/fs": "jsr:@std/fs@1",
+        "@std/path": "jsr:@std/path@1",
+        "@lockness/core": "jsr:@lockness/core@{{ locknessVersion }}",
+        "@lockness/cli": "jsr:@lockness/cli@{{ locknessVersion }}",
+        "@lockness/auth": "jsr:@lockness/auth@{{ locknessVersion }}",
+        "@lockness/auth-provider": "jsr:@lockness/auth-provider@{{ locknessVersion }}",
+        "@lockness/auth-provider/drizzle": "jsr:@lockness/auth-provider@{{ locknessVersion }}/drizzle",
+        "@lockness/container": "jsr:@lockness/container@{{ locknessVersion }}",
+        "@lockness/drizzle": "jsr:@lockness/drizzle@{{ locknessVersion }}",
+        "@lockness/openapi": "jsr:@lockness/openapi@{{ locknessVersion }}",
+        "drizzle-orm": "npm:drizzle-orm@^0.36.3",
+        "postgres": "npm:postgres@^3.4.4"
+    },
+    "fmt": {
+        "indentWidth": 4,
+        "useTabs": false,
+        "singleQuote": true,
+        "proseWrap": "always",
+        "lineWidth": 80,
+        "semiColons": false
+    },
+    "compilerOptions": {
+        "jsx": "precompile",
+        "jsxImportSource": "@lockness/core"
+    }
+}

@@ -1,0 +1,67 @@
+import { Layout } from '../layouts/main_layout.tsx'
+
+/** What the login page needs to render. */
+export interface LoginProps {
+    /** Shown above the form when a previous attempt failed. */
+    error?: string
+    /** Kept so a failed attempt does not clear the field. */
+    email?: string
+}
+
+/**
+ * The login form.
+ *
+ * One message for every failure — "Invalid email or password" — whether the
+ * account exists or not. Two messages is an account-enumeration oracle: it
+ * tells anyone with a list of addresses which ones are registered here.
+ */
+export const Login = ({ error, email }: LoginProps) => {
+    return (
+        <Layout title="Sign in">
+            <main class="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 p-6">
+                <h1 class="text-2xl font-semibold">Sign in</h1>
+
+                {error && (
+                    <p
+                        role="alert"
+                        class="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800"
+                    >
+                        {error}
+                    </p>
+                )}
+
+                <form method="post" action="/auth/login" class="flex flex-col gap-4">
+                    <label class="flex flex-col gap-1">
+                        <span class="text-sm font-medium">Email</span>
+                        <input
+                            type="email"
+                            name="email"
+                            value={email ?? ''}
+                            required
+                            autocomplete="username"
+                            class="rounded-md border px-3 py-2"
+                        />
+                    </label>
+
+                    <label class="flex flex-col gap-1">
+                        <span class="text-sm font-medium">Password</span>
+                        <input
+                            type="password"
+                            name="password"
+                            required
+                            autocomplete="current-password"
+                            class="rounded-md border px-3 py-2"
+                        />
+                    </label>
+
+                    <button
+                        type="submit"
+                        class="rounded-md bg-black px-4 py-2 font-medium text-white"
+                    >
+                        Sign in
+                    </button>
+                </form>
+            </main>
+        </Layout>
+    )
+}

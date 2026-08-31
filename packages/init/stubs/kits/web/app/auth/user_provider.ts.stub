@@ -1,0 +1,68 @@
+/**
+ * @fileoverview How the session guard finds a user.
+ *
+ * `DrizzleSessionProvider` from `@lockness/auth-provider` does the session
+ * work. It does not know your schema, so the two lookups it needs are supplied
+ * here. That is the whole of the wiring.
+ *
+ * @module app/auth/user_provider
+ */
+
+import { eq } from 'drizzle-orm'
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+// The Drizzle adapter is a SUBPATH export: the package root carries only the
+// ORM-agnostic bases, so that a Kysely project never loads Drizzle.
+import { DrizzleSessionProvider } from '@lockness/auth-provider/drizzle'
+import { verifyPassword } from '@lockness/auth'
+import { users } from '@model/user.ts'
+
+/** The user shape handed to a controller and a view. */
+export interface WebUser extends Record<string, unknown> {
+    id: number
+    email: string
+    name: string | null
+}
+
+type Db = PostgresJsDatabase<Record<string, unknown>>
+
+/**
+ * Build the provider the `web` guard authenticates against.
+ *
+ * @param db - The Drizzle instance from the container.
+ * @returns A provider bound to this application's `users` table.
+ */
+export function createUserProvider(db: Db): DrizzleSessionProvider<WebUser> {
+    return new DrizzleSessionProvider<WebUser>({
+        db,
+
+        findUserById: async (database: Db, id: string | number) => {
+            const rows = await database.select().from(users)
+                .where(eq(users.id, Number(id))).limit(1)
+            return rows.length > 0 ? toWebUser(rows[0]) : null
+        },
+
+        findUserByCredentials: async (
+            database: Db,
+            email: string,
+            password: string,
+        ) => {
+            const rows = await database.select().from(users)
+                .where(eq(users.email, email)).limit(1)
+            if (rows.length === 0) return null
+
+            // Compared with a constant-time hash check, never with `===`.
+            const ok = await verifyPassword(password, rows[0].password)
+            return ok ? toWebUser(rows[0]) : null
+        },
+    })
+}
+
+/**
+ * Narrow a row to what a caller may see.
+ *
+ * The password hash never leaves this module — a provider that returns the
+ * whole row hands it to every handler, and from there into a rendered page.
+ */
+function toWebUser(row: typeof users.$inferSelect): WebUser {
+    return { id: row.id, email: row.email, name: row.name }
+}

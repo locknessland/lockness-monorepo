@@ -1,0 +1,59 @@
+/**
+ * Smoke test — the app boots, answers, and refuses.
+ *
+ * `app.fetch` is the whole application as a function: routing, the container,
+ * CORS and the authenticator, without opening a port or a database
+ * connection. Nothing here needs Postgres, on purpose — a smoke test that
+ * needs infrastructure stops being run.
+ */
+
+import { assertEquals } from '@std/assert'
+import app from '../main.ts'
+
+Deno.test('GET / reports health without a token or a database', async () => {
+    const response = await app.fetch(new Request('http://localhost/'))
+
+    assertEquals(response.status, 200)
+    assertEquals((await response.json()).status, 'ok')
+})
+
+Deno.test('CORS headers are on the response', async () => {
+    const response = await app.fetch(
+        new Request('http://localhost/', {
+            headers: { Origin: 'https://example.com' },
+        }),
+    )
+
+    assertEquals(response.status, 200)
+    assertEquals(
+        response.headers.get('access-control-allow-origin') !== null,
+        true,
+        'the global CORS middleware ran',
+    )
+})
+
+Deno.test('GET /auth/me without a token is 401, not 500', async () => {
+    const response = await app.fetch(new Request('http://localhost/auth/me'))
+
+    // The guard rejects before anything touches the database, which is why
+    // this passes on a machine with no Postgres.
+    assertEquals(response.status, 401)
+})
+
+Deno.test('POST /auth/token rejects a malformed body with 422', async () => {
+    const response = await app.fetch(
+        new Request('http://localhost/auth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: 'not-a-password-pair' }),
+        }),
+    )
+
+    assertEquals(response.status, 422)
+})
+
+Deno.test('an unknown route is a 404, not a crash', async () => {
+    const response = await app.fetch(new Request('http://localhost/nope'))
+
+    assertEquals(response.status, 404)
+})

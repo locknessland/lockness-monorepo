@@ -1,0 +1,42 @@
+/**
+ * @fileoverview Authentication guards for {{ projectName }}.
+ *
+ * One guard, `web`, proving identity with the session cookie. `web` is also
+ * what `@AuthRequired()` looks for when you give it no argument, so this name
+ * is not arbitrary — rename it and every bare `@AuthRequired()` stops working.
+ *
+ * @module app/auth/guards
+ */
+
+import { container } from '@lockness/container'
+import { type AuthConfig, SessionGuard } from '@lockness/auth'
+import { Database } from '@lockness/drizzle'
+import type { Context } from '@lockness/core'
+import { createUserProvider } from './user_provider.ts'
+
+/**
+ * Build the session guard for one request.
+ *
+ * @param ctx - The request context.
+ * @returns A guard backed by the session cookie.
+ */
+export function createWebGuard(ctx: Context) {
+    const db = container.get<Database>(Database)
+    return new SessionGuard('web', ctx, createUserProvider(db.db))
+}
+
+/**
+ * The application's guards.
+ *
+ * @example Add a token guard for a JSON surface
+ * ```ts
+ * guards: { web: createWebGuard, api: createApiGuard }
+ * // then: @AuthRequired('api')
+ * ```
+ */
+export const authConfig: AuthConfig = {
+    default: 'web',
+    guards: {
+        web: createWebGuard,
+    },
+}

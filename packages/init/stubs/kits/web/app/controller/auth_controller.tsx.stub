@@ -1,0 +1,83 @@
+import { type Context, Controller, Get, Post, ThrottleLogin } from '@lockness/core'
+import { AuthOptional, AuthRequired } from '@lockness/auth'
+import { Login } from '@view/pages/login.tsx'
+
+/**
+ * Sign in, sign out, and one page that requires being signed in.
+ *
+ * Requires a database. Set `DATABASE_URL`, run `deno task db:migrate`, and
+ * insert a user whose `password` column holds a hash from `hashPassword()`.
+ */
+@Controller('/auth')
+export class AuthController {
+    /** The form. Already-authenticated visitors go straight through. */
+    @Get('/login', { name: 'auth.login' })
+    @AuthOptional()
+    showLogin(c: Context) {
+        // `c.get('auth')` is the fluent AuthContext the decorator
+        // installed — login / logout / user. `getAuth(c)` returns the
+        // lower-level Authenticator, which has none of those verbs.
+        if (c.get('auth')?.user) return c.redirect('/auth/profile')
+        return c.html(<Login />)
+    }
+
+    /**
+     * Verify the credentials and start a session.
+     *
+     * `@ThrottleLogin()` rather than the API budget: this is the endpoint
+     * someone brute-forces, and it deserves the stricter one.
+     */
+    @Post('/login', { name: 'auth.login.submit' })
+    @ThrottleLogin()
+    @AuthOptional()
+    async login(c: Context) {
+        const body = await c.req.parseBody()
+        const email = String(body.email ?? '')
+        const password = String(body.password ?? '')
+
+        try {
+            await c.get('auth').login(email, password)
+        } catch {
+            // One message, whether the account exists or the password is
+            // wrong. Two messages tells an attacker which addresses are
+            // registered here.
+            return c.html(
+                <Login error="Invalid email or password." email={email} />,
+                401,
+            )
+        }
+
+        return c.redirect('/auth/profile')
+    }
+
+    /** The sample authenticated page. */
+    @Get('/profile', { name: 'auth.profile' })
+    @AuthRequired({ redirectTo: '/auth/login' })
+    profile(c: Context) {
+        const user = c.get('auth')?.user
+        return c.html(
+            <main class="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 p-6">
+                <h1 class="text-2xl font-semibold">Signed in</h1>
+                <p class="text-sm">{String(user?.email ?? '')}</p>
+                <form method="post" action="/auth/logout">
+                    <button type="submit" class="rounded-md border px-4 py-2">
+                        Sign out
+                    </button>
+                </form>
+            </main>,
+        )
+    }
+
+    /**
+     * End the session.
+     *
+     * POST, not GET. A logout on GET is triggered by any image tag pointing at
+     * it, which is a nuisance at best and a CSRF vector at worst.
+     */
+    @Post('/logout', { name: 'auth.logout' })
+    @AuthOptional()
+    async logout(c: Context) {
+        await c.get('auth').logout()
+        return c.redirect('/auth/login')
+    }
+}

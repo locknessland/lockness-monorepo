@@ -1,0 +1,47 @@
+/**
+ * Smoke test — the app boots, renders, and refuses.
+ *
+ * `app.fetch` is the whole application as a function: routing, the container,
+ * the session, the authenticator and the JSX renderer, without opening a port
+ * or a database connection. Nothing here needs Postgres, on purpose — a smoke
+ * test that needs infrastructure stops being run.
+ */
+
+import { assertEquals, assertStringIncludes } from '@std/assert'
+import app from '../main.ts'
+
+Deno.test('GET / renders the home page', async () => {
+    const response = await app.fetch(new Request('http://localhost/'))
+
+    assertEquals(response.status, 200)
+    assertStringIncludes(response.headers.get('content-type') ?? '', 'text/html')
+    assertStringIncludes(await response.text(), '<!DOCTYPE html>')
+})
+
+Deno.test('GET /auth/login renders the form', async () => {
+    const response = await app.fetch(
+        new Request('http://localhost/auth/login'),
+    )
+
+    assertEquals(response.status, 200)
+    const html = await response.text()
+    assertStringIncludes(html, 'name="email"')
+    assertStringIncludes(html, 'name="password"')
+})
+
+Deno.test('GET /auth/profile without a session redirects to the form', async () => {
+    const response = await app.fetch(
+        new Request('http://localhost/auth/profile', { redirect: 'manual' }),
+    )
+
+    // The guard refuses before anything touches the database, which is why
+    // this passes on a machine with no Postgres.
+    assertEquals(response.status, 302)
+    assertEquals(response.headers.get('location'), '/auth/login')
+})
+
+Deno.test('an unknown route is a 404, not a crash', async () => {
+    const response = await app.fetch(new Request('http://localhost/nope'))
+
+    assertEquals(response.status, 404)
+})

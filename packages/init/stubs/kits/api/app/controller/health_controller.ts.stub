@@ -1,0 +1,27 @@
+import { type Context, Controller, Get, ThrottleApi } from '@lockness/core'
+import { ApiDoc } from '@lockness/openapi'
+
+/**
+ * Liveness, and the one route that needs neither a token nor a database.
+ *
+ * Keep it that way. A health check that queries Postgres reports the database
+ * as down when it is the connection pool that is exhausted, and a health check
+ * behind auth cannot be read by the thing that needs to read it.
+ */
+@Controller('/')
+export class HealthController {
+    @Get('/', { name: 'health' })
+    @ThrottleApi()
+    @ApiDoc({
+        summary: 'Service health',
+        description: 'Returns 200 while the process is able to serve.',
+        tags: ['system'],
+    })
+    health(c: Context) {
+        return c.json({
+            app: '{{ projectName }}',
+            status: 'ok',
+            time: new Date().toISOString(),
+        })
+    }
+}

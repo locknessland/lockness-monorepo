@@ -1,0 +1,113 @@
+# {{ projectName }}
+
+Built with the **slim** starter kit — the smallest Lockness project that does
+something. One controller, one named middleware, and nothing you did not ask
+for.
+
+## Run it
+
+```bash
+deno task dev      # http://localhost:8888, reloads on change
+deno task test     # the smoke test
+```
+
+`GET /` returns JSON. `GET /hello` returns JSON through a named middleware.
+
+## What is here
+
+```text
+app/
+├── controller/app_controller.ts    # two routes
+├── middleware/example_middleware.ts # @Middleware('example')
+├── kernel.ts                        # the whole configuration
+└── routes.ts                        # explicit registry, for production
+config/
+├── app.ts        # name, env, debug, url
+├── compile.ts    # deno task compile
+├── listeners.ts  # event listeners
+└── mod.ts        # the central export
+main.ts           # createApp(AppKernel)
+cli.ts            # deno task cli
+tests/            # the smoke test
+```
+
+Two packages: `@lockness/core` and `@lockness/cli`. That is the entire
+dependency list.
+
+## What is deliberately missing
+
+No authentication, no session, no database, no view layer, no Tailwind. This
+kit is the clean slate — you add a package when you need it rather than
+deleting six you do not.
+
+If you want those wired up already, scaffold a different kit instead:
+
+```bash
+deno run -A jsr:@lockness/init my-app --kit=web   # JSX, Tailwind, auth, Drizzle
+deno run -A jsr:@lockness/init my-app --kit=api   # JSON API, tokens, OpenAPI
+```
+
+## Adding a package
+
+Each one is the same three steps. Sessions, for example:
+
+```bash
+deno add jsr:@lockness/session
+```
+
+```ts
+// config/session.ts
+import type { SessionConfig } from '@lockness/core'
+
+export const sessionConfig: SessionConfig = {
+    driver: 'cookie',
+    secret: Deno.env.get('APP_KEY') || 'change-me-in-production',
+    lifetime: 7200,
+    secure: Deno.env.get('APP_ENV') === 'production',
+}
+```
+
+```ts
+// config/mod.ts — add it to the object
+import { sessionConfig } from './session.ts'
+export const config = { app: appConfig, session: sessionConfig, /* … */ } as const
+
+// app/kernel.ts — name it
+@Kernel({ session: config.session })
+```
+
+The same shape works for `@lockness/drizzle` (`database`), `@lockness/cache`
+(`cache`), and `@lockness/devtools` (`devtools: true`).
+
+## Views
+
+The slim kit has no renderer, no layouts and no Tailwind. Adding them takes
+nothing but a rename: JSX ships inside `@lockness/core`, and `deno.json`
+already carries the two compiler options it needs.
+
+```tsx
+// app/controller/app_controller.tsx  ← renamed from .ts
+@Get('/', { name: 'home' })
+index(c: Context) {
+    return c.render(<h1>Hello</h1>)
+}
+```
+
+> **Do not delete `compilerOptions` from `deno.json`** on the grounds that this
+> kit has no views. `@lockness/core` renders its own 404 and 500 pages in JSX,
+> and Deno applies your project's compiler options to every module it loads,
+> the framework's included. Without them `deno check` fails with 149 errors
+> inside a package you never edited.
+
+## Commands
+
+```bash
+deno task cli make:controller Product   # scaffold a controller
+deno task cli make:middleware Auth      # scaffold a middleware
+deno task cli router:list               # every registered route
+deno task routes:generate               # refresh app/routes.ts
+```
+
+## Documentation
+
+<https://lockness.land/docs>

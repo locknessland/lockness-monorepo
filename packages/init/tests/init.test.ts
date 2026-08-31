@@ -68,10 +68,21 @@ describe('init command', () => {
             expect(existsSync('test-project/public')).toBe(true)
             expect(existsSync('test-project/scripts')).toBe(true)
 
-            // Check that optional directories are not created by default
-            expect(existsSync('test-project/app/model')).toBe(false)
+            // The web kit ships session authentication, so it ships the
+            // model that authenticates against and the migration that creates
+            // the table. `app/middleware` is created empty because the kernel
+            // names it in `middlewaresDir`, and a declared directory that does
+            // not exist is a surprise waiting for the first `make:middleware`.
+            expect(existsSync('test-project/app/model/user.ts')).toBe(true)
+            expect(existsSync('test-project/app/auth/guards.ts')).toBe(true)
+            expect(existsSync('test-project/app/middleware')).toBe(true)
+            expect(
+                existsSync('test-project/database/migrations'),
+            ).toBe(true)
+
+            // Still not scaffolded: nothing in the kit refers to them, and a
+            // directory whose purpose you have to guess is worse than none.
             expect(existsSync('test-project/app/service')).toBe(false)
-            expect(existsSync('test-project/app/middleware')).toBe(false)
             expect(existsSync('test-project/app/repository')).toBe(false)
 
             // Check that static directory is not created

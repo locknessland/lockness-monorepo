@@ -1,0 +1,19 @@
+/**
+ * Database Configuration
+ *
+ * @module config/database
+ */
+
+import type { DatabaseConfig } from '@lockness/core'
+
+export const databaseConfig: DatabaseConfig = {
+    /**
+     * Read from the environment, with **no fallback**.
+     *
+     * A hardcoded `postgres://localhost/...` default means a fresh scaffold
+     * tries to connect to a database nobody started, and prints a connection
+     * failure on every boot. Undefined here means the kernel skips the
+     * connection entirely, so the app boots clean until you set DATABASE_URL.
+     */
+    url: Deno.env.get('DATABASE_URL'),
+}

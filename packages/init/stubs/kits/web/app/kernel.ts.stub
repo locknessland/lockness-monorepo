@@ -1,0 +1,73 @@
+/**
+ * @fileoverview Application Kernel — the web kit.
+ *
+ * Full-stack: JSX views, Tailwind, a cookie session, a session guard and
+ * Drizzle. Configuration lives in `config/`; this file names it.
+ *
+ * @module app/kernel
+ */
+
+import { DeclareGlobalMiddleware, Kernel } from '@lockness/core'
+import { sessionMiddleware } from '@lockness/session'
+import { initializeAuthMiddleware } from '@lockness/auth'
+import { authConfig } from './auth/guards.ts'
+import { controllers } from './routes.ts'
+import { config } from '../config/mod.ts'
+
+/**
+ * Application Kernel for {{ projectName }}.
+ *
+ * @example Start it
+ * ```typescript
+ * const app = await createApp(AppKernel)
+ * app.listen(8888)
+ * ```
+ */
+@Kernel({
+    /** Served as-is from `/` — compiled CSS, images, favicons. */
+    staticDir: 'public',
+
+    /** Controllers: discovered in development, listed for production. */
+    controllersDir: './app/controller',
+    controllers: controllers,
+
+    /** Named middlewares, discovered by their `@DeclareMiddleware('name')`. */
+    middlewaresDir: './app/middleware',
+
+    /** Event listeners, auto-discovered from `./app/listener`. */
+    listenersDir: './app/listener',
+    listeners: config.listeners,
+
+    /**
+     * Postgres, through Drizzle.
+     *
+     * With `DATABASE_URL` unset the kernel skips the connection and the app
+     * boots anyway — only the routes that read the database fail. That is
+     * deliberate: a fresh scaffold should run before you have provisioned
+     * anything.
+     */
+    database: config.database,
+
+    /** Cookie sessions. See config/session.ts. */
+    session: config.session,
+
+    /** Response and query caching. See config/cache.ts. */
+    cache: config.cache,
+
+    /** `deno task compile` reads this. See config/compile.ts. */
+    compile: config.compile,
+})
+export class AppKernel {
+    /**
+     * Global middleware stack — every request, in array order.
+     *
+     * The order is load-bearing. The session has to exist before the
+     * authenticator can read an identity out of it; swap these two and every
+     * request is anonymous, with nothing to say why.
+     */
+    @DeclareGlobalMiddleware()
+    globalMiddlewares: unknown[] = [
+        sessionMiddleware(),
+        initializeAuthMiddleware(authConfig),
+    ]
+}

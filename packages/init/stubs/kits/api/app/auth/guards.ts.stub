@@ -1,0 +1,42 @@
+/**
+ * @fileoverview Authentication guards for {{ projectName }}.
+ *
+ * One guard, `api`, proving identity with a bearer token. There is no session
+ * guard: this kit ships no cookie, and a JSON API that authenticates with a
+ * cookie is a CSRF surface nobody asked for.
+ *
+ * @module app/auth/guards
+ */
+
+import { container } from '@lockness/container'
+import { type AuthConfig, TokenGuard } from '@lockness/auth'
+import { Database } from '@lockness/drizzle'
+import type { Context } from '@lockness/core'
+import { createUserProvider } from './user_provider.ts'
+
+/**
+ * Build the token guard for one request.
+ *
+ * @param ctx - The request context.
+ * @returns A guard that reads `Authorization: Bearer <token>`.
+ */
+export function createApiGuard(ctx: Context) {
+    const db = container.get<Database>(Database)
+    return new TokenGuard('api', ctx, createUserProvider(db.db))
+}
+
+/**
+ * The application's guards.
+ *
+ * @example Add a second guard
+ * ```ts
+ * guards: { api: createApiGuard, admin: createAdminGuard }
+ * // then: @AuthRequired('admin')
+ * ```
+ */
+export const authConfig: AuthConfig = {
+    default: 'api',
+    guards: {
+        api: createApiGuard,
+    },
+}

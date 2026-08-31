@@ -1,0 +1,27 @@
+import {
+    type Context,
+    DeclareMiddleware,
+    type MiddlewareContract,
+    type Next,
+} from '@lockness/core'
+
+/**
+ * A named middleware, and the smallest useful shape of one.
+ *
+ * `@DeclareMiddleware('example')` registers it under that name — the kernel
+ * discovers this directory at boot — and a route reaches it with
+ * `@UseMiddleware('example')`. Note the pair: `@Middleware()` (no name) marks a
+ * class the container should manage, `@DeclareMiddleware('name')` is what makes
+ * it addressable from a route. Only the second is what you want here.
+ *
+ * Delete this file once you have your own; nothing refers to it but the
+ * `/hello` route.
+ */
+@DeclareMiddleware('example')
+export class ExampleMiddleware implements MiddlewareContract {
+    async handle(c: Context, next: Next) {
+        // Anything set here is readable from the handler with `c.get(...)`.
+        c.set('exampleGreeting', 'world, from a named middleware')
+        await next()
+    }
+}

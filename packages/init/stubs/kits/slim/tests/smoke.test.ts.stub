@@ -1,0 +1,36 @@
+/**
+ * Smoke test — the app boots and answers.
+ *
+ * `app.fetch` is the whole application as a function, so this exercises
+ * routing, the container and the middleware stack without opening a port.
+ * Keep it: it is the test that tells you a bad import broke the boot, and it
+ * runs in milliseconds.
+ */
+
+import { assertEquals } from '@std/assert'
+import app from '../main.ts'
+
+Deno.test('GET / answers', async () => {
+    const response = await app.fetch(new Request('http://localhost/'))
+
+    assertEquals(response.status, 200)
+    assertEquals((await response.json()).app, '{{ projectName }}')
+})
+
+Deno.test('GET /hello runs its named middleware', async () => {
+    const response = await app.fetch(new Request('http://localhost/hello'))
+
+    assertEquals(response.status, 200)
+    // Set by ExampleMiddleware — if the middleware did not run, the route
+    // falls back to 'world' and this fails.
+    assertEquals(
+        (await response.json()).hello,
+        'world, from a named middleware',
+    )
+})
+
+Deno.test('an unknown route is a 404, not a crash', async () => {
+    const response = await app.fetch(new Request('http://localhost/nope'))
+
+    assertEquals(response.status, 404)
+})

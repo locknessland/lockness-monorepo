@@ -1,0 +1,32 @@
+import { type Context, Controller, Get, UseMiddleware } from '@lockness/core'
+
+/**
+ * The one controller {{ projectName }} starts with.
+ *
+ * `.ts`, not `.tsx`: the slim kit ships no view layer, so a handler returns
+ * data. Rename the file to `.tsx` and return JSX once you add one.
+ */
+@Controller('/')
+export class AppController {
+    /** Liveness. Returns JSON so the kit needs no renderer. */
+    @Get('/', { name: 'home' })
+    index(c: Context) {
+        return c.json({
+            app: '{{ projectName }}',
+            message: 'Lockness is running.',
+        })
+    }
+
+    /**
+     * The same, behind the named middleware.
+     *
+     * This is the pair the kit exists to show: a middleware is registered by
+     * name in `app/middleware/`, and a route opts into it here. Nothing runs on
+     * requests that did not ask for it.
+     */
+    @Get('/hello', { name: 'hello' })
+    @UseMiddleware('example')
+    hello(c: Context) {
+        return c.json({ hello: c.get('exampleGreeting') ?? 'world' })
+    }
+}
