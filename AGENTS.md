@@ -1,5 +1,10 @@
 # Lockness - Fullstack MVC Framework for Deno
 
+> **One file, two names.** `.claude/CLAUDE.md` is a symlink to this file
+> (`AGENTS.md`). Edit either path and you edit the same bytes — so never apply
+> the same change "to both", or the second pass re-matches an anchor the first
+> already replaced and duplicates the block.
+
 Lockness JS is a fullstack Web framework with a focus on ergonomics and speed.
 It provides a clean and stable API to build Web apps and microservices.
 
