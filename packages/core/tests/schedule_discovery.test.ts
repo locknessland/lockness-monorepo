@@ -7,10 +7,16 @@
  * instantiation in a bare `catch { continue }`.
  */
 
-import { assertEquals, assertRejects, assertThrows } from '@std/assert'
+import {
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+    assertThrows,
+} from '@std/assert'
 import { Schedule, Scheduler } from '@lockness/scheduler'
 import {
     discoverSchedules,
+    isInsideRoot,
     registerSchedules,
 } from '../scheduler/schedule_discovery.ts'
 
@@ -304,9 +310,83 @@ export class BService {
         await assertRejects(
             () => discoverSchedules(dir, s),
             Error,
-            'already registered',
+            'both resolve to the name "collide"',
         )
     })
+})
+
+Deno.test('discoverSchedules - the duplicate-name error names BOTH files and the way out', async () => {
+    // The plausible accident: two same-named classes in unrelated files. The
+    // default name is `ClassName.methodName`, so they collide — and the error
+    // has to say which two files, or the reader is left grepping a flat scan.
+    await withSchedulesDir({
+        'billing.ts': `
+import { Schedule } from '@lockness/scheduler'
+export class Cleanup {
+    @Schedule('0 3 * * *')
+    run() {}
+}
+`,
+        'sessions.ts': `
+import { Schedule } from '@lockness/scheduler'
+export class Cleanup {
+    @Schedule('0 4 * * *')
+    run() {}
+}
+`,
+    }, async (dir) => {
+        const s = new Scheduler(quiet)
+        const error = await assertRejects(
+            () => discoverSchedules(dir, s),
+            Error,
+        )
+
+        assertStringIncludes(error.message, 'Cleanup.run')
+        // Scan order is Deno.readDir's, so assert both are named, not which
+        // comes first.
+        assertStringIncludes(error.message, 'billing.ts')
+        assertStringIncludes(error.message, 'sessions.ts')
+        assertStringIncludes(
+            error.message,
+            "{ name: '…' }",
+            'the error has to point at the resolution, not just the collision',
+        )
+    })
+})
+
+// ============================================================================
+// Containment — #131
+// ============================================================================
+
+Deno.test('isInsideRoot - holds on both separators, so the check is not POSIX-only', () => {
+    // SEPARATOR is fixed at import time, so an inline check can only ever be
+    // exercised on the host platform — which is how a hardcoded '/' survived
+    // review here. Passing the separator in makes both branches reachable.
+    assertEquals(isInsideRoot('/app', '/app/schedule', '/'), true)
+    assertEquals(isInsideRoot('C:\\app', 'C:\\app\\schedule', '\\'), true)
+
+    // The root itself is not inside itself: schedulesDir '.' would import the
+    // whole project.
+    assertEquals(isInsideRoot('/app', '/app', '/'), false)
+    assertEquals(isInsideRoot('C:\\app', 'C:\\app', '\\'), false)
+
+    // A sibling whose name merely starts with the root's must not pass.
+    assertEquals(isInsideRoot('/app', '/application/schedule', '/'), false)
+    assertEquals(
+        isInsideRoot('C:\\app', 'C:\\application\\schedule', '\\'),
+        false,
+    )
+
+    // An escape.
+    assertEquals(isInsideRoot('/app', '/etc/passwd', '/'), false)
+    assertEquals(isInsideRoot('C:\\app', 'C:\\Windows', '\\'), false)
+})
+
+Deno.test('isInsideRoot - a Windows path is refused when checked with the POSIX separator', () => {
+    // The regression this pins: with '/' hardcoded, a genuine Windows
+    // descendant read as an escape — a containment guard failing OPEN in the
+    // other direction is the one that matters, but both are wrong.
+    assertEquals(isInsideRoot('C:\\app', 'C:\\app\\schedule', '/'), false)
 })
 
 Deno.test('discoverSchedules - a symlinked schedules directory is refused', async () => {

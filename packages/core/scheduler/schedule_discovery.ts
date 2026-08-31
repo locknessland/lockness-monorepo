@@ -24,6 +24,7 @@ import { container } from '@lockness/container'
 import {
     DEFAULT_SCHEDULES_DIR,
     getScheduleMetadata,
+    resolveTaskName,
     type Scheduler,
     scheduler as sharedScheduler,
 } from '@lockness/scheduler'
@@ -97,6 +98,39 @@ export function registerSchedules(
 }
 
 /**
+ * Is `absolute` a path strictly inside `root`?
+ *
+ * A separate function, and separator-parameterised, for one reason: the guard
+ * below runs on whatever platform the application does, but the test for it
+ * runs on ours. `SEPARATOR` is resolved once at import time, so a suite on
+ * macOS can never exercise the Windows branch of an inline check — which is
+ * exactly how the hardcoded `'/'` this replaced survived review. Passing the
+ * separator in makes both branches reachable from one test run.
+ *
+ * The working directory **itself** is not inside itself: `schedulesDir: '.'`
+ * would import every `.ts` in the project.
+ *
+ * @param root - The containing directory, already resolved.
+ * @param absolute - The path to test, already resolved.
+ * @param separator - The platform's path separator. Defaults to this one's.
+ * @returns `true` only for a strict descendant.
+ *
+ * @example
+ * ```ts
+ * isInsideRoot('/app', '/app/schedule', '/') // true
+ * isInsideRoot('/app', '/app', '/') // false — the root itself
+ * isInsideRoot('C:\\app', 'C:\\app\\schedule', '\\') // true
+ * ```
+ */
+export function isInsideRoot(
+    root: string,
+    absolute: string,
+    separator: string = SEPARATOR,
+): boolean {
+    return absolute !== root && absolute.startsWith(root + separator)
+}
+
+/**
  * Every `.ts` file under a directory, recursively.
  *
  * Symlinks are **not** followed: a scanned directory's contents are imported
@@ -127,7 +161,8 @@ async function scan(dir: string): Promise<string[]> {
  * decides whether that is an error, because a project with no scheduled tasks
  * legitimately has no directory.
  * @throws {TypeError} If the resolved directory escapes the working directory.
- * @throws {Error} If two schedules resolve to the same name.
+ * @throws {Error} If two schedules resolve to the same name. The message names
+ * both source files and points at `@Schedule({ name })` as the resolution.
  *
  * @example
  * ```ts
@@ -149,11 +184,8 @@ export async function discoverSchedules(
 
     // The directory's contents are imported and executed under whatever
     // permissions the process holds, so a path that escapes the project is not
-    // something to discover quietly. `SEPARATOR` rather than a literal '/',
-    // because `resolve` is platform-dispatched and a hardcoded '/' rejects every
-    // valid Windows path. The working directory ITSELF is refused too:
-    // `schedulesDir: '.'` would otherwise import every .ts in the project.
-    if (absolute === root || !absolute.startsWith(root + SEPARATOR)) {
+    // something to discover quietly.
+    if (!isInsideRoot(root, absolute)) {
         throw new TypeError(
             `schedulesDir "${schedulesDir}" resolves to "${absolute}", which is not a directory inside the working directory "${root}". ` +
                 `It must name a subdirectory, and must be a constant in application source — never environment-derived.`,
@@ -162,6 +194,12 @@ export async function discoverSchedules(
 
     const files = await scan(absolute)
     let registered = 0
+    // Which file claimed each name. `Scheduler.register` already refuses a
+    // duplicate, but it only knows the name — and "a task named X is already
+    // registered" is unhelpful when the whole point is that two files you did
+    // not connect both define a `Cleanup` class. Discovery is the only layer
+    // that knows the filenames, so the readable error has to be built here.
+    const claimedBy = new Map<string, string>()
 
     for (const file of files) {
         // toFileUrl escapes correctly; `file://${path}` mis-parses '#' and '?'
@@ -202,10 +240,8 @@ export async function discoverSchedules(
             for (const entry of meta) {
                 const method = record[entry.methodName]
                 if (typeof method !== 'function') continue
-                // A duplicate-name error propagates deliberately: it exists to
-                // stop one task silently replacing another, and a catch here
-                // would deliver exactly the silence it forbids.
-                target.register({
+
+                const registration = {
                     expression: entry.expression,
                     body: method.bind(instance) as (
                         signal: AbortSignal,
@@ -213,7 +249,31 @@ export async function discoverSchedules(
                     options: entry.options,
                     className: (exported as ScheduleClass).name,
                     methodName: entry.methodName,
-                })
+                }
+
+                // Resolved through the scheduler's own function, never
+                // re-derived here — identity has one definition.
+                const name = resolveTaskName(registration)
+                const previous = claimedBy.get(name)
+                if (previous !== undefined) {
+                    // Still fatal, deliberately: the whole reason this check
+                    // exists is that the alternative is one task silently
+                    // replacing another. Only the message improves.
+                    throw new Error(
+                        `Two scheduled tasks both resolve to the name "${name}":\n` +
+                            `  ${previous}\n` +
+                            `  ${file}\n` +
+                            `A task name defaults to \`ClassName.methodName\`, so two same-named classes in ` +
+                            `different files collide. Give one an explicit name — @Schedule('${entry.expression}', ` +
+                            `{ name: '…' }) — or rename the class.`,
+                    )
+                }
+                claimedBy.set(name, file)
+
+                // A duplicate-name error propagates deliberately: it exists to
+                // stop one task silently replacing another, and a catch here
+                // would deliver exactly the silence it forbids.
+                target.register(registration)
                 registered++
             }
         }
