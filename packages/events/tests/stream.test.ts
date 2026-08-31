@@ -400,20 +400,30 @@ Deno.test('anyEvent - and eventStream open at once both receive the event', asyn
 })
 
 Deno.test('anyEvent - honours bufferSize and onOverflow identically', async () => {
+    // 'drop-newest', NOT 'drop-oldest'. The latter is DEFAULT_OVERFLOW, so
+    // passing it is indistinguishable from omitting it: the forwarding this
+    // test is named for would survive being deleted from anyEvent().
     const emitter = new EventEmitter()
     const stream = emitter.anyEvent({
         bufferSize: 2,
-        onOverflow: 'drop-oldest',
+        onOverflow: 'drop-newest',
     })
 
     for (const n of [1, 2, 3, 4]) await emitter.emit('n', n)
 
+    // Drain EVERYTHING, not the first two. Reading two items cannot tell the
+    // option apart from the default: with the default bound of 1024 nothing
+    // overflows and the first two are 1 and 2 either way. The total is what
+    // distinguishes them — two frames kept, or all four.
+    await stream.return!()
     const seen: number[] = []
-    for (let i = 0; i < 2; i++) {
-        const next = await stream.next()
-        if (!next.done) seen.push(next.value.data as number)
-    }
-    assertEquals(seen, [3, 4], 'one queue, one behaviour')
+    for await (const frame of stream) seen.push(frame.data as number)
+
+    assertEquals(
+        seen,
+        [1, 2],
+        'bufferSize 2 + drop-newest kept exactly the two oldest — both options reached the queue',
+    )
     await stream.return!()
 })
 

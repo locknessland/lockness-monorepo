@@ -35,3 +35,30 @@ Deno.test('safeForLog - truncates a very long value rather than flooding the log
     assertEquals(out.length < 600, true)
     assertStringIncludes(out, '[truncated]')
 })
+
+Deno.test('safeForLog - neutralises DEL, the C1 range and the JS line terminators', () => {
+    // The predicate singles out four classes and the tests covered only C0.
+    // Deleting `code === 0x7f`, `(code >= 0x80 && code <= 0x9f)` or the
+    // U+2028/U+2029 clause left every test green — and U+2028 is the one the
+    // module's own comment calls out, because a JS-based log consumer splits on
+    // it exactly as it splits on a newline.
+    assertStringIncludes(safeForLog('a\u007fb'), '\\x7f', 'DEL')
+    assertStringIncludes(safeForLog('a\u0085b'), '\\x85', 'C1 (NEL)')
+    assertStringIncludes(safeForLog('a\u009fb'), '\\x9f', 'C1 (upper edge)')
+    assertStringIncludes(safeForLog('a\u2028b'), '\\x2028', 'JS line separator')
+    assertStringIncludes(
+        safeForLog('a\u2029b'),
+        '\\x2029',
+        'JS paragraph separator',
+    )
+
+    // And an ordinary non-ASCII character is left alone.
+    assertEquals(safeForLog('héllo — ok'), 'héllo — ok')
+})
+
+Deno.test('safeForLog - truncates at exactly the documented bound', () => {
+    // `out.length < 600` passed for any MAX_LENGTH from 1 to ~587.
+    const out = safeForLog('a'.repeat(5000))
+    assertEquals(out.length, 512 + '\u2026[truncated]'.length)
+    assertStringIncludes(out, '[truncated]')
+})

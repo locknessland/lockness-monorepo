@@ -11,6 +11,8 @@
 import { assertEquals, assertStringIncludes } from '@std/assert'
 import { EventEmitter } from '../mod.ts'
 import { debugLog, isDebugEnabled, setEventsDebug } from '../debug.ts'
+import { walk } from '@std/fs'
+import { fromFileUrl } from '@std/path'
 
 /** Captures console.debug for the duration of one test. */
 async function captured(run: () => void | Promise<void>): Promise<string[]> {
@@ -26,6 +28,10 @@ async function captured(run: () => void | Promise<void>): Promise<string[]> {
 }
 
 Deno.test('debug - is off by default and writes nothing', async () => {
+    // Set explicitly rather than assumed. Reading the module-global here is an
+    // order dependence: the first test anywhere to leak a `true` turns this
+    // into a confusing failure in an unrelated file.
+    setEventsDebug(false)
     assertEquals(isDebugEnabled(), false)
 
     const lines = await captured(async () => {
@@ -139,20 +145,25 @@ Deno.test('debug - the events package makes no Deno.* call', async () => {
     // application that loads the framework — for a feature that is off by
     // default. The read lives in core's bootstrap instead, exactly as
     // @lockness/scheduler's does.
+    // RECURSIVE, and matching bracket access too. The first version scanned
+    // only top-level files and only `Deno.`, so `Deno['env']` or the same call
+    // added in a subdirectory would have passed — a tripwire narrower than the
+    // constraint it stands for.
     const offenders: string[] = []
-    const packageDir = new URL('../', import.meta.url)
+    const root = fromFileUrl(new URL('../', import.meta.url))
 
-    for await (const entry of Deno.readDir(packageDir)) {
-        if (!entry.isFile || !entry.name.endsWith('.ts')) continue
-        const source = await Deno.readTextFile(
-            new URL(entry.name, packageDir),
-        )
+    for await (
+        const entry of walk(root, { exts: ['.ts'], skip: [/\/tests\//] })
+    ) {
+        const source = await Deno.readTextFile(entry.path)
         // Comments stripped first: testing.ts legitimately shows `Deno.test`
         // inside a JSDoc example, and that is documentation, not a call.
         const code = source
             .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/\/\/.*$/gm, '')
-        if (/\bDeno\.\w/.test(code)) offenders.push(entry.name)
+            .replace(/^\s*\/\/.*$/gm, '')
+        if (/\bDeno\s*[.[]/.test(code)) {
+            offenders.push(entry.path.slice(root.length))
+        }
     }
 
     assertEquals(offenders, [])

@@ -575,10 +575,15 @@ Deno.test('emit - a listener added during a dispatch runs in the NEXT one, not t
     const emitter = new EventEmitter()
     const ran: string[] = []
 
+    // The late listener carries a HIGHER priority. With equal priorities the
+    // expected order is satisfied by insertion alone, and the assertion would
+    // hold with the registration-time sort deleted — which is what FR-013
+    // ("ordering unchanged, including for a listener registered after the first
+    // emit") exists to prevent.
     const late = () => void ran.push('late')
     const first = () => {
         ran.push('first')
-        emitter.on('x', late)
+        emitter.on('x', late, { priority: 100 })
     }
 
     emitter.on('x', first)
@@ -591,7 +596,33 @@ Deno.test('emit - a listener added during a dispatch runs in the NEXT one, not t
     )
 
     await emitter.emit('x', null)
-    assertEquals(ran, ['first', 'first', 'late'], 'and it is part of the next')
+    assertEquals(
+        ran,
+        ['first', 'late', 'first'],
+        'and in the next it runs FIRST — priority survives late registration',
+    )
+})
+
+Deno.test('a signal aborting DURING a dispatch takes effect from the next one', async () => {
+    // The edge case FR-000's sequencing argument rests on, and the shape the
+    // snapshot tests missed: they all used off()/offAny(), never an abort fired
+    // from inside a listener while the dispatch was in flight.
+    const emitter = new EventEmitter()
+    const controller = new AbortController()
+    const ran: string[] = []
+
+    emitter.on('x', () => {
+        ran.push('a')
+        controller.abort() // removes BOTH, mid-dispatch
+    }, { signal: controller.signal })
+    emitter.on('x', () => void ran.push('b'), { signal: controller.signal })
+
+    await emitter.emit('x', null)
+    assertEquals(ran, ['a', 'b'], 'both were in the snapshot, so both ran')
+
+    await emitter.emit('x', null)
+    assertEquals(ran, ['a', 'b'], 'and neither survives into the next dispatch')
+    assertEquals(emitter.listenerCount('x'), 0)
 })
 
 // =============================================================================
@@ -629,15 +660,24 @@ Deno.test('on - an ALREADY-aborted signal never registers the listener', async (
 })
 
 Deno.test('on - aborting after off() is a no-op and does not throw', async () => {
+    // This was FR-003's only test and it asserted NOTHING — not one assert call
+    // in the body. "Does not throw" was not covered either: emit() swallows a
+    // listener's throw into console.error by design, so a broken path produced
+    // a green test.
     const emitter = new EventEmitter()
     const controller = new AbortController()
-    const fn = () => {}
+    let ran = 0
+    const fn = () => void ran++
 
     emitter.on('x', fn, { signal: controller.signal })
     emitter.off('x', fn)
-    controller.abort()
+    assertEquals(emitter.listenerCount('x'), 0, 'off() removed it')
 
+    controller.abort() // the no-op: nothing to remove, and nothing may throw
+
+    assertEquals(emitter.listenerCount('x'), 0, 'and abort changed nothing')
     await emitter.emit('x', null)
+    assertEquals(ran, 0, 'the listener is gone and did not run')
 })
 
 Deno.test('off - detaches the abort handler, not just the listener', async () => {

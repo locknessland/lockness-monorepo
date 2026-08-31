@@ -515,3 +515,31 @@ Deno.test('removeAllListeners detaches EventBuffer’s recorder', async () => {
         restore()
     }
 })
+
+Deno.test('EventDispatcher - anyEvent yields real frames and forwards its options', async () => {
+    // Its whole test was `typeof dispatcher().anyEvent === 'function'`, which
+    // survives dropping the argument, dropping the body, and returning a stub.
+    class Alpha extends BaseEvent {}
+    class Beta extends BaseEvent {}
+
+    const dispatcher = new EventDispatcher()
+    const stream = dispatcher.anyEvent({
+        bufferSize: 1,
+        onOverflow: 'drop-newest',
+    })
+
+    await dispatcher.emit(new Alpha())
+    await dispatcher.emit(new Beta())
+
+    await stream.return!()
+    const seen: string[] = []
+    for await (const frame of stream) seen.push(frame.event)
+
+    // bufferSize 1 + drop-newest keeps the FIRST and drops the second, which is
+    // only true if both options reached the queue.
+    assertEquals(
+        seen,
+        ['Alpha'],
+        'the frame carries the class name, and the options took',
+    )
+})
