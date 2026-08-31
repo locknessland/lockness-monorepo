@@ -4,6 +4,7 @@ Project scaffolding and initialization for new Lockness applications.
 
 ## Features
 
+- 🎒 **Starter kits**: `web`, `api` or `slim`, chosen with `--kit`
 - 🚀 **Quick Start**: Scaffold a complete Lockness project in seconds
 - 📁 **Full Structure**: Pre-configured directory layout (controllers, models,
   views, etc.)
@@ -11,19 +12,36 @@ Project scaffolding and initialization for new Lockness applications.
 - 🎨 **Stubs**: Template-based project generation
 - 📦 **Ready to Run**: Generated projects work out of the box
 
+## Starter kits
+
+| Kit    | What you get                                                              |
+| :----- | :------------------------------------------------------------------------ |
+| `web`  | JSX views, Tailwind v4, cookie session, session auth, Drizzle, login flow |
+| `api`  | JSON only: bearer tokens, CORS, throttling, OpenAPI, Drizzle              |
+| `slim` | One controller, one named middleware, nothing else                        |
+
+`web` is the default. Each kit ships its own `README.md` and a smoke test that
+passes without a database.
+
 ## Usage
 
 ### Create a New Project
 
 ```bash
-# Latest version (default)
+# Latest version, web kit (both default)
 deno run -A jsr:@lockness/init my-app
+
+# A JSON API, no view layer
+deno run -A jsr:@lockness/init my-api --kit api
+
+# The smallest possible starting point
+deno run -A jsr:@lockness/init my-app --kit slim
 ```
 
 Or using the Nessy CLI:
 
 ```bash
-./nessy init my-app
+./nessy init my-app --kit slim
 ```
 
 ### Version Control

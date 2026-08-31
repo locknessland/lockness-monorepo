@@ -6,23 +6,72 @@ Project scaffolding and initialization for new Lockness applications.
 
 @lockness/init provides:
 
+- **Starter kits** - `web`, `api` and `slim`, chosen with `--kit`
 - **Quick Start** - Scaffold complete Lockness project in seconds
 - **Full Structure** - Pre-configured directory layout (MVC architecture)
 - **Environment Setup** - Automatic .env file creation
 - **Version Control** - Pin or use flexible version ranges
 - **Ready to Run** - Generated projects work out of the box
 
-## Usage
+## Starter kits
+
+| Kit    | What you get                                                              | Packages beyond `core` + `cli`                             |
+| :----- | :------------------------------------------------------------------------ | :--------------------------------------------------------- |
+| `web`  | JSX views, Tailwind v4, cookie session, session auth, Drizzle, login flow | `auth`, `auth-provider`, `container`, `drizzle`, `session` |
+| `api`  | JSON only: bearer tokens, CORS, throttling, OpenAPI annotations, Drizzle  | `auth`, `auth-provider`, `container`, `drizzle`, `openapi` |
+| `slim` | One controller, one named middleware, nothing else                        | none                                                       |
+
+`web` is the default, so `init` with no `--kit` behaves exactly as it always
+has.
+
+Every kit ships a `README.md` explaining its layout, a `tests/smoke.test.ts`
+that passes without a database, and a project that boots on `deno task dev` with
+nothing provisioned.
 
 ### Create New Project
 
 ```bash
-# Latest version (default)
+# Latest version, web kit (both default)
 deno run -A jsr:@lockness/init my-app
 
+# A JSON API
+deno run -A jsr:@lockness/init my-api --kit api
+
+# The smallest possible starting point
+deno run -A jsr:@lockness/init my-app --kit slim
+
 # Or using Nessy CLI
-./nessy init my-app
+./nessy init my-app --kit slim
 ```
+
+An unrecognised `--kit` is refused rather than falling back to the default:
+someone who typed `--kit=slm` and silently received a full Tailwind scaffold has
+no way to tell why.
+
+## How a kit is defined
+
+A kit is not a separate template tree. It is a **selection** from the shared
+base in `stubs/init/`, plus an **overlay** in `stubs/kits/<name>/` that adds
+what is specific to it and replaces what differs. The overlay is applied second,
+so a same-named file wins — that is how `api` gets its own `deno.json` and
+`app/kernel.ts` without the base knowing that kits exist.
+
+`kits.ts` is the single home of what each one contains, and
+`packages/init/tests/kits.test.ts` asserts the manifest and the tree agree in
+both directions: no listed file missing, no stub file unlisted.
+
+## Smoke testing
+
+```bash
+deno task kits:smoke              # all three
+deno task kits:smoke --kit slim   # one
+deno task kits:smoke --keep       # leave the scaffolds on disk
+```
+
+Each kit is scaffolded, **repointed at the local workspace**, then type-checked,
+tested and booted over real HTTP. The repointing matters: left alone a scaffold
+resolves the last published release, which is precisely the version that cannot
+contain the change you are about to push. CI runs this as its own job.
 
 ### Version Control
 
