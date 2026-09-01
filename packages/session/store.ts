@@ -80,7 +80,15 @@ export class SessionStore implements Session {
 
     async regenerate(): Promise<void> {
         const newId = generateSessionId()
-        await this.driver.regenerate(this.sessionId, newId)
+        // `config.lifetime` is the single source of "how long a session lives"
+        // (plan §5 row 1) — the same value `write()` receives — so a regenerated
+        // session is given a fresh lifetime rather than inheriting the old
+        // record's remaining TTL or a per-driver default.
+        await this.driver.regenerate(
+            this.sessionId,
+            newId,
+            this.config.lifetime,
+        )
         this.sessionId = newId
         this.dirty = true
     }

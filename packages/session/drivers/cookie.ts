@@ -505,13 +505,19 @@ export class CookieSessionDriver implements SessionDriver {
      *
      * @param _oldId - Unused.
      * @param _newId - Unused.
+     * @param _lifetime - Unused: a stateless cookie carries its own expiry,
+     *   resealed on the next {@link write}.
      *
      * @example
      * ```typescript
-     * await driver.regenerate(oldId, newId)
+     * await driver.regenerate(oldId, newId, lifetime)
      * ```
      */
-    async regenerate(_oldId: string, _newId: string): Promise<void> {
+    async regenerate(
+        _oldId: string,
+        _newId: string,
+        _lifetime: number,
+    ): Promise<void> {
         // Stateless: there is no server-side record to move. The next write
         // seals a fresh payload with a fresh salt, IV and expiry.
     }

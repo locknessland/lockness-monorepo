@@ -176,11 +176,21 @@ export interface SessionDriver {
     destroy(sessionId: string): Promise<void>
     /**
      * Regenerate session ID (transfer data to new ID).
-     * Used for security purposes after authentication.
+     *
+     * Used for session-fixation protection after authentication: the data is
+     * carried to `newId` and the record at `oldId` is destroyed. On the
+     * server-side drivers the move is atomic — the new key is written and the
+     * old one deleted as one indivisible operation.
+     *
      * @param oldId - The current session identifier
      * @param newId - The new session identifier
+     * @param lifetime - Session lifetime in seconds. The regenerated session is
+     *   given a **fresh** lifetime — the same value a `write()` for this session
+     *   would receive — never the remaining lifetime of the old record and never
+     *   a per-driver default. The single source is `SessionConfig.lifetime`,
+     *   threaded here by {@link Session.regenerate}'s store implementation.
      */
-    regenerate(oldId: string, newId: string): Promise<void>
+    regenerate(oldId: string, newId: string, lifetime: number): Promise<void>
     /**
      * Garbage collection - remove expired sessions.
      * Optional: only implement for drivers that need manual cleanup.

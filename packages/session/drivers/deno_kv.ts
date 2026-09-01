@@ -94,12 +94,34 @@ export class DenoKvSessionDriver implements SessionDriver {
         await kv.delete(['sessions', sessionId])
     }
 
-    async regenerate(oldId: string, newId: string): Promise<void> {
+    async regenerate(
+        oldId: string,
+        newId: string,
+        lifetime: number,
+    ): Promise<void> {
         const kv = await this.getKv()
         const result = await kv.get<SessionData>(['sessions', oldId])
-        if (result.value) {
-            await kv.set(['sessions', newId], result.value)
-            await kv.delete(['sessions', oldId])
+        // Old key absent → nothing to rotate. A no-op, matching every other
+        // driver (the cookie/memory/redis regenerate all short-circuit on a
+        // missing source).
+        if (result.value === null) return
+
+        // Write the new key (with a fresh `expireIn` from the passed lifetime —
+        // the #139 fix; the old body wrote no `expireIn`, so authenticated
+        // sessions never expired) and delete the old one as ONE atomic
+        // operation (FR-011). A mid-rotation failure can therefore never leave
+        // the new id resolving while the attacker-known old id also resolves —
+        // Deno KV applies the set and the delete together or neither.
+        const commit = await kv.atomic()
+            .set(['sessions', newId], result.value, {
+                expireIn: lifetime * 1000, // seconds → milliseconds
+            })
+            .delete(['sessions', oldId])
+            .commit()
+        if (!commit.ok) {
+            throw new Error(
+                'session regenerate failed: the atomic set+delete was rejected',
+            )
         }
     }
 

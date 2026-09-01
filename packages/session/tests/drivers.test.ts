@@ -155,7 +155,7 @@ Deno.test('MemorySessionDriver - regenerate session', async () => {
 
     const sessionData = { userId: 999 }
     await driver.write('old-session', sessionData, 3600)
-    await driver.regenerate('old-session', 'new-session')
+    await driver.regenerate('old-session', 'new-session', 3600)
 
     const oldRetrieved = await driver.read('old-session')
     const newRetrieved = await driver.read('new-session')
@@ -215,7 +215,7 @@ Deno.test('DenoKvSessionDriver - regenerate session', async () => {
 
     const sessionData = { userId: 333 }
     await driver.write('kv-old', sessionData, 3600)
-    await driver.regenerate('kv-old', 'kv-new')
+    await driver.regenerate('kv-old', 'kv-new', 3600)
 
     const oldRetrieved = await driver.read('kv-old')
     const newRetrieved = await driver.read('kv-new')

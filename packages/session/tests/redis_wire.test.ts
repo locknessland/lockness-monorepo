@@ -32,7 +32,9 @@
 
 import { assertEquals, assertRejects } from '@std/assert'
 import { RedisSessionDriver } from '../drivers/redis.ts'
+import { readReply } from '../drivers/resp.ts'
 import { startRespServer } from './resp_server.ts'
+import { startFakeRedis } from './fake_redis.ts'
 
 /**
  * Bound a wire operation in time. A correct driver completes in milliseconds;
@@ -251,4 +253,57 @@ Deno.test('redis wire - a write failure closes and discards the connection so th
         () => withTimeout(driver.destroy('d'.repeat(64))),
         Deno.errors.ConnectionRefused,
     )
+})
+
+// =============================================================================
+// US4 — a large session round-trips, and a split bulk body reassembles (SC-004)
+// =============================================================================
+
+Deno.test('redis wire - a >8KB session value round-trips byte-identical (SC-004)', async () => {
+    // The reply is far larger than one 4096-byte read; a single-shot reader
+    // truncates it and JSON.parse throws. The drained reader reassembles it.
+    const redis = await startFakeRedis()
+    try {
+        const driver = new RedisSessionDriver({
+            hostname: '127.0.0.1',
+            port: redis.port,
+        })
+        const data = { blob: 'x'.repeat(9000), n: 7 } // serialized > 8192 bytes
+        await withTimeout(driver.write('g'.repeat(64), data, 3600))
+        const readBack = await withTimeout(driver.read('g'.repeat(64)))
+        await withTimeout(driver.close())
+
+        assertEquals(
+            readBack,
+            data,
+            'the large value survived write→read intact',
+        )
+    } finally {
+        redis.stop()
+    }
+})
+
+Deno.test('redis wire - a bulk body split across two reads reassembles (SC-004 split-read)', async () => {
+    // The fake conn delivers the header + first half in one read and the rest in
+    // a second read, so only a draining reader completes the frame.
+    const enc = new TextEncoder()
+    const body = 'y'.repeat(5000) // one bulk value, spanning multiple reads
+    const full = enc.encode(`$${body.length}\r\n${body}\r\n`)
+    const splitAt = 2010 // mid-body, past the length prefix
+    const queue = [full.subarray(0, splitAt), full.subarray(splitAt)]
+    const conn = {
+        read(p: Uint8Array): Promise<number | null> {
+            if (queue.length === 0) return Promise.resolve(null)
+            const chunk = queue[0]
+            const n = Math.min(chunk.byteLength, p.byteLength)
+            p.set(chunk.subarray(0, n))
+            if (n < chunk.byteLength) queue[0] = chunk.subarray(n)
+            else queue.shift()
+            return Promise.resolve(n)
+        },
+        close() {},
+    } as unknown as Deno.Conn
+
+    const reply = await withTimeout(readReply(conn))
+    assertEquals(reply, { type: 'bulk', value: body })
 })
