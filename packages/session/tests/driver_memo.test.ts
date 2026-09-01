@@ -15,6 +15,7 @@ import {
     assertNotStrictEquals,
     assertStrictEquals,
 } from '@std/assert'
+import { crypto } from '@std/crypto'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
@@ -88,7 +89,7 @@ Deno.test('driver memo - a memory login persists across requests (FR-008, the re
     reset()
 })
 
-Deno.test('driver memo - memory and deno-kv are identical across requests; cookie and redis are not (FR-007)', () => {
+Deno.test('driver memo - memory, deno-kv and redis are identical across requests; cookie is not (FR-007)', () => {
     reset()
 
     // memory: same instance across two lookups.
@@ -115,40 +116,92 @@ Deno.test('driver memo - memory and deno-kv are identical across requests; cooki
         'cookie is per-request',
     )
 
-    // redis: a fresh instance per request — the GATE. If redis ever enters the
-    // memo, this goes red. No live server: construction is lazy.
+    // redis: the #145 INVERSE of #138's gate. Once its socket became safe to
+    // share (drained reply reader #139 + per-connection command serialization
+    // #145), redis joined the memo — so two requests get the SAME instance. This
+    // assertion flipping from not-strict to strict IS the #145 landing. No live
+    // server: construction is lazy.
     const redis = config({
         driver: 'redis',
         redis: { hostname: '127.0.0.1', port: 6379 },
     })
-    assertNotStrictEquals(
+    assertStrictEquals(
         getOrCreateDriver(fakeCtx, redis),
         getOrCreateDriver(fakeCtx, redis),
-        'redis is per-request while gated — this assertion is the memo gate',
+        'redis is memoized per process per config (#145 inverse of the #138 gate)',
     )
     reset()
 })
 
-Deno.test('driver memo - driverKey refuses to key a per-request driver', () => {
+Deno.test('driver memo - driverKey keys memoized drivers and refuses only cookie', () => {
     reset()
     assertEquals(driverKey(config({ driver: 'memory' })), 'memory')
     assertEquals(
         driverKey(config({ driver: 'deno-kv', kvPath: './s.db' })),
         'deno-kv:./s.db',
     )
-    for (const driver of ['cookie', 'redis'] as const) {
-        let threw = false
-        try {
-            driverKey(config({ driver }))
-        } catch {
-            threw = true
-        }
-        assertEquals(
-            threw,
-            true,
-            `driverKey('${driver}') must throw — no key for a gated driver`,
-        )
+
+    // redis: keyed on host/port/db + a SHA-256 digest of the password; the
+    // cleartext password never appears in the key. Pin the EXACT digest, not
+    // merely a 64-hex shape — a length check passes for any hash, including a
+    // weaker or truncated one, so it would not catch the digest primitive being
+    // swapped out (review M3).
+    const redisKey = driverKey(config({
+        driver: 'redis',
+        redis: { hostname: 'h', port: 6379, db: 0, password: 's3cret' },
+    }))
+    const expectedDigest = Array.from(
+        new Uint8Array(
+            crypto.subtle.digestSync(
+                'SHA-256',
+                new TextEncoder().encode('s3cret'),
+            ),
+        ),
+        (b) => b.toString(16).padStart(2, '0'),
+    ).join('')
+    assertEquals(
+        redisKey,
+        `redis:h:6379:0:${expectedDigest}`,
+        'redis key is host:port:db then the exact SHA-256 of the password',
+    )
+    assertEquals(
+        redisKey.includes('s3cret'),
+        false,
+        'the cleartext password never enters the key',
+    )
+
+    // SC-003: same host, DIFFERENT password ⇒ different key ⇒ different socket.
+    const keyA = driverKey(config({
+        driver: 'redis',
+        redis: { hostname: 'h', port: 6379, db: 0, password: 'alpha' },
+    }))
+    const keyB = driverKey(config({
+        driver: 'redis',
+        redis: { hostname: 'h', port: 6379, db: 0, password: 'bravo' },
+    }))
+    const keyA2 = driverKey(config({
+        driver: 'redis',
+        redis: { hostname: 'h', port: 6379, db: 0, password: 'alpha' },
+    }))
+    assertEquals(
+        keyA === keyB,
+        false,
+        'different passwords never collapse to one authenticated socket',
+    )
+    assertEquals(
+        keyA === keyA2,
+        true,
+        'identical configs resolve to the same key (stable)',
+    )
+
+    // cookie is the ONLY driver driverKey refuses to key.
+    let threw = false
+    try {
+        driverKey(config({ driver: 'cookie' }))
+    } catch {
+        threw = true
     }
+    assertEquals(threw, true, "driverKey('cookie') must throw — never memoized")
     reset()
 })
 
