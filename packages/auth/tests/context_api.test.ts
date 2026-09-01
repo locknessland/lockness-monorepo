@@ -119,6 +119,12 @@ Deno.test('AuthContext - c.auth.logout() works', async () => {
             set: (key: string, value: unknown) => dataMap.set(key, value),
             forget: (key: string) => dataMap.delete(key),
             regenerate: () => Promise.resolve(),
+            // logout() now destroys the whole session (reaching driver.destroy()
+            // → revoke) rather than only forgetting the auth key.
+            destroy: () => {
+                dataMap.clear()
+                return Promise.resolve()
+            },
         }
         c.set('session', mockSession as any)
         await next()

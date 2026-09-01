@@ -211,3 +211,48 @@ Deno.test('session boot - a key given in kernel config beats APP_KEY, and starts
         },
     )
 })
+
+Deno.test('session boot - absoluteLifetime threads through normalisation (SC-005)', () => {
+    // A configured cap reaches the normalised config verbatim (opt-in pass-through).
+    assertEquals(
+        normalizeSessionConfig({ absoluteLifetime: 604800 }).absoluteLifetime,
+        604800,
+    )
+    // Undefined stays undefined — the cap is off, not defaulted on.
+    assertEquals(normalizeSessionConfig(true).absoluteLifetime, undefined)
+})
+
+Deno.test('session boot - a non-positive absoluteLifetime is refused, not treated as off (SC-005)', () => {
+    // 0 and negatives are a configuration error (fail-closed), NOT a silent
+    // disable of a cap the operator believed they had enabled.
+    for (const bad of [0, -1]) {
+        let threw = false
+        try {
+            normalizeSessionConfig({ absoluteLifetime: bad })
+        } catch {
+            threw = true
+        }
+        assertEquals(threw, true, `absoluteLifetime ${bad} must be refused`)
+    }
+})
+
+Deno.test('session boot - revocation without absoluteLifetime is refused at boot (SC-008)', () => {
+    let threw = false
+    try {
+        normalizeSessionConfig({ revocation: true })
+    } catch {
+        threw = true
+    }
+    assertEquals(
+        threw,
+        true,
+        'revocation needs the cap to bound its retention — refused without it',
+    )
+    // With the cap, revocation normalises through.
+    const ok = normalizeSessionConfig({
+        revocation: true,
+        absoluteLifetime: 3600,
+    })
+    assertEquals(ok.revocation, true)
+    assertEquals(ok.absoluteLifetime, 3600)
+})
