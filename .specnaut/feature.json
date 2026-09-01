@@ -1,4 +1,4 @@
 {
-    "feature_directory": ".specnaut/specs/006-session-key-hardening",
-    "linked_issue": 137
+    "feature_directory": ".specnaut/specs/007-resp-byte-length",
+    "linked_issue": 141
 }
