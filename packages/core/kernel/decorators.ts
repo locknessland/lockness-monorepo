@@ -207,8 +207,17 @@ export function OnBoot(
                 (instance as { constructor: BootHooksContainer })
                     .constructor
 
-            // Initialize hooks array if this is the first @OnBoot decorator
-            if (!constructor[KERNEL_BOOT_HOOKS]) {
+            // `Object.hasOwn`, not a truthiness test.
+            //
+            // `if (!constructor[KERNEL_BOOT_HOOKS])` reads THROUGH the
+            // prototype chain, so when a parent class already owns an array a
+            // subclass finds it and pushes into it — and the parent silently
+            // acquires its child's hooks. Measured before the fix: with
+            // `new Base()` followed by `new Child()`, `getBootHooks(Base)`
+            // returned both hooks and the two classes shared one array object.
+            // Instantiation order is the trigger; `new Child()` first leaves
+            // both correct, which is why it went unnoticed.
+            if (!Object.hasOwn(constructor, KERNEL_BOOT_HOOKS)) {
                 constructor[KERNEL_BOOT_HOOKS] = []
             }
 
