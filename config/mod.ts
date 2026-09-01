@@ -52,7 +52,7 @@ import { listeners } from './listeners.ts'
  * config.app.name        // 'Lockness'
  * config.app.debug       // true/false
  * config.database.url    // 'postgres://...'
- * config.session.secret  // 'your-secret'
+ * config.session.secret  // the APP_KEY this process was started with
  * config.cache.driver    // 'memory'
  * config.i18n.defaultLocale  // 'en-us'
  * config.routing         // MountPoint config

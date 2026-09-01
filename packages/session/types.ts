@@ -56,7 +56,7 @@ export interface RedisConfig {
  *   driver: 'deno-kv',
  *   cookieName: 'app_session',
  *   lifetime: 3600,
- *   secret: 'your-32-char-secret-key-here!!!',
+ *   secret: Deno.env.get('APP_KEY'),
  *   path: '/',
  *   secure: true,
  *   httpOnly: true,
@@ -85,11 +85,18 @@ export interface SessionConfig {
      */
     lifetime: number
     /**
-     * Secret key for signing/encrypting cookies.
-     * Should be at least 32 characters for AES-256-GCM encryption.
-     * @required
+     * The application key, as `base64:` followed by 32 random bytes in base64 —
+     * the shape {@link generateAppKey} emits and the only one accepted.
+     *
+     * Optional here because the memory, Deno KV and Redis drivers never encrypt
+     * anything; the cookie they set carries only a session id. The **cookie**
+     * driver requires it and refuses to construct without one. There is no
+     * unencrypted mode: a missing key is a configuration error, never a silent
+     * downgrade to base64.
+     *
+     * Never a literal in source. See `secret.ts`.
      */
-    secret: string
+    secret?: string
     /**
      * Cookie path attribute.
      * @default '/'

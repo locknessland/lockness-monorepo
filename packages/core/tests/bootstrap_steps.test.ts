@@ -43,22 +43,39 @@ Deno.test('tryImportOptionalPackage - returns null for non-existent package', as
 })
 
 Deno.test('normalizeSessionConfig - handles boolean shorthand', () => {
+    // APP_KEY is set explicitly rather than read back through the expression
+    // under test. `assertEquals(config.secret, Deno.env.get('APP_KEY'))` is
+    // undefined === undefined on any machine with APP_KEY unset — which is every
+    // CI runner — so it passed whatever the resolver did.
+    const saved = Deno.env.get('APP_KEY')
+    Deno.env.set('APP_KEY', 'base64:AAAA')
     const config = normalizeSessionConfig(true)
+    if (saved === undefined) Deno.env.delete('APP_KEY')
+    else Deno.env.set('APP_KEY', saved)
 
     assertEquals(config.driver, 'cookie')
     assertEquals(config.lifetime, 7200)
-    assertExists(config.secret) // Should have a default
+    // NOT `assertExists`. There is deliberately no default any more: the literal
+    // that used to sit here was committed to this repository, so every
+    // deployment that forgot APP_KEY shared one publicly known key. Absence is
+    // the answer, and `steps/session.ts` decides what it means — a refusal to
+    // boot in production, a per-process random key outside it.
+    assertEquals(config.secret, 'base64:AAAA')
 })
 
 Deno.test('normalizeSessionConfig - merges object config with defaults', () => {
+    const saved = Deno.env.get('APP_KEY')
+    Deno.env.set('APP_KEY', 'base64:AAAA')
     const config = normalizeSessionConfig({
         driver: 'memory',
         lifetime: 3600,
     })
+    if (saved === undefined) Deno.env.delete('APP_KEY')
+    else Deno.env.set('APP_KEY', saved)
 
     assertEquals(config.driver, 'memory')
     assertEquals(config.lifetime, 3600)
-    assertExists(config.secret)
+    assertEquals(config.secret, 'base64:AAAA')
 })
 
 Deno.test('normalizeSessionConfig - respects secure flag from environment', () => {

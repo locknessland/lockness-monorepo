@@ -3,9 +3,22 @@
  * Tests for @lockness/session - Drivers
  */
 
-import { assertEquals, assertExists } from '@std/assert'
+import { assertEquals, assertExists, assertThrows } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import type { Context } from 'hono'
+import { generateAppKey } from '../secret.ts'
+import { createDriver } from '../drivers/mod.ts'
+import type { SessionConfig } from '../types.ts'
+
+const BASE_CONFIG: SessionConfig = {
+    driver: 'cookie',
+    cookieName: 'lockness_session',
+    lifetime: 7200,
+    path: '/',
+    secure: false,
+    httpOnly: true,
+    sameSite: 'Lax',
+}
 import {
     CookieSessionDriver,
     DenoKvSessionDriver,
@@ -64,7 +77,7 @@ Deno.test('CookieSessionDriver - write and read session', async () => {
         driver: 'cookie' as const,
         cookieName: 'test_session',
         lifetime: 3600,
-        secret: 'test-secret-key-32-characters!!',
+        secret: generateAppKey(),
         path: '/',
         secure: false,
         httpOnly: true,
@@ -96,7 +109,7 @@ Deno.test('CookieSessionDriver - destroy session', async () => {
         driver: 'cookie' as const,
         cookieName: 'test_session',
         lifetime: 3600,
-        secret: 'test-secret-key-32-characters!!',
+        secret: generateAppKey(),
         path: '/',
         secure: false,
         httpOnly: true,
@@ -225,4 +238,36 @@ Deno.test('RedisSessionDriver - can be instantiated', () => {
     })
 
     assertExists(driver)
+})
+
+Deno.test('createDriver - an unrecognised driver name throws, naming it', () => {
+    // It used to fall through to the cookie driver, which made "which drivers
+    // need a secret" a second predicate over the same decision. The throw had no
+    // test: `grep createDriver packages/session/tests/` found nothing.
+    const context = createMockContext()
+
+    const error = assertThrows(
+        () =>
+            createDriver(context, {
+                ...BASE_CONFIG,
+                // deno-lint-ignore no-explicit-any
+                driver: 'postgres' as any,
+            }),
+        Error,
+    )
+
+    assertEquals(error.message.includes('postgres'), true)
+    assertEquals(error.message.includes('cookie'), true)
+})
+
+Deno.test('createDriver - each known driver builds without a secret except cookie', () => {
+    const context = createMockContext()
+
+    assertEquals(
+        typeof createDriver(context, { ...BASE_CONFIG, driver: 'memory' }).read,
+        'function',
+    )
+    assertThrows(() =>
+        createDriver(context, { ...BASE_CONFIG, driver: 'cookie' })
+    )
 })

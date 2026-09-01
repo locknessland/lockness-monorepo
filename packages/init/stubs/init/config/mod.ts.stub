@@ -45,7 +45,7 @@ import { listeners } from './listeners.ts'
  * config.app.name        // 'My App'
  * config.app.debug       // true/false
  * config.database.url    // 'postgres://...'
- * config.session.secret  // 'your-secret'
+ * config.session.secret  // the APP_KEY this process was started with
  * config.cache.driver    // 'memory'
  * config.routing         // MountPoint config (undefined by default)
  * ```

@@ -6,11 +6,21 @@
 
 import type { SessionConfig } from './types.ts'
 
+/**
+ * Package defaults.
+ *
+ * **No `secret` here, deliberately.** It used to default to `''`, which the
+ * cookie driver read as "encryption off" — so the documented
+ * `sessionMiddleware()` call shipped an attacker-writable cookie. A required
+ * field whose shipped default is, by its own definition, unusable invites
+ * exactly one fix: putting a generated key back into this file, process-wide and
+ * invisible. The key comes from the application, or the cookie driver refuses to
+ * start.
+ */
 export const defaultConfig: SessionConfig = {
     driver: 'cookie',
     cookieName: 'lockness_session',
     lifetime: 7200, // 2 hours
-    secret: '', // Must be set by user
     path: '/',
     secure: false,
     httpOnly: true,

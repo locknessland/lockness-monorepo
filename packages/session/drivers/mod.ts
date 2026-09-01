@@ -27,7 +27,8 @@ export { RedisSessionDriver } from './redis.ts'
  * @param c - Hono context object
  * @param config - Session configuration
  * @returns Configured session driver instance
- * @throws {Error} If redis driver is selected without redis configuration
+ * @throws {Error} If the driver name is unrecognised, or the redis driver is
+ *   selected without redis configuration
  *
  * @example
  * ```typescript
@@ -49,6 +50,15 @@ export function createDriver(c: Context, config: SessionConfig): SessionDriver {
             }
             return new RedisSessionDriver(config.redis)
         default:
-            return new CookieSessionDriver(c, config)
+            // Deliberately a throw, not a fallback. Returning the cookie driver
+            // for an unrecognised name made "which drivers require a secret" a
+            // second predicate — "not one of the other three" — over a decision
+            // the switch already owns. A typo'd or env-supplied driver name is a
+            // configuration error and says so.
+            throw new Error(
+                `Unknown session driver: ${
+                    JSON.stringify(config.driver)
+                }. Expected one of: cookie, memory, deno-kv, redis.`,
+            )
     }
 }
