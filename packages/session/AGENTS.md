@@ -96,13 +96,15 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 12 source files:
+10 test files for 14 source files:
 
 - `packages/session/tests/config_resolution.test.ts`
 - `packages/session/tests/drivers.test.ts`
 - `packages/session/tests/middleware.test.ts`
 - `packages/session/tests/no_placeholder_keys.test.ts`
+- `packages/session/tests/redis_wire.test.ts`
 - `packages/session/tests/reporting.test.ts`
+- `packages/session/tests/resp.test.ts`
 - `packages/session/tests/secret.test.ts`
 - `packages/session/tests/store.test.ts`
 - `packages/session/tests/wire_format.test.ts`
@@ -121,7 +123,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 8 test files directly —
+Then, specific to this package: run its 10 test files directly —
 
 ```bash
 deno test -A packages/session/
