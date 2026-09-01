@@ -1,4 +1,4 @@
 {
-    "feature_directory": ".specnaut/specs/009-session-regenerate-ttl",
-    "linked_issue": 139
+    "feature_directory": ".specnaut/specs/010-memoize-redis-driver",
+    "linked_issue": 145
 }

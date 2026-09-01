@@ -189,3 +189,14 @@ dependency. Two behaviours worth knowing:
   until the RESP reply is complete, so a session larger than one 4096-byte read
   round-trips intact, and it rejects a server-declared bulk length beyond 10 MiB
   before allocating it.
+- **One shared, serialized connection per process.** The driver is memoized per
+  process per resolved config (like `deno-kv`), so a redis-backed app opens
+  **one** authenticated connection, not one per request. Sharing is safe because
+  every command is serialized on the connection — two overlapping calls never
+  interleave their frames; the second's write begins only after the first's
+  reply is fully drained. `connect()` is single-flighted (a concurrent
+  cold-start opens one socket), a mid-stream failure closes the socket and the
+  next command transparently reconnects, and the connection is released through
+  the framework's shutdown drain. Two configs on the same host with **different
+  passwords** never share a socket: the memo key carries a SHA-256 digest of the
+  password (never the cleartext), so the credential also stays out of logs.
