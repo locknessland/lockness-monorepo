@@ -5,12 +5,23 @@
  */
 
 import type { SessionData, SessionDriver } from '../types.ts'
+import { encodeCommand, writeFrame } from './resp.ts'
 
 /**
  * Redis session driver.
  *
  * Persistent session storage using Redis server.
  * Implements RESP protocol directly without external dependencies.
+ *
+ * @remarks
+ * Commands must be issued one at a time per instance: the driver holds a single
+ * connection and its RESP reply reader expects exactly one reply per command,
+ * so two overlapping `sendCommand` calls would interleave frames and desync the
+ * socket. The framework satisfies this by constructing one driver per request
+ * and awaiting each call (`session/middleware.ts`); a consumer using this class
+ * directly must serialize its own calls. Per-connection command serialization
+ * is tracked with the shared-socket work in
+ * {@link https://github.com/locknessland/lockness-monorepo/issues/138 | #138}.
  *
  * @example
  * ```typescript
@@ -67,16 +78,27 @@ export class RedisSessionDriver implements SessionDriver {
 
     private async sendCommand(args: string[]): Promise<string> {
         const conn = await this.connect()
-        const encoder = new TextEncoder()
         const decoder = new TextDecoder()
 
-        // Build RESP protocol command
-        let command = `*${args.length}\r\n`
-        for (const arg of args) {
-            command += `$${arg.length}\r\n${arg}\r\n`
+        // The RESP frame is built and written by `resp.ts` — the one home for
+        // "how many bytes an argument occupies" (`encodeCommand`) and "the
+        // frame is on the wire in full before a reply is read" (`writeFrame`).
+        // A write that fails after partial progress leaves the socket desynced
+        // and unrecoverable, so the connection is closed and discarded before
+        // the error propagates; the next command reconnects clean (FR-004a).
+        // Closing frees the fd and the Redis client slot the half-written frame
+        // would otherwise hold. The reply reader below is unchanged, #139's.
+        try {
+            await writeFrame(conn, encodeCommand(args))
+        } catch (error) {
+            try {
+                conn.close()
+            } catch {
+                // Already closed by the failure itself; nothing to free.
+            }
+            this.connection = null
+            throw error
         }
-
-        await conn.write(encoder.encode(command))
 
         // Read response
         const buffer = new Uint8Array(4096)
