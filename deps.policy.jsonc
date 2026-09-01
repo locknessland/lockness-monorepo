@@ -68,7 +68,7 @@
         },
         "queue": { "tier": "implementation", "allow": ["contract"] },
         "scheduler": { "tier": "implementation", "allow": [] },
-        "session": { "tier": "implementation", "allow": ["hono"] },
+        "session": { "tier": "implementation", "allow": ["contract", "hono"] },
         "socialite": { "tier": "implementation", "allow": ["hono"] },
         "sse": { "tier": "implementation", "allow": ["contract"] },
         "storage": { "tier": "implementation", "allow": [] },
