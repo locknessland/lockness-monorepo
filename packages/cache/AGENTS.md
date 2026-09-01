@@ -70,7 +70,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-6 test files for 10 source files:
+6 test files for 11 source files:
 
 - `packages/cache/tests/advanced.test.ts`
 - `packages/cache/tests/basic.test.ts`
