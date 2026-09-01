@@ -73,7 +73,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 12 source files:
+9 test files for 12 source files:
 
 - `packages/auth/tests/auth_decorators.test.ts`
 - `packages/auth/tests/authenticator.test.ts`
@@ -83,6 +83,7 @@ Anything not listed is internal and free to change.
 - `packages/auth/tests/guards.test.ts`
 - `packages/auth/tests/integration.test.ts`
 - `packages/auth/tests/providers.test.ts`
+- `packages/auth/tests/session_logout_revocation.test.ts`
 
 <!-- /generated:tests -->
 
@@ -98,7 +99,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 8 test files directly —
+Then, specific to this package: run its 9 test files directly —
 
 ```bash
 deno test -A packages/auth/

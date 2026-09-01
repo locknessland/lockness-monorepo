@@ -96,9 +96,11 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-20 test files for 17 source files:
+22 test files for 18 source files:
 
 - `packages/session/tests/config_resolution.test.ts`
+- `packages/session/tests/cookie_absolute_lifetime.test.ts`
+- `packages/session/tests/cookie_revocation.test.ts`
 - `packages/session/tests/driver_memo.test.ts`
 - `packages/session/tests/drivers.test.ts`
 - `packages/session/tests/memory_regenerate_ttl.test.ts`
@@ -133,7 +135,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 20 test files directly —
+Then, specific to this package: run its 22 test files directly —
 
 ```bash
 deno test -A packages/session/
