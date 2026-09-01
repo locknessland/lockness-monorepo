@@ -59,18 +59,18 @@
         "events": { "tier": "implementation", "allow": ["contract", "hono"] },
         "inertia": { "tier": "implementation", "allow": ["hono"] },
         "init": { "tier": "implementation", "allow": ["cli"] },
-        "logger": { "tier": "implementation", "allow": [] },
+        "logger": { "tier": "implementation", "allow": ["contract"] },
         "mail": { "tier": "implementation", "allow": [] },
         "markdown": { "tier": "implementation", "allow": ["hono", "ui"] },
         "openapi": {
             "tier": "implementation",
             "allow": ["cli", "contract", "hono"]
         },
-        "queue": { "tier": "implementation", "allow": [] },
+        "queue": { "tier": "implementation", "allow": ["contract"] },
         "scheduler": { "tier": "implementation", "allow": [] },
         "session": { "tier": "implementation", "allow": ["hono"] },
         "socialite": { "tier": "implementation", "allow": ["hono"] },
-        "sse": { "tier": "implementation", "allow": [] },
+        "sse": { "tier": "implementation", "allow": ["contract"] },
         "storage": { "tier": "implementation", "allow": [] },
         // `ui` reaches `markdown` from `docs_renderer.tsx`, and `markdown`
         // reaches `ui` back — see `knownCycles` above.
