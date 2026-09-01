@@ -1,6 +1,7 @@
 import { Database } from '@lockness/drizzle'
 import { container } from '@lockness/core'
 import { UserSeeder } from './user_seeder.ts'
+import { PostSeeder } from './post_seeder.ts'
 
 export class DatabaseSeeder {
     private database: Database
@@ -19,6 +20,7 @@ export class DatabaseSeeder {
         // Add your seeders here in order
         const seeders: { new (): { run(): Promise<void> } }[] = [
             UserSeeder,
+            PostSeeder,
         ]
 
         for (const Seeder of seeders) {
