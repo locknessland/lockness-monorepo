@@ -119,8 +119,26 @@ review.
 - **Classification gate** — every item exits with Size, Priority, Issue Type,
   and ≥1 classifying label (see `product-owner` agent).
 - **Status workflow** — Backlog → Ready → In progress → In review → Done.
-- **Two-step close on GitHub** — `move.sh <num> Done` BEFORE
-  `gh issue close <num>`.
+- **Closing on GitHub is ONE step, not two.** Project #2 runs an "Auto-close
+  issue" workflow, so `move.sh <num> Done` **is** the close and a following
+  `gh issue close` returns "already closed". Measured 2026-08-31 on #122: the
+  move at 16:52:02 closed it. The automation is asynchronous — a re-read
+  immediately after the move can still report OPEN, and settled ~8 s later, so a
+  close verified too quickly reads as a false negative. Prefer `move.sh`, which
+  leaves no Status drift.
+- **Audits read the open backlog first.** Before an audit seat (plan audit or
+  review) reports a finding, it reads the open items for the bounded contexts it
+  touches (`gh issue list --state open --label domain:<context>`). A finding
+  that already has an item is reported as `confirms #N` with only what is new;
+  one whose stated conclusion the evidence disproves is reported as a
+  correction, explicitly. Measured 2026-09-01: the #137 plan audits re-found two
+  defects the #136 audits had already filed as #138 and #139. Procedure in
+  `.claude/skills/specnaut/phases/plan-audits.md`; PO-side backstop in
+  `.claude/agents/product-owner/runbook.md`.
+- **A disproven assessment is corrected, not erased.** When evidence overturns
+  what an issue asserts, the body records that the original assessment was
+  disproven, with the date and the evidence. The next reader needs to know the
+  reasoning failed, not merely that the conclusion changed.
 
 ## When to use which workflow
 

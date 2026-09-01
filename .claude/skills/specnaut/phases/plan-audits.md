@@ -9,6 +9,36 @@ But their findings go **into `plan.md`**: either the plan changes, or it records
 was accepted. An audit whose output is not written down did not happen. A clean verdict is written
 down **with its coverage**, because a clean verdict is worth exactly what it covered.
 
+## Read the open backlog for the touched domains first
+
+**Before either seat reports anything, read the open items for the bounded contexts the plan
+touches.** The board is where every previous audit's findings went; an audit that does not read it
+spends its budget rediscovering them.
+
+```bash
+gh issue list --repo <repo> --state open --label "domain:<context>" \
+  --json number,title,body
+```
+
+This is not optional politeness — it is measured waste. The `006-session-key-hardening` (#137) plan
+audits re-found two defects that the #136 plan audits had already filed, as #138 and #139: audit
+budget spent twice on the same defects, and product-owner turns spent triaging the duplicates.
+
+What to do with a finding that already has an item:
+
+- **It matches an open item** → report it as `confirms #N`, and report **only what is new** — a
+  sharper reproduction, a reachable path the item missed, a severity that should change. Do not
+  restate the item's evidence back at the reader.
+- **It matches an open item whose stated conclusion is wrong** → say so explicitly, with the
+  evidence that disproves it. This is the highest-value output either seat produces, and it is
+  invisible to a seat that never read the item. #139 asserted in bold that a defect was "NOT command
+  injection"; a live-server probe showed it was, and that sentence had been telling every reader to
+  deprioritise a P0.
+- **It is genuinely new** → report it normally.
+
+Never silently drop a finding because an item exists. `confirms #N` and "not reported" look
+identical in a report and mean opposite things.
+
 ## 🔒 The architecture audit
 
 **Dispatch the `architect-expert` agent on `plan.md` before a single line is written** — here,

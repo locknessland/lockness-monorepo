@@ -28,6 +28,35 @@ Keep the GitHub Project #2 Kanban clean, prioritized, and free of duplicates.
 3. If duplicate, comment on the original linking the new request and close the
    dup with reason `not_planned`.
 
+### Intake a batch of findings from a plan audit
+
+Audit findings arrive as a list of "file these". **Dedupe against the open board before creating
+anything** — the audit seats do not reliably do it, and a duplicate costs more to unwind than to
+prevent.
+
+1. `gh issue list --repo locknessland/lockness-monorepo --state open --label "domain:<context>"`
+   for every bounded context the findings touch. Read the bodies, not just the titles: a finding is
+   often one bullet inside an existing item's acceptance criteria.
+2. For each finding, classify it as **new**, **duplicate of #N**, or **partially covered by #N**.
+   Partial is the common case and the one that gets mishandled — file only the uncovered half, and
+   name the covering item in the new item's `## Out of scope` and its ordering note.
+3. **Verify the claim against the tree before writing it into a body.** Cite line numbers you
+   personally read. Where a claim's severity depends on runtime behaviour, run it — a live probe
+   settles in one turn what prose argues about for three.
+4. Where a new item and an existing one would own the same fix, **one fix gets one owner**: move the
+   acceptance bullet, and record the move on both items with the date.
+5. Where the verification **disproves an existing item's stated conclusion**, correct the body and
+   record that the original assessment was disproven, with the date and the evidence. Correct the
+   conclusion; do not erase that it was held — the next reader needs to know the reasoning failed,
+   not merely that it changed. A confidently-worded wrong severity is worse than a gap, because it
+   tells the next developer to deprioritise.
+6. Report the dedupe explicitly: "N findings → X created, Y already covered by #A/#B". Silently
+   creating N items is the failure mode.
+
+Measured 2026-09-01: the #137 plan audits re-found two defects the #136 audits had already filed as
+#138 and #139. The upstream fix is in `.claude/skills/specnaut/phases/plan-audits.md`; this
+procedure is the backstop for when it does not hold.
+
 ### Clarify a vague issue
 
 1. Read the issue: `gh issue view <num> --repo locknessland/lockness-monorepo`.
