@@ -8,6 +8,7 @@
  */
 
 import type { Hono } from 'hono'
+import { resolveEnvName } from '../environment.ts'
 
 /**
  * Configuration options for the server listener.
@@ -77,19 +78,13 @@ export class ServerListener {
      * @internal
      */
     private displayBanner(version: string): void {
-        // Guarded. `Deno.env.get` raises NotCapable rather than returning
-        // undefined when the process has no `--allow-env`, and this runs
-        // synchronously inside `listen()` — BEFORE the shutdown signal handlers
-        // are installed. A `deno compile --allow-net` binary therefore died
-        // here, over a banner, and took the shutdown wiring with it.
-        let env = 'development'
-        try {
-            env = Deno.env.get('DENO_ENV') || Deno.env.get('APP_ENV') ||
-                'development'
-        } catch {
-            // No env permission: the default is the honest answer, and a
-            // missing banner label is not worth failing a boot for.
-        }
+        // `resolveEnvName` is NotCapable-safe: this runs synchronously inside
+        // `listen()` BEFORE the shutdown signal handlers are installed, and a
+        // `deno compile --allow-net` binary once died here — over a banner —
+        // because a raw `Deno.env.get` raised without `--allow-env`. The helper
+        // guards the read and defaults to development, so no local guard is
+        // needed and the environment rule stays in one place.
+        const env = resolveEnvName()
         const isProd = env.toLowerCase() === 'production'
         const envLabel = isProd
             ? '\x1b[45m\x1b[37m\x1b[1m PRODUCTION \x1b[0m'

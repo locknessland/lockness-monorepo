@@ -9,6 +9,7 @@
 
 import type { BootstrapStep } from '../types.ts'
 import { tryImportOptionalPackage } from '../helpers.ts'
+import { resolveEnvName } from '../../../environment.ts'
 
 /**
  * KernelBooted event emission step.
@@ -44,7 +45,7 @@ export const eventsStep: BootstrapStep = {
             await dispatcher().emit(
                 new KernelBooted(
                     Deno.env.get('APP_NAME') ?? 'Lockness',
-                    Deno.env.get('APP_ENV') ?? 'development',
+                    resolveEnvName(),
                 ),
             )
         } catch (error) {

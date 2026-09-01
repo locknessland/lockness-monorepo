@@ -43,6 +43,7 @@ import { ExceptionRegistrator } from './exceptions/registrator.ts'
 import { ControllerDiscovery } from './routing/discovery.ts'
 import { RouteRegistry } from './routing/registry.ts'
 import { MountManager } from './routing/mount_manager.ts'
+import { isDevelopment, isProduction } from './environment.ts'
 import { StaticFileServer } from './http/static.ts'
 import { ServerListener } from './http/server.ts'
 import { ShutdownSequence } from './kernel/shutdown_sequence.ts'
@@ -273,15 +274,17 @@ export class App {
      * ```
      */
     get isDevelopment(): boolean {
-        return Deno.env.get('APP_ENV') === 'development'
+        return isDevelopment()
     }
 
     /**
      * Whether the application is running in production mode.
      *
-     * Checks if `APP_ENV` environment variable equals `'production'`.
+     * Resolves the environment name via {@link isProduction} — `DENO_ENV` first,
+     * then `APP_ENV`. (Before #144 this getter read only `APP_ENV`; a deployment
+     * that sets only `DENO_ENV=production` now correctly reads `true`.)
      *
-     * @returns `true` if `APP_ENV === 'production'`, `false` otherwise
+     * @returns `true` if the resolved environment is `'production'`
      *
      * @example
      * ```typescript
@@ -291,7 +294,7 @@ export class App {
      * ```
      */
     get isProduction(): boolean {
-        return Deno.env.get('APP_ENV') === 'production'
+        return isProduction()
     }
 
     /**

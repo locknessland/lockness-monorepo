@@ -8,6 +8,7 @@
  */
 
 import { safeForLog } from '../logging/sanitize.ts'
+import { isDevelopment } from '../environment.ts'
 
 /**
  * Options for formatting error output.
@@ -64,8 +65,7 @@ export function formatErrorForConsole(
     rawPath: string,
     options: FormatErrorOptions = {},
 ): void {
-    const isDev = options.isDevelopment ??
-        Deno.env.get('APP_ENV') === 'development'
+    const isDev = options.isDevelopment ?? isDevelopment()
     const showStack = options.showStackTrace ?? true
 
     // The path is request-derived and arrives percent-decoded, so it can carry

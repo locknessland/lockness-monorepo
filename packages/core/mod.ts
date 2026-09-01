@@ -44,6 +44,10 @@ export * from './exceptions/formatter.ts'
 export * from './exceptions/default_view.tsx'
 export * from './helpers.ts'
 
+// Environment-name resolution (DENO_ENV first, then APP_ENV) — the single home
+// of the production/development rule.
+export * from './environment.ts'
+
 // Export events system (decorators, dispatcher, base classes, testing)
 export {
     BaseEvent,

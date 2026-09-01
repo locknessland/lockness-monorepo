@@ -503,7 +503,7 @@ export function Kernel(
  *     get globalMiddlewares() {
  *         const middlewares = [sessionMiddleware()]
  *
- *         if (Deno.env.get('APP_ENV') === 'production') {
+ *         if (isProduction()) {
  *             middlewares.push(securityHeadersMiddleware())
  *         }
  *

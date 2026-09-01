@@ -25,30 +25,16 @@
 
 import type { CacheConfig, SessionConfig } from '../kernel_decorators.ts'
 
-/**
- * Is this process running in production?
- *
- * Reads `DENO_ENV` first, then `APP_ENV`, because those are the two names the
- * framework answers to and they disagree in its own shipped container:
- * `packages/init/stubs/init/Dockerfile.stub` sets `DENO_ENV=production`, while
- * this file read only `APP_ENV`. A gate consulting one name is inert wherever
- * the other is set — which for the session boot gate meant inert in the exact
- * image it exists to protect.
- *
- * `packages/core/http/server.ts` already resolved it this way; this is that rule
- * given a name so the two cannot drift.
- *
- * @returns `true` when either variable is `production`.
- *
- * @example
- * ```typescript
- * if (isProduction()) throw new Error('refusing to start without a key')
- * ```
- */
-export function isProduction(): boolean {
-    return (Deno.env.get('DENO_ENV') ?? Deno.env.get('APP_ENV')) ===
-        'production'
-}
+// Environment-name resolution lives in one place — `../../environment.ts`.
+// Imported for local use (the `secure` cookie default below) and re-exported
+// for the bootstrap consumers (e.g. the session boot gate) that already import
+// it from this module.
+import {
+    isDevelopment,
+    isProduction,
+    resolveEnvName,
+} from '../../environment.ts'
+export { isDevelopment, isProduction, resolveEnvName }
 
 /**
  * Normalized session config.

@@ -1,5 +1,6 @@
 import type { Context } from '../types.ts'
 import { formatErrorForConsole } from './formatter.ts'
+import { isDevelopment } from '../environment.ts'
 
 /**
  * Simple inline error pages - no external dependencies
@@ -338,7 +339,7 @@ export const defaultErrorHandler = (
             return c.html(<ForbiddenPage />, 403)
         default: {
             // Show error details only in development
-            const showDetails = Deno.env.get('APP_ENV') === 'development'
+            const showDetails = isDevelopment()
             return c.html(
                 <ServerErrorPage error={error} showDetails={showDetails} />,
                 500,

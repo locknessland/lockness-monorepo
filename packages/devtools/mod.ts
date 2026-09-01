@@ -15,9 +15,10 @@
  * @example Basic setup
  * ```typescript
  * import { enableDevtools, collectAppRoutes } from '@lockness/devtools'
+ * import { isDevelopment } from '@lockness/core'
  *
  * // In your kernel.ts (dev mode only)
- * if (Deno.env.get('APP_ENV') === 'development') {
+ * if (isDevelopment()) {
  *     enableDevtools(app.getHono())  // Before app.init()
  *     await app.init({ ... })
  *     collectAppRoutes(app)  // After app.init()
@@ -112,8 +113,9 @@ interface RouteProvider {
  * @example Basic usage
  * ```typescript
  * import { enableDevtools } from '@lockness/devtools'
+ * import { isDevelopment } from '@lockness/core'
  *
- * if (Deno.env.get('APP_ENV') === 'development') {
+ * if (isDevelopment()) {
  *     enableDevtools(app.getHono())  // Before app.init()
  *     await app.init({ ... })
  *     collectAppRoutes(app)  // After app.init()
