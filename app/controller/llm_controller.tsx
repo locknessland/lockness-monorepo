@@ -22,4 +22,18 @@ export class LlmController {
         const text = await this.llmSectionService.generateIndexText()
         return c.text(text)
     }
+
+    /**
+     * Full LLM corpus - every framework and UI doc concatenated into one file.
+     *
+     * For AI tools that ingest a whole corpus at once rather than following the
+     * per-page links in /llms.txt.
+     *
+     * @example GET /llms-full.txt
+     */
+    @Get('/llms-full.txt', { name: 'llms.full' })
+    async full(c: Context) {
+        const text = await this.llmSectionService.generateFullText()
+        return c.text(text)
+    }
 }
