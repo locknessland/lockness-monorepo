@@ -58,7 +58,7 @@ The monorepo contains **27 packages**.
 | `openapi`               | cli, contract, hono                          | —                                                            |
 | `queue`                 | contract                                     | —                                                            |
 | `scheduler`             | —                                            | —                                                            |
-| `session`               | hono                                         | —                                                            |
+| `session`               | contract, hono                               | —                                                            |
 | `socialite`             | hono                                         | —                                                            |
 | `sse`                   | contract                                     | —                                                            |
 | `storage`               | —                                            | —                                                            |

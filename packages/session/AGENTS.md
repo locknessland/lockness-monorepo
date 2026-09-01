@@ -44,7 +44,7 @@ User-facing documentation: [README.md](README.md) ·
 
 | Direction                                      | Packages                                                                                             |
 | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `hono`                                                                                               |
+| Imports (static)                               | `contract`, `hono`                                                                                   |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                    |
 | Imported by                                    | `auth`, `core`                                                                                       |
 | **Must never import**                          | `auth`, `auth-provider`, `core` — each already reaches this package, so importing one closes a cycle |
@@ -96,9 +96,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-10 test files for 14 source files:
+11 test files for 15 source files:
 
 - `packages/session/tests/config_resolution.test.ts`
+- `packages/session/tests/driver_memo.test.ts`
 - `packages/session/tests/drivers.test.ts`
 - `packages/session/tests/middleware.test.ts`
 - `packages/session/tests/no_placeholder_keys.test.ts`
@@ -123,7 +124,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 10 test files directly —
+Then, specific to this package: run its 11 test files directly —
 
 ```bash
 deno test -A packages/session/
