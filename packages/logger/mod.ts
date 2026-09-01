@@ -7,6 +7,12 @@
  * Note: Some methods are async for transport consistency
  */
 
+import {
+    deregisterDisposable,
+    type DisposableHandle,
+    registerDisposable,
+} from '@lockness/contract/lifecycle/internal'
+
 // deno-lint-ignore-file require-await
 
 // =============================================================================
@@ -137,12 +143,13 @@ export class PrettyFormatter implements LogFormatter {
 export class ConsoleTransport implements LogTransport {
     constructor(private useStderr = true) {}
 
-    async log(entry: LogEntry): Promise<void> {
+    log(entry: LogEntry): Promise<void> {
         const output = entry.level >= LogLevel.ERROR && this.useStderr
             ? console.error
             : console.log
 
         output(entry)
+        return Promise.resolve()
     }
 }
 
@@ -152,8 +159,9 @@ export class ConsoleTransport implements LogTransport {
 export class MemoryTransport implements LogTransport {
     private logs: LogEntry[] = []
 
-    async log(entry: LogEntry): Promise<void> {
+    log(entry: LogEntry): Promise<void> {
         this.logs.push(entry)
+        return Promise.resolve()
     }
 
     getLogs(): LogEntry[] {
@@ -190,11 +198,12 @@ export class FileTransport implements LogTransport {
         await this.file.write(this.encoder.encode(formatted))
     }
 
-    async close(): Promise<void> {
+    close(): Promise<void> {
         if (this.file) {
             this.file.close()
             this.file = undefined
         }
+        return Promise.resolve()
     }
 }
 
@@ -287,7 +296,7 @@ export class Logger {
     /**
      * Debug level logging
      */
-    async debug(
+    debug(
         message: string,
         metadata?: Record<string, unknown>,
     ): Promise<void> {
@@ -297,7 +306,7 @@ export class Logger {
     /**
      * Info level logging
      */
-    async info(
+    info(
         message: string,
         metadata?: Record<string, unknown>,
     ): Promise<void> {
@@ -307,7 +316,7 @@ export class Logger {
     /**
      * Warning level logging
      */
-    async warn(
+    warn(
         message: string,
         metadata?: Record<string, unknown>,
     ): Promise<void> {
@@ -317,7 +326,7 @@ export class Logger {
     /**
      * Error level logging
      */
-    async error(
+    error(
         message: string,
         error?: Error | Record<string, unknown>,
     ): Promise<void> {
@@ -335,7 +344,7 @@ export class Logger {
     /**
      * Fatal level logging
      */
-    async fatal(
+    fatal(
         message: string,
         error?: Error | Record<string, unknown>,
     ): Promise<void> {
@@ -364,6 +373,9 @@ export class Logger {
 // Global Logger Instance
 // =============================================================================
 
+/** Withdrawn when the logger is replaced, so the registry does not grow. */
+let loggerHandle: DisposableHandle | undefined
+
 let globalLogger: Logger | null = null
 
 /**
@@ -371,7 +383,43 @@ let globalLogger: Logger | null = null
  */
 export function configureLogger(config: LoggerConfig = {}): Logger {
     globalLogger = new Logger(config)
+    registerGlobalLogger(globalLogger)
     return globalLogger
+}
+
+/**
+ * Announce the global logger so its transports are closed at shutdown.
+ *
+ * A file transport holds a `Deno.FsFile`, and `close()` has always existed —
+ * the package's own docs told the application to call it by hand
+ * (`await log.close() // Close file handles`). Now the framework does.
+ *
+ * **STORES priority**: logs are written *by* the things torn down before this,
+ * so the logger closes after them and their teardown lines are not lost.
+ *
+ * @param instance - The logger that just became global.
+ * @internal
+ */
+function registerGlobalLogger(instance: Logger): void {
+    // Withdraw the previous one first: replacing the global logger twice in a
+    // long-lived process would otherwise leave a stale entry per replacement.
+    if (loggerHandle) deregisterDisposable(loggerHandle)
+    loggerHandle = registerDisposable({
+        name: 'logger',
+        dispose: async () => {
+            if (loggerHandle) {
+                deregisterDisposable(loggerHandle)
+                loggerHandle = undefined
+            }
+            await instance.close()
+            // A logger whose file handle is closed must not be handed out
+            // again — the same rule the cache store follows. `logger()` builds
+            // a fresh one, so a programmatic shutdown leaves the process able
+            // to log rather than writing into a closed descriptor.
+            if (globalLogger === instance) globalLogger = null
+        },
+        priority: 60,
+    })
 }
 
 /**
@@ -380,6 +428,7 @@ export function configureLogger(config: LoggerConfig = {}): Logger {
 export function logger(): Logger {
     if (!globalLogger) {
         globalLogger = new Logger()
+        registerGlobalLogger(globalLogger)
     }
     return globalLogger
 }
@@ -391,7 +440,7 @@ export function logger(): Logger {
 /**
  * Quick debug logging
  */
-export async function debug(
+export function debug(
     message: string,
     metadata?: Record<string, unknown>,
 ): Promise<void> {
@@ -401,7 +450,7 @@ export async function debug(
 /**
  * Quick info logging
  */
-export async function info(
+export function info(
     message: string,
     metadata?: Record<string, unknown>,
 ): Promise<void> {
@@ -411,7 +460,7 @@ export async function info(
 /**
  * Quick warning logging
  */
-export async function warn(
+export function warn(
     message: string,
     metadata?: Record<string, unknown>,
 ): Promise<void> {
@@ -421,7 +470,7 @@ export async function warn(
 /**
  * Quick error logging
  */
-export async function error(
+export function error(
     message: string,
     error?: Error | Record<string, unknown>,
 ): Promise<void> {
@@ -431,7 +480,7 @@ export async function error(
 /**
  * Quick fatal logging
  */
-export async function fatal(
+export function fatal(
     message: string,
     error?: Error | Record<string, unknown>,
 ): Promise<void> {
