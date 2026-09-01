@@ -62,6 +62,21 @@ export interface LogFormatter {
 export interface LoggerConfig {
     level?: LogLevel
     transports?: LogTransport[]
+
+    /**
+     * Whether the shutdown lifecycle may close these transports.
+     *
+     * **Defaults to `true`.** A transport passed here is normally constructed
+     * inline and handed over for good, and it is the only way to give this
+     * package a file to write to — so treating them as borrowed would leave the
+     * file handle unreleasable.
+     *
+     * Set it to `false` when the application keeps its own reference and uses
+     * the transport elsewhere; then closing it is the application's job.
+     *
+     * @default true
+     */
+    ownsTransports?: boolean
     formatter?: LogFormatter
     context?: string
 }
@@ -217,12 +232,31 @@ export class FileTransport implements LogTransport {
 export class Logger {
     private level: LogLevel
     private transports: LogTransport[]
+    /** Transports this logger built itself, and may therefore close. */
+    private readonly ownedTransports: WeakSet<LogTransport>
     private formatter: LogFormatter
     private context?: string
 
     constructor(config: LoggerConfig = {}) {
         this.level = config.level ?? LogLevel.INFO
+        // Ownership defaults to OWNED, and the reason is worth stating because
+        // the safer-sounding default is the wrong one here.
+        //
+        // `LoggerConfig` offers no way to ask the logger to build a file
+        // transport — the only route is `transports: [new FileTransport(...)]`,
+        // which is the shape the package's own docs teach. Treating supplied
+        // transports as borrowed would therefore mean the `Deno.FsFile` this
+        // package was brought into #136 for could NEVER be released, which
+        // defeats the requirement rather than protecting it. It also matches
+        // the behaviour `close()` has always had.
+        //
+        // An application that keeps its own reference — sharing one transport
+        // between the global logger and an audit logger — passes
+        // `ownsTransports: false` and closes it itself.
         this.transports = config.transports ?? [new ConsoleTransport()]
+        this.ownedTransports = config.ownsTransports === false
+            ? new WeakSet()
+            : new WeakSet(this.transports)
         this.formatter = config.formatter ?? new PrettyFormatter()
         this.context = config.context
     }
@@ -367,6 +401,27 @@ export class Logger {
             this.transports.map((transport) => transport.close?.()),
         )
     }
+
+    /**
+     * Close only the transports this logger constructed itself.
+     *
+     * What the shutdown lifecycle calls. {@link close} closes **everything**,
+     * including transports the application built and passed in — which it is
+     * still holding, and which `child()` shares. Closing those from a framework
+     * teardown is the same mistake as closing an injected Redis client.
+     *
+     * @example
+     * ```typescript
+     * await log.closeOwnedTransports()
+     * ```
+     */
+    async closeOwnedTransports(): Promise<void> {
+        await Promise.all(
+            this.transports
+                .filter((transport) => this.ownedTransports.has(transport))
+                .map((transport) => transport.close?.()),
+        )
+    }
 }
 
 // =============================================================================
@@ -411,7 +466,13 @@ function registerGlobalLogger(instance: Logger): void {
                 deregisterDisposable(loggerHandle)
                 loggerHandle = undefined
             }
-            await instance.close()
+            // Only transports the logger built itself. A transport the
+            // application constructed and passed in — `configureLogger({
+            // transports: [auditFile] })` — is still held and used by that
+            // application, and `child()` shares the same array, so closing it
+            // here throws BadResource on their next write. Same rule as the
+            // cache's injected Redis client.
+            await instance.closeOwnedTransports()
             // A logger whose file handle is closed must not be handed out
             // again — the same rule the cache store follows. `logger()` builds
             // a fresh one, so a programmatic shutdown leaves the process able

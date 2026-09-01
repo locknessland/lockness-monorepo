@@ -2,5 +2,8 @@
     "name": "@lockness/sse",
     "version": "0.2.0",
     "license": "MIT",
+    "imports": {
+        "@lockness/contract": "jsr:@lockness/contract@^0.2.0"
+    },
     "exports": "./mod.ts"
 }

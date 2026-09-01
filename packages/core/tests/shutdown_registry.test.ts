@@ -142,3 +142,51 @@ Deno.test('ShutdownRegistry - a late registration name is encoded in the warning
         console.warn = originalWarn
     }
 })
+
+Deno.test('ShutdownRegistry - runBand runs only the matching entries, and removes them', async () => {
+    // The pre-drain phase needs to run a subset BEFORE the server stops
+    // accepting, and leave the rest for run(). Splitting by predicate keeps one
+    // comparator and one failure policy — a second sorted list would be the
+    // duplication the plan's decision table forbids.
+    const order: string[] = []
+    const registry = new ShutdownRegistry()
+
+    registry.register('predrain', () => void order.push('predrain'), -100)
+    registry.register('service', () => void order.push('service'), 30)
+    registry.register('store', () => void order.push('store'), 60)
+
+    const band = await registry.runBand((p) => p < 0)
+    assertEquals(band.ran, 1)
+    assertEquals(order, ['predrain'])
+
+    const rest = await registry.run()
+    assertEquals(rest.ran, 2, 'the band it already ran is not run twice')
+    assertEquals(order, ['predrain', 'service', 'store'])
+})
+
+Deno.test('ShutdownRegistry - runBand isolates a failure the same way run() does', async () => {
+    const order: string[] = []
+    const registry = new ShutdownRegistry()
+
+    registry.register('a', () => void order.push('a'), -3)
+    registry.register('boom', () => {
+        throw new Error('predrain exploded')
+    }, -2)
+    registry.register('c', () => void order.push('c'), -1)
+
+    const band = await registry.runBand((p) => p < 0)
+
+    assertEquals(order, ['a', 'c'], 'the one after the failure still ran')
+    assertEquals(band.failed.length, 1)
+    assertEquals(band.failed[0].hook, 'boom')
+})
+
+Deno.test('ShutdownRegistry - runBand matching nothing is a clean no-op', async () => {
+    const registry = new ShutdownRegistry()
+    registry.register('store', () => {}, 60)
+
+    const band = await registry.runBand((p) => p < 0)
+
+    assertEquals(band.ran, 0)
+    assertEquals((await registry.run()).ran, 1)
+})

@@ -344,3 +344,132 @@ Deno.test('ShutdownSequence - a HANGING KernelTerminating listener does not star
         off?.()
     }
 })
+
+Deno.test('ShutdownSequence - a PREDRAIN disposable runs BEFORE the server stops', async () => {
+    // The ordering SC-003 depends on. `server.shutdown()` does not resolve while
+    // a streaming response is open, and an armed SSE heartbeat is what keeps it
+    // open — so an SSE teardown behind the drain sits behind the very thing it
+    // exists to release, the deadline expires and NO hook runs.
+    const { registerDisposable, drainDisposables } = await import(
+        '@lockness/contract/lifecycle/internal'
+    )
+    drainDisposables() // start from empty
+
+    const order: string[] = []
+    const sequence = new ShutdownSequence()
+
+    sequence.setServer({
+        shutdown: () => {
+            order.push('server')
+            return Promise.resolve()
+        },
+    })
+    registerDisposable({
+        name: 'sse',
+        dispose: () => void order.push('predrain'),
+        priority: SHUTDOWN_PRIORITY.PREDRAIN,
+    })
+    sequence.registry.register('ordinary', () => void order.push('ordinary'))
+
+    await sequence.run()
+
+    assertEquals(order, ['predrain', 'server', 'ordinary'])
+})
+
+Deno.test('ShutdownSequence - an ordinary priority is NOT swept into the pre-drain', async () => {
+    // register() defaults to 0 and @OnShutdown() means 0. A positive pre-drain
+    // threshold would sweep every ordinary hook in with it and tear the whole
+    // application down before the server stopped accepting. It did, on the first
+    // attempt, and seven tests caught it.
+    const { drainDisposables } = await import(
+        '@lockness/contract/lifecycle/internal'
+    )
+    drainDisposables()
+
+    const order: string[] = []
+    const sequence = new ShutdownSequence()
+    sequence.setServer({
+        shutdown: () => {
+            order.push('server')
+            return Promise.resolve()
+        },
+    })
+    sequence.registry.register('defaulted', () => void order.push('defaulted'))
+    sequence.registry.register('zero', () => void order.push('zero'), 0)
+
+    await sequence.run()
+
+    assertEquals(
+        order[0],
+        'server',
+        'the server stops before any ordinary hook',
+    )
+})
+
+Deno.test('FR-004 - a failing disposable does not strand the ones behind it', async () => {
+    // The policy shutdown_registry states in as many words. The earlier
+    // adoption test registered exactly ONE disposable, so an implementation
+    // that collapsed the drain into a single entry — `register('disposables',
+    // async () => { for (…) await d.dispose() })` — would have passed it while
+    // silently repealing the policy for every resource this feature releases.
+    const { registerDisposable, drainDisposables } = await import(
+        '@lockness/contract/lifecycle/internal'
+    )
+    drainDisposables()
+
+    const order: string[] = []
+    const sequence = new ShutdownSequence()
+
+    registerDisposable({
+        name: 'first',
+        dispose: () => void order.push('first'),
+        priority: 10,
+    })
+    registerDisposable({
+        name: 'explodes',
+        dispose: () => {
+            order.push('explodes')
+            throw new Error('teardown failed')
+        },
+        priority: 20,
+    })
+    registerDisposable({
+        name: 'third',
+        dispose: () => void order.push('third'),
+        priority: 30,
+    })
+
+    const report = await sequence.run()
+
+    assertEquals(order, ['first', 'explodes', 'third'], 'all three attempted')
+    assertEquals(report.failed.length, 1)
+    assertEquals(report.failed[0].hook, 'explodes')
+})
+
+Deno.test('FR-004 - an omitted priority sorts with the stores, not first', async () => {
+    // The HIGH the code review found. `Disposable.priority`'s JSDoc promises an
+    // omitted value "sorts with the stores", but `register()` defaults to 0 —
+    // first, ahead of NOTIFY and SERVICES. A third-party store following the
+    // documentation closed before the producers still writing into it.
+    const { registerDisposable, drainDisposables } = await import(
+        '@lockness/contract/lifecycle/internal'
+    )
+    drainDisposables()
+
+    const order: string[] = []
+    const sequence = new ShutdownSequence()
+
+    registerDisposable({
+        name: 'store',
+        dispose: () => void order.push('store'),
+    })
+    registerDisposable({
+        name: 'service',
+        dispose: () => void order.push('service'),
+        priority: SHUTDOWN_PRIORITY.SERVICES,
+    })
+
+    await sequence.run()
+
+    assertEquals(order, ['service', 'store'], 'the store closes last')
+})

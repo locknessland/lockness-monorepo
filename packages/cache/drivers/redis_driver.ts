@@ -7,6 +7,12 @@
  * @module @lockness/cache/drivers/redis_driver
  */
 
+import {
+    deregisterDisposable,
+    type DisposableHandle,
+    registerDisposable,
+} from '@lockness/contract/lifecycle/internal'
+import { markDriverClosed } from '../closed_drivers.ts'
 import type { CacheDriver, CacheItem } from '../types.ts'
 import { getCacheKey, getExpiresAt, isExpired } from '../config.ts'
 
@@ -148,6 +154,15 @@ export interface RedisClient {
  */
 export interface RedisCacheDriverOptions {
     /**
+     * Whether this driver owns the connection and may close it at shutdown.
+     *
+     * **Defaults to `false`**, because the client is handed in already
+     * connected and the application may still be using it elsewhere. Closing
+     * something you were given is how a teardown becomes an outage.
+     */
+    ownsClient?: boolean
+
+    /**
      * Prefix for all Redis cache keys.
      *
      * Helps avoid collisions when sharing Redis with other applications.
@@ -234,6 +249,8 @@ export class RedisCacheDriver implements CacheDriver {
     private readonly serialize: (value: unknown) => string
     /** @internal Deserialization function */
     private readonly deserialize: (value: string) => unknown
+    readonly #ownsClient: boolean = false
+    #handle?: DisposableHandle
 
     /**
      * Create a new Redis cache driver.
@@ -243,6 +260,16 @@ export class RedisCacheDriver implements CacheDriver {
      */
     constructor(client: RedisClient, options: RedisCacheDriverOptions = {}) {
         this.client = client
+        // Registered whether or not we own it: the drain needs to know the
+        // driver exists. `ownsClient` decides whether disposing it actually
+        // closes anything — closing a connection the application opened and
+        // handed in would break something it may still be using elsewhere.
+        this.#ownsClient = options.ownsClient === true
+        this.#handle = registerDisposable({
+            name: 'cache:redis',
+            dispose: () => this.close(),
+            priority: 60,
+        })
         this.keyPrefix = options.keyPrefix ?? 'cache'
         this.tagPrefix = options.tagPrefix ?? 'tag'
         this.serialize = options.serialize ?? JSON.stringify
@@ -485,5 +512,30 @@ export class RedisCacheDriver implements CacheDriver {
 
     async flushByTag(tag: string): Promise<void> {
         await this.forgetByTag(tag)
+    }
+
+    /**
+     * Release the Redis connection — **only if this driver opened it**.
+     *
+     * The client arrives already connected from the application
+     * (`new RedisCacheDriver(client)`, "must be connected"), so by default this
+     * withdraws the registration and closes nothing. Pass `ownsClient: true`
+     * when the driver is the sole owner.
+     *
+     * @example
+     * ```typescript
+     * new RedisCacheDriver(client, { ownsClient: true })
+     * ```
+     */
+    async close(): Promise<void> {
+        markDriverClosed(this)
+        if (this.#handle) {
+            deregisterDisposable(this.#handle)
+            this.#handle = undefined
+        }
+        if (this.#ownsClient) {
+            await (this.client as { close?: () => void | Promise<void> })
+                .close?.()
+        }
     }
 }

@@ -5,7 +5,9 @@
     "exports": {
         ".": "./mod.ts",
         "./http": "./http/mod.ts",
-        "./routing": "./routing/mod.ts"
+        "./routing": "./routing/mod.ts",
+        "./lifecycle": "./lifecycle/mod.ts",
+        "./lifecycle/internal": "./lifecycle/disposables.ts"
     },
     "tasks": {
         "test": "deno test -A tests/",

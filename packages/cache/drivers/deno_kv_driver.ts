@@ -3,6 +3,12 @@
  * @module @lockness/cache/drivers/deno_kv_driver
  */
 
+import {
+    deregisterDisposable,
+    type DisposableHandle,
+    registerDisposable,
+} from '@lockness/contract/lifecycle/internal'
+import { markDriverClosed } from '../closed_drivers.ts'
 import type { CacheDriver, CacheItem } from '../types.ts'
 import { getCacheKey, getExpiresAt, isExpired } from '../config.ts'
 
@@ -35,13 +41,48 @@ export class DenoKvCacheDriver implements CacheDriver {
      * Create a new Deno KV cache driver.
      * @param kvPath - Optional path to the KV database file
      */
+    /** Withdrawn when the handle is released, so the registry does not grow. */
+    #handle?: DisposableHandle
+
     constructor(kvPath?: string) {
         this.kvPath = kvPath
+    }
+
+    /**
+     * Release the Deno KV handle.
+     *
+     * Guarded on a handle that may never have been acquired — {@link getKv}
+     * opens lazily, so a driver constructed and never used holds nothing and an
+     * unguarded close would throw inside the shutdown drain.
+     *
+     * @example
+     * ```typescript
+     * await driver.close()
+     * ```
+     */
+    async close(): Promise<void> {
+        markDriverClosed(this)
+        if (this.#handle) {
+            deregisterDisposable(this.#handle)
+            this.#handle = undefined
+        }
+        if (this.kv) {
+            this.kv.close()
+            this.kv = null
+        }
+        await Promise.resolve()
     }
 
     private async getKv(): Promise<Deno.Kv> {
         if (!this.kv) {
             this.kv = await Deno.openKv(this.kvPath)
+            // Announced only once a handle actually exists. Registering in the
+            // constructor would enrol a driver that owns nothing.
+            this.#handle ??= registerDisposable({
+                name: 'cache:deno-kv',
+                dispose: () => this.close(),
+                priority: 60,
+            })
         }
         return this.kv
     }

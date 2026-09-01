@@ -9,4 +9,4 @@
  * @module @lockness/core/logging/sanitize
  */
 
-export { safeForLog } from '@lockness/contract'
+export { renderError, safeForLog } from '@lockness/contract'

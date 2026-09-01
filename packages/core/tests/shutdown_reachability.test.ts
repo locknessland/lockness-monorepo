@@ -13,6 +13,11 @@ import * as core from '../mod.ts'
 import { getDefaultSteps } from '../kernel/bootstrap/registry.ts'
 
 const REQUIRED = [
+    // Public since #136 moved it into @lockness/contract beside safeForLog: the
+    // disposables drain has to render a teardown failure, and contract cannot
+    // import core. It was on the internal list until then, and this guard is
+    // what noticed the surface had changed — which is the point of having it.
+    'renderError',
     'OnShutdown',
     'getShutdownHooks',
     'KERNEL_SHUTDOWN_HOOKS',
@@ -33,7 +38,6 @@ const DELIBERATELY_INTERNAL = [
     'installShutdownSignals',
     'exitCodeFor',
     'resolveDeadlineMs',
-    'renderError',
 ] as const
 
 Deno.test('shutdown - every runtime symbol is reachable from @lockness/core', () => {

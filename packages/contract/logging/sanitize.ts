@@ -65,3 +65,46 @@ export function safeForLog(value: string): string {
         ? `${encoded.slice(0, MAX_LENGTH)}\u2026[truncated]`
         : encoded
 }
+
+/**
+ * Render a caught error for a log line.
+ *
+ * `name` plus a **truncated, encoded** message — never the object, never the
+ * stack. `console.error('...', error)` prints both, and teardown is exactly
+ * where credential-bearing errors are produced: a Postgres driver failure
+ * carries `postgres://user:password@host/db`, a `fetch` rejection carries a URL
+ * with its token in the query string. Log stores routinely have broader access
+ * than the database those credentials open.
+ *
+ * The encoding half is not theoretical either:
+ * `packages/session/drivers/redis.ts:104` throws a Redis server's error reply
+ * verbatim, on the path `close()` takes.
+ *
+ * **It lives here, in the foundation, for the same reason `safeForLog` does.**
+ * The disposables drain has to render a teardown failure, and
+ * `@lockness/contract` cannot import `@lockness/core` — so leaving it in core
+ * would force a second renderer here, and two spellings of one rule diverge on
+ * the first escape sequence somebody remembers in only one of them.
+ * `@lockness/core` re-exports it, so no caller changed.
+ *
+ * @param error - Whatever was thrown.
+ * @returns One safe, bounded line.
+ *
+ * @example
+ * ```typescript
+ * renderError(new Error('boom'))  // 'Error: boom'
+ * ```
+ */
+export function renderError(error: unknown): string {
+    const MAX = 200
+
+    if (error instanceof Error) {
+        const message = error.message.length > MAX
+            ? `${error.message.slice(0, MAX)}…`
+            : error.message
+        return `${safeForLog(error.name)}: ${safeForLog(message)}`
+    }
+
+    const text = String(error)
+    return safeForLog(text.length > MAX ? `${text.slice(0, MAX)}…` : text)
+}

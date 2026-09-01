@@ -22,7 +22,11 @@
  * @since 0.2.1
  */
 
-import { safeForLog } from '../logging/sanitize.ts'
+import { renderError, safeForLog } from '../logging/sanitize.ts'
+
+// Re-exported so no caller changes when it moved to the foundation: the
+// disposables drain needs it, and @lockness/contract cannot import core.
+export { renderError }
 import type { ShutdownHookMethod } from './shutdown_decorators.ts'
 
 /**
@@ -40,7 +44,25 @@ import type { ShutdownHookMethod } from './shutdown_decorators.ts'
  * Register with one of these instead.
  */
 export const SHUTDOWN_PRIORITY = {
-    /** Final notifications and metrics flushes. Runs first. */
+    /**
+     * Runs **before the HTTP server stops accepting**, unlike every band below
+     * it.
+     *
+     * For resources that would otherwise prevent the server drain from
+     * resolving at all. `@lockness/sse` is the case: `server.shutdown()` does
+     * not resolve while a streaming response is open, and an armed heartbeat
+     * keeps it open — so an SSE teardown placed after the drain sits behind the
+     * very thing it exists to release, the deadline expires, and *no* hook runs.
+     */
+    /**
+     * **Negative on purpose.** `register()` defaults an unspecified priority to
+     * `0`, and `@OnShutdown()` with no argument means `0` too — so any positive
+     * pre-drain threshold sweeps every ordinary hook in with it and tears the
+     * whole application down before the server stops accepting. That is exactly
+     * what a value of `5` did, and seven tests said so.
+     */
+    PREDRAIN: -100,
+    /** Final notifications and metrics flushes. Runs first, after the drain. */
     NOTIFY: 10,
     /** Timers, workers and background loops — anything that could start new work. */
     SERVICES: 30,
@@ -148,6 +170,60 @@ export class ShutdownRegistry {
      * if (failed.length > 0) console.error(`${failed.length} teardown(s) failed`)
      * ```
      */
+    /**
+     * Run only the entries whose priority matches, and remove them.
+     *
+     * The pre-drain phase needs a subset to run **before** the HTTP server stops
+     * accepting, with the rest left for {@link run}. Splitting by predicate
+     * keeps one comparator and one failure policy here; a second sorted list
+     * elsewhere would be two spellings of the ordering rule.
+     *
+     * Unlike {@link run} this does **not** freeze the registry — more work is
+     * still to come after the server drain.
+     *
+     * @param matches - Called with each entry's priority.
+     * @returns How many ran, and which threw.
+     *
+     * @example
+     * ```typescript
+     * await registry.runBand((p) => p < SHUTDOWN_PRIORITY.NOTIFY)
+     * ```
+     */
+    async runBand(
+        matches: (priority: number) => boolean,
+    ): Promise<ShutdownRunResult> {
+        const selected = this.#entries.filter((e) => matches(e.priority))
+        if (selected.length === 0) return { ran: 0, failed: [] }
+
+        for (const entry of selected) {
+            const index = this.#entries.indexOf(entry)
+            if (index !== -1) this.#entries.splice(index, 1)
+        }
+
+        // Sorted with the SAME comparator `run()` uses. Filtering preserves
+        // registration order, and #execute's contract is "an already-ordered
+        // list" — handing it an unsorted band would invert "lower runs first"
+        // inside the band while claiming to keep one comparator.
+        return await this.#execute(this.#ordered(selected))
+    }
+
+    /**
+     * Run every registered teardown, lowest priority first.
+     *
+     * Sequential, never concurrent: a hook at a higher priority may depend on a
+     * lower one having finished, which is the whole reason they are ordered.
+     *
+     * @param onProgress - Called before each hook and once at the end, so a
+     * caller racing a deadline can report the partial result rather than a
+     * zeroed one.
+     * @returns How many ran, and which threw.
+     *
+     * @example
+     * ```typescript
+     * const { ran, failed } = await registry.run()
+     * if (failed.length > 0) console.error(`${failed.length} teardown(s) failed`)
+     * ```
+     */
     async run(
         onProgress?: (progress: ShutdownRunResult) => void,
     ): Promise<ShutdownRunResult> {
@@ -159,10 +235,37 @@ export class ShutdownRegistry {
         //
         // The sort is stable (ES2019+), which is what keeps equal priorities in
         // registration order — asserted in the tests rather than assumed.
-        const ordered = [...this.#entries].sort((a, b) =>
-            a.priority - b.priority
-        )
+        const ordered = this.#ordered(this.#entries)
 
+        return await this.#execute(ordered, onProgress)
+    }
+
+    /**
+     * Sort a selection ascending by priority.
+     *
+     * **The one comparator.** `run()` and `runBand()` both come through here,
+     * so "lower runs first" has a single spelling; the sort is stable, which is
+     * what keeps equal priorities in registration order.
+     *
+     * @internal
+     */
+    #ordered(entries: readonly ShutdownEntry[]): readonly ShutdownEntry[] {
+        return [...entries].sort((a, b) => a.priority - b.priority)
+    }
+
+    /**
+     * Run an already-ordered list, isolating each failure.
+     *
+     * The single home of the failure policy — {@link run} and {@link runBand}
+     * both come through here, so there is one `try/catch` and one renderer
+     * rather than one per caller.
+     *
+     * @internal
+     */
+    async #execute(
+        ordered: readonly ShutdownEntry[],
+        onProgress?: (progress: ShutdownRunResult) => void,
+    ): Promise<ShutdownRunResult> {
         const failed: ShutdownFailure[] = []
         let ran = 0
 
@@ -191,46 +294,4 @@ export class ShutdownRegistry {
         onProgress?.({ ran, failed: [...failed] })
         return { ran: ordered.length, failed }
     }
-}
-
-/**
- * Render a caught error for a log line.
- *
- * `name` plus a **truncated, encoded** message — never the object, never the
- * stack. `console.error('...', error)` prints both, and teardown is exactly
- * where credential-bearing errors are produced: a Postgres driver failure
- * carries `postgres://user:password@host/db`, a `fetch` rejection carries a URL
- * with its token in the query string. Log stores routinely have broader access
- * than the database those credentials open.
- *
- * The encoding half is not theoretical either:
- * `packages/session/drivers/redis.ts:104` throws a Redis server's error reply
- * verbatim, on the path `close()` takes.
- *
- * Exported because it is the ONE renderer: the signal handler, the per-signal
- * install warning and the `KernelTerminating` emit all reached a log line with
- * a raw `error.message` — or worse, the whole error object, which prints the
- * stack. FR-022 says every rendered error, not every rendered error in this
- * file.
- *
- * @param error - Whatever was thrown.
- * @returns One safe, bounded line.
- *
- * @example
- * ```typescript
- * renderError(new Error('boom'))  // 'Error: boom'
- * ```
- */
-export function renderError(error: unknown): string {
-    const MAX = 200
-
-    if (error instanceof Error) {
-        const message = error.message.length > MAX
-            ? `${error.message.slice(0, MAX)}…`
-            : error.message
-        return `${safeForLog(error.name)}: ${safeForLog(message)}`
-    }
-
-    const text = String(error)
-    return safeForLog(text.length > MAX ? `${text.slice(0, MAX)}…` : text)
 }

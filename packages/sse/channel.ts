@@ -7,6 +7,12 @@
  * @module @lockness/sse/channel
  */
 
+import {
+    deregisterDisposable,
+    type DisposableHandle,
+    registerDisposable,
+} from '@lockness/contract/lifecycle/internal'
+
 import type {
     ClientEntry,
     ClientFilter,
@@ -47,6 +53,15 @@ const DEFAULT_OPTIONS: ResolvedChannelOptions = {
  * ```
  */
 export class SSEChannel {
+    /**
+     * Withdrawn when the channel closes.
+     *
+     * **Not optional.** The registry holds a strong reference, and this
+     * package's own docs teach a channel per user or per room — a long-lived
+     * application creating thousands would grow the registry without bound if a
+     * closed channel left its entry behind.
+     */
+    #handle?: DisposableHandle
     private readonly clients = new Map<string, ClientEntry>()
     private readonly heartbeatIntervals = new Map<
         string,
@@ -304,6 +319,10 @@ export class SSEChannel {
      * ```
      */
     close(): void {
+        if (this.#handle) {
+            deregisterDisposable(this.#handle)
+            this.#handle = undefined
+        }
         for (const clientId of this.clients.keys()) {
             this.removeClient(clientId)
         }
@@ -355,6 +374,21 @@ export class SSEChannel {
         }, this.options.heartbeatInterval)
 
         this.heartbeatIntervals.set(clientId, intervalId)
+
+        // Announced on the FIRST armed interval, not in the constructor: a
+        // channel with `heartbeatInterval: 0` takes the early return above and
+        // holds nothing to release.
+        //
+        // PREDRAIN, and that placement is the whole point. `server.shutdown()`
+        // does not resolve while a streaming response is open, and an armed
+        // heartbeat is what keeps it open — so a teardown behind the server
+        // drain would sit behind the very thing it exists to release, the
+        // deadline would expire, and no hook would run at all.
+        this.#handle ??= registerDisposable({
+            name: `sse:${this.name}`,
+            dispose: () => this.close(),
+            priority: -100,
+        })
     }
 
     /**

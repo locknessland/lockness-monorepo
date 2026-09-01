@@ -9,6 +9,7 @@
 
 import type { CacheDriver } from './types.ts'
 import { getCacheConfig } from './config.ts'
+import { forgetClosedDriver, isDriverClosed } from './closed_drivers.ts'
 import { DenoKvCacheDriver } from './drivers/deno_kv_driver.ts'
 import { MemoryCacheDriver } from './drivers/memory_driver.ts'
 import type { CacheContract } from '@lockness/contract'
@@ -29,6 +30,14 @@ let cacheDriver: CacheDriver | null = null
  * @internal
  */
 export function getDriver(): CacheDriver {
+    // A driver whose resource was released is not reusable: a programmatic
+    // `await app.shutdown()` would otherwise leave this returning a closed
+    // handle and every later request failing with BadResource — turning a
+    // shutdown leak into a post-shutdown outage.
+    if (cacheDriver && isDriverClosed(cacheDriver)) {
+        forgetClosedDriver(cacheDriver)
+        cacheDriver = null
+    }
     if (!cacheDriver) {
         const config = getCacheConfig()
         switch (config.driver) {

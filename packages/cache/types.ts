@@ -79,6 +79,33 @@ export interface CacheItem<T = unknown> {
  */
 export interface CacheDriver {
     /**
+     * Release any OS resource this driver holds.
+     *
+     * **Optional, and that is deliberate.** `ARCHITECTURE.md` documents a
+     * `MemcachedCacheDriver implements CacheDriver` recipe, so a required member
+     * would stop compiling for every reader who followed it. The shutdown drain
+     * skips a driver that has none.
+     *
+     * **A driver that owns nothing implements nothing.** `MemoryCacheDriver`'s
+     * stores are module-level and shared across every instance, so a `close()`
+     * clearing them would corrupt a second instance — "release my resource" and
+     * "empty the cache" are different operations and only the first belongs
+     * here.
+     *
+     * Implementations guard on a resource that may never have been acquired:
+     * every KV driver in this framework opens lazily, so a driver constructed
+     * and never used holds nothing.
+     *
+     * @example
+     * ```typescript
+     * async close(): Promise<void> {
+     *     if (this.kv) { this.kv.close(); this.kv = null }
+     * }
+     * ```
+     */
+    close?(): Promise<void>
+
+    /**
      * Retrieve a value from the cache.
      * @typeParam T - The expected type of the cached value
      * @param key - The cache key

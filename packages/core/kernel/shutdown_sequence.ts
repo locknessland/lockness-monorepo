@@ -17,7 +17,12 @@
  * @since 0.2.1
  */
 
-import { renderError, ShutdownRegistry } from './shutdown_registry.ts'
+import {
+    renderError,
+    SHUTDOWN_PRIORITY,
+    ShutdownRegistry,
+} from './shutdown_registry.ts'
+import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import type { ShutdownFailure } from './shutdown_registry.ts'
 
 /**
@@ -260,7 +265,41 @@ export class ShutdownSequence {
 
     /** @internal */
     async #sequence(): Promise<ShutdownReport> {
-        // Stop accepting FIRST. A hook that ran before this could tear down a
+        // Anything registered by a package, adopted into this sequence's own
+        // registry — ONE entry each, never one entry that loops over them.
+        // Collapsing N into 1 would put them all behind a single try/catch and
+        // silently repeal the policy stated below at `run()`: a single broken
+        // teardown must not strand every resource behind it.
+        for (const disposable of drainDisposables()) {
+            this.#registry.register(
+                disposable.name,
+                () => disposable.dispose(),
+                // `?? STORES`, not a bare pass-through. `register()` defaults an
+                // absent priority to 0 — first, ahead of NOTIFY and SERVICES —
+                // while `Disposable.priority`'s own JSDoc promises an omitted
+                // one "sorts with the stores". A third-party package following
+                // that doc would have had its store closed BEFORE the producers
+                // still writing into it.
+                disposable.priority ?? SHUTDOWN_PRIORITY.STORES,
+            )
+        }
+
+        // PREDRAIN runs BEFORE the server stops accepting; everything else runs
+        // after. The distinction exists because @lockness/sse's own streams are
+        // what prevent `server.shutdown()` from resolving, so its teardown
+        // cannot sit behind that drain — it would be behind the thing it exists
+        // to release.
+        //
+        // The predicate is `<= PREDRAIN`, not `< 0`. `register()` defaults to 0
+        // and `@OnShutdown()` means 0, so a positive threshold sweeps every
+        // ordinary hook into the pre-drain — which it did on the first attempt.
+        // But `< 0` was wrong in the other direction: an author writing
+        // `@OnShutdown({ priority: -1 })` to mean "very early" would silently
+        // have their hook run BEFORE the server stopped accepting. Only
+        // something that asked for this band by name gets it.
+        await this.#registry.runBand((p) => p <= SHUTDOWN_PRIORITY.PREDRAIN)
+
+        // Stop accepting. A hook that ran before this could tear down a
         // resource that an arriving request is about to use.
         const server = await this.#server
         if (server) {

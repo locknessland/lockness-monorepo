@@ -5,6 +5,12 @@
  * Inspired by Laravel's queue system.
  */
 
+import {
+    deregisterDisposable,
+    type DisposableHandle,
+    registerDisposable,
+} from '@lockness/contract/lifecycle/internal'
+
 // =============================================================================
 // Types & Interfaces
 // =============================================================================
@@ -177,6 +183,7 @@ export class MemoryQueueDriver implements QueueDriver {
 export class DenoKvQueueDriver implements QueueDriver {
     private kv: Deno.Kv | null = null
     private kvPath?: string
+    #handle?: DisposableHandle
 
     constructor(kvPath?: string) {
         this.kvPath = kvPath
@@ -185,8 +192,40 @@ export class DenoKvQueueDriver implements QueueDriver {
     private async getKv(): Promise<Deno.Kv> {
         if (!this.kv) {
             this.kv = await Deno.openKv(this.kvPath)
+            // Announced once the handle exists, not in the constructor: a
+            // driver built and never used owns nothing.
+            this.#handle ??= registerDisposable({
+                name: 'queue:deno-kv',
+                dispose: () => this.close(),
+                priority: 60,
+            })
         }
         return this.kv
+    }
+
+    /**
+     * Release the Deno KV handle.
+     *
+     * **#136 never named this resource** — it described the queue's leak as
+     * `QueueWorker.stop()` alone. The driver opens a KV handle of its own and
+     * `kv.close` appeared nowhere in this package, so a stopped worker had not
+     * released the store it was reading from.
+     *
+     * @example
+     * ```typescript
+     * await driver.close()
+     * ```
+     */
+    async close(): Promise<void> {
+        if (this.#handle) {
+            deregisterDisposable(this.#handle)
+            this.#handle = undefined
+        }
+        if (this.kv) {
+            this.kv.close()
+            this.kv = null
+        }
+        await Promise.resolve()
     }
 
     async push(job: SerializedJob): Promise<void> {
@@ -368,6 +407,12 @@ export interface WorkerOptions {
 
 export class QueueWorker {
     private running = false
+    /** SERVICES: producers stop before the stores they write into close. */
+    #handle: DisposableHandle | undefined = registerDisposable({
+        name: 'queue:worker',
+        dispose: () => this.stop(),
+        priority: 30,
+    })
     private processedJobs = 0
     private options: Required<WorkerOptions>
 
@@ -423,8 +468,25 @@ export class QueueWorker {
         }
     }
 
+    /**
+     * Stop the worker loop.
+     *
+     * Withdraws the shutdown registration too: a worker that has already
+     * stopped is not something the framework still needs to release, and
+     * leaving the entry behind grows the registry in a long-lived process that
+     * starts and stops workers.
+     *
+     * @example
+     * ```typescript
+     * worker.stop()
+     * ```
+     */
     stop(): void {
         this.running = false
+        if (this.#handle) {
+            deregisterDisposable(this.#handle)
+            this.#handle = undefined
+        }
     }
 
     private async processJob(serializedJob: SerializedJob): Promise<void> {
