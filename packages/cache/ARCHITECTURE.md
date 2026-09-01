@@ -185,8 +185,42 @@ export class MemcachedCacheDriver implements CacheDriver {
     }
 
     // ... implement other methods
+
+    // Optional. Implement it only if the driver OWNS an OS resource — a
+    // connection it opened itself, a file handle, a socket. A driver holding
+    // only in-memory state implements nothing, and a driver handed an
+    // already-connected client should not close it unless it was told it owns
+    // it. See `close?()` on the CacheDriver interface.
+    async close(): Promise<void> {
+        await this.client.end()
+    }
 }
 ```
+
+**Releasing the resource at shutdown.** A driver that owns something announces
+itself once it has actually acquired it, and withdraws when it lets go:
+
+```typescript
+import {
+    deregisterDisposable,
+    registerDisposable,
+} from '@lockness/contract/lifecycle/internal'
+
+// when the resource is first opened — not in the constructor, which would
+// enrol a driver that owns nothing:
+this.handle = registerDisposable({
+    name: 'cache:memcached',
+    dispose: () => this.close(),
+    priority: 60,
+})
+
+// in close():
+if (this.handle) deregisterDisposable(this.handle)
+```
+
+`@lockness/core` releases everything registered this way at shutdown. With no
+framework present the registration is inert — the package still works
+standalone.
 
 2. Export from `drivers/mod.ts`:
 

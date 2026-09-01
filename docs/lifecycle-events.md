@@ -509,6 +509,36 @@ correctly; the banner just says `development`.
 - The server stops accepting **before** any hook runs.
 - The whole sequence is **bounded**.
 
+### Which packages release themselves
+
+These register their own teardown. You wire nothing:
+
+| Package               | What it releases                         | When                                       |
+| --------------------- | ---------------------------------------- | ------------------------------------------ |
+| `@lockness/sse`       | Heartbeat intervals, open connections    | **Before** the server stops accepting      |
+| `@lockness/queue`     | The worker loop, then its Deno KV handle | Services, then stores                      |
+| `@lockness/cache`     | The Deno KV handle                       | Stores                                     |
+| `@lockness/logger`    | File transports                          | Stores — after the things that write to it |
+| `@lockness/scheduler` | Cron timers                              | Services                                   |
+| `@lockness/drizzle`   | The database connection                  | Last                                       |
+
+SSE is deliberately in its own phase. `Deno.HttpServer.shutdown()` does not
+resolve while a streaming response is open, and an armed heartbeat is exactly
+what keeps one open — so clearing it _after_ the server drain would put it
+behind the thing it exists to release, and the deadline would expire with
+nothing torn down.
+
+**`@lockness/session` is not in this list, and that is not an oversight.** Its
+drivers are constructed per request rather than once per process, so there is no
+single driver for a shutdown hook to close — the resources leak per request
+instead, which is a different defect with its own fix. Do not add a shutdown
+hook for it expecting that to help.
+
+A package outside this framework can join the list: register the resource with
+`@lockness/contract`'s `registerDisposable`, and withdraw it when you release it
+yourself. With no framework present the registration is inert, so a library
+using it still works standalone.
+
 ### Non-guarantees
 
 Read these before upgrading — the first one is the only way this change can

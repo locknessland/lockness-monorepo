@@ -152,10 +152,10 @@ const log = new Logger({
 })
 
 await log.info('Written to file')
-
-// Close file handles when done
-await log.close()
 ```
+
+The file handle is released at shutdown — see [docs/DOCS.md](docs/DOCS.md).
+`await log.close()` is for a logger you own outside the application lifecycle.
 
 ### Memory Transport (for testing)
 
@@ -506,7 +506,7 @@ const log = new Logger({
 
 // ... application logic ...
 
-await log.close() // Close file handles
+// Nothing to close: shutdown releases the file handle.
 ```
 
 ### 7. Configure Once, Use Everywhere

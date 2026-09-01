@@ -160,10 +160,13 @@ const log = new Logger({
 })
 
 await log.info('Written to file')
-
-// Close file handles when done
-await log.close()
 ```
+
+The file handle is released for you at shutdown: the global logger registers its
+transports with the framework's teardown, so `SIGINT`/`SIGTERM` closes them with
+no wiring in your application. Call `await log.close()` yourself only for a
+logger you created and own outside that lifecycle — a short-lived one in a
+script or a test.
 
 ### Memory Transport (Testing)
 
@@ -497,8 +500,7 @@ const log = new Logger({
 })
 
 // ... application logic ...
-
-await log.close() // Close file handles
+// Nothing to close: shutdown releases the file handle.
 ```
 
 ### Configure Once, Use Everywhere
