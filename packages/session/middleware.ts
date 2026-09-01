@@ -9,7 +9,7 @@ import { getCookie, setCookie } from '@lockness/hono'
 import type { SessionConfig } from './types.ts'
 import { getSessionConfig } from './config.ts'
 import { generateSessionId } from './utils.ts'
-import { createDriver } from './drivers/mod.ts'
+import { getOrCreateDriver } from './drivers/registry.ts'
 import { SessionStore } from './store.ts'
 
 /**
@@ -61,7 +61,11 @@ export function sessionMiddleware(
         // correctly. Do not memoise this for performance: the memo is the bug.
         const sessionConfig = { ...getSessionConfig(), ...config }
 
-        const driver = createDriver(c, sessionConfig)
+        // The config is resolved per request (above); only the driver is
+        // memoized, keyed on that resolved config — so the process holds one
+        // handle, not one per request, while #137's per-request resolution
+        // stays intact. Cookie and redis are per-request inside the registry.
+        const driver = getOrCreateDriver(c, sessionConfig)
 
         const presented = getCookie(c, sessionConfig.cookieName)
         const sessionId = presented && SESSION_ID.test(presented)

@@ -19,9 +19,10 @@ import { encodeCommand, writeFrame } from './resp.ts'
  * so two overlapping `sendCommand` calls would interleave frames and desync the
  * socket. The framework satisfies this by constructing one driver per request
  * and awaiting each call (`session/middleware.ts`); a consumer using this class
- * directly must serialize its own calls. Per-connection command serialization
- * is tracked with the shared-socket work in
- * {@link https://github.com/locknessland/lockness-monorepo/issues/138 | #138}.
+ * directly must serialize its own calls. Per-connection command serialization,
+ * single-flight connect and per-process memoization of this driver are tracked
+ * in
+ * {@link https://github.com/locknessland/lockness-monorepo/issues/145 | #145}.
  *
  * @example
  * ```typescript
