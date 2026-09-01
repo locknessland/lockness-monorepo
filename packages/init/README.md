@@ -219,7 +219,7 @@ Default `.env` configuration:
 ```env
 APP_ENV=development
 APP_PORT=8888
-APP_KEY=your-secret-key-here
+APP_KEY=base64:...   # generated for you by `lockness init`
 DATABASE_URL=postgres://user:password@localhost:5432/mydb
 ```
 

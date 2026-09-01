@@ -281,7 +281,7 @@ export const bootstrap = async (): Promise<App> => {
     
     configureSession({
         driver: 'cookie',
-        secret: Deno.env.get('APP_KEY') || '...',
+        secret: Deno.env.get('APP_KEY'),
         lifetime: 7200,
         secure: Deno.env.get('APP_ENV') === 'production',
     })

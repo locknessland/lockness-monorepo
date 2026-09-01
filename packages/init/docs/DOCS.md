@@ -211,7 +211,7 @@ Environment configuration:
 ```env
 APP_ENV=development
 APP_PORT=8888
-APP_KEY=your-secret-key-here
+APP_KEY=base64:...   # generated for you by `lockness init`
 DATABASE_URL=postgres://user:password@localhost:5432/mydb
 ```
 
@@ -454,7 +454,7 @@ Add custom variables to `.env`:
 # Default variables
 APP_ENV=development
 APP_PORT=8888
-APP_KEY=your-secret-key-here
+APP_KEY=base64:...   # generated for you by `lockness init`
 DATABASE_URL=postgres://user:password@localhost:5432/mydb
 
 # Custom variables
@@ -511,7 +511,7 @@ Production `.env`:
 ```env
 APP_ENV=production
 APP_PORT=8000
-APP_KEY=production-secret-key
+APP_KEY=base64:...   # generated for you by `lockness init`
 DATABASE_URL=postgres://user:pass@db.example.com:5432/prod
 ```
 

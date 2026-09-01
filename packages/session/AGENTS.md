@@ -14,9 +14,29 @@ User-facing documentation: [README.md](README.md) ·
   fails `deno task deps:analyze`, and the failure is a design question, not a
   lint to silence.
 
-_Add the domain invariants — what must stay true inside this package, and what
-breaks when it does not. A statement that could have been guessed from the file
-names does not belong here._
+- **There is no unencrypted cookie path.** The cookie driver refuses to
+  construct without a usable secret. It once fell back to `btoa` when the secret
+  was empty — and empty was the package default — so the documented
+  `sessionMiddleware()` call shipped an attacker-writable cookie that
+  `@lockness/auth`'s session guard trusted. Nothing may reintroduce a
+  compatibility read path: that is a window in which forged cookies still work.
+- **"Is this secret usable" is decided in `secret.ts` and nowhere else.** The
+  cookie driver and the bootstrap step _ask_; a second test is a second decider,
+  and two deciders agree only until one of them changes.
+- **This package never reads `Deno.env` and never asks whether it is in
+  production.** A library cannot know, and reading env needs a permission its
+  consumer did not grant. Core resolves; this package validates.
+- **Every sealed cookie has its own salt, so every derived key encrypts exactly
+  one message.** That is why the ~2³² random-96-bit-IV ceiling does not apply.
+  Caching the derived key — the first optimisation anyone proposes on seeing
+  HKDF called per request — silently reinstates it. If it is ever cached, the IV
+  must become a counter.
+- **The key never reaches output.** `SessionSecretError` cannot be constructed
+  with the value, and the rejection logger reports a closed union of literal
+  classes, never the offending cookie.
+- **The session id is validated at the boundary.** It reaches a storage backend
+  as a key, from a cookie Hono has already URL-decoded, so `%0D%0A` arrives as
+  raw CR/LF. `middleware.ts` accepts only `/^[0-9a-f]{64}$/`.
 
 ## Dependency contract
 
@@ -60,8 +80,13 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
-- The cookie driver stores state client-side: it has a hard size limit and must
-  never hold anything that is not signed.
+- The cookie driver stores state client-side: it has a hard size limit, and it
+  seals rather than signs — `v1.` + base64(`salt ‖ iv ‖ ciphertext`),
+  AES-256-GCM under a per-cookie HKDF key, with `exp` inside the ciphertext
+  because `maxAge` is a browser hint an attacker ignores.
+- `createDriver` runs **per request** (`middleware.ts`), so a driver holding
+  instance state holds it for one request only. That is why the memory driver
+  does not persist across requests — see #138 and #142.
 - Session middleware must run before auth middleware, or the session guard finds
   no session and fails closed.
 

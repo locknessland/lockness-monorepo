@@ -113,7 +113,7 @@ import { sessionMiddleware } from '@lockness/session'
 @Kernel({
     session: {
         driver: 'cookie',
-        secret: Deno.env.get('APP_KEY') || 'your-secret',
+        secret: Deno.env.get('APP_KEY'),
         lifetime: 7200,
     },
     // ... other options
@@ -264,7 +264,7 @@ app.use('/admin/*', basicAuth({ username: 'admin', password: 'secret' }))
 app.use('/api/*', bearerAuth({ token: 'secret-token' }))
 
 // JWT Authentication
-app.use('/api/*', jwt({ secret: 'jwt-secret' }))
+app.use('/api/*', jwt({ secret: Deno.env.get('APP_KEY')! }))
 ```
 
 #### Security

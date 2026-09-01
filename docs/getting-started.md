@@ -161,7 +161,7 @@ import { initializeAuthMiddleware, SessionGuard } from '@lockness/auth'
 import { UserProvider } from '@auth/user_provider.ts'
 
 @Kernel({
-    session: { driver: 'cookie', secret: Deno.env.get('APP_KEY') || 'secret' },
+    session: { driver: 'cookie', secret: Deno.env.get('APP_KEY') },
     controllersDir: './app/controller',
 })
 export class AppKernel {

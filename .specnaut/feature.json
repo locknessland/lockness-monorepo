@@ -1,4 +1,4 @@
 {
-    "feature_directory": "/Users/kevin/Sites/lockness/.specnaut/specs/005-consumer-shutdown-hooks",
-    "linked_issue": 136
+    "feature_directory": ".specnaut/specs/006-session-key-hardening",
+    "linked_issue": 137
 }

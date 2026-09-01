@@ -178,7 +178,7 @@ import { sessionMiddleware } from '@lockness/session'
 import { UserProvider } from './auth/user_provider.ts'
 
 @Kernel({
-    session: { driver: 'cookie', secret: 'your-secret' },
+    session: { driver: 'cookie', secret: Deno.env.get('APP_KEY')! },
 })
 export class AppKernel {
     @DeclareGlobalMiddleware()
@@ -209,7 +209,7 @@ import { createApp, jwt, Kernel } from '@lockness/core'
 export class AppKernel {
     @DeclareGlobalMiddleware()
     globalMiddlewares = [
-        jwt({ secret: 'your-secret' }),
+        jwt({ secret: Deno.env.get('APP_KEY')! }),
     ]
 }
 
@@ -230,7 +230,7 @@ import { configureCache } from '@lockness/cache'
 
 @Kernel({
     database: { url: Deno.env.get('DATABASE_URL') },
-    session: { driver: 'cookie', secret: 'secret' },
+    session: { driver: 'cookie', secret: Deno.env.get('APP_KEY')! },
     devtools: true,
     controllersDir: './app/controller',
 })
@@ -284,7 +284,7 @@ import { createApp, DeclareGlobalMiddleware, jwt, Kernel } from '@lockness/core'
 @Kernel({ controllersDir: './app/controller' })
 export class AppKernel {
     @DeclareGlobalMiddleware()
-    globalMiddlewares = [jwt({ secret: 'secret' })]
+    globalMiddlewares = [jwt({ secret: Deno.env.get('APP_KEY')! })]
 }
 
 const app = await createApp(AppKernel)
@@ -306,7 +306,7 @@ import { sessionMiddleware } from '@lockness/session'
 import { initializeAuthMiddleware } from '@lockness/auth'
 
 @Kernel({
-    session: { driver: 'cookie', secret: 'secret' },
+    session: { driver: 'cookie', secret: Deno.env.get('APP_KEY')! },
     controllersDir: './app/controller',
 })
 export class AppKernel {
@@ -350,7 +350,11 @@ import { configureStorage } from '@lockness/storage'
 
 @Kernel({
     database: { url: Deno.env.get('DATABASE_URL') },
-    session: { driver: 'cookie', secret: 'secret', lifetime: 7200 },
+    session: {
+        driver: 'cookie',
+        secret: Deno.env.get('APP_KEY')!,
+        lifetime: 7200,
+    },
     devtools: true,
     controllersDir: './app/controller',
     middlewaresDir: './app/middleware',
@@ -383,14 +387,14 @@ If you have existing code importing from `@lockness/core`:
 ```typescript
 // ❌ Old (imperative style)
 import { configureSession, sessionMiddleware } from '@lockness/session'
-configureSession({ driver: 'cookie', secret: 'secret' })
+configureSession({ driver: 'cookie', secret: Deno.env.get('APP_KEY')! })
 app.useMiddleware(sessionMiddleware())
 
 // ✅ New (declarative with @Kernel)
 import { sessionMiddleware } from '@lockness/session'
 
 @Kernel({
-    session: { driver: 'cookie', secret: 'secret' },
+    session: { driver: 'cookie', secret: Deno.env.get('APP_KEY')! },
 })
 export class AppKernel {
     @DeclareGlobalMiddleware()

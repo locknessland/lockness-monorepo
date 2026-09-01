@@ -5,6 +5,37 @@ you to store user data across requests securely and efficiently.
 
 ---
 
+## The application key
+
+`APP_KEY` is **key material**, not a password. It must be `base64:` followed by
+exactly 32 random bytes, base64-encoded — the shape `lockness init` generates:
+
+```
+APP_KEY=base64:xQ8vN2mK...44 characters...=
+```
+
+Anything else is refused at boot. There is no fallback, no default and no
+unencrypted mode: a cookie-driver application with no usable key **does not
+start** in production, and outside production it runs on a random key generated
+for that process only (so sessions do not survive a restart).
+
+### If you have been running on a placeholder key — rotate
+
+Earlier versions fell back to a key committed to this repository, and the cookie
+driver silently skipped encryption entirely when the key was empty — which was
+the package default. **Every session cookie ever issued under either condition
+is forgeable by anyone**, and stays forgeable until `APP_KEY` is rotated.
+Upgrading does not undo cookies already issued.
+
+Generate a new one and deploy it:
+
+```bash
+deno eval "const b=crypto.getRandomValues(new Uint8Array(32));let s='';for(const x of b)s+=String.fromCharCode(x);console.log('base64:'+btoa(s))"
+```
+
+Every user is signed out once when the key changes. That is the intended cost:
+the alternative is honouring cookies issued under a key the whole internet has.
+
 ## 🚀 Features
 
 - 🔐 **Encrypted Cookie Sessions** (AES-GCM encryption)
@@ -24,7 +55,7 @@ import { configureSession, sessionMiddleware } from '@lockness/core'
 
 configureSession({
     driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory' | 'redis'
-    secret: Deno.env.get('APP_KEY') || 'a-very-long-secret-key-32-chars',
+    secret: Deno.env.get('APP_KEY'),
     lifetime: 7200, // 2 hours
     secure: Deno.env.get('APP_ENV') === 'production',
 })

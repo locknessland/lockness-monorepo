@@ -83,7 +83,7 @@ app.useMiddleware(basicAuth({ username: 'admin', password: 'secret' }))
 app.useMiddleware(bearerAuth({ token: 'secret-token' }))
 
 // JWT
-app.useMiddleware(jwt({ secret: 'jwt-secret' }))
+app.useMiddleware(jwt({ secret: Deno.env.get('APP_KEY')! }))
 ```
 
 **Complete Example:**
