@@ -141,6 +141,15 @@ async login(c: Context) {
 }
 ```
 
+`regenerate()` carries the session data to a fresh id and gives it a **fresh
+lifetime** — the same `lifetime` a `write()` applies, drawn from the one source,
+`SessionConfig.lifetime` — not the remaining lifetime left on the old id. On the
+**Deno KV** and **Redis** drivers the rotation is **atomic**: the new key is
+written and the old key destroyed as one indivisible operation (Deno KV via
+`kv.atomic()`, Redis via a single `EVAL` script), so no failure path can leave
+the authenticated data on the new id while the attacker-known old id also still
+resolves.
+
 ### Session Destruction
 
 To log out a user or clear all data:
@@ -163,3 +172,20 @@ async logout(c: Context) {
 | **deno-kv** | Deno's native Key-Value store | Deno Deploy, Persistent |
 | **redis**   | External Redis server         | Scalable Production     |
 | **memory**  | In-memory storage             | Development only        |
+
+### Redis driver reliability
+
+The Redis driver speaks RESP2 over a single connection with no external
+dependency. Two behaviours worth knowing:
+
+- **A read failure is never a silent logout.** `read()` returns `null` **only**
+  for a genuine cache miss (a RESP nil reply). A connection or protocol failure
+  is logged once at ERROR (with the session id redacted to a short fingerprint —
+  it is a bearer credential) and propagates as an error, which the framework
+  renders as a generic 500. An outage is therefore distinguishable from a miss,
+  rather than logging every user out with no trace.
+- **Replies are drained in full and bounded.** Reply reading lives in
+  `drivers/resp.ts` (`readReply`, beside `writeFrame`): it drains the connection
+  until the RESP reply is complete, so a session larger than one 4096-byte read
+  round-trips intact, and it rejects a server-declared bulk length beyond 10 MiB
+  before allocating it.

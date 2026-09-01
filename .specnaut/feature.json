@@ -1,4 +1,4 @@
 {
-    "feature_directory": ".specnaut/specs/008-memoize-session-driver",
-    "linked_issue": 138
+    "feature_directory": ".specnaut/specs/009-session-regenerate-ttl",
+    "linked_issue": 139
 }
