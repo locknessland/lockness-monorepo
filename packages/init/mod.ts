@@ -16,6 +16,54 @@ export type { Kit, KitName } from './kits.ts'
  *
  * @deprecated Read `KITS.web` (or `KITS[kit]`) instead.
  */
+/**
+ * Generate an application key for a scaffolded project.
+ *
+ * `base64:` followed by 32 random bytes — the one shape
+ * `@lockness/session`'s `assertUsableSecret` accepts.
+ *
+ * **Why this is not imported from `@lockness/session`.** `init` is a scaffolder
+ * that runs once; importing the session package would pull it, and Hono behind
+ * it, into a tooling package, and would invert the tier the dependency policy
+ * gives `init` (`allow: ["cli"]`). The *shape* still has exactly one home —
+ * `packages/session/secret.ts` — and `tests/app_key.test.ts` runs this
+ * function's output through `assertUsableSecret`, so the two cannot drift apart
+ * without a red test. That guarantee is what mattered; a shared symbol was only
+ * one way of getting it.
+ *
+ * @returns A key of the form `base64:<44 base64 characters>`.
+ *
+ * @example
+ * ```typescript
+ * await Deno.writeTextFile('.env', `APP_KEY=${generateAppKey()}\n`)
+ * ```
+ */
+export function generateAppKey(): string {
+    const bytes = crypto.getRandomValues(new Uint8Array(32))
+    let binary = ''
+    for (const byte of bytes) binary += String.fromCharCode(byte)
+    return `base64:${btoa(binary)}`
+}
+
+/**
+ * Set `APP_KEY` in an env file's text, replacing any existing line.
+ *
+ * @param envContent - The `.env.exemple` text.
+ * @param key - The generated key.
+ * @returns The text carrying exactly one `APP_KEY=` line, with `key`.
+ *
+ * @example
+ * ```typescript
+ * withAppKey('APP_ENV=development\nAPP_KEY=\n', 'base64:...')
+ * ```
+ */
+export function withAppKey(envContent: string, key: string): string {
+    if (/^APP_KEY=.*$/m.test(envContent)) {
+        return envContent.replace(/^APP_KEY=.*$/m, `APP_KEY=${key}`)
+    }
+    return `${envContent.trimEnd()}\nAPP_KEY=${key}\n`
+}
+
 export const INIT_STUB_FILES: readonly string[] = [
     ...KITS.web.base,
     ...KITS.web.overlay,
@@ -300,21 +348,39 @@ export function registerInitCommand(cli: Cli) {
                 await Deno.mkdir(`${projectName}/${dir}`, { recursive: true })
             }
 
-            // Copy .env.exemple to .env
+            // Copy .env.exemple to .env, and give THIS project its own key.
+            //
+            // Injected here rather than templated into the stub on purpose:
+            // `.env.exemple` is committed by the user, so a key placed there
+            // would ship with the project and be shared by everyone who clones
+            // it — the defect this replaces, in a new costume.
             try {
                 const envContent = await Deno.readTextFile(
                     `${projectName}/.env.exemple`,
                 )
-                await Deno.writeTextFile(`${projectName}/.env`, envContent)
+                // 0600: this file now carries live key material, and its
+                // sensitivity rose the moment a real key went into it. The
+                // default 0644 would leave it world-readable.
+                await Deno.writeTextFile(
+                    `${projectName}/.env`,
+                    withAppKey(envContent, generateAppKey()),
+                    { mode: 0o600 },
+                )
             } catch {
                 // Ignore if .env.exemple doesn't exist
             }
 
-            // Create .env.production.local
+            // Create .env.production.local, with a key of its own.
+            //
+            // Without one, a freshly scaffolded project fails its first
+            // production deploy — the framework refuses to boot on the cookie
+            // driver with no APP_KEY — and the natural repair for that is to
+            // paste a key from a blog post, which is how shared keys spread.
             try {
                 await Deno.writeTextFile(
                     `${projectName}/.env.production.local`,
-                    'APP_ENV=production\n',
+                    `APP_ENV=production\nAPP_KEY=${generateAppKey()}\n`,
+                    { mode: 0o600 },
                 )
             } catch {
                 console.error('⚠️  Could not create .env.production.local')
