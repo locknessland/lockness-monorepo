@@ -7,6 +7,7 @@
 
 import type { BootstrapStep } from '../types.ts'
 import { tryImportOptionalPackage } from '../helpers.ts'
+import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
 
 /**
  * Build the reporter the Scheduler sends failures to.
@@ -145,6 +146,20 @@ export const schedulerStep: BootstrapStep = {
         }
 
         const armed = scheduler().start()
+
+        // Release the timers at shutdown. Until #129 this package's `stop()`
+        // had exactly one caller in the whole repository, and it was a test —
+        // so every application that armed a schedule leaked its timers on exit
+        // and each author was told to wire `Deno.addSignalListener` by hand.
+        //
+        // SHUTDOWN_PRIORITY.SERVICES, never the step's `order` of 560. Those are
+        // different axes that happen to look alike; reusing an `order` here is
+        // the mistake the named band exists to prevent.
+        context.app?.onShutdown(
+            'scheduler',
+            () => scheduler().stop(),
+            SHUTDOWN_PRIORITY.SERVICES,
+        )
 
         // Logged unconditionally, including zero. The listeners step guards its
         // equivalent on `count > 0`, which makes the message inert in exactly

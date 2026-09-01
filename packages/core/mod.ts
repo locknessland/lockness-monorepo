@@ -116,6 +116,30 @@ export {
     type SessionConfig,
 } from './kernel/mod.ts'
 
+// Shutdown lifecycle — @OnShutdown and what an application needs to use it.
+//
+// Deliberately NARROWER than the modules export. `ShutdownSequence`,
+// `ShutdownRegistry`, `installShutdownSignals`, `exitCodeFor`,
+// `resolveDeadlineMs` and `renderError` are internal: a consumer calling
+// `installShutdownSignals(new ShutdownSequence())` would install a SECOND pair
+// of signal handlers over a SECOND teardown list, which is the two-deciders
+// shape the decision table exists to prevent. Neither has a caller outside
+// core. Re-export one only when something outside core needs it.
+export {
+    DEFAULT_SHUTDOWN_DEADLINE_MS,
+    getShutdownHooks,
+    KERNEL_SHUTDOWN_HOOKS,
+    OnShutdown,
+    type OnShutdownOptions,
+    SHUTDOWN_PRIORITY,
+    type ShutdownConfig,
+    type ShutdownFailure,
+    type ShutdownHookMeta,
+    type ShutdownHookMethod,
+    type ShutdownHooksContainer,
+    type ShutdownReport,
+} from './kernel/mod.ts'
+
 // Export kernel loader
 export { createApp } from './kernel/loader.ts'
 

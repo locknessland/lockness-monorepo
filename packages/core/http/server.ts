@@ -49,10 +49,11 @@ export class ServerListener {
      * @example
      * ```typescript
      * const server = listener.listen(hono, { port: 8888, version: '1.0.0' })
-     *
-     * // Graceful shutdown
-     * Deno.addSignalListener('SIGINT', () => server.shutdown())
      * ```
+     *
+     * @remarks
+     * Applications do not call this directly and do not wire signals: `App.listen()`
+     * installs SIGINT/SIGTERM handlers and runs the ordered teardown itself.
      */
     listen(
         hono: Hono,
@@ -76,8 +77,19 @@ export class ServerListener {
      * @internal
      */
     private displayBanner(version: string): void {
-        const env = Deno.env.get('DENO_ENV') || Deno.env.get('APP_ENV') ||
-            'development'
+        // Guarded. `Deno.env.get` raises NotCapable rather than returning
+        // undefined when the process has no `--allow-env`, and this runs
+        // synchronously inside `listen()` — BEFORE the shutdown signal handlers
+        // are installed. A `deno compile --allow-net` binary therefore died
+        // here, over a banner, and took the shutdown wiring with it.
+        let env = 'development'
+        try {
+            env = Deno.env.get('DENO_ENV') || Deno.env.get('APP_ENV') ||
+                'development'
+        } catch {
+            // No env permission: the default is the honest answer, and a
+            // missing banner label is not worth failing a boot for.
+        }
         const isProd = env.toLowerCase() === 'production'
         const envLabel = isProd
             ? '\x1b[45m\x1b[37m\x1b[1m PRODUCTION \x1b[0m'

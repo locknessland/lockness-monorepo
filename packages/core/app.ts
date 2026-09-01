@@ -45,6 +45,11 @@ import { RouteRegistry } from './routing/registry.ts'
 import { MountManager } from './routing/mount_manager.ts'
 import { StaticFileServer } from './http/static.ts'
 import { ServerListener } from './http/server.ts'
+import { ShutdownSequence } from './kernel/shutdown_sequence.ts'
+import type { ShutdownReport } from './kernel/shutdown_sequence.ts'
+import type { ShutdownHookMethod } from './kernel/shutdown_decorators.ts'
+import type { ShutdownConfig } from './kernel/kernel_decorators.ts'
+import { installShutdownSignals } from './kernel/signals.ts'
 import pkg from './deno.json' with { type: 'json' }
 
 /**
@@ -172,6 +177,39 @@ export class App {
     private readonly pendingGlobalMiddlewares: MiddlewareInput[] = []
     /** @internal */
     private pendingErrorHandler?: ErrorHandler
+
+    /**
+     * The shutdown sequence: the teardown list, the deadline, and the memoised
+     * promise that makes `shutdown()` idempotent.
+     *
+     * A collaborator rather than four fields on this class. `App` already has
+     * nine, and none of the rest of it touches these — process lifecycle and
+     * HTTP routing are not one cohesive responsibility.
+     *
+     * @internal
+     */
+    private readonly shutdownSequence = new ShutdownSequence()
+
+    /**
+     * Whether `listen()` installs signal handlers. Set by the bootstrap step
+     * from `@Kernel({ shutdown: { signals } })`; on unless told otherwise.
+     *
+     * @internal
+     */
+    private shutdownSignalsEnabled = true
+
+    /**
+     * Whether the signal handlers are already installed.
+     *
+     * A second `listen()` would otherwise install a second pair over the same
+     * sequence, and the first signal would find `isShuttingDown` already true
+     * in the second handler and `Deno.exit(1)` before a single hook ran — the
+     * S5 race, reintroduced between the framework and itself. `signals: false`
+     * does not cover it, because that is one flag consulted N times.
+     *
+     * @internal
+     */
+    private shutdownSignalsInstalled = false
 
     /**
      * Creates a new App instance.
@@ -488,21 +526,116 @@ export class App {
      * // Server is now running on http://localhost:8888
      * ```
      *
-     * @example Graceful shutdown
+     * @example Graceful shutdown — nothing to wire
      * ```typescript
      * const server = app.listen(8888)
-     *
-     * Deno.addSignalListener('SIGINT', () => {
-     *     console.log('Shutting down...')
-     *     server.shutdown()
-     * })
+     * // SIGINT and SIGTERM are already handled: the server stops accepting,
+     * // every @OnShutdown hook runs in order, and the process exits. Opt out
+     * // with @Kernel({ shutdown: { signals: false } }) if you wire your own.
      * ```
      */
     listen(port: number): ReturnType<ServerListener['listen']> {
-        return this.serverListener.listen(this.rootHono, {
+        const server = this.serverListener.listen(this.rootHono, {
             port,
             version: pkg.version,
         })
+
+        // Retained so `shutdown()` can stop it first. What comes back is a
+        // PROMISE wearing a server's type — `ServerListener.listen` returns
+        // `this.tryServe(...) as unknown as Deno.HttpServer` over a `private
+        // async tryServe` — which is why the sequence awaits before calling
+        // `.shutdown()`, and why `main.ts` writes `await app.listen(...)`.
+        this.shutdownSequence.setServer(
+            server as unknown as Promise<{ shutdown(): Promise<void> }>,
+        )
+
+        if (this.shutdownSignalsEnabled && !this.shutdownSignalsInstalled) {
+            installShutdownSignals(this.shutdownSequence)
+            this.shutdownSignalsInstalled = true
+        }
+
+        return server
+    }
+
+    /**
+     * Register a teardown to run at shutdown.
+     *
+     * The imperative counterpart to `@OnShutdown`, for packages and for code
+     * that has no kernel class. Both land in the **same** list — there is only
+     * one, and it is the only thing shutdown walks.
+     *
+     * @param name - Label for logs and the failure report. Encoded before it is
+     * written, so an arbitrary string is safe.
+     * @param fn - The teardown; sync or async, and awaited.
+     * @param priority - **Lower runs first**, the inverse of `@OnBoot`. Framework
+     * callers pass a `SHUTDOWN_PRIORITY` constant rather than a bootstrap
+     * `order`, which is a different axis with similar-looking numbers.
+     *
+     * @see {@link shutdown}
+     * @since 0.2.1
+     *
+     * @example
+     * ```typescript
+     * app.onShutdown('metrics', () => metrics.flush())
+     * ```
+     */
+    onShutdown(
+        name: string,
+        fn: ShutdownHookMethod,
+        priority?: number,
+    ): void {
+        this.shutdownSequence.registry.register(name, fn, priority)
+    }
+
+    /**
+     * Stop the server and run every registered teardown, lowest priority first.
+     *
+     * **Idempotent** — call it ten times and one teardown happens; every caller
+     * resolves with the same report. **Bounded** — the whole sequence, drain
+     * included, is capped by the configured deadline.
+     *
+     * **It does not exit the process.** That belongs to the signal path, so a
+     * programmatic caller can tear down and carry on. It follows that a hook
+     * which hangs is *abandoned*, not cancelled: it keeps running in a process
+     * that is alive and no longer serving.
+     *
+     * ⚠️ A process-lifecycle API. Never expose it from a route handler,
+     * middleware or devtools panel — it terminates service for every caller and
+     * carries no authorization of its own.
+     *
+     * @returns What ran, what failed, and whether the deadline expired.
+     *
+     * @see {@link onShutdown}
+     * @since 0.2.1
+     *
+     * @example
+     * ```typescript
+     * const { failed, timedOut } = await app.shutdown()
+     * ```
+     */
+    shutdown(): Promise<ShutdownReport> {
+        return this.shutdownSequence.run()
+    }
+
+    /** Whether a shutdown sequence has begun. */
+    get isShuttingDown(): boolean {
+        return this.shutdownSequence.isShuttingDown
+    }
+
+    /**
+     * Apply `@Kernel({ shutdown })`.
+     *
+     * Called by the `shutdown_hooks` bootstrap step. Validates the deadline
+     * here, at boot, so a bad value is a loud startup failure rather than a
+     * shutdown that silently abandons everything.
+     *
+     * @param config - The kernel's shutdown configuration, if any.
+     * @throws {TypeError} If `deadlineMs` is outside `[1, 2**31 - 1]`.
+     * @internal
+     */
+    configureShutdown(config: ShutdownConfig | undefined): void {
+        this.shutdownSequence.setDeadlineMs(config?.deadlineMs)
+        this.shutdownSignalsEnabled = config?.signals !== false
     }
 
     /**

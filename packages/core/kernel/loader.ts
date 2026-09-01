@@ -34,6 +34,10 @@ import {
     type KernelConfig,
 } from './kernel_decorators.ts'
 import { type BootHookMeta, KERNEL_BOOT_HOOKS } from './decorators.ts'
+import {
+    KERNEL_SHUTDOWN_HOOKS,
+    type ShutdownHookMeta,
+} from './shutdown_decorators.ts'
 import type { BootstrapContext } from './bootstrap/types.ts'
 import { runBootstrapSteps } from './bootstrap/registry.ts'
 
@@ -139,6 +143,11 @@ export async function createApp<T>(KernelClass: new () => T): Promise<App> {
         KERNEL_BOOT_HOOKS
     ] ?? []
 
+    // Read alongside bootHooks, from the same addInitializer pass.
+    const shutdownHooks: ShutdownHookMeta[] = (KernelClass as any)[
+        KERNEL_SHUTDOWN_HOOKS
+    ] ?? []
+
     // Build bootstrap context
     const context: BootstrapContext = {
         config,
@@ -146,6 +155,7 @@ export async function createApp<T>(KernelClass: new () => T): Promise<App> {
         KernelClass,
         globalMiddlewareProp,
         bootHooks,
+        shutdownHooks,
     }
 
     // Run bootstrap steps sequentially

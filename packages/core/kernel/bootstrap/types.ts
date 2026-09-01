@@ -26,6 +26,7 @@
 import type { App } from '../../app.ts'
 import type { KernelConfig } from '../kernel_decorators.ts'
 import type { BootHookMeta } from '../decorators.ts'
+import type { ShutdownHookMeta } from '../shutdown_decorators.ts'
 
 /**
  * Shared context passed to all bootstrap steps.
@@ -75,6 +76,20 @@ export interface BootstrapContext {
      * Boot hooks metadata (from @OnBoot decorators)
      */
     readonly bootHooks: readonly BootHookMeta[]
+
+    /**
+     * Shutdown hooks metadata (from @OnShutdown decorators).
+     *
+     * Moved into the app's shutdown registry by the `shutdown_hooks` step.
+     * Order is NOT decided here — `shutdown_registry.ts` owns that.
+     *
+     * **Optional, like `app`, and deliberately not required like `bootHooks`.**
+     * `BootstrapContext` is public, so anything constructing one — a custom
+     * step, a test — would stop compiling the day this field arrived. An
+     * absent value means "no shutdown hooks", which is the honest reading for
+     * a context built before the field existed.
+     */
+    readonly shutdownHooks?: readonly ShutdownHookMeta[]
 }
 
 /**

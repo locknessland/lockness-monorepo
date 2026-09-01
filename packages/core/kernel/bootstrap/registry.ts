@@ -29,7 +29,7 @@ import type { BootstrapContext, BootstrapStep } from './types.ts'
 
 // Import all step implementations
 import { eventsDebugStep } from './steps/events_debug.ts'
-import { databaseStep } from './steps/database.ts'
+import { databaseStep, databaseTeardownStep } from './steps/database.ts'
 import { sessionStep } from './steps/session.ts'
 import { cacheStep } from './steps/cache.ts'
 import { appInitializationStep, appInitStep } from './steps/app_init.ts'
@@ -37,6 +37,7 @@ import { devtoolsStep } from './steps/devtools.ts'
 import { lifecycleStep } from './steps/lifecycle.ts'
 import { middlewareStep } from './steps/middleware.ts'
 import { bootHooksStep } from './steps/boot_hooks.ts'
+import { shutdownHooksStep } from './steps/shutdown_hooks.ts'
 import { middlewaresDiscoveryStep } from './steps/middlewares_discovery.ts'
 import { listenersStep } from './steps/listeners.ts'
 import { eventsStep } from './steps/events.ts'
@@ -51,10 +52,12 @@ import { devtoolsRoutesStep } from './steps/devtools_routes.ts'
  * - 110: Session configuration
  * - 120: Cache configuration
  * - 200: App instance creation
+ * - 210: Database teardown registration
  * - 210: Devtools enablement
  * - 250: Lifecycle events middleware
  * - 300: Global middleware registration
  * - 310: Boot hooks execution
+ * - 320: Shutdown hook registration
  * - 400: Named middleware discovery
  * - 410: Event listener registration
  * - 500: KernelBooted event emission
@@ -73,10 +76,12 @@ export function getDefaultSteps(): readonly BootstrapStep[] {
         sessionStep,
         cacheStep,
         appInitStep,
+        databaseTeardownStep,
         devtoolsStep,
         lifecycleStep,
         middlewareStep,
         bootHooksStep,
+        shutdownHooksStep,
         middlewaresDiscoveryStep,
         listenersStep,
         eventsStep,

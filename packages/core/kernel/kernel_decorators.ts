@@ -110,6 +110,60 @@ export interface CacheConfig {
 }
 
 /**
+ * Shutdown lifecycle configuration options.
+ *
+ * A **named exported interface**, like {@link DatabaseConfig},
+ * {@link SessionConfig} and {@link CacheConfig} beside it — not an inline
+ * literal on {@link KernelConfig}. An inline shape gives a consumer building
+ * configuration programmatically nothing to import, so the first one that tries
+ * declares its own copy and the two drift.
+ *
+ * @since 0.2.1
+ *
+ * @example Keep today's behaviour exactly
+ * ```typescript
+ * @Kernel({ shutdown: { signals: false } })
+ * class AppKernel {}
+ * ```
+ *
+ * @example Give teardown longer
+ * ```typescript
+ * @Kernel({ shutdown: { deadlineMs: 20_000 } })
+ * class AppKernel {}
+ * ```
+ */
+export interface ShutdownConfig {
+    /**
+     * Whether `App.listen()` installs `SIGINT` and `SIGTERM` handlers.
+     *
+     * **Unset means on** — the strict value, so the behaviour is safe by
+     * default rather than by remembering to opt in.
+     *
+     * Set it to `false` when the application already installs its own signal
+     * handlers and you want today's behaviour unchanged. That matters more than
+     * it sounds: both handlers would otherwise run *concurrently*, and the
+     * first to reach `Deno.exit` ends the process — so a hand-written handler
+     * that flushes a buffer or releases a lock can be cut short mid-drain.
+     *
+     * @default true
+     */
+    signals?: boolean
+
+    /**
+     * How long the whole shutdown sequence may take, in milliseconds.
+     *
+     * Bounds the server drain **and** the hooks together, not each separately.
+     * Must be a finite integer in `[1, 2**31 - 1]`; anything else fails the
+     * boot rather than being silently accepted, because `setTimeout` clamps
+     * `NaN`, `Infinity`, `0` and any value at or above `2**31` to **1 ms** —
+     * which would turn this bound into its own opposite without saying so.
+     *
+     * @default 10000
+     */
+    deadlineMs?: number
+}
+
+/**
  * Kernel configuration options
  */
 export interface KernelConfig {
@@ -172,6 +226,20 @@ export interface KernelConfig {
      * ```
      */
     cache?: CacheConfig | boolean
+
+    /**
+     * Shutdown lifecycle configuration.
+     *
+     * Omit it and the framework installs `SIGINT`/`SIGTERM` handlers and bounds
+     * teardown at 10 seconds — the defaults every application wants. See
+     * {@link ShutdownConfig}.
+     *
+     * @example
+     * ```typescript
+     * shutdown: { deadlineMs: 20_000 }
+     * ```
+     */
+    shutdown?: ShutdownConfig
 
     /**
      * Enable devtools in development
