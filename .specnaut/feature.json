@@ -1,4 +1,4 @@
 {
-    "feature_directory": ".specnaut/specs/010-memoize-redis-driver",
-    "linked_issue": 145
+    "feature_directory": ".specnaut/specs/011-cookie-absolute-lifetime",
+    "linked_issue": 143
 }

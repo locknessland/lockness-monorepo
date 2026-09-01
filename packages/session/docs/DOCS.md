@@ -56,10 +56,48 @@ import { configureSession, sessionMiddleware } from '@lockness/core'
 configureSession({
     driver: 'cookie', // 'cookie' | 'deno-kv' | 'memory' | 'redis'
     secret: Deno.env.get('APP_KEY'),
-    lifetime: 7200, // 2 hours
+    lifetime: 7200, // 2 hours — the IDLE window, refreshed on every write
+    absoluteLifetime: 604800, // 7 days — the hard ceiling (optional; see below)
+    revocation: true, // optional; requires absoluteLifetime (cookie driver)
     secure: Deno.env.get('APP_ENV') === 'production',
 })
 ```
+
+### `lifetime` vs `absoluteLifetime`
+
+- **`lifetime`** is the **idle** window: seconds of inactivity after which a
+  session expires. It is refreshed on every write, so an active session keeps
+  going.
+- **`absoluteLifetime`** is the **hard ceiling**: seconds since the session was
+  **first issued**, never refreshed by activity. Once `now - iat` exceeds it the
+  session is refused no matter how recently it was used — bounding how long a
+  captured cookie can be replayed. It is **opt-in**: leave it unset for no cap
+  (`0`/negative is a configuration error, not "off"). Recommended when enabled:
+  `604800` (7 days). A cap below `lifetime` simply evicts sooner. Only the
+  cookie driver enforces it today.
+
+### Cookie revocation and its limits
+
+`revocation: true` (cookie driver only, **requires `absoluteLifetime`**) makes
+logout and id-rotation add the session's nonce to a Deno-KV revocation set, so a
+**captured copy of a logged-out cookie can no longer authenticate** — closing
+the "a stateless logout revokes nothing" gap. With it on, `open()` does one KV
+read per request and **fails closed** (a KV outage refuses the cookie rather
+than letting a possibly-revoked one through), and the process holds a KV handle;
+with it off the cookie driver stays fully stateless.
+
+What it does **not** do, and what to reach for instead:
+
+- **It does not evict a stolen cookie used _before_ logout.** The cap bounds the
+  **maximum** exposure; within the window a stolen cookie authenticates as the
+  victim until logout or the ceiling.
+- **It is per-session, not per-user.** There is no "log out everywhere"; a
+  password change or account recovery does **not** by itself evict existing
+  sessions.
+- Lowering `absoluteLifetime` later is safe; **raising** it does not re-horizon
+  revocation entries already written.
+- For a server-side session record (native revocation, per-user invalidation),
+  use the `deno-kv` or `redis` driver instead of `cookie`.
 
 To enable sessions, you must add the `sessionMiddleware()` using the fluent API:
 

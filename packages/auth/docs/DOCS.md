@@ -235,6 +235,14 @@ await auth.logout()
 const guard = auth.guard()
 ```
 
+> **Logout destroys the session and always invalidates the remember-me token.**
+> `logout()` calls `session.destroy()` (not just `forget`), so when the session
+> driver supports revocation (the cookie driver with `revocation: true`) a copy
+> of the pre-logout cookie captured by an attacker can no longer authenticate.
+> The remember-me token is deleted whenever one is present — even when the
+> request did not authenticate via remember — so a session-based logout cannot
+> leave a live remember-me credential behind.
+
 ## Guards
 
 ### Session Guard
