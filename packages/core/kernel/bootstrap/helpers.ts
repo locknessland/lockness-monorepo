@@ -62,6 +62,14 @@ export interface NormalizedSessionConfig {
     driver: NonNullable<SessionConfig['driver']>
     secret?: string
     lifetime: number
+    /**
+     * The absolute-lifetime ceiling in seconds, or `undefined` when disabled.
+     * Passed through verbatim (opt-in); a non-positive value is rejected at
+     * normalisation, so this is either `undefined` or a positive number.
+     */
+    absoluteLifetime?: number
+    /** Whether per-session cookie revocation is enabled. Requires the cap. */
+    revocation?: boolean
     secure: boolean
 }
 
@@ -160,10 +168,34 @@ export function normalizeSessionConfig(
     // `steps/session.ts`, which knows the environment and can refuse to boot.
     const secret = baseConfig.secret ?? Deno.env.get('APP_KEY')
 
+    // The absolute cap is opt-in (undefined = off). A non-positive value is a
+    // configuration error, NOT "off" — refuse it rather than silently disable the
+    // cap an operator believed they had enabled (fail-closed on misconfig).
+    const absoluteLifetime = baseConfig.absoluteLifetime
+    if (absoluteLifetime !== undefined && absoluteLifetime <= 0) {
+        throw new Error(
+            `session.absoluteLifetime must be a positive number of seconds when set (got ${absoluteLifetime}); ` +
+                'leave it undefined to disable the absolute-lifetime cap.',
+        )
+    }
+
+    // Revocation needs the cap to bound each revocation entry's retention; an
+    // unbounded cookie has no finite horizon for its revocation record. Refuse
+    // the combination at boot rather than grow the KV set forever.
+    const revocation = baseConfig.revocation ?? false
+    if (revocation && absoluteLifetime === undefined) {
+        throw new Error(
+            'session.revocation requires session.absoluteLifetime to be set — ' +
+                'it bounds how long each revocation entry is retained.',
+        )
+    }
+
     return {
         driver: baseConfig.driver ?? 'cookie',
         secret,
         lifetime: baseConfig.lifetime ?? 7200,
+        absoluteLifetime,
+        revocation,
         secure: baseConfig.secure ?? isProduction(),
     }
 }

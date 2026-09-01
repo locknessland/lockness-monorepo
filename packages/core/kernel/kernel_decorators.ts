@@ -69,10 +69,26 @@ export interface SessionConfig {
     secret?: string
 
     /**
-     * Session lifetime in seconds
+     * Idle session lifetime in seconds (refreshed on every write)
      * @default 7200 (2 hours)
      */
     lifetime?: number
+
+    /**
+     * Absolute session lifetime in seconds — the hard ceiling from first
+     * issuance, never refreshed. Leave undefined to disable the cap; `0`/negative
+     * is a configuration error. Recommended when enabled: 604800 (7 days). Only
+     * the cookie driver enforces it.
+     * @default undefined (no absolute cap)
+     */
+    absoluteLifetime?: number
+
+    /**
+     * Enable per-session cookie revocation (logout invalidates a captured copy).
+     * Requires `absoluteLifetime`; enabling it without the cap is refused at boot.
+     * @default false
+     */
+    revocation?: boolean
 
     /**
      * Whether to use secure cookies (HTTPS only)

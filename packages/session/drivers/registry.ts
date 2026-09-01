@@ -36,12 +36,45 @@ import {
 } from '@lockness/contract/lifecycle/internal'
 import type { SessionConfig, SessionDriver } from '../types.ts'
 import { createDriver } from './mod.ts'
+import { KvRevocationStore, type RevocationStore } from './revocation_store.ts'
 
 /** One driver instance per resolved-config key, for the life of the process. */
 const memo = new Map<string, SessionDriver>()
 
+/**
+ * One revocation store per KV path, for the life of the process.
+ *
+ * The cookie driver is per-request, but a revocation store holds a process-shared
+ * KV handle — so the store is memoized HERE and injected by reference into each
+ * per-request cookie driver. Without this the cookie driver would open a KV
+ * handle per request (the #138 leak, one context over).
+ */
+const revocationStores = new Map<string, KvRevocationStore>()
+
 /** The registry's own shutdown hook, registered once, lazily. */
 let registryHandle: DisposableHandle | undefined
+
+/**
+ * The process-shared revocation store for a cookie config that enables
+ * revocation, memoized per KV path. Returns `undefined` for any config that does
+ * not use cookie revocation, so the driver holds no store reference.
+ */
+function getRevocationStore(
+    config: SessionConfig,
+): RevocationStore | undefined {
+    if (config.driver !== 'cookie' || !config.revocation) return undefined
+    const key = config.kvPath ?? ''
+    let store = revocationStores.get(key)
+    if (!store) {
+        store = new KvRevocationStore(config.kvPath)
+        revocationStores.set(key, store)
+        registryHandle ??= registerDisposable({
+            name: 'session:driver-registry',
+            dispose: () => resetDriverRegistry(),
+        })
+    }
+    return store
+}
 
 /** The driver names that are memoized (per process). Only `cookie` is not. */
 const MEMOIZED = new Set<SessionConfig['driver']>([
@@ -107,7 +140,9 @@ export function getOrCreateDriver(
     // check; it has to be added to MEMOIZED explicitly, and `driverKey` throws
     // for anything else.
     if (!MEMOIZED.has(config.driver)) {
-        return createDriver(c, config)
+        // Cookie is per-request, but its revocation store (when enabled) is
+        // process-shared — memoized here and injected by reference.
+        return createDriver(c, config, getRevocationStore(config))
     }
 
     const key = driverKey(config)
@@ -214,6 +249,16 @@ export function resetDriverRegistry(): void {
         }
     }
     memo.clear()
+    // Close the process-shared revocation stores too — they hold KV handles.
+    for (const store of revocationStores.values()) {
+        void Promise.resolve(store.close()).catch((error) => {
+            console.warn(
+                'session: a revocation store close() failed during registry reset',
+                error,
+            )
+        })
+    }
+    revocationStores.clear()
     // Drop the shutdown hook too, so the next memoization re-arms one. Without
     // this, a reset (test teardown, or the shutdown drain itself) would leave
     // `registryHandle` truthy and the `??=` below would never register again.

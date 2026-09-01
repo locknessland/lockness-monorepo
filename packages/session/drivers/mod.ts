@@ -10,12 +10,14 @@ import { CookieSessionDriver } from './cookie.ts'
 import { MemorySessionDriver } from './memory.ts'
 import { DenoKvSessionDriver } from './deno_kv.ts'
 import { RedisSessionDriver } from './redis.ts'
+import type { RevocationStore } from './revocation_store.ts'
 
 // Re-export all drivers
 export { CookieSessionDriver } from './cookie.ts'
 export { MemorySessionDriver } from './memory.ts'
 export { DenoKvSessionDriver } from './deno_kv.ts'
 export { RedisSessionDriver } from './redis.ts'
+export { KvRevocationStore, type RevocationStore } from './revocation_store.ts'
 
 /**
  * Create a session driver based on configuration.
@@ -26,6 +28,9 @@ export { RedisSessionDriver } from './redis.ts'
  *
  * @param c - Hono context object
  * @param config - Session configuration
+ * @param revocationStore - The process-shared revocation store, passed only to
+ *   the cookie driver and only when revocation is enabled (the registry owns its
+ *   lifecycle).
  * @returns Configured session driver instance
  * @throws {Error} If the driver name is unrecognised, or the redis driver is
  *   selected without redis configuration
@@ -36,10 +41,14 @@ export { RedisSessionDriver } from './redis.ts'
  * const data = await driver.read('session-id')
  * ```
  */
-export function createDriver(c: Context, config: SessionConfig): SessionDriver {
+export function createDriver(
+    c: Context,
+    config: SessionConfig,
+    revocationStore?: RevocationStore,
+): SessionDriver {
     switch (config.driver) {
         case 'cookie':
-            return new CookieSessionDriver(c, config)
+            return new CookieSessionDriver(c, config, revocationStore)
         case 'memory':
             return new MemorySessionDriver()
         case 'deno-kv':

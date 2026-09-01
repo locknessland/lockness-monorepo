@@ -80,10 +80,31 @@ export interface SessionConfig {
      */
     cookieName: string
     /**
-     * Session lifetime in seconds.
+     * Idle session lifetime in seconds — the window of inactivity after which a
+     * session expires. Refreshed on every write.
      * @default 7200 (2 hours)
      */
     lifetime: number
+    /**
+     * Absolute session lifetime in seconds — the hard ceiling measured from first
+     * issuance, **never** refreshed by activity. When set (a positive number),
+     * the cookie driver refuses a session once `now - iat` exceeds it, no matter
+     * how often it was re-sealed. Leave **undefined** to disable the cap
+     * (`0`/negative is a configuration error, not "off"). Recommended when
+     * enabled: `604800` (7 days). Only the cookie driver enforces it today.
+     * @default undefined (no absolute cap)
+     */
+    absoluteLifetime?: number
+    /**
+     * Enable per-session revocation on the cookie driver: logout and id rotation
+     * add the session's nonce to a Deno-KV revocation set, so a captured copy of
+     * a revoked cookie can no longer authenticate. **Requires
+     * {@link SessionConfig.absoluteLifetime}** (it bounds each revocation entry's
+     * retention); enabling it without the cap is refused at boot. With it off the
+     * cookie driver holds no server-side state.
+     * @default false
+     */
+    revocation?: boolean
     /**
      * The application key, as `base64:` followed by 32 random bytes in base64 —
      * the shape {@link generateAppKey} emits and the only one accepted.

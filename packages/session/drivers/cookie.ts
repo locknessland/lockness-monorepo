@@ -30,15 +30,36 @@
  * @module @lockness/session/drivers/cookie
  */
 
-// deno-lint-ignore-file require-await
-
 import type { Context } from 'hono'
 import { deleteCookie, getCookie, setCookie } from '@lockness/hono'
 import type { SessionConfig, SessionData, SessionDriver } from '../types.ts'
 import { assertUsableSecret, decodeBase64, encodeBase64 } from '../secret.ts'
+import type { RevocationStore } from './revocation_store.ts'
 
 /** The wire-format marker. Public by design; see the module note. */
 export const WIRE_VERSION = 'v1.'
+
+/**
+ * The first-issuance identity of a session, preserved across re-seals.
+ *
+ * `iat` and `jti` are one concept — both minted when a session is first issued,
+ * both carried unchanged through every re-seal, both reset on `regenerate()`. So
+ * they travel as one value object, not two parallel fields. `iat` anchors the
+ * absolute-lifetime cap (measured from first issuance, not from the last write);
+ * `jti` is the per-session nonce the revocation set keys on.
+ */
+export interface IssuedIdentity {
+    /** Epoch seconds of first issuance — the absolute cap is measured from here. */
+    iat: number
+    /** A ≥128-bit CSPRNG session nonce, the revocation key. */
+    jti: string
+}
+
+/** Mint a fresh 128-bit session nonce (hex), from the same CSPRNG as salt/IV. */
+function mintJti(): string {
+    const bytes = crypto.getRandomValues(new Uint8Array(16))
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
 
 /** 16 bytes of HKDF salt, fresh per cookie. */
 const SALT_BYTES = 16
@@ -76,6 +97,12 @@ type Rejection =
     | 'too-short'
     | 'tag-mismatch'
     | 'expired'
+    // The idle `exp` passed. Kept distinct from `absolute-expired` so an operator
+    // can tell an idle timeout from a hard-cap eviction in the summary line.
+    | 'absolute-expired'
+    // The session's `jti` is in the revocation set, or the revocation store could
+    // not be read (fail-closed — a store outage refuses, never authenticates).
+    | 'revoked'
 
 /**
  * Bounded rejection reporting.
@@ -261,7 +288,11 @@ async function deriveKey(
  *
  * @param secret - The application key, in `base64:` form.
  * @param data - The session contents.
- * @param lifetime - Seconds until the payload expires, authenticated inside it.
+ * @param lifetime - Seconds until the payload's idle `exp`, authenticated inside
+ *   it. Refreshed on every call.
+ * @param issued - The session's first-issuance identity (`iat`/`jti`) to
+ *   preserve across a re-seal. Omit for a brand-new session — a fresh `iat` and a
+ *   128-bit `jti` are minted.
  * @returns The cookie value.
  * @throws {SessionSecretError} When the secret is absent or not key material.
  *
@@ -274,15 +305,29 @@ export async function seal(
     secret: string | undefined,
     data: SessionData,
     lifetime: number,
+    issued?: IssuedIdentity,
+): Promise<string> {
+    const now = Math.floor(Date.now() / 1000)
+    // First-issuance identity is PRESERVED across re-seals: an already-issued
+    // session keeps its original `iat` (so the absolute cap measures real age,
+    // not time-since-last-write) and its `jti` (so a re-seal cannot shed a
+    // revocation). A brand-new session mints both. `exp` — the idle window — is
+    // always fresh.
+    const iat = issued?.iat ?? now
+    const jti = issued?.jti ?? mintJti()
+    return await sealPayload(secret, { d: data, iat, exp: now + lifetime, jti })
+}
+
+/** Encrypt an arbitrary payload object into a cookie value (the seal internals). */
+async function sealPayload(
+    secret: string | undefined,
+    payload: unknown,
 ): Promise<string> {
     const keyBytes = assertUsableSecret(secret, 'config')
     const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES))
     const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES))
-    const now = Math.floor(Date.now() / 1000)
 
-    const plaintext = encoder.encode(
-        JSON.stringify({ d: data, iat: now, exp: now + lifetime }),
-    )
+    const plaintext = encoder.encode(JSON.stringify(payload))
     const ciphertext = new Uint8Array(
         await crypto.subtle.encrypt(
             { name: 'AES-GCM', iv: iv as BufferSource, additionalData: AAD },
@@ -302,6 +347,28 @@ export async function seal(
 }
 
 /**
+ * Seal an arbitrary payload object, bypassing {@link seal}'s `{ d, iat, exp, jti }`
+ * construction.
+ *
+ * **Test-only, and deliberately absent from `mod.ts`.** It exists so a test can
+ * craft a GCM-valid cookie with a missing or non-numeric `iat` — a shape a real
+ * `seal()` never produces — to prove `open()`'s absolute-cap `iat`-present gate
+ * fails closed. Without it that fail-closed branch could be deleted with the
+ * suite still green.
+ *
+ * @param secret - The application key.
+ * @param payload - The exact object to seal (no fields are added).
+ * @returns The cookie value.
+ * @internal
+ */
+export function sealArbitrary(
+    secret: string | undefined,
+    payload: unknown,
+): Promise<string> {
+    return sealPayload(secret, payload)
+}
+
+/**
  * Open a sealed cookie value, or refuse it.
  *
  * Every rejection is a **decision**, taken before the crypto call where it can
@@ -312,6 +379,10 @@ export async function seal(
  *
  * @param secret - The application key, in `base64:` form.
  * @param value - The attacker-controlled cookie value.
+ * @param absoluteLifetime - When a number, the hard ceiling: the payload is
+ *   refused if `now - iat` exceeds it or if `iat` is missing/non-numeric. Gated
+ *   on `typeof === 'number'`, so `0` enforces rather than disables. Omit to skip
+ *   the cap.
  * @returns The session contents, or `null` for anything not authentically ours.
  * @throws {SessionSecretError} When the secret is absent or not key material.
  *
@@ -323,7 +394,46 @@ export async function seal(
 export async function open(
     secret: string | undefined,
     value: string,
+    absoluteLifetime?: number,
 ): Promise<SessionData | null> {
+    const opened = await openSealed(secret, value, absoluteLifetime)
+    return opened ? opened.data : null
+}
+
+/**
+ * One opened, verified sealed payload — the fields the driver needs beyond the
+ * data itself.
+ */
+export interface OpenedPayload {
+    /** The session contents. */
+    data: SessionData
+    /** First-issuance epoch seconds (the absolute-cap anchor). */
+    iat: number
+    /** Idle-expiry epoch seconds. */
+    exp: number
+    /** The session nonce, absent on a pre-feature (jti-less) cookie. */
+    jti?: string
+}
+
+/**
+ * Decrypt, verify and surface a sealed cookie — the same checks {@link open}
+ * makes, but returning `iat`/`exp`/`jti` so the driver can preserve the identity
+ * across re-seals and run the revocation check. **Pure and offline**: it does no
+ * I/O and takes no store — the revocation decision lives in the driver's
+ * `read()`, not here (an offline crypto function must not grow a network call).
+ *
+ * @param secret - The application key.
+ * @param value - The raw cookie value.
+ * @param absoluteLifetime - When a number, the hard ceiling: the payload is
+ *   refused if `now - iat` exceeds it, or if `iat` is missing/non-numeric. The
+ *   gate is `typeof === 'number'`, never truthiness — `0` does not disable it.
+ * @returns The opened payload, or `null` for any rejection.
+ */
+export async function openSealed(
+    secret: string | undefined,
+    value: string,
+    absoluteLifetime?: number,
+): Promise<OpenedPayload | null> {
     const keyBytes = assertUsableSecret(secret, 'config')
 
     if (value.length > MAX_COOKIE_CHARS) return refuse('too-long')
@@ -355,7 +465,7 @@ export async function open(
         return refuse('tag-mismatch')
     }
 
-    let payload: { d?: SessionData; exp?: number }
+    let payload: { d?: SessionData; exp?: number; iat?: number; jti?: string }
     try {
         payload = JSON.parse(decoder.decode(plaintext))
     } catch {
@@ -368,6 +478,16 @@ export async function open(
     ) {
         return refuse('expired')
     }
+    // The absolute cap: enforced iff a numeric `absoluteLifetime` is configured
+    // (never truthiness — `0` must not silently disable it). A cap-enforced
+    // payload whose `iat` is missing or non-numeric is refused, so a future
+    // `seal()` change cannot let a session skip the ceiling by omission.
+    if (typeof absoluteLifetime === 'number') {
+        if (typeof payload.iat !== 'number') return refuse('absolute-expired')
+        if (Math.floor(Date.now() / 1000) - payload.iat > absoluteLifetime) {
+            return refuse('absolute-expired')
+        }
+    }
     if (
         typeof payload.d !== 'object' || payload.d === null ||
         Array.isArray(payload.d)
@@ -379,7 +499,16 @@ export async function open(
         return refuse('tag-mismatch')
     }
 
-    return payload.d
+    return {
+        data: payload.d,
+        // `iat` is present on every cookie #137+ sealed; when the cap is off it
+        // may be absent on a pre-cap cookie — fall back to `exp - lifetime` is
+        // not knowable here, so default to `exp` (a conservative, never-younger
+        // anchor). The driver only uses it to preserve across re-seals.
+        iat: typeof payload.iat === 'number' ? payload.iat : payload.exp,
+        exp: payload.exp,
+        jti: typeof payload.jti === 'string' ? payload.jti : undefined,
+    }
 }
 
 function refuse(reason: Rejection): null {
@@ -405,19 +534,55 @@ function refuse(reason: Rejection): null {
 export class CookieSessionDriver implements SessionDriver {
     private readonly context: Context
     private readonly config: SessionConfig
+    /**
+     * The process-shared revocation store, injected by the registry when
+     * revocation is enabled. The driver holds only a reference — it never opens a
+     * KV handle itself, so it stays per-request without leaking a handle per
+     * request. Absent when revocation is off.
+     */
+    readonly #store?: RevocationStore
+    /**
+     * The first-issuance identity read from the incoming cookie, preserved so a
+     * re-seal in the same request keeps the original `iat`/`jti`. Undefined for a
+     * brand-new session (the next `write` mints a fresh one).
+     */
+    #issued?: IssuedIdentity
+    /**
+     * Set once `destroy()` has run, so a trailing `write()` from `save()` in the
+     * same request does not re-seal a just-revoked/just-deleted session.
+     */
+    #destroyed = false
 
     /**
      * @param context - The Hono request context.
      * @param config - The resolved session configuration.
+     * @param revocationStore - The process-shared revocation store, when
+     *   revocation is enabled (injected by the driver registry).
      * @throws {SessionSecretError} When the configured secret is unusable.
      */
-    constructor(context: Context, config: SessionConfig) {
+    constructor(
+        context: Context,
+        config: SessionConfig,
+        revocationStore?: RevocationStore,
+    ) {
         // Asked here, decided in secret.ts. Constructing a driver that cannot
         // seal is a configuration error, and the request path is the wrong place
         // to discover it.
         assertUsableSecret(config.secret, 'config')
         this.context = context
         this.config = config
+        this.#store = revocationStore
+    }
+
+    /**
+     * The TTL for a revocation entry: a full absolute-cap window from now. Longer
+     * than the cookie's remaining life, so the entry always outlives every use of
+     * the cookie — and raising `absoluteLifetime` later cannot expire an entry
+     * before the cookie it revokes (a fixed window, not one derived from the live
+     * config at read time).
+     */
+    #revocationTtl(): number {
+        return this.config.absoluteLifetime ?? this.config.lifetime
     }
 
     /**
@@ -439,7 +604,35 @@ export class CookieSessionDriver implements SessionDriver {
         const value = getCookie(this.context, this.config.cookieName)
         if (!value) return null
 
-        return await open(this.config.secret, value)
+        const opened = await openSealed(
+            this.config.secret,
+            value,
+            this.config.absoluteLifetime,
+        )
+        if (!opened) return null
+
+        // Preserve the first-issuance identity so a re-seal in this request keeps
+        // the original `iat` (cap anchor) and `jti` (revocation key). A
+        // pre-feature cookie with no `jti` mints one now, so it becomes revocable
+        // from its next write on; its `iat` is preserved either way.
+        this.#issued = { iat: opened.iat, jti: opened.jti ?? mintJti() }
+
+        // Revocation check — fail CLOSED. Only when opted in, a store is present,
+        // and the cookie carries a `jti` (a jti-less pre-feature cookie has no
+        // revocation entry and is bounded by the absolute cap instead).
+        if (this.config.revocation && this.#store && opened.jti) {
+            let revoked: boolean
+            try {
+                revoked = await this.#store.isRevoked(opened.jti)
+            } catch {
+                // A store outage must never let a possibly-revoked cookie
+                // authenticate: refuse, do not treat the error as "not revoked".
+                return refuse('revoked')
+            }
+            if (revoked) return refuse('revoked')
+        }
+
+        return opened.data
     }
 
     /**
@@ -461,10 +654,16 @@ export class CookieSessionDriver implements SessionDriver {
         data: SessionData,
         lifetime: number,
     ): Promise<void> {
+        // `destroy()` already emitted a deletion and revoked the session; the
+        // middleware's trailing `save()` (the session is dirty after logout) must
+        // NOT re-seal it back to life with the just-revoked identity.
+        if (this.#destroyed) return
         setCookie(
             this.context,
             this.config.cookieName,
-            await seal(this.config.secret, data, lifetime),
+            // Preserve the issued identity across the re-seal (undefined ⇒ a fresh
+            // one is minted for a new session).
+            await seal(this.config.secret, data, lifetime, this.#issued),
             {
                 path: this.config.path,
                 domain: this.config.domain,
@@ -477,13 +676,18 @@ export class CookieSessionDriver implements SessionDriver {
     }
 
     /**
-     * Delete the client's copy of the cookie.
+     * Delete the client's copy of the cookie and, when revocation is enabled,
+     * revoke the session so a captured copy can no longer authenticate.
      *
-     * **This does not revoke anything.** A stateless driver has no record to
-     * invalidate, so a cookie captured before this call still authenticates
-     * until its sealed `exp` passes.
+     * With revocation **off** this is the original stateless behaviour — it drops
+     * the client cookie and a copy captured beforehand keeps working until the
+     * cap or idle `exp`. With revocation **on**, the current session's `jti` is
+     * added to the revocation set (the write propagates on failure — a logout
+     * that silently fails to revoke is worse than one that errors), and the
+     * trailing re-seal from `save()` is suppressed so the deletion stands.
      *
-     * @param _sessionId - Unused.
+     * @param _sessionId - Unused; the cookie carries the identity.
+     * @throws When revocation is on and the store write fails (fail-closed).
      *
      * @example
      * ```typescript
@@ -491,22 +695,32 @@ export class CookieSessionDriver implements SessionDriver {
      * ```
      */
     async destroy(_sessionId: string): Promise<void> {
+        if (this.config.revocation && this.#store && this.#issued?.jti) {
+            await this.#store.revoke(this.#issued.jti, this.#revocationTtl())
+        }
         deleteCookie(this.context, this.config.cookieName, {
             path: this.config.path,
             domain: this.config.domain,
         })
+        // Suppress the trailing re-seal (see write()): the session is gone.
+        this.#destroyed = true
     }
 
     /**
-     * No-op: there is no server-side record to move.
+     * Rotate the session identity.
      *
-     * The next {@link write} seals a fresh payload with a fresh salt, IV and
-     * expiry, which is what rotation means for a stateless driver.
+     * With revocation **off** this stays a stateless no-op beyond resetting the
+     * preserved identity, so the next {@link write} mints a fresh `iat`/`jti`
+     * (a fresh absolute clock — correct for a login). With revocation **on**, the
+     * OLD `jti` is revoked first, so a cookie captured before the rotation can no
+     * longer authenticate. **Not symmetric with `destroy()`**: `regenerate()`
+     * resets the identity so the session continues under a new one; `destroy()`
+     * suppresses the re-seal so the session ends.
      *
      * @param _oldId - Unused.
      * @param _newId - Unused.
-     * @param _lifetime - Unused: a stateless cookie carries its own expiry,
-     *   resealed on the next {@link write}.
+     * @param _lifetime - Unused: the cookie carries its own expiry.
+     * @throws When revocation is on and the store write fails (fail-closed).
      *
      * @example
      * ```typescript
@@ -518,7 +732,10 @@ export class CookieSessionDriver implements SessionDriver {
         _newId: string,
         _lifetime: number,
     ): Promise<void> {
-        // Stateless: there is no server-side record to move. The next write
-        // seals a fresh payload with a fresh salt, IV and expiry.
+        if (this.config.revocation && this.#store && this.#issued?.jti) {
+            await this.#store.revoke(this.#issued.jti, this.#revocationTtl())
+        }
+        // Reset so the next write mints a fresh identity (new clock, new nonce).
+        this.#issued = undefined
     }
 }

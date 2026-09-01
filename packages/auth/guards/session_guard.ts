@@ -387,11 +387,22 @@ export class SessionGuard<
     async logout(): Promise<void> {
         const user = this.user
 
-        // Clear session
-        this.#session.forget(this.sessionKeyName)
+        // Destroy the whole session, not just forget the auth key. `forget()`
+        // followed by the middleware's re-seal would re-issue a cookie carrying
+        // the SAME session nonce, so it would still authenticate — and with
+        // cookie revocation on, the nonce would never be revoked. `destroy()`
+        // reaches `driver.destroy()`, which revokes the nonce and suppresses the
+        // trailing re-seal, so a captured copy of the pre-logout cookie is
+        // refused on its next use.
+        await this.#session.destroy()
 
-        // Delete remember me token if exists
-        if (this.#options.useRememberMeTokens && this.viaRemember && user) {
+        // Delete the remember-me token whenever a remember-me cookie is present —
+        // NOT gated on `this.user`. Under the enrich-only `withAuth` wiring the
+        // guard may never have populated `this.user`, yet a captured remember-me
+        // cookie must still be invalidated on logout or it re-establishes a
+        // session (CWE-613). The token's owner comes from the verified token
+        // itself, not from the guard's authentication state.
+        if (this.#options.useRememberMeTokens) {
             const tokenValue = getCookie(this.#ctx, this.rememberMeKeyName)
             if (tokenValue) {
                 const provider = this
@@ -401,7 +412,7 @@ export class SessionGuard<
                 const result = await provider.verifyRememberToken(tokenValue)
                 if (result) {
                     await provider.deleteRememberToken(
-                        user,
+                        result.user,
                         result.token.identifier,
                     )
                 }
