@@ -333,20 +333,23 @@ instance, so no stack and no `cause` chain can reach a browser through it.
 ## Stopping
 
 ```ts
-const server = app.listen(8888)
-
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    Deno.addSignalListener(signal, async () => {
-        scheduler().stop()
-        await server.shutdown()
-        Deno.exit(0)
-    })
-}
+app.listen(8888)
+// Nothing else. SIGINT and SIGTERM stop the scheduler already.
 ```
 
-Lockness has no framework-wide shutdown lifecycle yet, so this wiring is manual
-for now. `stop()` is terminal: it clears every timer, and nothing arms again — a
-run that was about to schedule itself cannot race the shutdown.
+`@lockness/core` owns the shutdown lifecycle, and its scheduler bootstrap step
+registers `scheduler().stop()` as a teardown — so the timers are released on
+Ctrl-C and on the `SIGTERM` an orchestrator sends, with no wiring in your
+application. See [lifecycle-events.md](../../../docs/lifecycle-events.md).
+
+`stop()` is terminal: it clears every timer, and nothing arms again — a run that
+was about to schedule itself cannot race the shutdown.
+
+> **If you already wrote the manual block**, delete it. Both handlers would run
+> **concurrently** and whichever reaches `Deno.exit` first ends the process, so
+> a hand-written drain can be cut short mid-way. To keep yours instead, opt out
+> with `@Kernel({ shutdown: { signals: false } })` — then the framework installs
+> nothing and the behaviour is exactly what it was.
 
 You do not have to call it to let the process exit. Every schedule timer is
 `unref`'d, so a pending schedule never keeps a process alive on its own. The
