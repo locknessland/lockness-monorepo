@@ -23,7 +23,7 @@ names does not belong here._
 
 | Direction                                      | Packages                                                                    |
 | :--------------------------------------------- | :-------------------------------------------------------------------------- |
-| Imports (static)                               | —                                                                           |
+| Imports (static)                               | `contract`                                                                  |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                           |
 | Imported by                                    | `core`                                                                      |
 | **Must never import**                          | `core` — each already reaches this package, so importing one closes a cycle |
@@ -67,13 +67,14 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-6 test files for 1 source file:
+7 test files for 1 source file:
 
 - `packages/logger/tests/basic.test.ts`
 - `packages/logger/tests/formatters.test.ts`
 - `packages/logger/tests/global.test.ts`
 - `packages/logger/tests/metadata.test.ts`
 - `packages/logger/tests/patterns.test.ts`
+- `packages/logger/tests/shutdown.test.ts`
 - `packages/logger/tests/transports.test.ts`
 
 <!-- /generated:tests -->
@@ -90,7 +91,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 6 test files directly —
+Then, specific to this package: run its 7 test files directly —
 
 ```bash
 deno test -A packages/logger/

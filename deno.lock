@@ -4038,6 +4038,7 @@
       },
       "packages/logger": {
         "dependencies": [
+          "jsr:@lockness/contract@0.2",
           "jsr:@std/assert@1"
         ]
       },
@@ -4066,6 +4067,7 @@
       },
       "packages/queue": {
         "dependencies": [
+          "jsr:@lockness/contract@0.2",
           "jsr:@std/assert@1"
         ]
       },
@@ -4089,6 +4091,11 @@
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/testing@1"
+        ]
+      },
+      "packages/sse": {
+        "dependencies": [
+          "jsr:@lockness/contract@0.2"
         ]
       },
       "packages/storage": {

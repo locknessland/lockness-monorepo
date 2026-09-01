@@ -70,13 +70,14 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-5 test files for 10 source files:
+6 test files for 10 source files:
 
 - `packages/cache/tests/advanced.test.ts`
 - `packages/cache/tests/basic.test.ts`
 - `packages/cache/tests/decorators.test.ts`
 - `packages/cache/tests/features.test.ts`
 - `packages/cache/tests/redis.test.ts`
+- `packages/cache/tests/shutdown.test.ts`
 
 <!-- /generated:tests -->
 
@@ -92,7 +93,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 5 test files directly —
+Then, specific to this package: run its 6 test files directly —
 
 ```bash
 deno test -A packages/cache/

@@ -52,15 +52,15 @@ The monorepo contains **27 packages**.
 | `hono`                  | —                                            | —                                                            |
 | `inertia`               | hono                                         | —                                                            |
 | `init`                  | cli                                          | —                                                            |
-| `logger`                | —                                            | —                                                            |
+| `logger`                | contract                                     | —                                                            |
 | `mail`                  | —                                            | —                                                            |
 | `markdown`              | hono, ui                                     | —                                                            |
 | `openapi`               | cli, contract, hono                          | —                                                            |
-| `queue`                 | —                                            | —                                                            |
+| `queue`                 | contract                                     | —                                                            |
 | `scheduler`             | —                                            | —                                                            |
 | `session`               | hono                                         | —                                                            |
 | `socialite`             | hono                                         | —                                                            |
-| `sse`                   | —                                            | —                                                            |
+| `sse`                   | contract                                     | —                                                            |
 | `storage`               | —                                            | —                                                            |
 | `ui`                    | hono, markdown                               | —                                                            |
 | `upgrade`               | —                                            | —                                                            |
