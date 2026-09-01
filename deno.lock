@@ -9,6 +9,7 @@
     "jsr:@std/assert@^1.0.17": "1.0.17",
     "jsr:@std/async@^1.1.0": "1.1.0",
     "jsr:@std/cli@1": "1.0.26",
+    "jsr:@std/crypto@1": "1.1.0",
     "jsr:@std/data-structures@^1.0.10": "1.0.10",
     "jsr:@std/expect@1": "1.0.17",
     "jsr:@std/fs@*": "1.0.22",
@@ -117,6 +118,9 @@
       "dependencies": [
         "jsr:@std/internal@^1.0.12"
       ]
+    },
+    "@std/crypto@1.1.0": {
+      "integrity": "b8d6d0a6377a32b213af2661ed7bf1062d94feac0c57def5526a8e74a95c3ec8"
     },
     "@std/data-structures@1.0.10": {
       "integrity": "f574f86b0e07c69b9edc555fcc814b57d29258bad39fd5a34ba8a80ecf033cfe"
@@ -4083,7 +4087,8 @@
         "dependencies": [
           "jsr:@lockness/contract@0.2",
           "jsr:@lockness/hono@0.2",
-          "jsr:@std/assert@1"
+          "jsr:@std/assert@1",
+          "jsr:@std/crypto@1"
         ]
       },
       "packages/socialite": {

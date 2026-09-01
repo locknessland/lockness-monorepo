@@ -8,15 +8,18 @@
  * keyed on the resolved config**, so one handle serves the process and the
  * memory store survives across requests. See #138.
  *
- * **Two drivers are deliberately NOT memoized, each a first-class branch here:**
+ * `memory`, `deno-kv` **and `redis`** are memoized. `redis` joined the memo once
+ * its socket became safe to share: its reply reader drains a full frame (#139)
+ * and its commands are serialized per connection (#145). It is keyed on
+ * host/port/db **and a SHA-256 digest of the password** ({@link driverKey}), so
+ * two configs with different credentials never share one authenticated socket,
+ * and the key stays safe to log.
  *
- * - `cookie` closes over the request `Context` and holds no OS resource, so it
- *   is built fresh per request.
- * - `redis` is per-request **while gated**. Sharing one Redis socket across
- *   requests is unsafe until its reply reader drains a full frame and its
- *   commands are serialized ({@link https://github.com/locknessland/lockness-monorepo/issues/145 | #145}).
- *   The gate lives here, not as an emergent "everything not cookie is memoized"
- *   else-branch — that shape would let redis slip into the memo unnoticed.
+ * **`cookie` is the one driver NOT memoized**, a first-class branch here: it
+ * closes over the request `Context` and holds no OS resource, so it is built
+ * fresh per request. Memoization is an allowlist ({@link MEMOIZED}), not an
+ * "everything not cookie" else-branch — a driver must be added explicitly, so
+ * nothing slips into the memo unnoticed.
  *
  * The per-request/per-process split has **one** home: this file. `middleware.ts`
  * calls {@link getOrCreateDriver} and never re-decides it.
@@ -25,6 +28,7 @@
  */
 
 import type { Context } from 'hono'
+import { crypto } from '@std/crypto'
 import {
     deregisterDisposable,
     type DisposableHandle,
@@ -39,8 +43,41 @@ const memo = new Map<string, SessionDriver>()
 /** The registry's own shutdown hook, registered once, lazily. */
 let registryHandle: DisposableHandle | undefined
 
-/** The driver names that are memoized (per process). Cookie and redis are not. */
-const MEMOIZED = new Set<SessionConfig['driver']>(['memory', 'deno-kv'])
+/** The driver names that are memoized (per process). Only `cookie` is not. */
+const MEMOIZED = new Set<SessionConfig['driver']>([
+    'memory',
+    'deno-kv',
+    'redis',
+])
+
+/**
+ * A hex SHA-256 digest of a string, computed synchronously.
+ *
+ * Used by {@link driverKey} to fold a Redis password into the memo key without
+ * ever placing the cleartext credential there (it must stay safe to log). The
+ * digest must be **collision-resistant** — a collision would hand two configs
+ * with different passwords the same key, and thus one config the other's
+ * already-authenticated socket. SHA-256 is that primitive; the FNV fingerprint
+ * `redis.ts` uses for session-id log lines is deliberately NOT reused here — a
+ * log fingerprint tolerates collisions, a credential boundary does not.
+ *
+ * `@std/crypto`'s `digestSync` (WASM-backed) keeps `driverKey` — and the memo
+ * lookup it feeds — synchronous, so the `Map` memo stays race-free by
+ * construction; an async key would reintroduce a construction race.
+ *
+ * @param input - The string to digest (the Redis password).
+ * @returns The 64-character lowercase hex SHA-256 digest.
+ */
+function sha256Hex(input: string): string {
+    const digest = crypto.subtle.digestSync(
+        'SHA-256',
+        new TextEncoder().encode(input),
+    )
+    return Array.from(
+        new Uint8Array(digest),
+        (b) => b.toString(16).padStart(2, '0'),
+    ).join('')
+}
 
 /**
  * Get the session driver for a resolved config, constructing it once per
@@ -53,8 +90,8 @@ const MEMOIZED = new Set<SessionConfig['driver']>(['memory', 'deno-kv'])
  *
  * @param c - The request context (used only by the per-request cookie branch).
  * @param config - The resolved session configuration.
- * @returns The driver serving this config — memoized for `memory` / `deno-kv`,
- *   fresh for `cookie` / `redis`.
+ * @returns The driver serving this config — memoized for `memory` / `deno-kv` /
+ *   `redis`, fresh for `cookie`.
  * @example
  * ```typescript
  * const driver = getOrCreateDriver(c, { ...getSessionConfig(), ...override })
@@ -65,10 +102,10 @@ export function getOrCreateDriver(
     config: SessionConfig,
 ): SessionDriver {
     // Memoization is an allowlist, not an else-branch: only the drivers in
-    // MEMOIZED are ever cached, so cookie and redis are per-request by NOT
-    // being on the list. This is the stronger form of the redis gate — a driver
-    // cannot slip into the memo by failing to match a `cookie` check; it has to
-    // be added to MEMOIZED explicitly, and `driverKey` throws for anything else.
+    // MEMOIZED are ever cached, so `cookie` is per-request by NOT being on the
+    // list. A driver cannot slip into the memo by failing to match a `cookie`
+    // check; it has to be added to MEMOIZED explicitly, and `driverKey` throws
+    // for anything else.
     if (!MEMOIZED.has(config.driver)) {
         return createDriver(c, config)
     }
@@ -91,17 +128,24 @@ export function getOrCreateDriver(
 /**
  * The canonical memo key for a resolved config: what makes two configs the same
  * resource. Over the resource-determining fields only — the driver name, the KV
- * path, and (for a future memoized redis) host/port/db. **Never the redis
- * password**: the key must stay safe to log, and a per-request redis is not
- * keyed at all today.
+ * path, and (for redis) host/port/db plus a **SHA-256 digest of the password**.
+ * **Never the cleartext password**: the key must stay safe to log, so the
+ * credential is folded through {@link sha256Hex} (the sole home of that digest;
+ * `redis.ts` authenticates with the raw password and needs none). Two redis
+ * configs differing only in password therefore resolve to different keys and
+ * never share one authenticated socket.
  *
  * @param config - A resolved config whose driver is memoized.
  * @returns A stable key string.
- * @throws {Error} If called for a per-request driver (`cookie` / `redis`) — a
- *   key for those would be the artefact that lets one into the memo by mistake.
+ * @throws {Error} If called for the per-request `cookie` driver — a key for it
+ *   would be the artefact that lets it into the memo by mistake.
+ * @throws {Error} If called for a `redis` config with no `redis` block — an
+ *   unconfigured redis driver has no resource to key.
  * @example
  * ```typescript
  * driverKey({ driver: 'deno-kv', kvPath: './s.db', ... }) // "deno-kv:./s.db"
+ * driverKey({ driver: 'redis', redis: { hostname: 'h', port: 6379, db: 0 } })
+ * // "redis:h:6379:0:<sha256(password)>"
  * ```
  */
 export function driverKey(config: SessionConfig): string {
@@ -110,10 +154,26 @@ export function driverKey(config: SessionConfig): string {
             return 'memory'
         case 'deno-kv':
             return `deno-kv:${config.kvPath ?? ''}`
+        case 'redis': {
+            const r = config.redis
+            if (!r) {
+                throw new Error(
+                    'driverKey called for a redis config with no redis block: ' +
+                        'nothing to key.',
+                )
+            }
+            // host:port:db identify the resource; the password digest keeps two
+            // different-credential configs on the same host from collapsing onto
+            // one authenticated socket, without the cleartext ever entering the
+            // (loggable) key.
+            return `redis:${r.hostname}:${r.port ?? 6379}:${r.db ?? 0}:${
+                sha256Hex(r.password ?? '')
+            }`
+        }
         default:
             throw new Error(
                 `driverKey called for the per-request driver '${config.driver}': ` +
-                    'cookie and redis are never memoized.',
+                    'cookie is never memoized.',
             )
     }
 }
