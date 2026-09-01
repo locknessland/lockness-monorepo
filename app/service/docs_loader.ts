@@ -97,6 +97,7 @@ export class DocsLoader {
         'ui': 'packages/ui/docs/DOCS.md',
 
         // General docs (not package-specific)
+        'ai-assistants': 'docs/ai-assistants.md',
         'blog': 'docs/blog.md',
         'installation': 'docs/installation.md',
         'getting-started': 'docs/getting-started.md',

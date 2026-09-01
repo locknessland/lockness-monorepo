@@ -200,6 +200,7 @@ const navSections: readonly NavSection[] = [
             { title: 'Introduction', name: 'getting-started' },
             { title: 'Architecture', name: 'architecture' },
             { title: 'Packages', name: 'packages' },
+            { title: 'AI assistants', name: 'ai-assistants' },
             { title: 'Blog', name: 'blog' },
         ],
     },
