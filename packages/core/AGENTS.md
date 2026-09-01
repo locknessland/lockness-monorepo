@@ -86,7 +86,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-32 test files for 56 source files:
+33 test files for 56 source files:
 
 - `packages/core/tests/app_fluent_api.test.ts`
 - `packages/core/tests/app_refactoring_integration.test.ts`
@@ -111,6 +111,7 @@ Anything not listed is internal and free to change.
 - `packages/core/tests/routes_generator.test.ts`
 - `packages/core/tests/schedule_discovery.test.ts`
 - `packages/core/tests/scheduler_step.test.ts`
+- `packages/core/tests/session_boot.test.ts`
 - `packages/core/tests/shutdown_decorators.test.ts`
 - `packages/core/tests/shutdown_deno_behaviour.test.ts`
 - `packages/core/tests/shutdown_reachability.test.ts`
@@ -135,7 +136,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 32 test files directly —
+Then, specific to this package: run its 33 test files directly —
 
 ```bash
 deno test -A packages/core/
