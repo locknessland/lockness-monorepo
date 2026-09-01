@@ -173,8 +173,8 @@ Deno.test('DocsLoader - getAvailableSlugs should return expected count', () => {
     const loader = new DocsLoader()
     const slugs = loader.getAvailableSlugs()
 
-    // We have 31 package docs + 14 general docs = 45 total
-    assertEquals(slugs.length, 45, 'Should have 45 documentation pages')
+    // We have 31 package docs + 15 general docs = 46 total
+    assertEquals(slugs.length, 46, 'Should have 46 documentation pages')
 })
 
 // =============================================================================
