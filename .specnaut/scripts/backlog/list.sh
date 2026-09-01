@@ -14,7 +14,18 @@ set -euo pipefail
 
 FILTER="${1:-}"
 
-JSON=$(gh issue list --repo "$REPO" --state open --limit 200 \
+# `Done` needs `--state all`, and only `Done` does.
+#
+# This project auto-closes an issue when its card moves to Done, so a Done card
+# is always a closed issue — and querying `--state open` for it returned the
+# empty set by construction. Not an error and not a warning: a caller asking
+# "what shipped?" got silence, and a grooming sweep that trusts it under-reports
+# the Done column without saying so. Every other Status is a working column and
+# stays open-only, so the unfiltered listing is unchanged.
+STATE=open
+[ "$FILTER" = "Done" ] && STATE=all
+
+JSON=$(gh issue list --repo "$REPO" --state "$STATE" --limit 200 \
   --json number,title,projectItems)
 
 echo "$JSON" | jq -r --arg filter "$FILTER" '
