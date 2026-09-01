@@ -15,6 +15,13 @@
             "when": 1766540177106,
             "tag": "0001_sad_glorian",
             "breakpoints": true
+        },
+        {
+            "idx": 2,
+            "version": "7",
+            "when": 1788302425052,
+            "tag": "0002_glamorous_wild_child",
+            "breakpoints": true
         }
     ]
 }
