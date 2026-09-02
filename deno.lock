@@ -4136,6 +4136,7 @@
       "packages/cli": {
         "dependencies": [
           "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/events@0.2",
           "jsr:@lockness/queue@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",

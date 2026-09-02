@@ -21,12 +21,12 @@ names does not belong here._
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                                                         |
-| :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`, `hono` _(type-only)_                                                                                 |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                |
-| Imported by                                    | `auth`, `core`, `devtools`                                                                                       |
-| **Must never import**                          | `auth`, `auth-provider`, `core`, `devtools` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                                                                              |
+| :--------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                               | `contract`, `hono` _(type-only)_                                                                                                                      |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                                                     |
+| Imported by                                    | `auth`, `cli`, `core`, `devtools`                                                                                                                     |
+| **Must never import**                          | `auth`, `auth-provider`, `cli`, `core`, `devtools`, `drizzle`, `init`, `openapi` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

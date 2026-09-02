@@ -24,7 +24,7 @@ names does not belong here._
 
 | Direction                                      | Packages                                                                                                  |
 | :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`, `queue`                                                                                       |
+| Imports (static)                               | `contract`, `events`, `queue`                                                                             |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                         |
 | Imported by                                    | `drizzle`, `init`, `openapi`                                                                              |
 | **Must never import**                          | `core`, `drizzle`, `init`, `openapi` — each already reaches this package, so importing one closes a cycle |
@@ -72,8 +72,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-9 test files for 11 source files:
+10 test files for 17 source files:
 
+- `packages/cli/tests/debug_commands.test.ts`
 - `packages/cli/tests/make_command.test.ts`
 - `packages/cli/tests/make_component.test.ts`
 - `packages/cli/tests/make_controller.test.ts`
@@ -98,7 +99,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 9 test files directly —
+Then, specific to this package: run its 10 test files directly —
 
 ```bash
 deno test -A packages/cli/
