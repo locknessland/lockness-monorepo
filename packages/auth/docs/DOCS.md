@@ -275,7 +275,37 @@ if (await guard.check()) {
 
 // Logout
 await guard.logout()
+
+// Log out EVERY device of the authenticated user (this one included) —
+// a password change or account recovery should call this.
+await guard.logoutEverywhere()
+
+// Log out the user's OTHER devices, keeping this session alive.
+await guard.logoutOthers()
 ```
+
+> **Per-user eviction — "log out everywhere" (#147, ASVS 7.4.2).** Per-session
+> `logout()` revokes one session. `logoutEverywhere()` and `logoutOthers()`
+> evict **all** of the authenticated user's sessions in one operation, by
+> setting a per-user eviction epoch in the session store (see the session docs):
+> every session whose first-issuance instant predates the epoch is refused,
+> fail-closed. Both require the cookie driver with `revocation: true` (and thus
+> `absoluteLifetime`).
+>
+> - **`logoutEverywhere()`** also kills the acting session deterministically (it
+>   revokes the acting session's nonce too, so a same-second session dies) and
+>   **invalidates the user's remember-me tokens**, so a captured remember-me
+>   cookie cannot re-mint a post-eviction session.
+> - **`logoutOthers()`** rotates the acting session to a fresh identity so it
+>   survives, invalidates other devices' remember-me tokens, and re-issues the
+>   acting device's when one was present.
+> - **Both throw `AuthenticationRequiredError` when unauthenticated** — an
+>   eviction is always scoped to `this.user.id`, never an arbitrary subject.
+> - **Credential-change / recovery flows must call one of these** — the
+>   framework exposes the capability; firing it on a password change or account
+>   recovery is the application's responsibility (ASVS 7.4.2). A custom
+>   remember-me provider must implement `deleteAllRememberTokens(user)`; the
+>   bundled Drizzle/Kysely providers and the app scaffold already do.
 
 > **Remember-me absolute lifetime (#146).** `rememberMeTokensAge` is a _rolling_
 > window — every use renews it, so without a ceiling a stolen remember-me cookie

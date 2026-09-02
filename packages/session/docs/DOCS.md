@@ -91,13 +91,27 @@ What it does **not** do, and what to reach for instead:
 - **It does not evict a stolen cookie used _before_ logout.** The cap bounds the
   **maximum** exposure; within the window a stolen cookie authenticates as the
   victim until logout or the ceiling.
-- **It is per-session, not per-user.** There is no "log out everywhere"; a
-  password change or account recovery does **not** by itself evict existing
-  sessions.
 - Lowering `absoluteLifetime` later is safe; **raising** it does not re-horizon
   revocation entries already written.
-- For a server-side session record (native revocation, per-user invalidation),
-  use the `deno-kv` or `redis` driver instead of `cookie`.
+- For a server-side session record, the `deno-kv` or `redis` driver keeps one
+  and can be evicted by deleting it — a different mechanism than the cookie
+  driver's revocation set.
+
+**Per-user eviction — "log out everywhere" (#147).** Alongside the per-session
+`jti` set, the cookie driver keeps a **per-user eviction epoch**: one Deno-KV
+timestamp per subject meaning "sessions issued before this instant are dead".
+The session cookie carries an opaque `sub` (subject) claim inside its sealed
+plaintext (the session layer never interprets it — the auth guard populates it),
+and `read()` refuses a cookie whose first-issuance `iat` is **strictly before**
+its subject's epoch — fail-closed and strongly consistent, exactly like the
+per-session check. One store write evicts every prior session of a user, so a
+password change or account recovery **can** now evict existing sessions. The
+epoch entry is retained for a fixed `absoluteLifetime` window (never
+`lifetime`), so raising the cap later cannot resurrect an evicted session. This
+is driven from `@lockness/auth`'s `guard.logoutEverywhere()` /
+`guard.logoutOthers()` — see the auth docs. Same precondition as per-session
+revocation: **`revocation: true` requires `absoluteLifetime`**, refused at boot
+otherwise.
 
 To enable sessions, you must add the `sessionMiddleware()` using the fluent API:
 
