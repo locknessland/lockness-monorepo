@@ -22,5 +22,13 @@ export {
     TAILWIND_CLI,
 } from './shared.ts'
 
+export {
+    type AppFetchHandler,
+    devServerBridge,
+    type DevServerOptions,
+    injectCssIntoHtml,
+    isViteInternalRequest,
+} from './plugins/dev_server.ts'
+
 // TODO(#108–#113): lockness(), viteAssets(), ManifestReader,
 // ViteAssetsTagResult.
