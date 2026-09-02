@@ -60,4 +60,6 @@ export {
     cssPlugin,
 } from './src/mod.ts'
 
+export { type HmrOptions, hmrPlugin } from './src/mod.ts'
+
 // TODO(#108–#113): lockness(), viteAssets(), ViteAssetsTagResult.

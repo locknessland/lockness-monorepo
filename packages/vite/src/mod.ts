@@ -60,5 +60,7 @@ export {
 } from './plugins/css.ts'
 export { type ChangeKind, classifyChange } from './shared.ts'
 
+export { type HmrOptions, hmrPlugin } from './plugins/hmr.ts'
+
 // TODO(#108–#113): lockness(), viteAssets(), ManifestReader,
 // ViteAssetsTagResult.
