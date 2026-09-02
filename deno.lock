@@ -4178,7 +4178,10 @@
       },
       "packages/devtools": {
         "dependencies": [
-          "jsr:@lockness/hono@0.2"
+          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/events@0.2",
+          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/session@0.2"
         ]
       },
       "packages/drizzle": {
