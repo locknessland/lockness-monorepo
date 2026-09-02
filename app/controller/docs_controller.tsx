@@ -1,5 +1,5 @@
 import { Cache, Context, Controller, Get, Inject, route } from '@lockness/core'
-import { renderMarkdownWithoutTitle } from '@lockness/markdown'
+import { renderMarkdownWithoutTitle } from '@lockness/ui/markdown'
 import { DocsLoader } from '@service/docs_loader.ts'
 import { DocsLayout } from '@view/layouts/docs_layout.tsx'
 

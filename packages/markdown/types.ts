@@ -116,10 +116,20 @@ export interface ComponentOverrides {
      */
     Paragraph?: FC<{ children: unknown }>
     /**
-     * Override code block rendering
+     * Override code block rendering.
+     *
+     * **Trust invariant** — `html` is highlighter-generated, escaped output
+     * only (a `<span class="hljs-…">` tree wrapping already-escaped code text);
+     * it is NEVER caller-supplied HTML to be rendered raw. The only
+     * implementation that consumes `html` through a raw-HTML sink is
+     * `@lockness/ui`'s `HighlightedCodeBlock`; the plain-HTML default in
+     * `@lockness/markdown` ignores `html` and renders escaped `children` only.
+     * A custom map that pipes untrusted input into `html` re-opens stored XSS —
+     * see plan §6 (017-break-ui-markdown-cycle) and issue #127.
+     *
      * @param language - The code language (e.g., 'typescript')
      * @param children - Plain text code (for copy functionality)
-     * @param html - Pre-highlighted HTML from @libs/markdown
+     * @param html - Pre-highlighted, escaped HTML from the highlighter only
      */
     CodeBlock?: FC<{ language?: string; children: string; html?: string }>
     /**
@@ -135,9 +145,37 @@ export interface ComponentOverrides {
      */
     Blockquote?: FC<{ children: unknown }>
     /**
-     * Override table rendering
+     * Override table rendering (the outer container)
      */
     Table?: FC<{ children: unknown }>
+    /**
+     * Override the table header group (`<thead>`).
+     *
+     * One of the five structural table primitives. They are separate from
+     * {@link ComponentOverrides.Table} because the renderer's engine keeps the
+     * header/body **grouping** decision (which rows are headers) while
+     * delegating the leaf wrappers to the map — this is what lets
+     * `@lockness/markdown` render tables without importing `@lockness/ui`.
+     */
+    TableHeader?: FC<{ children: unknown }>
+    /**
+     * Override the table body group (`<tbody>`). See {@link ComponentOverrides.TableHeader}.
+     */
+    TableBody?: FC<{ children: unknown }>
+    /**
+     * Override a table row (`<tr>`). See {@link ComponentOverrides.TableHeader}.
+     */
+    TableRow?: FC<{ children: unknown }>
+    /**
+     * Override a header cell (`<th>`). `class` carries the alignment utility.
+     * See {@link ComponentOverrides.TableHeader}.
+     */
+    TableHead?: FC<{ children: unknown; class?: string }>
+    /**
+     * Override a body cell (`<td>`). `class` carries the alignment utility.
+     * See {@link ComponentOverrides.TableHeader}.
+     */
+    TableCell?: FC<{ children: unknown; class?: string }>
     /**
      * Override list rendering
      */

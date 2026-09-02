@@ -5,7 +5,8 @@
     "license": "MIT",
     "exports": {
         ".": "./mod.ts",
-        "./components": "./components.ts"
+        "./components": "./components.ts",
+        "./markdown": "./markdown.tsx"
     },
     "tasks": {
         "test": "deno test -A tests/",

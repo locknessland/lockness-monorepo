@@ -21,13 +21,7 @@
     // Cycles that already existed when the guard was introduced. Each needs a
     // ticket, and removing the entry is what closes it. A NEW cycle fails the
     // build — adding it here to go green is explicitly not the remedy.
-    "knownCycles": [
-        {
-            "cycle": ["markdown", "ui"],
-            "issue": 127,
-            "why": "packages/ui/docs_renderer.tsx imports @lockness/markdown, which imports @lockness/ui/components. createDocsSection is used by 34 examples.tsx files, so untangling it is a design decision."
-        }
-    ],
+    "knownCycles": [],
     "tiers": {
         "foundation": 0,
         "implementation": 1,
@@ -67,7 +61,7 @@
         "init": { "tier": "implementation", "allow": ["cli"] },
         "logger": { "tier": "implementation", "allow": ["contract"] },
         "mail": { "tier": "implementation", "allow": [] },
-        "markdown": { "tier": "implementation", "allow": ["hono", "ui"] },
+        "markdown": { "tier": "implementation", "allow": ["hono"] },
         "openapi": {
             "tier": "implementation",
             "allow": ["cli", "contract", "hono"]
@@ -78,8 +72,11 @@
         "socialite": { "tier": "implementation", "allow": ["hono"] },
         "sse": { "tier": "implementation", "allow": ["contract"] },
         "storage": { "tier": "implementation", "allow": [] },
-        // `ui` reaches `markdown` from `docs_renderer.tsx`, and `markdown`
-        // reaches `ui` back — see `knownCycles` above.
+        // `ui` reaches `markdown` one way: `ui/markdown.tsx` and
+        // `ui/docs_renderer.tsx` use the markdown rendering engine. `markdown`
+        // does NOT import `ui` back (its default component map is plain HTML);
+        // the styled map lives here in `ui/markdown.tsx`. The former cycle
+        // (#127) is retired — do not re-add `ui` to `markdown`'s allow.
         "ui": { "tier": "implementation", "allow": ["hono", "markdown"] },
         "upgrade": { "tier": "implementation", "allow": [] },
         "validator": { "tier": "implementation", "allow": ["hono"] },

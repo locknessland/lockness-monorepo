@@ -11,7 +11,7 @@
  * @module @view/pages/blog/render
  */
 
-import { renderMarkdownWithoutTitle } from '@lockness/markdown'
+import { renderMarkdownWithoutTitle } from '@lockness/ui/markdown'
 
 /**
  * Format a post's publication date for display.

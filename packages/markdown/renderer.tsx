@@ -8,22 +8,6 @@
  */
 
 import type { FC } from 'hono/jsx'
-import {
-    Alert,
-    AlertDescription,
-    HighlightedCodeBlock,
-    InlineCode as UIInlineCode,
-    type Language,
-    Link as UILink,
-    Separator,
-    Table as UITable,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-    Title,
-} from '@lockness/ui/components'
 import type {
     CodeBlockNode,
     ComponentOverrides,
@@ -37,73 +21,76 @@ import type {
 } from './types.ts'
 
 /**
- * Default components used for rendering Markdown elements.
+ * Default component map — **plain semantic HTML only**, with no dependency on
+ * any component library. This is what makes `@lockness/markdown` renderable
+ * standalone (issue #127): a consumer that only wants Markdown → JSX pulls in
+ * no UI package. For design-system output, `@lockness/ui/markdown` supplies a
+ * styled map that overrides these via {@link MarkdownRendererOptions.components}.
  */
 const defaultComponents: Required<ComponentOverrides> = {
-    Heading: ({ level, children }) => (
-        <Title
-            level={level as 1 | 2 | 3 | 4 | 5 | 6}
-            class={level === 2
-                ? 'border-b border-border pb-2 mt-8 mb-4'
-                : level === 3
-                ? 'mt-6 mb-3'
-                : 'mt-4 mb-2'}
-        >
-            {children}
-        </Title>
+    Heading: ({ level, children }) => {
+        switch (level) {
+            case 1:
+                return <h1>{children}</h1>
+            case 2:
+                return <h2>{children}</h2>
+            case 3:
+                return <h3>{children}</h3>
+            case 4:
+                return <h4>{children}</h4>
+            case 5:
+                return <h5>{children}</h5>
+            default:
+                return <h6>{children}</h6>
+        }
+    },
+    Paragraph: ({ children }) => <p>{children}</p>,
+    // Renders escaped `children` (plain code text) only. It deliberately
+    // IGNORES the `html` field: forwarding pre-highlighted HTML would require a
+    // raw-HTML sink (`dangerouslySetInnerHTML`), which is the one thing the
+    // plain default must never introduce. Syntax-highlighted output is the
+    // styled map's job (`@lockness/ui`), not the framework-free default.
+    // See the trust invariant on ComponentOverrides.CodeBlock and issue #127.
+    CodeBlock: ({ language, children }) => {
+        // The parser may hand back either a bare language (`ts`) or an
+        // already-prefixed token (`language-ts`, from the highlighter's
+        // `hljs language-ts` class); normalise to exactly one `language-`
+        // prefix so downstream highlighters get a stable hook.
+        const languageClass = language
+            ? (language.startsWith('language-')
+                ? language
+                : `language-${language}`)
+            : undefined
+        return (
+            <pre>
+                <code class={languageClass}>{children}</code>
+            </pre>
+        )
+    },
+    InlineCode: ({ children }) => <code>{children}</code>,
+    // `href` is forwarded verbatim (Hono escapes the value but does not strip
+    // the scheme). This matches the styled path's current behaviour exactly;
+    // URI-scheme allowlisting is a parser/engine concern (see #148), never a
+    // per-map decision.
+    Link: ({ href, title, children }) => (
+        <a href={href} title={title}>{children}</a>
     ),
-    Paragraph: ({ children }) => (
-        <p class='leading-7 not-first:mt-6'>{children}</p>
+    Blockquote: ({ children }) => <blockquote>{children}</blockquote>,
+    Table: ({ children }) => <table>{children}</table>,
+    TableHeader: ({ children }) => <thead>{children}</thead>,
+    TableBody: ({ children }) => <tbody>{children}</tbody>,
+    TableRow: ({ children }) => <tr>{children}</tr>,
+    TableHead: ({ children, class: className }) => (
+        <th class={className}>{children}</th>
     ),
-    CodeBlock: ({ language, children, html }) => (
-        <HighlightedCodeBlock lang={language as Language} html={html}>
-            {children}
-        </HighlightedCodeBlock>
-    ),
-    InlineCode: ({ children }) => <UIInlineCode>{children}</UIInlineCode>,
-    Link: ({ href, children }) => (
-        <UILink
-            href={href}
-            variant='default'
-            class='font-medium underline underline-offset-4'
-        >
-            {children}
-        </UILink>
-    ),
-    Blockquote: ({ children }) => (
-        <Alert variant='default' class='my-6'>
-            <AlertDescription>{children}</AlertDescription>
-        </Alert>
-    ),
-    Table: ({ children }) => (
-        <div class='my-6 w-full overflow-auto'>
-            <UITable striped hoverable bordered>
-                {children}
-            </UITable>
-        </div>
+    TableCell: ({ children, class: className }) => (
+        <td class={className}>{children}</td>
     ),
     List: ({ ordered, children }) =>
-        ordered
-            ? (
-                <ol class='my-6 ml-6 list-decimal [&>li]:mt-2'>
-                    {children}
-                </ol>
-            )
-            : (
-                <ul class='my-6 ml-6 list-disc [&>li]:mt-2'>
-                    {children}
-                </ul>
-            ),
+        ordered ? <ol>{children}</ol> : <ul>{children}</ul>,
     ListItem: ({ children }) => <li>{children}</li>,
-    HorizontalRule: () => <Separator class='my-8' />,
-    Image: ({ src, alt, title }) => (
-        <img
-            src={src}
-            alt={alt}
-            title={title}
-            class='rounded-lg border my-4'
-        />
-    ),
+    HorizontalRule: () => <hr />,
+    Image: ({ src, alt, title }) => <img src={src} alt={alt} title={title} />,
 }
 
 /**
@@ -253,6 +240,17 @@ function renderTableContent(
     rows: MarkdownNode[],
     components: Required<ComponentOverrides>,
 ): unknown {
+    // The five structural table primitives come from the component map so this
+    // package renders tables without importing @lockness/ui. The header/body
+    // GROUPING decision below (which rows are headers, which cell kind to use)
+    // stays in the engine — it is rendering logic, not a styling choice.
+    const {
+        TableHeader,
+        TableBody,
+        TableRow,
+        TableHead,
+        TableCell,
+    } = components
     const headerRows: unknown[] = []
     const bodyRows: unknown[] = []
 

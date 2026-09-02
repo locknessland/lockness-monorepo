@@ -1,9 +1,10 @@
 /**
  * @fileoverview Lockness Markdown Package
  *
- * Renders Markdown content to JSX using Lockness UI components.
- * Provides a seamless integration between Markdown documentation
- * and the Lockness design system.
+ * Renders Markdown content to JSX using a plain-HTML default component
+ * map, so it renders standalone with no UI-library dependency. For
+ * design-system output, use the styled entry point in `@lockness/ui/markdown`,
+ * which overrides the defaults with Lockness UI components.
  *
  * @module @lockness/markdown
  *
@@ -71,7 +72,9 @@ async function getRenderer(): Promise<Renderer> {
 }
 
 /**
- * Render Markdown content to JSX using Lockness UI components.
+ * Render Markdown content to JSX using the plain-HTML default components.
+ * Pass `options.components` (e.g. the styled map from `@lockness/ui/markdown`)
+ * to render with a component library instead.
  *
  * @param content - Raw Markdown string
  * @param options - Rendering options
@@ -80,7 +83,7 @@ async function getRenderer(): Promise<Renderer> {
  * @example
  * ```tsx
  * const jsx = await renderMarkdown('# Hello World')
- * // Returns: <Title level={1}>Hello World</Title>
+ * // Returns: <h1>Hello World</h1>
  * ```
  */
 export async function renderMarkdown(
@@ -132,7 +135,8 @@ export interface MarkdownProps extends MarkdownRendererOptions {
 /**
  * Markdown Component (Sync)
  *
- * Renders pre-rendered HTML using Lockness UI components.
+ * Renders pre-rendered HTML using the plain-HTML default components
+ * (override via `components` for a styled map).
  * For raw Markdown, use the async `renderMarkdown()` function.
  *
  * @example

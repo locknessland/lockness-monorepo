@@ -8,7 +8,7 @@
  * @module @lockness/ui/docs_renderer
  */
 
-import { renderMarkdown } from '@lockness/markdown'
+import { renderMarkdown } from './markdown.tsx'
 import { join } from '@std/path'
 
 /**
