@@ -3,6 +3,8 @@ import { Navbar } from './components/Navbar.tsx'
 import { Overview } from './panels/Overview.tsx'
 import { Routes } from './panels/Routes.tsx'
 import { Requests } from './panels/Requests.tsx'
+import { Events } from './panels/Events.tsx'
+import { Sessions } from './panels/Sessions.tsx'
 import { Deprecations } from './panels/Deprecations.tsx'
 import { PlaceholderPanel } from './panels/PlaceholderPanel.tsx'
 import { colors, fontSize, spacing } from './theme.ts'
@@ -37,6 +39,8 @@ export const Dashboard = (
                 {activePanel === 'requests' && (
                     <Requests data={data} selectedRequest={selectedRequest} />
                 )}
+                {activePanel === 'events' && <Events data={data} />}
+                {activePanel === 'sessions' && <Sessions data={data} />}
 
                 {activePanel === 'logs' && (
                     <PlaceholderPanel

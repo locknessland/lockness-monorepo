@@ -43,9 +43,12 @@
  */
 
 import type { Hono } from 'hono'
+import { dispatcher } from '@lockness/events'
 import { devtoolsMiddleware } from './middleware.ts'
 import { renderDashboard } from './dashboard.tsx'
 import { collector } from './collector.ts'
+import { devtoolsActive } from './gate.ts'
+import { currentRequestId } from './request_context.ts'
 import type { DevtoolsConfig, MailInfo, QueueJob, RouteInfo } from './types.ts'
 import { ComponentDependencyAnalyzer } from './utils/component_dependency_analyzer.ts'
 
@@ -131,15 +134,48 @@ interface RouteProvider {
  * })
  * ```
  */
+/** Guards the single global `onAny` subscription (A6). */
+let eventsWired = false
+
+/**
+ * Subscribe the collector to every dispatched event, exactly once.
+ *
+ * `dispatcher()` is a process-global singleton and `enableDevtools` may be
+ * called more than once (boot step + a manual call), so a module-scope flag
+ * keeps this to a single subscription — a second would double-capture. Each
+ * event is tagged with the current request's id (undefined outside a request),
+ * and carries the listeners **registered** for it at capture time (A3).
+ */
+function wireEventCapture(): void {
+    if (eventsWired) return
+    eventsWired = true
+    const emitter = dispatcher().getEmitter()
+    dispatcher().onAny((payload: { event: string; data: unknown }) => {
+        collector.addEvent({
+            eventName: payload.event,
+            listenerCount: emitter.listenerCount(payload.event),
+            timestamp: Date.now(),
+            requestId: currentRequestId(),
+        })
+    })
+}
+
 export function enableDevtools(
     app: Hono | HonoProvider,
     config: DevtoolsConfig = {},
 ): void {
     const cfg: Required<DevtoolsConfig> = { ...DEFAULT_CONFIG, ...config }
 
-    if (!cfg.enabled) {
+    // Fail closed: mount only when devtools is explicitly active (S1). A bare
+    // `isProduction()`/`isDevelopment()` check would fail open on a no-env or
+    // compiled-without-`--allow-env` production deploy (the env name defaults to
+    // development); `devtoolsActive()` requires an explicit dev signal.
+    if (!cfg.enabled || !devtoolsActive()) {
         return
     }
+
+    // Capture every dispatched event, once (A6).
+    wireEventCapture()
 
     // Start component scanning with dependency analysis
     const analyzer = new ComponentDependencyAnalyzer()

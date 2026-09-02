@@ -26,6 +26,7 @@
 import type {
     DeprecationEntry,
     DevtoolsData,
+    EventInfo,
     LogEntry,
     MailInfo,
     PerformanceMetric,
@@ -73,11 +74,15 @@ export class DevtoolsCollector {
         queries: [],
         requests: [],
         sessions: [],
+        events: [],
         queue: [],
         mails: [],
         performance: [],
         deprecations: [],
     }
+
+    /** Maximum number of event records to retain */
+    private maxEvents = 500
 
     /** Maximum number of log entries to retain */
     private maxLogs = 1000
@@ -173,6 +178,27 @@ export class DevtoolsCollector {
         if (this.data.logs.length > this.maxLogs) {
             this.data.logs = this.data.logs.slice(0, this.maxLogs)
         }
+    }
+
+    /**
+     * Record a dispatched event (newest first), trimmed to `maxEvents`.
+     *
+     * @param event - The captured event record.
+     */
+    addEvent(event: EventInfo): void {
+        this.data.events.unshift(event)
+        if (this.data.events.length > this.maxEvents) {
+            this.data.events = this.data.events.slice(0, this.maxEvents)
+        }
+    }
+
+    /**
+     * Get all captured events (newest first).
+     *
+     * @returns The event records.
+     */
+    getEvents(): EventInfo[] {
+        return this.data.events
     }
 
     /**
@@ -437,6 +463,7 @@ export class DevtoolsCollector {
             queries: [],
             requests: [],
             sessions: [],
+            events: [],
             queue: [],
             mails: [],
             performance: [],

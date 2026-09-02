@@ -7,6 +7,7 @@ import {
 } from '../theme.ts'
 import {
     DeprecationsTab,
+    EventsTab,
     LogsTab,
     MailTab,
     OverviewTab,
@@ -14,6 +15,7 @@ import {
     QueueTab,
     RequestsTab,
     RoutesTab,
+    SessionsTab,
     SQLTab,
 } from './NavTabs.tsx'
 import { Separator } from './Separator.tsx'
@@ -105,6 +107,16 @@ export const Navbar = (
                             count={data.requests.length}
                         />
                         <Separator />
+                        <EventsTab
+                            active={activePanel === 'events'}
+                            count={data.events.length}
+                        />
+                        <Separator />
+                        <SessionsTab
+                            active={activePanel === 'sessions'}
+                            count={data.sessions.length}
+                        />
+                        <Separator />
                         <LogsTab
                             active={activePanel === 'logs'}
                             count={data.logs.length}
@@ -179,6 +191,14 @@ export const Navbar = (
                         <RequestsTab
                             active={activePanel === 'requests'}
                             count={data.requests.length}
+                        />
+                        <EventsTab
+                            active={activePanel === 'events'}
+                            count={data.events.length}
+                        />
+                        <SessionsTab
+                            active={activePanel === 'sessions'}
+                            count={data.sessions.length}
                         />
                         <LogsTab
                             active={activePanel === 'logs'}

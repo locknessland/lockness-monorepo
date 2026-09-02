@@ -245,12 +245,43 @@ export interface RequestInfo {
 export interface SessionData {
     /** Unique session identifier */
     readonly id: string
-    /** Session data key-value pairs */
+    /** Session data key-value pairs (secret-looking values redacted at capture) */
     readonly data: Record<string, unknown>
+    /** Flash messages present on the session (redacted at capture) */
+    readonly flash?: Record<string, unknown>
     /** Unix timestamp when the session was created */
     readonly createdAt: number
     /** Unix timestamp when the session was last updated */
     readonly updatedAt: number
+}
+
+/**
+ * A single dispatched event captured for the Events panel.
+ *
+ * Correlated to the request that fired it via {@link requestId} (undefined for
+ * events fired outside a request, e.g. at boot). Carries the count of listeners
+ * **registered** for the event at capture time — not "fired", which the
+ * dispatcher does not expose (see #27/#90).
+ *
+ * @example
+ * ```typescript
+ * const info: EventInfo = {
+ *     eventName: 'UserRegistered',
+ *     listenerCount: 2,
+ *     timestamp: Date.now(),
+ *     requestId: 'a1b2c3',
+ * }
+ * ```
+ */
+export interface EventInfo {
+    /** The dispatched event's name. */
+    readonly eventName: string
+    /** Listeners registered for this event at capture time. */
+    readonly listenerCount: number
+    /** Unix timestamp when the event was captured. */
+    readonly timestamp: number
+    /** Id of the request that fired it, or `undefined` outside a request. */
+    readonly requestId?: string
 }
 
 // =============================================================================
@@ -407,6 +438,8 @@ export interface DevtoolsData {
     requests: RequestInfo[]
     /** Active sessions */
     sessions: SessionData[]
+    /** Captured dispatched events */
+    events: EventInfo[]
     /** Background jobs */
     queue: QueueJob[]
     /** Sent emails */

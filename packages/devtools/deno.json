@@ -19,7 +19,10 @@
         "jsxImportSource": "hono"
     },
     "imports": {
-        "hono": "jsr:@lockness/hono@^0.2.0"
+        "hono": "jsr:@lockness/hono@^0.2.0",
+        "@lockness/contract": "jsr:@lockness/contract@^0.2.0",
+        "@lockness/events": "jsr:@lockness/events@^0.2.0",
+        "@lockness/session": "jsr:@lockness/session@^0.2.0"
     },
     "description": "Development debugging toolbar and utilities for Lockness framework"
 }
