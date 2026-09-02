@@ -30,5 +30,13 @@ export {
     isViteInternalRequest,
 } from './plugins/dev_server.ts'
 
+export {
+    CLIENT_ENTRY_ID,
+    clientEntry,
+    type ClientEntryOptions,
+    generateClientEntry,
+    RESOLVED_CLIENT_ENTRY_ID,
+} from './plugins/client_entry.ts'
+
 // TODO(#108–#113): lockness(), viteAssets(), ManifestReader,
 // ViteAssetsTagResult.
