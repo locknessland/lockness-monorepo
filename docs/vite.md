@@ -16,8 +16,8 @@ It gives a Vite-enabled app two things:
 > **Status.** The package ships the plugins, the asset helper, an e2e test (dev
 > SSR + a real production build), and a runnable demo. Standalone
 > `deno task dev` and `vite build` work with **`--configLoader native`** (see
-> [Deno interop notes](#deno-interop-notes)). One CSS gap remains — see
-> [Known limitation](#known-limitation).
+> [Deno interop notes](#deno-interop-notes)). and `vite build` compiles Tailwind
+> utilities into the hashed CSS.
 
 ## Installation
 
@@ -155,21 +155,19 @@ test).
   `server.fs.strict` on; a non-loopback host is honoured but warns loudly,
   because Vite serves your source over `/@fs` without authentication.
 
-## Known limitation
+## CSS & Tailwind in the build
 
-The production build emits the Tailwind **theme + preflight** but not the
-compiled **utilities**: Vite's default CSS handling does not run the Tailwind v4
-engine, which is what expands `@tailwind utilities` against your source. Full
-Tailwind-in-build needs the `@tailwindcss/vite` plugin wired into `lockness()` —
-an architectural addition tracked as a follow-up. The **dev** watcher already
-compiles Tailwind through the Tailwind CLI, so `deno task dev` shows utilities;
-the gap is production-build-only, and an app that ships its own compiled CSS is
-unaffected.
+`vite build` compiles the Tailwind v4 **utilities** (alongside theme +
+preflight) into the hashed CSS asset the manifest ties to your client entry —
+`lockness()`'s build plugin runs the Tailwind engine (via `@tailwindcss/cli`,
+the same engine the dev watcher uses) and returns the compiled CSS as the
+content of your `cssInput` module, so Vite's own pipeline hashes it under the
+entry. A real `vite build` — and that its output contains compiled utilities —
+is exercised by the e2e test (`packages/vite/tests/e2e_smoke_test.ts`). A failed
+Tailwind run fails the build loudly rather than shipping an empty stylesheet.
 
-The config-bootstrap gap that previously blocked standalone `deno task dev` /
-`vite build` is **resolved** — run Vite with `--configLoader native` (see
-[Deno interop notes](#deno-interop-notes)). A real `vite build` is exercised by
-the e2e test (`packages/vite/tests/e2e_smoke_test.ts`).
+Precondition: your client entry must import `cssInput` (the demo's `client.ts`
+does), so Vite has an entry→CSS edge to compile into.
 
 ## Troubleshooting
 

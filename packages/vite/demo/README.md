@@ -51,9 +51,6 @@ resolve via Deno. Without it the config fails to load (esbuild emits
 `appType: 'custom'` so Vite yields every non-asset request to `App.fetch()`
 rather than answering `/` with its own HTML fallback.
 
-> **Remaining CSS note.** The production build emits the Tailwind theme +
-> preflight but not the compiled **utilities** — Vite's default CSS handling
-> does not run the Tailwind v4 engine (that needs `@tailwindcss/vite`, an
-> architectural addition to `lockness()`). The demo uses no utility classes, so
-> it renders correctly; wiring full Tailwind-in-build is a tracked follow-up.
-> The dev watcher already compiles Tailwind via the Tailwind CLI.
+> **CSS.** `vite build` compiles Tailwind **utilities** into the hashed CSS
+> under `public/assets/` (the demo's `<main>` uses `flex`/`gap-4` to prove it);
+> the same `@tailwindcss/cli` engine backs both the dev watcher and the build.
