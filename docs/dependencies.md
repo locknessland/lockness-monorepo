@@ -7,7 +7,7 @@
 
 ## Overview
 
-The monorepo contains **27 packages**.
+The monorepo contains **28 packages**.
 
 ## ⚠️ Circular Dependencies Detected
 
@@ -28,7 +28,7 @@ The monorepo contains **27 packages**.
 · `@lockness/openapi` · `@lockness/queue` · `@lockness/scheduler` ·
 `@lockness/session` · `@lockness/socialite` · `@lockness/sse` ·
 `@lockness/storage` · `@lockness/ui` · `@lockness/upgrade` ·
-`@lockness/validator`
+`@lockness/validator` · `@lockness/vite`
 
 ### Orchestration
 
@@ -65,3 +65,4 @@ The monorepo contains **27 packages**.
 | `ui`                    | hono, markdown                               | —                                                            |
 | `upgrade`               | —                                            | —                                                            |
 | `validator`             | hono                                         | —                                                            |
+| `vite`                  | —                                            | —                                                            |

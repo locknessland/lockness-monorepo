@@ -113,6 +113,11 @@ async function sourceFiles(packageDir: string): Promise<string[]> {
                 if (entry.name === 'node_modules' || entry.name === 'docs') {
                     continue
                 }
+                // `demo` holds a self-contained example app (e.g.
+                // packages/vite/demo/); its bare `@lockness/*` imports are the
+                // demo's own, not the package's public edges, so exclude it from
+                // ownership attribution.
+                if (entry.name === 'demo') continue
                 await walk(path)
                 continue
             }

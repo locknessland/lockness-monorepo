@@ -278,6 +278,9 @@ user-facing doc.
   `@lockness/*` specifiers to the latest published versions.
 - [`@lockness/deprecation-contracts`](packages/deprecation-contracts/AGENTS.md)
   — A convention for raising, collecting and rendering deprecation notices.
+- [`@lockness/vite`](packages/vite/AGENTS.md) — Deno-native Vite integration —
+  dev-server bridge (`App.fetch()` by injection), Deno specifier resolver, and a
+  manifest-aware asset helper. Standalone and opt-in (epic #64).
 
 ### Package Documentation (`packages/*/docs/`)
 

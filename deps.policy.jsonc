@@ -83,6 +83,10 @@
         "ui": { "tier": "implementation", "allow": ["hono", "markdown"] },
         "upgrade": { "tier": "implementation", "allow": [] },
         "validator": { "tier": "implementation", "allow": ["hono"] },
+        // `vite` is framework-agnostic build tooling: the SSR bridge takes
+        // `App.fetch()` by injection, so it imports NOTHING from the workspace
+        // (`allow: []`) and `core` never imports it — the DAG stays acyclic.
+        "vite": { "tier": "implementation", "allow": [] },
 
         // ---- Orchestration: the only package a user application imports.
         "core": {

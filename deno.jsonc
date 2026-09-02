@@ -29,7 +29,8 @@
         "./packages/devtools",
         "./packages/upgrade",
         "./packages/ui",
-        "./packages/markdown"
+        "./packages/markdown",
+        "./packages/vite"
     ],
     "nodeModulesDir": "auto",
     "tasks": {
