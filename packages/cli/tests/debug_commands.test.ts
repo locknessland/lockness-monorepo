@@ -18,21 +18,39 @@ import {
     runDebugEventDispatcher,
 } from '../commands/debug_commands.ts'
 
-/** Capture everything `console.log` prints while `fn` runs. */
-async function captureLog(fn: () => Promise<void>): Promise<string> {
-    const lines: string[] = []
-    const original = console.log
-    console.log = (...a: unknown[]) => void lines.push(a.join(' '))
+/**
+ * Capture everything `console.log` and `console.warn` print while `fn` runs.
+ *
+ * One combined helper (rather than a `captureLog` plus a near-identical
+ * `captureWarn`) so the two never drift — `collectListeners` warns on the
+ * import-failure path and logs on the empty/events-absent paths, and a single
+ * test may need to assert on both.
+ */
+async function capture(
+    fn: () => Promise<void>,
+): Promise<{ log: string; warn: string }> {
+    const logs: string[] = []
+    const warns: string[] = []
+    const originalLog = console.log
+    const originalWarn = console.warn
+    console.log = (...a: unknown[]) => void logs.push(a.join(' '))
+    console.warn = (...a: unknown[]) => void warns.push(a.join(' '))
     try {
         await fn()
     } finally {
-        console.log = original
+        console.log = originalLog
+        console.warn = originalWarn
     }
-    return lines.join('\n')
+    return { log: logs.join('\n'), warn: warns.join('\n') }
 }
 
 const FIXTURES = fromFileUrl(
     new URL('./fixtures/listeners', import.meta.url),
+)
+
+/** A dir with one valid listener and one module that throws at import time. */
+const BROKEN_IMPORT = fromFileUrl(
+    new URL('./fixtures/broken-import', import.meta.url),
 )
 
 // --- collectListeners (integration over fixtures) -------------------------
@@ -95,6 +113,40 @@ Deno.test('collectListeners - absent directory yields no rows, no throw', async 
     assertEquals(rows, [])
 })
 
+Deno.test('collectListeners - a file that fails to import warns and is skipped; the rest are still listed (#150, US1)', async () => {
+    // Home of the rule (plan §5 row 1): the per-file try/catch in
+    // collectListeners.walk. `throws_on_import.ts` rejects at import() → warn +
+    // continue; `ok_listener.ts` must still come through.
+    let rows: ListenerRow[] = []
+    const { warn } = await capture(async () => {
+        rows = await collectListeners(BROKEN_IMPORT)
+    })
+    // Substring only (never the full line) so the test is not a second home
+    // for the warning string.
+    assertStringIncludes(warn, 'Could not import')
+    assertStringIncludes(warn, 'throws_on_import.ts')
+    assert(
+        rows.some((r) => r.listenerClass === 'OkListener'),
+        'the valid listener is still listed despite a sibling import failure',
+    )
+})
+
+Deno.test('collectListeners - @lockness/events absent → info line and no rows, no throw (#150, US2)', async () => {
+    // Home of the rule (plan §5 row 2): the top-level try/catch in
+    // collectListeners. The injected loadEvents rejects, standing in for the
+    // package being unavailable — the only way to reach this branch, since the
+    // import map keeps @lockness/events resolvable in the suite.
+    let rows: ListenerRow[] = []
+    const { log } = await capture(async () => {
+        rows = await collectListeners(
+            FIXTURES,
+            () => Promise.reject(new Error('events package absent')),
+        )
+    })
+    assertStringIncludes(log, '@lockness/events is not available')
+    assertEquals(rows, [], 'no rows when the events package cannot be loaded')
+})
+
 // --- filterRows (unit) ----------------------------------------------------
 
 const sample: ListenerRow[] = [
@@ -146,28 +198,30 @@ Deno.test('formatGrouped - groups by event with count, priority-sorted, singular
 // --- runDebugEventDispatcher (handler) ------------------------------------
 
 Deno.test('handler - grouped output over a fixture dir (US1)', async () => {
-    const out = await captureLog(() => runDebugEventDispatcher([], FIXTURES))
+    const { log: out } = await capture(() =>
+        runDebugEventDispatcher([], FIXTURES)
+    )
     assertStringIncludes(out, 'Event: AlphaEvent')
     assertStringIncludes(out, 'AlphaListener@onAlpha (priority: 10)')
     assertStringIncludes(out, 'Event: BetaEvent')
 })
 
 Deno.test('handler - no listeners → friendly message, no throw (SC-003)', async () => {
-    const out = await captureLog(() =>
+    const { log: out } = await capture(() =>
         runDebugEventDispatcher([], `${FIXTURES}/does-not-exist`)
     )
     assertStringIncludes(out, 'No event listeners found')
 })
 
 Deno.test('handler - no match → friendly message (US2)', async () => {
-    const out = await captureLog(() =>
+    const { log: out } = await capture(() =>
         runDebugEventDispatcher(['zzz-no-such-listener'], FIXTURES)
     )
     assertStringIncludes(out, 'No listeners match')
 })
 
 Deno.test('handler - --dispatcher flag is accepted and ignored for filtering (FR-004)', async () => {
-    const out = await captureLog(() =>
+    const { log: out } = await capture(() =>
         runDebugEventDispatcher(['--dispatcher=global'], FIXTURES)
     )
     // The flag is not treated as a filter term, so the full list still prints.
