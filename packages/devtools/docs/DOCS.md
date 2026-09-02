@@ -106,3 +106,45 @@ like session structures, database queries, and environment details.
 Lockness automatically filters out the debug bar injection and dashboard routes
 if the `APP_ENV` is not set to `development`, or if you manually set
 `DEBUG_BAR=false` in your `.env`.
+
+## Debug panels (events, sessions) — #27
+
+The dashboard adds two panels beyond routes/requests/deprecations:
+
+- **Events** — every dispatched event, newest-first, with the number of
+  listeners **registered** for it at capture time and the **request** it was
+  fired in (events fired outside a request show as unattributed). Correlation is
+  per-request via an `AsyncLocalStorage` scope established in the devtools
+  middleware.
+- **Sessions** — the current request's session id, keys and flash. **Secret-
+  looking values are redacted at capture** (keys matching
+  `password`/`token`/`secret`/`authorization`/`csrf`/`apikey`/`key` show
+  `[redacted]`), so no secret reaches the panel or the `/api/data` JSON.
+
+Each panel renders a graceful empty state when it has no data.
+
+### Activation is fail-closed
+
+Devtools mounts and collects **only when explicitly development** — an
+explicitly-set `DENO_ENV`/`APP_ENV === 'development'`, or `LOCKNESS_DEVTOOLS=1`.
+A no-env deployment and a `deno compile` binary without `--allow-env` both
+resolve the environment name to `development` by default, so a plain
+`isDevelopment()` check would fail **open**; the gate requires a positive,
+explicit signal instead, and the same guard sits on the collection boundary so
+wiring `devtoolsMiddleware` directly cannot collect in production either.
+
+### The `/_debug` route
+
+Reach the bar at `/_debug` by configuring the base path (the default stays
+`/_devtools`):
+
+```ts
+enableDevtools(app, { basePath: '/_debug' })
+```
+
+### Not included: the DI container panel
+
+The DI-container panel is deferred: `@lockness/container` exposes no way to
+enumerate its registrations, so the panel is blocked on **#128**. It will land
+once #128 ships read-only introspection (token ids + resolved/lazy state only —
+never instance contents, which hold secrets).
