@@ -133,6 +133,14 @@ Low-level function to parse HTML into an AST.
 
 **Returns:** `MarkdownNode[]`
 
+## Security
+
+Link `href` and image `src` are scheme-sanitised at parse time: only `http`,
+`https`, `mailto` and schemeless URIs are kept; `javascript:`, `data:` and other
+schemes are neutralised to an empty attribute (the link text / image `alt` are
+preserved). The guarantee covers `href`/`src` only — `CodeBlockNode.html` is
+stored raw. See [docs/DOCS.md](docs/DOCS.md#security-uri-scheme-allowlist).
+
 ## License
 
 MIT

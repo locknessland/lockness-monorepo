@@ -16,6 +16,33 @@ beautiful, themed JSX components.
 - **Customizable**: Override any component with your own implementation
 - **Zero CSS Required**: Styles come from your existing Lockness theme
 
+## Security: URI-scheme allowlist
+
+Link `href` and image `src` are **scheme-sanitised at parse time** (issue #148).
+Only `http`, `https`, `mailto`, and schemeless URIs (relative paths, fragments,
+queries, `//host`) are kept; any other scheme — notably `javascript:`, `data:`,
+`vbscript:`, `file:` — is neutralised to an **empty** `href`/`src`, so the link
+text and image `alt` are preserved but nothing dangerous is clickable or loaded.
+
+```text
+[click](javascript:alert(1))          ->  <a href="">click</a>
+![logo](data:text/html,<script>…)     ->  <img src="" alt="logo">
+[docs](/guide)  ·  [mail](mailto:a@b) ->  unchanged
+```
+
+The check is case-insensitive and resistant to control-character, whitespace and
+HTML-entity obfuscation of the scheme. It lives in one place — `sanitizeUrl` in
+`parser.ts` — so it applies to **every** renderer (the plain default map and the
+styled `@lockness/ui/markdown` map alike); component overrides do not need to,
+and must not, re-implement it.
+
+**Scope of the guarantee.** `parseHtmlToAst` guarantees scheme-safety for
+`LinkNode.href` and `ImageNode.src` **only**. It does **not** sanitise
+`CodeBlockNode.html`, which is stored **raw** and is the
+`dangerouslySetInnerHTML` sink used by the styled map's highlighted code block
+(deferred item S4, still open). A caller that hand-builds an AST, or a future
+write-UI accepting untrusted Markdown, must not assume that field is safe.
+
 ## Installation
 
 ```typescript
