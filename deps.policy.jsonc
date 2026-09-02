@@ -52,7 +52,10 @@
             "tier": "implementation",
             "allow": ["container", "contract"]
         },
-        "cli": { "tier": "implementation", "allow": ["contract", "queue"] },
+        "cli": {
+            "tier": "implementation",
+            "allow": ["contract", "queue", "events"]
+        },
         "deprecation-contracts": { "tier": "implementation", "allow": [] },
         "devtools": {
             "tier": "implementation",

@@ -41,7 +41,7 @@ The monorepo contains **27 packages**.
 | `auth`                  | contract, events, hono, session              | —                                                            |
 | `auth-provider`         | auth                                         | —                                                            |
 | `cache`                 | container, contract                          | —                                                            |
-| `cli`                   | contract, queue                              | —                                                            |
+| `cli`                   | contract, events, queue                      | —                                                            |
 | `container`             | contract                                     | —                                                            |
 | `contract`              | hono                                         | —                                                            |
 | `core`                  | container, contract, events, hono, scheduler | cache, container, devtools, drizzle, events, logger, session |
