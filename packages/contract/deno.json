@@ -7,7 +7,8 @@
         "./http": "./http/mod.ts",
         "./routing": "./routing/mod.ts",
         "./lifecycle": "./lifecycle/mod.ts",
-        "./lifecycle/internal": "./lifecycle/disposables.ts"
+        "./lifecycle/internal": "./lifecycle/disposables.ts",
+        "./environment": "./environment.ts"
     },
     "tasks": {
         "test": "deno test -A tests/",
