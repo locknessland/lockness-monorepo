@@ -13,21 +13,23 @@ User-facing documentation: [README.md](README.md) ·
   reaches it, but `deno publish` uploads and type-checks the whole directory,
   and 34 `components/*/examples.tsx` files import `createDocsSection` from it.
   It is not dead code — deleting it breaks the examples.
-- **It is also the half of a real cycle.** It imports `@lockness/markdown`,
-  which imports `@lockness/ui/components` back. The cycle is recorded in
-  `deps.policy.jsonc` under `knownCycles` and tracked by #127; do not add a
-  second path between these two packages while it stands.
+- **It uses `@lockness/markdown` one way.** `docs_renderer.tsx` and the styled
+  `markdown.tsx` entry point use the markdown rendering engine; `markdown` does
+  **not** import `ui` back (its default map is plain HTML). The former cycle
+  (#127) is retired — the edge is one-way `ui → markdown`. Keep it that way: the
+  styled Markdown → `@lockness/ui` component map belongs here (`markdown.tsx`),
+  never inside `@lockness/markdown`.
 
 ## Dependency contract
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                        |
-| :--------------------------------------------- | :------------------------------------------------------------------------------ |
-| Imports (static)                               | `hono`, `markdown`                                                              |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                               |
-| Imported by                                    | `markdown`                                                                      |
-| **Must never import**                          | `markdown` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                 |
+| :--------------------------------------------- | :--------------------------------------- |
+| Imports (static)                               | `hono`, `markdown`                       |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                        |
+| Imported by                                    | —                                        |
+| **Must never import**                          | nothing — no package depends on this one |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
@@ -57,8 +59,11 @@ application installs it, or the feature stays off.
 
 - Hard rule #4: `bg-(--my-var)` with parentheses for variables, brackets only
   for literals like `px-[0.75rem]`.
-- **Circular dependency with `@lockness/markdown`** through `docs_renderer.tsx`.
-  The only cycle in the workspace.
+- **One-way edge to `@lockness/markdown`** — `docs_renderer.tsx` and
+  `markdown.tsx` consume the markdown engine; the styled component map lives in
+  `markdown.tsx`. `markdown` never imports `ui` back (its default map is plain
+  HTML). Do not re-couple the two — `deno task deps:analyze` fails on a
+  re-introduced cycle.
 - A new component needs three edits: its directory, `components.ts`, and the
   registry — a missing barrel entry fails only at the consumer.
 
@@ -66,7 +71,7 @@ application installs it, or the feature stays off.
 
 <!-- generated:tests -->
 
-16 test files for 91 source files:
+17 test files for 92 source files:
 
 - `packages/ui/tests/accordion.test.tsx`
 - `packages/ui/tests/alert.test.tsx`
@@ -79,6 +84,7 @@ application installs it, or the feature stays off.
 - `packages/ui/tests/doc_loader.test.ts`
 - `packages/ui/tests/input.test.tsx`
 - `packages/ui/tests/label.test.tsx`
+- `packages/ui/tests/markdown_components.test.tsx`
 - `packages/ui/tests/pricing.test.tsx`
 - `packages/ui/tests/rootlayout.test.tsx`
 - `packages/ui/tests/searchbar.test.tsx`
@@ -99,7 +105,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 16 test files directly —
+Then, specific to this package: run its 17 test files directly —
 
 ```bash
 deno test -A packages/ui/

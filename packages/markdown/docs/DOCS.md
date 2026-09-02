@@ -1,6 +1,7 @@
 # Markdown
 
-Render Markdown content to JSX using Lockness UI components.
+Render Markdown content to JSX with a plain-HTML default component map
+(standalone), or with `@lockness/ui` components via `@lockness/ui/markdown`.
 
 This package provides seamless integration between Markdown documentation and
 the Lockness design system, automatically converting Markdown content into
@@ -8,7 +9,8 @@ beautiful, themed JSX components.
 
 ## Features
 
-- **UI Component Integration**: Renders Markdown using `@lockness/ui` components
+- **Optional design-system output**: render with `@lockness/ui` components via
+  `@lockness/ui/markdown`
 - **GFM Support**: Full GitHub Flavored Markdown support via `@libs/markdown`
 - **Syntax Highlighting**: Code blocks with automatic syntax highlighting
 - **Customizable**: Override any component with your own implementation

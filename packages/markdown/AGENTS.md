@@ -1,19 +1,21 @@
 # `@lockness/markdown` — agent brief
 
-Renders Markdown to Hono JSX using `@lockness/ui` components, so rendered
-content inherits the design system instead of raw HTML tags. Powers the docs
-pages.
+Renders Markdown to Hono JSX through a **plain-HTML default component map**, so
+the package renders standalone with no UI-library dependency. Design-system
+output is opt-in via the styled map in `@lockness/ui/markdown`, which overrides
+the defaults with `@lockness/ui` components. Powers the docs pages.
 
 User-facing documentation: [README.md](README.md) ·
 [docs/DOCS.md](docs/DOCS.md). This brief does not repeat it.
 
 ## Invariants
 
-- **This package imports `@lockness/ui/components`, and `ui` imports it back.**
-  That is the repository's only accepted dependency cycle, recorded in
-  `deps.policy.jsonc` under `knownCycles` and tracked by #127. Until it is
-  broken, treat module-initialisation order between these two as load-bearing
-  and do not widen the coupling.
+- **This package MUST NOT import `@lockness/ui`.** The former `ui ↔ markdown`
+  cycle (#127) is retired: the edge is now one-way `ui → markdown`. The
+  rendering engine and parser live here with a plain-HTML default map; the
+  styled `@lockness/ui` map lives in `@lockness/ui/markdown`. Re-adding any
+  `@lockness/ui` import here re-opens the cycle and fails
+  `deno task deps:analyze` (its `knownCycles` allow-list is now empty).
 
 ## Dependency contract
 
@@ -21,7 +23,7 @@ User-facing documentation: [README.md](README.md) ·
 
 | Direction                                      | Packages                                                                  |
 | :--------------------------------------------- | :------------------------------------------------------------------------ |
-| Imports (static)                               | `hono`, `ui`                                                              |
+| Imports (static)                               | `hono`                                                                    |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                         |
 | Imported by                                    | `ui`                                                                      |
 | **Must never import**                          | `ui` — each already reaches this package, so importing one closes a cycle |
@@ -56,20 +58,25 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
-- **Circular dependency with `@lockness/ui`.** `markdown/renderer.tsx` imports
-  `@lockness/ui/components`, while `ui/docs_renderer.tsx` imports
-  `@lockness/markdown`. This is the only cycle in the workspace — do not deepen
-  it.
+- **Never import `@lockness/ui`.** The dependency edge is one-way
+  `ui →
+  markdown`; the styled `@lockness/ui` component map lives in
+  `@lockness/ui/markdown`, not here. The default map in `renderer.tsx` is plain
+  HTML on purpose — keep it framework-free. `deno task deps:analyze` fails hard
+  on any re-introduced edge.
+- **The plain `CodeBlock` default ignores `html`** and renders escaped
+  `children` only. Forwarding `html` needs a raw-HTML sink
+  (`dangerouslySetInnerHTML`), which is `@lockness/ui`'s `HighlightedCodeBlock`,
+  never this package. See the trust invariant on `ComponentOverrides.CodeBlock`.
 - Entry point is `mod.tsx`, not `mod.ts`; tooling that assumes `.ts` misses it.
-- **No tests.**
 
 ## Tests
 
 <!-- generated:tests -->
 
-**This package has no tests.** 4 source files ship untested — treat any change
-here as unguarded, and add coverage for what you touch rather than trusting the
-suite.
+1 test file for 4 source files:
+
+- `packages/markdown/tests/plain_defaults_test.ts`
 
 <!-- /generated:tests -->
 
@@ -85,8 +92,11 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: **it has no tests.** Anything you change here is
-unguarded by the suite — add coverage for it.
+Then, specific to this package: run its 1 test file directly —
+
+```bash
+deno test -A packages/markdown/
+```
 
 <!-- /generated:gate -->
 
