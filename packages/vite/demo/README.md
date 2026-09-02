@@ -34,23 +34,26 @@ It asserts, in-process:
   entry to hashed JS + CSS URLs from a built-shape manifest, with the CSP nonce
   on every tag and no dev-server origin leaking (S-F5).
 
-## Manual / runnable steps — and a known limitation
+## Runnable steps
 
-The demo tasks (run from **this** directory) are:
+Run from **this** directory:
 
 ```bash
-deno task dev     # LOCKNESS_VITE_DEV=1 deno run -A npm:vite
-deno task build   # deno run -A npm:vite build
+deno task dev     # dev server: serves SSR pages + assets on http://localhost:5173
+deno task build   # production build: emits public/assets/.vite/manifest.json
 ```
 
-> **Known limitation (tracked follow-up).** Under Vite 8, `vite` bundles
-> `vite.config.ts` with esbuild before any plugin runs. Because the config
-> imports the app (`./main.ts` → the JSX controller/view), that pre-bundle step
-> needs to resolve the bare `@lockness/*` specifiers and the `@lockness/core`
-> JSX runtime — which the Deno↔Vite config bootstrap does not yet do (it emits
-> `react/jsx-runtime` and treats `@lockness/*` as external). So a standalone
-> `deno task dev` / `deno task build` does **not** complete today. The
-> integration itself is proven by the automated e2e test above; closing this gap
-> (a Deno-aware config loader, e.g. a `@deno/vite-plugin`-style bootstrap) is a
-> follow-up on epic #64. This is the Deno↔Vite interop risk called out in the
-> epic plan (§9).
+Both tasks pass `--configLoader native` (#154): it loads `vite.config.ts`
+through Deno's own runtime instead of Vite 8's esbuild pre-bundle, so the
+config's bare `@lockness/*` specifiers and the `@lockness/core` JSX runtime
+resolve via Deno. Without it the config fails to load (esbuild emits
+`react/jsx-runtime` and treats `@lockness/*` as external). The dev bridge sets
+`appType: 'custom'` so Vite yields every non-asset request to `App.fetch()`
+rather than answering `/` with its own HTML fallback.
+
+> **Remaining CSS note.** The production build emits the Tailwind theme +
+> preflight but not the compiled **utilities** — Vite's default CSS handling
+> does not run the Tailwind v4 engine (that needs `@tailwindcss/vite`, an
+> architectural addition to `lockness()`). The demo uses no utility classes, so
+> it renders correctly; wiring full Tailwind-in-build is a tracked follow-up.
+> The dev watcher already compiles Tailwind via the Tailwind CLI.

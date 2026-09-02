@@ -13,11 +13,11 @@ It gives a Vite-enabled app two things:
 - a **build** that emits a single hashed-asset manifest, resolved at render time
   by `viteAssets()`.
 
-> **Status.** The package ships the plugins, the asset helper, and an in-process
-> e2e test proving dev SSR + production asset resolution. A fully turnkey
-> standalone `deno task dev` / `vite build` of a Deno-specifier app is **not yet
-> complete** — see [Known limitation](#known-limitation) before adopting it in a
-> real app.
+> **Status.** The package ships the plugins, the asset helper, an e2e test (dev
+> SSR + a real production build), and a runnable demo. Standalone
+> `deno task dev` and `vite build` work with **`--configLoader native`** (see
+> [Deno interop notes](#deno-interop-notes)). One CSS gap remains — see
+> [Known limitation](#known-limitation).
 
 ## Installation
 
@@ -130,6 +130,17 @@ test).
 
 ## Deno interop notes
 
+- **Run Vite with `--configLoader native`.** Vite 8 otherwise pre-bundles
+  `vite.config.ts` with esbuild before any plugin runs, and that step cannot
+  resolve the config's bare `@lockness/*` specifiers or the `@lockness/core` JSX
+  runtime (it emits `react/jsx-runtime` and treats `@lockness/*` as external).
+  `native` loads the config through Deno's own runtime, so Deno resolves them:
+  ```bash
+  deno run -A npm:vite --configLoader native            # dev
+  deno run -A npm:vite build --configLoader native      # build
+  ```
+  The dev-server bridge sets `appType: 'custom'`, so Vite yields every non-asset
+  request to `App.fetch()` instead of serving its own HTML fallback.
 - **`nodeModulesDir: "auto"`** must be set (see Installation) — Vite/Rolldown
   need a `node_modules` layout for their native deps.
 - **Permissions.** Running Vite needs broad permissions (`deno run -A` is the
@@ -146,30 +157,30 @@ test).
 
 ## Known limitation
 
-A standalone `deno task dev` / `vite build` of a Deno-specifier SSR app does not
-complete yet. Vite 8 pre-bundles `vite.config.ts` with esbuild **before any
-plugin runs**; because the config imports the app (which pulls in the JSX
-controller/view), that pre-bundle step needs to resolve the bare `@lockness/*`
-specifiers and the `@lockness/core` JSX runtime — which the Deno↔Vite config
-bootstrap does not do today (it emits `react/jsx-runtime` and treats
-`@lockness/*` as external). The resolver plugin covers the **app module graph**,
-not the config bundler.
+The production build emits the Tailwind **theme + preflight** but not the
+compiled **utilities**: Vite's default CSS handling does not run the Tailwind v4
+engine, which is what expands `@tailwind utilities` against your source. Full
+Tailwind-in-build needs the `@tailwindcss/vite` plugin wired into `lockness()` —
+an architectural addition tracked as a follow-up. The **dev** watcher already
+compiles Tailwind through the Tailwind CLI, so `deno task dev` shows utilities;
+the gap is production-build-only, and an app that ships its own compiled CSS is
+unaffected.
 
-The integration itself is proven by the in-process e2e test
-(`packages/vite/tests/e2e_smoke_test.ts`): dev SSR through `App.fetch()` + the
-bridge, and production asset resolution from a built-shape manifest. Closing the
-standalone-run gap (a Deno-aware config loader) is a tracked follow-up on epic
-[#64](https://github.com/locknessland/lockness-monorepo/issues/64).
+The config-bootstrap gap that previously blocked standalone `deno task dev` /
+`vite build` is **resolved** — run Vite with `--configLoader native` (see
+[Deno interop notes](#deno-interop-notes)). A real `vite build` is exercised by
+the e2e test (`packages/vite/tests/e2e_smoke_test.ts`).
 
 ## Troubleshooting
 
-| Symptom                                                          | Cause / fix                                                                                                                                     |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Import "@lockness/core" not a dependency` when running the demo | You are running with a config that shadows the workspace. Run within the workspace, or declare the specifiers in that config's import map.      |
-| `Could not resolve 'react/jsx-runtime'` during `vite build`      | The [Known limitation](#known-limitation) above — config pre-bundling does not use the `@lockness/core` JSX runtime yet.                        |
-| Production render throws on the manifest                         | The manifest is missing or malformed at `manifestPath`. Run the build first; the error names the path.                                          |
-| Assets 404 in production                                         | The entry key is not in the manifest. `viteAssets()` does a keyed lookup (never a path built from the argument); pass the same entry you built. |
-| CSP blocks the dev client                                        | Declare `script-src`/`style-src`/`connect-src` in your dev CSP so the bridge can widen them (an absent directive is left to `default-src`).     |
+| Symptom                                                          | Cause / fix                                                                                                                                                 |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Import "@lockness/core" not a dependency` when running the demo | You are running with a config that shadows the workspace. Run within the workspace, or declare the specifiers in that config's import map.                  |
+| `Could not resolve 'react/jsx-runtime'` during `vite build`      | Vite bundled the config with esbuild instead of Deno. Add `--configLoader native` (see [Deno interop notes](#deno-interop-notes)).                          |
+| `/` returns 404 / `index.html` not found in dev                  | Vite is serving its own HTML fallback. The bridge sets `appType: 'custom'` to prevent this — ensure `lockness()` (or `devServerBridge`) is in your plugins. |
+| Production render throws on the manifest                         | The manifest is missing or malformed at `manifestPath`. Run the build first; the error names the path.                                                      |
+| Assets 404 in production                                         | The entry key is not in the manifest. `viteAssets()` does a keyed lookup (never a path built from the argument); pass the same entry you built.             |
+| CSP blocks the dev client                                        | Declare `script-src`/`style-src`/`connect-src` in your dev CSP so the bridge can widen them (an absent directive is left to `default-src`).                 |
 
 ## See also
 
