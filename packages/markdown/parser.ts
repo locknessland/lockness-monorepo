@@ -19,6 +19,140 @@ import type {
 } from './types.ts'
 
 /**
+ * The only URI schemes an author-supplied link `href` or image `src` may carry.
+ * A schemeless value (relative path, fragment, query, protocol-relative) is also
+ * allowed. Everything else — notably `javascript:`, `data:`, `vbscript:`,
+ * `file:` — is neutralised. This is the single home of the allowlist decision
+ * (issue #148, plan §5 row 1); it lives nowhere else, and the renderer never
+ * re-decides it.
+ */
+const ALLOWED_SCHEMES = new Set(['http', 'https', 'mailto'])
+
+/**
+ * The one anchor-tag shape the parser recognises, capturing `href`, optional
+ * `title`, and inner content. Shared by the inline and block extraction paths so
+ * the pattern has a single spelling (both paths build their node through
+ * {@link buildLinkNode}). No `g` flag — safe to reuse across `.match` calls.
+ */
+const LINK_RE =
+    /^<a\s+href="([^"]*)"(?:\s+title="([^"]*)")?[^>]*>([\s\S]*?)<\/a>/i
+
+/**
+ * The one image-tag shape the parser recognises, capturing `src`, optional `alt`
+ * and `title`. Shared by the inline and block extraction paths — see
+ * {@link LINK_RE} and {@link buildImageNode}.
+ */
+const IMAGE_RE =
+    /^<img\s+src="([^"]*)"(?:\s+alt="([^"]*)")?(?:\s+title="([^"]*)")?[^>]*\/?>/i
+
+/**
+ * Control characters and Unicode whitespace a browser strips from a URL before
+ * it parses the scheme — so `java\tscript:` and `\x01javascript:` become
+ * `javascript:` at dispatch time. The set is **explicit** on purpose: JS `\s`
+ * does not match the C0 range `\u0001-\u0008` / `\u000e-\u001f`, so a `\s`-based
+ * strip would let those obfuscations through (plan FR-004, security S3).
+ */
+// deno-lint-ignore no-control-regex -- C0 control chars are exactly what a URL sanitiser must strip
+const URL_STRIP = /[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g
+
+/**
+ * Decode the HTML character references that could hide a scheme or its colon —
+ * numeric (`&#106;`), hex (`&#x6a;`) and the named colon/tab/newline. This is a
+ * decoder **dedicated to URL sanitisation**, deliberately separate from
+ * {@link decodeHtmlEntities} (which decodes a different, narrower set for text
+ * nodes and must not over-decode). It exists as defence-in-depth: `@libs/markdown`
+ * already resolves these before the parser sees them, but a sanitiser must not
+ * depend on the engine's current behaviour.
+ *
+ * @param value - The raw attribute value captured from the HTML.
+ * @returns The value with URL-relevant character references resolved.
+ */
+function decodeUrlEntities(value: string): string {
+    const fromRef = (cp: number): string => {
+        if (!Number.isFinite(cp) || cp < 0 || cp > 0x10ffff) return ''
+        try {
+            return String.fromCodePoint(cp)
+        } catch {
+            // Not a silent swallow: an out-of-range or lone-surrogate code point
+            // is not a valid character reference, so it decodes to nothing. The
+            // guard above rejects most; this catches the residual surrogate range
+            // `String.fromCodePoint` still throws on. Dropping it is the correct,
+            // fail-safe result for a URL sanitiser — never a scheme character.
+            return ''
+        }
+    }
+    return value
+        .replace(/&#x([0-9a-f]+);/gi, (_, hex) => fromRef(parseInt(hex, 16)))
+        .replace(/&#(\d+);/g, (_, dec) => fromRef(parseInt(dec, 10)))
+        .replace(/&colon;/gi, ':')
+        .replace(/&Tab;/g, '\t')
+        .replace(/&NewLine;/g, '\n')
+}
+
+/**
+ * Neutralise an author-supplied URL whose scheme is not allowlisted.
+ *
+ * The value is normalised for the test only — HTML references decoded, then
+ * control/whitespace stripped, then the scheme compared case-insensitively — but
+ * an **allowed** URL is returned **byte-for-byte unchanged** so safe links and
+ * images are untouched. A disallowed scheme yields an empty string, which renders
+ * as an inert `href=""` / `src=""` while preserving the link text and image
+ * `alt`. A schemeless value (relative, fragment, query, `//host`) is always
+ * allowed. See plan §5 (decision table) and FR-001/003/004.
+ *
+ * @param raw - The URL exactly as captured from the parsed HTML attribute.
+ * @returns The original URL when schemeless or allowlisted; `''` otherwise.
+ * @example
+ * ```ts
+ * sanitizeUrl('https://example.com') // 'https://example.com'
+ * sanitizeUrl('/path')               // '/path'
+ * sanitizeUrl('javascript:alert(1)') // ''
+ * sanitizeUrl('JavaScript:alert(1)') // '' (case-insensitive)
+ * ```
+ */
+function sanitizeUrl(raw: string): string {
+    const normalized = decodeUrlEntities(raw).replace(URL_STRIP, '')
+    const scheme = normalized.match(/^([a-z][a-z0-9+.-]*):/i)
+    if (!scheme) return raw // schemeless: relative / fragment / query / //host
+    return ALLOWED_SCHEMES.has(scheme[1].toLowerCase()) ? raw : ''
+}
+
+/**
+ * Build a {@link LinkNode}, routing the raw `href` through {@link sanitizeUrl}.
+ * This and {@link buildImageNode} are the **only** constructors of link/image
+ * nodes, so no parse path can emit an unsanitised URL (plan FR-005).
+ *
+ * @param rawHref - The `href` exactly as captured from the HTML.
+ * @param title - The optional link title.
+ * @param children - The already-parsed inline children.
+ * @returns A link node whose `href` is scheme-safe.
+ */
+function buildLinkNode(
+    rawHref: string,
+    title: string | undefined,
+    children: MarkdownNode[],
+): LinkNode {
+    return { type: 'link', href: sanitizeUrl(rawHref), title, children }
+}
+
+/**
+ * Build an {@link ImageNode}, routing the raw `src` through {@link sanitizeUrl}.
+ * See {@link buildLinkNode} — these two are the sole node constructors (FR-005).
+ *
+ * @param rawSrc - The `src` exactly as captured from the HTML.
+ * @param alt - The optional alternative text.
+ * @param title - The optional image title.
+ * @returns An image node whose `src` is scheme-safe.
+ */
+function buildImageNode(
+    rawSrc: string,
+    alt: string | undefined,
+    title: string | undefined,
+): ImageNode {
+    return { type: 'image', src: sanitizeUrl(rawSrc), alt, title }
+}
+
+/**
  * Parse HTML string into a Markdown AST.
  *
  * Uses regex-based parsing to convert HTML elements into AST nodes.
@@ -315,32 +449,26 @@ function parseInlineContent(html: string): MarkdownNode[] {
         }
 
         // Try link
-        const linkMatch = remaining.match(
-            /^<a\s+href="([^"]*)"(?:\s+title="([^"]*)")?[^>]*>([\s\S]*?)<\/a>/i,
-        )
+        const linkMatch = remaining.match(LINK_RE)
         if (linkMatch) {
-            const node: LinkNode = {
-                type: 'link',
-                href: linkMatch[1],
-                title: linkMatch[2] || undefined,
-                children: parseInlineContent(linkMatch[3]),
-            }
+            const node = buildLinkNode(
+                linkMatch[1],
+                linkMatch[2] || undefined,
+                parseInlineContent(linkMatch[3]),
+            )
             nodes.push(node)
             remaining = remaining.slice(linkMatch[0].length)
             continue
         }
 
         // Try image
-        const imgMatch = remaining.match(
-            /^<img\s+src="([^"]*)"(?:\s+alt="([^"]*)")?(?:\s+title="([^"]*)")?[^>]*\/?>/i,
-        )
+        const imgMatch = remaining.match(IMAGE_RE)
         if (imgMatch) {
-            const node: ImageNode = {
-                type: 'image',
-                src: imgMatch[1],
-                alt: imgMatch[2] || undefined,
-                title: imgMatch[3] || undefined,
-            }
+            const node = buildImageNode(
+                imgMatch[1],
+                imgMatch[2] || undefined,
+                imgMatch[3] || undefined,
+            )
             nodes.push(node)
             remaining = remaining.slice(imgMatch[0].length)
             continue
@@ -431,33 +559,27 @@ function stripHtmlTags(text: string): string {
 }
 
 function tryParseLink(html: string): ParseResult | null {
-    const match = html.match(
-        /^<a\s+href="([^"]*)"(?:\s+title="([^"]*)")?[^>]*>([\s\S]*?)<\/a>/i,
-    )
+    const match = html.match(LINK_RE)
     if (!match) return null
 
-    const node: LinkNode = {
-        type: 'link',
-        href: match[1],
-        title: match[2] || undefined,
-        children: parseInlineContent(match[3]),
-    }
+    const node = buildLinkNode(
+        match[1],
+        match[2] || undefined,
+        parseInlineContent(match[3]),
+    )
 
     return { node, consumed: match[0].length }
 }
 
 function tryParseImage(html: string): ParseResult | null {
-    const match = html.match(
-        /^<img\s+src="([^"]*)"(?:\s+alt="([^"]*)")?(?:\s+title="([^"]*)")?[^>]*\/?>/i,
-    )
+    const match = html.match(IMAGE_RE)
     if (!match) return null
 
-    const node: ImageNode = {
-        type: 'image',
-        src: match[1],
-        alt: match[2] || undefined,
-        title: match[3] || undefined,
-    }
+    const node = buildImageNode(
+        match[1],
+        match[2] || undefined,
+        match[3] || undefined,
+    )
 
     return { node, consumed: match[0].length }
 }
