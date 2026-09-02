@@ -64,12 +64,26 @@ export function addListenerMetadata(
 }
 
 /**
- * Retrieve all listener metadata from a class constructor
+ * Retrieve all listener metadata from a class constructor.
  *
- * @param target - The class constructor
- * @returns Array of listener metadata
- * @internal
+ * Public introspection API: given a `@Listener`-decorated class (already
+ * instantiated at least once, since the metadata is attached by the decorator's
+ * construction-time initializer), returns each handler's event class, method
+ * name and options. Consumed by tooling such as the `debug:event-dispatcher`
+ * CLI command.
+ *
+ * @param target - The class constructor.
+ * @returns Array of listener metadata (empty if the class declares none, or has
+ *   not yet been instantiated).
+ *
+ * @example
+ * ```typescript
+ * new MyListener() // fire the initializer
+ * const meta = getListenerMetadata(MyListener)
+ * ```
  */
-export function getListenerMetadata(target: any): ListenerMetadata[] {
-    return target[LISTENER_METADATA] || []
+export function getListenerMetadata(target: object): ListenerMetadata[] {
+    return (target as Record<symbol, ListenerMetadata[] | undefined>)[
+        LISTENER_METADATA
+    ] ?? []
 }

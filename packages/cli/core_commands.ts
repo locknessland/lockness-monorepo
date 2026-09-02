@@ -15,6 +15,7 @@ import { registerNessyCommands } from './commands/nessy_commands.ts'
 import { registerRouterCommands } from './commands/router_commands.ts'
 import { registerQueueCommands } from './commands/queue_commands.ts'
 import { registerTinkerCommand } from './commands/tinker_command.ts'
+import { registerDebugCommands } from './commands/debug_commands.ts'
 
 /**
  * Register all core CLI commands.
@@ -122,5 +123,6 @@ export function registerCoreCommands(cli: Cli): void {
     registerNessyCommands(cli)
     registerRouterCommands(cli)
     registerQueueCommands(cli)
+    registerDebugCommands(cli)
     registerTinkerCommand(cli)
 }
