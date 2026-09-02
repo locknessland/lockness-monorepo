@@ -110,6 +110,35 @@ Lockness automatically resolves the dependency graph. If `Service A` depends on
 `Service B`, which depends on `Service C`, the container will instantiate them
 in the correct order.
 
+### Introspecting Registrations
+
+`registrations()` returns a read-only snapshot of what the container holds — one
+`ContainerRegistration` (`{ id, token, resolved }`) per registered token. It
+powers tooling that must reason about the object graph (a debug panel, a
+`debug:container` command, a boot-time "is this service registered?" assertion,
+or a test asserting nothing leaked between cases) without resolving anything.
+
+```typescript
+import { container } from '@lockness/core'
+
+for (const reg of container.registrations()) {
+    console.log(reg.id, reg.resolved)
+}
+```
+
+Enumerating **never instantiates** (it reads the registry directly, never
+through `get()`) and **never mutates** the container; each call returns a fresh,
+inert array. `resolved` is `true` for every entry under the current
+single-registry design — render it, do not branch on it.
+
+> **Rendering to untrusted users is a consumer responsibility.**
+> `registrations()` returns architectural metadata (the list of service
+> identifiers the app runs). Any surface that renders it to an untrusted user —
+> a devtools panel served in production, an error page — **must** be dev-gated
+> or authz-gated. Boot checks, the CLI and tests are trusted consumers and need
+> no gate. Devtools hardening is tracked under
+> [#149](https://github.com/locknessland/lockness-monorepo/issues/149).
+
 ---
 
 ## 🛡 Performance & Standard

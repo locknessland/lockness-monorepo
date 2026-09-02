@@ -124,6 +124,36 @@ Get the number of registered services.
 console.log(`Container has ${container.size} services`)
 ```
 
+#### `registrations(): ContainerRegistration[]`
+
+Enumerate the container's registrations, read-only. Returns one descriptor per
+registered token — `{ id, token, resolved }` — where `id` is a display-ready
+name (a class's name, a symbol's description, or the string token), `token` is
+the raw key you can hand back to `get()`, and `resolved` reports whether an
+instance currently exists.
+
+Reading the container **instantiates nothing** (it never calls `get()`) and
+**mutates nothing**; the returned array and its entries are fresh on every call,
+so mutating them cannot reach the container.
+
+```typescript
+container.get(UserService)
+container.set(Symbol('ILogger'), new ConsoleLogger())
+
+for (const reg of container.registrations()) {
+    console.log(`${reg.id} — ${reg.resolved ? 'resolved' : 'lazy'}`)
+    // "UserService — resolved", "ILogger — resolved"
+}
+```
+
+> **`resolved` today.** The container holds only already-built instances, so
+> `resolved` is `true` for every entry. Display it; do not branch on it — its
+> meaning is reserved for a future lazy-registration channel.
+
+> **Tokens are identifiers, not secret stores.** Never use secret material as a
+> service token: `id` renders it, and error messages already do. Secrets belong
+> inside the instance, which `registrations()` never returns.
+
 ## Decorators
 
 ### @Service()
