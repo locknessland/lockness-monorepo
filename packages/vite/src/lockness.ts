@@ -1,8 +1,9 @@
 /**
  * @fileoverview `lockness()` — the aggregate-root Vite plugin factory (plan §5,
  * §6). It composes the whole integration into the plugin array Vite consumes:
- * the Deno resolver, the client-entry virtual module, the CSS/Tailwind plugin
- * (sharing one CSS collector with the dev bridge), the dev-server bridge, the
+ * the Deno resolver, the client-entry virtual module, the CSS/Tailwind dev
+ * plugin (sharing one CSS collector with the dev bridge), the build-time CSS
+ * compile plugin (#156), the dev-server bridge, the
  * HMR/server-reload plugin, and the production build config.
  *
  * @module @lockness/vite/lockness
@@ -11,7 +12,7 @@
 import type { Plugin } from 'vite'
 import { denoResolver } from './plugins/deno.ts'
 import { clientEntry } from './plugins/client_entry.ts'
-import { createCssCollector, cssPlugin } from './plugins/css.ts'
+import { buildCssPlugin, createCssCollector, cssPlugin } from './plugins/css.ts'
 import { type AppFetchHandler, devServerBridge } from './plugins/dev_server.ts'
 import { hmrPlugin } from './plugins/hmr.ts'
 import { buildConfigPlugin } from './build_config.ts'
@@ -47,6 +48,7 @@ export function lockness(options: LocknessPluginOptions): Plugin[] {
         denoResolver(),
         clientEntry({ config }),
         cssPlugin({ config, collector }),
+        buildCssPlugin({ config }),
         devServerBridge({ app, config, getCss: collector.getCss }),
         hmrPlugin({ onReload }),
         buildConfigPlugin({ config }),

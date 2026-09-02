@@ -86,7 +86,7 @@ Deno.test('e2e - production build manifest resolves the demo entry to hashed URL
     )
 })
 
-Deno.test('e2e - a real `vite build` emits a manifest viteAssets resolves (#154)', async () => {
+Deno.test('e2e - a real `vite build` compiles Tailwind utilities into the hashed CSS (#154/#156)', async () => {
     // Run the demo's actual production build — the config loads through Deno's
     // native runtime (--configLoader native), so bare @lockness/* + the JSX
     // runtime resolve; the denoResolver plugin handles the app graph.
@@ -125,6 +125,21 @@ Deno.test('e2e - a real `vite build` emits a manifest viteAssets resolves (#154)
         // The tags point at the real hashed files the build wrote, not the dev server.
         assertStringIncludes(html, `/${manifest['app/client.ts'].file}`)
         assert(!html.includes('localhost:5173'), 'no dev origin in production')
+
+        // #156 — the build must compile Tailwind UTILITIES into the hashed CSS,
+        // not just theme + preflight. The demo view uses `flex`/`gap-4`; assert
+        // their compiled rules are present and no raw `@tailwind` directive leaks.
+        const cssRel = manifest['app/client.ts'].css?.[0] as string | undefined
+        assert(cssRel, 'the client entry has a CSS asset in the manifest')
+        const builtCss = await Deno.readTextFile(
+            join(DEMO_DIR, 'public', 'assets', cssRel),
+        )
+        assertStringIncludes(builtCss, '.flex')
+        assertStringIncludes(builtCss, 'gap')
+        assert(
+            !builtCss.includes('@tailwind'),
+            'raw @tailwind directive must be compiled away, not shipped',
+        )
     } finally {
         // Build output is gitignored; remove it so the tree stays clean.
         await Deno.remove(join(DEMO_DIR, 'public'), { recursive: true }).catch(

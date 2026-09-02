@@ -1,7 +1,8 @@
 /**
  * @fileoverview The demo home page — a JSX component rendered server-side through
  * the `@lockness/core` JSX runtime. Its `<h1>` marker is what the e2e smoke test
- * asserts on to prove SSR works end-to-end.
+ * asserts on to prove SSR works end-to-end; the `<main>`'s `flex`/`gap-4`
+ * utilities are what the build test asserts get compiled into the hashed CSS (#156).
  *
  * @module demo/view/home
  */
@@ -31,7 +32,7 @@ export function Home(props: HomeProps) {
                 <div dangerouslySetInnerHTML={{ __html: props.assetTags }} />
             </head>
             <body>
-                <main>
+                <main class='flex flex-col gap-4'>
                     <h1 data-testid='demo-heading'>Lockness + Vite Demo</h1>
                     <p>
                         This page is server-rendered through @lockness/core and

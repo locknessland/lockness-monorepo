@@ -53,7 +53,9 @@ export {
 } from './vite_assets.ts'
 
 export {
+    buildCssPlugin,
     buildTailwindArgs,
+    compileCss,
     createCssCollector,
     type CssCollector,
     cssPlugin,

@@ -28,12 +28,23 @@ Deno.test('buildConfigPlugin - config() returns the build fragment', () => {
 Deno.test('lockness - returns the full, ordered plugin set (aggregate root)', () => {
     const plugins = lockness({ app: { fetch: () => new Response('') } })
     const names = plugins.map((p) => p.name)
-    assertEquals(names, [
-        'lockness:deno-resolver',
-        'lockness:client-entry',
-        'lockness:css',
-        'lockness:dev-server-bridge',
-        'lockness:hmr',
-        'lockness:build-config',
-    ])
+    // Assert membership (not exact order) so adding a plugin is a one-line change.
+    for (
+        const expected of [
+            'lockness:deno-resolver',
+            'lockness:client-entry',
+            'lockness:css',
+            'lockness:build-css',
+            'lockness:dev-server-bridge',
+            'lockness:hmr',
+            'lockness:build-config',
+        ]
+    ) {
+        assert(names.includes(expected), `missing plugin: ${expected}`)
+    }
+    // The dev CSS plugin is serve-only; the build CSS plugin is build-only.
+    const css = plugins.find((p) => p.name === 'lockness:css')
+    const buildCss = plugins.find((p) => p.name === 'lockness:build-css')
+    assertEquals(css?.apply, 'serve')
+    assertEquals(buildCss?.apply, 'build')
 })

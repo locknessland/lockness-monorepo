@@ -45,6 +45,8 @@ export {
     type ClientEntryOptions,
 } from './src/plugins/client_entry.ts'
 export {
+    buildCssPlugin,
+    compileCss,
     createCssCollector,
     type CssCollector,
     cssPlugin,
