@@ -14,6 +14,13 @@ export {
     resolveJsrSpecifier,
     resolveWithDeno,
 } from './src/mod.ts'
+export { defineViteConfig } from './src/mod.ts'
+export {
+    CSS_WATCH_GLOBS,
+    DEFAULTS,
+    type LocknessViteConfig,
+    SERVER_RELOAD_GLOBS,
+    TAILWIND_CLI,
+} from './src/mod.ts'
 
-// TODO(#107–#113): lockness(), defineViteConfig(), viteAssets(),
-// LocknessViteConfig, ViteAssetsTagResult, DEFAULTS.
+// TODO(#108–#113): lockness(), viteAssets(), ViteAssetsTagResult.

@@ -13,6 +13,14 @@ export {
     resolveJsrSpecifier,
     resolveWithDeno,
 } from './plugins/deno.ts'
+export { defineViteConfig } from './define_config.ts'
+export {
+    CSS_WATCH_GLOBS,
+    DEFAULTS,
+    type LocknessViteConfig,
+    SERVER_RELOAD_GLOBS,
+    TAILWIND_CLI,
+} from './shared.ts'
 
-// TODO(#107–#113): DEFAULTS, defineViteConfig, lockness(), viteAssets,
-// ManifestReader.
+// TODO(#108–#113): lockness(), viteAssets(), ManifestReader,
+// ViteAssetsTagResult.
