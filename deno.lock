@@ -4384,7 +4384,8 @@
       },
       "packages/auth-provider": {
         "dependencies": [
-          "jsr:@lockness/auth@0.2"
+          "jsr:@lockness/auth@0.2",
+          "npm:drizzle-orm@~0.36.3"
         ]
       },
       "packages/cache": {
@@ -4443,7 +4444,9 @@
           "jsr:@lockness/contract@0.2",
           "jsr:@lockness/events@0.2",
           "jsr:@lockness/hono@0.2",
-          "jsr:@lockness/session@0.2"
+          "jsr:@lockness/session@0.2",
+          "jsr:@std/fs@1",
+          "jsr:@std/path@1"
         ]
       },
       "packages/drizzle": {
@@ -4513,7 +4516,8 @@
           "jsr:@lockness/cli@0.2",
           "jsr:@lockness/contract@0.2",
           "jsr:@lockness/hono@0.2",
-          "jsr:@std/assert@1"
+          "jsr:@std/assert@1",
+          "jsr:@std/path@1"
         ]
       },
       "packages/queue": {
@@ -4567,6 +4571,7 @@
           "jsr:@std/assert@1",
           "jsr:@std/cli@1",
           "jsr:@std/fs@1",
+          "jsr:@std/jsonc@1",
           "jsr:@std/path@1",
           "npm:clsx@2.1.1",
           "npm:highlight.js@11.11.1",

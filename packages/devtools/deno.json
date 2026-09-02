@@ -22,7 +22,9 @@
         "hono": "jsr:@lockness/hono@^0.2.0",
         "@lockness/contract": "jsr:@lockness/contract@^0.2.0",
         "@lockness/events": "jsr:@lockness/events@^0.2.0",
-        "@lockness/session": "jsr:@lockness/session@^0.2.0"
+        "@lockness/session": "jsr:@lockness/session@^0.2.0",
+        "@std/fs": "jsr:@std/fs@1",
+        "@std/path": "jsr:@std/path@1"
     },
     "description": "Development debugging toolbar and utilities for Lockness framework"
 }
