@@ -54,7 +54,13 @@ export interface CodeBlockNode extends MarkdownNode {
     language?: string
     /** Raw code text (HTML entities decoded) */
     value: string
-    /** Pre-highlighted HTML from @libs/markdown */
+    /**
+     * Pre-highlighted HTML from @libs/markdown, **sanitised at the parser**:
+     * `sanitizeCodeHtml` (parser.ts) escapes every `<`/`>` and re-admits only
+     * the highlighter's own `<span class="hljs-…">`/`</span>` structure, so this
+     * field can carry no author element even if the upstream engine failed to
+     * escape it (issue #159).
+     */
     html?: string
 }
 
@@ -118,14 +124,18 @@ export interface ComponentOverrides {
     /**
      * Override code block rendering.
      *
-     * **Trust invariant** — `html` is highlighter-generated, escaped output
-     * only (a `<span class="hljs-…">` tree wrapping already-escaped code text);
-     * it is NEVER caller-supplied HTML to be rendered raw. The only
-     * implementation that consumes `html` through a raw-HTML sink is
+     * **Trust invariant (enforced at the parser, #159)** — when `html` comes
+     * from `parseHtmlToAst`, `sanitizeCodeHtml` has already reduced it to
+     * allowlisted highlighter markup only (a `<span class="hljs-…">` tree
+     * wrapping escaped code text); every other `<`/`>` is an entity, so no
+     * author element can survive regardless of the upstream engine's escaping.
+     * The only implementation that consumes `html` through a raw-HTML sink is
      * `@lockness/ui`'s `HighlightedCodeBlock`; the plain-HTML default in
      * `@lockness/markdown` ignores `html` and renders escaped `children` only.
-     * A custom map that pipes untrusted input into `html` re-opens stored XSS —
-     * see plan §6 (017-break-ui-markdown-cycle) and issue #127.
+     * The one residual (deliberately out of scope of #159): a caller that
+     * hand-builds an AST or passes untrusted HTML **directly** to
+     * `HighlightedCodeBlock html={…}` bypasses the parser and re-opens the sink —
+     * see plan §6 (017-break-ui-markdown-cycle), issues #127 and #159.
      *
      * @param language - The code language (e.g., 'typescript')
      * @param children - Plain text code (for copy functionality)

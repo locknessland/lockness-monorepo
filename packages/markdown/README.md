@@ -135,11 +135,19 @@ Low-level function to parse HTML into an AST.
 
 ## Security
 
-Link `href` and image `src` are scheme-sanitised at parse time: only `http`,
-`https`, `mailto` and schemeless URIs are kept; `javascript:`, `data:` and other
-schemes are neutralised to an empty attribute (the link text / image `alt` are
-preserved). The guarantee covers `href`/`src` only — `CodeBlockNode.html` is
-stored raw. See [docs/DOCS.md](docs/DOCS.md#security-uri-scheme-allowlist).
+Two guarantees are enforced at parse time, both in `parser.ts` and nowhere else:
+
+- **Link/image URI schemes** — only `http`, `https`, `mailto` and schemeless
+  URIs are kept; `javascript:`, `data:` and other schemes are neutralised to an
+  empty attribute (the link text / image `alt` are preserved).
+- **Code-block HTML** — `CodeBlockNode.html` (the raw-HTML sink the styled
+  `@lockness/ui/markdown` map feeds into `dangerouslySetInnerHTML`) is reduced
+  to allowlisted highlighter markup only: every `<`/`>` is escaped and only the
+  highlighter's own `<span class="hljs-…">`/`</span>` structure is re-admitted,
+  so no author element can survive — independent of the upstream engine's own
+  escaping (issue #159). Syntax highlighting is preserved.
+
+See [docs/DOCS.md](docs/DOCS.md#security-uri-scheme-allowlist).
 
 ## License
 

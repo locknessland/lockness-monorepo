@@ -36,12 +36,23 @@ HTML-entity obfuscation of the scheme. It lives in one place — `sanitizeUrl` i
 styled `@lockness/ui/markdown` map alike); component overrides do not need to,
 and must not, re-implement it.
 
-**Scope of the guarantee.** `parseHtmlToAst` guarantees scheme-safety for
-`LinkNode.href` and `ImageNode.src` **only**. It does **not** sanitise
-`CodeBlockNode.html`, which is stored **raw** and is the
-`dangerouslySetInnerHTML` sink used by the styled map's highlighted code block
-(deferred item S4, still open). A caller that hand-builds an AST, or a future
-write-UI accepting untrusted Markdown, must not assume that field is safe.
+**Scope of the guarantee.** `parseHtmlToAst` scheme-sanitises `LinkNode.href`
+and `ImageNode.src`, **and** allowlist-sanitises `CodeBlockNode.html` — the
+`dangerouslySetInnerHTML` sink the styled map's highlighted code block uses.
+`sanitizeCodeHtml` (parser.ts) escapes every `<`/`>` in that field and re-admits
+only the highlighter's own `<span class="hljs-…">`/`</span>` structure, so no
+author element survives even if the upstream engine failed to escape it, while
+syntax highlighting is preserved. This **closes deferred item S4** (raised in
+the #80 blog plan, tracked as #159).
+
+The copy fields — `CodeBlockNode.value` and the styled block's `data-plain`
+attribute — need no allowlist: they are plain text, JSX-escaped by the runtime,
+never a raw sink. Do not mirror the code-HTML treatment onto them.
+
+**One residual, out of scope of #159.** The guarantee is anchored to the parse
+path. A caller that hand-builds an AST, or passes untrusted HTML **directly** to
+the exported `HighlightedCodeBlock html={…}` component, bypasses the parser and
+must not assume that field is safe.
 
 ## Installation
 

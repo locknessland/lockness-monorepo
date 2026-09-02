@@ -55,9 +55,12 @@ import {
  * Lockness design system. {@link renderMarkdown} does this for you.
  *
  * **Note** — the `CodeBlock` entry forwards the highlighter-generated `html`
- * to `HighlightedCodeBlock` (a raw-HTML sink). Per the trust invariant on
- * `ComponentOverrides.CodeBlock`, `html` is escaped highlighter output only;
- * never feed caller-supplied HTML through this map.
+ * to `HighlightedCodeBlock` (a raw-HTML sink). When the `html` came through
+ * `@lockness/markdown`'s `parseHtmlToAst`, it is parser-sanitised to allowlisted
+ * highlighter markup only (`sanitizeCodeHtml`, issue #159), so this map is safe
+ * on the parse path. The residual: do not pass untrusted HTML **directly** to
+ * `HighlightedCodeBlock html={…}`, which bypasses that guarantee — see the trust
+ * invariant on `ComponentOverrides.CodeBlock`.
  */
 export const markdownComponents: Required<ComponentOverrides> = {
     Heading: ({ level, children }) => (
