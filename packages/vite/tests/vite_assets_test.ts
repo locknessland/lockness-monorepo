@@ -142,6 +142,38 @@ Deno.test('viteAssets - nonce is applied to every script tag', async () => {
     )
 })
 
+Deno.test('viteAssets - nonce is applied to every tag, link included (#114)', async () => {
+    const { config } = await fixtureManifest(MANIFEST)
+    const result = await viteAssets(ENTRY, {
+        isDevServer: false,
+        config,
+        nonce: 'abc123',
+    })
+    // The production render emits both a stylesheet <link> and a <script>.
+    assert(result.tags.some((t) => t.tag === 'link'), 'a link tag is emitted')
+    assert(
+        result.tags.some((t) => t.tag === 'script'),
+        'a script tag is emitted',
+    )
+    assert(
+        result.tags.every((t) => t.attributes.nonce === 'abc123'),
+        'every emitted tag (script AND link) carries the nonce',
+    )
+})
+
+Deno.test('viteAssets - production output never leaks the dev origin (S-F5)', async () => {
+    const { config } = await fixtureManifest(MANIFEST)
+    const result = await viteAssets(ENTRY, {
+        isDevServer: false,
+        config,
+        nonce: 'abc123',
+    })
+    assert(
+        !result.html.includes('localhost:5173'),
+        'the dev server origin must be structurally absent from production output',
+    )
+})
+
 Deno.test('encodeAttribute - encodes quotes and angle brackets (S-F4)', () => {
     assertEquals(encodeAttribute('a"><b'), 'a&quot;&gt;&lt;b')
 })

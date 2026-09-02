@@ -15,6 +15,12 @@
  * - **Loopback by default** — the plugin defaults `server.host` to `127.0.0.1`
  *   and keeps `server.fs.strict` on, warning loudly on a non-loopback host, so
  *   the unauthenticated `/@fs` surface is not exposed to the network (S-F1).
+ * - **Dev-only CSP widening** — when a forwarded response carries a
+ *   `Content-Security-Policy` header, the dev origin is appended to its
+ *   `script-src`/`style-src`/`connect-src` directives so the Vite client and HMR
+ *   socket load under a strict CSP (#114). This lives **only** in the dev bridge
+ *   middleware, which never runs in production, so `localhost:5173` is
+ *   structurally absent from a production response (S-F5).
  *
  * @module @lockness/vite/plugins/dev_server
  */
@@ -92,6 +98,61 @@ export function injectCssIntoHtml(html: string, css: string): string {
     return html.includes('</head>')
         ? html.replace('</head>', `${style}</head>`)
         : html + style
+}
+
+/**
+ * The CSP directives the dev bridge widens, and how many origins each takes.
+ * `connect-src` also needs the WebSocket origin (`ws://…`) for HMR; the other
+ * two only need the HTTP origin.
+ */
+const CSP_DEV_DIRECTIVES: readonly string[] = [
+    'script-src',
+    'style-src',
+    'connect-src',
+]
+
+/**
+ * Append the Vite dev origin to a CSP's `script-src`/`style-src`/`connect-src`
+ * directives so the dev client, modules and HMR socket load under a strict CSP
+ * (#114). Only directives **already present** are widened — an absent directive
+ * is left to the app's `default-src`, never invented. `connect-src` additionally
+ * receives the WebSocket origin (`ws://…`) used by HMR. Idempotent: an origin
+ * already listed is not duplicated.
+ *
+ * This is **dev-only** by construction — it is called solely from the dev bridge
+ * middleware, which does not run in production (S-F5).
+ *
+ * @param csp - The raw `Content-Security-Policy` header value.
+ * @param devOrigin - The dev server origin (e.g. `http://localhost:5173`).
+ * @returns The widened CSP value (unchanged when no target directive is present).
+ *
+ * @example
+ * ```typescript
+ * widenCspForDev("script-src 'self'", 'http://localhost:5173')
+ * // "script-src 'self' http://localhost:5173"
+ * ```
+ */
+export function widenCspForDev(csp: string, devOrigin: string): string {
+    const http = devOrigin.replace(/\/$/, '')
+    const ws = http.replace(/^http/, 'ws')
+    return csp
+        .split(';')
+        .map((directive) => {
+            const trimmed = directive.trim()
+            if (!trimmed) return directive
+            const [name, ...sources] = trimmed.split(/\s+/)
+            if (!CSP_DEV_DIRECTIVES.includes(name.toLowerCase())) {
+                return directive
+            }
+            const additions = name.toLowerCase() === 'connect-src'
+                ? [http, ws]
+                : [http]
+            for (const origin of additions) {
+                if (!sources.includes(origin)) sources.push(origin)
+            }
+            return `${name} ${sources.join(' ')}`
+        })
+        .join(';')
 }
 
 /**
@@ -190,7 +251,12 @@ export function devServerBridge(options: DevServerOptions): Plugin {
                         res.end('Internal Server Error')
                         return
                     }
-                    await forwardWebResponse(response, res, options.getCss)
+                    await forwardWebResponse(
+                        response,
+                        res,
+                        options.getCss,
+                        config.devServerUrl,
+                    )
                 })
             }
         },
@@ -244,6 +310,8 @@ export function nodeRequestToWebRequest(
  * @param response - The `Response` from `App.fetch()`.
  * @param res - The Node response to write.
  * @param getCss - Optional collected-CSS provider.
+ * @param devOrigin - When set, the dev origin appended to any CSP header's
+ *   `script-src`/`style-src`/`connect-src` directives (#114, dev-only — S-F5).
  */
 export async function forwardWebResponse(
     response: Response,
@@ -253,6 +321,7 @@ export async function forwardWebResponse(
         end: (body?: string | Uint8Array) => void
     },
     getCss?: () => string,
+    devOrigin?: string,
 ): Promise<void> {
     res.statusCode = response.status
     const contentType = response.headers.get('content-type') ?? ''
@@ -266,6 +335,15 @@ export async function forwardWebResponse(
         // (Headers iteration merges them) — emit them verbatim below (M1).
         if (lower === 'set-cookie') continue
         if (willModifyBody && lower === 'content-length') continue
+        // Widen a strict CSP so the dev client/HMR load (#114, dev-only — S-F5).
+        if (
+            devOrigin !== undefined &&
+            (lower === 'content-security-policy' ||
+                lower === 'content-security-policy-report-only')
+        ) {
+            res.setHeader(key, widenCspForDev(value, devOrigin))
+            continue
+        }
         res.setHeader(key, value)
     }
     const setCookies = response.headers.getSetCookie()

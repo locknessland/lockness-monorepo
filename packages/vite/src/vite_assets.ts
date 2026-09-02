@@ -2,7 +2,8 @@
  * @fileoverview `viteAssets()` — the primary user-facing helper. In dev it points
  * asset tags at the Vite dev server; in production it resolves hashed URLs from
  * the build manifest (via {@link ManifestReader}). The `nonce` option is
- * attribute-encoded onto every emitted `<script>` (CSP support, #114).
+ * attribute-encoded onto every emitted tag — `<script>` and `<link>` alike
+ * (CSP support, #114).
  *
  * @module @lockness/vite/vite_assets
  */
@@ -31,7 +32,7 @@ export interface ViteAssetsTagResult {
 export interface ViteAssetsOptions {
     /** Override the dev server URL (defaults to config `devServerUrl`). */
     devServerUrl?: string
-    /** CSP nonce, applied to every emitted `<script>` tag. */
+    /** CSP nonce, applied to every emitted `<script>` and `<link>` tag. */
     nonce?: string
     /** Partial config; merged over DEFAULTS. */
     config?: Partial<LocknessViteConfig>
@@ -96,10 +97,11 @@ export async function viteAssets(
     const reader = options.reader ??
         new ManifestReader(config, { isDevServer: options.isDevServer })
     const nonce = options.nonce
+    const nonceAttr: Record<string, string> = nonce ? { nonce } : {}
     const scriptAttrs = (src: string): Record<string, string> => ({
         type: 'module',
         src,
-        ...(nonce ? { nonce } : {}),
+        ...nonceAttr,
     })
 
     if ((await reader.mode()) === 'dev') {
@@ -119,7 +121,7 @@ export async function viteAssets(
     for (const css of chunk.css ?? []) {
         tags.push({
             tag: 'link',
-            attributes: { rel: 'stylesheet', href: `/${css}` },
+            attributes: { rel: 'stylesheet', href: `/${css}`, ...nonceAttr },
         })
     }
     tags.push({ tag: 'script', attributes: scriptAttrs(`/${chunk.file}`) })

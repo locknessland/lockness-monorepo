@@ -17,6 +17,7 @@ import {
     isViteInternalRequest,
     nodeRequestToWebRequest,
     resolveDevHost,
+    widenCspForDev,
 } from '../src/plugins/dev_server.ts'
 import { DEFAULTS } from '../src/shared.ts'
 
@@ -295,6 +296,125 @@ Deno.test('nodeRequestToWebRequest - a GET has no body', () => {
         headers: {},
     }, DEFAULTS)
     assertEquals(request.body, null)
+})
+
+Deno.test('nodeRequestToWebRequest - array-valued headers survive verbatim (S-F6)', () => {
+    const request = nodeRequestToWebRequest({
+        url: '/',
+        method: 'GET',
+        headers: { 'x-multi': ['a', 'b'] },
+    }, DEFAULTS)
+    // Headers.append() for each element → a single comma-joined value on read.
+    const value = request.headers.get('x-multi')
+    assertStringIncludes(value ?? '', 'a')
+    assertStringIncludes(value ?? '', 'b')
+})
+
+// --- dev CSP widening (#114) -----------------------------------------------
+
+Deno.test('widenCspForDev - appends the dev origin to present directives only', () => {
+    const out = widenCspForDev(
+        "script-src 'self'; style-src 'self'; img-src 'self'",
+        'http://localhost:5173',
+    )
+    assertStringIncludes(out, "script-src 'self' http://localhost:5173")
+    assertStringIncludes(out, "style-src 'self' http://localhost:5173")
+    // img-src is not a target directive — left untouched.
+    assertStringIncludes(out, "img-src 'self'")
+    assert(
+        !out.includes('img-src') || !out.match(/img-src[^;]*localhost/),
+        'img-src is never widened',
+    )
+})
+
+Deno.test('widenCspForDev - connect-src also gets the ws origin for HMR', () => {
+    const out = widenCspForDev("connect-src 'self'", 'http://localhost:5173')
+    assertStringIncludes(out, 'http://localhost:5173')
+    assertStringIncludes(out, 'ws://localhost:5173')
+})
+
+Deno.test('widenCspForDev - the ws origin is confined to connect-src', () => {
+    const out = widenCspForDev(
+        "script-src 'self'; style-src 'self'; connect-src 'self'",
+        'http://localhost:5173',
+    )
+    // Split back into directives so each is asserted in isolation.
+    const byName = Object.fromEntries(
+        out.split(';').map((d) => {
+            const [name, ...rest] = d.trim().split(/\s+/)
+            return [name.toLowerCase(), rest]
+        }),
+    )
+    assert(
+        !byName['script-src'].includes('ws://localhost:5173'),
+        'script-src has no ws',
+    )
+    assert(
+        !byName['style-src'].includes('ws://localhost:5173'),
+        'style-src has no ws',
+    )
+    assert(byName['script-src'].includes('http://localhost:5173'))
+    assert(byName['style-src'].includes('http://localhost:5173'))
+    assert(
+        byName['connect-src'].includes('ws://localhost:5173'),
+        'connect-src keeps ws',
+    )
+})
+
+Deno.test('widenCspForDev - is idempotent and leaves an absent directive alone', () => {
+    // default-src only → nothing widened (a target directive is never invented).
+    assertEquals(
+        widenCspForDev("default-src 'self'", 'http://localhost:5173'),
+        "default-src 'self'",
+    )
+    // Already present → not duplicated.
+    const once = widenCspForDev("script-src 'self'", 'http://localhost:5173')
+    assertEquals(widenCspForDev(once, 'http://localhost:5173'), once)
+})
+
+Deno.test('forwardWebResponse - widens a CSP header when a dev origin is given (#114)', async () => {
+    const { res, captured } = fakeRes()
+    const response = new Response('ok', {
+        headers: { 'content-security-policy': "script-src 'self'" },
+    })
+    await forwardWebResponse(response, res, undefined, 'http://localhost:5173')
+    assertStringIncludes(
+        captured.headers['content-security-policy'] as string,
+        'http://localhost:5173',
+    )
+})
+
+Deno.test('forwardWebResponse - leaves the CSP header verbatim without a dev origin (S-F5)', async () => {
+    const { res, captured } = fakeRes()
+    const response = new Response('ok', {
+        headers: { 'content-security-policy': "script-src 'self'" },
+    })
+    // No devOrigin → production posture → no widening, no dev leak.
+    await forwardWebResponse(response, res)
+    assertEquals(
+        captured.headers['content-security-policy'],
+        "script-src 'self'",
+    )
+    assert(
+        !(captured.headers['content-security-policy'] as string).includes(
+            'localhost:5173',
+        ),
+        'no dev origin leaks into a production CSP',
+    )
+})
+
+Deno.test('forwardWebResponse - widens a report-only CSP header too (#114)', async () => {
+    const { res, captured } = fakeRes()
+    const response = new Response('ok', {
+        headers: {
+            'content-security-policy-report-only': "script-src 'self'",
+        },
+    })
+    await forwardWebResponse(response, res, undefined, 'http://localhost:5173')
+    assertStringIncludes(
+        captured.headers['content-security-policy-report-only'] as string,
+        'http://localhost:5173',
+    )
 })
 
 Deno.test('devServerBridge - App.fetch() throwing yields a 500 (test-reviewer M4)', async () => {
