@@ -306,11 +306,24 @@ export interface SessionWithRememberMeProviderContract<
     deleteRememberToken(user: User, tokenId: string | number): Promise<void>
 
     /**
-     * Recycle a remember me token (for security)
+     * Recycle a remember me token (for security).
+     *
+     * Receives the **whole verified token** (not just its id) so the renewed
+     * token can carry the origin forward: the implementation MUST bare-copy
+     * `firstIssuedAt` from the passed token onto the new one
+     * (`new.firstIssuedAt = token.firstIssuedAt`) — never re-mint it. The guard
+     * resolves the origin before calling, so a provider does no fallback logic
+     * of its own (#146; the absolute-lifetime cap depends on this preservation).
+     *
+     * @param user - The token's owner.
+     * @param token - The verified token being rotated; its `identifier` names the
+     *   row to delete and its `firstIssuedAt` is the origin to preserve.
+     * @param expiresIn - Lifetime of the new token, in seconds.
+     * @returns The freshly minted token, carrying the preserved `firstIssuedAt`.
      */
     recycleRememberToken(
         user: User,
-        tokenId: string | number,
+        token: RememberMeToken,
         expiresIn: number,
     ): Promise<RememberMeToken>
 }
@@ -407,6 +420,18 @@ export interface RememberMeToken {
      * Token creation date
      */
     createdAt: Date
+
+    /**
+     * First-issuance instant of this credential's renewal chain (#146).
+     *
+     * Unlike {@link createdAt}, which a renewal re-mints, this is the origin
+     * the {@link SessionGuardOptions.rememberMeAbsoluteLifetime} cap is measured
+     * from and must be **preserved across every renewal** (the provider bare-copies
+     * it in `recycleRememberToken`). Optional: absent on tokens issued before the
+     * cap existed, in which case the guard freezes it from {@link createdAt} on the
+     * first recycle.
+     */
+    firstIssuedAt?: Date
 
     /**
      * Token last updated date
@@ -526,6 +551,17 @@ export interface SessionGuardOptions {
      * Remember me token lifetime in seconds (default: 30 days)
      */
     rememberMeTokensAge?: number
+
+    /**
+     * Absolute lifetime cap for the remember-me credential, in seconds (#146).
+     *
+     * When set, a remember-me token is refused once its age from first issuance
+     * ({@link RememberMeToken.firstIssuedAt}, preserved across renewals) exceeds
+     * this value — no matter how often it was renewed. **Off by default** (unset).
+     * Fail-closed: a value `≤ 0` or `NaN` is rejected at construction, never
+     * treated as "off".
+     */
+    rememberMeAbsoluteLifetime?: number
 
     /**
      * Session key name (default: 'auth_user_id')

@@ -196,6 +196,7 @@ export class KyselySessionProvider<User extends Authenticatable>
 
         const tokenValue = await this.generateTokenValue(32)
         const hash = await this.hashTokenValue(tokenValue)
+        const now = new Date()
         const expiresAt = new Date(Date.now() + expiresIn)
 
         const result = await this.#options.db
@@ -204,7 +205,7 @@ export class KyselySessionProvider<User extends Authenticatable>
                 user_id: user.id,
                 token_hash: hash,
                 expires_at: expiresAt,
-                created_at: new Date(),
+                created_at: now,
             })
             .returning('id')
             .executeTakeFirst()
@@ -215,7 +216,9 @@ export class KyselySessionProvider<User extends Authenticatable>
             hash,
             userId: user.id,
             expiresAt,
-            createdAt: new Date(),
+            createdAt: now,
+            // A freshly created credential's origin is its creation instant (#146).
+            firstIssuedAt: now,
         }
     }
 
@@ -281,7 +284,7 @@ export class KyselySessionProvider<User extends Authenticatable>
      */
     async recycleRememberToken(
         user: User,
-        tokenId: string | number,
+        token: RememberMeToken,
         expiresIn: number,
     ): Promise<RememberMeToken> {
         if (!this.#enableRememberTokens) {
@@ -290,7 +293,10 @@ export class KyselySessionProvider<User extends Authenticatable>
             )
         }
 
-        await this.deleteRememberToken(user, tokenId)
-        return await this.createRememberToken(user, expiresIn)
+        await this.deleteRememberToken(user, token.identifier)
+        // Bare-copy the origin forward so renewal never resets the absolute
+        // clock (#146). The guard resolved firstIssuedAt before calling.
+        const fresh = await this.createRememberToken(user, expiresIn)
+        return { ...fresh, firstIssuedAt: token.firstIssuedAt }
     }
 }

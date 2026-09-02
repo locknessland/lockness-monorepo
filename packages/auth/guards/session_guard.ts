@@ -83,9 +83,15 @@ export class SessionGuard<
     #userProvider: UserProvider
 
     /**
-     * Guard options
+     * Guard options.
+     *
+     * Every field is resolved to a concrete default except
+     * `rememberMeAbsoluteLifetime`, which stays optional: `undefined` is the
+     * meaningful "cap off" state (#146), so it is not forced to a default.
      */
-    #options: Required<SessionGuardOptions>
+    #options:
+        & Required<Omit<SessionGuardOptions, 'rememberMeAbsoluteLifetime'>>
+        & Pick<SessionGuardOptions, 'rememberMeAbsoluteLifetime'>
 
     /**
      * Event emitter
@@ -138,6 +144,20 @@ export class SessionGuard<
         return `remember_${this.#name}`
     }
 
+    /**
+     * Create a session guard.
+     *
+     * @param name - Guard name (e.g. `'web'`), used for cookie and session keys.
+     * @param ctx - The Hono request context.
+     * @param userProvider - The user provider backing this guard.
+     * @param options - Optional guard options. When
+     *   {@link SessionGuardOptions.rememberMeAbsoluteLifetime} is set it is
+     *   validated fail-closed (#146).
+     * @param emitter - Optional event emitter for guard lifecycle events.
+     * @throws {RangeError} When `options.rememberMeAbsoluteLifetime` is present
+     *   but not a positive, finite number — a misconfigured cap is rejected, never
+     *   silently treated as "off".
+     */
     constructor(
         name: string,
         ctx: Context,
@@ -152,9 +172,23 @@ export class SessionGuard<
         this.#session = getSession(ctx)
         this.#userProvider = userProvider
         this.#emitter = emitter
+        // Fail-closed on a misconfigured cap: a value that is not a positive,
+        // finite number is rejected, never silently treated as "off" (#146).
+        // Only `undefined` disables the cap.
+        const cap = options?.rememberMeAbsoluteLifetime
+        if (
+            cap !== undefined &&
+            (typeof cap !== 'number' || !Number.isFinite(cap) || cap <= 0)
+        ) {
+            throw new RangeError(
+                'rememberMeAbsoluteLifetime must be a positive number of seconds, or omitted to disable the cap',
+            )
+        }
+
         this.#options = {
             useRememberMeTokens: options?.useRememberMeTokens ?? false,
             rememberMeTokensAge: options?.rememberMeTokensAge ?? 2592000, // 30 days
+            rememberMeAbsoluteLifetime: cap,
             sessionKeyName: options?.sessionKeyName ?? `auth_${name}`,
         }
     }
@@ -250,10 +284,31 @@ export class SessionGuard<
 
         const { user, token } = result
 
+        // Remember-me absolute-lifetime cap (#146). Resolve the origin HERE — the
+        // single home for the freeze/fallback policy — so a legacy token
+        // (firstIssuedAt absent) is anchored at its createdAt and every provider
+        // stays a dumb bare-copy. Freeze the origin onto the token handed to
+        // recycle, so the anchor survives this renewal instead of being re-minted.
+        const origin = token.firstIssuedAt ?? token.createdAt
+        token.firstIssuedAt = origin
+
+        const cap = this.#options.rememberMeAbsoluteLifetime
+        if (
+            typeof cap === 'number' &&
+            Date.now() - origin.getTime() > cap * 1000
+        ) {
+            // Past the ceiling: tear down like the invalid-token path AND remove
+            // the credential server-side — BEFORE any recycle or session mint — so
+            // a captured copy can neither be refreshed nor replayed (CWE-613).
+            await provider.deleteRememberToken(user, token.identifier)
+            deleteCookie(this.#ctx, this.rememberMeKeyName)
+            return null
+        }
+
         // Recycle token for security (protect against stolen cookies)
         const newToken = await provider.recycleRememberToken(
             user,
-            token.identifier,
+            token,
             this.#options.rememberMeTokensAge,
         )
 

@@ -141,12 +141,17 @@ export abstract class SessionProviderBase<User extends Authenticatable>
     ): Promise<void>
 
     /**
-     * Recycle a remember me token (for security)
-     * Must be implemented by subclasses that support remember tokens
+     * Recycle a remember me token (for security).
+     * Must be implemented by subclasses that support remember tokens.
+     *
+     * Receives the whole verified token so the renewed token can bare-copy
+     * `firstIssuedAt` from it (`new.firstIssuedAt = token.firstIssuedAt`) — the
+     * origin the remember-me absolute-lifetime cap is measured from (#146). The
+     * guard resolves the origin before calling; the provider does no fallback.
      */
     abstract recycleRememberToken(
         user: User,
-        tokenId: string | number,
+        token: RememberMeToken,
         expiresIn: number,
     ): Promise<RememberMeToken>
 }

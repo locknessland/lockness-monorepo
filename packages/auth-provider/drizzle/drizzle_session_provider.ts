@@ -140,6 +140,7 @@ export class DrizzleSessionProvider<User extends Authenticatable>
 
         const tokenValue = await this.generateTokenValue(32)
         const hash = await this.hashTokenValue(tokenValue)
+        const now = new Date()
         const expiresAt = new Date(Date.now() + expiresIn)
 
         // This is a placeholder - subclasses should implement with their table schema
@@ -151,7 +152,9 @@ export class DrizzleSessionProvider<User extends Authenticatable>
             hash,
             userId: user.id,
             expiresAt,
-            createdAt: new Date(),
+            createdAt: now,
+            // A freshly created credential's origin is its creation instant (#146).
+            firstIssuedAt: now,
         }
     }
 
@@ -196,7 +199,7 @@ export class DrizzleSessionProvider<User extends Authenticatable>
      */
     async recycleRememberToken(
         user: User,
-        tokenId: string | number,
+        token: RememberMeToken,
         expiresIn: number,
     ): Promise<RememberMeToken> {
         if (!this.#enableRememberTokens) {
@@ -206,9 +209,12 @@ export class DrizzleSessionProvider<User extends Authenticatable>
         }
 
         // Delete old token
-        await this.deleteRememberToken(user, tokenId)
+        await this.deleteRememberToken(user, token.identifier)
 
-        // Create new token
-        return await this.createRememberToken(user, expiresIn)
+        // Create new token, then bare-copy the origin forward so the absolute
+        // clock is never reset by renewal (#146). No fallback here — the guard
+        // resolved firstIssuedAt before calling.
+        const fresh = await this.createRememberToken(user, expiresIn)
+        return { ...fresh, firstIssuedAt: token.firstIssuedAt }
     }
 }

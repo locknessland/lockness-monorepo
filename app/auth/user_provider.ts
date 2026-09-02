@@ -82,6 +82,7 @@ export class UserProvider
         // Use DrizzleSessionProvider helper or implement custom logic
         const token = crypto.randomUUID()
         const tokenHash = await this.hashToken(token)
+        const now = new Date()
         const expiresAt = new Date(Date.now() + expiresIn * 1000)
 
         // Insert into remember_me_tokens table
@@ -92,7 +93,9 @@ export class UserProvider
             hash: tokenHash,
             userId: user.id,
             expiresAt,
-            createdAt: new Date(),
+            createdAt: now,
+            // A freshly created credential's origin is its creation instant (#146).
+            firstIssuedAt: now,
             value: token,
         }
     }
@@ -109,13 +112,14 @@ export class UserProvider
 
     async recycleRememberToken(
         user: User,
-        _tokenId: string | number,
+        oldToken: RememberMeToken,
         expiresIn: number,
     ): Promise<RememberMeToken> {
         // Recycle (delete old, create new) for security
         // TODO: Implement
         const token = crypto.randomUUID()
         const tokenHash = await this.hashToken(token)
+        const now = new Date()
         const expiresAt = new Date(Date.now() + expiresIn * 1000)
 
         return {
@@ -123,7 +127,10 @@ export class UserProvider
             hash: tokenHash,
             userId: user.id,
             expiresAt,
-            createdAt: new Date(),
+            createdAt: now,
+            // Bare-copy the origin forward — renewal never resets the absolute
+            // clock (#146). The guard resolved firstIssuedAt before calling.
+            firstIssuedAt: oldToken.firstIssuedAt,
             value: token,
         }
     }
