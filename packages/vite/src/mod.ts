@@ -38,5 +38,19 @@ export {
     RESOLVED_CLIENT_ENTRY_ID,
 } from './plugins/client_entry.ts'
 
+export {
+    type ManifestChunk,
+    ManifestReader,
+    type ViteManifest,
+    type ViteMode,
+} from './manifest_reader.ts'
+export {
+    encodeAttribute,
+    viteAssets,
+    type ViteAssetsOptions,
+    type ViteAssetsTagResult,
+    type ViteAssetTag,
+} from './vite_assets.ts'
+
 // TODO(#108–#113): lockness(), viteAssets(), ManifestReader,
 // ViteAssetsTagResult.
