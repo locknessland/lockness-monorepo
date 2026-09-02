@@ -4505,10 +4505,7 @@
         "dependencies": [
           "jsr:@libs/markdown@^2.1.0",
           "jsr:@lockness/hono@0.2",
-          "jsr:@lockness/ui@0.2",
-          "jsr:@std/assert@1",
-          "npm:clsx@2.1.1",
-          "npm:tailwind-merge@2.6.0"
+          "jsr:@std/assert@1"
         ]
       },
       "packages/openapi": {

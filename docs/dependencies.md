@@ -9,9 +9,9 @@
 
 The monorepo contains **28 packages**.
 
-## ⚠️ Circular Dependencies Detected
+## ✅ No Circular Dependencies
 
-1. `@lockness/markdown` → `@lockness/ui` → `@lockness/markdown`
+The dependency graph is acyclic (DAG).
 
 ## Architecture Layers
 
@@ -54,7 +54,7 @@ The monorepo contains **28 packages**.
 | `init`                  | cli                                          | —                                                            |
 | `logger`                | contract                                     | —                                                            |
 | `mail`                  | —                                            | —                                                            |
-| `markdown`              | hono, ui                                     | —                                                            |
+| `markdown`              | hono                                         | —                                                            |
 | `openapi`               | cli, contract, hono                          | —                                                            |
 | `queue`                 | contract                                     | —                                                            |
 | `scheduler`             | —                                            | —                                                            |
