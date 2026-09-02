@@ -34,6 +34,13 @@ import { getCacheKey, getExpiresAt, isExpired } from '../config.ts'
 export class DenoKvCacheDriver implements CacheDriver {
     /** @internal KV instance (lazy-loaded) */
     private kv: Deno.Kv | null = null
+    /**
+     * @internal The in-flight (or resolved) open, memoised so two callers
+     * racing the cold path share ONE `Deno.openKv` (#140). Keying off the
+     * resolved `kv` field leaves an `await` between the guard and the
+     * assignment, and the first of two racers leaks its handle.
+     */
+    #kvPromise: Promise<Deno.Kv> | undefined
     /** @internal Path to KV database */
     private readonly kvPath?: string
 
@@ -62,29 +69,59 @@ export class DenoKvCacheDriver implements CacheDriver {
      */
     async close(): Promise<void> {
         markDriverClosed(this)
+        // Await an open still in flight so exactly one handle is created and
+        // then closed. Defuse a failed open — the getKv caller already saw that
+        // rejection; there is simply nothing to release.
+        const opening = this.#kvPromise
+        this.#kvPromise = undefined
+        if (opening) await opening.catch(() => undefined)
+
         if (this.#handle) {
             deregisterDisposable(this.#handle)
             this.#handle = undefined
         }
         if (this.kv) {
+            // Deno.Kv.close() throws if called twice; the null-guard plus the
+            // cleared promise make a second close() a safe no-op.
             this.kv.close()
             this.kv = null
         }
-        await Promise.resolve()
     }
 
-    private async getKv(): Promise<Deno.Kv> {
-        if (!this.kv) {
-            this.kv = await Deno.openKv(this.kvPath)
-            // Announced only once a handle actually exists. Registering in the
-            // constructor would enrol a driver that owns nothing.
-            this.#handle ??= registerDisposable({
-                name: 'cache:deno-kv',
-                dispose: () => this.close(),
-                priority: 60,
-            })
+    private getKv(): Promise<Deno.Kv> {
+        if (this.#kvPromise) return this.#kvPromise
+        const promise: Promise<Deno.Kv> = this.#openKv(
+            () => this.#kvPromise === promise,
+        )
+        this.#kvPromise = promise
+        return promise
+    }
+
+    async #openKv(isCurrent: () => boolean): Promise<Deno.Kv> {
+        let kv: Deno.Kv
+        try {
+            kv = await Deno.openKv(this.kvPath)
+        } catch (error) {
+            // Don't memoise a failed open — a later call must be free to retry.
+            if (isCurrent()) this.#kvPromise = undefined
+            throw error
         }
-        return this.kv
+        if (!isCurrent()) {
+            // A close() (or a newer open) supervened while we were opening.
+            // Release the handle we just opened rather than orphaning it or
+            // clobbering the driver's current one.
+            kv.close()
+            return kv
+        }
+        this.kv = kv
+        // Announced only once a handle actually exists. Registering in the
+        // constructor would enrol a driver that owns nothing.
+        this.#handle ??= registerDisposable({
+            name: 'cache:deno-kv',
+            dispose: () => this.close(),
+            priority: 60,
+        })
+        return kv
     }
 
     async get<T = unknown>(key: string): Promise<T | null> {

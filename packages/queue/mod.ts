@@ -183,24 +183,53 @@ export class MemoryQueueDriver implements QueueDriver {
 export class DenoKvQueueDriver implements QueueDriver {
     private kv: Deno.Kv | null = null
     private kvPath?: string
+    /**
+     * The in-flight (or resolved) open, memoised so two callers racing the cold
+     * path share ONE `Deno.openKv` (#140). Keying off the resolved `kv` field
+     * instead leaves an `await` between the guard and the assignment, and the
+     * first of two racers leaks its handle unreferenced.
+     */
+    #kvPromise: Promise<Deno.Kv> | undefined
     #handle?: DisposableHandle
 
     constructor(kvPath?: string) {
         this.kvPath = kvPath
     }
 
-    private async getKv(): Promise<Deno.Kv> {
-        if (!this.kv) {
-            this.kv = await Deno.openKv(this.kvPath)
-            // Announced once the handle exists, not in the constructor: a
-            // driver built and never used owns nothing.
-            this.#handle ??= registerDisposable({
-                name: 'queue:deno-kv',
-                dispose: () => this.close(),
-                priority: 60,
-            })
+    private getKv(): Promise<Deno.Kv> {
+        if (this.#kvPromise) return this.#kvPromise
+        const promise: Promise<Deno.Kv> = this.#openKv(
+            () => this.#kvPromise === promise,
+        )
+        this.#kvPromise = promise
+        return promise
+    }
+
+    async #openKv(isCurrent: () => boolean): Promise<Deno.Kv> {
+        let kv: Deno.Kv
+        try {
+            kv = await Deno.openKv(this.kvPath)
+        } catch (error) {
+            // Don't memoise a failed open — a later call must be free to retry.
+            if (isCurrent()) this.#kvPromise = undefined
+            throw error
         }
-        return this.kv
+        if (!isCurrent()) {
+            // A close() (or a newer open) supervened while we were opening.
+            // Release the handle we just opened rather than orphaning it or
+            // clobbering the driver's current one.
+            kv.close()
+            return kv
+        }
+        this.kv = kv
+        // Announced once the handle exists, not in the constructor: a
+        // driver built and never used owns nothing.
+        this.#handle ??= registerDisposable({
+            name: 'queue:deno-kv',
+            dispose: () => this.close(),
+            priority: 60,
+        })
+        return kv
     }
 
     /**
@@ -217,15 +246,24 @@ export class DenoKvQueueDriver implements QueueDriver {
      * ```
      */
     async close(): Promise<void> {
+        // Await an open still in flight so exactly one handle is created and
+        // then closed; a concurrent close() during the cold path must not leave
+        // the opened handle dangling. Defuse a failed open — the getKv caller
+        // already saw that rejection; there is simply nothing to release.
+        const opening = this.#kvPromise
+        this.#kvPromise = undefined
+        if (opening) await opening.catch(() => undefined)
+
         if (this.#handle) {
             deregisterDisposable(this.#handle)
             this.#handle = undefined
         }
         if (this.kv) {
+            // Deno.Kv.close() throws if called twice; the null-guard plus the
+            // cleared promise make a second close() a safe no-op.
             this.kv.close()
             this.kv = null
         }
-        await Promise.resolve()
     }
 
     async push(job: SerializedJob): Promise<void> {
@@ -407,12 +445,15 @@ export interface WorkerOptions {
 
 export class QueueWorker {
     private running = false
-    /** SERVICES: producers stop before the stores they write into close. */
-    #handle: DisposableHandle | undefined = registerDisposable({
-        name: 'queue:worker',
-        dispose: () => this.stop(),
-        priority: 30,
-    })
+    /**
+     * SERVICES: producers stop before the stores they write into close.
+     *
+     * Registered in {@link QueueWorker.start}, not here: a worker built but
+     * never started owns no running loop, so it must be invisible to the drain
+     * (#140, invariant "a registrant that owns nothing is not registered").
+     * `start()` re-registers, so a stopped-then-restarted worker is drained too.
+     */
+    #handle: DisposableHandle | undefined = undefined
     private processedJobs = 0
     private options: Required<WorkerOptions>
 
@@ -427,6 +468,14 @@ export class QueueWorker {
 
     async start(): Promise<void> {
         this.running = true
+        // Register the running loop with the drain if it is not already —
+        // `??=` keeps a double start() without an intervening stop() to one
+        // entry, and re-registers a worker that was stopped and restarted.
+        this.#handle ??= registerDisposable({
+            name: 'queue:worker',
+            dispose: () => this.stop(),
+            priority: 30,
+        })
         console.log(
             `🚀 Queue worker started. Processing: ${
                 this.options.queues.join(', ')

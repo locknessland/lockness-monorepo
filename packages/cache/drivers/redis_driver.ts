@@ -17,6 +17,22 @@ import type { CacheDriver, CacheItem } from '../types.ts'
 import { getCacheKey, getExpiresAt, isExpired } from '../config.ts'
 
 /**
+ * Withdraws an owned driver's registration if the driver is garbage-collected
+ * before `close()` runs.
+ *
+ * The registry holds each `Disposable` strongly, so the disposable an owned
+ * driver registers references the driver only through a `WeakRef` — otherwise
+ * the driver would be pinned for the process lifetime and this finalizer could
+ * never fire. The held value is the {@link DisposableHandle}; the unregister
+ * token is the driver, so an explicit `close()` cancels the finalizer.
+ *
+ * @internal
+ */
+const ownedDriverFinalizers = new FinalizationRegistry<DisposableHandle>(
+    (handle) => deregisterDisposable(handle),
+)
+
+/**
  * Redis client interface.
  *
  * Defines the minimum required methods for Redis client compatibility.
@@ -260,16 +276,24 @@ export class RedisCacheDriver implements CacheDriver {
      */
     constructor(client: RedisClient, options: RedisCacheDriverOptions = {}) {
         this.client = client
-        // Registered whether or not we own it: the drain needs to know the
-        // driver exists. `ownsClient` decides whether disposing it actually
-        // closes anything — closing a connection the application opened and
-        // handed in would break something it may still be using elsewhere.
+        // Register IFF we own the client. A non-owning driver's close() closes
+        // nothing (the application opened the connection and may still be using
+        // it), so enrolling it would only grow the registry for the process
+        // lifetime — a per-tenant driver created and dropped is exactly that
+        // leak (#140). An OWNED driver is additionally enrolled in
+        // ownedDriverFinalizers, so it self-deregisters if it is dropped without
+        // close(); the disposable holds the driver weakly so the registry does
+        // not pin it out of GC's reach.
         this.#ownsClient = options.ownsClient === true
-        this.#handle = registerDisposable({
-            name: 'cache:redis',
-            dispose: () => this.close(),
-            priority: 60,
-        })
+        if (this.#ownsClient) {
+            const ref = new WeakRef(this)
+            this.#handle = registerDisposable({
+                name: 'cache:redis',
+                dispose: () => ref.deref()?.close(),
+                priority: 60,
+            })
+            ownedDriverFinalizers.register(this, this.#handle, this)
+        }
         this.keyPrefix = options.keyPrefix ?? 'cache'
         this.tagPrefix = options.tagPrefix ?? 'tag'
         this.serialize = options.serialize ?? JSON.stringify
@@ -531,6 +555,9 @@ export class RedisCacheDriver implements CacheDriver {
         markDriverClosed(this)
         if (this.#handle) {
             deregisterDisposable(this.#handle)
+            // The driver is being released explicitly — cancel the GC fallback
+            // so it does not fire a second, redundant deregistration later.
+            ownedDriverFinalizers.unregister(this)
             this.#handle = undefined
         }
         if (this.#ownsClient) {
