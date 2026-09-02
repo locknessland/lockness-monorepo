@@ -39,7 +39,7 @@ application installs it, or the feature stays off.
 | class     | `ManifestReader`                                                                                                                                                                                                      |
 | function  | `buildConfigPlugin`, `buildCssPlugin`, `clientEntry`, `compileCss`, `createCssCollector`, `cssPlugin`, `defineViteConfig`, `denoResolver`, `devServerBridge`, `hmrPlugin`, `lockness`, `viteAssets`                   |
 | interface | `AppFetchHandler`, `ClientEntryOptions`, `CssCollector`, `DevServerOptions`, `HmrOptions`, `LocknessPluginOptions`, `LocknessViteConfig`, `ManifestChunk`, `ViteAssetTag`, `ViteAssetsOptions`, `ViteAssetsTagResult` |
-| typeAlias | `DenoScheme`, `ViteManifest`, `ViteMode`                                                                                                                                                                              |
+| typeAlias | `CssCompiler`, `DenoScheme`, `ViteManifest`, `ViteMode`                                                                                                                                                               |
 | variable  | `DEFAULTS`                                                                                                                                                                                                            |
 
 Anything not listed is internal and free to change.
