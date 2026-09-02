@@ -65,6 +65,7 @@
     "npm:tailwindcss@^4.1.18": "4.1.18",
     "npm:unified@^11.0.5": "11.0.5",
     "npm:unist-util-visit@5": "5.1.0",
+    "npm:vite@*": "8.1.4",
     "npm:vite@8": "8.1.4",
     "npm:zod@^3.22.0": "3.25.76"
   },
@@ -4591,6 +4592,11 @@
         "dependencies": [
           "jsr:@std/assert@1",
           "jsr:@std/path@1",
+          "npm:vite@8"
+        ]
+      },
+      "packages/vite/demo": {
+        "dependencies": [
           "npm:vite@8"
         ]
       }

@@ -59,7 +59,7 @@ mechanism and the date. An entry that could have been guessed does not belong._
 
 <!-- generated:tests -->
 
-9 test files for 13 source files:
+10 test files for 19 source files:
 
 - `packages/vite/tests/build_test.ts`
 - `packages/vite/tests/client_entry_test.ts`
@@ -67,6 +67,7 @@ mechanism and the date. An entry that could have been guessed does not belong._
 - `packages/vite/tests/define_config_test.ts`
 - `packages/vite/tests/deno_resolver_test.ts`
 - `packages/vite/tests/dev_server_test.ts`
+- `packages/vite/tests/e2e_smoke_test.ts`
 - `packages/vite/tests/hmr_test.ts`
 - `packages/vite/tests/shared_test.ts`
 - `packages/vite/tests/vite_assets_test.ts`
@@ -85,7 +86,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 9 test files directly —
+Then, specific to this package: run its 10 test files directly —
 
 ```bash
 deno test -A packages/vite/
