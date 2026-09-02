@@ -58,6 +58,7 @@ export {
     compileCss,
     createCssCollector,
     type CssCollector,
+    type CssCompiler,
     cssPlugin,
 } from './plugins/css.ts'
 export { type ChangeKind, classifyChange } from './shared.ts'

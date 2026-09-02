@@ -18,6 +18,10 @@
  *   in the manifest (#156, plan-016 §5). On a failed compile the seam **throws**, so
  *   the build fails loudly rather than shipping an empty stylesheet (FR-004).
  *
+ * Both consumers accept an injectable {@link CssCompiler} (defaulting to
+ * {@link compileCss}) so their failure/fallback behaviour can be tested without
+ * spawning the real Tailwind subprocess (#157).
+ *
  * @module @lockness/vite/plugins/css
  */
 
@@ -35,7 +39,9 @@ import {
  * output build. The base command lives in `TAILWIND_CLI` (spelled once, plan §5).
  *
  * @param config - Resolved config (for `cssInput`).
- * @param options - `outFile` target and whether to `watch`.
+ * @param options - `outFile` target, and an optional absolute `inputFile` that
+ *   overrides `config.cssInput` (the build path passes the same absolute path it
+ *   matched, so the CLI resolves the entry identically to the load hook — #158).
  * @returns The argv array, e.g. `['deno','run','-A','@tailwindcss/cli','-i',…]`.
  *
  * @example
@@ -45,18 +51,31 @@ import {
  */
 export function buildTailwindArgs(
     config: Required<LocknessViteConfig>,
-    options: { outFile: string; watch?: boolean },
+    options: { outFile: string; inputFile?: string },
 ): string[] {
-    const args = [
+    return [
         ...TAILWIND_CLI,
         '-i',
-        config.cssInput,
+        options.inputFile ?? config.cssInput,
         '-o',
         options.outFile,
     ]
-    if (options.watch) args.push('--watch')
-    return args
 }
+
+/**
+ * A function that compiles the Tailwind entry to CSS. {@link compileCss} is the
+ * production implementation (spawns the CLI); it is injectable into
+ * {@link createCssCollector} and {@link buildCssPlugin} so their fallback / match
+ * logic can be tested without a subprocess (#157).
+ *
+ * @param config - Resolved config (its `cssInput` is the Tailwind entry).
+ * @param inputPath - Optional absolute entry path overriding `config.cssInput`.
+ * @returns The compiled CSS.
+ */
+export type CssCompiler = (
+    config: Required<LocknessViteConfig>,
+    inputPath?: string,
+) => Promise<string>
 
 /**
  * Run the Tailwind v4 engine once and return the compiled CSS — the single home
@@ -68,6 +87,8 @@ export function buildTailwindArgs(
  * collector wraps this call and swallows the throw to keep its watcher alive.
  *
  * @param config - Resolved config (its `cssInput` is the Tailwind entry).
+ * @param inputPath - Optional absolute entry path; when given it is passed to the
+ *   CLI verbatim so the build resolves the entry the same way it matched it (#158).
  * @returns The compiled CSS (theme + preflight + the utilities found in source).
  * @throws {Error} When the Tailwind CLI exits non-zero (message carries its stderr).
  *
@@ -78,10 +99,14 @@ export function buildTailwindArgs(
  */
 export async function compileCss(
     config: Required<LocknessViteConfig>,
+    inputPath?: string,
 ): Promise<string> {
     const outFile = await Deno.makeTempFile({ suffix: '.css' })
     try {
-        const args = buildTailwindArgs(config, { outFile })
+        const args = buildTailwindArgs(config, {
+            outFile,
+            inputFile: inputPath,
+        })
         const { success, stderr } = await new Deno.Command(args[0], {
             args: args.slice(1),
             stderr: 'piped',
@@ -114,25 +139,29 @@ export interface CssCollector {
 }
 
 /**
- * Create a Tailwind CSS collector for the **dev** path. `rebuild()` runs
- * {@link compileCss} and caches the result for `getCss()`; a failed run is logged
- * and the last good CSS is kept, so the dev watcher survives a broken edit. The
- * build path does NOT use this — it calls {@link compileCss} directly so a failure
- * throws (FR-004).
+ * Create a Tailwind CSS collector for the **dev** path. `rebuild()` runs the
+ * compiler and caches the result for `getCss()`; a failed run is logged and the
+ * last good CSS is kept, so the dev watcher survives a broken edit. The build path
+ * does NOT use this — it calls the compiler directly so a failure throws (FR-004).
  *
- * @param options - `config` (merged over DEFAULTS).
+ * @param options - `config` (merged over DEFAULTS) and an optional `compile`
+ *   override (defaults to {@link compileCss}; injected in tests — #157).
  * @returns A {@link CssCollector}.
  */
 export function createCssCollector(
-    options: { config?: Partial<LocknessViteConfig> } = {},
+    options: {
+        config?: Partial<LocknessViteConfig>
+        compile?: CssCompiler
+    } = {},
 ): CssCollector {
     const config = defineViteConfig(options.config)
+    const compile = options.compile ?? compileCss
     let css = ''
     return {
         getCss: () => css,
         async rebuild() {
             try {
-                css = await compileCss(config)
+                css = await compile(config)
             } catch (error) {
                 // Dev fallback: keep the watcher alive and the last good CSS
                 // served. The build path throws instead (see compileCss).
@@ -192,9 +221,12 @@ export function cssPlugin(
  * hashes it under the client entry in the manifest (#156, plan-016 §5 / FR-002).
  * The match is on the **absolute** id (Vite passes absolute ids) resolved from
  * `cssInput` against the Vite root — never a literal relative compare, which would
- * silently no-op (A-arch F4). A failed compile throws (FR-004).
+ * silently no-op (A-arch F4). The same absolute path is handed to the compiler, so
+ * the CLI resolves the entry identically to the match (no cwd-vs-root skew — #158).
+ * A failed compile throws (FR-004).
  *
- * @param options - `config` (merged over DEFAULTS).
+ * @param options - `config` and an optional `compile` override (defaults to
+ *   {@link compileCss}; injected in tests — #157).
  * @returns A Vite {@link Plugin} active only during `vite build`.
  *
  * @example
@@ -203,28 +235,31 @@ export function cssPlugin(
  * ```
  */
 export function buildCssPlugin(
-    options: { config?: Partial<LocknessViteConfig> } = {},
+    options: {
+        config?: Partial<LocknessViteConfig>
+        compile?: CssCompiler
+    } = {},
 ): Plugin {
     const config = defineViteConfig(options.config)
+    const compile = options.compile ?? compileCss
+    // `cssInputAbs` is the OS-native absolute path handed to the CLI; `cssInputId`
+    // is its posix-normalised form used to match Vite's (posix-normalised) ids.
+    let cssInputAbs = ''
     let cssInputId = ''
     return {
         name: 'lockness:build-css',
         apply: 'build',
         enforce: 'pre',
         configResolved(resolved: { root: string }) {
-            // Normalise separators: Vite ids are posix-normalised, but resolve()
-            // uses the OS separator — a raw compare would miss on Windows.
-            cssInputId = resolve(resolved.root, config.cssInput).replaceAll(
-                '\\',
-                '/',
-            )
+            cssInputAbs = resolve(resolved.root, config.cssInput)
+            cssInputId = cssInputAbs.replaceAll('\\', '/')
         },
         async load(id: string) {
             // Strip any Vite query suffix (?used, ?direct, …) and normalise
             // separators before matching (see configResolved).
             const path = id.split('?')[0].replaceAll('\\', '/')
             if (path !== cssInputId) return null
-            return await compileCss(config)
+            return await compile(config, cssInputAbs)
         },
     }
 }

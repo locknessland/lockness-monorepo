@@ -49,6 +49,7 @@ export {
     compileCss,
     createCssCollector,
     type CssCollector,
+    type CssCompiler,
     cssPlugin,
 } from './src/plugins/css.ts'
 export { type HmrOptions, hmrPlugin } from './src/plugins/hmr.ts'

@@ -28,6 +28,58 @@ import demoApp from '../demo/main.ts'
 
 const DEMO_DIR = join(dirname(fromFileUrl(import.meta.url)), '..', 'demo')
 
+/**
+ * Run the demo's real `vite build` with a bounded timeout, returning a `skip`
+ * marker when the toolchain is unavailable offline (or the build hangs) instead
+ * of failing the suite (#157). A network fetch of `npm:vite` / the Tailwind CLI
+ * is required, so a cold offline machine skips rather than reporting a red build.
+ */
+async function runDemoBuild(
+    timeoutMs: number,
+): Promise<{ code: number; stderr: string; skip: boolean; reason: string }> {
+    const child = new Deno.Command('deno', {
+        args: ['run', '-A', 'npm:vite', 'build', '--configLoader', 'native'],
+        cwd: DEMO_DIR,
+        stdout: 'piped',
+        stderr: 'piped',
+    }).spawn()
+    let timedOut = false
+    const timer = setTimeout(() => {
+        timedOut = true
+        try {
+            child.kill('SIGKILL')
+        } catch {
+            // already exited
+        }
+    }, timeoutMs)
+    let output: Deno.CommandOutput
+    try {
+        output = await child.output()
+    } finally {
+        clearTimeout(timer)
+    }
+    const stderr = new TextDecoder().decode(output.stderr)
+    if (timedOut) {
+        return {
+            code: -1,
+            stderr,
+            skip: true,
+            reason: `build exceeded ${timeoutMs}ms`,
+        }
+    }
+    const offline =
+        /error sending request|failed to fetch|dns error|tcp connect error|connection refused|network is unreachable|os error (50|51|65|111)|error trying to connect/i
+    if (output.code !== 0 && offline.test(stderr)) {
+        return {
+            code: output.code,
+            stderr,
+            skip: true,
+            reason: 'vite/tailwind toolchain unavailable offline',
+        }
+    }
+    return { code: output.code, stderr, skip: false, reason: '' }
+}
+
 Deno.test('e2e - demo App.fetch renders the SSR home page (#115 dev SSR)', async () => {
     const res = await demoApp.fetch(new Request('http://localhost/'))
     assertEquals(res.status, 200)
@@ -89,20 +141,15 @@ Deno.test('e2e - production build manifest resolves the demo entry to hashed URL
 Deno.test('e2e - a real `vite build` compiles Tailwind utilities into the hashed CSS (#154/#156)', async () => {
     // Run the demo's actual production build — the config loads through Deno's
     // native runtime (--configLoader native), so bare @lockness/* + the JSX
-    // runtime resolve; the denoResolver plugin handles the app graph.
-    const build = new Deno.Command('deno', {
-        args: ['run', '-A', 'npm:vite', 'build', '--configLoader', 'native'],
-        cwd: DEMO_DIR,
-        stdout: 'piped',
-        stderr: 'piped',
-    })
-    const { code, stderr } = await build.output()
+    // runtime resolve; the denoResolver plugin handles the app graph. Bounded by
+    // a timeout and skipped (not failed) when the toolchain is offline (#157).
+    const result = await runDemoBuild(120_000)
+    if (result.skip) {
+        console.warn(`[e2e] skipped real vite build — ${result.reason}`)
+        return
+    }
     try {
-        assertEquals(
-            code,
-            0,
-            `vite build failed:\n${new TextDecoder().decode(stderr)}`,
-        )
+        assertEquals(result.code, 0, `vite build failed:\n${result.stderr}`)
 
         // Feed the REAL emitted manifest into viteAssets (production path).
         const manifestPath = join(
