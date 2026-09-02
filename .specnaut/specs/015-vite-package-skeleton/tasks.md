@@ -1,13 +1,14 @@
 ---
-description: "Epic task breakdown for @lockness/vite (#64) — MVP chain #105–#113"
+description: "Epic task breakdown for @lockness/vite (#64) — MVP #105–#113 (shipped) + second chain #114–#116"
 ---
 
 # Tasks: `@lockness/vite` integration (epic #64)
 
 **Input:** `plan.md` in this directory. **Tests:** included (TDD per child).
-**Scope of this chain:** the MVP checkpoint the user chose — children
-**#105–#113**. CSP #114, demo #115, docs #116 are a **deferred second chain** and
-are listed at the end for reference only, not built here.
+**MVP chain (shipped at `1c02f0d`):** children **#105–#113** — kept below as the
+historical record. **Second chain (this run, branch `016-vite-csp-demo-docs`):**
+CSP #114, demo #115, docs #116 — broken down as **T10–T12** and built here; the
+second epic merge closes #64.
 
 ## The loop unit is the child, not the `T` row
 
@@ -137,25 +138,95 @@ moves to In progress at its turn and to In review once its commit lands.
 
 ---
 
-## Deferred to the second chain (NOT built here)
+## Second chain — #114–#116 (BUILT HERE)
 
-- **#114** CSP / nonce header widening — incl. the S-F5 test asserting production
-  output carries no `localhost:5173`.
-- **#115** Demo app + e2e smoke test — brings `packages/vite/demo/` (and the
-  `deps_analyzer.ts` `demo` exclusion becomes load-bearing then).
-- **#116** `docs/vite.md` + README link + STUBS; documents `https:` pinning (S-F7)
-  and the Deno interop flags.
+The MVP checkpoint shipped at #113 (`1c02f0d`). This is the deferred second chain
+the user opened on 2026-09-02 with `/specnaut plan 64`. Same epic, same plan, same
+loop unit (**one child = one commit**). `T<NN>` continues the child ordinal:
+**T10 = #114, T11 = #115, T12 = #116**, built in that dependency order
+(`#114 → #115 → #116`). Branch: `016-vite-csp-demo-docs`. The **last child's
+review (#116) is the single stop** before the second epic merge.
+
+### T10 — #114 CSP / nonce for `viteAssets()` + dev CSP widening
+
+**State carried in from MVP:** `viteAssets()` already accepts `{ nonce }` and
+applies it (S-F4, attribute-encoded, opaque caller value — `src/vite_assets.ts`).
+This child completes the CSP story; it does **not** re-mint the nonce.
+
+- [ ] T10a [US4] Confirm/extend `src/vite_assets.ts` so the `nonce` attribute lands
+  on **every** emitted tag — `<script>` **and** `<link rel="preload"|"stylesheet">`,
+  dev and production paths (AC: nonce on both tag kinds). Keep the value opaque and
+  attribute-encoded (S-F4 home unchanged).
+- [ ] T10b [US4] Add the **dev-only CSP widening** to the bridge in
+  `src/plugins/dev_server.ts`: when the forwarded `Response` carries a
+  `Content-Security-Policy` header, append `http://localhost:5173` (value from
+  `DEFAULTS.devServerUrl`, never a literal — decision-table CSS/paths home) to the
+  `script-src`, `style-src`, and `connect-src` directives; leave a response without a
+  CSP header untouched. **Mode-gated**: this middleware only runs under the dev server
+  (`ManifestReader.mode()` is dev), so it is structurally absent from production
+  (S-F5 containment). The nonce **value** vs its two uses stays split per §5: tag
+  attribute in `vite_assets.ts`, header mutation here — one opaque value, two jobs.
+- [ ] T10c [US4] Tests (`tests/vite_assets_test.ts` + `tests/dev_server_test.ts`):
+  nonce present on script **and** link in both dev and prod; dev CSP widening appends
+  the three directives only when a CSP header is present; **S-F5 test** — a production
+  `viteAssets()` render + a production-mode path emits **no** `localhost:5173`
+  anywhere.
+- [ ] T10 Gate: `deno fmt && deno lint && deno check packages/vite/ && deno task test`.
+
+### T11 — #115 Demo app + e2e smoke test (`packages/vite/demo/`)
+
+- [ ] T11a [US5] Scaffold `packages/vite/demo/` — a minimal Lockness app: `deno.json`
+  (own `vite` pin referencing `packages/vite/deno.json` as the authoritative range —
+  demo-pin decision row, A-M4), `vite.config.ts` calling `lockness({ app })` (never
+  assembling the plugin array by hand — aggregate-root home), `main.ts`, one
+  controller rendering an SSR JSX page via `@lockness/core`, `app/client.ts`, and the
+  Tailwind `cssInput`.
+- [ ] T11b [US5] Confirm the `deps_analyzer.ts` `demo` exclusion (added in T01)
+  is now **load-bearing**: run `deno task deps:analyze` and confirm the demo's bare
+  `@lockness/*` imports are not mis-attributed and the graph stays acyclic.
+- [ ] T11c [US5] e2e smoke test (`tests/e2e_smoke_test.ts`, `deno test` + fetch):
+  boots the demo dev bridge, asserts the SSR response contains the expected markup;
+  runs the production build, asserts `manifest.json` is emitted and `viteAssets()`
+  resolves the entry to a hashed URL. (HMR `.tsx`-save reload documented as a manual
+  smoke step where an automated browser is unavailable — named, not silently dropped.)
+- [ ] T11 Gate.
+
+### T12 — #116 `docs/vite.md` + README link + docs indexes (docs-writer)
+
+- [ ] T12a Write `docs/vite.md`: installation/setup, a `vite.config.ts` example,
+  the `DEFAULTS` table, dev vs production behaviour, the **CSP + nonce recipe**
+  (from #114), `https:`/`jsr:` pinning note (S-F7) + the Deno interop flags
+  (`nodeModulesDir`, permissions), and troubleshooting.
+- [ ] T12b Link `docs/vite.md` from root `README.md`; add the `docs/vite.md` row to
+  the root `AGENTS.md`/`CLAUDE.md` docs index (**one file — a symlink; edit once**);
+  update `docs/STUBS.md` only if the implementation introduced stub mappings (it did
+  not — record "no stub changes").
+- [ ] T12c **Remove the README exemption**: delete the `vite: ['README.md']` entry
+  from `tests/package_structure.test.ts` EXEMPTIONS and add `packages/vite/README.md`
+  (this is what backlog #153 tracks — folded in here since docs land now). Add
+  `docs/vite.md` accuracy review against the shipped implementation.
+- [ ] T12 Gate. **← second epic merge (epic #64 closes) lands after this child's review.**
 
 ## Dependency order (verified against each child's stated deps)
 
+**MVP chain (shipped):**
 `#105 → #106 → #107 → #108 → #109 → #110 → #111 → #112 → #113`. Each child's plan
 deps are satisfied by an earlier `T`: #108 needs 105/106/107 (T01–T03); #109 needs
 105/106; #110 needs 105/107; #111 needs 108 (T04); #112 needs 108/111 (T04/T07);
 #113 needs 105/107/110 (T06).
 
+**Second chain (this run):**
+`#114 → #115 → #116`. #114 needs 108/110 (dev bridge + viteAssets, both shipped);
+#115 needs the whole MVP #105–#113 (shipped) + #114 for the S-F5 assertion; #116
+needs everything (docs land last, and document the #114 CSP recipe + #115 demo).
+
 ## Implementation strategy
 
-Build `T01…T09` in order, one commit per child (`feat(vite/T0N): …`, the
-`chore(deps)` widening in T01 split out). Fast gate after each child; a failure is
-fixed in place, not escalated. The **last child's review (#113) is the single
-stop** before the MVP epic merge.
+**MVP chain (T01…T09, shipped at `1c02f0d`).** Built in order, one commit per child
+(`feat(vite/T0N): …`, the `chore(deps)` widening in T01 split out). The last child's
+review (#113) was the single stop before the MVP epic merge.
+
+**Second chain (T10…T12).** Same loop: one commit per child
+(`<type>(T<NN>): <subject> (#<child>)` + `Epic: #64` trailer). Fast gate after each
+child; a failure is fixed in place, not escalated. The **last child's review (#116)
+is the single stop** before the second epic merge, which **closes epic #64**.
