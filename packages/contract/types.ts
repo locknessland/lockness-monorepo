@@ -28,6 +28,50 @@ export type Constructor<T = unknown> = new (...args: any[]) => T
 export type ServiceToken<T = unknown> = Constructor<T> | symbol | string
 
 /**
+ * A read-only, inert snapshot of one container registration.
+ *
+ * Returned by {@link ContainerContract.registrations} — one entry per token
+ * currently registered in the container. It is a plain data record with no
+ * behaviour: a caller reads it to display or reason about the object graph
+ * without resolving anything.
+ *
+ * @example
+ * ```ts
+ * for (const reg of container.registrations()) {
+ *     console.log(`${reg.id} — ${reg.resolved ? 'resolved' : 'lazy'}`)
+ *     // reg.token can be handed straight back to container.get(reg.token)
+ * }
+ * ```
+ */
+export interface ContainerRegistration {
+    /**
+     * Display-ready identifier for the token: a class constructor's name, a
+     * symbol's description, or the string token itself. Meaningful without a
+     * cast, and not promised to be unique (a class `Foo` and `Symbol('Foo')`
+     * yield the same `id`).
+     */
+    id: string
+    /**
+     * The raw token, so a caller can re-resolve the service via
+     * `container.get(token)` without reconstructing it.
+     *
+     * This is the **live** map key by design, never a copy — mutating a
+     * property through it cannot alter the container, because the container
+     * keys by object identity.
+     */
+    token: Constructor | symbol | string
+    /**
+     * Whether an instance currently exists in the container for this token.
+     *
+     * Under the container's single-registry design every enumerable entry is
+     * an already-built instance, so this reads `true` for every registration
+     * today. Consumers should *display* it, not *branch* on it: its semantics
+     * are pre-committed to change if a lazy-registration channel is ever added.
+     */
+    resolved: boolean
+}
+
+/**
  * Full container interface for resolution and registration.
  */
 export interface ContainerContract {
@@ -37,6 +81,23 @@ export interface ContainerContract {
     delete(token: ServiceToken): boolean
     clear(): void
     readonly size: number
+    /**
+     * Enumerate the container's current registrations, read-only.
+     *
+     * Returns one {@link ContainerRegistration} per registered token. Reading
+     * the container does not resolve anything and does not mutate it; the
+     * returned array and its entries are fresh per call and inert.
+     *
+     * @returns A new array of registration descriptors, one per token.
+     *
+     * @example
+     * ```ts
+     * for (const reg of container.registrations()) {
+     *     console.log(`${reg.id} — ${reg.resolved ? 'resolved' : 'lazy'}`)
+     * }
+     * ```
+     */
+    registrations(): ContainerRegistration[]
 }
 
 export interface Route {

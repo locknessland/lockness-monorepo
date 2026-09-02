@@ -8,7 +8,12 @@
  */
 
 import { CircularDependencyError, ServiceNotFoundError } from './errors.ts'
-import type { Constructor, ContainerContract, ServiceToken } from './types.ts'
+import type {
+    Constructor,
+    ContainerContract,
+    ContainerRegistration,
+    ServiceToken,
+} from './types.ts'
 
 /**
  * Render a token for an error message.
@@ -199,6 +204,49 @@ export class Container implements ContainerContract {
      */
     get size(): number {
         return this.services.size
+    }
+
+    /**
+     * Enumerate the container's current registrations, read-only.
+     *
+     * Returns one descriptor per registered token, each carrying a
+     * display-ready `id`, the raw `token` (for re-resolution via
+     * {@link Container.get}), and a `resolved` flag. Iterates the internal
+     * registry **directly** — it never calls {@link Container.get}, so reading
+     * the container instantiates nothing and mutates nothing. The returned
+     * array and its descriptor objects are fresh on every call, so mutating
+     * them cannot reach the container.
+     *
+     * Under the container's single-registry design every entry is an
+     * already-built instance, so `resolved` reads `true` for every
+     * registration today. Display it; do not branch on it (see
+     * {@link ContainerRegistration.resolved}).
+     *
+     * @returns A new array of registration descriptors, one per token.
+     *
+     * @example
+     * ```ts
+     * const container = new Container()
+     * container.get(UserService)
+     * container.set(Symbol('ILogger'), new ConsoleLogger())
+     *
+     * for (const reg of container.registrations()) {
+     *     console.log(reg.id, reg.resolved) // "UserService" true, "ILogger" true
+     * }
+     * ```
+     */
+    registrations(): ContainerRegistration[] {
+        const list: ContainerRegistration[] = []
+        for (const token of this.services.keys()) {
+            list.push({
+                id: describeToken(token),
+                token,
+                // Every enumerable entry is an already-built instance; a
+                // never-resolved token is simply absent from the map.
+                resolved: true,
+            })
+        }
+        return list
     }
 }
 

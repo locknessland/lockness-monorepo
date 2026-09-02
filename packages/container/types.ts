@@ -1,6 +1,7 @@
 export type {
     Constructor,
     ContainerContract,
+    ContainerRegistration,
     ServiceToken,
 } from '@lockness/contract'
 
@@ -15,6 +16,7 @@ export interface ContainerReader {
     ): T
     has(token: import('@lockness/contract').ServiceToken): boolean
     readonly size: number
+    registrations(): import('@lockness/contract').ContainerRegistration[]
 }
 
 /**

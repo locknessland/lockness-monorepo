@@ -1,6 +1,7 @@
 export type {
     Constructor,
     ContainerContract,
+    ContainerRegistration,
     ServiceToken,
 } from '@lockness/contract'
 
