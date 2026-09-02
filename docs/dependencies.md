@@ -46,7 +46,7 @@ The monorepo contains **27 packages**.
 | `contract`              | hono                                         | —                                                            |
 | `core`                  | container, contract, events, hono, scheduler | cache, container, devtools, drizzle, events, logger, session |
 | `deprecation-contracts` | —                                            | —                                                            |
-| `devtools`              | hono                                         | —                                                            |
+| `devtools`              | contract, events, hono, session              | —                                                            |
 | `drizzle`               | cli, container                               | —                                                            |
 | `events`                | contract, hono                               | —                                                            |
 | `hono`                  | —                                            | —                                                            |
