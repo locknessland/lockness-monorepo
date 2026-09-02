@@ -51,4 +51,13 @@ export {
     type ViteMode,
 } from './src/mod.ts'
 
+export {
+    buildTailwindArgs,
+    type ChangeKind,
+    classifyChange,
+    createCssCollector,
+    type CssCollector,
+    cssPlugin,
+} from './src/mod.ts'
+
 // TODO(#108–#113): lockness(), viteAssets(), ViteAssetsTagResult.

@@ -7,6 +7,8 @@
  * @module @lockness/vite/shared
  */
 
+import { globToRegExp } from '@std/path'
+
 /**
  * User-configurable options for the Lockness Vite integration. Every field has a
  * value in {@link DEFAULTS}; user config is merged over the defaults by
@@ -81,3 +83,36 @@ export const TAILWIND_CLI: readonly string[] = [
     '-A',
     '@tailwindcss/cli',
 ]
+
+/** How a changed file should be handled by the dev watcher. */
+export type ChangeKind = 'server-reload' | 'css' | 'ignore'
+
+const toMatchers = (globs: readonly string[]): RegExp[] =>
+    globs.map((g) => globToRegExp(g, { extended: true, globstar: true }))
+
+const SERVER_RELOAD_MATCHERS = toMatchers(SERVER_RELOAD_GLOBS)
+const CSS_WATCH_MATCHERS = toMatchers(CSS_WATCH_GLOBS)
+
+/**
+ * Classify a changed file path — the single home for the reload-vs-CSS glob
+ * arbiter (plan §5). **Server-reload wins** on overlap (a `.tsx` under
+ * `app/controller/` is a server reload, which already refreshes the page and its
+ * CSS); a file matching only the CSS globs is a `'css'` rebuild; anything else is
+ * `'ignore'`.
+ *
+ * @param path - The changed path (project-relative; a leading `./` is stripped).
+ * @returns The {@link ChangeKind} for that path.
+ *
+ * @example
+ * ```typescript
+ * classifyChange('app/controller/home.tsx') // 'server-reload' (wins over css)
+ * classifyChange('app/view/card.tsx')       // 'css'
+ * classifyChange('README.md')               // 'ignore'
+ * ```
+ */
+export function classifyChange(path: string): ChangeKind {
+    const p = path.replace(/^\.\//, '')
+    if (SERVER_RELOAD_MATCHERS.some((re) => re.test(p))) return 'server-reload'
+    if (CSS_WATCH_MATCHERS.some((re) => re.test(p))) return 'css'
+    return 'ignore'
+}

@@ -52,5 +52,13 @@ export {
     type ViteAssetTag,
 } from './vite_assets.ts'
 
+export {
+    buildTailwindArgs,
+    createCssCollector,
+    type CssCollector,
+    cssPlugin,
+} from './plugins/css.ts'
+export { type ChangeKind, classifyChange } from './shared.ts'
+
 // TODO(#108–#113): lockness(), viteAssets(), ManifestReader,
 // ViteAssetsTagResult.
