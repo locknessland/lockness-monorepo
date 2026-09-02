@@ -68,9 +68,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-**This package has no tests.** 11 source files ship untested — treat any change
-here as unguarded, and add coverage for what you touch rather than trusting the
-suite.
+1 test file for 11 source files:
+
+- `packages/auth-provider/tests/remember_preservation.test.ts`
 
 <!-- /generated:tests -->
 
@@ -86,8 +86,11 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: **it has no tests.** Anything you change here is
-unguarded by the suite — add coverage for it.
+Then, specific to this package: run its 1 test file directly —
+
+```bash
+deno test -A packages/auth-provider/
+```
 
 <!-- /generated:gate -->
 
