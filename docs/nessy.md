@@ -247,6 +247,7 @@ when you run `nessy:install`.
 ./nessy test User     # Run user tests
 ./nessy check         # Verify types
 ./nessy router:list   # Show all routes
+./nessy debug:event-dispatcher   # List event listeners (grouped; optional substring filter)
 
 # Production
 ./nessy compile       # Create standalone binary

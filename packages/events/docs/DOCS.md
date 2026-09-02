@@ -1083,3 +1083,27 @@ Creates: `app/listener/user_listener.ts`
 - [Dependency Injection](/docs/dependency-injection) - Container and `@Service`
   decorator
 - [Testing Guide](/docs/testing) - General testing documentation
+
+## Introspection: `getListenerMetadata()`
+
+`getListenerMetadata(ListenerClass)` is a public introspection API returning,
+for a `@Listener`-decorated class, each handler's `eventClass`, `methodName` and
+`options` (including `priority`). The class must have been **instantiated at
+least once** — the `@Listener` decorator attaches its metadata via a
+construction-time initializer, so the array is empty until a
+`new ListenerClass()` has run.
+
+```ts
+import { getListenerMetadata } from '@lockness/events'
+
+new MyListener() // fire the initializer
+for (const meta of getListenerMetadata(MyListener)) {
+    console.log(
+        meta.eventClass.name,
+        String(meta.methodName),
+        meta.options.priority,
+    )
+}
+```
+
+The `debug:event-dispatcher` CLI command consumes this API.

@@ -156,3 +156,20 @@ The CLI system consists of:
 
 - [INSTALL_SCRIPTS.md](./INSTALL_SCRIPTS.md) - Guide for creating package
   installation scripts
+
+## `debug:event-dispatcher`
+
+List the event listeners declared under `app/listener`, grouped by event, with
+each listener's class, method and priority — the events counterpart to
+`router:list`.
+
+```bash
+./nessy debug:event-dispatcher            # list all
+./nessy debug:event-dispatcher Kernel     # filter (substring, case-insensitive, event or class)
+./nessy debug:event-dispatcher --dispatcher=global
+```
+
+It reads **decorator-declared** listeners (recursively walking `app/listener`,
+importing and constructing each class to read `getListenerMetadata`). Runtime
+`dispatcher().on()` attachments are not shown — the dispatcher is empty at CLI
+time. An empty or absent `app/listener` prints a friendly message and exits 0.
