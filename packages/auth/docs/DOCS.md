@@ -254,7 +254,8 @@ import { SessionGuard } from '@lockness/auth'
 
 const guard = new SessionGuard('web', c, userProvider, {
     useRememberMeTokens: true,
-    rememberMeTokenLifetime: 365 * 24 * 60 * 60, // 1 year
+    rememberMeTokensAge: 30 * 24 * 60 * 60, // rolling window, in seconds
+    rememberMeAbsoluteLifetime: 90 * 24 * 60 * 60, // hard ceiling (#146), in seconds
     sessionKeyName: 'auth_user_id',
 })
 
@@ -275,6 +276,29 @@ if (await guard.check()) {
 // Logout
 await guard.logout()
 ```
+
+> **Remember-me absolute lifetime (#146).** `rememberMeTokensAge` is a _rolling_
+> window — every use renews it, so without a ceiling a stolen remember-me cookie
+> refreshes forever. `rememberMeAbsoluteLifetime` (seconds) caps the credential
+> from its **first issuance**, preserved across every renewal, and refuses it
+> once that age is exceeded — deleting the token server-side and clearing the
+> cookie.
+>
+> - **Off by default.** Omit it and behaviour is unchanged. It is
+>   **fail-closed**: a value `≤ 0` throws at construction — `0` never silently
+>   disables the cap.
+> - **Provider contract.** A custom user provider's
+>   `recycleRememberToken(user,
+>   token, expiresIn)` MUST bare-copy the origin
+>   forward — `new.firstIssuedAt = token.firstIssuedAt` — or the cap degrades to
+>   a rolling window. The bundled Drizzle/Kysely providers already do.
+> - **Legacy tokens** issued before this feature (no `firstIssuedAt`) are frozen
+>   at their `createdAt` on the first renewal, so they acquire a finite ceiling
+>   — though anchored to that renewal, not true first issuance.
+> - **Composition, not nesting.** This cap bounds the remember-me credential's
+>   re-mint window; a session it already established carries its **own**
+>   absolute lifetime (the `@lockness/session` cookie cap, #143). The two
+>   ceilings compose.
 
 ### Token Guard
 
