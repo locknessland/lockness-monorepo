@@ -222,6 +222,28 @@ export interface SessionDriver {
      * Optional: only implement for drivers with persistent connections.
      */
     close?(): Promise<void>
+    /**
+     * Stash the opaque subject token to embed on the next write (#147).
+     *
+     * **Optional and cookie-only** — mirroring `gc?`/`close?`. Only the cookie
+     * driver carries a subject inside its sealed payload; the server-side drivers
+     * hold no subject and do not implement this. The session layer never
+     * interprets `sub`.
+     *
+     * @param sub - The opaque subject token (the authenticated principal's id).
+     */
+    setSubject?(sub: string): void
+    /**
+     * Evict every session of a subject by recording its eviction epoch (#147).
+     *
+     * **Optional and cookie-only.** The stateless cookie driver cannot enumerate
+     * a subject's sessions, so it uses an eviction epoch; the server-side drivers
+     * delete their records instead and do not implement this (plan §9 R3).
+     *
+     * @param sub - The opaque subject token to evict.
+     * @throws When the backing store write fails (fail-closed).
+     */
+    revokeUser?(sub: string): Promise<void>
 }
 
 /**
@@ -316,4 +338,28 @@ export interface Session {
      * @returns True if any data has been changed
      */
     isDirty(): boolean
+    /**
+     * Set the opaque subject the session belongs to (#147).
+     *
+     * **Optional** — honoured only by the cookie driver (the sole driver whose
+     * sealed payload carries a subject); a no-op on the server-side drivers. The
+     * auth guard calls it after every `regenerate()` so the per-user eviction
+     * check keys on the same identity authentication does (`sub ===
+     * d[sessionKeyName]`). The id is stringified for the opaque token.
+     *
+     * @param id - The authenticated principal's id.
+     */
+    setSubject?(id: string | number): void
+    /**
+     * Evict every session of a subject (#147) — "log out everywhere / others".
+     *
+     * **Optional** — honoured only by the cookie driver; a no-op on the
+     * server-side drivers (they delete their records instead, plan §9 R3). Records
+     * the subject's eviction epoch so every session issued before now is refused.
+     * Reached only through the auth guard, scoped to the authenticated subject.
+     *
+     * @param id - The authenticated principal's id to evict.
+     * @throws When the backing store write fails (fail-closed).
+     */
+    revokeUser?(id: string | number): Promise<void>
 }

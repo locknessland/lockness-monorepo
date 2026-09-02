@@ -318,6 +318,11 @@ export class SessionGuard<
         // Set session
         this.#session.set(this.sessionKeyName, user.id)
         await this.#session.regenerate()
+        // Re-assert the subject AFTER regenerate (#147): regenerate() resets the
+        // driver's subject, so a set-before-regenerate would be lost. The
+        // remember-me recycle path is a session establisher too, so a re-minted
+        // session here carries a `sub` and is evictable (arch A2).
+        this.#session.setSubject?.(user.id)
 
         this.user = user
         this.isAuthenticated = true
@@ -355,6 +360,9 @@ export class SessionGuard<
         // Set session
         this.#session.set(this.sessionKeyName, user.id)
         await this.#session.regenerate()
+        // Re-assert the subject AFTER regenerate (#147) — see the remember-me
+        // path. Invariant: `sub === d[sessionKeyName]` (arch A5).
+        this.#session.setSubject?.(user.id)
 
         this.user = user
         this.isAuthenticated = true
@@ -385,6 +393,9 @@ export class SessionGuard<
 
         this.#session.set(this.sessionKeyName, user.id)
         await this.#session.regenerate()
+        // Re-assert the subject AFTER regenerate (#147). Invariant:
+        // `sub === d[sessionKeyName]` (arch A5).
+        this.#session.setSubject?.(user.id)
 
         this.user = user
         this.isAuthenticated = true
@@ -494,6 +505,11 @@ export class SessionGuard<
         user: UserProvider[typeof PROVIDER_REAL_USER],
         remember = false,
     ): Promise<AuthClientResponse> {
+        // Assert the subject on the live session too (#147, test parity): a
+        // session established for a test client is evictable like a real one. A
+        // no-op on the memory/deno-kv/redis drivers (optional `setSubject?`).
+        this.#session.setSubject?.(user.id)
+
         const response: AuthClientResponse = {
             session: {
                 [this.sessionKeyName]: user.id,
@@ -515,5 +531,127 @@ export class SessionGuard<
         }
 
         return response
+    }
+
+    /**
+     * Log out **everywhere** (#147): evict every session of the authenticated
+     * user, this device included, and invalidate their remember-me tokens.
+     *
+     * The eviction is one store write (the subject's epoch = now); the acting
+     * session is killed deterministically by also revoking its `jti` via
+     * `session.destroy()` — so a session issued in the same wall-clock second as
+     * the eviction dies too (SC-003). The user's remember-me tokens are dropped so
+     * a captured remember-me cookie cannot re-mint a post-eviction session
+     * (security F2). A credential-change / account-recovery flow calls this
+     * (ASVS 7.4.2).
+     *
+     * Scoped to `this.user.id` — never an arbitrary subject.
+     *
+     * @throws {AuthenticationRequiredError} When called unauthenticated — an
+     *   undefined subject must never be evicted (security F3).
+     *
+     * @example
+     * ```typescript
+     * await guard.authenticate()
+     * await guard.logoutEverywhere()
+     * ```
+     */
+    /**
+     * Drop every remember-me token the user holds (#147).
+     *
+     * Shared by {@link logoutEverywhere} and {@link logoutOthers} so the provider
+     * cast and the invalidation live in one place.
+     *
+     * @param user - The authenticated user whose tokens to invalidate.
+     */
+    async #deleteAllRememberTokens(
+        user: UserProvider[typeof PROVIDER_REAL_USER],
+    ): Promise<void> {
+        const provider = this
+            .#userProvider as SessionWithRememberMeProviderContract<
+                UserProvider[typeof PROVIDER_REAL_USER]
+            >
+        await provider.deleteAllRememberTokens(user)
+    }
+
+    async logoutEverywhere(): Promise<void> {
+        const user = this.user
+        if (!user) {
+            throw new AuthenticationRequiredError(
+                'logoutEverywhere requires an authenticated user',
+            )
+        }
+
+        // 1. Set the subject's eviction epoch — evicts every prior session.
+        await this.#session.revokeUser?.(user.id)
+        // 2. Kill the acting session deterministically: destroy() revokes the
+        //    acting `jti` (per-session, #143), so a same-second session dies too.
+        await this.#session.destroy()
+        // 3. Invalidate the user's remember-me tokens so a captured cookie cannot
+        //    re-mint a post-eviction session.
+        if (this.#options.useRememberMeTokens) {
+            await this.#deleteAllRememberTokens(user)
+        }
+        deleteCookie(this.#ctx, this.rememberMeKeyName)
+
+        this.user = undefined
+        this.isAuthenticated = false
+        this.viaRemember = false
+        this.isLoggedOut = true
+        this.#emitter?.emit('session:logout', { user })
+    }
+
+    /**
+     * Log out **other devices** (#147): evict every other session of the
+     * authenticated user while keeping the acting session alive.
+     *
+     * The epoch is set first, then the acting session **rotates**
+     * (`regenerate()` → fresh `iat`) and re-asserts its subject, so it survives
+     * the strict-`<` epoch check while every older session is refused. Other
+     * devices' remember-me tokens are invalidated; the acting device's is
+     * re-issued when one was present.
+     *
+     * Scoped to `this.user.id` — never an arbitrary subject.
+     *
+     * @throws {AuthenticationRequiredError} When called unauthenticated — an
+     *   undefined subject must never be evicted (security F3).
+     *
+     * @example
+     * ```typescript
+     * await guard.authenticate()
+     * await guard.logoutOthers()
+     * ```
+     */
+    async logoutOthers(): Promise<void> {
+        const user = this.user
+        if (!user) {
+            throw new AuthenticationRequiredError(
+                'logoutOthers requires an authenticated user',
+            )
+        }
+
+        // 1. Set the eviction epoch — evicts every OTHER prior session.
+        await this.#session.revokeUser?.(user.id)
+        // 2. Rotate the acting session to a fresh `iat` (past the epoch) so it
+        //    survives; regenerate() resets the driver's subject.
+        await this.#session.regenerate()
+        // 3. Re-assert the subject on the survivor (arch A3) — a set-before or a
+        //    reliance on preservation would lose it after the rotation.
+        this.#session.setSubject?.(user.id)
+
+        // 4. Invalidate every remember-me token, then re-issue the acting
+        //    device's when one was present (the other devices' are gone).
+        if (this.#options.useRememberMeTokens) {
+            const hadRememberCookie = getCookie(
+                this.#ctx,
+                this.rememberMeKeyName,
+            )
+            await this.#deleteAllRememberTokens(user)
+            if (hadRememberCookie) {
+                await this.#createRememberToken(user)
+            } else {
+                deleteCookie(this.#ctx, this.rememberMeKeyName)
+            }
+        }
     }
 }

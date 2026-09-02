@@ -140,6 +140,19 @@ export class UserProvider
         // TODO: Implement
     }
 
+    deleteAllRememberTokens(_user: User): Promise<void> {
+        // Delete every remember-me token for the user (#147) — invalidates a
+        // captured remember-me cookie on "log out everywhere / others". A silent
+        // no-op would reopen the ASVS 7.4.2 bypass, so this scaffold fails loud
+        // until wired to the remember_me_tokens table.
+        // TODO: db.delete(rememberMeTokens).where(eq(rememberMeTokens.userId, user.id))
+        return Promise.reject(
+            new Error(
+                'deleteAllRememberTokens is not implemented — wire it to the remember_me_tokens table',
+            ),
+        )
+    }
+
     private async hashToken(token: string): Promise<string> {
         const encoder = new TextEncoder()
         const data = encoder.encode(token)

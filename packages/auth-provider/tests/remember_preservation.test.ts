@@ -157,3 +157,49 @@ Deno.test('drizzle create stamps firstIssuedAt at creation (#146)', async () => 
         'a freshly created credential anchors its origin at creation',
     )
 })
+
+Deno.test('kysely deleteAllRememberTokens targets the user rows (#147)', async () => {
+    const calls = {
+        table: '',
+        col: '',
+        op: '',
+        val: undefined as unknown,
+        executed: false,
+    }
+    const chain = {
+        where: (col: string, op: string, val: unknown) => {
+            calls.col = col
+            calls.op = op
+            calls.val = val
+            return chain
+        },
+        execute: () => {
+            calls.executed = true
+            return Promise.resolve([])
+        },
+    }
+    const db = {
+        deleteFrom: (t: string) => {
+            calls.table = t
+            return chain
+        },
+    }
+    const provider = new KyselySessionProvider({
+        // deno-lint-ignore no-explicit-any
+        db: db as any,
+        findUserById: () => Promise.resolve(null),
+        findUserByCredentials: () => Promise.resolve(null),
+        enableRememberTokens: true,
+    })
+
+    // deno-lint-ignore no-explicit-any
+    await provider.deleteAllRememberTokens({ id: 42 } as any)
+    assertEquals(
+        calls.table,
+        'remember_me_tokens',
+        'deletes from the tokens table',
+    )
+    assertEquals(calls.col, 'user_id', 'scoped by user_id')
+    assertEquals(calls.val, 42, 'targets the given user')
+    assertEquals(calls.executed, true, 'the delete was executed')
+})

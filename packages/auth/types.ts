@@ -306,6 +306,22 @@ export interface SessionWithRememberMeProviderContract<
     deleteRememberToken(user: User, tokenId: string | number): Promise<void>
 
     /**
+     * Delete **every** remember-me token for a user (#147).
+     *
+     * Called by the guard's per-user eviction (`logoutEverywhere` /
+     * `logoutOthers`) so a captured remember-me cookie cannot re-mint a
+     * post-eviction session — its recycle would carry a fresh `iat` past the
+     * eviction epoch and survive (security F2). Distinct from
+     * {@link SessionWithRememberMeProviderContract.deleteRememberToken}, which
+     * drops one token by id.
+     *
+     * @param user - The token owner whose remember-me credentials to invalidate.
+     * @throws If the underlying delete fails — the caller MUST propagate (a silent
+     *   failure leaves a re-mint path open).
+     */
+    deleteAllRememberTokens(user: User): Promise<void>
+
+    /**
      * Recycle a remember me token (for security).
      *
      * Receives the **whole verified token** (not just its id) so the renewed

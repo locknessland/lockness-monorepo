@@ -117,6 +117,8 @@ Deno.test('cookie revocation - a store read error fails CLOSED (SC-010 read path
     const throwingStore: RevocationStore = {
         isRevoked: () => Promise.reject(new Error('kv down')),
         revoke: () => Promise.resolve(),
+        revokeUser: () => Promise.resolve(),
+        userRevokedSince: () => Promise.resolve(null),
         close: () => Promise.resolve(),
     }
     // A valid cookie carrying a known jti.
@@ -138,6 +140,8 @@ Deno.test('cookie revocation - a revoke error propagates from destroy (SC-010 wr
     const throwingStore: RevocationStore = {
         isRevoked: () => Promise.resolve(false),
         revoke: () => Promise.reject(new Error('kv down')),
+        revokeUser: () => Promise.resolve(),
+        userRevokedSince: () => Promise.resolve(null),
         close: () => Promise.resolve(),
     }
     const sealed = await seal(KEY, { user: 'bob' }, 3600, {
@@ -165,6 +169,8 @@ Deno.test('cookie revocation - a revoked jti stays revoked through a re-seal (SC
             revoked.add(jti)
             return Promise.resolve()
         },
+        revokeUser: () => Promise.resolve(),
+        userRevokedSince: () => Promise.resolve(null),
         close: () => Promise.resolve(),
     }
     const jti = 'c'.repeat(32)
@@ -205,6 +211,8 @@ Deno.test('cookie revocation - regenerate() revokes the old jti then resets the 
             revoked.add(jti)
             return Promise.resolve()
         },
+        revokeUser: () => Promise.resolve(),
+        userRevokedSince: () => Promise.resolve(null),
         close: () => Promise.resolve(),
     }
     const oldJti = 'd'.repeat(32)
@@ -235,6 +243,8 @@ Deno.test('cookie revocation - destroy() suppresses the trailing re-seal (no log
     const store: RevocationStore = {
         isRevoked: () => Promise.resolve(false),
         revoke: () => Promise.resolve(),
+        revokeUser: () => Promise.resolve(),
+        userRevokedSince: () => Promise.resolve(null),
         close: () => Promise.resolve(),
     }
     const sealed = await seal(KEY, { user: 'erin' }, 3600, {

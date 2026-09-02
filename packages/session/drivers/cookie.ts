@@ -293,6 +293,10 @@ async function deriveKey(
  * @param issued - The session's first-issuance identity (`iat`/`jti`) to
  *   preserve across a re-seal. Omit for a brand-new session — a fresh `iat` and a
  *   128-bit `jti` are minted.
+ * @param sub - The opaque subject token (#147), embedded beside `jti`. The
+ *   session layer never interprets it; the auth guard populates it and the
+ *   per-user eviction check keys on it. Omit for a session with no subject (a
+ *   pre-`#147` or unauthenticated session).
  * @returns The cookie value.
  * @throws {SessionSecretError} When the secret is absent or not key material.
  *
@@ -306,6 +310,7 @@ export async function seal(
     data: SessionData,
     lifetime: number,
     issued?: IssuedIdentity,
+    sub?: string,
 ): Promise<string> {
     const now = Math.floor(Date.now() / 1000)
     // First-issuance identity is PRESERVED across re-seals: an already-issued
@@ -315,7 +320,12 @@ export async function seal(
     // always fresh.
     const iat = issued?.iat ?? now
     const jti = issued?.jti ?? mintJti()
-    return await sealPayload(secret, { d: data, iat, exp: now + lifetime, jti })
+    // `sub` is additive JSON — omitted entirely when absent, so no `WIRE_VERSION`
+    // bump and a `sub`-less cookie is byte-identical to a pre-`#147` one.
+    const payload = sub === undefined
+        ? { d: data, iat, exp: now + lifetime, jti }
+        : { d: data, iat, exp: now + lifetime, jti, sub }
+    return await sealPayload(secret, payload)
 }
 
 /** Encrypt an arbitrary payload object into a cookie value (the seal internals). */
@@ -413,6 +423,12 @@ export interface OpenedPayload {
     exp: number
     /** The session nonce, absent on a pre-feature (jti-less) cookie. */
     jti?: string
+    /**
+     * The opaque subject token (#147), absent on a pre-`#147` or unauthenticated
+     * cookie. The session layer never interprets it — the per-user eviction check
+     * keys on it, the guard populates it.
+     */
+    sub?: string
 }
 
 /**
@@ -465,7 +481,13 @@ export async function openSealed(
         return refuse('tag-mismatch')
     }
 
-    let payload: { d?: SessionData; exp?: number; iat?: number; jti?: string }
+    let payload: {
+        d?: SessionData
+        exp?: number
+        iat?: number
+        jti?: string
+        sub?: string
+    }
     try {
         payload = JSON.parse(decoder.decode(plaintext))
     } catch {
@@ -508,6 +530,7 @@ export async function openSealed(
         iat: typeof payload.iat === 'number' ? payload.iat : payload.exp,
         exp: payload.exp,
         jti: typeof payload.jti === 'string' ? payload.jti : undefined,
+        sub: typeof payload.sub === 'string' ? payload.sub : undefined,
     }
 }
 
@@ -548,6 +571,15 @@ export class CookieSessionDriver implements SessionDriver {
      */
     #issued?: IssuedIdentity
     /**
+     * The opaque subject token (#147) to embed on the next `seal()`. Read from the
+     * incoming cookie so a re-seal preserves it, set explicitly by
+     * {@link CookieSessionDriver.setSubject} (the guard, after every
+     * `regenerate()`), and **reset on `regenerate()`** so a rotated session carries
+     * no stale subject until the guard re-asserts one. Undefined for a
+     * subject-less session.
+     */
+    #subject?: string
+    /**
      * Set once `destroy()` has run, so a trailing `write()` from `save()` in the
      * same request does not re-seal a just-revoked/just-deleted session.
      */
@@ -580,9 +612,26 @@ export class CookieSessionDriver implements SessionDriver {
      * the cookie — and raising `absoluteLifetime` later cannot expire an entry
      * before the cookie it revokes (a fixed window, not one derived from the live
      * config at read time).
+     *
+     * **`absoluteLifetime` only — no `?? lifetime` fallback (#147).** The
+     * `@lockness/core` boot gate refuses `revocation` without `absoluteLifetime`,
+     * so the cap is always set here; a `configureSession` bypass that produced a
+     * short `lifetime`-bounded entry could otherwise expire before the cookie it
+     * revokes, resurrecting it. Non-null assertion is safe under that gate.
      */
     #revocationTtl(): number {
-        return this.config.absoluteLifetime ?? this.config.lifetime
+        // The `@lockness/core` boot gate refuses `revocation` without
+        // `absoluteLifetime`, so this is normally present. Fail LOUD rather than
+        // returning `undefined` → a `NaN` KV TTL if a caller bypassed that gate
+        // (e.g. a direct `configureSession`) — a NaN TTL would silently drop the
+        // revocation entry (#147 review).
+        const cap = this.config.absoluteLifetime
+        if (cap === undefined) {
+            throw new Error(
+                'session revocation requires absoluteLifetime — the revocation entry has no retention horizon without it',
+            )
+        }
+        return cap
     }
 
     /**
@@ -616,6 +665,10 @@ export class CookieSessionDriver implements SessionDriver {
         // pre-feature cookie with no `jti` mints one now, so it becomes revocable
         // from its next write on; its `iat` is preserved either way.
         this.#issued = { iat: opened.iat, jti: opened.jti ?? mintJti() }
+        // Preserve the subject (#147) across a re-seal in this request. A
+        // subject-less cookie leaves it undefined; the guard re-asserts one after
+        // login/regenerate.
+        this.#subject = opened.sub
 
         // Revocation check — fail CLOSED. Only when opted in, a store is present,
         // and the cookie carries a `jti` (a jti-less pre-feature cookie has no
@@ -630,6 +683,27 @@ export class CookieSessionDriver implements SessionDriver {
                 return refuse('revoked')
             }
             if (revoked) return refuse('revoked')
+        }
+
+        // Per-user eviction check (#147) — fail CLOSED, beside the per-session
+        // `jti` check. Only when opted in, a store is present, and the cookie
+        // carries a `sub` (a subject-less cookie has no eviction epoch and is
+        // bounded by the cap). A session is refused when its first-issuance `iat`
+        // is STRICTLY before its subject's eviction epoch; `iat == epoch` (same
+        // second) survives, which is why "log out everywhere" also revokes the
+        // acting `jti` above.
+        if (this.config.revocation && this.#store && opened.sub) {
+            let revokedSince: number | null
+            try {
+                revokedSince = await this.#store.userRevokedSince(opened.sub)
+            } catch {
+                // A store outage must never let a possibly-evicted cookie
+                // authenticate: refuse, do not treat the error as "not evicted".
+                return refuse('revoked')
+            }
+            if (revokedSince !== null && opened.iat < revokedSince) {
+                return refuse('revoked')
+            }
         }
 
         return opened.data
@@ -661,9 +735,15 @@ export class CookieSessionDriver implements SessionDriver {
         setCookie(
             this.context,
             this.config.cookieName,
-            // Preserve the issued identity across the re-seal (undefined ⇒ a fresh
-            // one is minted for a new session).
-            await seal(this.config.secret, data, lifetime, this.#issued),
+            // Preserve the issued identity AND the subject across the re-seal
+            // (undefined ⇒ a fresh identity is minted / no subject is embedded).
+            await seal(
+                this.config.secret,
+                data,
+                lifetime,
+                this.#issued,
+                this.#subject,
+            ),
             {
                 path: this.config.path,
                 domain: this.config.domain,
@@ -735,7 +815,52 @@ export class CookieSessionDriver implements SessionDriver {
         if (this.config.revocation && this.#store && this.#issued?.jti) {
             await this.#store.revoke(this.#issued.jti, this.#revocationTtl())
         }
-        // Reset so the next write mints a fresh identity (new clock, new nonce).
+        // Reset so the next write mints a fresh identity (new clock, new nonce)
+        // AND carries no stale subject — the guard re-asserts `sub` after every
+        // `regenerate()` (#147), so a set-before-regenerate would be lost here.
         this.#issued = undefined
+        this.#subject = undefined
+    }
+
+    /**
+     * Stash the opaque subject token to embed on the next {@link write} (#147).
+     *
+     * Cookie-only — the optional `SessionDriver.setSubject?` the server-side
+     * drivers do not implement. The session layer never interprets `sub`; the
+     * auth guard calls this after every `regenerate()` so the rotated session
+     * carries its subject and the per-user eviction check has a key.
+     *
+     * @param sub - The opaque subject token (the authenticated principal's id).
+     *
+     * @example
+     * ```typescript
+     * driver.setSubject('42')
+     * ```
+     */
+    setSubject(sub: string): void {
+        this.#subject = sub
+    }
+
+    /**
+     * Evict every session of a subject (#147): record the subject's eviction
+     * epoch so a cookie whose `iat` predates it is refused by {@link read}.
+     *
+     * Cookie-only — the optional `SessionDriver.revokeUser?`. A no-op when
+     * revocation is off or no store is present. The epoch value itself is computed
+     * in the store (plan §5 row 5); the driver only supplies the retention window.
+     *
+     * @param sub - The opaque subject token to evict.
+     * @throws When revocation is on and the store write fails (fail-closed — a
+     *   silent log-out-everywhere failure is worse than one that errors).
+     *
+     * @example
+     * ```typescript
+     * await driver.revokeUser('42')
+     * ```
+     */
+    async revokeUser(sub: string): Promise<void> {
+        if (this.config.revocation && this.#store) {
+            await this.#store.revokeUser(sub, this.#revocationTtl())
+        }
     }
 }

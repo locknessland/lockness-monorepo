@@ -141,6 +141,15 @@ export abstract class SessionProviderBase<User extends Authenticatable>
     ): Promise<void>
 
     /**
+     * Delete every remember-me token for a user (#147).
+     *
+     * Called by the guard's per-user eviction so a captured remember-me cookie
+     * cannot re-mint a post-eviction session. Subclasses that support remember
+     * tokens must drop all of the user's rows.
+     */
+    abstract deleteAllRememberTokens(user: User): Promise<void>
+
+    /**
      * Recycle a remember me token (for security).
      * Must be implemented by subclasses that support remember tokens.
      *

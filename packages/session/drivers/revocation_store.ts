@@ -51,6 +51,33 @@ export interface RevocationStore {
      */
     revoke(jti: string, ttlSeconds: number): Promise<void>
     /**
+     * Record a subject's eviction epoch (#147): every session issued before now
+     * is dead. One write evicts an unbounded set of that subject's sessions; the
+     * cookie driver refuses a cookie whose `iat` is strictly less than this epoch.
+     *
+     * **Not exported from `@lockness/session`'s `mod.ts`** — a raw subject-taking
+     * revoke is a cross-user force-logout / disclosure primitive, reachable only
+     * through the auth guard, scoped to the authenticated subject (plan §9 R7).
+     *
+     * @param sub - The opaque subject token the session carries.
+     * @param ttlSeconds - Seconds the epoch entry must survive — a full
+     *   `absoluteLifetime` window, so it outlives every session it evicts (raising
+     *   the cap later cannot resurrect one).
+     * @throws If the write fails — the caller MUST propagate (a silent
+     *   log-out-everywhere failure is worse than one that errors).
+     */
+    revokeUser(sub: string, ttlSeconds: number): Promise<void>
+    /**
+     * The subject's eviction epoch in **epoch-seconds** (matching a session's
+     * `iat`), or `null` if the subject has never been evicted.
+     *
+     * @param sub - The opaque subject token the session carries.
+     * @returns The last eviction second, or `null`.
+     * @throws If the backing store cannot be read — the caller MUST fail closed
+     *   (refuse the cookie), never treat a read error as "not evicted".
+     */
+    userRevokedSince(sub: string): Promise<number | null>
+    /**
      * Release the backing handle. Idempotent.
      */
     close(): Promise<void>
@@ -58,6 +85,8 @@ export interface RevocationStore {
 
 /** The KV key prefix for a revoked nonce. */
 const KEY_PREFIX = 'session-revoked'
+/** The KV key prefix for a subject's eviction epoch (#147). */
+const USER_KEY_PREFIX = 'session-user-revoked'
 
 /**
  * A Deno-KV-backed {@link RevocationStore}.
@@ -140,6 +169,41 @@ export class KvRevocationStore implements RevocationStore {
         // for the moment it takes the cookie to be refused.
         const expireIn = Math.max(1, Math.floor(ttlSeconds)) * 1000
         await kv.set([KEY_PREFIX, jti], true, { expireIn })
+    }
+
+    /**
+     * Record a subject's eviction epoch (epoch-seconds) for `ttlSeconds`.
+     *
+     * The **epoch value is computed here** (`Math.floor(Date.now() / 1000)`) — the
+     * single home for "the eviction second of a subject" (plan §5 row 5) — so the
+     * driver and guard never compute it. Same-second granularity matches `iat`,
+     * which is why {@link CookieSessionDriver} evicts the acting `jti` too.
+     *
+     * @param sub - The opaque subject token.
+     * @param ttlSeconds - Seconds the entry must survive (the cap window), floored
+     *   at one second.
+     * @throws If the KV write fails — propagated, never swallowed.
+     */
+    async revokeUser(sub: string, ttlSeconds: number): Promise<void> {
+        const kv = await this.getKv()
+        const expireIn = Math.max(1, Math.floor(ttlSeconds)) * 1000
+        const epoch = Math.floor(Date.now() / 1000)
+        await kv.set([USER_KEY_PREFIX, sub], epoch, { expireIn })
+    }
+
+    /**
+     * The subject's eviction epoch in epoch-seconds, or `null` if never evicted.
+     *
+     * @param sub - The opaque subject token.
+     * @returns The last eviction second, or `null`.
+     * @throws If the KV read fails — propagated so the caller fails closed.
+     */
+    async userRevokedSince(sub: string): Promise<number | null> {
+        const kv = await this.getKv()
+        // Default (strong) consistency, like isRevoked — an eventual read would be
+        // a replica-lag eviction-bypass window. A thrown error propagates.
+        const entry = await kv.get<number>([USER_KEY_PREFIX, sub])
+        return entry.value
     }
 
     /**

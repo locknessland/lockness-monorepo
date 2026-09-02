@@ -195,6 +195,30 @@ export class DrizzleSessionProvider<User extends Authenticatable>
     }
 
     /**
+     * Delete every remember-me token for a user (#147).
+     *
+     * Note: This is a base implementation. Override in a subclass with the actual
+     * table schema — e.g. `db.delete(rememberTokensTable).where(eq(userId, u.id))`.
+     *
+     * @param _user - The token owner whose remember-me credentials to drop.
+     */
+    // deno-lint-ignore require-await
+    async deleteAllRememberTokens(_user: User): Promise<void> {
+        if (!this.#enableRememberTokens) {
+            return
+        }
+
+        // A silent no-op here would reopen the ASVS 7.4.2 remember-me re-mint
+        // bypass #147 exists to close — "log out everywhere" would leave the
+        // user's tokens live. Force a schema-carrying subclass to override it
+        // (unlike the read/create placeholders, this is security-critical).
+        throw new Error(
+            'deleteAllRememberTokens must be overridden with your remember-me table schema — ' +
+                'e.g. db.delete(rememberTokensTable).where(eq(rememberTokensTable.userId, user.id))',
+        )
+    }
+
+    /**
      * Recycle a remember me token (for security)
      */
     async recycleRememberToken(

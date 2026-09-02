@@ -280,6 +280,25 @@ export class KyselySessionProvider<User extends Authenticatable>
     }
 
     /**
+     * Delete every remember-me token for a user (#147).
+     *
+     * Drops all of the user's rows so a captured remember-me cookie cannot re-mint
+     * a post-eviction session.
+     *
+     * @param user - The token owner whose remember-me credentials to drop.
+     */
+    async deleteAllRememberTokens(user: User): Promise<void> {
+        if (!this.#enableRememberTokens) {
+            return
+        }
+
+        await this.#options.db
+            .deleteFrom(this.#options.rememberTokensTable)
+            .where('user_id', '=', user.id)
+            .execute()
+    }
+
+    /**
      * Recycle a remember me token (for security)
      */
     async recycleRememberToken(
