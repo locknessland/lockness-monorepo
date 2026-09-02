@@ -1,1 +1,4 @@
-{ "feature_directory": "/Users/kevin/Sites/lockness/.specnaut/specs/023-sanitize-codeblock-html", "linked_issue": 159 }
+{
+  "feature_directory": "/Users/kevin/Sites/lockness/.specnaut/specs/024-debug-dispatcher-coverage",
+  "linked_issue": 150
+}
