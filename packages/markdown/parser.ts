@@ -153,6 +153,79 @@ function buildImageNode(
 }
 
 /**
+ * The ONE opening tag shape allowed inside a code block's pre-highlighted HTML:
+ * a highlighter (hljs) token span. The `class` value is one or more
+ * space-separated `[\w-]+` tokens whose first is prefixed `hljs-`, and the `>`
+ * comes **immediately** after the closing quote — no trailing text, no second
+ * attribute, no `/`-separated pseudo-attribute. Anchored at the start of the
+ * slice so {@link sanitizeCodeHtml} can re-admit an exact match and escape
+ * everything else. See plan §5 and FR-001 (security Finding 2).
+ */
+const HLJS_SPAN_OPEN = /^<span class="hljs-[\w-]+(?: [\w-]+)*">/
+
+/**
+ * Neutralise the pre-highlighted HTML stored on a {@link CodeBlockNode}.
+ *
+ * `CodeBlockNode.html` is the one raw-HTML sink the styled `@lockness/ui/markdown`
+ * map feeds into `dangerouslySetInnerHTML`. Its safety must NOT depend on the
+ * upstream `@libs/markdown` engine escaping author input — that engine is pinned
+ * with a caret range and its escaping is undocumented. So this is the single home
+ * of the code-HTML allowlist decision (issue #159, plan §5); the renderers and
+ * every component map are pure forwarders and never re-decide it (FR-006).
+ *
+ * The transform is **allowlist-directional, not denylist**: it escapes **every**
+ * `<` and `>` and re-admits ONLY the exact highlighter structure — `</span>` and
+ * an {@link HLJS_SPAN_OPEN} match. A bare or unterminated `<` therefore never
+ * reconstructs a tag, and no author element (`<script>`, `<img onerror>`,
+ * `<a href="javascript:">`, a case/attribute variant of `<span>`) can survive
+ * (FR-001/FR-002). Existing HTML entities are left untouched — only literal
+ * `<`/`>` are escaped, so `&amp;`/`&#x3C;` are never double-encoded (FR-003).
+ * Highlighter token spans pass through byte-for-byte, preserving syntax
+ * highlighting (SC-002).
+ *
+ * @param raw - The inner HTML captured between `<code>` and `</code>`.
+ * @returns HTML whose only markup is allowlisted highlighter spans; every other
+ *   angle bracket is an escaped entity.
+ * @example
+ * ```ts
+ * sanitizeCodeHtml('<span class="hljs-number">1</span>') // unchanged
+ * sanitizeCodeHtml('<script>alert(1)</script>') // '&lt;script&gt;alert(1)&lt;/script&gt;'
+ * ```
+ */
+function sanitizeCodeHtml(raw: string): string {
+    let out = ''
+    let i = 0
+    while (i < raw.length) {
+        const ch = raw[i]
+        if (ch === '<') {
+            const rest = raw.slice(i)
+            if (rest.startsWith('</span>')) {
+                out += '</span>'
+                i += '</span>'.length
+                continue
+            }
+            const open = rest.match(HLJS_SPAN_OPEN)
+            if (open) {
+                out += open[0]
+                i += open[0].length
+                continue
+            }
+            out += '&lt;'
+            i += 1
+            continue
+        }
+        if (ch === '>') {
+            out += '&gt;'
+            i += 1
+            continue
+        }
+        out += ch
+        i += 1
+    }
+    return out
+}
+
+/**
  * Parse HTML string into a Markdown AST.
  *
  * Uses regex-based parsing to convert HTML elements into AST nodes.
@@ -290,7 +363,7 @@ function tryParseCodeBlock(html: string): ParseResult | null {
         type: 'codeblock',
         language,
         value: code,
-        html: rawHtml,
+        html: sanitizeCodeHtml(rawHtml),
     }
 
     return { node, consumed: match[0].length }
