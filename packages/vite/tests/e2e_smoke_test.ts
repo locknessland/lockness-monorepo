@@ -1,22 +1,23 @@
 /**
  * @fileoverview End-to-end smoke test for the `@lockness/vite` demo (#115).
  *
- * Proves the integration in-process, without a browser or a live Vite server:
+ * Proves the integration, without a browser:
  * - **Dev SSR** — the demo `App.fetch()` renders the JSX home page through
  *   `@lockness/core`, and (through the dev bridge) a non-asset request is served
  *   while a Vite-internal request is not.
- * - **Production asset resolution** — `viteAssets()` resolves the demo's client
- *   entry to hashed URLs from a built-shape manifest.
+ * - **A real production build** (#154) — `vite build --configLoader native` in
+ *   the demo emits `manifest.json`, which `viteAssets()` then resolves to the
+ *   real hashed URLs.
  *
- * A real `vite build` + browser HMR are covered by the manual smoke procedure in
- * `packages/vite/demo/README.md` (a full Vite 8 / Rolldown build subprocess and a
- * browser are out of reach of a deterministic unit suite — named, not dropped).
+ * Browser HMR (a `.tsx` save reloading the page) is the one piece covered by the
+ * manual smoke procedure in `packages/vite/demo/README.md` — a browser is out of
+ * reach of a headless unit suite.
  *
  * @module @lockness/vite/tests/e2e_smoke
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
-import { join } from '@std/path'
+import { dirname, fromFileUrl, join } from '@std/path'
 import { defineViteConfig } from '../src/define_config.ts'
 import { viteAssets } from '../src/vite_assets.ts'
 import {
@@ -24,6 +25,8 @@ import {
     isViteInternalRequest,
 } from '../src/plugins/dev_server.ts'
 import demoApp from '../demo/main.ts'
+
+const DEMO_DIR = join(dirname(fromFileUrl(import.meta.url)), '..', 'demo')
 
 Deno.test('e2e - demo App.fetch renders the SSR home page (#115 dev SSR)', async () => {
     const res = await demoApp.fetch(new Request('http://localhost/'))
@@ -81,4 +84,51 @@ Deno.test('e2e - production build manifest resolves the demo entry to hashed URL
         tags.every((t) => t.attributes.nonce === 'demo-nonce'),
         'nonce propagates to every resolved tag',
     )
+})
+
+Deno.test('e2e - a real `vite build` emits a manifest viteAssets resolves (#154)', async () => {
+    // Run the demo's actual production build — the config loads through Deno's
+    // native runtime (--configLoader native), so bare @lockness/* + the JSX
+    // runtime resolve; the denoResolver plugin handles the app graph.
+    const build = new Deno.Command('deno', {
+        args: ['run', '-A', 'npm:vite', 'build', '--configLoader', 'native'],
+        cwd: DEMO_DIR,
+        stdout: 'piped',
+        stderr: 'piped',
+    })
+    const { code, stderr } = await build.output()
+    try {
+        assertEquals(
+            code,
+            0,
+            `vite build failed:\n${new TextDecoder().decode(stderr)}`,
+        )
+
+        // Feed the REAL emitted manifest into viteAssets (production path).
+        const manifestPath = join(
+            DEMO_DIR,
+            'public',
+            'assets',
+            '.vite',
+            'manifest.json',
+        )
+        const manifest = JSON.parse(await Deno.readTextFile(manifestPath))
+        assert(
+            manifest['app/client.ts']?.isEntry,
+            'the client entry is in the manifest',
+        )
+
+        const { html } = await viteAssets('app/client.ts', {
+            isDevServer: false,
+            config: defineViteConfig({ manifestPath }),
+        })
+        // The tags point at the real hashed files the build wrote, not the dev server.
+        assertStringIncludes(html, `/${manifest['app/client.ts'].file}`)
+        assert(!html.includes('localhost:5173'), 'no dev origin in production')
+    } finally {
+        // Build output is gitignored; remove it so the tree stays clean.
+        await Deno.remove(join(DEMO_DIR, 'public'), { recursive: true }).catch(
+            () => {},
+        )
+    }
 })

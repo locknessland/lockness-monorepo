@@ -199,6 +199,18 @@ Deno.test('devServerBridge - config() defaults host to loopback and keeps fs.str
     assertEquals(out.server.fs.strict, true)
 })
 
+Deno.test('devServerBridge - config() sets appType custom so requests reach the bridge (#154)', () => {
+    const plugin = devServerBridge({ app: { fetch: () => new Response('') } })
+    const call = plugin.config as unknown as (
+        u: Record<string, unknown>,
+    ) => { appType: string }
+    // Default: custom — Vite yields non-asset requests to the bridge instead of
+    // rewriting `/` to `/index.html` and 404'ing.
+    assertEquals(call({}).appType, 'custom')
+    // A user who sets appType themselves keeps their choice.
+    assertEquals(call({ appType: 'spa' }).appType, 'spa')
+})
+
 // --- review fix-forward: HTTP fidelity (M1/M2/M3) + coverage gaps -----------
 
 /** A fake Node response capturing headers (incl. array-valued) and the body. */

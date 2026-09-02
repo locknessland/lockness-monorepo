@@ -206,7 +206,12 @@ export function devServerBridge(options: DevServerOptions): Plugin {
             server.host = resolveDevHost(server.host)
             server.fs = { strict: true, ...server.fs }
             if (server.port === undefined) server.port = config.port
-            return { server }
+            // `appType: 'custom'` disables Vite's own HTML-serving and
+            // history-fallback middlewares, so every non-asset request reaches
+            // the bridge (which forwards it to App.fetch) instead of being
+            // rewritten to `/index.html` and 404'd. The app owns all routes.
+            // A user who set appType themselves keeps their choice.
+            return { server, appType: user.appType ?? 'custom' }
         },
         configureServer(server: {
             middlewares: {
