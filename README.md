@@ -13,6 +13,11 @@ all packages, the documentation website, and the demo application.
 Full framework documentation is available at
 [lockness.land/docs](https://lockness.land/docs)
 
+Integration guides in this repo:
+
+- [Vite integration (`@lockness/vite`)](docs/vite.md) — dev server, HMR, and the
+  hashed-asset build.
+
 ## 🏗️ Repository Structure
 
 ```

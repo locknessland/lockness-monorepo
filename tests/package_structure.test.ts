@@ -81,9 +81,6 @@ const PACKAGES: string[] = [
 const EXEMPTIONS: Record<string, RequiredFile[]> = {
     // ui package mod.ts is a CLI entry point, not a module with exports
     ui: ['mod.ts'],
-    // vite: README lands in #116 (docs) — the epic's deferred second chain.
-    // Remove this exemption when docs/vite.md + README.md ship.
-    vite: ['README.md'],
 }
 
 // =============================================================================

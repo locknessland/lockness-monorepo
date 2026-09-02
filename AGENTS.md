@@ -191,6 +191,7 @@ refer to these files:
 | [dependencies.md](docs/dependencies.md)                 | Dependency graph                 |
 | [STUBS.md](docs/STUBS.md)                               | Stub synchronization             |
 | [ui-components-documentation.md](docs/ui-components.md) | UI components overview           |
+| [vite.md](docs/vite.md)                                 | Vite integration guide           |
 
 ### Per-package agent briefs (`packages/*/AGENTS.md`)
 
