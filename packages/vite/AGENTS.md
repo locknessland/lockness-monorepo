@@ -34,7 +34,15 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-`mod.ts` exports nothing this tool could read.
+| Kind      | Exports                                                                                                                                                                                                               |
+| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `ManifestReader`                                                                                                                                                                                                      |
+| function  | `buildConfigPlugin`, `clientEntry`, `createCssCollector`, `cssPlugin`, `defineViteConfig`, `denoResolver`, `devServerBridge`, `hmrPlugin`, `lockness`, `viteAssets`                                                   |
+| interface | `AppFetchHandler`, `ClientEntryOptions`, `CssCollector`, `DevServerOptions`, `HmrOptions`, `LocknessPluginOptions`, `LocknessViteConfig`, `ManifestChunk`, `ViteAssetTag`, `ViteAssetsOptions`, `ViteAssetsTagResult` |
+| typeAlias | `DenoScheme`, `ViteManifest`, `ViteMode`                                                                                                                                                                              |
+| variable  | `DEFAULTS`                                                                                                                                                                                                            |
+
+Anything not listed is internal and free to change.
 
 <!-- /generated:surface -->
 
@@ -51,9 +59,17 @@ mechanism and the date. An entry that could have been guessed does not belong._
 
 <!-- generated:tests -->
 
-**This package has no tests.** 6 source files ship untested — treat any change
-here as unguarded, and add coverage for what you touch rather than trusting the
-suite.
+9 test files for 13 source files:
+
+- `packages/vite/tests/build_test.ts`
+- `packages/vite/tests/client_entry_test.ts`
+- `packages/vite/tests/css_test.ts`
+- `packages/vite/tests/define_config_test.ts`
+- `packages/vite/tests/deno_resolver_test.ts`
+- `packages/vite/tests/dev_server_test.ts`
+- `packages/vite/tests/hmr_test.ts`
+- `packages/vite/tests/shared_test.ts`
+- `packages/vite/tests/vite_assets_test.ts`
 
 <!-- /generated:tests -->
 
@@ -69,8 +85,11 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: **it has no tests.** Anything you change here is
-unguarded by the suite — add coverage for it.
+Then, specific to this package: run its 9 test files directly —
+
+```bash
+deno test -A packages/vite/
+```
 
 <!-- /generated:gate -->
 

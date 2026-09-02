@@ -62,5 +62,11 @@ export { type ChangeKind, classifyChange } from './shared.ts'
 
 export { type HmrOptions, hmrPlugin } from './plugins/hmr.ts'
 
-// TODO(#108–#113): lockness(), viteAssets(), ManifestReader,
+export {
+    buildConfig,
+    buildConfigPlugin,
+    type LocknessBuildOptions,
+} from './build_config.ts'
+export { lockness, type LocknessPluginOptions } from './lockness.ts'
+
 // ViteAssetsTagResult.
