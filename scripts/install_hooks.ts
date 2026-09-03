@@ -74,6 +74,9 @@ deno task deps:analyze
 echo "  ✓ Agent briefs..."
 deno task agents:brief --check
 
+echo "  ✓ Module docs coverage..."
+deno task docs:coverage
+
 echo "  ✓ Running tests..."
 deno task test
 
@@ -113,4 +116,6 @@ for (const [name, content] of Object.entries(hooks)) {
 console.log('\n🎉 Git hooks installed successfully!')
 console.log('\nHooks installed:')
 console.log('  • pre-commit: typecheck, lint, fmt staged files (re-staged)')
-console.log('  • pre-push: fmt, lint, check, deps:analyze, agents:brief, test')
+console.log(
+    '  • pre-push: fmt, lint, check, deps:analyze, agents:brief, docs:coverage, test',
+)
