@@ -189,6 +189,7 @@ refer to these files:
 | [packages.md](docs/packages.md)                         | Package management               |
 | [contribution.md](docs/contribution.md)                 | Contributing guide               |
 | [dependencies.md](docs/dependencies.md)                 | Dependency graph                 |
+| [agentic-ownership.md](docs/agentic-ownership.md)       | Code area → agent → skill map    |
 | [STUBS.md](docs/STUBS.md)                               | Stub synchronization             |
 | [ui-components-documentation.md](docs/ui-components.md) | UI components overview           |
 | [vite.md](docs/vite.md)                                 | Vite integration guide           |
