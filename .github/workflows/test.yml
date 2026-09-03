@@ -58,6 +58,9 @@ jobs:
             - name: Agent briefs up to date
               run: deno task agents:brief --check
 
+            - name: Module docs coverage
+              run: deno task docs:coverage
+
             - name: Published-shape resolution
               run: deno task publish:check
 
