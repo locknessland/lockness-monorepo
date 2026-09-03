@@ -30,6 +30,49 @@ export class AuthenticationError extends Error {
 }
 
 /**
+ * Error thrown when an authenticated user is denied an action by the
+ * authorization layer (a gate or policy).
+ *
+ * Distinct from the authentication errors: this is a `403` ("you are known but
+ * not allowed"), not a `401` ("you are not known"). {@link Gate.authorize}
+ * throws it when a check fails, so the framework's error handler renders a 403.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   await gate.authorize(user, 'update', post)
+ * } catch (error) {
+ *   if (error instanceof AuthorizationError) return c.json(error.toJSON(), 403)
+ * }
+ * ```
+ */
+export class AuthorizationError extends Error {
+    /** HTTP status code. */
+    readonly status = 403
+
+    /**
+     * @param message - Human-readable denial reason.
+     * @param options - Standard error options (e.g. `cause`).
+     */
+    constructor(
+        message = 'This action is unauthorized',
+        options?: ErrorOptions,
+    ) {
+        super(message, options)
+        this.name = 'AuthorizationError'
+    }
+
+    /**
+     * Serialize to a plain object for a JSON response body.
+     *
+     * @returns The error name, message and status.
+     */
+    toJSON(): { error: string; message: string; status: number } {
+        return { error: this.name, message: this.message, status: this.status }
+    }
+}
+
+/**
  * Error thrown when authentication fails due to invalid credentials.
  *
  * Returned when email/password combination doesn't match.
