@@ -230,6 +230,8 @@ export {
 export async function registerCoreCommands(cli: any) {
     const { CompileCommand } = await import('./cli/compile_command.ts')
     cli.registerCommand(CompileCommand)
+    const { SsgCommand } = await import('./cli/ssg_command.ts')
+    cli.registerCommand(SsgCommand)
 }
 
 // ============================================================================

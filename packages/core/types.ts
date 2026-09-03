@@ -65,6 +65,24 @@ export interface CompileConfig {
 }
 
 /**
+ * Configuration for static-site generation (#54, the `ssg:build` command).
+ *
+ * The single home for "which locales are emitted". Without it, the build emits
+ * each `@Static` route once at its root path; with it, the route is additionally
+ * emitted once per curated locale under the app's i18n mount prefix. The list is
+ * curated on purpose — it is NOT the `validLanguages × validCountries` product —
+ * to keep the output from exploding.
+ */
+export interface SsgConfig {
+    /**
+     * The curated locales to emit, as `lang-country` tuples (e.g. `'en-us'`,
+     * `'fr-ca'`). Each is expanded against the app's mount pattern; entries whose
+     * segments the mount pattern does not admit fail the build.
+     */
+    readonly locales?: readonly string[]
+}
+
+/**
  * Error handler function type
  */
 export type ErrorHandler = (

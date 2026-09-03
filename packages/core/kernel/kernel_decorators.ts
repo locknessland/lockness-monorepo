@@ -33,7 +33,7 @@
  * ```
  */
 
-import type { CompileConfig, MountPoint } from '../types.ts'
+import type { CompileConfig, MountPoint, SsgConfig } from '../types.ts'
 
 /**
  * Database configuration options
@@ -375,6 +375,13 @@ export interface KernelConfig {
      * Use this to orchestrate the `deno compile` process.
      */
     compile?: CompileConfig
+
+    /**
+     * Static-site generation configuration — the curated locale list the
+     * `ssg:build` command reads. The single home for "which locales are
+     * emitted"; omit for a root-only static build.
+     */
+    ssg?: SsgConfig
 }
 
 /**
