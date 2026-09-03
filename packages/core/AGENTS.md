@@ -86,8 +86,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-40 test files for 63 source files:
+41 test files for 63 source files:
 
+- `packages/core/cli/tests/ssg_command.test.ts`
 - `packages/core/ssg/tests/build.test.ts`
 - `packages/core/ssg/tests/build_integration.test.ts`
 - `packages/core/ssg/tests/enumerate.test.ts`
@@ -143,7 +144,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 40 test files directly —
+Then, specific to this package: run its 41 test files directly —
 
 ```bash
 deno test -A packages/core/
