@@ -9,7 +9,7 @@
 
 // deno-lint-ignore-file require-await
 
-import { join } from '@std/path'
+import { join, resolve, SEPARATOR } from '@std/path'
 import { ensureDir } from '@std/fs'
 import {
     DeleteObjectCommand,
@@ -130,8 +130,31 @@ export class LocalStorageDriver implements StorageDriver {
         }
     }
 
+    /**
+     * Resolve a caller-supplied path against the configured root, refusing any
+     * result that escapes it.
+     *
+     * `join` alone collapses `..` segments but still lets the result climb above
+     * the root (`join('root', '../../etc/passwd')`), and an absolute argument
+     * replaces the root entirely — so a user-influenced path reaches arbitrary
+     * files. Resolving both sides to absolute paths and requiring the target to
+     * be the root or sit beneath `root + separator` closes that (H2, #166). The
+     * guard lives here so every operation (including both ends of copy/move)
+     * inherits it.
+     *
+     * @param path - The caller-supplied, possibly hostile, relative path.
+     * @returns The absolute on-disk path, guaranteed inside the root.
+     * @throws {Error} When the resolved path escapes the storage root.
+     */
     private resolvePath(path: string): string {
-        return join(this.config.root!, path)
+        const root = resolve(this.config.root!)
+        const full = resolve(root, path)
+        if (full !== root && !full.startsWith(root + SEPARATOR)) {
+            throw new Error(
+                `Path escapes the storage root: ${path}`,
+            )
+        }
+        return full
     }
 
     async put(
