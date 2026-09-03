@@ -63,6 +63,13 @@ Anything not listed is internal and free to change.
 
 - Everything here must be gated on `APP_ENV !== 'production'`. A panel that
   leaks into production exposes request internals.
+- The collector routes are **authorization-gated** (#161): `authorizeDevtools`
+  in `gate.ts` is the single decider
+  (`authorize › token › default loopback
+  posture`), and `enableDevtools` wires
+  it on **both** `basePath` and `basePath + '/*'` so the bare `/_devtools`
+  dashboard is covered. Do not add a credential/IP check anywhere else, and do
+  not gate only `/*`.
 - Issue #27 completes the missing panels (events, DI container, sessions). It
   says **extend the existing collector, do not rewrite it**.
 - 37 source files but only 3 test files — the least-covered large package.
@@ -71,10 +78,12 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-4 test files for 42 source files:
+6 test files for 42 source files:
 
 - `packages/devtools/tests/collector.test.ts`
 - `packages/devtools/tests/debug_panels.test.ts`
+- `packages/devtools/tests/gate.test.ts`
+- `packages/devtools/tests/gate_routes.test.ts`
 - `packages/devtools/tests/helpers.test.ts`
 - `packages/devtools/tests/toolbar.test.ts`
 
@@ -92,7 +101,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 4 test files directly —
+Then, specific to this package: run its 6 test files directly —
 
 ```bash
 deno test -A packages/devtools/

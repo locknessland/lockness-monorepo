@@ -107,6 +107,76 @@ Lockness automatically filters out the debug bar injection and dashboard routes
 if the `APP_ENV` is not set to `development`, or if you manually set
 `DEBUG_BAR=false` in your `.env`.
 
+## 🔐 Securing the devtools endpoints
+
+Activation (`devtoolsActive`) decides **whether** devtools runs; authorization
+(`authorizeDevtools`) decides **who** may reach the collector routes — the
+dashboard `/_devtools`, `/_devtools/api/data`,
+`/_devtools/api/component-tree/:name`, and the `POST /_devtools/clear` mutation.
+Every route under the base path is gated (a future route inherits the gate
+automatically). Redaction (#149) remains defence-in-depth beneath this access
+control, not a substitute for it.
+
+The gate composes three mechanisms in a fixed precedence — **`authorize` ›
+`token` › default posture** — and **fails closed**: a denied request gets `401`
+with an empty body, no collector data, and no mutation.
+
+### Default posture — loopback only
+
+With neither a token nor an `authorize` callback configured, the gate trusts a
+**loopback** peer (`127.0.0.0/8` / `::1`) and denies every non-loopback peer.
+This keeps the zero-config local dashboard working under a live `Deno.serve`.
+Two hardenings always apply:
+
+- **A forwarding header revokes trust.** Any request carrying `X-Forwarded-For`,
+  `Forwarded`, or `X-Real-IP` is denied — behind a reverse proxy the peer is the
+  proxy (typically loopback), not the client, so peer-IP cannot be trusted.
+  Forwarding headers are read only to **revoke** trust, never to grant it.
+- **The `Host` must be a localhost name** (`localhost` / `127.0.0.1` / `::1`),
+  to blunt DNS-rebinding.
+
+> **Reverse-proxy / compiled caveat.** Behind a proxy, or under `deno compile`
+> where the peer is undetectable, the loopback default denies. A proxied or
+> compiled deployment must configure a `token` (or `authorize`) — that is the
+> correct control there. A misconfigured proxy that strips the forwarding header
+> is the reason a token is mandatory for any networked deployment.
+
+### Token — open access from any host
+
+Set a shared secret via `config.token` or the `LOCKNESS_DEVTOOLS_TOKEN` env var.
+Every gated route then requires a matching `Authorization: Bearer <token>`,
+compared in **constant time**; a configured token is not bypassed by the
+loopback default.
+
+```ts
+enableDevtools(app, { token: Deno.env.get('LOCKNESS_DEVTOOLS_TOKEN') })
+// caller: fetch('/_devtools/api/data', {
+//   headers: { Authorization: `Bearer ${token}` },
+// })
+```
+
+**Token hardening:** generate it with a CSPRNG and at least 128 bits of entropy
+(e.g. `crypto.getRandomValues`). There is **no per-attempt lockout**, so the
+token's entropy is the only barrier — a short or guessable token is
+brute-forceable.
+
+### `authorize` — wire your own auth
+
+Provide an `authorize` callback to decide with your own logic (a session check,
+`@lockness/auth`, an IP allowlist) without devtools depending on it. It is _the_
+decider (it supersedes the token and the loopback default), is always awaited,
+and any throw or rejection **denies** (fail closed):
+
+```ts
+enableDevtools(app, {
+    authorize: (c) => c.get('user')?.isAdmin === true,
+})
+```
+
+> **Never trust a spoofable header to grant.** An `authorize` callback must not
+> read `X-Forwarded-For` (or any client-settable header) to _allow_ a request —
+> those are trivially forged. Use them, if at all, only to deny.
+
 ## Debug panels (events, sessions) — #27
 
 The dashboard adds two panels beyond routes/requests/deprecations:

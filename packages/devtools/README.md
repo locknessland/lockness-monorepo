@@ -52,8 +52,16 @@ enableDevtools(app.getHono(), {
     maxQueries: 500, // Max SQL queries to keep
     maxRequests: 100, // Max requests to keep
     showDebugBar: true, // Show debug toolbar (default: true, disable with DEBUG_BAR=false)
+    token: '<128-bit CSPRNG secret>', // Require Authorization: Bearer for remote access
+    authorize: (c) => c.get('user')?.isAdmin === true, // Or decide with your own auth
 })
 ```
+
+The collector routes are gated: by default only a **loopback** peer is trusted;
+set a `token` (or `LOCKNESS_DEVTOOLS_TOKEN`) or an `authorize` callback to open
+access from any host. See
+[Securing the devtools endpoints](docs/DOCS.md#-securing-the-devtools-endpoints)
+for the default posture, the reverse-proxy caveat, and token hardening.
 
 ### Manual Tracking
 
