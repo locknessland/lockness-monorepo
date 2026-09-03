@@ -15,6 +15,8 @@ import {
 } from './middleware/auth_middleware.ts'
 import type { MiddlewareHandler } from 'hono'
 import { UseMiddleware } from '@lockness/contract'
+import { gate } from './gate.ts'
+import type { Authenticatable } from './types.ts'
 
 /**
  * Inject guard as second parameter to controller method
@@ -183,3 +185,60 @@ export function AuthGuard(guardName: string): any {
     const middleware: MiddlewareHandler = authGuard(guardName)
     return UseMiddleware(middleware)
 }
+
+/**
+ * Build a middleware that authorizes the current user against a gate ability.
+ *
+ * Resolves the user from `c.get('auth')?.user`, passes any named route params
+ * as arguments to the ability callback, and calls {@link gate}.`authorize`,
+ * which throws {@link AuthorizationError} (403) when denied — so the route body
+ * only runs on success. Fail-closed: an unauthenticated request has no user and
+ * is denied. Exported so it can be composed manually; `@Authorize` wraps it.
+ *
+ * @param ability - The gate ability to enforce.
+ * @param paramNames - Route param names to pass to the ability callback.
+ * @returns A Hono middleware handler.
+ */
+export function authorizeMiddleware(
+    ability: string,
+    paramNames: string[] = [],
+): MiddlewareHandler {
+    return async (c, next) => {
+        const auth = c.get('auth') as { user?: Authenticatable } | undefined
+        const args = paramNames.map((name) => c.req.param(name))
+        await gate.authorize(auth?.user, ability, ...args)
+        await next()
+    }
+}
+
+/**
+ * Decorator: enforce a gate ability at the route boundary.
+ *
+ * Pair with `@AuthRequired` so an unauthenticated request gets a 401 first;
+ * used alone, an unauthenticated request is denied 403 (fail-closed). Named
+ * route params are forwarded to the ability callback, so an ability that needs
+ * a subject id can read it — record-object checks belong in the handler via
+ * `gate.authorize(user, ability, record)`.
+ *
+ * @param ability - The gate ability to enforce.
+ * @param paramNames - Route param names to forward to the ability callback.
+ *
+ * @example
+ * ```typescript
+ * @Get('/teams/:teamId/settings')
+ * @AuthRequired()
+ * @Authorize('view-team', 'teamId')
+ * settings(c: Context) {
+ *     return c.json({ ok: true })
+ * }
+ * ```
+ */
+// deno-lint-ignore no-explicit-any
+export function Authorize(ability: string, ...paramNames: string[]): any {
+    return UseMiddleware(authorizeMiddleware(ability, paramNames))
+}
+
+/**
+ * Alias of {@link Authorize}: enforces the ability (aborts 403 on denial).
+ */
+export { Authorize as Can }

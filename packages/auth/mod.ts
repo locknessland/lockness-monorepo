@@ -62,7 +62,10 @@ export type { AuthMiddlewareOptions } from './middleware/auth_middleware.ts'
 export {
     AuthGuard,
     AuthOptional,
+    Authorize,
+    authorizeMiddleware,
     AuthRequired,
+    Can,
     Guard,
     InjectGuard,
 } from './decorators.ts'
