@@ -91,6 +91,11 @@ jobs:
                   awk -F: '/^LF:/{f+=$2} /^LH:/{h+=$2} END{exit !(f>0 && (h/f)*100 >= 50)}' coverage/lcov.info \
                     || { echo "::error::line coverage ${pct}% is below the 50% floor"; exit 1; }
 
+            # Per-package ratcheting floor: fails if any package regressed below
+            # its recorded floor in coverage-floors.json (#175).
+            - name: Enforce per-package coverage floors
+              run: deno task coverage:floor
+
     kits:
         name: Starter kits
         runs-on: ubuntu-latest
