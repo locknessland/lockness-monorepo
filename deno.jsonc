@@ -45,6 +45,8 @@
         "test": "deno test -A",
         "test:watch": "deno test -A --watch",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage packages/ app/ && deno coverage coverage --lcov > coverage/lcov.info && deno coverage coverage",
+        "coverage:floor": "deno run -A scripts/coverage_floor.ts --check",
+        "coverage:floor:update": "deno run -A scripts/coverage_floor.ts --update",
         "routes:generate": "deno run -A scripts/generate_routes.ts",
         "routes:watch": "deno run -A scripts/watch_routes.ts",
         "bump": "deno run -A ./scripts/bump-native.ts",
