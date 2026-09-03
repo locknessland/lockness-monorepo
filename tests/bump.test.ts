@@ -122,6 +122,21 @@ Deno.test('updateImportVersion - handles complex versions', () => {
     assertEquals(result, 'jsr:@lockness/container@^11.0.0')
 })
 
+Deno.test('updateImportVersion - preserves a subpath after the version (regression #162)', () => {
+    // A specifier whose value carries a subpath export (e.g. the JSX runtime)
+    // must keep that subpath after the bump. Dropping it silently rewrites
+    // `@lockness/hono/jsx-runtime` to the package's base export and breaks JSX
+    // resolution for consumers of `@lockness/ui`.
+    assertEquals(
+        updateImportVersion('jsr:@lockness/hono@^0.2.0/jsx-runtime', '0.2.1'),
+        'jsr:@lockness/hono@^0.2.1/jsx-runtime',
+    )
+    assertEquals(
+        updateImportVersion('jsr:@lockness/hono@~1.0.0/zod-validator', '1.1.0'),
+        'jsr:@lockness/hono@~1.1.0/zod-validator',
+    )
+})
+
 // =============================================================================
 // SEMVER_PATTERN Tests
 // =============================================================================
@@ -184,8 +199,17 @@ import { assert } from "jsr:@std/assert@^1.0.0"
 
 Deno.test('LOCKNESS_VERSION_PATTERN - can be used for replacement', () => {
     const content = 'jsr:@lockness/core@^0.1.0'
-    const replaced = content.replace(LOCKNESS_VERSION_PATTERN, '$1@$20.2.0')
+    const replaced = content.replace(LOCKNESS_VERSION_PATTERN, '$1@$20.2.0$4')
     assertEquals(replaced, 'jsr:@lockness/core@^0.2.0')
+})
+
+Deno.test('LOCKNESS_VERSION_PATTERN - replacement preserves a subpath (regression #162)', () => {
+    const content = 'import x from "jsr:@lockness/hono@^0.1.0/jsx-runtime"'
+    const replaced = content.replace(LOCKNESS_VERSION_PATTERN, '$1@$20.2.0$4')
+    assertEquals(
+        replaced,
+        'import x from "jsr:@lockness/hono@^0.2.0/jsx-runtime"',
+    )
 })
 
 // =============================================================================

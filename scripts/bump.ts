@@ -81,10 +81,15 @@ const ROOT_CONFIG_PATH = './deno.jsonc' as const
 
 /** Regex pattern for matching JSR Lockness imports with versions */
 export const LOCKNESS_VERSION_PATTERN =
-    /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/g
+    /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)(\/[^"'\s]*)?/g
 
-/** Regex pattern for extracting version parts from an import */
-export const VERSION_EXTRACT_PATTERN = /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)/
+/**
+ * Regex pattern for extracting version parts from an import. Group 4 captures
+ * an optional subpath export (e.g. `/jsx-runtime`) so the bump preserves it
+ * instead of collapsing `@lockness/hono/jsx-runtime` onto the base export.
+ */
+export const VERSION_EXTRACT_PATTERN =
+    /(jsr:@lockness\/[^@]+)@([\^~])([\d.]+)(\/[^"'\s]*)?/
 
 /** Regex pattern for validating semver format */
 export const SEMVER_PATTERN = /^\d+\.\d+\.\d+$/
@@ -131,8 +136,8 @@ export function updateImportVersion(
     const match = importValue.match(VERSION_EXTRACT_PATTERN)
     if (!match) return null
 
-    const [, packagePath, versionPrefix] = match
-    return `${packagePath}@${versionPrefix}${newVersion}`
+    const [, packagePath, versionPrefix, , subpath] = match
+    return `${packagePath}@${versionPrefix}${newVersion}${subpath ?? ''}`
 }
 
 /**
@@ -250,21 +255,32 @@ async function updatePackage(
         const content = await Deno.readTextFile(configPath)
         const config = JSON.parse(content) as PackageConfig
 
-        // Update version
-        config.version = newVersion
+        // Update version — but only if the member already declares one. A
+        // never-published member (e.g. the vite demo) carries no `version`
+        // field; adding one is drift, and the native `deno bump-version`
+        // leaves it alone too.
+        let hasChanges = false
+        if (typeof config.version === 'string') {
+            config.version = newVersion
+            hasChanges = true
+        }
 
         // Update imports
-        let hasImportUpdates = false
         if (config.imports) {
             for (const [key, value] of Object.entries(config.imports)) {
                 if (isLocknessImport(key, value)) {
                     const updated = updateImportVersion(value, newVersion)
                     if (updated && updated !== value) {
                         config.imports[key] = updated
-                        hasImportUpdates = true
+                        hasChanges = true
                     }
                 }
             }
+        }
+
+        // Nothing to bump — do not rewrite (and reformat) an untouched file.
+        if (!hasChanges) {
+            return { success: true, path: memberPath }
         }
 
         await Deno.writeTextFile(
@@ -272,11 +288,7 @@ async function updatePackage(
             JSON.stringify(config, null, 4) + '\n',
         )
 
-        return {
-            success: true,
-            path: memberPath,
-            error: hasImportUpdates ? undefined : undefined,
-        }
+        return { success: true, path: memberPath }
     } catch (error) {
         return {
             success: false,
@@ -301,7 +313,7 @@ async function updateStubFile(
         const content = await Deno.readTextFile(stubPath)
         const updatedContent = content.replace(
             LOCKNESS_VERSION_PATTERN,
-            `$1@$2${newVersion}`,
+            `$1@$2${newVersion}$4`,
         )
 
         if (updatedContent !== content) {
