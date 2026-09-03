@@ -44,12 +44,12 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| function  | `Cache`, `CacheKey`, `CacheTTL`, `ComposeMiddleware`, `Controller`, `DeclareMiddleware`, `Middleware`, `Throttle`, `ThrottleApi`, `ThrottleHeavy`, `ThrottleLogin`, `ThrottleSensitive`, `Use`, `UseMiddleware`, `compose`, `composeMiddleware`, `deregisterDisposable`, `disposableCount`, `generateRoutesContent`, `generateRoutesFile`, `isDevelopment`, `isExplicitlyDevelopment`, `isProduction`, `parseTimeWindow`, `registerDisposable`, `renderError`, `resolveEnvName`, `safeForLog`, `scanControllers` |
-| interface | `CacheContract`, `CacheOptions`, `ContainerContract`, `ContainerRegistration`, `ControllerInfo`, `ControllerMetadata`, `ControllerWithMetadata`, `Disposable`, `DisposableHandle`, `GenerateRoutesResult`, `MiddlewareContract`, `Route`, `RouteMetadata`, `RouteOptions`, `ThrottleConfig`, `ThrottleOptions`, `ThrottleStoreContract`                                                                                                                                                                          |
-| typeAlias | `ComposableMiddleware`, `Constructor`, `Context`, `ControllerClass`, `FileExtension`, `MiddlewareClass`, `MiddlewareHandler`, `MiddlewareInput`, `MiddlewareRegistry`, `Next`, `ServiceToken`, `ThrottleKey`, `TimeWindow`, `ValidationTargets`                                                                                                                                                                                                                                                                  |
-| variable  | `CacheServiceToken`, `Delete`, `Get`, `MIDDLEWARE_NAME_KEY`, `Patch`, `Post`, `Put`, `declaredMiddlewares`                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| function  | `Cache`, `CacheKey`, `CacheTTL`, `ComposeMiddleware`, `Controller`, `DeclareMiddleware`, `Middleware`, `Static`, `Throttle`, `ThrottleApi`, `ThrottleHeavy`, `ThrottleLogin`, `ThrottleSensitive`, `Use`, `UseMiddleware`, `compose`, `composeMiddleware`, `deregisterDisposable`, `disposableCount`, `generateRoutesContent`, `generateRoutesFile`, `isDevelopment`, `isExplicitlyDevelopment`, `isProduction`, `parseTimeWindow`, `registerDisposable`, `renderError`, `resolveEnvName`, `safeForLog`, `scanControllers` |
+| interface | `CacheContract`, `CacheOptions`, `ContainerContract`, `ContainerRegistration`, `ControllerInfo`, `ControllerMetadata`, `ControllerWithMetadata`, `Disposable`, `DisposableHandle`, `GenerateRoutesResult`, `MiddlewareContract`, `Route`, `RouteMetadata`, `RouteOptions`, `StaticOptions`, `ThrottleConfig`, `ThrottleOptions`, `ThrottleStoreContract`                                                                                                                                                                   |
+| typeAlias | `ComposableMiddleware`, `Constructor`, `Context`, `ControllerClass`, `FileExtension`, `MiddlewareClass`, `MiddlewareHandler`, `MiddlewareInput`, `MiddlewareRegistry`, `Next`, `ServiceToken`, `ThrottleKey`, `TimeWindow`, `ValidationTargets`                                                                                                                                                                                                                                                                            |
+| variable  | `CacheServiceToken`, `Delete`, `Get`, `MIDDLEWARE_NAME_KEY`, `Patch`, `Post`, `Put`, `declaredMiddlewares`                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Anything not listed is internal and free to change.
 
@@ -76,11 +76,12 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-3 test files for 12 source files:
+4 test files for 12 source files:
 
 - `packages/contract/tests/disposables.test.ts`
 - `packages/contract/tests/environment.test.ts`
 - `packages/contract/tests/log_sanitize.test.ts`
+- `packages/contract/tests/static_decorator.test.ts`
 
 <!-- /generated:tests -->
 
@@ -96,7 +97,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 3 test files directly —
+Then, specific to this package: run its 4 test files directly —
 
 ```bash
 deno test -A packages/contract/

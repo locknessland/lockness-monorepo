@@ -296,6 +296,7 @@ user-facing doc.
 | [core/docs/compose.md](packages/core/docs/compose.md)                             | Middleware composition  |
 | [core/docs/error-handling.md](packages/core/docs/error-handling.md)               | Error handling system   |
 | [core/docs/components.md](packages/core/docs/components.md)                       | JSX components          |
+| [core/docs/ssg.md](packages/core/docs/ssg.md)                                     | Static site generation  |
 | [auth/docs/DOCS.md](packages/auth/docs/DOCS.md)                                   | Authentication system   |
 | [session/docs/DOCS.md](packages/session/docs/DOCS.md)                             | Session management      |
 | [cache/docs/DOCS.md](packages/cache/docs/DOCS.md)                                 | Caching system          |
