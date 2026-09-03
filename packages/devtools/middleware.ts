@@ -22,7 +22,7 @@ import { DebugToolbar } from './components/toolbar.tsx'
 import type { RequestInfo } from './types.ts'
 import { devtoolsActive } from './gate.ts'
 import { devtoolsRequestContext } from './request_context.ts'
-import { redactSecrets } from './redact.ts'
+import { redactSecrets, redactValue } from './redact.ts'
 
 // =============================================================================
 // Route Matching
@@ -151,10 +151,18 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
                 method: c.req.method,
                 path: c.req.path,
                 timestamp: Date.now(),
-                headers: Object.fromEntries(c.req.raw.headers.entries()),
-                query: Object.fromEntries(
-                    new URL(c.req.url).searchParams.entries(),
-                ),
+                // Redact at capture (asker — the sole decider is redact.ts).
+                // headers/query are readonly, so redact in the literal, not by
+                // reassignment. redactValue returns string values here (each
+                // leaf is a string or REDACTED), so the narrowing cast is sound.
+                headers: redactValue(
+                    Object.fromEntries(c.req.raw.headers.entries()),
+                ) as Record<string, string>,
+                query: redactValue(
+                    Object.fromEntries(
+                        new URL(c.req.url).searchParams.entries(),
+                    ),
+                ) as Record<string, string>,
             }
 
             // Try to match route to get controller info
@@ -176,7 +184,11 @@ export function devtoolsMiddleware(showToolbar = true): MiddlewareHandler {
                 try {
                     const contentType = c.req.header('content-type')
                     if (contentType?.includes('application/json')) {
-                        requestInfo.body = await c.req.json().catch(() => null)
+                        // Redact at capture. redactValue is total (never throws,
+                        // depth- and cycle-bounded), so this runs safely even
+                        // though the body block precedes `try { await next() }`.
+                        const raw = await c.req.json().catch(() => null)
+                        requestInfo.body = redactValue(raw)
                     }
                 } catch {
                     // Ignore body parsing errors

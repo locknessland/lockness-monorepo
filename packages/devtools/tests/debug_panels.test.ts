@@ -10,7 +10,7 @@ import { Hono } from 'hono'
 import { dispatcher } from '@lockness/events'
 import { collector } from '../collector.ts'
 import { devtoolsActive } from '../gate.ts'
-import { REDACTED, redactSecrets } from '../redact.ts'
+import { REDACTED, redactSecrets, redactValue } from '../redact.ts'
 import { devtoolsRequestContext } from '../request_context.ts'
 import { enableDevtools } from '../mod.ts'
 import { devtoolsMiddleware } from '../middleware.ts'
@@ -50,6 +50,81 @@ Deno.test('redactSecrets - masks secret-looking keys, keeps the rest', () => {
     assertEquals(out.password, REDACTED)
     assertEquals(out.csrf, REDACTED)
     assertEquals(out.session_key, REDACTED)
+})
+
+Deno.test('redactValue - deep + camelCase + code/state, negatives kept (#149, US2)', () => {
+    const out = redactValue({
+        theme: 'dark',
+        monkey: 'ook',
+        statusCode: 200,
+        stateName: 'CA',
+        sessionKey: 'k',
+        code: 'oauth-code',
+        state: 'xyz',
+        passwd: 'p1',
+        pwd: 'p2',
+        credential: 'c',
+        signature: 's',
+        profile: { apiToken: 't', name: 'n' },
+        items: [{ password: 'p', label: 'l' }],
+    }) as Record<string, unknown>
+    // Negatives — a camelCase/compound name that merely contains a token stays.
+    assertEquals(out.theme, 'dark')
+    assertEquals(out.monkey, 'ook')
+    assertEquals(out.statusCode, 200)
+    assertEquals(out.stateName, 'CA')
+    // camelCase *Key + standalone code/state are secrets.
+    assertEquals(out.sessionKey, REDACTED)
+    assertEquals(out.code, REDACTED)
+    assertEquals(out.state, REDACTED)
+    // Canonical secret names (review LOW #1).
+    assertEquals(out.passwd, REDACTED)
+    assertEquals(out.pwd, REDACTED)
+    assertEquals(out.credential, REDACTED)
+    assertEquals(out.signature, REDACTED)
+    // Deep traversal — nested object and array element.
+    const profile = out.profile as Record<string, unknown>
+    assertEquals(profile.apiToken, REDACTED)
+    assertEquals(profile.name, 'n')
+    const item0 = (out.items as unknown[])[0] as Record<string, unknown>
+    assertEquals(item0.password, REDACTED)
+    assertEquals(item0.label, 'l')
+})
+
+Deno.test('redactValue - a top-level array is traversed (#149, US2)', () => {
+    const out = redactValue([{ password: 'p', keep: 'k' }]) as unknown[]
+    const first = out[0] as Record<string, unknown>
+    assertEquals(first.password, REDACTED)
+    assertEquals(first.keep, 'k')
+})
+
+Deno.test('redactValue - deep and cyclic input terminate, no throw (#149, FR-012)', () => {
+    // Adversarially deep, acyclic (a JSON body can be tuned like this).
+    let deep: Record<string, unknown> = { secret: 's' }
+    for (let i = 0; i < 5000; i++) deep = { nested: deep }
+    const outDeep = redactValue(deep) // must not throw / stack-overflow
+    assert(
+        outDeep && typeof outDeep === 'object',
+        'deep input redacted, no throw',
+    )
+    // The over-cap subtree is masked wholesale, not captured raw (review LOW #4).
+    let cur: unknown = outDeep
+    let maskedAtDepth = false
+    for (let i = 0; i < 5000; i++) {
+        if (cur === REDACTED) {
+            maskedAtDepth = true
+            break
+        }
+        cur = (cur as Record<string, unknown> | undefined)?.nested
+    }
+    assert(maskedAtDepth, 'a subtree past MAX_DEPTH is masked wholesale')
+
+    // Cyclic — a memory-session value can be self-referential (not JSON-derived).
+    const cyc: Record<string, unknown> = { theme: 'dark' }
+    cyc.self = cyc
+    const outCyc = redactValue(cyc) as Record<string, unknown>
+    assertEquals(outCyc.theme, 'dark')
+    assertEquals(outCyc.self, REDACTED, 'cycle short-circuited to REDACTED')
 })
 
 // --- Gate (T008/S1) -------------------------------------------------------
@@ -125,7 +200,13 @@ Deno.test('events - captured via onAny with requestId + registered count, idempo
             'req-xyz',
             'correlated to the request',
         )
-        assert(typeof probes[0].listenerCount === 'number')
+        // Exact value, not just the type (#149, US3): no @Listener is
+        // registered for the probe event, so the registered count is 0.
+        assertEquals(
+            probes[0].listenerCount,
+            0,
+            'exact registered-listener count for the probe event',
+        )
 
         // Outside a request scope -> unattributed, not dropped.
         collector.clear()
@@ -167,6 +248,67 @@ Deno.test('sessions - middleware captures a redacted snapshot; none => nothing',
         assert(s, 'session captured')
         assertEquals(s!.data.userId, 7)
         assertEquals(s!.data.apiKey, REDACTED, 'secret value redacted')
+    })
+})
+
+Deno.test('sessions - no session on the context => nothing captured (#149, US3)', async () => {
+    await withEnv({ LOCKNESS_DEVTOOLS: '1' }, async () => {
+        const app = new Hono()
+        enableDevtools(app)
+        // No inner middleware sets a session; the guarded capture must no-op.
+        app.get('/no-sess', (c) => c.text('ok'))
+
+        collector.clear()
+        await app.request('/no-sess')
+
+        assertEquals(
+            collector.getSessions().length,
+            0,
+            'no session set => no snapshot captured, no throw',
+        )
+    })
+})
+
+// --- Request capture redaction at the collector (T005/#149 US1) -----------
+
+Deno.test('request capture - headers/query/body redacted at capture (#149, US1)', async () => {
+    await withEnv({ LOCKNESS_DEVTOOLS: '1' }, async () => {
+        const app = new Hono()
+        enableDevtools(app)
+        app.post('/echo', (c) => c.text('ok'))
+
+        collector.clear()
+        await app.request('/echo?token=abc&theme=dark', {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                'cookie': 'session=zzz',
+                'authorization': 'Bearer sekret',
+            },
+            body: JSON.stringify({
+                password: 'x',
+                profile: { apiToken: 'y' },
+                keep: 'z',
+            }),
+        })
+
+        const req = collector.getRequests().find((r) => r.path === '/echo')
+        assert(req, 'request captured')
+        // Headers: Cookie + Authorization masked, content-type kept.
+        assertEquals(req!.headers['cookie'], REDACTED)
+        assertEquals(req!.headers['authorization'], REDACTED)
+        assertEquals(req!.headers['content-type'], 'application/json')
+        // Query: token masked, theme kept.
+        assertEquals(req!.query['token'], REDACTED)
+        assertEquals(req!.query['theme'], 'dark')
+        // Body: password + nested apiToken masked, keep kept.
+        const body = req!.body as Record<string, unknown>
+        assertEquals(body.password, REDACTED)
+        assertEquals(
+            (body.profile as Record<string, unknown>).apiToken,
+            REDACTED,
+        )
+        assertEquals(body.keep, 'z')
     })
 })
 
