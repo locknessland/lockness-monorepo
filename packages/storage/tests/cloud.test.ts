@@ -21,8 +21,6 @@ Deno.test('S3StorageDriver - initialization requires bucket', () => {
 
 Deno.test({
     name: 'S3StorageDriver - publicUrl default format',
-    sanitizeResources: false,
-    sanitizeOps: false,
     fn: () => {
         const driver = new S3StorageDriver({
             driver: 's3',
@@ -40,8 +38,6 @@ Deno.test({
 
 Deno.test({
     name: 'S3StorageDriver - publicUrl with custom endpoint',
-    sanitizeResources: false,
-    sanitizeOps: false,
     fn: () => {
         const driver = new S3StorageDriver({
             driver: 's3',
@@ -56,7 +52,6 @@ Deno.test({
 
 Deno.test({
     name: 'S3StorageDriver - publicUrl with custom publicUrl',
-    sanitizeResources: false,
     fn: () => {
         const driver = new S3StorageDriver({
             driver: 's3',
@@ -85,8 +80,6 @@ Deno.test('R2StorageDriver - initialization requires accountId', () => {
 
 Deno.test({
     name: 'R2StorageDriver - publicUrl default format',
-    sanitizeResources: false,
-    sanitizeOps: false,
     fn: () => {
         const driver = new R2StorageDriver({
             driver: 'r2',
@@ -107,8 +100,6 @@ Deno.test({
 
 Deno.test({
     name: 'R2StorageDriver - publicUrl with custom publicUrl',
-    sanitizeResources: false,
-    sanitizeOps: false,
     fn: () => {
         const driver = new R2StorageDriver({
             driver: 'r2',

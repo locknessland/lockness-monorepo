@@ -274,8 +274,6 @@ Deno.test('createApp - supports database configuration as boolean', async () => 
 
 Deno.test({
     name: 'createApp - supports database configuration as object',
-    sanitizeResources: false,
-    sanitizeOps: false,
     fn: async () => {
         @Kernel({
             database: {
@@ -294,8 +292,6 @@ Deno.test({
 
 Deno.test({
     name: 'createApp - supports session configuration as boolean',
-    sanitizeResources: false,
-    sanitizeOps: false,
     fn: async () => {
         @Kernel({
             session: true,
@@ -311,8 +307,6 @@ Deno.test({
 
 Deno.test({
     name: 'createApp - supports session configuration as object',
-    sanitizeResources: false,
-    sanitizeOps: false,
     fn: async () => {
         @Kernel({
             session: {
@@ -346,8 +340,6 @@ Deno.test('createApp - handles missing optional dependencies gracefully', async 
 
 Deno.test({
     name: 'createApp - supports both declarative and imperative patterns',
-    sanitizeResources: false,
-    sanitizeOps: false,
     fn: async () => {
         // Declarative pattern
         @Kernel({

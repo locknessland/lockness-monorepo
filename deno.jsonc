@@ -44,6 +44,7 @@
         "css:watch": "deno run -A @tailwindcss/cli -i app/view/assets/app.css -o public/css/app.css --watch",
         "test": "deno test -A",
         "test:watch": "deno test -A --watch",
+        "test:leaks": "deno test -A --trace-leaks",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage packages/ app/ && deno coverage coverage --lcov > coverage/lcov.info && deno coverage coverage",
         "coverage:floor": "deno run -A scripts/coverage_floor.ts --check",
         "coverage:floor:update": "deno run -A scripts/coverage_floor.ts --update",
