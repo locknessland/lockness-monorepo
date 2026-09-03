@@ -8,6 +8,8 @@
  * @module @lockness/devtools/types
  */
 
+import type { Context } from '@lockness/hono'
+
 // =============================================================================
 // HTTP Method Types
 // =============================================================================
@@ -504,4 +506,43 @@ export interface DevtoolsConfig {
      * @default true
      */
     readonly showDebugBar?: boolean
+
+    /**
+     * Shared secret required to reach the gated devtools routes from any host.
+     *
+     * When set (here or via the `LOCKNESS_DEVTOOLS_TOKEN` env var), every
+     * devtools route requires an `Authorization: Bearer <token>` header that
+     * matches, compared in constant time; a configured token is **not** bypassed
+     * by the loopback default. When unset, the default loopback posture applies.
+     * Generate it with a CSPRNG and at least 128 bits of entropy — there is no
+     * per-attempt lockout, so token entropy is the only barrier.
+     *
+     * @default undefined — falls back to `LOCKNESS_DEVTOOLS_TOKEN`, else the
+     * loopback posture.
+     */
+    readonly token?: string
+
+    /**
+     * Escape hatch that lets the application decide authorization for the
+     * devtools routes with its own logic (a session check, `@lockness/auth`, an
+     * IP allowlist) without devtools depending on it.
+     *
+     * When provided it is **the** decider (it supersedes `token` and the
+     * loopback default): returning `true` allows the request, `false` denies it.
+     * It is always awaited and wrapped in a `try/catch` — a callback that throws
+     * or returns a rejected Promise denies (fail closed), never grants. It must
+     * not trust a spoofable forwarding header (`X-Forwarded-For` et al.) to
+     * *grant* access.
+     *
+     * @param c - The Hono request context for the incoming devtools request.
+     * @returns `true` to allow, `false` to deny; may be async.
+     *
+     * @example
+     * ```typescript
+     * enableDevtools(app, {
+     *   authorize: (c) => c.get('user')?.isAdmin === true,
+     * })
+     * ```
+     */
+    readonly authorize?: (c: Context) => boolean | Promise<boolean>
 }

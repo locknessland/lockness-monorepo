@@ -293,6 +293,40 @@ export * from './client.ts'
 export { getRuntimeKey } from './server.ts'
 
 // ============================================================================
+// Network Helpers
+// ============================================================================
+
+/**
+ * Deno runtime helper that reads the peer's connection information off the
+ * request context — the remote address, port, and transport of the TCP peer.
+ *
+ * Only the {@link GetConnInfo} *type* was on the bridge before; this is the
+ * runtime function for the Deno adapter, surfaced so a consumer can decide,
+ * for example, whether a request originates from a loopback peer without
+ * importing `hono/deno` directly (hard rule #1). It resolves to the external
+ * `hono/deno` adapter, so it adds no workspace dependency edge.
+ *
+ * @param c - The Hono request context to read the peer connection info from.
+ * @returns The connection info, whose `remote` holds the peer address, port and transport.
+ * @throws If the context carries no `remoteAddr` (e.g. a synthetic
+ * `app.request()` with no conn-info env, or a runtime that is not Deno),
+ * reading the address throws — callers that must not fail should guard with a
+ * `try/catch`.
+ *
+ * @example
+ * ```typescript
+ * import { getConnInfo } from '@lockness/hono'
+ *
+ * app.use('/admin/*', (c, next) => {
+ *   const { remote } = getConnInfo(c)
+ *   if (remote.address !== '127.0.0.1') return c.text('Forbidden', 403)
+ *   return next()
+ * })
+ * ```
+ */
+export { getConnInfo } from './deno.ts'
+
+// ============================================================================
 // Network Helpers (Types)
 // ============================================================================
 
