@@ -15,7 +15,7 @@
  * ```
  */
 
-import type { Context, MiddlewareHandler } from 'hono'
+import type { Context, MiddlewareHandler } from '@lockness/hono'
 import type { Session } from '@lockness/session'
 import { collector } from './collector.ts'
 import { DebugToolbar } from './components/toolbar.tsx'

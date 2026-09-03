@@ -6,7 +6,7 @@
  * @module @lockness/devtools/dashboard
  */
 
-import type { Context } from 'hono'
+import type { Context } from '@lockness/hono'
 import { collector } from './collector.ts'
 import type { DevtoolsData, RequestInfo } from './types.ts'
 import { Dashboard } from './ui/Dashboard.tsx'

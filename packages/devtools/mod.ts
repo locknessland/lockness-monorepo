@@ -42,7 +42,7 @@
  * ```
  */
 
-import type { Hono } from 'hono'
+import type { Hono } from '@lockness/hono'
 import { dispatcher } from '@lockness/events'
 import { devtoolsMiddleware } from './middleware.ts'
 import { renderDashboard } from './dashboard.tsx'

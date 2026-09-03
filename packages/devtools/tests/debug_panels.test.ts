@@ -6,7 +6,7 @@
  */
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
-import { Hono } from 'hono'
+import { Hono } from '@lockness/hono'
 import { dispatcher } from '@lockness/events'
 import { collector } from '../collector.ts'
 import { devtoolsActive } from '../gate.ts'
