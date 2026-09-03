@@ -31,9 +31,24 @@ and decide afterwards.
 ## One version for the whole workspace
 
 Every package moves to the same version on every release, including packages
-with no changes. `deno task bump <version>` does it atomically: the root
-`deno.jsonc`, all 27 `packages/*/deno.json`, every `jsr:@lockness/*`
-inter-package specifier, and every stub file.
+with no changes. `deno task bump` does it atomically: the root `deno.jsonc`, all
+27 `packages/*/deno.json`, and every `jsr:@lockness/*` inter-package specifier.
+
+**The engine is Deno's native `deno bump-version` (Deno ≥ 2.8).** In workspace
+mode with an increment (`--patch` / `--minor` / `--major`), it applies one
+shared increment to every member and rewrites the cross-package `jsr:`
+constraints in place — the lockstep model, natively. `scripts/bump-native.ts` is
+a thin wrapper that maps our interface (`--patch` / `--minor` / `--major`, a
+bare `patch` / `minor` / `major` keyword, or an absolute `X.Y.Z` that is one
+clean step from the current version) onto it. Adopting it (issue #162) retired
+most of the hand-rolled `scripts/bump.ts`, which had a latent bug — it dropped
+the subpath from a versioned specifier, collapsing `@lockness/hono/jsx-runtime`
+onto the base export.
+
+`scripts/bump.ts` survives as `deno task bump:legacy`, its subpath bug fixed,
+for the two things native cannot do: set an arbitrary version in one jump, and
+serve as a fallback while `deno bump-version` is still flagged experimental.
+Neither tool touches stub files — no stub carries a version pin today.
 
 Why lockstep, and not per-package semver:
 
