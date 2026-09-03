@@ -13,7 +13,16 @@ on:
 jobs:
     test:
         name: Run Tests
-        runs-on: ubuntu-latest
+        runs-on: ${{ matrix.os }}
+        strategy:
+            fail-fast: false
+            matrix:
+                # ubuntu is the existing lane; macOS mirrors the maintainers'
+                # local platform. Windows is intentionally not yet in the matrix
+                # (unverified path assumptions) — tracked as follow-up.
+                os: [ubuntu-latest, macos-latest]
+                # Latest v2 plus a pinned floor for reproducibility.
+                deno-version: ['v2.x', '2.9.6']
 
         steps:
             - name: Checkout code
@@ -22,7 +31,7 @@ jobs:
             - name: Setup Deno
               uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
               with:
-                  deno-version: v2.x
+                  deno-version: ${{ matrix.deno-version }}
 
             - name: Cache dependencies
               uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -52,8 +61,8 @@ jobs:
             - name: Published-shape resolution
               run: deno task publish:check
 
-            - name: Run tests
-              run: deno task test
+            - name: Run tests (with leak tracing)
+              run: deno task test:leaks
 
     coverage:
         name: Coverage
