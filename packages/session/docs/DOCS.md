@@ -59,7 +59,9 @@ configureSession({
     lifetime: 7200, // 2 hours — the IDLE window, refreshed on every write
     absoluteLifetime: 604800, // 7 days — the hard ceiling (optional; see below)
     revocation: true, // optional; requires absoluteLifetime (cookie driver)
-    secure: Deno.env.get('APP_ENV') === 'production',
+    // `secure` is optional: it defaults to true unless DENO_ENV/APP_ENV is
+    // explicitly 'development' (fail-closed). Set it only to override that —
+    // e.g. `secure: false` for a plaintext-localhost setup without the env var.
 })
 ```
 
