@@ -201,32 +201,33 @@ export function enableDevtools(
     // Add middleware to collect data and inject toolbar
     honoApp.use('*', devtoolsMiddleware(cfg.showDebugBar))
 
-    // Gate every collector-facing route behind authorization (#161). Registered
-    // on BOTH the bare base path and its sub-tree so the exact `/_devtools`
-    // dashboard is covered as well (Hono's `/*` does not match the exact path).
-    // The single decider lives in gate.ts; here we only *ask* and emit the one
-    // denial shape — a `401` with an empty body — for every deny path.
+    // Gate every collector-facing route behind authorization (#161). The gate is
+    // applied as **per-route middleware** on each collector route rather than via
+    // a `use('${basePath}/*')` wildcard: mounted under a constrained i18n mount
+    // pattern, that wildcard `use` corrupts Hono 4.11.1's RegExpRouter route table
+    // (`undefined is not iterable` at build), breaking dev-mode boot entirely
+    // (#54 follow-up). Per-route application covers exactly the same collector
+    // routes without the wildcard. The single decider lives in gate.ts; here we
+    // only *ask* and emit the one denial shape — a `401` with an empty body.
     const gate: MiddlewareHandler = async (c, next) => {
         if (!(await authorizeDevtools(c, cfg))) {
             return c.body(null, 401)
         }
         await next()
     }
-    honoApp.use(cfg.basePath, gate)
-    honoApp.use(`${cfg.basePath}/*`, gate)
 
     // Dashboard route
-    honoApp.get(cfg.basePath, (c) => {
+    honoApp.get(cfg.basePath, gate, (c) => {
         return renderDashboard(c)
     })
 
     // API endpoints
-    honoApp.get(`${cfg.basePath}/api/data`, (c) => {
+    honoApp.get(`${cfg.basePath}/api/data`, gate, (c) => {
         return c.json(collector.getAllData())
     })
 
     // New endpoint: get component tree for a component
-    honoApp.get(`${cfg.basePath}/api/component-tree/:name`, (c) => {
+    honoApp.get(`${cfg.basePath}/api/component-tree/:name`, gate, (c) => {
         const componentName = c.req.param('name')
         if (!componentAnalyzer) {
             return c.json({ error: 'Analyzer not ready' }, 503)
@@ -235,7 +236,7 @@ export function enableDevtools(
         return c.json(tree)
     })
 
-    honoApp.post(`${cfg.basePath}/clear`, (c) => {
+    honoApp.post(`${cfg.basePath}/clear`, gate, (c) => {
         collector.clear()
         return c.json({ success: true })
     })
