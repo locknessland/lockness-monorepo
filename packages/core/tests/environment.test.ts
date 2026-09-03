@@ -186,3 +186,44 @@ Deno.test('defaultErrorHandler - production 500 leaks no stack detail (site 4)',
     const dev = await bodyForEnv({ APP_ENV: 'development' })
     assertStringIncludes(dev, 'STACK-MARKER-SHOULD-NOT-LEAK')
 })
+
+Deno.test('defaultErrorHandler - an unset/ambiguous environment fails closed (H1 regression #165)', async () => {
+    // The security-critical case the production/development pair above never
+    // exercised: neither DENO_ENV nor APP_ENV set. The 500 detail gate must
+    // fail CLOSED here — an unset environment is the default state of a freshly
+    // deployed app and of a `deno compile` binary launched without --allow-env,
+    // and leaking stack traces to every client by default is the H1 finding.
+    const ambiguous = await bodyForEnv({})
+    assert(
+        !ambiguous.includes('STACK-MARKER-SHOULD-NOT-LEAK'),
+        'an unset environment must not expose the error detail (must not fail open)',
+    )
+})
+
+Deno.test('defaultErrorHandler - a NotCapable env read fails closed (H1 regression #165)', async () => {
+    // A compiled binary run without --allow-env: every env read raises
+    // NotCapable. The gate must still fail closed rather than default to
+    // showing details.
+    // deno-lint-ignore no-explicit-any
+    const envAny = Deno.env as any
+    const original = envAny.get
+    const app = new Hono()
+    app.get('/boom', () => {
+        throw new Error('STACK-MARKER-SHOULD-NOT-LEAK')
+    })
+    app.onError((e, c) => defaultErrorHandler(e as Error, c))
+    try {
+        envAny.get = () => {
+            throw new Deno.errors.NotCapable('Requires env access')
+        }
+        const res = await app.request('/boom')
+        assertEquals(res.status, 500)
+        const body = await res.text()
+        assert(
+            !body.includes('STACK-MARKER-SHOULD-NOT-LEAK'),
+            'a NotCapable env read must not expose the error detail',
+        )
+    } finally {
+        envAny.get = original
+    }
+})

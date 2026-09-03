@@ -1,6 +1,6 @@
 import type { Context } from '../types.ts'
 import { formatErrorForConsole } from './formatter.ts'
-import { isDevelopment } from '../environment.ts'
+import { isExplicitlyDevelopment } from '../environment.ts'
 
 /**
  * Simple inline error pages - no external dependencies
@@ -338,8 +338,12 @@ export const defaultErrorHandler = (
         case 403:
             return c.html(<ForbiddenPage />, 403)
         default: {
-            // Show error details only in development
-            const showDetails = isDevelopment()
+            // Show error details only under an EXPLICIT development signal.
+            // `isExplicitlyDevelopment()` fails closed: an unset/ambiguous
+            // environment (fresh deploy, or a compiled binary without
+            // --allow-env) resolves to false, so stack traces never leak to
+            // clients by default (H1, #165). Matches the devtools gate.
+            const showDetails = isExplicitlyDevelopment()
             return c.html(
                 <ServerErrorPage error={error} showDetails={showDetails} />,
                 500,
