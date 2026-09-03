@@ -46,19 +46,25 @@ This will run all tests for all libraries in the workspace.
 ### Version Management
 
 When releasing a new version of Lockness, all packages in the monorepo need to
-be bumped to the same version. Use the `bump` command:
+be bumped to the same version. Use the `bump` command with an increment:
 
 ```bash
-deno task bump 0.2.0
+deno task bump --patch    # or --minor / --major, or a bare: minor
 ```
 
-This command automatically:
+It delegates to Deno's native `deno bump-version` (Deno ≥ 2.8) in workspace
+mode, which automatically:
 
 - Updates the `version` field in all workspace packages' `deno.json`
 - Updates all inter-package dependencies (e.g., `@lockness/core@^0.1.0` →
-  `@lockness/core@^0.2.0`)
-- Preserves version prefixes (`^` or `~`)
-- Provides a summary of changes
+  `@lockness/core@^0.2.0`), preserving version prefixes (`^` / `~`) and subpath
+  exports (`@lockness/hono@^0.2.0/jsx-runtime`)
+- Preserves the comments in the root `deno.jsonc`
+
+An absolute `deno task bump 0.3.0` is accepted when it is exactly one step from
+the current version. For an arbitrary jump, use `deno task bump:legacy 0.3.0`
+(the pre-adoption script, kept as a fallback — see
+[releasing.md](releasing.md)).
 
 **After bumping:**
 
