@@ -4541,6 +4541,7 @@
       },
       "packages/socialite": {
         "dependencies": [
+          "jsr:@lockness/contract@0.2",
           "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",

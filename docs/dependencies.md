@@ -59,7 +59,7 @@ The dependency graph is acyclic (DAG).
 | `queue`                 | contract                                     | —                                                            |
 | `scheduler`             | —                                            | —                                                            |
 | `session`               | contract, hono                               | —                                                            |
-| `socialite`             | hono                                         | —                                                            |
+| `socialite`             | contract, hono                               | —                                                            |
 | `sse`                   | contract                                     | —                                                            |
 | `storage`               | —                                            | —                                                            |
 | `ui`                    | hono, markdown                               | —                                                            |

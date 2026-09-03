@@ -29,6 +29,64 @@
  */
 
 import type { Context } from 'hono'
+import { isExplicitlyDevelopment } from '@lockness/contract'
+
+/**
+ * Name of the short-lived cookie that carries the OAuth `state` value between
+ * {@link BaseOAuth2Driver.redirect} and {@link BaseOAuth2Driver.user}. The
+ * cookie is HttpOnly, so an attacker can neither read nor set it; comparing it
+ * to the `state` echoed back in the callback query is the standard
+ * double-submit defence against OAuth login-CSRF (#169).
+ */
+const OAUTH_STATE_COOKIE = 'lockness_oauth_state'
+
+/** Seconds the state cookie stays valid — long enough for the round-trip. */
+const OAUTH_STATE_TTL = 600
+
+/**
+ * Build the `Set-Cookie` header value for the OAuth state cookie.
+ *
+ * `Secure` is derived fail-closed: on unless the environment is explicitly
+ * development, so the cookie is only sent over plaintext HTTP on a localhost dev
+ * setup (matches the session cookie posture). `SameSite=Lax` is required so the
+ * cookie survives the top-level redirect back from the provider.
+ *
+ * @param state - The state value to store.
+ * @returns The serialized `Set-Cookie` value.
+ */
+function buildStateCookie(state: string): string {
+    const attrs = [
+        `${OAUTH_STATE_COOKIE}=${state}`,
+        'Path=/',
+        `Max-Age=${OAUTH_STATE_TTL}`,
+        'HttpOnly',
+        'SameSite=Lax',
+    ]
+    if (!isExplicitlyDevelopment()) attrs.push('Secure')
+    return attrs.join('; ')
+}
+
+/**
+ * Read a single cookie value from a raw `Cookie` header.
+ *
+ * @param header - The request's `Cookie` header, if any.
+ * @param name - The cookie name to extract.
+ * @returns The decoded value, or `undefined` when absent.
+ */
+function readCookie(
+    header: string | undefined,
+    name: string,
+): string | undefined {
+    if (!header) return undefined
+    for (const part of header.split(';')) {
+        const eq = part.indexOf('=')
+        if (eq === -1) continue
+        if (part.slice(0, eq).trim() === name) {
+            return part.slice(eq + 1).trim()
+        }
+    }
+    return undefined
+}
 
 // ============================================================================
 // Types
@@ -181,16 +239,41 @@ export abstract class BaseOAuth2Driver implements SocialiteDriver {
     /** Get user info from tokens - implemented by each provider */
     abstract getUserFromTokens(tokens: OAuthTokens): Promise<SocialUser>
 
-    /** Generate redirect response to authorization URL */
+    /**
+     * Generate a redirect response to the authorization URL.
+     *
+     * When no `state` is supplied one is generated, and it is stored in a
+     * short-lived HttpOnly cookie on the response so {@link user} can verify the
+     * callback against it — making the ergonomic path CSRF-safe by default
+     * (#169). Pass an explicit `state` only to manage it yourself.
+     *
+     * @param state - Optional explicit state value; generated when omitted.
+     * @returns A 302 response to the provider, carrying the state cookie.
+     */
     redirect(state?: string): Response {
-        const url = this.getAuthUrl(state)
+        const resolvedState = state ?? generateState()
+        const url = this.getAuthUrl(resolvedState)
         return new Response(null, {
             status: 302,
-            headers: { Location: url },
+            headers: {
+                Location: url,
+                'Set-Cookie': buildStateCookie(resolvedState),
+            },
         })
     }
 
-    /** Get user from callback request */
+    /**
+     * Resolve the authenticated user from an OAuth callback request.
+     *
+     * Verifies the `state` query parameter against the state cookie set by
+     * {@link redirect} and rejects on any absence or mismatch — the OAuth
+     * login-CSRF defence (#169) — before exchanging the code for tokens.
+     *
+     * @param c - The callback request context.
+     * @returns The normalised social user.
+     * @throws {Error} When the provider returned an error, no code is present,
+     *   or the `state` is missing or does not match the cookie.
+     */
     async user(c: Context): Promise<SocialUser> {
         const code = c.req.query('code')
 
@@ -201,6 +284,22 @@ export abstract class BaseOAuth2Driver implements SocialiteDriver {
                 `OAuth error: ${error} - ${
                     errorDescription || 'No code provided'
                 }`,
+            )
+        }
+
+        // Fail closed on the state check: an absent or mismatched state is a
+        // possible login-CSRF and must never proceed to a token exchange.
+        const expectedState = readCookie(
+            c.req.header('Cookie'),
+            OAUTH_STATE_COOKIE,
+        )
+        const returnedState = c.req.query('state')
+        if (
+            !expectedState || !returnedState || expectedState !== returnedState
+        ) {
+            throw new Error(
+                'OAuth state mismatch: missing or invalid state (possible CSRF). ' +
+                    'Start the flow via redirect() so the state cookie is set.',
             )
         }
 

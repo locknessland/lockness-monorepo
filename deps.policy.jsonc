@@ -69,7 +69,10 @@
         "queue": { "tier": "implementation", "allow": ["contract"] },
         "scheduler": { "tier": "implementation", "allow": [] },
         "session": { "tier": "implementation", "allow": ["contract", "hono"] },
-        "socialite": { "tier": "implementation", "allow": ["hono"] },
+        "socialite": {
+            "tier": "implementation",
+            "allow": ["hono", "contract"]
+        },
         "sse": { "tier": "implementation", "allow": ["contract"] },
         "storage": { "tier": "implementation", "allow": [] },
         // `ui` reaches `markdown` one way: `ui/markdown.tsx` and
