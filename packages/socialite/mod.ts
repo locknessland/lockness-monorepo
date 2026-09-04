@@ -57,10 +57,30 @@ const OAUTH_STATE_TTL = 600
  * @returns The serialized `Set-Cookie` value.
  */
 function buildStateCookie(state: string): string {
+    return buildShortLivedCookie(OAUTH_STATE_COOKIE, state, OAUTH_STATE_TTL)
+}
+
+/**
+ * Serialize a short-lived, HttpOnly OAuth cookie (state or PKCE verifier) with
+ * the shared posture: `Path=/`, the given `Max-Age`, `HttpOnly`, `SameSite=Lax`
+ * (survives the top-level redirect back), and `Secure` unless the environment is
+ * explicitly development. The single home for that cookie posture.
+ *
+ * @param name - The cookie name (already `__Host-`-prefixed by the caller where
+ *   applicable).
+ * @param value - The cookie value.
+ * @param ttlSeconds - `Max-Age` in seconds.
+ * @returns The serialized `Set-Cookie` value.
+ */
+function buildShortLivedCookie(
+    name: string,
+    value: string,
+    ttlSeconds: number,
+): string {
     const attrs = [
-        `${OAUTH_STATE_COOKIE}=${state}`,
+        `${name}=${value}`,
         'Path=/',
-        `Max-Age=${OAUTH_STATE_TTL}`,
+        `Max-Age=${ttlSeconds}`,
         'HttpOnly',
         'SameSite=Lax',
     ]
@@ -157,15 +177,11 @@ export function pkceChallenge(verifier: string): string {
  * @returns The serialized `Set-Cookie` value.
  */
 function buildPkceCookie(verifier: string): string {
-    const attrs = [
-        `${verifierCookieName()}=${verifier}`,
-        'Path=/',
-        `Max-Age=${OAUTH_VERIFIER_TTL}`,
-        'HttpOnly',
-        'SameSite=Lax',
-    ]
-    if (!isExplicitlyDevelopment()) attrs.push('Secure')
-    return attrs.join('; ')
+    return buildShortLivedCookie(
+        verifierCookieName(),
+        verifier,
+        OAUTH_VERIFIER_TTL,
+    )
 }
 
 // ============================================================================
