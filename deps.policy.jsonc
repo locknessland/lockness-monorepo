@@ -75,7 +75,15 @@
         "inertia": { "tier": "implementation", "allow": ["hono"] },
         "init": { "tier": "implementation", "allow": ["cli"] },
         "logger": { "tier": "implementation", "allow": ["contract"] },
-        "mail": { "tier": "implementation", "allow": [] },
+        // `mail` stays zero-hard-dep (`allow: []`). Markdown mailables + queued
+        // mail load their backing only when used, through mail's OWN local
+        // `tryImport` (packages/mail/optional.ts) — a soft edge, never a value
+        // or `import type` of markdown/queue (either would harden it).
+        "mail": {
+            "tier": "implementation",
+            "allow": [],
+            "soft": ["markdown", "queue"]
+        },
         "markdown": { "tier": "implementation", "allow": ["hono"] },
         // `notification` is a pure sink: nothing imports it, so it cannot close
         // a cycle. Its channel backing packages are declared `soft` — each is
