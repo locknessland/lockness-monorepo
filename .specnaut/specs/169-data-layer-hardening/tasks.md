@@ -45,7 +45,7 @@ seeding.
 
 ## Trailing docs (non-child)
 
-- [ ] T013 Write `docs/multi-db-and-factories.md` (or extend an existing drizzle doc): configuring `driver`, per-dialect connection, the `deno compile` libsql caveat (Q2), factories + `make:factory`, factory-aware seeders, and the dev-test-tooling note (S4). Add to the doc index. Commit `docs(#214): document multi-DB drivers + model factories` + `Epic: #214` (no T-ordinal — not a child).
+- [X] T013 Write `docs/multi-db-and-factories.md` (or extend an existing drizzle doc): configuring `driver`, per-dialect connection, the `deno compile` libsql caveat (Q2), factories + `make:factory`, factory-aware seeders, and the dev-test-tooling note (S4). Add to the doc index. Commit `docs(#214): document multi-DB drivers + model factories` + `Epic: #214` (no T-ordinal — not a child).
 
 ---
 
