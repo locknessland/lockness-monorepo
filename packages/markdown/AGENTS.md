@@ -21,12 +21,12 @@ User-facing documentation: [README.md](README.md) ·
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                  |
-| :--------------------------------------------- | :------------------------------------------------------------------------ |
-| Imports (static)                               | `hono`                                                                    |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                         |
-| Imported by                                    | `ui`                                                                      |
-| **Must never import**                          | `ui` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                          |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------ |
+| Imports (static)                               | `hono`                                                                                            |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                 |
+| Imported by                                    | `mail`, `ui`                                                                                      |
+| **Must never import**                          | `mail`, `notification`, `ui` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

@@ -1,0 +1,28 @@
+import { Mailable } from '@lockness/mail'
+import type { MailableContent } from '@lockness/mail'
+
+/**
+ * The {{Model}} mailable.
+ *
+ * Send inline:      await new {{Model}}(user).send()
+ * Queue it:         register it at boot then queueMailable(new {{Model}}(user))
+ *   registerMailable('{{Model}}', (p) => new {{Model}}(p as { email: string }))
+ */
+export class {{Model}} extends Mailable {
+    constructor(private readonly to: string) {
+        super()
+    }
+
+    build(): MailableContent {
+        return {
+            to: this.to,
+            subject: '{{Model}}',
+            markdown: `# Hello\n\nEdit this mailable in app/mail.`,
+        }
+    }
+
+    // Identifiers only — never a rendered body (re-rendered in the worker).
+    override toQueue(): unknown {
+        return { to: this.to }
+    }
+}

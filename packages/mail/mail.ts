@@ -18,6 +18,7 @@ import { ConsoleMailDriver } from './drivers/console.ts'
 import { MemoryMailDriver } from './drivers/memory.ts'
 import { SmtpMailDriver } from './drivers/smtp.ts'
 import { ResendMailDriver } from './drivers/resend.ts'
+import { capturePreview } from './preview.ts'
 
 export class Mail {
     private message: Partial<MailMessage> = {}
@@ -217,6 +218,9 @@ export class Mail {
             }
         }
 
+        // Dev preview tap — a no-op unless the preview is explicitly enabled
+        // (and never in production).
+        capturePreview(this.message as MailMessage)
         return driver.send(this.message as MailMessage)
     }
 }

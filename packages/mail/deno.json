@@ -13,7 +13,8 @@
         ]
     },
     "imports": {
-        "@std/assert": "jsr:@std/assert@1"
+        "@std/assert": "jsr:@std/assert@1",
+        "@std/path": "jsr:@std/path@1"
     },
     "description": "Expressive email sending library with multiple driver support (SMTP, Resend, Console, Memory) and fluent API"
 }

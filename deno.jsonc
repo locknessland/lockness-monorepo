@@ -154,6 +154,7 @@
             "features",
             "i18n",
             "init",
+            "mail",
             "notification",
             "openapi",
             "search"

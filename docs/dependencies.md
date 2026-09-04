@@ -59,7 +59,7 @@ The dependency graph is acyclic (DAG).
 | `inertia`               | hono                                                 | —                                                                                    |
 | `init`                  | cli                                                  | —                                                                                    |
 | `logger`                | contract                                             | —                                                                                    |
-| `mail`                  | —                                                    | —                                                                                    |
+| `mail`                  | —                                                    | markdown, queue                                                                      |
 | `markdown`              | hono                                                 | —                                                                                    |
 | `notification`          | container, contract                                  | drizzle, logger, mail, queue, sse                                                    |
 | `openapi`               | cli, contract, hono                                  | —                                                                                    |

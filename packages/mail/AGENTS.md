@@ -23,7 +23,7 @@ names does not belong here._
 | Direction                                      | Packages                                                                            |
 | :--------------------------------------------- | :---------------------------------------------------------------------------------- |
 | Imports (static)                               | —                                                                                   |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                   |
+| Imports (soft, via `tryImportOptionalPackage`) | `markdown`, `queue`                                                                 |
 | Imported by                                    | `notification`                                                                      |
 | **Must never import**                          | `notification` — each already reaches this package, so importing one closes a cycle |
 
@@ -37,11 +37,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                  |
-| :-------- | :--------------------------------------------------------------------------------------- |
-| class     | `ConsoleMailDriver`, `Mail`, `MemoryMailDriver`, `ResendMailDriver`, `SmtpMailDriver`    |
-| function  | `configureMail`, `getMailConfig`, `mail`                                                 |
-| interface | `MailAddress`, `MailAttachment`, `MailConfig`, `MailDriver`, `MailMessage`, `MailResult` |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                        |
+| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `ConsoleMailDriver`, `Mail`, `MailPackageMissingError`, `MailQueueNotConfiguredError`, `Mailable`, `MemoryMailDriver`, `ResendMailDriver`, `SmtpMailDriver`                                                                                                                                                                                                                                    |
+| function  | `capturePreview`, `capturedMails`, `configureMail`, `configureMailQueue`, `disableMailPreview`, `enableMailPreview`, `getMailConfig`, `getMailableFactory`, `handleMailJob`, `handleMakeMail`, `isContained`, `isMailPreviewEnabled`, `mail`, `mailPreviewHandler`, `queueMailable`, `registerMailCommands`, `registerMailable`, `resetMailPreview`, `resetMailQueue`, `resetMailableRegistry` |
+| interface | `CapturedMail`, `Cli`, `MailAddress`, `MailAttachment`, `MailConfig`, `MailDriver`, `MailMessage`, `MailResult`, `MailableContent`, `QueuedMailJob`                                                                                                                                                                                                                                            |
+| typeAlias | `MailDispatcher`, `MailableFactory`, `ModuleImporter`                                                                                                                                                                                                                                                                                                                                          |
+| variable  | `MAIL_DIR`                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Anything not listed is internal and free to change.
 
@@ -64,9 +66,12 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-1 test file for 9 source files:
+4 test files for 14 source files:
 
 - `packages/mail/tests/mail.test.ts`
+- `packages/mail/tests/mailable.test.ts`
+- `packages/mail/tests/preview.test.ts`
+- `packages/mail/tests/queued.test.ts`
 
 <!-- /generated:tests -->
 
@@ -82,7 +87,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 1 test file directly —
+Then, specific to this package: run its 4 test files directly —
 
 ```bash
 deno test -A packages/mail/
