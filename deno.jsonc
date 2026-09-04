@@ -11,6 +11,7 @@
         "./packages/cache",
         "./packages/container",
         "./packages/events",
+        "./packages/features",
         "./packages/i18n",
         "./packages/inertia",
         "./packages/logger",
@@ -149,6 +150,7 @@
     "lockness": {
         "packages": [
             "drizzle",
+            "features",
             "i18n",
             "init",
             "notification",

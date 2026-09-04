@@ -4670,6 +4670,12 @@
           "jsr:@std/path@1"
         ]
       },
+      "packages/features": {
+        "dependencies": [
+          "jsr:@std/assert@1",
+          "jsr:@std/path@1"
+        ]
+      },
       "packages/hono": {
         "dependencies": [
           "npm:@hono/zod-validator@0.7.6",

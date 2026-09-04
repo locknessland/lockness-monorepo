@@ -1,0 +1,12 @@
+/**
+ * Feature flag: {{name}}
+ *
+ * Register it in your kernel's feature config:
+ *   configureFeatures({ flags: { '{{name}}': flag_{{name}} } })
+ *
+ * A definition is a boolean, a percentage rollout, or a resolver:
+ *   true                              // on for everyone
+ *   { rollout: 25 }                   // 25% deterministic per scope
+ *   (scope) => isBetaTester(scope)    // custom resolver
+ */
+export const definition = { rollout: 0 }

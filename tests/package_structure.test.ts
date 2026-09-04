@@ -52,6 +52,7 @@ const PACKAGES: string[] = [
     'devtools',
     'drizzle',
     'events',
+    'features',
     'hono',
     'inertia',
     'init',
