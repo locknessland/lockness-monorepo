@@ -22,7 +22,7 @@ names does not belong here._
 
 | Direction                                      | Packages                                                                                                         |
 | :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`                                                                                                       |
+| Imports (static)                               | `contract`, `redis`                                                                                              |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                |
 | Imported by                                    | `cli`                                                                                                            |
 | **Must never import**                          | `cli`, `core`, `drizzle`, `init`, `openapi` — each already reaches this package, so importing one closes a cycle |
@@ -37,12 +37,12 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                  |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `DenoKvQueueDriver`, `MemoryQueueDriver`, `QueueWorker`                                                                                                  |
-| function  | `Queueable`, `clearQueue`, `configureQueue`, `dispatch`, `dispatchByName`, `getJobClass`, `getQueueConfig`, `queueSize`, `registerJob`, `setQueueDriver` |
-| interface | `DispatchOptions`, `Job`, `JobPayload`, `QueueConfig`, `QueueDriver`, `SerializedJob`, `WorkerOptions`                                                   |
-| typeAlias | `JobClass`                                                                                                                                               |
+| Kind      | Exports                                                                                                                                                                                                              |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `DenoKvQueueDriver`, `MemoryQueueDriver`, `QueueWorker`, `RedisQueueDriver`                                                                                                                                          |
+| function  | `Queueable`, `clearQueue`, `computeNextAvailable`, `configureQueue`, `dispatch`, `dispatchByName`, `getJobClass`, `getQueueConfig`, `listFailedJobs`, `queueSize`, `registerJob`, `retryFailedJob`, `setQueueDriver` |
+| interface | `DeadLetterEntry`, `DispatchOptions`, `Job`, `JobPayload`, `QueueConfig`, `QueueDriver`, `SerializedJob`, `WorkerOptions`                                                                                            |
+| typeAlias | `JobClass`                                                                                                                                                                                                           |
 
 Anything not listed is internal and free to change.
 
@@ -65,9 +65,12 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-2 test files for 9 source files:
+5 test files for 11 source files:
 
+- `packages/queue/tests/backoff.test.ts`
+- `packages/queue/tests/dead_letter.test.ts`
 - `packages/queue/tests/queue.test.ts`
+- `packages/queue/tests/redis_driver.test.ts`
 - `packages/queue/tests/shutdown.test.ts`
 
 <!-- /generated:tests -->
@@ -84,7 +87,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 2 test files directly —
+Then, specific to this package: run its 5 test files directly —
 
 ```bash
 deno test -A packages/queue/

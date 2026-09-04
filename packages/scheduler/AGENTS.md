@@ -38,9 +38,9 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                                                                                                                                                             |
 | :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `Scheduler`, `TaskTimeoutError`, `TimerRegistry`                                                                                                                                                                                                                                                    |
+| class     | `MemorySchedulerLock`, `Scheduler`, `TaskTimeoutError`, `TimerRegistry`                                                                                                                                                                                                                             |
 | function  | `Schedule`, `addScheduleMetadata`, `getScheduleMetadata`, `nextRun`, `parse`, `resolveTaskName`, `runTask`, `scheduler`, `setScheduler`, `validateScheduleOptions`                                                                                                                                  |
-| interface | `CronExpression`, `RunOutcome`, `ScheduleMetadata`, `ScheduleOptions`, `SchedulerLock`, `SchedulerReporter`, `SchedulerStats`, `TaskFailure`, `TaskRegistration`, `TaskStats`                                                                                                                       |
+| interface | `CronExpression`, `MemorySchedulerLockOptions`, `RunOutcome`, `ScheduleMetadata`, `ScheduleOptions`, `SchedulerLock`, `SchedulerReporter`, `SchedulerStats`, `TaskFailure`, `TaskRegistration`, `TaskStats`                                                                                         |
 | typeAlias | `OverlapPolicy`, `TaskBody`                                                                                                                                                                                                                                                                         |
 | variable  | `DEFAULT_SCHEDULES_DIR`, `MAX_DELAY_MS`, `MAX_RETRIES`, `MIN_DELAY_MS`, `NAME_PATTERN`, `PRESETS`, `SCHEDULE_METADATA`, `daily`, `everyFifteenMinutes`, `everyFiveMinutes`, `everyMinute`, `everyTenMinutes`, `everyThirtyMinutes`, `hourly`, `monthly`, `weekdays`, `weekends`, `weekly`, `yearly` |
 
@@ -82,11 +82,12 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-7 test files for 8 source files:
+8 test files for 9 source files:
 
 - `packages/scheduler/tests/cron_parser.test.ts`
 - `packages/scheduler/tests/cron_parser_errors.test.ts`
 - `packages/scheduler/tests/decorators.test.ts`
+- `packages/scheduler/tests/distributed_lock.test.ts`
 - `packages/scheduler/tests/presets.test.ts`
 - `packages/scheduler/tests/scheduler.test.ts`
 - `packages/scheduler/tests/task_runner.test.ts`
@@ -106,7 +107,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 7 test files directly —
+Then, specific to this package: run its 8 test files directly —
 
 ```bash
 deno test -A packages/scheduler/
