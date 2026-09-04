@@ -38,11 +38,11 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                             |
-| :-------- | :-------------------------------------------------------------------------------------------------- |
-| class     | `BaseOAuth2Driver`, `DiscordDriver`, `GitHubDriver`, `GoogleDriver`                                 |
-| function  | `configureSocialite`, `generateState`, `getSocialiteConfig`, `registerSocialiteDriver`, `socialite` |
-| interface | `OAuthTokens`, `ProviderConfig`, `SocialUser`, `SocialiteConfig`, `SocialiteDriver`                 |
+| Kind      | Exports                                                                                                                                      |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `BaseOAuth2Driver`, `DiscordDriver`, `GitHubDriver`, `GoogleDriver`                                                                          |
+| function  | `configureSocialite`, `generatePkceVerifier`, `generateState`, `getSocialiteConfig`, `pkceChallenge`, `registerSocialiteDriver`, `socialite` |
+| interface | `OAuthTokens`, `ProviderConfig`, `SocialUser`, `SocialiteConfig`, `SocialiteDriver`                                                          |
 
 Anything not listed is internal and free to change.
 
@@ -65,9 +65,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-3 test files for 1 source file:
+4 test files for 1 source file:
 
 - `packages/socialite/tests/drivers.test.ts`
+- `packages/socialite/tests/pkce.test.ts`
 - `packages/socialite/tests/state_csrf.test.ts`
 - `packages/socialite/tests/system.test.ts`
 
@@ -85,7 +86,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 3 test files directly —
+Then, specific to this package: run its 4 test files directly —
 
 ```bash
 deno test -A packages/socialite/
