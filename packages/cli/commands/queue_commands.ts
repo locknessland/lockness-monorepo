@@ -104,4 +104,48 @@ export function registerQueueCommands(cli: Cli): void {
         await clearQueue(queue)
         console.log(`✅ Queue '${queue}' cleared`)
     }, 'Clear all jobs from a queue')
+
+    cli.register('queue:retry', async (args) => {
+        const { configureQueue, listFailedJobs, retryFailedJob } = await import(
+            '@lockness/queue'
+        )
+        const driver =
+            (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv' | 'redis') ||
+            'memory'
+        configureQueue({ driver })
+
+        // No id and no --all: list the dead-letter queue (projected, no payload).
+        if (args.length === 0) {
+            const failed = await listFailedJobs()
+            if (failed.length === 0) {
+                console.log('✅ No failed jobs.')
+                return
+            }
+            console.log(`Failed jobs (${failed.length}):`)
+            for (const f of failed) {
+                console.log(
+                    `  ${f.id}  [${f.name}]  queue=${f.queue}  attempts=${f.attempts}  error=${f.error}`,
+                )
+            }
+            console.log('\nRetry one with: queue:retry <id>, or all with --all')
+            return
+        }
+
+        if (args.includes('--all')) {
+            const failed = await listFailedJobs()
+            let retried = 0
+            for (const f of failed) {
+                if (await retryFailedJob(f.id)) retried++
+            }
+            console.log(`✅ Re-enqueued ${retried} failed job(s)`)
+            return
+        }
+
+        const id = args[0]
+        if (await retryFailedJob(id)) {
+            console.log(`✅ Re-enqueued failed job ${id}`)
+        } else {
+            console.error(`❌ No failed job with id ${id}`)
+        }
+    }, 'Retry failed (dead-lettered) jobs: queue:retry [<id> | --all]')
 }

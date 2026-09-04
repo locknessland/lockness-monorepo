@@ -12,6 +12,8 @@ import type { QueueDriver } from './types.ts'
 import { getQueueConfig } from './config.ts'
 import { MemoryQueueDriver } from './drivers/memory.ts'
 import { DenoKvQueueDriver } from './drivers/deno_kv.ts'
+import { RedisQueueDriver } from './drivers/redis.ts'
+import { RedisClient } from '@lockness/redis'
 
 let queueDriver: QueueDriver | null = null
 
@@ -22,6 +24,19 @@ export function getDriver(): QueueDriver {
             case 'deno-kv':
                 queueDriver = new DenoKvQueueDriver(config.kvPath)
                 break
+            case 'redis': {
+                if (!config.redis) {
+                    throw new Error(
+                        "queue driver 'redis' requires a `redis` connection in the queue config",
+                    )
+                }
+                // Lazy-connecting client (RedisClient connects on first command),
+                // so constructing the driver here opens no socket.
+                queueDriver = new RedisQueueDriver(
+                    new RedisClient(config.redis),
+                )
+                break
+            }
             case 'memory':
             default:
                 queueDriver = new MemoryQueueDriver()

@@ -12,6 +12,7 @@
 // =============================================================================
 
 export type {
+    DeadLetterEntry,
     DispatchOptions,
     Job,
     JobClass,
@@ -21,6 +22,8 @@ export type {
     SerializedJob,
     WorkerOptions,
 } from './types.ts'
+
+export { computeNextAvailable } from './backoff.ts'
 
 // =============================================================================
 // Queue Configuration
@@ -40,6 +43,7 @@ export { getJobClass, Queueable, registerJob } from './registry.ts'
 
 export { MemoryQueueDriver } from './drivers/memory.ts'
 export { DenoKvQueueDriver } from './drivers/deno_kv.ts'
+export { RedisQueueDriver } from './drivers/redis.ts'
 
 // =============================================================================
 // Queue Manager
@@ -51,7 +55,14 @@ export { setQueueDriver } from './manager.ts'
 // Job Dispatcher & Helpers
 // =============================================================================
 
-export { clearQueue, dispatch, dispatchByName, queueSize } from './dispatch.ts'
+export {
+    clearQueue,
+    dispatch,
+    dispatchByName,
+    listFailedJobs,
+    queueSize,
+    retryFailedJob,
+} from './dispatch.ts'
 
 // =============================================================================
 // Queue Worker

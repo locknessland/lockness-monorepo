@@ -83,6 +83,59 @@ Deno.test('readReply - a bulk string reply', async () => {
     })
 })
 
+Deno.test('readReply - a multi-bulk array reply', async () => {
+    assertEquals(
+        await readReply(mockConn(wire('*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n'))),
+        {
+            type: 'array',
+            value: [
+                { type: 'bulk', value: 'foo' },
+                { type: 'bulk', value: 'bar' },
+            ],
+        },
+    )
+})
+
+Deno.test('readReply - an empty array ($*0) is distinct from a nil array (*-1)', async () => {
+    assertEquals(await readReply(mockConn(wire('*0\r\n'))), {
+        type: 'array',
+        value: [],
+    })
+    assertEquals(await readReply(mockConn(wire('*-1\r\n'))), { type: 'nil' })
+})
+
+Deno.test('readReply - a nested array reassembles recursively', async () => {
+    assertEquals(
+        await readReply(mockConn(wire('*1\r\n*2\r\n:7\r\n$1\r\nx\r\n'))),
+        {
+            type: 'array',
+            value: [
+                {
+                    type: 'array',
+                    value: [
+                        { type: 'integer', value: 7 },
+                        { type: 'bulk', value: 'x' },
+                    ],
+                },
+            ],
+        },
+    )
+})
+
+Deno.test('readReply - an over-cardinality array (*huge) is a RespFramingError before the parse loop', async () => {
+    await assertRejects(
+        () => readReply(mockConn(wire('*99999999999\r\n'))),
+        RespFramingError,
+    )
+})
+
+Deno.test('readReply - a malformed array length is a RespFramingError', async () => {
+    await assertRejects(
+        () => readReply(mockConn(wire('*notanumber\r\n'))),
+        RespFramingError,
+    )
+})
+
 Deno.test('readReply - a nil bulk ($-1) is distinct from an empty bulk ($0)', async () => {
     assertEquals(await readReply(mockConn(wire('$-1\r\n'))), { type: 'nil' })
     assertEquals(await readReply(mockConn(wire('$0\r\n\r\n'))), {

@@ -15,6 +15,7 @@ import {
 } from '@lockness/contract/lifecycle/internal'
 import type { SerializedJob, WorkerOptions } from './types.ts'
 import { getQueueConfig } from './config.ts'
+import { computeNextAvailable } from './backoff.ts'
 import { getDriver } from './manager.ts'
 import { getJobClass } from './registry.ts'
 
@@ -140,10 +141,21 @@ export class QueueWorker {
             )
 
             serializedJob.attempts = attempt
-            await getDriver().fail(serializedJob, error as Error)
 
-            if (attempt >= serializedJob.maxAttempts && job.failed) {
-                await job.failed(serializedJob.payload, error as Error)
+            // The worker owns the terminal decision (#220): while attempts
+            // remain, re-enqueue with the shared backoff; on exhaustion,
+            // dead-letter the job (never a silent drop) and run its failure hook.
+            if (attempt < serializedJob.maxAttempts) {
+                serializedJob.availableAt = computeNextAvailable(
+                    attempt,
+                    getQueueConfig(),
+                )
+                await getDriver().fail(serializedJob, error as Error)
+            } else {
+                await getDriver().deadLetter(serializedJob, error as Error)
+                if (job.failed) {
+                    await job.failed(serializedJob.payload, error as Error)
+                }
             }
         }
     }

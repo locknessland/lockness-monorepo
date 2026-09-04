@@ -13,8 +13,7 @@ import {
     type DisposableHandle,
     registerDisposable,
 } from '@lockness/contract/lifecycle/internal'
-import type { QueueDriver, SerializedJob } from '../types.ts'
-import { getQueueConfig } from '../config.ts'
+import type { DeadLetterEntry, QueueDriver, SerializedJob } from '../types.ts'
 
 export class DenoKvQueueDriver implements QueueDriver {
     private kv: Deno.Kv | null = null
@@ -142,11 +141,56 @@ export class DenoKvQueueDriver implements QueueDriver {
     }
 
     async fail(job: SerializedJob, _error: Error): Promise<void> {
-        if (job.attempts < job.maxAttempts) {
-            job.attempts++
-            job.availableAt = Date.now() + getQueueConfig().retryDelay
-            await this.push(job)
+        // The worker set attempts + availableAt and decided a retry remains; the
+        // driver just re-persists it. Exhaustion goes to deadLetter (#220).
+        await this.push(job)
+    }
+
+    async deadLetter(job: SerializedJob, error: Error): Promise<void> {
+        const kv = await this.getKv()
+        await kv.set(['dlq', job.id], {
+            job,
+            error: error.name,
+            failedAt: Date.now(),
+        })
+    }
+
+    async listFailed(queueName?: string): Promise<DeadLetterEntry[]> {
+        const kv = await this.getKv()
+        const out: DeadLetterEntry[] = []
+        const iter = kv.list<{
+            job: SerializedJob
+            error: string
+            failedAt: number
+        }>({ prefix: ['dlq'] })
+        for await (const entry of iter) {
+            const { job, error, failedAt } = entry.value
+            if (queueName !== undefined && job.queue !== queueName) continue
+            out.push({
+                id: job.id,
+                name: job.name,
+                queue: job.queue,
+                attempts: job.attempts,
+                failedAt,
+                error,
+            })
         }
+        return out
+    }
+
+    async retryFailed(id: string): Promise<boolean> {
+        const kv = await this.getKv()
+        const entry = await kv.get<{ job: SerializedJob }>(['dlq', id])
+        if (entry.value === null) return false
+        // Atomic: re-enqueue and remove the dead-letter record together, guarded
+        // on the version we read so a concurrent retry cannot double-enqueue.
+        const job = { ...entry.value.job, attempts: 0, availableAt: Date.now() }
+        const res = await kv.atomic()
+            .check(entry)
+            .delete(['dlq', id])
+            .set(['queue', job.queue, job.availableAt, job.id], job)
+            .commit()
+        return res.ok
     }
 
     async size(queueName: string): Promise<number> {

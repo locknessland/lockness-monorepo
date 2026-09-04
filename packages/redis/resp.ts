@@ -42,6 +42,13 @@ const decoder = new TextDecoder()
 const MAX_BULK_BYTES = 10 * 1024 * 1024
 
 /**
+ * Cardinality ceiling for a multi-bulk (`*`) reply — the array analogue of
+ * {@link MAX_BULK_BYTES}, so a hostile element count cannot drive an unbounded
+ * parse loop. Ten million elements is far above any real reply.
+ */
+const MAX_ARRAY_ELEMENTS = 10_000_000
+
+/**
  * The production ceiling on a single `readReply` drain. A truncated frame that
  * never completes must fail rather than block a request forever; the test-side
  * `withTimeout` covers CI, this covers production (FR-010). Generous, because a
@@ -62,6 +69,7 @@ export type RespReply =
     | { type: 'simple'; value: string }
     | { type: 'integer'; value: number }
     | { type: 'bulk'; value: string }
+    | { type: 'array'; value: readonly RespReply[] }
     | { type: 'nil' }
 
 /**
@@ -419,6 +427,32 @@ async function parseReply(reader: ReplyReader): Promise<RespReply> {
             const payload = decoder.decode(await reader.readExact(len))
             await reader.readExact(2) // trailing CRLF
             return { type: 'bulk', value: payload }
+        }
+        case 0x2a /* * */: {
+            const lenLine = await reader.readLine()
+            const len = Number(lenLine)
+            if (len === -1) return { type: 'nil' } // nil array, distinct from []
+            if (!Number.isInteger(len) || len < -1) {
+                // An unusable element count: how many replies follow cannot be
+                // known, so the frame is abandoned and the socket desynced.
+                throw new RespFramingError(
+                    `invalid RESP array length: ${lenLine}`,
+                )
+            }
+            // Cardinality guard, the array analogue of the bulk-length bound: a
+            // hostile `*<huge>` would otherwise drive an unbounded parse loop.
+            if (len > MAX_ARRAY_ELEMENTS) {
+                throw new RespFramingError(
+                    `RESP array length ${len} exceeds the ${MAX_ARRAY_ELEMENTS}-element limit`,
+                )
+            }
+            const items: RespReply[] = []
+            for (let i = 0; i < len; i++) {
+                // Recursive: each element is one reply, and a nested array (a
+                // command that returns arrays of arrays) reassembles the same way.
+                items.push(await parseReply(reader))
+            }
+            return { type: 'array', value: items }
         }
         default:
             // The type byte is unknown, so the reply's structure — and thus how

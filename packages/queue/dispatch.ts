@@ -87,3 +87,26 @@ export function queueSize(queue?: string): Promise<number> {
 export function clearQueue(queue?: string): Promise<void> {
     return getDriver().clear(queue ?? getQueueConfig().defaultQueue)
 }
+
+/**
+ * List dead-lettered jobs (projected, no payload — #220 / SEC-F8), optionally
+ * filtered to one queue.
+ *
+ * @param queue - Restrict to this queue; omit for all.
+ * @returns The projected dead-letter entries.
+ */
+export function listFailedJobs(
+    queue?: string,
+): Promise<import('./types.ts').DeadLetterEntry[]> {
+    return getDriver().listFailed(queue)
+}
+
+/**
+ * Re-enqueue a dead-lettered job by id, resetting its attempts (#220).
+ *
+ * @param id - The dead job's id.
+ * @returns `true` if the id was found and re-enqueued.
+ */
+export function retryFailedJob(id: string): Promise<boolean> {
+    return getDriver().retryFailed(id)
+}
