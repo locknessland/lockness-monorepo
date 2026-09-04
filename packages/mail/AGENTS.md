@@ -64,7 +64,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-1 test file for 1 source file:
+1 test file for 9 source files:
 
 - `packages/mail/tests/mail.test.ts`
 

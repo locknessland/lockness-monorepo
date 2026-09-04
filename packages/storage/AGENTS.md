@@ -66,7 +66,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-4 test files for 2 source files:
+4 test files for 8 source files:
 
 - `packages/storage/tests/cloud.test.ts`
 - `packages/storage/tests/local.test.ts`

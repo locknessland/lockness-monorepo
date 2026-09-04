@@ -42,7 +42,7 @@ application installs it, or the feature stays off.
 | class     | `DenoKvQueueDriver`, `MemoryQueueDriver`, `QueueWorker`                                                                                                  |
 | function  | `Queueable`, `clearQueue`, `configureQueue`, `dispatch`, `dispatchByName`, `getJobClass`, `getQueueConfig`, `queueSize`, `registerJob`, `setQueueDriver` |
 | interface | `DispatchOptions`, `Job`, `JobPayload`, `QueueConfig`, `QueueDriver`, `SerializedJob`, `WorkerOptions`                                                   |
-| typeAlias | `AnyJobClass`, `JobClass`                                                                                                                                |
+| typeAlias | `JobClass`                                                                                                                                               |
 
 Anything not listed is internal and free to change.
 
@@ -65,7 +65,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-2 test files for 1 source file:
+2 test files for 9 source files:
 
 - `packages/queue/tests/queue.test.ts`
 - `packages/queue/tests/shutdown.test.ts`

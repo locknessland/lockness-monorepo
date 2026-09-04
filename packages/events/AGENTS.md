@@ -72,7 +72,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-4 test files for 9 source files:
+4 test files for 12 source files:
 
 - `packages/events/tests/class_based_events.test.ts`
 - `packages/events/tests/debug.test.ts`

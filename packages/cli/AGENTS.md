@@ -72,7 +72,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-10 test files for 20 source files:
+10 test files for 37 source files:
 
 - `packages/cli/tests/debug_commands.test.ts`
 - `packages/cli/tests/make_command.test.ts`

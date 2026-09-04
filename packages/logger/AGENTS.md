@@ -67,7 +67,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-7 test files for 1 source file:
+7 test files for 6 source files:
 
 - `packages/logger/tests/basic.test.ts`
 - `packages/logger/tests/formatters.test.ts`

@@ -68,7 +68,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 2 source files:
+8 test files for 5 source files:
 
 - `packages/validator/tests/basic.test.ts`
 - `packages/validator/tests/class.test.ts`

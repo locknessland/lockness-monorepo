@@ -44,7 +44,7 @@ User-facing documentation: [README.md](README.md) ·
 
 | Direction                                      | Packages                                                                                                                    |
 | :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`, `hono`                                                                                                          |
+| Imports (static)                               | `contract`, `hono`, `redis`                                                                                                 |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                           |
 | Imported by                                    | `auth`, `core`, `devtools`                                                                                                  |
 | **Must never import**                          | `auth`, `auth-provider`, `core`, `devtools`, `testing` — each already reaches this package, so importing one closes a cycle |
@@ -96,7 +96,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-24 test files for 18 source files:
+25 test files for 18 source files:
 
 - `packages/session/tests/config_resolution.test.ts`
 - `packages/session/tests/cookie_absolute_lifetime.test.ts`
@@ -115,6 +115,7 @@ Anything not listed is internal and free to change.
 - `packages/session/tests/regenerate_atomicity.test.ts`
 - `packages/session/tests/regenerate_fixation.test.ts`
 - `packages/session/tests/regenerate_ttl.test.ts`
+- `packages/session/tests/reporter_wiring.test.ts`
 - `packages/session/tests/reporting.test.ts`
 - `packages/session/tests/resp.test.ts`
 - `packages/session/tests/secret.test.ts`
@@ -137,7 +138,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 24 test files directly —
+Then, specific to this package: run its 25 test files directly —
 
 ```bash
 deno test -A packages/session/

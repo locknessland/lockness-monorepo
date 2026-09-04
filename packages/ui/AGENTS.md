@@ -71,7 +71,7 @@ application installs it, or the feature stays off.
 
 <!-- generated:tests -->
 
-21 test files for 92 source files:
+21 test files for 93 source files:
 
 - `packages/ui/tests/accordion.test.tsx`
 - `packages/ui/tests/alert.test.tsx`
