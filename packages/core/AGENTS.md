@@ -86,7 +86,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-46 test files for 70 source files:
+46 test files for 71 source files:
 
 - `packages/core/cli/tests/ssg_command.test.ts`
 - `packages/core/ssg/tests/build.test.ts`

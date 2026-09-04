@@ -190,6 +190,24 @@ export interface ShutdownConfig {
 }
 
 /**
+ * Local i18n configuration shape — mirrors `@lockness/i18n`'s `I18nConfig`
+ * structurally so `@lockness/core` needs **no import** from it (the edge stays
+ * soft-only). The soft-loaded package validates it fully.
+ */
+export interface I18nConfig {
+    /** `locale → messages` catalog map (statically importable). */
+    catalogs: Record<string, unknown>
+    /** The default locale (should equal `config/i18n.ts`'s `defaultLocale`). */
+    defaultLocale: string
+    /** An optional fallback locale tried before the default. */
+    fallbackLocale?: string
+    /** The resolver's locale-source order. */
+    sources?: ReadonlyArray<'route' | 'cookie' | 'header'>
+    /** The cookie name carrying a locale. */
+    cookieName?: string
+}
+
+/**
  * Kernel configuration options
  */
 export interface KernelConfig {
@@ -252,6 +270,22 @@ export interface KernelConfig {
      * ```
      */
     cache?: CacheConfig | boolean
+
+    /**
+     * i18n / translation configuration
+     * - `I18nConfig`: catalogs + default locale (soft-loads `@lockness/i18n`)
+     * - `undefined`: skip i18n setup
+     *
+     * Typed by a **local** {@link I18nConfig} interface (like {@link SessionConfig}),
+     * not imported from `@lockness/i18n` — that keeps the `core → i18n` edge
+     * soft-only.
+     *
+     * @example
+     * ```typescript
+     * i18n: { catalogs: { 'en-us': en, 'fr-fr': fr }, defaultLocale: 'en-us' }
+     * ```
+     */
+    i18n?: I18nConfig
 
     /**
      * Shutdown lifecycle configuration.

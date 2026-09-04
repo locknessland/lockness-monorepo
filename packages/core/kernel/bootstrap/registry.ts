@@ -31,6 +31,7 @@ import type { BootstrapContext, BootstrapStep } from './types.ts'
 import { eventsDebugStep } from './steps/events_debug.ts'
 import { databaseStep, databaseTeardownStep } from './steps/database.ts'
 import { sessionStep } from './steps/session.ts'
+import { i18nStep } from './steps/i18n.ts'
 import { cacheStep } from './steps/cache.ts'
 import { appInitializationStep, appInitStep } from './steps/app_init.ts'
 import { devtoolsStep } from './steps/devtools.ts'
@@ -76,6 +77,7 @@ export function getDefaultSteps(): readonly BootstrapStep[] {
         eventsDebugStep,
         databaseStep,
         sessionStep,
+        i18nStep,
         cacheStep,
         appInitStep,
         telemetryStep,
