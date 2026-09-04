@@ -25,6 +25,7 @@ import { makeAction } from './action.ts'
 import { makeEvent } from './event.ts'
 import { makeListener } from './listener.ts'
 import { makeSchedule } from './schedule.ts'
+import { makeResource } from './resource.ts'
 
 /**
  * Every make:* command, in registration order.
@@ -47,6 +48,7 @@ export const MAKE_COMMANDS: readonly MakeCommand[] = [
     makeEvent,
     makeListener,
     makeSchedule,
+    makeResource,
 ]
 
 /**

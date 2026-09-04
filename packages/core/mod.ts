@@ -44,6 +44,10 @@ export * from './exceptions/formatter.ts'
 export * from './exceptions/default_view.tsx'
 export * from './helpers.ts'
 
+// API Resource layer — opt-in model→wire projection + paginated collection.
+export { NEVER_SERIALISE, Resource } from './resource/resource.ts'
+export { ResourceCollection } from './resource/collection.ts'
+
 // Environment-name resolution (DENO_ENV first, then APP_ENV) — the single home
 // of the production/development rule.
 export * from './environment.ts'

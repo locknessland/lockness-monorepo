@@ -51,11 +51,11 @@ test** is mandatory.
 drops secret-named fields; `ResourceCollection` from a paginated result carries `meta`/`links`;
 `make:resource Foo` writes `./app/resource/foo_resource.ts` from the stub.
 
-- [ ] T011 [US2] Write failing tests in `packages/core/tests/resource.test.ts`: abstract `toArray()` throws / a no-field subclass emits `{}` (never the whole model); central denylist (`password`/`passwordHash`/`token`/`secret`/`hash`) dropped even if named; `ResourceCollection(items, meta?)` embeds pagination `meta`/`links` when present.
-- [ ] T012 [US2] Create `packages/core/resource/resource.ts` (`Resource<TModel>` base, abstract `toArray`, denylist) and `packages/core/resource/collection.ts` (`ResourceCollection`). Re-export via `packages/core/mod.ts` (`resource/` module). No `any`; JSDoc.
-- [ ] T013 [US3] Write failing test in `packages/cli/tests/make_resource.test.ts`: `make:resource Post` writes `./app/resource/post_resource.ts` with an explicit-field body; registered in `MAKE_COMMANDS`.
-- [ ] T014 [US3] Create `packages/cli/commands/make/resource.ts` (imports `Stub` from `packages/cli/stubs.ts` if present, else the barrel — record which per architecture A3) + `packages/cli/stubs/make/resource.stub` (explicit field list, never `{...model}`); append to `MAKE_COMMANDS` in `packages/cli/commands/make/index.ts`.
-- [ ] T015 [US2] Fast gate for core + cli; commit `feat(T03): API Resource base + ResourceCollection + make:resource (#200)` + `Epic: #197`.
+- [X] T011 [US2] Write failing tests in `packages/core/tests/resource.test.ts`: abstract `toArray()` throws / a no-field subclass emits `{}` (never the whole model); central denylist (`password`/`passwordHash`/`token`/`secret`/`hash`) dropped even if named; `ResourceCollection(items, meta?)` embeds pagination `meta`/`links` when present.
+- [X] T012 [US2] Create `packages/core/resource/resource.ts` (`Resource<TModel>` base, abstract `toArray`, denylist) and `packages/core/resource/collection.ts` (`ResourceCollection`). Re-export via `packages/core/mod.ts` (`resource/` module). No `any`; JSDoc.
+- [X] T013 [US3] Write failing test in `packages/cli/tests/make_resource.test.ts`: `make:resource Post` writes `./app/resource/post_resource.ts` with an explicit-field body; registered in `MAKE_COMMANDS`.
+- [X] T014 [US3] Create `packages/cli/commands/make/resource.ts` (imports `Stub` from `packages/cli/stubs.ts` if present, else the barrel — record which per architecture A3) + `packages/cli/stubs/make/resource.stub` (explicit field list, never `{...model}`); append to `MAKE_COMMANDS` in `packages/cli/commands/make/index.ts`.
+- [X] T015 [US2] Fast gate for core + cli; commit `feat(T03): API Resource base + ResourceCollection + make:resource (#200)` + `Epic: #197`.
 
 ## Child T04 — #201 docs (depends on T01–T03)
 

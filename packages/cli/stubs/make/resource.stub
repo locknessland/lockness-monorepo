@@ -1,0 +1,16 @@
+import { Resource } from '@lockness/core'
+
+/**
+ * API Resource for {{ className }} — the explicit, opt-in wire projection.
+ *
+ * List ONLY the fields the API should expose. Any field you do not name is
+ * never serialised, so a new model column stays private until you add it here.
+ */
+export class {{ className }}Resource extends Resource<Record<string, unknown>> {
+    override toArray(): Record<string, unknown> {
+        return {
+            id: this.model.id,
+            // TODO: name the fields {{ className }} should expose
+        }
+    }
+}
