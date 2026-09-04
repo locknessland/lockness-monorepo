@@ -62,6 +62,11 @@
             "allow": ["cli", "container", "contract"]
         },
         "events": { "tier": "implementation", "allow": ["contract", "hono"] },
+        // `i18n` is a near-pure sink: core soft-loads it at boot, and it imports
+        // only hono (Context/cookie/header helpers; the resolver logs nothing,
+        // so it needs no contract safeForLog). Zero message-format dependency —
+        // ICU plurals run on Deno's built-in Intl.PluralRules.
+        "i18n": { "tier": "implementation", "allow": ["hono"] },
         "inertia": { "tier": "implementation", "allow": ["hono"] },
         "init": { "tier": "implementation", "allow": ["cli"] },
         "logger": { "tier": "implementation", "allow": ["contract"] },
@@ -146,6 +151,7 @@
                 "devtools",
                 "drizzle",
                 "events",
+                "i18n",
                 "logger",
                 "redis",
                 "session",
