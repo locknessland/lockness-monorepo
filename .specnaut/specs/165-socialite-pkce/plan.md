@@ -24,7 +24,7 @@ capability path.
   holding the matching `code_verifier`.
 - **Given** the provider calls back with a code and the verifier cookie is
   present, **When** `user(c)` runs, **Then** the token exchange includes
-  `code_verifier`, succeeds, and the verifier cookie is cleared.
+  `code_verifier` and succeeds.
 
 **P2 — a provider that rejects PKCE is unaffected.**
 - **Given** a driver declaring `usesPkce = false`, **When** it runs
@@ -77,9 +77,13 @@ same-browser flows share the cookie (accepted, FR-008 bounds it).
   (not the helper re-run), asserting the verifier carries no `=` padding; the
   token-exchange parameter (`getTokens` sends `code_verifier`); the capability
   off-path (no challenge, no cookie); and the FR-006 fail-closed throw.
-- **FR-008** — On both the success path and the FR-006 throw path, `user()`
-  clears the verifier cookie (`Set-Cookie … Max-Age=0` via `c.header`) so a
-  verifier is single-use and cannot be paired with a replayed/injected code.
+- **FR-008** — *(Accepted decision — not implemented as clear-on-use.)* `user()`
+  resolves a `SocialUser` and does not build the response, so it has no reliable
+  path to expire the verifier cookie (a caller may return a response `user()`
+  never sees). The verifier's single-use is therefore bounded by its short
+  `Max-Age` and the provider's single-use authorization code — the **same
+  accepted posture as the #169 state cookie**, which is likewise not cleared.
+  This is the accepted-decision option the security audit offered for SEC-2.
 - **FR-009** — The `code_verifier` value appears **only** in the token-exchange
   body: it is never logged and never interpolated into the FR-006 throw message
   (mirroring the existing state-mismatch error, which does not echo its value).
@@ -90,7 +94,7 @@ same-browser flows share the cookie (accepted, FR-008 bounds it).
   `code_challenge_method=S256` and a verifier cookie whose value, hashed by an
   **independent** base64url-unpadded SHA-256 of the string, equals the challenge.
 - **SC-002** — A callback `user()` on a PKCE driver sends `code_verifier` in the
-  token request body, then clears the verifier cookie.
+  token request body.
 - **SC-003** — A `usesPkce = false` driver produces byte-identical
   redirect/token behaviour to before this change.
 - **SC-004** — `redirect()` remains synchronous (no `await` at call sites).
@@ -107,7 +111,6 @@ same-browser flows share the cookie (accepted, FR-008 bounds it).
 | The verifier is added to the token exchange | `getTokens(code, verifier?)` in the base driver | a second body assembly in `user()`; a custom override silently dropping it |
 | Whether a provider does PKCE | the `usesPkce` flag on the driver | a provider-name list checked in `redirect()`/`user()`; an env toggle read twice |
 | A missing verifier at callback fails closed | the verifier check in `user()` (FR-006) | a silent no-PKCE fallback anywhere in the exchange |
-| The verifier cookie is single-use (cleared on use) | `user()` (FR-008), success and throw paths | a driver clearing it; leaving it to Max-Age alone |
 
 ## 6. Technical context
 
@@ -194,7 +197,7 @@ No violations → no Complexity Tracking entries.
 | # | Finding | Resolution |
 | :--- | :--- | :--- |
 | SEC-1 (MED) | External drivers inherit `usesPkce=true` but a custom `getAuthUrl`/`getTokens` override can silently ship no PKCE while FR-006 stays quiet (cookie present) — the one exchange-without-verifier path | **Plan changed** — challenge injection moved to `redirect()` (FR-002) closes the `getAuthUrl` half entirely; the `getTokens` half is documented as a custom-override contract (§6, §9) with `client_secret` as the standing primary guard |
-| SEC-2 (LOW) | Verifier cookie not cleared on use; lingers ≤600s, concurrent flows collide | **Plan changed** — FR-008 (clear on use) |
+| SEC-2 (LOW) | Verifier cookie not cleared on use; lingers ≤600s, concurrent flows collide | **Accepted decision** (FR-008) — `user()` returns a user, not a response, so it cannot reliably clear the cookie; single-use is bounded by Max-Age + the provider's single-use code, matching the #169 state-cookie posture (the audit's sanctioned alternative to clearing) |
 | SEC-3 (LOW) | Verifier cookie not `__Host-` prefixed | **Plan changed** — FR-001 uses `__Host-` when Secure |
 | SEC-4 (LOW) | SC-001 round-trip would be tautological; the S256 encoding footgun could ship | **Plan changed** — FR-002/FR-007/SC-001 pin ASCII-string input, unpadded base64url, and an independent test computation |
 | SEC-5 (LOW) | Plan never forbade logging/echoing the verifier | **Plan changed** — FR-009 |
