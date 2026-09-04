@@ -1,1 +1,4 @@
-{ "feature_directory": "/Users/kevin/Sites/lockness/.specnaut/specs/164-testing-coverage-harness", "linked_issue": 179 }
+{
+  "feature_directory": ".specnaut/specs/165-socialite-pkce",
+  "linked_issue": 243
+}
