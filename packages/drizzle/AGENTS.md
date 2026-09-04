@@ -37,12 +37,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                         |
-| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `Database`                                                                                                                                                      |
-| function  | `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`                                                                                           |
-| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DrizzleCommandDeps`, `OffsetPaginateOptions` |
-| typeAlias | `CommandRunner`, `DatabaseSchema`, `SeederLoader`                                                                                                               |
+| Kind      | Exports                                                                                                                                                                         |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| class     | `Database`, `Factory`                                                                                                                                                           |
+| function  | `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                         |
+| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DrizzleCommandDeps`, `OffsetPaginateOptions` |
+| typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `SeederLoader`                                                                                |
+| variable  | `CLIENT_PACKAGE`                                                                                                                                                                |
 
 Anything not listed is internal and free to change.
 
@@ -69,10 +70,13 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-3 test files for 4 source files:
+6 test files for 7 source files:
 
 - `packages/drizzle/tests/cli_commands.test.ts`
+- `packages/drizzle/tests/factory.test.ts`
 - `packages/drizzle/tests/install.test.ts`
+- `packages/drizzle/tests/make_factory.test.ts`
+- `packages/drizzle/tests/multi_db.test.ts`
 - `packages/drizzle/tests/paginate.test.ts`
 
 <!-- /generated:tests -->
@@ -89,7 +93,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 3 test files directly —
+Then, specific to this package: run its 6 test files directly —
 
 ```bash
 deno test -A packages/drizzle/
