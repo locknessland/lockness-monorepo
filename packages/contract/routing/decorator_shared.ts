@@ -19,8 +19,7 @@ import type { CacheOptions, MiddlewareInput } from '../types.ts'
 import type { ThrottleConfig } from './throttle.ts'
 // Type-only: the `Static` concern owns `StaticOptions`; the shared metadata
 // contract only references its shape. Erased at compile time — no runtime cycle.
-// Repointed to `./static_decorator.ts` once that module is extracted (#228).
-import type { StaticOptions } from './decorators.ts'
+import type { StaticOptions } from './static_decorator.ts'
 
 /**
  * Route metadata stored on controller classes.
