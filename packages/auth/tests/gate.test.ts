@@ -103,3 +103,61 @@ Deno.test('reset - clears abilities and hooks', async () => {
     assertEquals(gate.has('update-post'), false)
     assertEquals(await gate.can(alice, 'update-post', { authorId: 1 }), false)
 })
+
+// =============================================================================
+// Fallback resolvers (#195) — consulted only when no ability/policy decided.
+// =============================================================================
+
+Deno.test('fallback - consulted only when no ability and no policy matched', async () => {
+    const gate = new Gate<User>()
+    let called = false
+    gate.fallback((_user, ability) => {
+        called = true
+        return ability === 'reports.view'
+    })
+    // No ability/policy for 'reports.view' → fallback runs and grants.
+    assert(await gate.can(alice, 'reports.view'))
+    assert(called)
+    // A different ability the fallback does not grant → deny.
+    assertEquals(await gate.can(alice, 'reports.delete'), false)
+})
+
+Deno.test('fallback - an explicit ability is authoritative; the fallback never runs', async () => {
+    const gate = new Gate<User>()
+    gate.define('update-post', () => false) // explicit deny
+    let called = false
+    gate.fallback(() => {
+        called = true
+        return true // would grant, but must never be reached
+    })
+    assertEquals(await gate.can(alice, 'update-post', { authorId: 1 }), false)
+    assertEquals(called, false)
+})
+
+Deno.test('fallback - an explicit policy is authoritative; the fallback never runs', async () => {
+    const gate = new Gate<User>()
+    gate.policy('post', {
+        update: (u, p) => u.id === (p as { authorId: number }).authorId,
+    })
+    let called = false
+    gate.fallback(() => {
+        called = true
+        return true
+    })
+    // Policy denies bob (not the author) — fallback must not override it.
+    assertEquals(await gate.can(bob, 'post.update', { authorId: 1 }), false)
+    assertEquals(called, false)
+})
+
+Deno.test('fallback - a fresh gate has none; deny-by-default is unchanged', async () => {
+    const gate = new Gate<User>()
+    assertEquals(await gate.can(alice, 'anything'), false)
+})
+
+Deno.test('fallback - reset() clears registered fallbacks', async () => {
+    const gate = new Gate<User>()
+    gate.fallback(() => true)
+    assert(await gate.can(alice, 'x'))
+    gate.reset()
+    assertEquals(await gate.can(alice, 'x'), false)
+})

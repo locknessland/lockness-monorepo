@@ -53,6 +53,20 @@ export type GateBeforeHook<User extends Authenticatable> = (
 ) => boolean | undefined | Promise<boolean | undefined>
 
 /**
+ * A fallback resolver: consulted only when no ability and no policy has decided
+ * a check. Return `true` to grant; `undefined`/`false` abstains and the gate
+ * stays deny-by-default. Because it runs last, a fallback can never override an
+ * explicit ability or policy — it only fills abilities that have no rule.
+ *
+ * @typeParam User - The authenticated user type.
+ */
+export type GateFallback<User extends Authenticatable> = (
+    user: User,
+    ability: string,
+    ...args: unknown[]
+) => boolean | undefined | Promise<boolean | undefined>
+
+/**
  * A policy: a named group of ability checks for one subject (a model). Each
  * method is a {@link GateCallback}. Registered under a namespace and reached
  * through a dotted ability, e.g. a `'post'` policy's `update` method answers the
@@ -75,6 +89,7 @@ export class Gate<User extends Authenticatable = Authenticatable> {
     readonly #abilities = new Map<string, GateCallback<User>>()
     readonly #beforeHooks: GateBeforeHook<User>[] = []
     readonly #policies = new Map<string, Policy<User>>()
+    readonly #fallbacks: GateFallback<User>[] = []
 
     /**
      * Register (or replace) an ability.
@@ -128,6 +143,20 @@ export class Gate<User extends Authenticatable = Authenticatable> {
     }
 
     /**
+     * Register a fallback resolver, consulted only when no ability and no policy
+     * decided a check (see {@link GateFallback}). Runs last, so it can only add
+     * grants — it never overrides an explicit rule. This is the seam the
+     * optional RBAC layer wires into via `useRbac`.
+     *
+     * @param resolver - The fallback; return `true` to grant, else abstain.
+     * @returns This gate, for chaining.
+     */
+    fallback(resolver: GateFallback<User>): this {
+        this.#fallbacks.push(resolver)
+        return this
+    }
+
+    /**
      * Whether an ability has been defined.
      *
      * @param ability - The ability name.
@@ -162,11 +191,22 @@ export class Gate<User extends Authenticatable = Authenticatable> {
         if (callback) return (await callback(user, ...args)) === true
 
         // A dotted ability (`namespace.method`) resolves to a policy method.
+        // Only own properties count — never an inherited `Object.prototype`
+        // member (e.g. `toString`) masquerading as a policy method.
         const dot = ability.indexOf('.')
         if (dot > 0) {
-            const method = this.#policies.get(ability.slice(0, dot))
-                ?.[ability.slice(dot + 1)]
+            const policy = this.#policies.get(ability.slice(0, dot))
+            const key = ability.slice(dot + 1)
+            const method = policy && Object.hasOwn(policy, key)
+                ? policy[key]
+                : undefined
             if (method) return (await method(user, ...args)) === true
+        }
+
+        // No explicit ability or policy decided — consult fallbacks last. The
+        // first to return true grants; otherwise the gate stays deny-by-default.
+        for (const resolver of this.#fallbacks) {
+            if ((await resolver(user, ability, ...args)) === true) return true
         }
         return false
     }
@@ -214,6 +254,7 @@ export class Gate<User extends Authenticatable = Authenticatable> {
         this.#abilities.clear()
         this.#beforeHooks.length = 0
         this.#policies.clear()
+        this.#fallbacks.length = 0
     }
 }
 
