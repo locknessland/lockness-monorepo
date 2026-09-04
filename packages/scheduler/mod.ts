@@ -40,6 +40,8 @@ export {
     validateScheduleOptions,
 } from './scheduler.ts'
 export type { TaskRegistration } from './scheduler.ts'
+export { MemorySchedulerLock } from './memory_lock.ts'
+export type { MemorySchedulerLockOptions } from './memory_lock.ts'
 export { runTask, TaskTimeoutError } from './task_runner.ts'
 export type { RunOutcome, TaskBody } from './task_runner.ts'
 export { MAX_DELAY_MS, MIN_DELAY_MS, TimerRegistry } from './timer_registry.ts'

@@ -131,6 +131,19 @@ export interface ScheduleOptions {
     enabled?: boolean
     /** What an occurrence does while a run is in flight. Defaults to `'skip'`. */
     overlap?: OverlapPolicy
+    /**
+     * Run this task on **one replica only** across a horizontally-scaled fleet
+     * (`onOneServer` semantics, #219). Requires a {@link SchedulerLock} to be
+     * installed (via the composition root); with no lock installed the flag is
+     * inert and the task runs in-process as usual.
+     *
+     * The guarantee is **at-most-once within the lock's TTL**: exactly one
+     * replica claims each occurrence, and a crashed holder's claim expires so
+     * the next occurrence is not wedged. A task that runs *longer* than the TTL
+     * can still double-run — size the deployment's lock TTL above the task's
+     * worst-case runtime. Defaults to `false` (unchanged, in-process behaviour).
+     */
+    onOneServer?: boolean
     /** Called after every failed attempt. A throw here cannot stop re-arming. */
     onError?: (failure: TaskFailure) => void | Promise<void>
     /** Called after a successful run. A throw here cannot stop re-arming. */

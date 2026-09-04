@@ -151,6 +151,15 @@ export function validateScheduleOptions(options: ScheduleOptions = {}): void {
             )
         }
     }
+    if (
+        options.onOneServer !== undefined &&
+        typeof options.onOneServer !== 'boolean'
+    ) {
+        throw new TypeError(
+            `@Schedule option \`onOneServer\` must be a boolean, received ${typeof options
+                .onOneServer}.`,
+        )
+    }
 }
 
 /**
@@ -177,17 +186,19 @@ export class Scheduler {
     readonly #tasks = new Map<string, Task>()
     readonly #timers: TimerRegistry
     #reporter: SchedulerReporter | undefined
+    #lock: SchedulerLock | undefined
     #started = false
     #stopped = false
 
     /**
      * @param reporter - Where failures and clamps are reported.
-     * @param _lock - Reserved for distributed locking. **Unimplemented in v1**;
-     * the parameter exists so a lock arrives later as an adapter rather than as
-     * a breaking change to every `@Schedule` call site.
+     * @param lock - A distributed lock (#219). Tasks marked `onOneServer` claim
+     * each occurrence through it so one replica runs them; omitted, those tasks
+     * run in-process as usual. Also installable later via {@link setLock}.
      */
-    constructor(reporter?: SchedulerReporter, _lock?: SchedulerLock) {
+    constructor(reporter?: SchedulerReporter, lock?: SchedulerLock) {
         this.#reporter = reporter
+        this.#lock = lock
         this.#timers = new TimerRegistry(reporter)
     }
 
@@ -217,6 +228,26 @@ export class Scheduler {
     setReporter(reporter: SchedulerReporter): void {
         this.#reporter = reporter
         this.#timers.setReporter(reporter)
+    }
+
+    /** Whether a distributed lock has been installed, by constructor or {@link setLock}. */
+    get hasLock(): boolean {
+        return this.#lock !== undefined
+    }
+
+    /**
+     * Install a distributed lock on an already-constructed scheduler (#219).
+     *
+     * `@lockness/core` calls this at boot, once it has resolved which backing
+     * store (Redis / Deno-KV) the deployment configured — the concrete adapter
+     * is built at the composition root, never inside `@lockness/scheduler`
+     * (which imports nothing). Set in place, mirroring {@link setReporter}, so
+     * tasks registered before boot keep their registration.
+     *
+     * @param lock - The lock `onOneServer` tasks claim occurrences through.
+     */
+    setLock(lock: SchedulerLock): void {
+        this.#lock = lock
     }
 
     /**
@@ -463,6 +494,34 @@ export class Scheduler {
             return
         }
 
+        // Distributed lock (#219): when a task is `onOneServer` and a lock is
+        // installed, exactly one replica claims this occurrence. The occurrence
+        // key is the wall-clock minute so every replica firing in that minute
+        // agrees on the same key; the adapter owns the per-claim token and the
+        // TTL (at-most-once within the TTL — see ScheduleOptions.onOneServer).
+        let claimed: Date | undefined
+        if (task.options.onOneServer && this.#lock !== undefined) {
+            const occurrence = new Date(
+                Math.floor(Date.now() / 60_000) * 60_000,
+            )
+            let acquired = false
+            try {
+                acquired = await this.#lock.acquire(name, occurrence)
+            } catch (error) {
+                // Lock store unreachable: skip (never split-brain), but make it
+                // observable — a fleet-wide miss must not look like a lost race.
+                this.#reporter?.warn(
+                    'Scheduled task skipped: the distributed lock store is unreachable.',
+                    { task: name, error: (error as Error).message },
+                )
+                return
+            }
+            // Lost the race — expected and high-volume, so it is not reported;
+            // another replica holds this occurrence.
+            if (!acquired) return
+            claimed = occurrence
+        }
+
         // Captured, not read live: this run's retries belong to THIS occurrence,
         // and #abandonRetries bumps the task's counter when the next one fires.
         const generation = task.generation
@@ -505,6 +564,17 @@ export class Scheduler {
             // otherwise clear the flag out from under the live run, and the
             // occurrence after that would overlap it.
             if (task.generation === generation) task.running = false
+
+            // Release this replica's own claim (owner-checked in the adapter).
+            // Best-effort: a failed release is covered by the lock's TTL, so it
+            // is swallowed rather than masking the task's own outcome.
+            if (claimed !== undefined && this.#lock !== undefined) {
+                try {
+                    await this.#lock.release(name, claimed)
+                } catch {
+                    // TTL expiry is the backstop; nothing to do here.
+                }
+            }
         }
     }
 }

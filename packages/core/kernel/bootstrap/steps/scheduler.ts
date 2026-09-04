@@ -7,6 +7,7 @@
 
 import type { BootstrapStep } from '../types.ts'
 import { tryImportOptionalPackage } from '../helpers.ts'
+import { registerDisposable } from '@lockness/contract'
 import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
 
 /**
@@ -118,6 +119,48 @@ export const schedulerStep: BootstrapStep = {
         const reporter = await buildReporter()
         if (reporter && !scheduler().hasReporter) {
             scheduler().setReporter(reporter)
+        }
+
+        // Distributed lock (#219): build the configured adapter at this
+        // composition root and install it, so `onOneServer` tasks claim each
+        // occurrence across replicas. The adapters live in core, never in
+        // `@lockness/scheduler` (whose zero-dependency ceiling must hold).
+        const lockConfig = context.config.schedulerLock
+        if (lockConfig && !scheduler().hasLock) {
+            const { DenoKvSchedulerLock, RedisSchedulerLock } = await import(
+                '../../../scheduler/locks.ts'
+            )
+            if (lockConfig.driver === 'redis' && lockConfig.redis) {
+                const redisMod = await tryImportOptionalPackage<{
+                    RedisClient: new (c: unknown) => {
+                        command(
+                            ...a: string[]
+                        ): Promise<{ type: string; value?: string | number }>
+                        close(): Promise<void>
+                    }
+                }>('@lockness/redis', 'scheduler lock')
+                if (redisMod) {
+                    const client = new redisMod.RedisClient(lockConfig.redis)
+                    scheduler().setLock(
+                        new RedisSchedulerLock(client, lockConfig.ttlMs),
+                    )
+                    registerDisposable({
+                        name: 'scheduler:lock:redis',
+                        dispose: () => client.close(),
+                        priority: SHUTDOWN_PRIORITY.STORES,
+                    })
+                }
+            } else if (lockConfig.driver === 'deno-kv') {
+                const kv = await Deno.openKv(lockConfig.kvPath)
+                scheduler().setLock(
+                    new DenoKvSchedulerLock(kv, lockConfig.ttlMs),
+                )
+                registerDisposable({
+                    name: 'scheduler:lock:kv',
+                    dispose: () => kv.close(),
+                    priority: SHUTDOWN_PRIORITY.STORES,
+                })
+            }
         }
 
         // The constant, not a restated literal. Restating it is the duplication

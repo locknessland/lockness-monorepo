@@ -347,6 +347,37 @@ export interface KernelConfig {
     schedules?: unknown[]
 
     /**
+     * Distributed lock for `onOneServer` scheduled tasks (#219).
+     *
+     * When set, core builds the matching {@link SchedulerLock} adapter at boot
+     * and installs it, so a task marked `onOneServer` runs on exactly one
+     * replica. Omitted, `onOneServer` is inert and every replica runs the task
+     * in-process. Size `ttlMs` above a guarded task's worst-case runtime — the
+     * guarantee is at-most-once **within the TTL**.
+     *
+     * @example
+     * ```typescript
+     * @Kernel({ schedulerLock: { driver: 'redis', redis: { hostname: '127.0.0.1' } } })
+     * ```
+     */
+    schedulerLock?: {
+        /** Which backing store the lock uses. */
+        driver: 'redis' | 'deno-kv'
+        /** Claim lifetime in milliseconds. @default 300000 */
+        ttlMs?: number
+        /** Deno KV path (for the `'deno-kv'` driver). */
+        kvPath?: string
+        /** Redis connection (for the `'redis'` driver). */
+        redis?: {
+            hostname: string
+            port?: number
+            password?: string
+            db?: number
+            tls?: boolean
+        }
+    }
+
+    /**
      * Mount point for URL prefixing (i18n, multi-tenancy).
      *
      * When defined, the application is accessible under the mount point's pattern
