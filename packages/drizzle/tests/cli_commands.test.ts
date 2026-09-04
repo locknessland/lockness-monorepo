@@ -250,3 +250,44 @@ Deno.test('db:seed <name> - loads the named seeder through the loader port', asy
         restore()
     }
 })
+
+Deno.test('db:seed - closes the connection when the module has no seeder', async () => {
+    const restore = muteConsole()
+    try {
+        const cli = new FakeCli()
+        const { events, connect } = fakeConnection()
+        // A module with no DatabaseSeeder export: nothing runs, but the
+        // connection opened by handleSeed must still be closed.
+        const loadSeeder: SeederLoader = () => Promise.resolve({})
+        registerDrizzleCommands(cli, { connect, loadSeeder })
+
+        await cli.run('db:seed')
+
+        assertEquals(events, ['close'])
+    } finally {
+        restore()
+    }
+})
+
+Deno.test('db:seed - closes the connection when the seeder throws', async () => {
+    const restore = muteConsole()
+    try {
+        const cli = new FakeCli()
+        const { events, connect } = fakeConnection()
+        class DatabaseSeeder {
+            run(): Promise<void> {
+                return Promise.reject(new Error('boom'))
+            }
+        }
+        const loadSeeder: SeederLoader = () =>
+            Promise.resolve({ DatabaseSeeder })
+        registerDrizzleCommands(cli, { connect, loadSeeder })
+
+        // The failure is swallowed and logged; the connection is still closed.
+        await cli.run('db:seed')
+
+        assertEquals(events, ['close'])
+    } finally {
+        restore()
+    }
+})

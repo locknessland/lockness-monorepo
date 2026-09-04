@@ -8,12 +8,19 @@
  * @module @lockness/drizzle/tests/install
  */
 
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+} from '@std/assert'
 import {
     checkProjectStructure,
     createDatabaseSeeder,
     createDirectories,
     createDrizzleConfig,
+    ProjectStructureError,
+    type SqlConnector,
     testDatabaseConnection,
     updateSingleEnvFile,
 } from '../install.ts'
@@ -29,7 +36,31 @@ function muteConsole(): () => void {
     }
 }
 
-/** Run `fn` with the process cwd pointed at a fresh temp dir, then clean up. */
+/** Build a fake postgres client whose `SELECT 1` resolves or rejects. */
+function fakeConnector(opts: { fail?: boolean } = {}) {
+    let ended = false
+    const sql = Object.assign(
+        (_s: TemplateStringsArray, ..._v: unknown[]) =>
+            opts.fail
+                ? Promise.reject(new Error('unreachable'))
+                : Promise.resolve([]),
+        {
+            end: () => {
+                ended = true
+                return Promise.resolve()
+            },
+        },
+    )
+    const connect: SqlConnector = () => sql
+    return { connect, ended: () => ended }
+}
+
+/**
+ * Run `fn` with the process cwd pointed at a fresh temp dir, then clean up.
+ *
+ * Note: `Deno.chdir` is process-global, so these tests rely on `deno test`
+ * running a file's steps sequentially (the default — no `--parallel`).
+ */
 async function withTempCwd(fn: (dir: string) => Promise<void>): Promise<void> {
     const original = Deno.cwd()
     const dir = await Deno.makeTempDir({ prefix: 'lockness_drizzle_install_' })
@@ -117,6 +148,16 @@ Deno.test('checkProjectStructure - passes when src/ and deno.json exist', async 
     })
 })
 
+Deno.test('checkProjectStructure - throws when a required file is missing', async () => {
+    await withTempCwd(async () => {
+        // Empty dir: neither ./src nor ./deno.json exist.
+        await assertRejects(
+            () => checkProjectStructure(),
+            ProjectStructureError,
+        )
+    })
+})
+
 Deno.test('testDatabaseConnection - returns early when DATABASE_URL is unset', async () => {
     const previous = Deno.env.get('DATABASE_URL')
     Deno.env.delete('DATABASE_URL')
@@ -127,5 +168,27 @@ Deno.test('testDatabaseConnection - returns early when DATABASE_URL is unset', a
     } finally {
         restore()
         if (previous !== undefined) Deno.env.set('DATABASE_URL', previous)
+    }
+})
+
+Deno.test('testDatabaseConnection - probes and always closes the client', async (t) => {
+    const previous = Deno.env.get('DATABASE_URL')
+    Deno.env.set('DATABASE_URL', 'postgres://user:pass@localhost:5432/db')
+    const restore = muteConsole()
+    try {
+        await t.step('closes on a successful probe', async () => {
+            const fake = fakeConnector()
+            await testDatabaseConnection(fake.connect)
+            assert(fake.ended(), 'the client was closed')
+        })
+        await t.step('closes even when the probe fails', async () => {
+            const fake = fakeConnector({ fail: true })
+            await testDatabaseConnection(fake.connect) // swallowed + logged
+            assert(fake.ended(), 'the client was closed despite the failure')
+        })
+    } finally {
+        restore()
+        if (previous === undefined) Deno.env.delete('DATABASE_URL')
+        else Deno.env.set('DATABASE_URL', previous)
     }
 })
