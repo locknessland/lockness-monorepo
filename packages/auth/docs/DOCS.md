@@ -409,6 +409,79 @@ const guard = new SessionGuard('web', c, provider, options, emitter)
 9. **Log authentication events** - Monitor suspicious activity
 10. **Validate user input** - Prevent injection attacks
 
+## Authorization: gates, policies & decorators
+
+Authentication answers _who you are_; **authorization** answers _what you may
+do_. Lockness models it with a **gate** — a registry of named abilities, each a
+callback that returns whether a user may perform it. The gate is
+**fail-closed**: an absent user, an unknown ability, or a falsy result all deny.
+
+### Gates
+
+```typescript
+import { gate } from '@lockness/auth'
+
+// Define an ability. The extra argument is the subject being acted on.
+gate.define(
+    'post.update',
+    (user, post: { authorId: number }) => user.id === post.authorId,
+)
+
+await gate.can(user, 'post.update', post) // boolean
+await gate.cannot(user, 'post.update', post) // the negation
+await gate.authorize(user, 'post.update', post) // throws AuthorizationError (403) if denied
+```
+
+A `before` hook runs ahead of every check and can short-circuit — e.g. to let an
+administrator do anything:
+
+```typescript
+// `isAdmin` here is a field on your own User model; undefined = fall through.
+gate.before((user) => (user.isAdmin === true ? true : undefined))
+```
+
+### Policies
+
+A **policy** groups the abilities for one model under a namespace; its methods
+answer dotted abilities (`post.update` → the `post` policy's `update`).
+
+```typescript
+gate.policy('post', {
+    view: () => true,
+    update: (user, post: { authorId: number }) => user.id === post.authorId,
+    delete: (user, post: { authorId: number }) => user.id === post.authorId,
+})
+
+await gate.can(user, 'post.update', post) // runs the policy's update()
+```
+
+Generate one with `./nessy make:policy Post`, then register it in your kernel.
+
+### Protecting routes with `@Authorize` / `@Can`
+
+The `@Authorize(ability, ...paramNames)` decorator enforces an ability at the
+route boundary — named route params are forwarded to the ability callback.
+`@Can` is an alias. Pair with `@AuthRequired` so an unauthenticated request gets
+a 401 first; used alone it denies with 403 (fail-closed).
+
+```typescript
+import { Context, Controller, Post } from '@lockness/core'
+import { Authorize, AuthRequired } from '@lockness/auth'
+
+@Controller('/posts')
+export class PostController {
+    @Post('/:id/edit')
+    @AuthRequired()
+    @Authorize('post.update', 'id')
+    edit(c: Context) {
+        return c.json({ ok: true }) // reached only if the gate allowed
+    }
+}
+```
+
+The full path — request → `@Authorize` → gate → policy/RBAC → 200 or 403 — is
+covered end-to-end in `packages/auth/tests/authorization_e2e.test.ts`.
+
 ## Authorization: roles & permissions (RBAC)
 
 The optional RBAC layer sits on top of the authorization gate (gates, policies
