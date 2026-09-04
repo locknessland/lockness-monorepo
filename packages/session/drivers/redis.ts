@@ -1,23 +1,19 @@
 /**
  * @fileoverview Redis session driver.
  *
+ * A thin adapter over `@lockness/redis`: the connection discipline (single-flight
+ * connect, per-connection command serialization, self-heal, lifecycle-drain
+ * close) lives in {@link RedisClient}; this file adds only the session semantics —
+ * the `session:<id>` key convention, JSON (de)serialization, the atomic
+ * regenerate Lua script, and the outage-vs-miss distinction (`RedisReadError`
+ * with a redacted id).
+ *
  * @module @lockness/session/drivers/redis
  */
 
 import { renderError } from '@lockness/contract'
-import {
-    deregisterDisposable,
-    type DisposableHandle,
-    registerDisposable,
-} from '@lockness/contract/lifecycle/internal'
+import { RedisClient } from '@lockness/redis'
 import type { SessionData, SessionDriver } from '../types.ts'
-import {
-    encodeCommand,
-    readReply,
-    type RespReply,
-    RespServerError,
-    writeFrame,
-} from './resp.ts'
 
 /**
  * A failed Redis read — a connection or protocol fault, never a cache miss.
@@ -64,20 +60,15 @@ function redactSessionId(sessionId: string): string {
 /**
  * Redis session driver.
  *
- * Persistent session storage using Redis server.
- * Implements RESP protocol directly without external dependencies.
+ * Persistent session storage using a Redis server, over the raw-RESP
+ * {@link RedisClient} from `@lockness/redis` — no external dependency.
  *
  * @remarks
- * The driver holds a single connection whose RESP reply reader expects exactly
+ * The client holds a single connection whose RESP reply reader expects exactly
  * one reply per command, so overlapping commands must never interleave their
- * frames. This is enforced **inside the driver**: `connect()` is single-flighted
- * (a cold-start burst opens one socket), and `sendCommand` serializes every
- * exchange through a per-connection command queue, so the second command's frame
- * is written only after the first command's reply is fully drained. The driver
- * is therefore safe to memoize and share across requests per process
- * (`drivers/registry.ts`) — the #138 gate that kept it per-request was lifted by
- * this serialization (#145). `connect()`'s own `AUTH`/`SELECT` bypass the queue
- * (via the private `#exchange`) so they cannot deadlock against it.
+ * frames. That is enforced inside the client (single-flight `connect()` and a
+ * per-connection command queue), so the driver is safe to memoize and share
+ * across requests per process (`drivers/registry.ts`).
  *
  * @example
  * ```typescript
@@ -90,171 +81,32 @@ function redactSessionId(sessionId: string): string {
  * ```
  */
 export class RedisSessionDriver implements SessionDriver {
-    private connection: Deno.Conn | null = null
     /**
-     * The in-flight `connect()` promise, cached so a concurrent cold-start burst
-     * on a shared (memoized) instance opens **one** socket. Without it, `connect`
-     * is a check-then-act across an `await` — two concurrent first-commands would
-     * each open a socket and authenticate, orphaning one (the race #138 fixed for
-     * `Deno.openKv`). Dropped on rejection and on a desync so the next command
-     * reconnects.
+     * The pooled RESP connection. The session driver's connection-lifetime tests
+     * reach this to preset a fake socket and to assert self-heal cleared it, so
+     * it stays a named field rather than an anonymous local.
      */
-    private connectPromise: Promise<Deno.Conn> | null = null
-    /**
-     * The tail of the per-connection command queue. Every `sendCommand` chains
-     * its exchange onto this promise, so two overlapping calls never interleave
-     * their frames on the shared socket — the second's write begins only after
-     * the first's reply is fully drained (#145 / Security-S5). The tail swallows
-     * so a failed command does not wedge the queue; the returned promise still
-     * rejects to its own caller.
-     */
-    private commandTail: Promise<unknown> = Promise.resolve()
-    #handle: DisposableHandle | undefined
-    private readonly config: {
-        hostname: string
-        port: number
-        password?: string
-        db?: number
-    }
+    private readonly client: RedisClient
 
     constructor(config: {
         hostname: string
         port?: number
         password?: string
         db?: number
+        tls?: boolean
     }) {
-        this.config = {
+        // The disposable name and priority preserve the session driver's
+        // historical shutdown-drain identity (`session:redis`, priority 60) now
+        // that the socket is owned by the shared client.
+        this.client = new RedisClient({
             hostname: config.hostname,
-            port: config.port ?? 6379,
+            port: config.port,
             password: config.password,
-            db: config.db ?? 0,
-        }
-    }
-
-    /**
-     * Open (once) and return the authenticated connection.
-     *
-     * Single-flighted: the in-flight promise is cached so a concurrent burst
-     * opens one socket and issues `AUTH`/`SELECT` once. Those handshake commands
-     * go through the private {@link RedisSessionDriver.#exchange} **directly**,
-     * never `sendCommand`, so they cannot re-enter and deadlock the command queue
-     * that awaits `connect()`. On any failure the socket is closed and the cached
-     * promise dropped, so the next command retries (self-heal).
-     */
-    private connect(): Promise<Deno.Conn> {
-        if (this.connection) return Promise.resolve(this.connection)
-        if (!this.connectPromise) {
-            const p = (async () => {
-                const conn = await Deno.connect({
-                    hostname: this.config.hostname,
-                    port: this.config.port,
-                })
-                try {
-                    if (this.config.password) {
-                        await this.#exchange(conn, [
-                            'AUTH',
-                            this.config.password,
-                        ])
-                    }
-                    if (this.config.db !== 0) {
-                        await this.#exchange(conn, [
-                            'SELECT',
-                            String(this.config.db),
-                        ])
-                    }
-                } catch (error) {
-                    // The handshake failed on a fresh socket that was never
-                    // published to `this.connection`; close it and let the
-                    // rejection propagate (the `p.catch` below resets the memo).
-                    try {
-                        conn.close()
-                    } catch {
-                        // Already closed by the failure itself.
-                    }
-                    throw error
-                }
-                this.connection = conn
-                // Registered only once a socket exists, so shutdown releases it.
-                // A driver owning nothing enrols nothing.
-                this.#handle ??= registerDisposable({
-                    name: 'session:redis',
-                    dispose: () => this.close(),
-                    priority: 60,
-                })
-                return conn
-            })()
-            // Self-heal: drop the cached promise on rejection so the next command
-            // retries rather than re-awaiting a permanently-failed connect that
-            // would brick the memoized driver until restart. The `=== p` guard
-            // keeps the single-flight — concurrent callers still await one open.
-            p.catch(() => {
-                if (this.connectPromise === p) this.connectPromise = null
-            })
-            this.connectPromise = p
-        }
-        return this.connectPromise
-    }
-
-    /**
-     * One request/reply exchange on an already-open socket: write the frame in
-     * full, then drain exactly one RESP reply. Pure — it touches no shared driver
-     * state, so it is reused by both `connect()` (for `AUTH`/`SELECT`, outside
-     * the command queue) and the serialized command path. `resp.ts` owns the
-     * framing (`encodeCommand`/`writeFrame`) and the bounded, nil-aware drain
-     * (`readReply`, #139).
-     */
-    #exchange(conn: Deno.Conn, args: string[]): Promise<RespReply> {
-        return writeFrame(conn, encodeCommand(args)).then(() => readReply(conn))
-    }
-
-    /**
-     * Issue a command on the shared connection, serialized against every other
-     * command so their frames never interleave (Security-S5).
-     *
-     * The exchange runs as one link in a per-connection promise chain: it
-     * `await`s `connect()` **inside** the serialized section (so a command queued
-     * behind a desync re-establishes the socket freshly) and then exchanges.
-     * The connection is kept ONLY when the socket is left in sync — exactly
-     * `RespServerError` (a complete `-ERR …` reply or an in-sync parse fault, the
-     * whole reply off the wire). Every other failure (a wire fault, or a
-     * `RespFramingError` thrown after the length line but before the payload was
-     * drained — possibly 10 MiB and hostile) leaves the socket DESYNCED, so it is
-     * closed and both `connection` and `connectPromise` are dropped; the next
-     * command reconnects clean (FR-005).
-     */
-    private sendCommand(args: string[]): Promise<RespReply> {
-        const run = this.commandTail.then(() => this.#serializedExchange(args))
-        // The tail must always settle so the next command runs; the returned
-        // `run` still rejects to this caller (no silent catch).
-        this.commandTail = run.catch(() => {})
-        return run
-    }
-
-    async #serializedExchange(args: string[]): Promise<RespReply> {
-        const conn = await this.connect()
-        try {
-            return await this.#exchange(conn, args)
-        } catch (error) {
-            if (!(error instanceof RespServerError)) {
-                this.#discardConnection(conn)
-            }
-            throw error
-        }
-    }
-
-    /**
-     * Close a desynced socket and drop the shared state pointing at it, so the
-     * next `connect()` opens a fresh one. Clears `connection` only if it still
-     * refers to `conn` (a shutdown `close()` may already have replaced it).
-     */
-    #discardConnection(conn: Deno.Conn): void {
-        try {
-            conn.close()
-        } catch {
-            // Already closed by the failure itself; nothing to free.
-        }
-        if (this.connection === conn) this.connection = null
-        this.connectPromise = null
+            db: config.db,
+            tls: config.tls,
+            disposableName: 'session:redis',
+            disposablePriority: 60,
+        })
     }
 
     /**
@@ -269,10 +121,10 @@ export class RedisSessionDriver implements SessionDriver {
      */
     async read(sessionId: string): Promise<SessionData | null> {
         try {
-            const reply = await this.sendCommand([
+            const reply = await this.client.command(
                 'GET',
                 `session:${sessionId}`,
-            ])
+            )
             // A RESP nil bulk is the ONLY cache miss — return null, no log.
             if (reply.type === 'nil') return null
             if (reply.type === 'bulk' || reply.type === 'simple') {
@@ -308,12 +160,12 @@ export class RedisSessionDriver implements SessionDriver {
         data: SessionData,
         lifetime: number,
     ): Promise<void> {
-        await this.sendCommand([
+        await this.client.command(
             'SETEX',
             `session:${sessionId}`,
             String(lifetime),
             JSON.stringify(data),
-        ])
+        )
     }
 
     /**
@@ -322,7 +174,7 @@ export class RedisSessionDriver implements SessionDriver {
      * @param sessionId - The session identifier to delete.
      */
     async destroy(sessionId: string): Promise<void> {
-        await this.sendCommand(['DEL', `session:${sessionId}`])
+        await this.client.command('DEL', `session:${sessionId}`)
     }
 
     /**
@@ -352,52 +204,24 @@ export class RedisSessionDriver implements SessionDriver {
     ): Promise<void> {
         // Lifetime is the passed param — never `config.db`, which defaults to 0
         // and produced `SETEX <key> 0` (a login-500) in the pre-#139 body.
-        await this.sendCommand([
+        await this.client.command(
             'EVAL',
             RedisSessionDriver.REGENERATE_SCRIPT,
             '2',
             `session:${oldId}`,
             `session:${newId}`,
             String(lifetime),
-        ])
+        )
     }
 
     /**
      * Close the connection and release its resources.
      *
-     * Deregisters the shutdown disposable first (so a shutdown drain does not
-     * re-enter), then — if a socket is live or being opened — serializes a `QUIT`
-     * through the command queue so it drains **after** any in-flight exchange
-     * rather than tearing it out (Security F3). Idempotent: with nothing open it
-     * is a no-op, and it never *reopens* a closed socket. A failing `QUIT` is not
-     * fatal — the socket is closed regardless.
+     * Delegates to {@link RedisClient.close}: it deregisters the shutdown
+     * disposable, serializes a `QUIT` after any in-flight command, and closes the
+     * socket. Idempotent, and it never reopens a closed socket.
      */
     close(): Promise<void> {
-        if (this.#handle) {
-            deregisterDisposable(this.#handle)
-            this.#handle = undefined
-        }
-        // Nothing live and nothing being opened → do not reopen a socket.
-        if (!this.connection && !this.connectPromise) return Promise.resolve()
-
-        const run = this.commandTail.then(async () => {
-            // A desync (or a prior close) may have cleared it while we queued.
-            const conn = this.connection
-            if (!conn) return
-            try {
-                await this.#exchange(conn, ['QUIT'])
-            } catch {
-                // QUIT failing does not change the outcome: we close anyway.
-            }
-            try {
-                conn.close()
-            } catch {
-                // Already closed by the QUIT round-trip or a concurrent close.
-            }
-            if (this.connection === conn) this.connection = null
-            this.connectPromise = null
-        })
-        this.commandTail = run.catch(() => {})
-        return run
+        return this.client.close()
     }
 }

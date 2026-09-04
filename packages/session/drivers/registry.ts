@@ -28,7 +28,7 @@
  */
 
 import type { Context } from 'hono'
-import { crypto } from '@std/crypto'
+import { sha256Hex } from '@lockness/redis'
 import {
     deregisterDisposable,
     type DisposableHandle,
@@ -84,35 +84,6 @@ const MEMOIZED = new Set<SessionConfig['driver']>([
 ])
 
 /**
- * A hex SHA-256 digest of a string, computed synchronously.
- *
- * Used by {@link driverKey} to fold a Redis password into the memo key without
- * ever placing the cleartext credential there (it must stay safe to log). The
- * digest must be **collision-resistant** — a collision would hand two configs
- * with different passwords the same key, and thus one config the other's
- * already-authenticated socket. SHA-256 is that primitive; the FNV fingerprint
- * `redis.ts` uses for session-id log lines is deliberately NOT reused here — a
- * log fingerprint tolerates collisions, a credential boundary does not.
- *
- * `@std/crypto`'s `digestSync` (WASM-backed) keeps `driverKey` — and the memo
- * lookup it feeds — synchronous, so the `Map` memo stays race-free by
- * construction; an async key would reintroduce a construction race.
- *
- * @param input - The string to digest (the Redis password).
- * @returns The 64-character lowercase hex SHA-256 digest.
- */
-function sha256Hex(input: string): string {
-    const digest = crypto.subtle.digestSync(
-        'SHA-256',
-        new TextEncoder().encode(input),
-    )
-    return Array.from(
-        new Uint8Array(digest),
-        (b) => b.toString(16).padStart(2, '0'),
-    ).join('')
-}
-
-/**
  * Get the session driver for a resolved config, constructing it once per
  * process for the memoized backends and per request for the others.
  *
@@ -165,10 +136,10 @@ export function getOrCreateDriver(
  * resource. Over the resource-determining fields only — the driver name, the KV
  * path, and (for redis) host/port/db plus a **SHA-256 digest of the password**.
  * **Never the cleartext password**: the key must stay safe to log, so the
- * credential is folded through {@link sha256Hex} (the sole home of that digest;
- * `redis.ts` authenticates with the raw password and needs none). Two redis
- * configs differing only in password therefore resolve to different keys and
- * never share one authenticated socket.
+ * credential is folded through the shared `sha256Hex` from `@lockness/redis`
+ * (the sole home of that digest; the client authenticates with the raw password
+ * and needs none). Two redis configs differing only in password therefore
+ * resolve to different keys and never share one authenticated socket.
  *
  * @param config - A resolved config whose driver is memoized.
  * @returns A stable key string.

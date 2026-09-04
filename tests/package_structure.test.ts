@@ -60,6 +60,7 @@ const PACKAGES: string[] = [
     'markdown',
     'openapi',
     'queue',
+    'redis',
     'scheduler',
     'session',
     'socialite',

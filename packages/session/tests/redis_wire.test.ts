@@ -32,7 +32,7 @@
 
 import { assertEquals, assertRejects } from '@std/assert'
 import { RedisSessionDriver } from '../drivers/redis.ts'
-import { readReply } from '../drivers/resp.ts'
+import { readReply } from '@lockness/redis'
 import { startRespServer } from './resp_server.ts'
 import { startFakeRedis } from './fake_redis.ts'
 
@@ -220,9 +220,9 @@ Deno.test('redis wire - a write failure closes and discards the connection so th
     const driver = new RedisSessionDriver({ hostname: '127.0.0.1', port: 1 })
 
     // Preset a connection whose write always rejects. connect() returns it as
-    // already-established, so sendCommand writes into the failing socket.
-    // `connection` is the driver's pinned private teardown contract — #138's
-    // socket-lifetime refactor must keep this field or update this test.
+    // already-established, so the command writes into the failing socket.
+    // `client.connection` is the pinned private teardown contract — the socket
+    // now lives on the shared RedisClient the driver composes.
     let closed = false
     const failing = {
         write: () => Promise.reject(new Error('BrokenPipe')),
@@ -230,7 +230,9 @@ Deno.test('redis wire - a write failure closes and discards the connection so th
             closed = true
         },
     } as unknown as Deno.Conn
-    const internal = driver as unknown as { connection: Deno.Conn | null }
+    const internal =
+        (driver as unknown as { client: { connection: Deno.Conn | null } })
+            .client
     internal.connection = failing
 
     await assertRejects(

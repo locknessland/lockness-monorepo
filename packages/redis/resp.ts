@@ -26,7 +26,7 @@
  * replaced the old `.split('\r\n')` `parseResponse`, which assumed the whole
  * reply arrived in one 4096-byte read.
  *
- * @module @lockness/session/drivers/resp
+ * @module @lockness/redis/resp
  */
 
 const encoder = new TextEncoder()

@@ -36,7 +36,8 @@ async function withCapturedErrors(
 
 /** Preset a fake connection on the driver so no real socket is opened. */
 function presetConn(driver: RedisSessionDriver, conn: Deno.Conn): void {
-    ;(driver as unknown as { connection: Deno.Conn | null }).connection = conn
+    ;(driver as unknown as { client: { connection: Deno.Conn | null } }).client
+        .connection = conn
 }
 
 Deno.test('redis read - a dropped connection mid-read throws (not null) and logs exactly once (SC-003)', async () => {
@@ -83,7 +84,8 @@ Deno.test('redis read - a wire fault discards the desynced connection so the nex
 
     assert(closed, 'the desynced connection was closed')
     assertEquals(
-        (driver as unknown as { connection: Deno.Conn | null }).connection,
+        (driver as unknown as { client: { connection: Deno.Conn | null } })
+            .client.connection,
         null,
         'the connection was discarded — the next command reconnects clean',
     )
@@ -118,7 +120,8 @@ Deno.test('redis read - a framed -ERR KEEPS the in-sync connection for the next 
 
     assert(!closed, 'an in-sync server error does not close the socket')
     assertEquals(
-        (driver as unknown as { connection: Deno.Conn | null }).connection,
+        (driver as unknown as { client: { connection: Deno.Conn | null } })
+            .client.connection,
         conn,
         'the in-sync connection is retained for the next command',
     )
@@ -154,7 +157,8 @@ Deno.test('redis read - a structural framing fault DISCARDS the desynced connect
 
     assert(closed, 'the desynced connection was closed')
     assertEquals(
-        (driver as unknown as { connection: Deno.Conn | null }).connection,
+        (driver as unknown as { client: { connection: Deno.Conn | null } })
+            .client.connection,
         null,
         'the desynced connection was discarded — the next command reconnects',
     )

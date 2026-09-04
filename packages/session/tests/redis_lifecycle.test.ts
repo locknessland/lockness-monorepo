@@ -37,7 +37,10 @@ async function withConnectStub(
     }
 }
 
-/** connect() is TS-`private` (compile-time only) — reachable at runtime for a unit test. */
+/**
+ * connect() lives on the RedisClient the driver composes; TS-`private`
+ * (compile-time only), reachable at runtime for a unit test.
+ */
 type Connectable = { connect(): Promise<Deno.Conn> }
 
 Deno.test('redis lifecycle - connect() is single-flighted: concurrent callers open ONE socket (FR-004)', async () => {
@@ -62,7 +65,8 @@ Deno.test('redis lifecycle - connect() is single-flighted: concurrent callers op
                 hostname: '127.0.0.1',
                 port: redis.port,
             })
-            const connectable = driver as unknown as Connectable
+            const connectable =
+                (driver as unknown as { client: Connectable }).client
             await Promise.all([connectable.connect(), connectable.connect()])
             assertEquals(
                 opens,
