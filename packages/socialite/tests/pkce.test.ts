@@ -15,10 +15,31 @@ import { encodeBase64Url } from '@std/encoding/base64url'
 import {
     BaseOAuth2Driver,
     type OAuthTokens,
+    pkceChallenge,
     type ProviderConfig,
     type SocialUser,
 } from '../mod.ts'
 import type { Context } from 'hono'
+
+/** Run `fn` with env vars temporarily set (undefined = deleted), then restore. */
+function withEnv(vars: Record<string, string | undefined>, fn: () => void) {
+    const prev: Record<string, string | undefined> = {}
+    for (const k of Object.keys(vars)) {
+        prev[k] = Deno.env.get(k)
+        const v = vars[k]
+        if (v === undefined) Deno.env.delete(k)
+        else Deno.env.set(k, v)
+    }
+    try {
+        fn()
+    } finally {
+        for (const k of Object.keys(prev)) {
+            const v = prev[k]
+            if (v === undefined) Deno.env.delete(k)
+            else Deno.env.set(k, v)
+        }
+    }
+}
 
 const config: ProviderConfig = {
     clientId: 'id',
@@ -187,5 +208,71 @@ describe('OAuth PKCE (#243)', () => {
         const u = await driver.user(ctx)
         expect(u.id).toBe('1')
         expect(driver.seenVerifier).toBeNull() // getTokens got undefined
+    })
+
+    it('the verifier cookie is __Host- prefixed and Secure outside development', () => {
+        withEnv({ DENO_ENV: undefined, APP_ENV: undefined }, () => {
+            const raw = new PkceDriver(config).redirect().headers.getSetCookie()
+                .find((c) => /pkce_verifier=/.test(c)) ?? ''
+            expect(raw.startsWith('__Host-')).toBe(true)
+            expect(raw).toContain('Secure')
+            expect(raw).toContain('Path=/')
+        })
+    })
+
+    it('in explicit development the verifier cookie is unprefixed and not Secure', () => {
+        withEnv({ DENO_ENV: 'development', APP_ENV: undefined }, () => {
+            const raw = new PkceDriver(config).redirect().headers.getSetCookie()
+                .find((c) => /pkce_verifier=/.test(c)) ?? ''
+            expect(raw.startsWith('lockness_pkce_verifier=')).toBe(true)
+            expect(raw).not.toContain('Secure')
+        })
+    })
+
+    it('pkceChallenge matches the RFC 7636 Appendix B S256 vector', () => {
+        // RFC 7636 Appendix B: verifier → challenge.
+        expect(pkceChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'))
+            .toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM')
+    })
+
+    it('user() does not echo the verifier when the token exchange fails (FR-009)', async () => {
+        class ThrowingDriver extends PkceDriver {
+            override getTokens(
+                _code: string,
+                codeVerifier?: string,
+            ): Promise<OAuthTokens> {
+                this.seenVerifier = codeVerifier ?? null
+                return Promise.reject(new Error('provider rejected the code'))
+            }
+        }
+        const driver = new ThrowingDriver(config)
+        const vc = verifierCookie(driver.redirect())
+        const verifier = vc.split('=')[1] ?? ''
+        const ctx = callbackCtx(
+            { code: 'abc', state: 'match' },
+            `lockness_oauth_state=match; ${vc}`,
+        )
+        let message = ''
+        try {
+            await driver.user(ctx)
+        } catch (e) {
+            message = (e as Error).message
+        }
+        // The exchange failed (the verifier reached getTokens) …
+        expect(driver.seenVerifier).toBe(verifier)
+        expect(message).toContain('provider rejected the code')
+        // … and the failure never leaked the verifier value.
+        expect(message).not.toContain(verifier)
+    })
+
+    it('user() fails closed when the verifier cookie is present but empty', async () => {
+        const driver = new PkceDriver(config)
+        const name = verifierCookie(driver.redirect()).split('=')[0]
+        const ctx = callbackCtx(
+            { code: 'abc', state: 'match' },
+            `lockness_oauth_state=match; ${name}=`,
+        )
+        await expect(driver.user(ctx)).rejects.toThrow(/verifier/i)
+        expect(driver.seenVerifier).toBeNull()
     })
 })
