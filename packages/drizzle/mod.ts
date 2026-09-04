@@ -26,6 +26,13 @@ import postgres from 'postgres'
 import { Service } from '@lockness/container'
 
 export { registerDrizzleCommands } from './cli_commands.ts'
+export type {
+    CommandRunner,
+    CommandSpec,
+    DbConnection,
+    DrizzleCommandDeps,
+    SeederLoader,
+} from './cli_commands.ts'
 
 // =============================================================================
 // Types
@@ -159,6 +166,24 @@ export class Database {
         if (this.client) {
             await this.client.end()
         }
+    }
+
+    /**
+     * Verify connectivity by issuing a lightweight `SELECT 1`.
+     *
+     * Encapsulates the connectivity probe used by the `db:check` CLI command,
+     * so callers never need to reach into the private client.
+     *
+     * @returns Resolves when the probe query succeeds.
+     * @throws If no connection is established or the query fails.
+     *
+     * @example
+     * ```ts
+     * await db.probe() // resolves if reachable, throws otherwise
+     * ```
+     */
+    public async probe(): Promise<void> {
+        await this.client`SELECT 1`
     }
 
     /**

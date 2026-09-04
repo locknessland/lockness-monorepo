@@ -87,7 +87,7 @@ function resolveStubsDir(): string {
  *
  * @returns True if the file was created, false if it already existed
  */
-async function createDrizzleConfig(): Promise<boolean> {
+export async function createDrizzleConfig(): Promise<boolean> {
     const configPath = './drizzle.config.ts'
 
     try {
@@ -114,7 +114,7 @@ async function createDrizzleConfig(): Promise<boolean> {
  *
  * Creates directories recursively, skipping those that already exist.
  */
-async function createDirectories(): Promise<void> {
+export async function createDirectories(): Promise<void> {
     for (const dir of REQUIRED_DIRECTORIES) {
         try {
             await Deno.mkdir(dir, { recursive: true })
@@ -137,7 +137,7 @@ async function createDirectories(): Promise<void> {
  *
  * @returns True if the file was created, false if it already existed
  */
-async function createDatabaseSeeder(): Promise<boolean> {
+export async function createDatabaseSeeder(): Promise<boolean> {
     const seederPath = './database/seeders/database_seeder.ts'
 
     try {
@@ -174,7 +174,7 @@ async function updateEnvFile(): Promise<void> {
  *
  * @param envPath - Path to the environment file
  */
-async function updateSingleEnvFile(envPath: string): Promise<void> {
+export async function updateSingleEnvFile(envPath: string): Promise<void> {
     const isExample = envPath.includes('.example')
     const fileLabel = isExample ? '.env.example' : '.env'
 
@@ -205,7 +205,7 @@ async function updateSingleEnvFile(envPath: string): Promise<void> {
  *
  * Exits with code 1 if required files/directories are missing.
  */
-async function checkProjectStructure(): Promise<void> {
+export async function checkProjectStructure(): Promise<void> {
     for (const check of STRUCTURE_CHECKS) {
         try {
             await Deno.stat(check.path)
@@ -223,7 +223,7 @@ async function checkProjectStructure(): Promise<void> {
  *
  * Prints connection status to the console.
  */
-async function testDatabaseConnection(): Promise<void> {
+export async function testDatabaseConnection(): Promise<void> {
     const databaseUrl = Deno.env.get('DATABASE_URL')
 
     if (!databaseUrl) {

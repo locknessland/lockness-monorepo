@@ -18,7 +18,6 @@
 import { dirname, fromFileUrl, join } from '@std/path'
 import { container } from '@lockness/container'
 import { Database } from './mod.ts'
-import type postgres from 'postgres'
 
 /**
  * CLI command handler type.
@@ -30,6 +29,72 @@ type CommandHandler = (args: string[]) => void | Promise<void>
  */
 interface Cli {
     register(name: string, handler: CommandHandler, description?: string): void
+}
+
+// =============================================================================
+// Injectable I/O seams (testability)
+// =============================================================================
+
+/**
+ * A process to spawn: an executable plus its argument vector.
+ */
+export interface CommandSpec {
+    /** The executable to run (e.g. `'deno'`). */
+    readonly cmd: string
+    /** The argument vector passed to the executable. */
+    readonly args: readonly string[]
+}
+
+/**
+ * Command-runner port — spawns a process and resolves its exit code.
+ *
+ * The production default wraps {@link Deno.Command}; a test injects a fake that
+ * records the constructed argv (asserting the `drizzle-kit` command line)
+ * without ever executing it.
+ *
+ * @param spec - The command and arguments to run.
+ * @returns The process exit code.
+ */
+export type CommandRunner = (spec: CommandSpec) => Promise<number>
+
+/**
+ * Minimal database connection port used by the `db:check` and `db:seed`
+ * commands. {@link Database} satisfies it structurally.
+ */
+export interface DbConnection {
+    /** Verify connectivity (runs `SELECT 1`). */
+    probe(): Promise<void>
+    /** Close the connection. */
+    close(): Promise<void>
+}
+
+/**
+ * Seeder-module loader port — resolves a seeder module from a project-relative
+ * path.
+ *
+ * The production default dynamically imports it; a test injects a fake that
+ * returns a synthetic module, keeping `db:seed` hermetic.
+ *
+ * @param relativePath - Path to the seeder file, relative to the project root.
+ * @returns The imported module namespace.
+ */
+export type SeederLoader = (
+    relativePath: string,
+) => Promise<Record<string, unknown>>
+
+/**
+ * The three injectable I/O seams of the Drizzle CLI commands.
+ *
+ * Each field defaults to real I/O in {@link registerDrizzleCommands}; a test
+ * overrides any subset to stay hermetic (no real database, process, or import).
+ */
+export interface DrizzleCommandDeps {
+    /** Connection port — resolves a connected {@link DbConnection}. */
+    readonly connect: () => Promise<DbConnection>
+    /** Command-runner port wrapping {@link Deno.Command}. */
+    readonly runCommand: CommandRunner
+    /** Seeder-loader port replacing `db:seed`'s dynamic import. */
+    readonly loadSeeder: SeederLoader
 }
 
 /**
@@ -109,20 +174,30 @@ async function initDatabase(): Promise<Database> {
 }
 
 /**
- * Run a Drizzle Kit command.
+ * Production command-runner: spawns a real process via {@link Deno.Command}.
  *
- * @param subcommand - The drizzle-kit subcommand to run
- * @returns The exit code from the command
+ * @param spec - The command and arguments to run.
+ * @returns The process exit code.
  */
-async function runDrizzleKit(subcommand: string): Promise<number> {
-    const command = new Deno.Command('deno', {
-        args: [...DRIZZLE_KIT_ARGS, subcommand],
+const defaultRunCommand: CommandRunner = async (spec) => {
+    const command = new Deno.Command(spec.cmd, {
+        args: [...spec.args],
         stdout: 'inherit',
         stderr: 'inherit',
     })
     const { code } = await command.output()
     return code
 }
+
+/**
+ * Production seeder-loader: dynamically imports a seeder module from the
+ * project's working directory.
+ *
+ * @param relativePath - Path to the seeder file, relative to the project root.
+ * @returns The imported module namespace.
+ */
+const defaultLoadSeeder: SeederLoader = (relativePath) =>
+    import(`file://${Deno.cwd()}/${relativePath}`)
 
 /**
  * Extract error message from an unknown error.
@@ -224,17 +299,20 @@ async function createFile(filePath: string, content: string): Promise<void> {
  *
  * @param args - Command arguments (optional seeder name)
  */
-async function handleSeed(args: string[]): Promise<void> {
+async function handleSeed(
+    args: string[],
+    deps: DrizzleCommandDeps,
+): Promise<void> {
     console.log('🌱 Running seeders...')
 
-    const db = await initDatabase()
+    const db = await deps.connect()
     const specificSeeder = args[0]
 
     try {
         if (specificSeeder) {
-            await runSpecificSeeder(specificSeeder)
+            await runSpecificSeeder(specificSeeder, deps.loadSeeder)
         } else {
-            await runDatabaseSeeder()
+            await runDatabaseSeeder(deps.loadSeeder)
         }
     } catch (error) {
         console.error(`❌ Seeding failed: ${getErrorMessage(error)}`)
@@ -247,13 +325,17 @@ async function handleSeed(args: string[]): Promise<void> {
  * Run a specific seeder by name.
  *
  * @param seederName - Name of the seeder (e.g., 'user')
+ * @param loadSeeder - Seeder-loader port that resolves the seeder module
  */
-async function runSpecificSeeder(seederName: string): Promise<void> {
+async function runSpecificSeeder(
+    seederName: string,
+    loadSeeder: SeederLoader,
+): Promise<void> {
     const fileName = `${seederName.toLowerCase()}_seeder.ts`
     const filePath = `${SEEDERS_DIR}/${fileName}`
 
     try {
-        const module = await import(`file://${Deno.cwd()}/${filePath}`)
+        const module = await loadSeeder(filePath)
         const SeederClass = Object.values(module).find(
             (v): v is SeederConstructor =>
                 typeof v === 'function' &&
@@ -273,12 +355,14 @@ async function runSpecificSeeder(seederName: string): Promise<void> {
 
 /**
  * Run the main DatabaseSeeder orchestrator.
+ *
+ * @param loadSeeder - Seeder-loader port that resolves the seeder module
  */
-async function runDatabaseSeeder(): Promise<void> {
+async function runDatabaseSeeder(loadSeeder: SeederLoader): Promise<void> {
     const mainSeederPath = `${SEEDERS_DIR}/database_seeder.ts`
 
     try {
-        const module = await import(`file://${Deno.cwd()}/${mainSeederPath}`)
+        const module = await loadSeeder(mainSeederPath)
         const DatabaseSeeder = module.DatabaseSeeder as
             | SeederConstructor
             | undefined
@@ -546,7 +630,28 @@ async function createControllerFile(naming: ModelNaming): Promise<boolean> {
  * await cli.run()
  * ```
  */
-export function registerDrizzleCommands(cli: Cli): void {
+export function registerDrizzleCommands(
+    cli: Cli,
+    overrides: Partial<DrizzleCommandDeps> = {},
+): void {
+    const deps: DrizzleCommandDeps = {
+        connect: initDatabase,
+        runCommand: defaultRunCommand,
+        loadSeeder: defaultLoadSeeder,
+        ...overrides,
+    }
+
+    /**
+     * Build and run a `drizzle-kit` command line through the command-runner
+     * port. The argv is constructed here (so a fake runner can assert it) and
+     * executed only by the injected runner.
+     */
+    const runKit = (subcommand: string): Promise<number> =>
+        deps.runCommand({
+            cmd: 'deno',
+            args: [...DRIZZLE_KIT_ARGS, subcommand],
+        })
+
     // -------------------------------------------------------------------------
     // Migration Commands
     // -------------------------------------------------------------------------
@@ -555,7 +660,7 @@ export function registerDrizzleCommands(cli: Cli): void {
         'db:generate',
         async () => {
             console.log('📦 Generating migrations...')
-            const code = await runDrizzleKit('generate')
+            const code = await runKit('generate')
             if (code === 0) {
                 console.log('✅ Migrations generated successfully')
             } else {
@@ -569,7 +674,7 @@ export function registerDrizzleCommands(cli: Cli): void {
         'db:migrate',
         async () => {
             console.log('🚀 Running migrations...')
-            const code = await runDrizzleKit('migrate')
+            const code = await runKit('migrate')
             if (code === 0) {
                 console.log('✅ Migrations applied successfully')
             } else {
@@ -583,7 +688,7 @@ export function registerDrizzleCommands(cli: Cli): void {
         'db:push',
         async () => {
             console.log('🔄 Pushing schema to database...')
-            const code = await runDrizzleKit('push')
+            const code = await runKit('push')
             if (code === 0) {
                 console.log('✅ Schema pushed successfully')
             } else {
@@ -597,7 +702,7 @@ export function registerDrizzleCommands(cli: Cli): void {
         'db:studio',
         async () => {
             console.log('🎨 Starting Drizzle Studio...')
-            const code = await runDrizzleKit('studio')
+            const code = await runKit('studio')
             if (code !== 0) {
                 console.error('❌ Failed to start Drizzle Studio')
             }
@@ -609,7 +714,7 @@ export function registerDrizzleCommands(cli: Cli): void {
         'db:status',
         async () => {
             console.log('📊 Checking migration status...')
-            const code = await runDrizzleKit('check')
+            const code = await runKit('check')
             if (code === 0) {
                 console.log('✅ Schema is up to date')
             } else {
@@ -629,10 +734,9 @@ export function registerDrizzleCommands(cli: Cli): void {
         'db:check',
         async () => {
             console.log('🔍 Checking database connection...')
+            const db = await deps.connect()
             try {
-                const db = await initDatabase()
-                await (db as unknown as { client: postgres.Sql })
-                    .client`SELECT 1`
+                await db.probe()
                 console.log('✅ Database connection successful')
             } catch (error) {
                 console.error(
@@ -640,6 +744,8 @@ export function registerDrizzleCommands(cli: Cli): void {
                     getErrorMessage(error),
                 )
                 console.log('\n💡 Check your DATABASE_URL in .env')
+            } finally {
+                await db.close()
             }
         },
         'Test database connection',
@@ -653,10 +759,10 @@ export function registerDrizzleCommands(cli: Cli): void {
             await new Promise((resolve) => setTimeout(resolve, 3000))
 
             console.log('🗑️  Dropping database...')
-            await runDrizzleKit('drop')
+            await runKit('drop')
 
             console.log('🔄 Running migrations...')
-            const code = await runDrizzleKit('migrate')
+            const code = await runKit('migrate')
 
             if (code === 0) {
                 console.log('✅ Database refreshed successfully')
@@ -671,7 +777,11 @@ export function registerDrizzleCommands(cli: Cli): void {
     // Seeding Commands
     // -------------------------------------------------------------------------
 
-    cli.register('db:seed', handleSeed, 'Seed the database with test data')
+    cli.register(
+        'db:seed',
+        (args) => handleSeed(args, deps),
+        'Seed the database with test data',
+    )
 
     cli.register(
         'make:seeder',
