@@ -11,11 +11,14 @@ export class {{className}}Seeder {
     async run(): Promise<void> {
         console.log('🌱 Running {{className}}Seeder...')
 
-        // Example: Insert seed data
+        // Example: insert literal seed data
         // await this.database.db.insert(users).values([
         //     { email: 'admin@example.com' },
         //     { email: 'user@example.com' },
         // ])
+
+        // Or seed from a factory (realistic bulk data — dev/test tooling):
+        // await new UserFactory().createMany(10)
 
         console.log('✅ {{className}}Seeder completed')
     }

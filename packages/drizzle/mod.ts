@@ -42,6 +42,7 @@ export type {
     DrizzleCommandDeps,
     SeederLoader,
 } from './cli_commands.ts'
+export { Factory } from './factory.ts'
 export { decodeCursor, encodeCursor, paginate } from './paginate.ts'
 export type {
     CursorPaginateOptions,

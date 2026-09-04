@@ -97,6 +97,7 @@ Deno.test('registerDrizzleCommands - registers the full db:* / make:* set', () =
         'db:seed',
         'db:status',
         'db:studio',
+        'make:factory',
         'make:model',
         'make:seeder',
     ])

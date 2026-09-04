@@ -36,12 +36,12 @@ seeding.
 **Independent test**: `make()` pure (no DB, no connection); `create()`/`count()` insert via a faked
 `Database`; `make:factory` scaffolds + registers; the stub names explicit attributes and imports faker.
 
-- [ ] T007 [US2] Write failing tests in `packages/drizzle/tests/factory.test.ts`: `Factory.define(cb)` + `make(overrides?)` returns one attribute object with **no I/O / no connection**; `count(n).make()` returns n; `create(overrides?)` inserts via a faked `Database` and returns the row; `count(n).create()` bulk-inserts. The `Factory` base imports **no** faker (assert by construction — the definition callback supplies values).
-- [ ] T008 [US2] Create `packages/drizzle/factory.ts`: faker-agnostic `Factory<TModel>` (`define`, `make`, `create`, `count`); `create` resolves `Database` from the container and inserts. Export from `mod.ts`. No `any`; JSDoc.
-- [ ] T009 [US3] Write failing test in `packages/drizzle/tests/make_factory.test.ts`: `make:factory User` renders a factory to `./database/factories/user_factory.ts`; the command is registered; the stub imports faker and names explicit attributes (no `{...model}`).
-- [ ] T010 [US3] Create `packages/drizzle/generators/factory_generator.ts` (`handleMakeFactory`, its OWN module to avoid growing the 805-LOC `cli_commands.ts` — architecture A-F5) + `packages/drizzle/stubs/factory.stub` (imports `npm:@faker-js/faker@^10` with a hard-rule-#2 justification comment; explicit attribute object). Register `make:factory` from `cli_commands.ts`.
-- [ ] T011 [US4] Factory-aware seeding: update `packages/drizzle/stubs/seeder.stub` to show a factory-backed `create()` example (commented, opt-in); confirm the `DatabaseSeeder`/`db:seed` shape is unchanged. Document factories/seeding as **dev-test tooling** (security S4 disposition).
-- [ ] T012 [US2] Fast gate; commit `feat(T02): faker model factories + make:factory + factory-aware seeders (#216)` + `Epic: #214`.
+- [X] T007 [US2] Write failing tests in `packages/drizzle/tests/factory.test.ts`: `Factory.define(cb)` + `make(overrides?)` returns one attribute object with **no I/O / no connection**; `count(n).make()` returns n; `create(overrides?)` inserts via a faked `Database` and returns the row; `count(n).create()` bulk-inserts. The `Factory` base imports **no** faker (assert by construction — the definition callback supplies values).
+- [X] T008 [US2] Create `packages/drizzle/factory.ts`: faker-agnostic `Factory<TModel>` (`define`, `make`, `create`, `count`); `create` resolves `Database` from the container and inserts. Export from `mod.ts`. No `any`; JSDoc.
+- [X] T009 [US3] Write failing test in `packages/drizzle/tests/make_factory.test.ts`: `make:factory User` renders a factory to `./database/factories/user_factory.ts`; the command is registered; the stub imports faker and names explicit attributes (no `{...model}`).
+- [X] T010 [US3] Create `packages/drizzle/generators/factory_generator.ts` (`handleMakeFactory`, its OWN module to avoid growing the 805-LOC `cli_commands.ts` — architecture A-F5) + `packages/drizzle/stubs/factory.stub` (imports `npm:@faker-js/faker@^10` with a hard-rule-#2 justification comment; explicit attribute object). Register `make:factory` from `cli_commands.ts`.
+- [X] T011 [US4] Factory-aware seeding: update `packages/drizzle/stubs/seeder.stub` to show a factory-backed `create()` example (commented, opt-in); confirm the `DatabaseSeeder`/`db:seed` shape is unchanged. Document factories/seeding as **dev-test tooling** (security S4 disposition).
+- [X] T012 [US2] Fast gate; commit `feat(T02): faker model factories + make:factory + factory-aware seeders (#216)` + `Epic: #214`.
 
 ## Trailing docs (non-child)
 

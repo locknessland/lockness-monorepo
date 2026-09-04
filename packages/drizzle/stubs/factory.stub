@@ -1,0 +1,28 @@
+import { Factory } from '@lockness/drizzle'
+// The framework's Factory base is faker-agnostic — faker is your app's
+// dependency, imported here. `@faker-js/faker` is npm because no maintained
+// JSR faker exists (the jsr:@faker-js/faker slot is an empty placeholder);
+// this is the justified hard-rule-#2 exception. Add it with:
+//   deno add npm:@faker-js/faker
+import { faker } from '@faker-js/faker'
+// TODO: import your model's table + insert type, e.g.
+// import { {{className}}s, type New{{className}} } from '@model/{{className}}.ts'
+
+/**
+ * Factory for {{className}} — builds realistic rows for tests and seeders.
+ *
+ * Name the fields explicitly. `.make()` returns attributes only; `.create()`
+ * inserts. Use `.makeMany(n)` / `.createMany(n)` for batches.
+ */
+export class {{className}}Factory extends Factory<Record<string, unknown>> {
+    // TODO: point this at your model's table (e.g. `{{className}}s`).
+    protected readonly table: unknown = undefined
+
+    protected definition(): Record<string, unknown> {
+        return {
+            // TODO: name the fields {{className}} is generated with, e.g.
+            // email: faker.internet.email(),
+            // name: faker.person.fullName(),
+        }
+    }
+}

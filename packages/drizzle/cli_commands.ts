@@ -18,6 +18,7 @@
 import { dirname, fromFileUrl, join } from '@std/path'
 import { container } from '@lockness/container'
 import { Database } from './mod.ts'
+import { handleMakeFactory } from './generators/factory_generator.ts'
 
 /**
  * CLI command handler type.
@@ -264,7 +265,7 @@ function generateNaming(name: string): ModelNaming {
  * @param replacements - Key-value pairs for template replacements
  * @returns Processed stub content
  */
-async function processStub(
+export async function processStub(
     stubName: string,
     replacements: Record<string, string>,
 ): Promise<string> {
@@ -284,7 +285,10 @@ async function processStub(
  * @param filePath - Path to create the file at
  * @param content - File content
  */
-async function createFile(filePath: string, content: string): Promise<void> {
+export async function createFile(
+    filePath: string,
+    content: string,
+): Promise<void> {
     const dirPath = dirname(filePath)
     await Deno.mkdir(dirPath, { recursive: true })
     await Deno.writeTextFile(filePath, content)
@@ -801,5 +805,15 @@ export function registerDrizzleCommands(
         'make:model',
         handleMakeModel,
         'Create a new Drizzle model (with optional repository, seeder, controller)',
+    )
+
+    // -------------------------------------------------------------------------
+    // Factory Generation Command (handler in its own module — A-F5)
+    // -------------------------------------------------------------------------
+
+    cli.register(
+        'make:factory',
+        handleMakeFactory,
+        'Create a new faker-backed model factory',
     )
 }
