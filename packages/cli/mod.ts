@@ -196,8 +196,14 @@ function createContext(args: string[]): CommandContext {
 
 /**
  * Command handler function type.
+ *
+ * A handler receives the positional arguments passed after the command name
+ * and performs the command's work.
+ *
+ * @param args - The raw arguments passed after the command name
+ * @returns A promise that resolves when the command has finished
  */
-type CommandHandler = (args: string[]) => Promise<void>
+export type CommandHandler = (args: string[]) => Promise<void>
 
 /**
  * Registered command with handler and metadata.
