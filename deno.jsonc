@@ -23,6 +23,7 @@
         "./packages/redis",
         "./packages/crypto",
         "./packages/telemetry",
+        "./packages/search",
         "./packages/scheduler",
         "./packages/session",
         "./packages/socialite",
@@ -154,7 +155,8 @@
             "i18n",
             "init",
             "notification",
-            "openapi"
+            "openapi",
+            "search"
         ]
     },
     "allowScripts": {

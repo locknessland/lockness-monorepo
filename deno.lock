@@ -4772,6 +4772,12 @@
           "jsr:@std/testing@1"
         ]
       },
+      "packages/search": {
+        "dependencies": [
+          "jsr:@std/assert@1",
+          "jsr:@std/path@1"
+        ]
+      },
       "packages/session": {
         "dependencies": [
           "jsr:@lockness/contract@0.2",

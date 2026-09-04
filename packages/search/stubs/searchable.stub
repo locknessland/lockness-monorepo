@@ -1,0 +1,38 @@
+import type { Searchable } from '@lockness/search'
+import { indexSearchable, search } from '@lockness/search'
+
+/**
+ * Searchable projection for {{Model}}.
+ *
+ * Index on save and delete on remove — the app owns index sync:
+ *   await indexSearchable(new {{Model}}Searchable(record))
+ *   await search('{{index}}').delete(String(record.id))
+ */
+export class {{Model}}Searchable implements Searchable {
+    constructor(private readonly record: { id: string | number }) {}
+
+    searchableId(): string {
+        return String(this.record.id)
+    }
+
+    searchIndex(): string {
+        return '{{index}}'
+    }
+
+    toSearchDocument(): string {
+        // Return the concatenated searchable text for this record.
+        return Object.values(this.record).join(' ')
+    }
+}
+
+/** Rebuild the whole {{index}} index from a record set. */
+export function reindex{{Model}}(
+    records: ReadonlyArray<{ id: string | number }>,
+): Promise<void> {
+    return search('{{index}}').reindex(
+        records.map((r) => ({
+            id: String(r.id),
+            document: Object.values(r).join(' '),
+        })),
+    )
+}

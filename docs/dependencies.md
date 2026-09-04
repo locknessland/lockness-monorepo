@@ -7,7 +7,7 @@
 
 ## Overview
 
-The monorepo contains **35 packages**.
+The monorepo contains **37 packages**.
 
 ## ✅ No Circular Dependencies
 
@@ -24,13 +24,14 @@ The dependency graph is acyclic (DAG).
 
 `@lockness/auth` · `@lockness/auth-provider` · `@lockness/cache` ·
 `@lockness/cli` · `@lockness/deprecation-contracts` · `@lockness/devtools` ·
-`@lockness/drizzle` · `@lockness/events` · `@lockness/i18n` ·
-`@lockness/inertia` · `@lockness/init` · `@lockness/logger` · `@lockness/mail` ·
-`@lockness/markdown` · `@lockness/notification` · `@lockness/openapi` ·
-`@lockness/queue` · `@lockness/realtime` · `@lockness/scheduler` ·
-`@lockness/session` · `@lockness/socialite` · `@lockness/sse` ·
-`@lockness/storage` · `@lockness/telemetry` · `@lockness/ui` ·
-`@lockness/upgrade` · `@lockness/validator` · `@lockness/vite`
+`@lockness/drizzle` · `@lockness/events` · `@lockness/features` ·
+`@lockness/i18n` · `@lockness/inertia` · `@lockness/init` · `@lockness/logger` ·
+`@lockness/mail` · `@lockness/markdown` · `@lockness/notification` ·
+`@lockness/openapi` · `@lockness/queue` · `@lockness/realtime` ·
+`@lockness/scheduler` · `@lockness/search` · `@lockness/session` ·
+`@lockness/socialite` · `@lockness/sse` · `@lockness/storage` ·
+`@lockness/telemetry` · `@lockness/ui` · `@lockness/upgrade` ·
+`@lockness/validator` · `@lockness/vite`
 
 ### Orchestration
 
@@ -52,6 +53,7 @@ The dependency graph is acyclic (DAG).
 | `devtools`              | contract, events, hono, session                      | —                                                                                    |
 | `drizzle`               | cli, container, contract                             | —                                                                                    |
 | `events`                | contract, hono                                       | —                                                                                    |
+| `features`              | —                                                    | —                                                                                    |
 | `hono`                  | —                                                    | —                                                                                    |
 | `i18n`                  | hono                                                 | —                                                                                    |
 | `inertia`               | hono                                                 | —                                                                                    |
@@ -65,6 +67,7 @@ The dependency graph is acyclic (DAG).
 | `realtime`              | hono                                                 | events                                                                               |
 | `redis`                 | contract                                             | —                                                                                    |
 | `scheduler`             | —                                                    | —                                                                                    |
+| `search`                | —                                                    | —                                                                                    |
 | `session`               | contract, hono, redis                                | —                                                                                    |
 | `socialite`             | contract, hono                                       | —                                                                                    |
 | `sse`                   | contract                                             | —                                                                                    |
