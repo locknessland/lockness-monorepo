@@ -4677,6 +4677,13 @@
           "npm:hono@4.11.1"
         ]
       },
+      "packages/i18n": {
+        "dependencies": [
+          "jsr:@lockness/hono@0.2",
+          "jsr:@std/assert@1",
+          "jsr:@std/path@1"
+        ]
+      },
       "packages/inertia": {
         "dependencies": [
           "jsr:@lockness/hono@0.2",

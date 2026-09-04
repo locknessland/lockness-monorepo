@@ -56,6 +56,7 @@ const PACKAGES: string[] = [
     'inertia',
     'init',
     'logger',
+    'i18n',
     'mail',
     'markdown',
     'notification',

@@ -28,12 +28,12 @@ This brief does not repeat it.
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                                         |
-| :--------------------------------------------- | :----------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `container`, `contract`, `crypto`, `events`, `hono`, `scheduler`                                 |
-| Imports (soft, via `tryImportOptionalPackage`) | `cache`, `container`, `devtools`, `drizzle`, `events`, `logger`, `redis`, `session`, `telemetry` |
-| Imported by                                    | —                                                                                                |
-| **Must never import**                          | nothing — no package depends on this one                                                         |
+| Direction                                      | Packages                                                                                                 |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------- |
+| Imports (static)                               | `container`, `contract`, `crypto`, `events`, `hono`, `scheduler`                                         |
+| Imports (soft, via `tryImportOptionalPackage`) | `cache`, `container`, `devtools`, `drizzle`, `events`, `i18n`, `logger`, `redis`, `session`, `telemetry` |
+| Imported by                                    | —                                                                                                        |
+| **Must never import**                          | nothing — no package depends on this one                                                                 |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
