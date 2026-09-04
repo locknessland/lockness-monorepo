@@ -734,8 +734,9 @@ export function registerDrizzleCommands(
         'db:check',
         async () => {
             console.log('🔍 Checking database connection...')
-            const db = await deps.connect()
+            let db: DbConnection | undefined
             try {
+                db = await deps.connect()
                 await db.probe()
                 console.log('✅ Database connection successful')
             } catch (error) {
@@ -745,7 +746,7 @@ export function registerDrizzleCommands(
                 )
                 console.log('\n💡 Check your DATABASE_URL in .env')
             } finally {
-                await db.close()
+                await db?.close()
             }
         },
         'Test database connection',

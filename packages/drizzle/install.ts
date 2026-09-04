@@ -201,9 +201,27 @@ export async function updateSingleEnvFile(envPath: string): Promise<void> {
 }
 
 /**
+ * Raised when the project is missing a file the installer requires.
+ *
+ * Thrown instead of calling `Deno.exit` directly so the check is testable and
+ * the process-exit decision stays with the top-level {@link install} entry.
+ */
+export class ProjectStructureError extends Error {
+    /**
+     * @param name - Human-readable name of the missing file/directory.
+     */
+    constructor(name: string) {
+        super(
+            `Missing ${name}. Please run this command from your project root.`,
+        )
+        this.name = 'ProjectStructureError'
+    }
+}
+
+/**
  * Verify the project has the required structure.
  *
- * Exits with code 1 if required files/directories are missing.
+ * @throws {ProjectStructureError} If a required file/directory is missing.
  */
 export async function checkProjectStructure(): Promise<void> {
     for (const check of STRUCTURE_CHECKS) {
@@ -213,17 +231,43 @@ export async function checkProjectStructure(): Promise<void> {
             console.error(
                 `✗ Missing ${check.name}. Please run this command from your project root.`,
             )
-            Deno.exit(1)
+            throw new ProjectStructureError(check.name)
         }
     }
 }
 
 /**
+ * Minimal shape of the postgres.js client used by the connectivity probe:
+ * callable as a tagged template, plus `end()`.
+ */
+interface SqlProbe {
+    (strings: TemplateStringsArray, ...values: unknown[]): Promise<unknown>
+    end(): Promise<void>
+}
+
+/**
+ * Opens a SQL client for a connection string. Injectable so the probe can be
+ * tested without a real database.
+ *
+ * @param url - The PostgreSQL connection string.
+ * @returns A minimal SQL client.
+ */
+export type SqlConnector = (url: string) => SqlProbe
+
+/** Production connector: the real postgres.js client. */
+const defaultConnector: SqlConnector = (url) =>
+    postgres(url) as unknown as SqlProbe
+
+/**
  * Test the database connection using the configured DATABASE_URL.
  *
  * Prints connection status to the console.
+ *
+ * @param connect - SQL connector to use; defaults to the real postgres client.
  */
-export async function testDatabaseConnection(): Promise<void> {
+export async function testDatabaseConnection(
+    connect: SqlConnector = defaultConnector,
+): Promise<void> {
     const databaseUrl = Deno.env.get('DATABASE_URL')
 
     if (!databaseUrl) {
@@ -235,11 +279,9 @@ export async function testDatabaseConnection(): Promise<void> {
 
     console.log('\n🔌 Testing database connection...')
 
+    const sql = connect(databaseUrl)
     try {
-        const sql = postgres(databaseUrl)
         await sql`SELECT 1`
-        await sql.end()
-
         console.log('✓ Database connection successful!')
     } catch (error) {
         console.log(
@@ -249,6 +291,8 @@ export async function testDatabaseConnection(): Promise<void> {
         console.log(
             '\n💡 Make sure your database is running and DATABASE_URL is correct',
         )
+    } finally {
+        await sql.end()
     }
 }
 
@@ -290,7 +334,12 @@ function showNextSteps(): void {
 async function install(): Promise<void> {
     console.log('🔧 Installing @lockness/drizzle...\n')
 
-    await checkProjectStructure()
+    try {
+        await checkProjectStructure()
+    } catch (error) {
+        if (error instanceof ProjectStructureError) Deno.exit(1)
+        throw error
+    }
     await createDirectories()
     await createDrizzleConfig()
     await createDatabaseSeeder()
