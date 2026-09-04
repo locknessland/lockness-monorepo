@@ -21,7 +21,8 @@ import {
     getSession,
     sessionMiddleware,
 } from '../mod.ts'
-import { CookieSessionDriver, seal } from '../drivers/cookie.ts'
+import { CookieSessionDriver } from '../drivers/cookie.ts'
+import { seal } from '../drivers/cookie_seal.ts'
 import type { RevocationStore } from '../drivers/revocation_store.ts'
 import type { SessionConfig } from '../types.ts'
 import { resetDriverRegistry } from '../drivers/registry.ts'
@@ -229,11 +230,11 @@ Deno.test('cookie revocation - regenerate() revokes the old jti then resets the 
     await driver.write('y', { user: 'dave' }, 3600)
     const reissued =
         ctx.res.headers.get('set-cookie')!.split(';')[0].split('=')[1]
-    const opened = await import('../drivers/cookie.ts').then((m) =>
+    const opened = await import('../drivers/cookie_seal.ts').then((m) =>
         m.openSealed(KEY, decodeURIComponent(reissued))
     )
     assertEquals(
-        opened !== null && opened.jti !== oldJti,
+        typeof opened !== 'string' && opened.jti !== oldJti,
         true,
         'the re-issued cookie carries a fresh, non-revoked jti',
     )

@@ -22,7 +22,7 @@ import {
     getSession,
     sessionMiddleware,
 } from '../mod.ts'
-import { open, seal, sealArbitrary } from '../drivers/cookie.ts'
+import { open, seal, sealArbitrary } from '../drivers/cookie_seal.ts'
 import { resetDriverRegistry } from '../drivers/registry.ts'
 
 const KEY = generateAppKey()
