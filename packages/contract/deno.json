@@ -8,6 +8,7 @@
         "./routing": "./routing/mod.ts",
         "./lifecycle": "./lifecycle/mod.ts",
         "./lifecycle/internal": "./lifecycle/disposables.ts",
+        "./lifecycle/health/internal": "./lifecycle/health.ts",
         "./environment": "./environment.ts"
     },
     "tasks": {

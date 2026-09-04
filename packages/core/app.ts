@@ -411,6 +411,25 @@ export class App {
     }
 
     /**
+     * Returns the **public** (root) Hono layer.
+     *
+     * This is the layer `fetch` serves and onto which the internal controller
+     * layer is mounted. Framework endpoints that must bypass the application's
+     * global middleware and be reachable regardless of mount points — the
+     * `/health` liveness and `/ready` readiness probes (#218) — register here,
+     * before the internal layer is mounted, so a probe touches no application
+     * middleware and no dependency it did not choose to.
+     *
+     * Prefer {@link App.getHono} for application routes; this layer is for the
+     * framework's own always-on endpoints.
+     *
+     * @returns The root Hono instance.
+     */
+    public getRootHono(): Hono<Env, Schema, string> {
+        return this.rootHono
+    }
+
+    /**
      * Register static file serving (deprecated - use init config instead)
      * @deprecated Use staticDir in init() config
      */

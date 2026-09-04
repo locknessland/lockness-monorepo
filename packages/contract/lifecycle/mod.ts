@@ -24,3 +24,16 @@ export {
     type DisposableHandle,
     registerDisposable,
 } from './disposables.ts'
+
+// Health-check registry (#218). The registration side is public; running the
+// checks (`collectHealthChecks`) is reached by core via
+// `@lockness/contract/lifecycle/health/internal`, mirroring how `drainDisposables`
+// is kept off the public surface.
+export {
+    deregisterHealthCheck,
+    type HealthCheck,
+    healthCheckCount,
+    type HealthCheckHandle,
+    type HealthResult,
+    registerHealthCheck,
+} from './health.ts'

@@ -43,6 +43,7 @@ import { listenersStep } from './steps/listeners.ts'
 import { eventsStep } from './steps/events.ts'
 import { schedulerStep } from './steps/scheduler.ts'
 import { devtoolsRoutesStep } from './steps/devtools_routes.ts'
+import { healthStep } from './steps/health.ts'
 
 /**
  * Get the default bootstrap steps in execution order.
@@ -85,6 +86,7 @@ export function getDefaultSteps(): readonly BootstrapStep[] {
         middlewaresDiscoveryStep,
         listenersStep,
         eventsStep,
+        healthStep,
         appInitializationStep,
         schedulerStep,
         devtoolsRoutesStep,

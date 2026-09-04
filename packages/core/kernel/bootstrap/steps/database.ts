@@ -10,6 +10,7 @@
 import type { BootstrapStep } from '../types.ts'
 import { getDatabaseUrl, tryImportOptionalPackage } from '../helpers.ts'
 import { container } from '@lockness/container'
+import { registerHealthCheck } from '@lockness/contract'
 import { SHUTDOWN_PRIORITY } from '../../shutdown_registry.ts'
 
 /**
@@ -32,7 +33,10 @@ export const databaseStep: BootstrapStep = {
         }
 
         const drizzleModule = await tryImportOptionalPackage<{
-            Database: new () => { connect(url: string): Promise<void> }
+            Database: new () => {
+                connect(url: string): Promise<void>
+                probe(): Promise<unknown>
+            }
         }>(
             '@lockness/drizzle',
             'database',
@@ -51,6 +55,22 @@ export const databaseStep: BootstrapStep = {
         // Connect if URL is available
         if (url) {
             await db.connect(url)
+
+            // Announce a readiness probe for `/ready` (#218). `probe()` runs
+            // `SELECT 1`; a throw (connection down) surfaces as `down`, never as
+            // an unhandled rejection, and its message stays out of the public
+            // body.
+            registerHealthCheck({
+                name: 'database',
+                check: async () => {
+                    try {
+                        await db.probe()
+                        return { ok: true }
+                    } catch (error) {
+                        return { ok: false, detail: (error as Error).message }
+                    }
+                },
+            })
         }
     },
 }
