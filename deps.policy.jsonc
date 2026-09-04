@@ -56,7 +56,10 @@
             "tier": "implementation",
             "allow": ["hono", "contract", "events", "session"]
         },
-        "drizzle": { "tier": "implementation", "allow": ["cli", "container"] },
+        "drizzle": {
+            "tier": "implementation",
+            "allow": ["cli", "container", "contract"]
+        },
         "events": { "tier": "implementation", "allow": ["contract", "hono"] },
         "inertia": { "tier": "implementation", "allow": ["hono"] },
         "init": { "tier": "implementation", "allow": ["cli"] },
