@@ -131,7 +131,7 @@ No accepted violations. One deliberate scope narrowing (OpenAPI feed) is recorde
 | `@lockness/core` public API | yes | New `resource/` module (`Resource`, `ResourceCollection`) re-exported via `core/mod.ts`; paginator surfaces automatically through `export * from '@lockness/contract'` |
 | `@lockness/cli` command set | yes | New `make:resource` command + `make/resource.stub` |
 | `@lockness/ui` | no | `Pagination` component unchanged — bound via a plain-object mapping |
-| `@lockness/openapi` | no (this epic) | Resource→schema feed deferred — see Q1 |
+| `@lockness/openapi` | no (this epic) | Resource→schema feed deferred to [#251](https://github.com/locknessland/lockness-monorepo/issues/251) — see Q1 |
 | Docs | yes | New pagination + resources doc with worked examples |
 
 ### Documentation (this feature)
@@ -190,7 +190,7 @@ No accepted violations. One deliberate scope narrowing (OpenAPI feed) is recorde
 
 | Question | Answer | Date |
 | :--- | :--- | :--- |
-| **Q1** — The epic's parent AC says resources "feed OpenAPI", but child #200's own AC does not, and the feed is genuinely net-new (populate `components.schemas`, emit `$ref`s, add a generator seam + an `openapi → ?` edge). Ship #200 as the Resource base + collection + `make:resource` and **defer** the OpenAPI schema feed to a new backlog item? | **DEFER + file item.** #200 ships Resource base + collection + `make:resource` only. The Resource→OpenAPI schema feed becomes its own backlog item (filed at the plan stop), referenced in §8. The parent #197 AC's OpenAPI clause is satisfied by that follow-up, not by #200. | 2026-09-04 |
+| **Q1** — The epic's parent AC says resources "feed OpenAPI", but child #200's own AC does not, and the feed is genuinely net-new (populate `components.schemas`, emit `$ref`s, add a generator seam + an `openapi → ?` edge). Ship #200 as the Resource base + collection + `make:resource` and **defer** the OpenAPI schema feed to a new backlog item? | **DEFER + file item.** #200 ships Resource base + collection + `make:resource` only. The Resource→OpenAPI schema feed became its own backlog item [#251](https://github.com/locknessland/lockness-monorepo/issues/251) (Backlog, Feature/P2/M/dx), referenced in §8. The parent #197 AC's OpenAPI clause is satisfied by that follow-up, not by #200. | 2026-09-04 |
 | **Q2** — Home for the pure paginator: `@lockness/contract` vs. a new `@lockness/pagination` package. | **RESOLVED by both audits → `@lockness/contract`.** Architecture: a standalone package for pure functions with no independent consumer is Lazy Class / Speculative Generality; contract already carries runtime and is the foundation everyone can import. Security raised no objection. | 2026-09-04 |
 | **Q3** — Cursor `meta`: omit `total` entirely (recommended — the point of cursor pagination is to skip `COUNT(*)`), or include an optional `total` when the caller supplies a count? | **OMIT `total`.** Cursor `meta` = `perPage`/`nextCursor`/`prevCursor`/`hasMore` only; no `COUNT(*)` on the cursor path (its whole purpose on large tables). Offset `meta` keeps `total`. | 2026-09-04 |
 
