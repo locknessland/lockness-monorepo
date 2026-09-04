@@ -34,6 +34,7 @@ import { sessionStep } from './steps/session.ts'
 import { cacheStep } from './steps/cache.ts'
 import { appInitializationStep, appInitStep } from './steps/app_init.ts'
 import { devtoolsStep } from './steps/devtools.ts'
+import { telemetryStep } from './steps/telemetry.ts'
 import { lifecycleStep } from './steps/lifecycle.ts'
 import { middlewareStep } from './steps/middleware.ts'
 import { bootHooksStep } from './steps/boot_hooks.ts'
@@ -77,6 +78,7 @@ export function getDefaultSteps(): readonly BootstrapStep[] {
         sessionStep,
         cacheStep,
         appInitStep,
+        telemetryStep,
         databaseTeardownStep,
         devtoolsStep,
         lifecycleStep,

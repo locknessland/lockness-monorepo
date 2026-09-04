@@ -46,11 +46,11 @@ no stack) + framework metrics; `npm:@opentelemetry/api`; no-ops when `OTEL_DENO`
 **Independent test**: attribute builder emits only allow-listed names (no param value — SC-007); exception
 recording is redacted; middleware no-ops with the API's no-op provider (no OTEL_DENO).
 
-- [ ] T011 [US1] `chore(deps)`: new `telemetry` package entry (implementation, `allow: ["contract","hono"]`) in `deps.policy.jsonc`; `packages/telemetry/deno.json` (`npm:@opentelemetry/api` with inline hard-rule-#2 justification comment); `core.soft += telemetry`. Verify `deno task deps:analyze`. **Own commit** before T03's feat.
-- [ ] T012 [US1] Write failing tests `packages/telemetry/tests/{attributes,middleware}.test.ts`: `buildAttributes(ctx)` returns only route pattern / controller.method / mount / method / status — **no resolved param values** (plant a token, assert absent, SC-007); exception recording routes through `renderError` (plant a secret in a message, assert redacted); the middleware is a no-op (no throw, no span export) when `OTEL_DENO` is unset (no-op provider).
-- [ ] T013 [US1] Create `packages/telemetry/{attributes.ts,middleware.ts,mod.ts}`: the allow-list attribute builder + the tracing middleware (`tracer.startActiveSpan`, child of Deno's server span, framework metrics via `meter.createCounter/Histogram`), exceptions via `renderError`. `deno.json`, `README.md`, `AGENTS.md`.
-- [ ] T014 [US1] Soft-load in core: a bootstrap step (mirroring `steps/devtools.ts`) that `tryImportOptionalPackage('@lockness/telemetry')` and installs the middleware early in the chain when present. Test the wiring (present → installed; absent → skipped).
-- [ ] T015 [US1] Fast gate for telemetry + core; commit `feat(T03): OpenTelemetry span enrichment + metrics in @lockness/telemetry (#222)` + `Epic: #221`.
+- [X] T011 [US1] `chore(deps)`: new `telemetry` package entry (implementation, `allow: ["contract","hono"]`) in `deps.policy.jsonc`; `packages/telemetry/deno.json` (`npm:@opentelemetry/api` with inline hard-rule-#2 justification comment); `core.soft += telemetry`. Verify `deno task deps:analyze`. **Own commit** before T03's feat.
+- [X] T012 [US1] Write failing tests `packages/telemetry/tests/{attributes,middleware}.test.ts`: `buildAttributes(ctx)` returns only route pattern / controller.method / mount / method / status — **no resolved param values** (plant a token, assert absent, SC-007); exception recording routes through `renderError` (plant a secret in a message, assert redacted); the middleware is a no-op (no throw, no span export) when `OTEL_DENO` is unset (no-op provider).
+- [X] T013 [US1] Create `packages/telemetry/{attributes.ts,middleware.ts,mod.ts}`: the allow-list attribute builder + the tracing middleware (`tracer.startActiveSpan`, child of Deno's server span, framework metrics via `meter.createCounter/Histogram`), exceptions via `renderError`. `deno.json`, `README.md`, `AGENTS.md`.
+- [X] T014 [US1] Soft-load in core: a bootstrap step (mirroring `steps/devtools.ts`) that `tryImportOptionalPackage('@lockness/telemetry')` and installs the middleware early in the chain when present. Test the wiring (present → installed; absent → skipped).
+- [X] T015 [US1] Fast gate for telemetry + core; commit `feat(T03): OpenTelemetry span enrichment + metrics in @lockness/telemetry (#222)` + `Epic: #221`.
 
 ## Trailing docs (non-child)
 
