@@ -69,6 +69,10 @@
         "queue": { "tier": "implementation", "allow": ["contract"] },
         "scheduler": { "tier": "implementation", "allow": [] },
         "session": { "tier": "implementation", "allow": ["contract", "hono"] },
+        "testing": {
+            "tier": "orchestration",
+            "allow": ["auth", "hono", "contract", "session", "drizzle"]
+        },
         "socialite": {
             "tier": "implementation",
             "allow": ["hono", "contract"]

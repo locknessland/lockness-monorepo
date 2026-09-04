@@ -31,7 +31,8 @@
         "./packages/ui",
         "./packages/markdown",
         "./packages/vite",
-        "./packages/vite/demo"
+        "./packages/vite/demo",
+        "./packages/testing"
     ],
     "nodeModulesDir": "auto",
     "tasks": {

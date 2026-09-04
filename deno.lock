@@ -4562,6 +4562,13 @@
           "npm:@aws-sdk/s3-request-presigner@^3.709.0"
         ]
       },
+      "packages/testing": {
+        "dependencies": [
+          "jsr:@lockness/auth@0.2",
+          "jsr:@lockness/hono@0.2",
+          "jsr:@std/assert@1"
+        ]
+      },
       "packages/ui": {
         "dependencies": [
           "jsr:@lockness/hono@0.2",
