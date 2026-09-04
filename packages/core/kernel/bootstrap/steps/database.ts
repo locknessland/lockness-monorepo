@@ -34,7 +34,12 @@ export const databaseStep: BootstrapStep = {
 
         const drizzleModule = await tryImportOptionalPackage<{
             Database: new () => {
-                connect(url: string): Promise<void>
+                connect(
+                    url: string,
+                    options?: {
+                        driver?: 'postgres' | 'mysql' | 'sqlite'
+                    },
+                ): Promise<void>
                 probe(): Promise<unknown>
             }
         }>(
@@ -52,9 +57,15 @@ export const databaseStep: BootstrapStep = {
         // Determine connection URL
         const url = getDatabaseUrl(context.config.database)
 
-        // Connect if URL is available
+        // Connect if URL is available. Pass the configured dialect so the boot
+        // path honours `driver`; the CLI path relies on URL-scheme inference.
+        // `config.database` may be `true` (defaults shorthand) — only an object
+        // carries a driver.
+        const driver = typeof context.config.database === 'object'
+            ? context.config.database.driver
+            : undefined
         if (url) {
-            await db.connect(url)
+            await db.connect(url, { driver })
 
             // Announce a readiness probe for `/ready` (#218). `probe()` runs
             // `SELECT 1`; a throw (connection down) surfaces as `down`, never as

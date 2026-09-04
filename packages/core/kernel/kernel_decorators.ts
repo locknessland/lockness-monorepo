@@ -46,6 +46,16 @@ export interface DatabaseConfig {
     url?: string
 
     /**
+     * The SQL dialect to connect through. When omitted, `@lockness/drizzle`
+     * infers it from the URL scheme (falling back to `postgres`), so existing
+     * PostgreSQL apps need no change. The single home for the dialect decision.
+     *
+     * @default 'postgres'
+     * @example 'mysql'
+     */
+    driver?: 'postgres' | 'mysql' | 'sqlite'
+
+    /**
      * Whether to automatically connect on startup
      * @default true
      */

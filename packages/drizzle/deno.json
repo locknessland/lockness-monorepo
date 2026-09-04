@@ -18,7 +18,10 @@
         "@lockness/contract": "jsr:@lockness/contract@^0.2.0",
         "@std/path": "jsr:@std/path@^1.0.0",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
-        "postgres": "npm:postgres@^3.4.4"
+        "postgres": "npm:postgres@^3.4.4",
+        "mysql2": "npm:mysql2@^3.24.3",
+        "mysql2/promise": "npm:mysql2@^3.24.3/promise",
+        "@libsql/client": "npm:@libsql/client@^0.18.0"
     },
     "description": "Drizzle ORM integration with PostgreSQL support, migration management, and database seeding system"
 }

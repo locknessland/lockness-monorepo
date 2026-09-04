@@ -1,8 +1,10 @@
 /**
  * @fileoverview Drizzle ORM integration for Lockness framework.
  *
- * Provides database connection management and Drizzle ORM setup for PostgreSQL.
- * This module exports the main Database service and CLI command registration.
+ * Provides database connection management and Drizzle ORM setup for PostgreSQL
+ * (default), MySQL, and SQLite — the dialect is resolved from config/URL and its
+ * driver is loaded on demand. This module exports the main Database service and
+ * CLI command registration.
  *
  * @module @lockness/drizzle
  *
@@ -21,9 +23,16 @@
  * ```
  */
 
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import postgres from 'postgres'
 import { Service } from '@lockness/container'
+import { renderError } from '@lockness/contract'
+import {
+    CLIENT_PACKAGE,
+    defaultDriverFactories,
+    type Dialect,
+    type DialectDatabase,
+    type DriverFactory,
+    resolveDialect,
+} from './drivers.ts'
 
 export { registerDrizzleCommands } from './cli_commands.ts'
 export type {
@@ -39,17 +48,18 @@ export type {
     DecodedCursor,
     OffsetPaginateOptions,
 } from './paginate.ts'
+export { CLIENT_PACKAGE, resolveDialect } from './drivers.ts'
+export type {
+    DatabaseSchema,
+    Dialect,
+    DialectDatabase,
+    DriverFactory,
+    DriverHandle,
+} from './drivers.ts'
 
 // =============================================================================
 // Types
 // =============================================================================
-
-/**
- * Database schema type for Drizzle ORM.
- *
- * Used as a generic constraint for the PostgresJsDatabase type.
- */
-export type DatabaseSchema = Record<string, unknown>
 
 /**
  * Connection options for the Database service.
@@ -57,6 +67,13 @@ export type DatabaseSchema = Record<string, unknown>
 export interface ConnectionOptions {
     /** Whether to suppress the success message */
     readonly silent?: boolean
+    /**
+     * The SQL dialect to connect through. When omitted, it is inferred from the
+     * URL scheme (falling back to `postgres`) — see {@link resolveDialect}. The
+     * boot path passes `DatabaseConfig.driver` here; the CLI path relies on
+     * inference.
+     */
+    readonly driver?: Dialect
 }
 
 /**
@@ -95,109 +112,132 @@ export interface ConnectionResult {
  * ```
  */
 @Service()
-export class Database {
+export class Database<D extends Dialect = 'postgres'> {
     /**
-     * Drizzle ORM database instance.
-     *
-     * Use this property to execute Drizzle queries after connecting.
+     * Drizzle ORM database instance, typed by the dialect. Defaults to
+     * `PostgresJsDatabase` (dialect `postgres`), so an unparameterised
+     * `Database` and every existing `db.select()` call site is unchanged.
      */
-    public db!: PostgresJsDatabase<DatabaseSchema>
+    public db!: DialectDatabase<D>
+
+    /** The per-dialect driver factories (overridable via {@link Database.setDriverFactory}). */
+    #factories: Record<Dialect, DriverFactory> = { ...defaultDriverFactories }
+    /** The live connection's close/probe closures, set at connect time. */
+    #close: (() => Promise<void>) | undefined
+    #probe: (() => Promise<void>) | undefined
+    #connected = false
 
     /**
-     * Underlying postgres.js client instance.
-     * @internal
+     * Override the driver factory for one dialect — the seam for unit tests
+     * (a fake driver, no live DB) and for registering a custom driver.
+     *
+     * @param dialect - The dialect to override.
+     * @param factory - The factory to use for it.
      */
-    private client!: postgres.Sql<Record<string, never>>
+    setDriverFactory(dialect: Dialect, factory: DriverFactory): void {
+        this.#factories[dialect] = factory
+    }
 
     /**
-     * Connect to the PostgreSQL database.
+     * Connect to the database through the resolved dialect's driver.
      *
-     * Establishes a connection using the provided URL and initializes
-     * the Drizzle ORM instance. Connection is verified with a test query.
+     * The dialect is resolved by {@link resolveDialect} (`options.driver` >
+     * URL scheme > `postgres`); the matching driver + client are loaded on
+     * demand. A failure to load the client is reported with the package to
+     * install; a connection failure is rendered through `renderError` so a
+     * driver error cannot spill a DSN's credentials into logs.
      *
-     * @param url - PostgreSQL connection URL (e.g., 'postgres://user:pass@localhost:5432/db')
-     * @param options - Optional connection configuration
-     * @returns Connection result with success status
+     * @param url - Connection URL / DSN.
+     * @param options - Optional dialect + silence.
+     * @returns Connection result with success status.
      *
      * @example
      * ```ts
      * const db = container.get<Database>(Database)
      * const result = await db.connect(Deno.env.get('DATABASE_URL')!)
-     *
-     * if (!result.success) {
-     *   console.error('Failed to connect:', result.error)
-     * }
+     * if (!result.success) console.error('Failed to connect:', result.error)
      * ```
      */
     public async connect(
         url: string,
         options: ConnectionOptions = {},
     ): Promise<ConnectionResult> {
-        try {
-            this.client = postgres(url)
-            this.db = drizzle(this.client)
+        const dialect = resolveDialect(options.driver, url)
 
-            // Verify the connection
-            await this.client`SELECT 1`
+        let handle
+        try {
+            handle = await this.#factories[dialect](url)
+        } catch (error) {
+            // The driver's adapter/client could not be loaded or constructed —
+            // name the dialect and the package to install (never a raw stack).
+            const message =
+                `Failed to initialise the '${dialect}' driver — ensure its client package (${
+                    CLIENT_PACKAGE[dialect]
+                }) is installed. ${renderError(error)}`
+            console.error('❌ Database connection failed:', message)
+            return { success: false, error: message }
+        }
+
+        try {
+            this.db = handle.db as DialectDatabase<D>
+            this.#close = () => handle.close()
+            this.#probe = () => handle.probe()
+            await this.#probe()
+            this.#connected = true
 
             if (!options.silent) {
-                console.log('✅ Database connected')
+                console.log(`✅ Database connected (${dialect})`)
             }
-
             return { success: true }
         } catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : String(error)
-
+            // Connection/probe failure — renderError drops the error object,
+            // stack and cause, so a credential carried on the error cannot leak.
+            const message = renderError(error)
             console.error('❌ Database connection failed:', message)
-
             return { success: false, error: message }
         }
     }
 
     /**
-     * Close the database connection.
-     *
-     * Gracefully terminates the PostgreSQL connection. Safe to call
-     * multiple times or when not connected.
+     * Close the database connection. Safe to call when not connected.
      *
      * @example
      * ```ts
-     * // In cleanup or shutdown
      * await db.close()
      * ```
      */
     public async close(): Promise<void> {
-        if (this.client) {
-            await this.client.end()
+        if (this.#close) {
+            await this.#close()
+            this.#connected = false
         }
     }
 
     /**
-     * Verify connectivity by issuing a lightweight `SELECT 1`.
+     * Verify connectivity by issuing a lightweight `SELECT 1` through the active
+     * driver.
      *
-     * Encapsulates the connectivity probe used by the `db:check` CLI command,
-     * so callers never need to reach into the private client.
-     *
-     * @returns Resolves when the probe query succeeds.
+     * @returns Resolves when the probe succeeds.
      * @throws If no connection is established or the query fails.
      *
      * @example
      * ```ts
-     * await db.probe() // resolves if reachable, throws otherwise
+     * await db.probe()
      * ```
      */
     public async probe(): Promise<void> {
-        await this.client`SELECT 1`
+        if (!this.#probe) {
+            throw new Error('Database is not connected')
+        }
+        await this.#probe()
     }
 
     /**
      * Check if the database is currently connected.
      *
-     * @returns True if a connection has been established
+     * @returns True if a connection has been established.
      */
     public isConnected(): boolean {
-        return this.client !== undefined && this.db !== undefined
+        return this.#connected
     }
 }
