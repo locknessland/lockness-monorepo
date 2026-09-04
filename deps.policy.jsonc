@@ -67,6 +67,17 @@
         "logger": { "tier": "implementation", "allow": ["contract"] },
         "mail": { "tier": "implementation", "allow": [] },
         "markdown": { "tier": "implementation", "allow": ["hono"] },
+        // `notification` is a pure sink: nothing imports it, so it cannot close
+        // a cycle. Its channel backing packages are declared `soft` — each is
+        // loaded on demand through one variable-specifier `tryImport`, so a
+        // log-only app pulls none of mail/queue/sse/drizzle. A static or
+        // `import type` from any of them would harden the edge and fail checks
+        // B+C — that is the invariant FR-004 + the §5 decision-table row protect.
+        "notification": {
+            "tier": "implementation",
+            "allow": ["contract", "container"],
+            "soft": ["mail", "queue", "logger", "sse", "drizzle"]
+        },
         "openapi": {
             "tier": "implementation",
             "allow": ["cli", "contract", "hono"]
