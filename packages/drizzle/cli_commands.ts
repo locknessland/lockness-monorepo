@@ -618,6 +618,9 @@ async function createControllerFile(naming: ModelNaming): Promise<boolean> {
  * - `make:model` - Create a new Drizzle model
  *
  * @param cli - The CLI instance to register commands on
+ * @param overrides - Optional I/O-seam overrides for testing; each unset field
+ *   defaults to real I/O (the container-resolved connection, `Deno.Command`,
+ *   and a dynamic seeder import).
  *
  * @example
  * ```ts
