@@ -27,7 +27,8 @@
         "@lockness/container": "jsr:@lockness/container@^0.2.0",
         "@lockness/deprecation-contracts": "jsr:@lockness/deprecation-contracts@^0.2.0",
         "@lockness/events": "jsr:@lockness/events@^0.2.0",
-        "@lockness/scheduler": "jsr:@lockness/scheduler@^0.2.0"
+        "@lockness/scheduler": "jsr:@lockness/scheduler@^0.2.0",
+        "@lockness/crypto": "jsr:@lockness/crypto@^0.2.0"
     },
     "compilerOptions": {
         "jsx": "precompile",

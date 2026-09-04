@@ -36,6 +36,7 @@
         "contract": { "tier": "foundation", "allow": ["hono"] },
         "container": { "tier": "foundation", "allow": ["contract"] },
         "redis": { "tier": "foundation", "allow": ["contract"] },
+        "crypto": { "tier": "foundation", "allow": ["contract"] },
 
         // ---- Implementation
         "auth": {
@@ -102,7 +103,14 @@
         // ---- Orchestration: the only package a user application imports.
         "core": {
             "tier": "orchestration",
-            "allow": ["container", "contract", "events", "hono", "scheduler"],
+            "allow": [
+                "container",
+                "contract",
+                "crypto",
+                "events",
+                "hono",
+                "scheduler"
+            ],
             "soft": [
                 "cache",
                 "container",

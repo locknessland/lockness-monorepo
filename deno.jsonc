@@ -17,6 +17,7 @@
         "./packages/openapi",
         "./packages/queue",
         "./packages/redis",
+        "./packages/crypto",
         "./packages/scheduler",
         "./packages/session",
         "./packages/socialite",
