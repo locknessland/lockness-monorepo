@@ -409,6 +409,52 @@ const guard = new SessionGuard('web', c, provider, options, emitter)
 9. **Log authentication events** - Monitor suspicious activity
 10. **Validate user input** - Prevent injection attacks
 
+## Authorization: roles & permissions (RBAC)
+
+The optional RBAC layer sits on top of the authorization gate (gates, policies
+and the `@Authorize`/`@Can` decorators are documented separately). A **role**
+groups **permissions**; a permission is an ability pattern. RBAC is wired as a
+gate **fallback** — it is consulted only when no explicit ability or policy has
+decided a check, so an ownership or tenancy policy is never bypassed, and RBAC
+can only ever grant, never deny.
+
+```typescript
+import { gate, StaticRoleRepository, useRbac } from '@lockness/auth'
+
+// Map user id → roles (any RoleRepository works; this one is in-memory).
+const roles = new StaticRoleRepository(
+    new Map([
+        [1, [{ name: 'editor', permissions: ['post.*', 'comment.create'] }]],
+        [2, [{ name: 'admin', permissions: ['*'] }]],
+    ]),
+)
+
+// Opt in — nothing is active until this call.
+useRbac(gate, roles)
+
+await gate.can(user, 'post.update') // true for the editor (post.*)
+await gate.can(user, 'billing.void') // false — no matching permission
+```
+
+**Permission patterns** (plain strings, no regex):
+
+| Pattern       | Grants                                                         |
+| ------------- | -------------------------------------------------------------- |
+| `post.update` | exactly `post.update`                                          |
+| `post.*`      | one further segment (`post.update`, not `post.comment.delete`) |
+| `*`           | every ability (superadmin)                                     |
+
+**Notes**
+
+- **Opt-in**: an app that never calls `useRbac` behaves exactly as before — RBAC
+  registers nothing by default.
+- **Precedence**: an explicit ability or policy (including a subject-aware
+  ownership check) always wins; RBAC only fills abilities with no rule.
+- **Custom storage**: implement `RoleRepository.rolesFor({ id })` over your
+  database. The port receives the user's id only, never the full user record.
+- **`gate.reset()` clears fallbacks** — re-apply `useRbac` afterwards (e.g. in
+  test isolation).
+
 ## Password Hashing
 
 ```typescript
