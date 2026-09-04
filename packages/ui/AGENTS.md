@@ -71,7 +71,7 @@ application installs it, or the feature stays off.
 
 <!-- generated:tests -->
 
-17 test files for 92 source files:
+21 test files for 92 source files:
 
 - `packages/ui/tests/accordion.test.tsx`
 - `packages/ui/tests/alert.test.tsx`
@@ -85,9 +85,13 @@ application installs it, or the feature stays off.
 - `packages/ui/tests/input.test.tsx`
 - `packages/ui/tests/label.test.tsx`
 - `packages/ui/tests/markdown_components.test.tsx`
+- `packages/ui/tests/modal.test.tsx`
+- `packages/ui/tests/pagination.test.tsx`
 - `packages/ui/tests/pricing.test.tsx`
 - `packages/ui/tests/rootlayout.test.tsx`
 - `packages/ui/tests/searchbar.test.tsx`
+- `packages/ui/tests/table.test.tsx`
+- `packages/ui/tests/tabs.test.tsx`
 - `packages/ui/tests/utils.test.ts`
 - `packages/ui/tests/video.test.tsx`
 
@@ -105,7 +109,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 17 test files directly —
+Then, specific to this package: run its 21 test files directly —
 
 ```bash
 deno test -A packages/ui/

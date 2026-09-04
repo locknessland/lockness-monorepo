@@ -27,12 +27,12 @@ it.
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                                                                                                                                                                   |
-| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `hono` _(type-only)_                                                                                                                                                                                                       |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                                                                                                                          |
-| Imported by                                    | `auth`, `cache`, `cli`, `container`, `core`, `devtools`, `events`, `logger`, `openapi`, `queue`, `session`, `sse`                                                                                                          |
-| **Must never import**                          | `auth`, `auth-provider`, `cache`, `cli`, `container`, `core`, `devtools`, `drizzle`, `events`, `init`, `logger`, `openapi`, `queue`, `session`, `sse` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                                                                                                                                                                           |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                               | `hono` _(type-only)_                                                                                                                                                                                                                               |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                                                                                                                                                  |
+| Imported by                                    | `auth`, `cache`, `cli`, `container`, `core`, `devtools`, `events`, `logger`, `openapi`, `queue`, `session`, `socialite`, `sse`                                                                                                                     |
+| **Must never import**                          | `auth`, `auth-provider`, `cache`, `cli`, `container`, `core`, `devtools`, `drizzle`, `events`, `init`, `logger`, `openapi`, `queue`, `session`, `socialite`, `sse`, `testing` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

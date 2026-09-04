@@ -68,8 +68,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-1 test file for 11 source files:
+2 test files for 11 source files:
 
+- `packages/auth-provider/tests/deny_paths.test.ts`
 - `packages/auth-provider/tests/remember_preservation.test.ts`
 
 <!-- /generated:tests -->
@@ -86,7 +87,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 1 test file directly —
+Then, specific to this package: run its 2 test files directly —
 
 ```bash
 deno test -A packages/auth-provider/

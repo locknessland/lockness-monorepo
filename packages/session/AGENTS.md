@@ -42,12 +42,12 @@ User-facing documentation: [README.md](README.md) ·
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                                                         |
-| :--------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`, `hono`                                                                                               |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                |
-| Imported by                                    | `auth`, `core`, `devtools`                                                                                       |
-| **Must never import**                          | `auth`, `auth-provider`, `core`, `devtools` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                                                    |
+| :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                               | `contract`, `hono`                                                                                                          |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                           |
+| Imported by                                    | `auth`, `core`, `devtools`                                                                                                  |
+| **Must never import**                          | `auth`, `auth-provider`, `core`, `devtools`, `testing` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
@@ -96,7 +96,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-23 test files for 18 source files:
+24 test files for 18 source files:
 
 - `packages/session/tests/config_resolution.test.ts`
 - `packages/session/tests/cookie_absolute_lifetime.test.ts`
@@ -118,6 +118,7 @@ Anything not listed is internal and free to change.
 - `packages/session/tests/reporting.test.ts`
 - `packages/session/tests/resp.test.ts`
 - `packages/session/tests/secret.test.ts`
+- `packages/session/tests/secure_default.test.ts`
 - `packages/session/tests/store.test.ts`
 - `packages/session/tests/user_revocation.test.ts`
 - `packages/session/tests/wire_format.test.ts`
@@ -136,7 +137,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 23 test files directly —
+Then, specific to this package: run its 24 test files directly —
 
 ```bash
 deno test -A packages/session/

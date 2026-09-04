@@ -37,12 +37,12 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                 |
-| :-------- | :-------------------------------------- |
-| class     | `Database`                              |
-| function  | `registerDrizzleCommands`               |
-| interface | `ConnectionOptions`, `ConnectionResult` |
-| typeAlias | `DatabaseSchema`                        |
+| Kind      | Exports                                                                                      |
+| :-------- | :------------------------------------------------------------------------------------------- |
+| class     | `Database`                                                                                   |
+| function  | `registerDrizzleCommands`                                                                    |
+| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `DbConnection`, `DrizzleCommandDeps` |
+| typeAlias | `CommandRunner`, `DatabaseSchema`, `SeederLoader`                                            |
 
 Anything not listed is internal and free to change.
 
@@ -69,9 +69,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-**This package has no tests.** 3 source files ship untested — treat any change
-here as unguarded, and add coverage for what you touch rather than trusting the
-suite.
+2 test files for 3 source files:
+
+- `packages/drizzle/tests/cli_commands.test.ts`
+- `packages/drizzle/tests/install.test.ts`
 
 <!-- /generated:tests -->
 
@@ -87,8 +88,11 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: **it has no tests.** Anything you change here is
-unguarded by the suite — add coverage for it.
+Then, specific to this package: run its 2 test files directly —
+
+```bash
+deno test -A packages/drizzle/
+```
 
 <!-- /generated:gate -->
 

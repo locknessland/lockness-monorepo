@@ -86,7 +86,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-41 test files for 63 source files:
+42 test files for 63 source files:
 
 - `packages/core/cli/tests/ssg_command.test.ts`
 - `packages/core/ssg/tests/build.test.ts`
@@ -114,6 +114,7 @@ Anything not listed is internal and free to change.
 - `packages/core/tests/mount_pattern.test.ts`
 - `packages/core/tests/mount_points.test.ts`
 - `packages/core/tests/on_boot.test.ts`
+- `packages/core/tests/reexport_contract.test.ts`
 - `packages/core/tests/route_registry.test.ts`
 - `packages/core/tests/router.test.ts`
 - `packages/core/tests/routes_generator.test.ts`
@@ -144,7 +145,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 41 test files directly —
+Then, specific to this package: run its 42 test files directly —
 
 ```bash
 deno test -A packages/core/

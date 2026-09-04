@@ -22,12 +22,12 @@ names does not belong here._
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                             |
-| :--------------------------------------------- | :----------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`, `events` _(type-only)_, `hono`, `session`                                |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                    |
-| Imported by                                    | `auth-provider`                                                                      |
-| **Must never import**                          | `auth-provider` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                        |
+| :--------------------------------------------- | :---------------------------------------------------------------------------------------------- |
+| Imports (static)                               | `contract`, `events` _(type-only)_, `hono`, `session`                                           |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                               |
+| Imported by                                    | `auth-provider`, `testing`                                                                      |
+| **Must never import**                          | `auth-provider`, `testing` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
@@ -39,14 +39,14 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `AuthenticationError`, `AuthenticationRequiredError`, `Authenticator`, `BasicAuthGuard`, `InvalidCredentialsError`, `InvalidGuardConfigError`, `InvalidTokenError`, `SessionExpiredError`, `SessionGuard`, `TokenGuard`, `UnauthorizedAccessError`                                                                                                                                                                                                                                                  |
-| function  | `AuthGuard`, `AuthOptional`, `AuthRequired`, `Guard`, `authGuard`, `authMiddleware`, `authOptional`, `authRequired`, `configurePasswordHashing`, `getAuth`, `getPasswordHashingConfig`, `guestMiddleware`, `hashPassword`, `initializeAuthMiddleware`, `resetPasswordHashingConfig`, `verifyPassword`, `withAuth`                                                                                                                                                                                   |
-| interface | `AccessToken`, `AuthClientResponse`, `AuthConfig`, `AuthContext`, `AuthMiddlewareOptions`, `Authenticatable`, `BasicAuthGuardEvents`, `BasicAuthGuardOptions`, `BasicAuthUserProviderContract`, `GuardContract`, `PasswordHashConfig`, `RememberMeToken`, `SessionGuardContract`, `SessionGuardEvents`, `SessionGuardOptions`, `SessionUserProviderContract`, `SessionWithRememberMeProviderContract`, `TokenGuardEvents`, `TokenGuardOptions`, `TokenUserProviderContract`, `UserProviderContract` |
-| reference | `InjectGuard`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| typeAlias | `GuardFactory`, `InferGuardUser`, `InferProviderUser`, `TypedSessionGuard`                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| variable  | `GUARD_KNOWN_EVENTS`, `PROVIDER_REAL_USER`                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `AuthenticationError`, `AuthenticationRequiredError`, `Authenticator`, `AuthorizationError`, `BasicAuthGuard`, `Gate`, `InvalidCredentialsError`, `InvalidGuardConfigError`, `InvalidTokenError`, `SessionExpiredError`, `SessionGuard`, `StaticRoleRepository`, `TokenGuard`, `UnauthorizedAccessError`                                                                                                                                                                                                                                      |
+| function  | `AuthGuard`, `AuthOptional`, `AuthRequired`, `Authorize`, `Guard`, `authGuard`, `authMiddleware`, `authOptional`, `authRequired`, `authorizeMiddleware`, `configurePasswordHashing`, `getAuth`, `getPasswordHashingConfig`, `guestMiddleware`, `hashPassword`, `initializeAuthMiddleware`, `rbacResolver`, `resetPasswordHashingConfig`, `useRbac`, `verifyPassword`, `withAuth`                                                                                                                                                              |
+| interface | `AccessToken`, `AuthClientResponse`, `AuthConfig`, `AuthContext`, `AuthMiddlewareOptions`, `Authenticatable`, `BasicAuthGuardEvents`, `BasicAuthGuardOptions`, `BasicAuthUserProviderContract`, `GuardContract`, `PasswordHashConfig`, `RbacIdentity`, `RememberMeToken`, `Role`, `RoleRepository`, `SessionGuardContract`, `SessionGuardEvents`, `SessionGuardOptions`, `SessionUserProviderContract`, `SessionWithRememberMeProviderContract`, `TokenGuardEvents`, `TokenGuardOptions`, `TokenUserProviderContract`, `UserProviderContract` |
+| reference | `Can`, `InjectGuard`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| typeAlias | `GateBeforeHook`, `GateCallback`, `GateFallback`, `GuardFactory`, `InferGuardUser`, `InferProviderUser`, `Permission`, `Policy`, `TypedSessionGuard`                                                                                                                                                                                                                                                                                                                                                                                          |
+| variable  | `GUARD_KNOWN_EVENTS`, `PROVIDER_REAL_USER`, `gate`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 Anything not listed is internal and free to change.
 
@@ -73,16 +73,22 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-11 test files for 12 source files:
+17 test files for 14 source files:
 
 - `packages/auth/tests/auth_decorators.test.ts`
 - `packages/auth/tests/authenticator.test.ts`
+- `packages/auth/tests/authorization_e2e.test.ts`
+- `packages/auth/tests/authorize_decorator.test.ts`
 - `packages/auth/tests/context_api.test.ts`
 - `packages/auth/tests/decorator.test.ts`
 - `packages/auth/tests/errors.test.ts`
+- `packages/auth/tests/gate.test.ts`
 - `packages/auth/tests/guards.test.ts`
 - `packages/auth/tests/integration.test.ts`
+- `packages/auth/tests/password.test.ts`
+- `packages/auth/tests/policy.test.ts`
 - `packages/auth/tests/providers.test.ts`
+- `packages/auth/tests/rbac.test.ts`
 - `packages/auth/tests/remember_absolute_lifetime.test.ts`
 - `packages/auth/tests/session_logout_revocation.test.ts`
 - `packages/auth/tests/user_revocation.test.ts`
@@ -101,7 +107,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 11 test files directly —
+Then, specific to this package: run its 17 test files directly —
 
 ```bash
 deno test -A packages/auth/

@@ -21,12 +21,12 @@ User-facing documentation: [README.md](README.md) ·
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                                                                                                                                                                                                                                      |
-| :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | —                                                                                                                                                                                                                                                                                             |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                                                                                                                                                                                             |
-| Imported by                                    | `auth`, `contract`, `core`, `devtools`, `events`, `inertia`, `markdown`, `openapi`, `session`, `socialite`, `ui`, `validator`                                                                                                                                                                 |
-| **Must never import**                          | `auth`, `auth-provider`, `cache`, `cli`, `container`, `contract`, `core`, `devtools`, `drizzle`, `events`, `inertia`, `init`, `logger`, `markdown`, `openapi`, `queue`, `session`, `socialite`, `sse`, `ui`, `validator` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                                                                                                                                                                                                                                 |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                               | —                                                                                                                                                                                                                                                                                                        |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                                                                                                                                                                                                        |
+| Imported by                                    | `auth`, `contract`, `core`, `devtools`, `events`, `inertia`, `markdown`, `openapi`, `session`, `socialite`, `testing`, `ui`, `validator`                                                                                                                                                                 |
+| **Must never import**                          | `auth`, `auth-provider`, `cache`, `cli`, `container`, `contract`, `core`, `devtools`, `drizzle`, `events`, `inertia`, `init`, `logger`, `markdown`, `openapi`, `queue`, `session`, `socialite`, `sse`, `testing`, `ui`, `validator` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
@@ -73,9 +73,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-**This package has no tests.** 22 source files ship untested — treat any change
-here as unguarded, and add coverage for what you touch rather than trusting the
-suite.
+1 test file for 22 source files:
+
+- `packages/hono/tests/reexport_contract.test.ts`
 
 <!-- /generated:tests -->
 
@@ -91,8 +91,11 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: **it has no tests.** Anything you change here is
-unguarded by the suite — add coverage for it.
+Then, specific to this package: run its 1 test file directly —
+
+```bash
+deno test -A packages/hono/
+```
 
 <!-- /generated:gate -->
 

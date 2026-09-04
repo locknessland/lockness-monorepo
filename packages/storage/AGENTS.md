@@ -66,10 +66,11 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-3 test files for 2 source files:
+4 test files for 2 source files:
 
 - `packages/storage/tests/cloud.test.ts`
 - `packages/storage/tests/local.test.ts`
+- `packages/storage/tests/local_path_traversal.test.ts`
 - `packages/storage/tests/manager.test.ts`
 
 <!-- /generated:tests -->
@@ -86,7 +87,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 3 test files directly —
+Then, specific to this package: run its 4 test files directly —
 
 ```bash
 deno test -A packages/storage/

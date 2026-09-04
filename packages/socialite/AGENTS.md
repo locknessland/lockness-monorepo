@@ -23,7 +23,7 @@ names does not belong here._
 
 | Direction                                      | Packages                                 |
 | :--------------------------------------------- | :--------------------------------------- |
-| Imports (static)                               | `hono` _(type-only)_                     |
+| Imports (static)                               | `contract`, `hono` _(type-only)_         |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                        |
 | Imported by                                    | —                                        |
 | **Must never import**                          | nothing — no package depends on this one |
@@ -65,9 +65,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-2 test files for 1 source file:
+3 test files for 1 source file:
 
 - `packages/socialite/tests/drivers.test.ts`
+- `packages/socialite/tests/state_csrf.test.ts`
 - `packages/socialite/tests/system.test.ts`
 
 <!-- /generated:tests -->
@@ -84,7 +85,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 2 test files directly —
+Then, specific to this package: run its 3 test files directly —
 
 ```bash
 deno test -A packages/socialite/
