@@ -15,6 +15,7 @@
         "./packages/logger",
         "./packages/mail",
         "./packages/notification",
+        "./packages/realtime",
         "./packages/openapi",
         "./packages/queue",
         "./packages/redis",

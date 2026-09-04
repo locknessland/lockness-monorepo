@@ -60,6 +60,7 @@ const PACKAGES: string[] = [
     'markdown',
     'notification',
     'openapi',
+    'realtime',
     'queue',
     'redis',
     'crypto',
