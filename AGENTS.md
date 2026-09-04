@@ -182,6 +182,7 @@ refer to these files:
 | [middleware.md](docs/middleware.md)                             | Middleware patterns              |
 | [models.md](docs/models.md)                                     | Database models with Drizzle     |
 | [multi-db-and-factories.md](docs/multi-db-and-factories.md)     | Multi-DB drivers + factories     |
+| [observability-and-crypto.md](docs/observability-and-crypto.md) | OTel + Crypt/Hash + signed URLs  |
 | [pagination-and-resources.md](docs/pagination-and-resources.md) | Pagination + API Resources       |
 | [testing.md](docs/testing.md)                                   | Testing best practices           |
 | [deployment.md](docs/deployment.md)                             | Production deployment            |

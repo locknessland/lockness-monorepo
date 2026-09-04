@@ -54,7 +54,7 @@ recording is redacted; middleware no-ops with the API's no-op provider (no OTEL_
 
 ## Trailing docs (non-child)
 
-- [ ] T016 Write `docs/observability-and-crypto.md`: Crypt/Hash/sign usage; signed URLs (generation + `signed` middleware, bearer/replay/short-TTL note — S8); OTel setup **leading with `OTEL_DENO=1` + `OTEL_EXPORTER_OTLP_ENDPOINT`** and the no-op-when-unset behaviour (A-F5); APP_KEY generation/validation. Doc index. Commit `docs(#221): document observability + crypto helpers` + `Epic: #221`.
+- [X] T016 Write `docs/observability-and-crypto.md`: Crypt/Hash/sign usage; signed URLs (generation + `signed` middleware, bearer/replay/short-TTL note — S8); OTel setup **leading with `OTEL_DENO=1` + `OTEL_EXPORTER_OTLP_ENDPOINT`** and the no-op-when-unset behaviour (A-F5); APP_KEY generation/validation. Doc index. Commit `docs(#221): document observability + crypto helpers` + `Epic: #221`.
 
 ---
 
