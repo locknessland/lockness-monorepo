@@ -42,7 +42,7 @@ none of mail/queue/sse/drizzle.
 
 | Direction                                      | Packages                                    |
 | :--------------------------------------------- | :------------------------------------------ |
-| Imports (static)                               | `contract`                                  |
+| Imports (static)                               | `container`, `contract`                     |
 | Imports (soft, via `tryImportOptionalPackage`) | `drizzle`, `logger`, `mail`, `queue`, `sse` |
 | Imported by                                    | —                                           |
 | **Must never import**                          | nothing — no package depends on this one    |
@@ -57,13 +57,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                     |
-| :-------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ChannelManager`, `ChannelPackageMissingError`, `Notification`, `QueueNotConfiguredError`, `UnknownChannelError`                                            |
-| function  | `configureNotifications`, `getNotificationConfig`, `isQueueable`, `notify`, `resetNotificationConfig`, `tryImport`                                          |
-| interface | `Channel`, `ChannelManagerOptions`, `DeliveryFailure`, `DeliveryReport`, `Notifiable`, `NotificationConfig`, `QueueableNotifiable`, `QueuedNotificationJob` |
-| typeAlias | `ModuleImporter`, `NotificationsTable`, `QueueDispatcher`                                                                                                   |
-| variable  | `defaultManager`                                                                                                                                            |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                        |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `BroadcastChannel`, `ChannelManager`, `ChannelPackageMissingError`, `DatabaseChannel`, `LogChannel`, `MailChannel`, `Notification`, `ProviderNotConfiguredError`, `QueueNotConfiguredError`, `SlackChannel`, `SmsChannel`, `UnknownChannelError`                                                               |
+| function  | `configureNotifications`, `getNotificationConfig`, `isQueueable`, `notify`, `registerBuiltInChannels`, `resetNotificationConfig`, `tryImport`                                                                                                                                                                  |
+| interface | `BroadcastContent`, `BroadcasterLike`, `BuiltInChannelOptions`, `Channel`, `ChannelManagerOptions`, `DatabaseChannelDeps`, `DeliveryFailure`, `DeliveryReport`, `InsertableDb`, `LoggerLike`, `MailBuilder`, `MailContent`, `Notifiable`, `NotificationConfig`, `QueueableNotifiable`, `QueuedNotificationJob` |
+| typeAlias | `ModuleImporter`, `NotificationsTable`, `QueueDispatcher`                                                                                                                                                                                                                                                      |
+| variable  | `defaultManager`                                                                                                                                                                                                                                                                                               |
 
 Anything not listed is internal and free to change.
 
@@ -92,8 +92,12 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-2 test files for 7 source files:
+6 test files for 14 source files:
 
+- `packages/notification/tests/channels/broadcast.test.ts`
+- `packages/notification/tests/channels/database.test.ts`
+- `packages/notification/tests/channels/log.test.ts`
+- `packages/notification/tests/channels/mail.test.ts`
 - `packages/notification/tests/manager.test.ts`
 - `packages/notification/tests/optional.test.ts`
 
@@ -111,7 +115,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 2 test files directly —
+Then, specific to this package: run its 6 test files directly —
 
 ```bash
 deno test -A packages/notification/

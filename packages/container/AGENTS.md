@@ -36,7 +36,7 @@ User-facing documentation: [README.md](README.md) ·
 | :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
 | Imports (static)                               | `contract` _(type-only)_                                                                                        |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                               |
-| Imported by                                    | `cache`, `core`, `drizzle`                                                                                      |
+| Imported by                                    | `cache`, `core`, `drizzle`, `notification`                                                                      |
 | **Must never import**                          | `cache`, `core`, `drizzle`, `notification` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is

@@ -54,3 +54,21 @@ export {
     type NotificationsTable,
     resetNotificationConfig,
 } from './config.ts'
+export {
+    BroadcastChannel,
+    type BroadcastContent,
+    type BroadcasterLike,
+    type BuiltInChannelOptions,
+    DatabaseChannel,
+    type DatabaseChannelDeps,
+    type InsertableDb,
+    LogChannel,
+    type LoggerLike,
+    type MailBuilder,
+    MailChannel,
+    type MailContent,
+    ProviderNotConfiguredError,
+    registerBuiltInChannels,
+    SlackChannel,
+    SmsChannel,
+} from './channels/mod.ts'
