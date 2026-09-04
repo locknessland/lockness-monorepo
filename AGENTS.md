@@ -185,6 +185,7 @@ refer to these files:
 | [notifications.md](docs/notifications.md)                       | Multi-channel notifications      |
 | [observability-and-crypto.md](docs/observability-and-crypto.md) | OTel + Crypt/Hash + signed URLs  |
 | [pagination-and-resources.md](docs/pagination-and-resources.md) | Pagination + API Resources       |
+| [realtime.md](docs/realtime.md)                                 | WebSockets + broadcasting        |
 | [testing.md](docs/testing.md)                                   | Testing best practices           |
 | [deployment.md](docs/deployment.md)                             | Production deployment            |
 | [releasing.md](docs/releasing.md)                               | Release model and JSR publishing |
