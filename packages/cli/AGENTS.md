@@ -72,7 +72,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-10 test files for 37 source files:
+11 test files for 38 source files:
 
 - `packages/cli/tests/debug_commands.test.ts`
 - `packages/cli/tests/make_command.test.ts`
@@ -82,6 +82,7 @@ Anything not listed is internal and free to change.
 - `packages/cli/tests/make_job.test.ts`
 - `packages/cli/tests/make_listener.test.ts`
 - `packages/cli/tests/make_middleware.test.ts`
+- `packages/cli/tests/make_resource.test.ts`
 - `packages/cli/tests/make_service.test.ts`
 - `packages/cli/tests/make_view.test.ts`
 
@@ -99,7 +100,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 10 test files directly —
+Then, specific to this package: run its 11 test files directly —
 
 ```bash
 deno test -A packages/cli/

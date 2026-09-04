@@ -48,7 +48,7 @@ The dependency graph is acyclic (DAG).
 | `core`                  | container, contract, events, hono, scheduler | cache, container, devtools, drizzle, events, logger, redis, session |
 | `deprecation-contracts` | —                                            | —                                                                   |
 | `devtools`              | contract, events, hono, session              | —                                                                   |
-| `drizzle`               | cli, container                               | —                                                                   |
+| `drizzle`               | cli, container, contract                     | —                                                                   |
 | `events`                | contract, hono                               | —                                                                   |
 | `hono`                  | —                                            | —                                                                   |
 | `inertia`               | hono                                         | —                                                                   |

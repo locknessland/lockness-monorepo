@@ -22,7 +22,7 @@ User-facing documentation: [README.md](README.md) ·
 
 | Direction                                      | Packages                                                                    |
 | :--------------------------------------------- | :-------------------------------------------------------------------------- |
-| Imports (static)                               | `cli`, `container`                                                          |
+| Imports (static)                               | `cli`, `container`, `contract`                                              |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                           |
 | Imported by                                    | `core`                                                                      |
 | **Must never import**                          | `core` — each already reaches this package, so importing one closes a cycle |
@@ -37,12 +37,12 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                      |
-| :-------- | :------------------------------------------------------------------------------------------- |
-| class     | `Database`                                                                                   |
-| function  | `registerDrizzleCommands`                                                                    |
-| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `DbConnection`, `DrizzleCommandDeps` |
-| typeAlias | `CommandRunner`, `DatabaseSchema`, `SeederLoader`                                            |
+| Kind      | Exports                                                                                                                                                         |
+| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `Database`                                                                                                                                                      |
+| function  | `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`                                                                                           |
+| interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DrizzleCommandDeps`, `OffsetPaginateOptions` |
+| typeAlias | `CommandRunner`, `DatabaseSchema`, `SeederLoader`                                                                                                               |
 
 Anything not listed is internal and free to change.
 
@@ -69,10 +69,11 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-2 test files for 3 source files:
+3 test files for 4 source files:
 
 - `packages/drizzle/tests/cli_commands.test.ts`
 - `packages/drizzle/tests/install.test.ts`
+- `packages/drizzle/tests/paginate.test.ts`
 
 <!-- /generated:tests -->
 
@@ -88,7 +89,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 2 test files directly —
+Then, specific to this package: run its 3 test files directly —
 
 ```bash
 deno test -A packages/drizzle/
