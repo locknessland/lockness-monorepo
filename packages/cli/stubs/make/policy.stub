@@ -1,0 +1,35 @@
+import { gate } from '@lockness/auth'
+import type { Authenticatable } from '@lockness/auth'
+
+/**
+ * Authorization policy for {{ className }}.
+ *
+ * Register it once at boot so its methods answer dotted abilities
+ * (`{{ namespace }}.update`, ...):
+ *
+ *   gate.policy('{{ namespace }}', {{ className }}Policy)
+ *
+ * Then enforce with the decorator or the helper:
+ *
+ *   @Authorize('{{ namespace }}.update')      // route boundary
+ *   await gate.authorize(user, '{{ namespace }}.update', {{ namespace }}) // in a handler
+ */
+export const {{ className }}Policy = {
+    view(_user: Authenticatable, _{{ namespace }}: unknown): boolean {
+        return true
+    },
+
+    update(
+        user: Authenticatable,
+        {{ namespace }}: { authorId?: number | string },
+    ): boolean {
+        return user.id === {{ namespace }}.authorId
+    },
+
+    delete(
+        user: Authenticatable,
+        {{ namespace }}: { authorId?: number | string },
+    ): boolean {
+        return user.id === {{ namespace }}.authorId
+    },
+}

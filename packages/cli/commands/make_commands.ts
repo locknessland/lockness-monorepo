@@ -204,6 +204,40 @@ export function registerMakeCommands(cli: Cli): void {
         }
     }, 'Create a new service class')
 
+    cli.register('make:policy', async (args) => {
+        const name = args[0]
+        if (!name) {
+            console.error('❌ Please provide a policy name (e.g., Post)')
+            return
+        }
+
+        const className = name.charAt(0).toUpperCase() + name.slice(1)
+        const namespace = name.toLowerCase()
+        const fileName = `${namespace}_policy.ts`
+        const dirPath = `./app/policy`
+        const filePath = `${dirPath}/${fileName}`
+
+        try {
+            const content = await Stub.renderFrom(
+                STUBS_PATH,
+                'make',
+                'policy',
+                {
+                    className,
+                    namespace,
+                },
+            )
+
+            await Deno.mkdir(dirPath, { recursive: true })
+            await Deno.writeTextFile(filePath, content)
+            console.log(`✅ Policy created at ${filePath}`)
+        } catch (error) {
+            console.error(
+                `❌ Failed to create policy: ${(error as Error).message}`,
+            )
+        }
+    }, 'Create an authorization policy')
+
     cli.register('make:view', async (args) => {
         const name = args[0]
         if (!name) {

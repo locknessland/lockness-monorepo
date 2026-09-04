@@ -53,6 +53,19 @@ export type GateBeforeHook<User extends Authenticatable> = (
 ) => boolean | undefined | Promise<boolean | undefined>
 
 /**
+ * A policy: a named group of ability checks for one subject (a model). Each
+ * method is a {@link GateCallback}. Registered under a namespace and reached
+ * through a dotted ability, e.g. a `'post'` policy's `update` method answers the
+ * ability `'post.update'`.
+ *
+ * @typeParam User - The authenticated user type.
+ */
+export type Policy<User extends Authenticatable> = Record<
+    string,
+    GateCallback<User>
+>
+
+/**
  * A registry of authorization abilities.
  *
  * @typeParam User - The authenticated user type; defaults to
@@ -61,6 +74,7 @@ export type GateBeforeHook<User extends Authenticatable> = (
 export class Gate<User extends Authenticatable = Authenticatable> {
     readonly #abilities = new Map<string, GateCallback<User>>()
     readonly #beforeHooks: GateBeforeHook<User>[] = []
+    readonly #policies = new Map<string, Policy<User>>()
 
     /**
      * Register (or replace) an ability.
@@ -71,6 +85,34 @@ export class Gate<User extends Authenticatable = Authenticatable> {
      */
     define(ability: string, callback: GateCallback<User>): this {
         this.#abilities.set(ability, callback)
+        return this
+    }
+
+    /**
+     * Register a policy under a namespace. Its methods answer dotted abilities:
+     * `gate.policy('post', { update })` makes `can(user, 'post.update', post)`
+     * call `update(user, post)`.
+     *
+     * @param namespace - The policy namespace (typically the model name, lower).
+     * @param policy - An object of ability methods.
+     * @returns This gate, for chaining.
+     */
+    policy(namespace: string, policy: Policy<User>): this {
+        this.#policies.set(namespace, policy)
+        return this
+    }
+
+    /**
+     * Register several policies at once, keyed by namespace. A convenience for
+     * boot-time bulk registration (e.g. from a discovered `app/policy` map).
+     *
+     * @param policies - A record of namespace to policy.
+     * @returns This gate, for chaining.
+     */
+    policies(policies: Record<string, Policy<User>>): this {
+        for (const [namespace, policy] of Object.entries(policies)) {
+            this.#policies.set(namespace, policy)
+        }
         return this
     }
 
@@ -117,8 +159,16 @@ export class Gate<User extends Authenticatable = Authenticatable> {
         }
 
         const callback = this.#abilities.get(ability)
-        if (!callback) return false
-        return (await callback(user, ...args)) === true
+        if (callback) return (await callback(user, ...args)) === true
+
+        // A dotted ability (`namespace.method`) resolves to a policy method.
+        const dot = ability.indexOf('.')
+        if (dot > 0) {
+            const method = this.#policies.get(ability.slice(0, dot))
+                ?.[ability.slice(dot + 1)]
+            if (method) return (await method(user, ...args)) === true
+        }
+        return false
     }
 
     /**
@@ -163,6 +213,7 @@ export class Gate<User extends Authenticatable = Authenticatable> {
     reset(): void {
         this.#abilities.clear()
         this.#beforeHooks.length = 0
+        this.#policies.clear()
     }
 }
 
