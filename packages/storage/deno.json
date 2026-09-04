@@ -10,6 +10,12 @@
     "publish": {
         "include": [
             "mod.ts",
+            "storage.ts",
+            "helpers.ts",
+            "types.ts",
+            "drivers/local.ts",
+            "drivers/s3.ts",
+            "drivers/r2.ts",
             "deno.json",
             "README.md"
         ],
