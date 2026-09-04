@@ -35,6 +35,7 @@
         "hono": { "tier": "foundation", "allow": [] },
         "contract": { "tier": "foundation", "allow": ["hono"] },
         "container": { "tier": "foundation", "allow": ["contract"] },
+        "redis": { "tier": "foundation", "allow": ["contract"] },
 
         // ---- Implementation
         "auth": {
@@ -68,7 +69,10 @@
         },
         "queue": { "tier": "implementation", "allow": ["contract"] },
         "scheduler": { "tier": "implementation", "allow": [] },
-        "session": { "tier": "implementation", "allow": ["contract", "hono"] },
+        "session": {
+            "tier": "implementation",
+            "allow": ["contract", "hono", "redis"]
+        },
         "testing": {
             "tier": "orchestration",
             "allow": ["auth", "hono", "contract", "session", "drizzle"]

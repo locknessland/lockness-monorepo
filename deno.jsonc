@@ -16,6 +16,7 @@
         "./packages/mail",
         "./packages/openapi",
         "./packages/queue",
+        "./packages/redis",
         "./packages/scheduler",
         "./packages/session",
         "./packages/socialite",

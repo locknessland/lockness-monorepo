@@ -4527,6 +4527,13 @@
           "jsr:@std/assert@1"
         ]
       },
+      "packages/redis": {
+        "dependencies": [
+          "jsr:@lockness/contract@0.2",
+          "jsr:@std/assert@1",
+          "jsr:@std/crypto@1"
+        ]
+      },
       "packages/scheduler": {
         "dependencies": [
           "jsr:@lockness/container@0.2",
@@ -4539,6 +4546,7 @@
         "dependencies": [
           "jsr:@lockness/contract@0.2",
           "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/redis@0.2",
           "jsr:@std/assert@1",
           "jsr:@std/crypto@1"
         ]
