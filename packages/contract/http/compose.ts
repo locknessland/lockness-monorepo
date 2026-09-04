@@ -9,7 +9,7 @@
 
 import type { MiddlewareHandler } from 'hono'
 import type { Context, Next } from '../types.ts'
-import { declaredMiddlewares } from '../routing/decorators.ts'
+import { declaredMiddlewares } from '../routing/middleware_decorators.ts'
 
 /**
  * Middleware input type for compose function.
