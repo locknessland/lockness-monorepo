@@ -37,35 +37,35 @@ The dependency graph is acyclic (DAG).
 
 ## Dependencies by package
 
-| Package                 | Static                                       | Soft (optional, runtime)                                     |
-| :---------------------- | :------------------------------------------- | :----------------------------------------------------------- |
-| `auth`                  | contract, events, hono, session              | —                                                            |
-| `auth-provider`         | auth                                         | —                                                            |
-| `cache`                 | container, contract                          | —                                                            |
-| `cli`                   | contract, events, queue                      | —                                                            |
-| `container`             | contract                                     | —                                                            |
-| `contract`              | hono                                         | —                                                            |
-| `core`                  | container, contract, events, hono, scheduler | cache, container, devtools, drizzle, events, logger, session |
-| `deprecation-contracts` | —                                            | —                                                            |
-| `devtools`              | contract, events, hono, session              | —                                                            |
-| `drizzle`               | cli, container                               | —                                                            |
-| `events`                | contract, hono                               | —                                                            |
-| `hono`                  | —                                            | —                                                            |
-| `inertia`               | hono                                         | —                                                            |
-| `init`                  | cli                                          | —                                                            |
-| `logger`                | contract                                     | —                                                            |
-| `mail`                  | —                                            | —                                                            |
-| `markdown`              | hono                                         | —                                                            |
-| `openapi`               | cli, contract, hono                          | —                                                            |
-| `queue`                 | contract                                     | —                                                            |
-| `redis`                 | contract                                     | —                                                            |
-| `scheduler`             | —                                            | —                                                            |
-| `session`               | contract, hono, redis                        | —                                                            |
-| `socialite`             | contract, hono                               | —                                                            |
-| `sse`                   | contract                                     | —                                                            |
-| `storage`               | —                                            | —                                                            |
-| `testing`               | auth, hono                                   | —                                                            |
-| `ui`                    | hono, markdown                               | —                                                            |
-| `upgrade`               | —                                            | —                                                            |
-| `validator`             | hono                                         | —                                                            |
-| `vite`                  | —                                            | —                                                            |
+| Package                 | Static                                       | Soft (optional, runtime)                                            |
+| :---------------------- | :------------------------------------------- | :------------------------------------------------------------------ |
+| `auth`                  | contract, events, hono, session              | —                                                                   |
+| `auth-provider`         | auth                                         | —                                                                   |
+| `cache`                 | container, contract                          | —                                                                   |
+| `cli`                   | contract, events, queue                      | —                                                                   |
+| `container`             | contract                                     | —                                                                   |
+| `contract`              | hono                                         | —                                                                   |
+| `core`                  | container, contract, events, hono, scheduler | cache, container, devtools, drizzle, events, logger, redis, session |
+| `deprecation-contracts` | —                                            | —                                                                   |
+| `devtools`              | contract, events, hono, session              | —                                                                   |
+| `drizzle`               | cli, container                               | —                                                                   |
+| `events`                | contract, hono                               | —                                                                   |
+| `hono`                  | —                                            | —                                                                   |
+| `inertia`               | hono                                         | —                                                                   |
+| `init`                  | cli                                          | —                                                                   |
+| `logger`                | contract                                     | —                                                                   |
+| `mail`                  | —                                            | —                                                                   |
+| `markdown`              | hono                                         | —                                                                   |
+| `openapi`               | cli, contract, hono                          | —                                                                   |
+| `queue`                 | contract                                     | —                                                                   |
+| `redis`                 | contract                                     | —                                                                   |
+| `scheduler`             | —                                            | —                                                                   |
+| `session`               | contract, hono, redis                        | —                                                                   |
+| `socialite`             | contract, hono                               | —                                                                   |
+| `sse`                   | contract                                     | —                                                                   |
+| `storage`               | —                                            | —                                                                   |
+| `testing`               | auth, hono                                   | —                                                                   |
+| `ui`                    | hono, markdown                               | —                                                                   |
+| `upgrade`               | —                                            | —                                                                   |
+| `validator`             | hono                                         | —                                                                   |
+| `vite`                  | —                                            | —                                                                   |
