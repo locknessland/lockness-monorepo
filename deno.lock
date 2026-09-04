@@ -11,6 +11,7 @@
     "jsr:@std/cli@1": "1.0.26",
     "jsr:@std/crypto@1": "1.1.0",
     "jsr:@std/data-structures@^1.0.10": "1.0.10",
+    "jsr:@std/encoding@1": "1.0.10",
     "jsr:@std/expect@1": "1.0.17",
     "jsr:@std/fs@*": "1.0.22",
     "jsr:@std/fs@1": "1.0.22",
@@ -127,6 +128,9 @@
     },
     "@std/data-structures@1.0.10": {
       "integrity": "f574f86b0e07c69b9edc555fcc814b57d29258bad39fd5a34ba8a80ecf033cfe"
+    },
+    "@std/encoding@1.0.10": {
+      "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
     },
     "@std/expect@1.0.17": {
       "integrity": "316b47dd65c33e3151344eb3267bf42efba17d1415425f07ed96185d67fc04d9",
@@ -4544,6 +4548,8 @@
           "jsr:@lockness/contract@0.2",
           "jsr:@lockness/hono@0.2",
           "jsr:@std/assert@1",
+          "jsr:@std/crypto@1",
+          "jsr:@std/encoding@1",
           "jsr:@std/expect@1",
           "jsr:@std/testing@1"
         ]

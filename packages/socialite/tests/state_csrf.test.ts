@@ -30,6 +30,9 @@ class TestDriver extends BaseOAuth2Driver {
     protected tokenUrl = 'https://provider.test/token'
     protected userInfoUrl = 'https://provider.test/user'
     protected defaultScopes = ['openid']
+    // This suite isolates the `state` (login-CSRF) check; PKCE has its own suite
+    // (pkce.test.ts), so disable PKCE here to keep the state flow uncoupled.
+    protected override usesPkce = false
     override getTokens(_code: string): Promise<OAuthTokens> {
         return Promise.resolve({ access_token: 'tok' } as OAuthTokens)
     }
