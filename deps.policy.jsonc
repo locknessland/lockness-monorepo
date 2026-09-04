@@ -86,6 +86,10 @@
             "allow": ["hono", "contract"]
         },
         "sse": { "tier": "implementation", "allow": ["contract"] },
+        "telemetry": {
+            "tier": "implementation",
+            "allow": ["contract", "hono"]
+        },
         "storage": { "tier": "implementation", "allow": [] },
         // `ui` reaches `markdown` one way: `ui/markdown.tsx` and
         // `ui/docs_renderer.tsx` use the markdown rendering engine. `markdown`
@@ -119,7 +123,8 @@
                 "events",
                 "logger",
                 "redis",
-                "session"
+                "session",
+                "telemetry"
             ]
         }
     }

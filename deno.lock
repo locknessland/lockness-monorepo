@@ -33,12 +33,13 @@
     "npm:@hono/zod-validator@0.7.6": "0.7.6_hono@4.11.1_zod@3.25.76",
     "npm:@libsql/client@0.18": "0.18.0",
     "npm:@lowlighter/remark-ruby@0.4": "0.4.0",
+    "npm:@opentelemetry/api@^1.9.1": "1.9.1",
     "npm:@tailwindcss/cli@4.1": "4.1.18",
     "npm:@tailwindcss/cli@^4.1.18": "4.1.18",
     "npm:clsx@2.1.1": "2.1.1",
     "npm:drizzle-kit@*": "0.31.10",
     "npm:drizzle-kit@beta": "1.0.0-beta.11-05230d9",
-    "npm:drizzle-orm@~0.36.3": "0.36.4_@libsql+client@0.18.0_mysql2@3.24.3_postgres@3.4.8_@types+node@26.4.1",
+    "npm:drizzle-orm@~0.36.3": "0.36.4_@libsql+client@0.18.0_@opentelemetry+api@1.9.1_mysql2@3.24.3_postgres@3.4.8",
     "npm:hastscript@^9.0.1": "9.0.1",
     "npm:highlight.js@11.11.1": "11.11.1",
     "npm:hono-rate-limiter@0.5.3": "0.5.3_hono@4.11.1",
@@ -1358,6 +1359,9 @@
     },
     "@neon-rs/load@0.0.4": {
       "integrity": "sha512-kTPhdZyTQxB+2wpiRcFWrDcejc4JI6tkPuS7UZCG4l6Zvc5kU/gGQ/ozvHTh1XR5tS+UlfAfGuPajjzQjCiHCw=="
+    },
+    "@opentelemetry/api@1.9.1": {
+      "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q=="
     },
     "@oxc-project/types@0.139.0": {
       "integrity": "sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw=="
@@ -2715,15 +2719,17 @@
       "deprecated": true,
       "bin": true
     },
-    "drizzle-orm@0.36.4_@libsql+client@0.18.0_mysql2@3.24.3_postgres@3.4.8_@types+node@26.4.1": {
+    "drizzle-orm@0.36.4_@libsql+client@0.18.0_@opentelemetry+api@1.9.1_mysql2@3.24.3_postgres@3.4.8": {
       "integrity": "sha512-1OZY3PXD7BR00Gl61UUOFihslDldfH4NFRH2MbP54Yxi0G/PKn4HfO65JYZ7c16DeP3SpM3Aw+VXVG9j6CRSXA==",
       "dependencies": [
         "@libsql/client",
+        "@opentelemetry/api",
         "mysql2",
         "postgres"
       ],
       "optionalPeers": [
         "@libsql/client",
+        "@opentelemetry/api",
         "mysql2",
         "postgres"
       ]
@@ -4611,6 +4617,7 @@
         "dependencies": [
           "jsr:@lockness/container@0.2",
           "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/crypto@0.2",
           "jsr:@lockness/deprecation-contracts@0.2",
           "jsr:@lockness/events@0.2",
           "jsr:@lockness/hono@0.2",
@@ -4619,6 +4626,12 @@
           "jsr:@std/expect@1",
           "jsr:@std/path@1",
           "jsr:@std/testing@1"
+        ]
+      },
+      "packages/crypto": {
+        "dependencies": [
+          "jsr:@lockness/contract@0.2",
+          "jsr:@std/assert@1"
         ]
       },
       "packages/deprecation-contracts": {
@@ -4761,6 +4774,14 @@
           "jsr:@std/path@1",
           "npm:@aws-sdk/client-s3@^3.709.0",
           "npm:@aws-sdk/s3-request-presigner@^3.709.0"
+        ]
+      },
+      "packages/telemetry": {
+        "dependencies": [
+          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/hono@0.2",
+          "jsr:@std/assert@1",
+          "npm:@opentelemetry/api@^1.9.1"
         ]
       },
       "packages/testing": {

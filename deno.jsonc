@@ -18,6 +18,7 @@
         "./packages/queue",
         "./packages/redis",
         "./packages/crypto",
+        "./packages/telemetry",
         "./packages/scheduler",
         "./packages/session",
         "./packages/socialite",
