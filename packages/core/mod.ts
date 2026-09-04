@@ -51,6 +51,17 @@ export { ResourceCollection } from './resource/collection.ts'
 // Application cryptography — Crypt / Hash / HMAC signing (from @lockness/crypto).
 export { Crypt, Hash, sign, verify } from '@lockness/crypto'
 
+// Signed / temporary route URLs.
+export {
+    canonicalise,
+    EXPIRES_PARAM,
+    SIGNATURE_PARAM,
+    signedUrl,
+    SignedUrlError,
+    type SignedUrlOptions,
+} from './routing/signed_url.ts'
+export { SignedUrlMiddleware } from './http/signed_url_middleware.ts'
+
 // Environment-name resolution (DENO_ENV first, then APP_ENV) — the single home
 // of the production/development rule.
 export * from './environment.ts'

@@ -32,11 +32,11 @@ single-homed in `@lockness/contract` (rejects placeholder/degenerate; fail-close
 `canonicalise()`. **Independent test**: valid verifies; reorder/duplicate/appended/encoding/stripped-sig/
 expired all fail (SC-003); generic 403.
 
-- [ ] T006 [US3] `chore(deps)` if needed: confirm `core.allow` includes `crypto` (from T02 of #221 deps) — it was added in T002; no further edge. (Skip commit if already present.)
-- [ ] T007 [US3] Write failing tests `packages/core/tests/signed_url.test.ts`: a `signedUrl('name',{id},{expiresIn})` verifies; each mutation fails — flip a char, **reorder query params**, **duplicate `expires`**, **append a param**, **strip `signature`**, **expired**, and the **Hono-decoded-path** round-trip; 403 body is generic (no HMAC echo).
-- [ ] T008 [US3] Create `packages/core/routing/signed_url.ts`: `canonicalise(url)` (sorted params, duplicates rejected, minus `signature`, host from `APP_URL` config, Hono-decode-safe) + `signedUrl(name, params?, {expiresIn?|expiresAt?})` using `route()`+`APP_URL`+`crypto.sign`. Export via `core/mod.ts`.
-- [ ] T009 [US3] Create `packages/core/http/signed_url_middleware.ts`: `@DeclareMiddleware('signed')` — recompute via the SAME `canonicalise()`, timing-safe compare (`crypto.verify`), expiry check, generic 403 before handler; fail-closed on decode error. Register the middleware name.
-- [ ] T010 [US3] Fast gate for core; commit `feat(T02): signed/temporary route URLs + verify middleware (#224)` + `Epic: #221`.
+- [X] T006 [US3] `chore(deps)` if needed: confirm `core.allow` includes `crypto` (from T02 of #221 deps) — it was added in T002; no further edge. (Skip commit if already present.)
+- [X] T007 [US3] Write failing tests `packages/core/tests/signed_url.test.ts`: a `signedUrl('name',{id},{expiresIn})` verifies; each mutation fails — flip a char, **reorder query params**, **duplicate `expires`**, **append a param**, **strip `signature`**, **expired**, and the **Hono-decoded-path** round-trip; 403 body is generic (no HMAC echo).
+- [X] T008 [US3] Create `packages/core/routing/signed_url.ts`: `canonicalise(url)` (sorted params, duplicates rejected, minus `signature`, host from `APP_URL` config, Hono-decode-safe) + `signedUrl(name, params?, {expiresIn?|expiresAt?})` using `route()`+`APP_URL`+`crypto.sign`. Export via `core/mod.ts`.
+- [X] T009 [US3] Create `packages/core/http/signed_url_middleware.ts`: `@DeclareMiddleware('signed')` — recompute via the SAME `canonicalise()`, timing-safe compare (`crypto.verify`), expiry check, generic 403 before handler; fail-closed on decode error. Register the middleware name.
+- [X] T010 [US3] Fast gate for core; commit `feat(T02): signed/temporary route URLs + verify middleware (#224)` + `Epic: #221`.
 
 ## Child T03 — #222 OpenTelemetry tracing + metrics (independent; last)
 
