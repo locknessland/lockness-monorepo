@@ -7,7 +7,7 @@
 
 ## Overview
 
-The monorepo contains **33 packages**.
+The monorepo contains **34 packages**.
 
 ## ✅ No Circular Dependencies
 
@@ -27,9 +27,10 @@ The dependency graph is acyclic (DAG).
 `@lockness/drizzle` · `@lockness/events` · `@lockness/inertia` ·
 `@lockness/init` · `@lockness/logger` · `@lockness/mail` · `@lockness/markdown`
 · `@lockness/notification` · `@lockness/openapi` · `@lockness/queue` ·
-`@lockness/scheduler` · `@lockness/session` · `@lockness/socialite` ·
-`@lockness/sse` · `@lockness/storage` · `@lockness/telemetry` · `@lockness/ui` ·
-`@lockness/upgrade` · `@lockness/validator` · `@lockness/vite`
+`@lockness/realtime` · `@lockness/scheduler` · `@lockness/session` ·
+`@lockness/socialite` · `@lockness/sse` · `@lockness/storage` ·
+`@lockness/telemetry` · `@lockness/ui` · `@lockness/upgrade` ·
+`@lockness/validator` · `@lockness/vite`
 
 ### Orchestration
 
@@ -60,6 +61,7 @@ The dependency graph is acyclic (DAG).
 | `notification`          | container, contract                                  | drizzle, logger, mail, queue, sse                                              |
 | `openapi`               | cli, contract, hono                                  | —                                                                              |
 | `queue`                 | contract, redis                                      | —                                                                              |
+| `realtime`              | hono                                                 | events                                                                         |
 | `redis`                 | contract                                             | —                                                                              |
 | `scheduler`             | —                                                    | —                                                                              |
 | `session`               | contract, hono, redis                                | —                                                                              |

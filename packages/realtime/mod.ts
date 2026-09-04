@@ -31,3 +31,24 @@ export {
     createWebSocketHandler,
     type WebSocketHandlerOptions,
 } from './websocket.ts'
+export {
+    type Authorizer,
+    type AuthorizeResult,
+    type ChannelKind,
+    channelKind,
+    type PresenceMember,
+} from './channel.ts'
+export type { BroadcastDriver, BroadcastMessage } from './driver.ts'
+export { MemoryBroadcastDriver } from './drivers/memory.ts'
+export {
+    RedisBroadcastDriver,
+    type RedisBroadcastDriverOptions,
+    type RedisCommandClient,
+    type RedisSubscriber,
+} from './drivers/redis.ts'
+export {
+    ChannelManager,
+    type ChannelManagerOptions,
+    type OutboundFrame,
+    type SubscribeResult,
+} from './manager.ts'
