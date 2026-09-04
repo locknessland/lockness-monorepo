@@ -33,6 +33,48 @@ Each library in the workspace follows the Deno convention for its entry point:
   public API.
 - **`deno.json`**: Each library has its own configuration and versioning.
 
+### `mod.ts` is a barrel, not a home for implementation
+
+A package's `mod.ts` is its **public-surface barrel**: it re-exports the names
+the package publishes and holds no implementation of its own. Implementation
+lives in named modules beside it, grouped by reason-to-change, and `mod.ts`
+re-exports them:
+
+```ts
+// packages/<pkg>/mod.ts — a barrel
+export * from './rules/mod.ts'
+export * from './sanitisers/mod.ts'
+export type { ValidationResult } from './validation.ts'
+```
+
+```ts
+// packages/<pkg>/rules/mod.ts — the actual code
+export function email(): Rule {/* … */}
+```
+
+This is the pattern `core`, `auth` and `session` already follow, and the one the
+rest of the workspace is normalised to (epic #225). It keeps the public surface
+readable in one place, lets each concern change without re-touching an unrelated
+one, and means a reader can learn what a package exposes by reading its `mod.ts`
+alone.
+
+**Why it matters:**
+
+- **Cohesion** — a 700-line `mod.ts` braids validators, sanitisers and the Zod
+  bridge into one file that changes for five unrelated reasons. Splitting along
+  those reasons is the whole point.
+- **Stable surface** — because `mod.ts` only re-exports, moving a function
+  between internal modules never changes what consumers import. The barrel is
+  the contract; the modules behind it are free to move.
+- **No hidden singletons** — module-level mutable state that leaks out through a
+  `reset*()` test hook belongs on an owning object, not in the barrel. If a
+  `mod.ts` needs a reset export to be testable, that state is in the wrong
+  place.
+
+**Exempt** are files that are legitimately not barrels: a composition
+root/bootstrap facade (e.g. `core/app.ts`), pure type-declaration modules, and
+cohesive single-component files (e.g. `ui/components/*/mod.tsx`).
+
 ### Running Tests
 
 To ensure your changes don't break the framework, run the global test suite:
