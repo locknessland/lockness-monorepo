@@ -33,6 +33,12 @@ export type {
     DrizzleCommandDeps,
     SeederLoader,
 } from './cli_commands.ts'
+export { decodeCursor, encodeCursor, paginate } from './paginate.ts'
+export type {
+    CursorPaginateOptions,
+    DecodedCursor,
+    OffsetPaginateOptions,
+} from './paginate.ts'
 
 // =============================================================================
 // Types

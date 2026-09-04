@@ -37,11 +37,11 @@ FR-006, S1). Adds the `drizzle→contract` deps edge.
 **Independent test**: query-shape tests stub the Drizzle builder (no live PG); **SC-005 cross-tenant
 test** is mandatory.
 
-- [ ] T006 [US1] `chore(deps)`: add `@lockness/contract` to `packages/drizzle/deno.json` imports and `drizzle.allow += "contract"` in `deps.policy.jsonc`; verify `deno task deps:analyze`. **This is its own commit** (one category), landed before T02's feat commit.
-- [ ] T007 [US1] Write failing tests in `packages/drizzle/tests/paginate.test.ts`: offset path issues `limit`/`offset` + a count **built from the same conditions**; cursor path issues `and(...conditions, cmp(col, cursor))` + `orderBy` + `limit` (never a bare second `.where()`); `encodeCursor`/`decodeCursor` round-trip + type-validate; **SC-005**: a query started with `where(owner=me)` returns only owner rows and `meta.total` counts only them (fails if the filter is replaced).
-- [ ] T008 [US1] Create `packages/drizzle/paginate.ts`: `paginate(db, table, { where?: conditions, orderBy, page/perPage | cursor })` composing predicates via `and(...)`; `encodeCursor`/`decodeCursor` (base64url of `{column,value}`, type-validated). Feeds the contract paginator. Export from `packages/drizzle/mod.ts`.
-- [ ] T009 [US1] UI binding demo/test: a test showing `toPaginationProps(offsetMeta, baseUrl)` output spreads into the `@lockness/ui` `Pagination` props (structural, no import edge either way).
-- [ ] T010 [US1] Fast gate for drizzle; commit `feat(T02): drizzle paginate() with caller-filter composition + cursor codec (#199)` + `Epic: #197`.
+- [X] T006 [US1] `chore(deps)`: add `@lockness/contract` to `packages/drizzle/deno.json` imports and `drizzle.allow += "contract"` in `deps.policy.jsonc`; verify `deno task deps:analyze`. **This is its own commit** (one category), landed before T02's feat commit.
+- [X] T007 [US1] Write failing tests in `packages/drizzle/tests/paginate.test.ts`: offset path issues `limit`/`offset` + a count **built from the same conditions**; cursor path issues `and(...conditions, cmp(col, cursor))` + `orderBy` + `limit` (never a bare second `.where()`); `encodeCursor`/`decodeCursor` round-trip + type-validate; **SC-005**: a query started with `where(owner=me)` returns only owner rows and `meta.total` counts only them (fails if the filter is replaced).
+- [X] T008 [US1] Create `packages/drizzle/paginate.ts`: `paginate(db, table, { where?: conditions, orderBy, page/perPage | cursor })` composing predicates via `and(...)`; `encodeCursor`/`decodeCursor` (base64url of `{column,value}`, type-validated). Feeds the contract paginator. Export from `packages/drizzle/mod.ts`.
+- [X] T009 [US1] UI binding demo/test: a test showing `toPaginationProps(offsetMeta, baseUrl)` output spreads into the `@lockness/ui` `Pagination` props (structural, no import edge either way).
+- [X] T010 [US1] Fast gate for drizzle; commit `feat(T02): drizzle paginate() with caller-filter composition + cursor codec (#199)` + `Epic: #197`.
 
 ## Child T03 — #200 core Resource base + make:resource (depends on T01)
 
