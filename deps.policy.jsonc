@@ -83,6 +83,20 @@
             "allow": ["cli", "contract", "hono"]
         },
         "queue": { "tier": "implementation", "allow": ["contract", "redis"] },
+        // `realtime` is a pure sink (nothing imports it → no cycle). It reaches
+        // `hono` only for `upgradeWebSocket` (via `@lockness/hono/deno`) and the
+        // `WSContext` type (`@lockness/hono/network`), and `redis` for the
+        // cross-process broadcast driver (hard, lazy-connect — mirrors queue).
+        // `events` is a SOFT edge: the events→broadcast bridge soft-loads it,
+        // typed by local structural interfaces (an `import type` would harden
+        // the edge and fail this check). `@lockness/notification` is a dev/test
+        // dependency only (the SC-005 BroadcasterLike conformance test) and is
+        // invisible to this scan, which excludes `tests/`.
+        "realtime": {
+            "tier": "implementation",
+            "allow": ["contract", "hono", "redis"],
+            "soft": ["events"]
+        },
         "scheduler": { "tier": "implementation", "allow": [] },
         "session": {
             "tier": "implementation",
