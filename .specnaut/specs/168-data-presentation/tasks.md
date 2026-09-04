@@ -23,11 +23,11 @@ offset/cursor compute, clamps, request-param read, and the UI mapping (plan §5 
 **Independent test**: unit tests exercise offset + cursor envelopes, clamps and mapping with
 **no DB** — pure functions.
 
-- [ ] T001 [US1] Write failing tests in `packages/contract/tests/pagination.test.ts`: `paginateOffset` envelope fields (`total`/`perPage`/`currentPage`/`lastPage`/`from`/`to`; links `first`/`last`/`prev`/`next`/`self` **relative**, prev/next null at boundaries); `paginateCursor` (`perPage`/`nextCursor`/`prevCursor`/`hasMore`, **no `total`**); `clampPerPage` (max + default), `clampPage` (floor ≥1 **and** ceil to lastPage); `readPaginationParams`; `toPaginationProps` forwards `pageParam`; empty-set and oversized-`page` edge cases.
-- [ ] T002 [US1] Create `packages/contract/pagination/types.ts`: `PaginationEnvelope<T>`, `OffsetMeta`, `CursorMeta`, `PaginationLinks`, `PaginationParams` (no `any`; JSDoc each).
-- [ ] T003 [US1] Create `packages/contract/pagination/paginate.ts`: `DEFAULT_PAGE_PARAM`, `MAX_PER_PAGE`, `DEFAULT_PER_PAGE`, `clampPerPage`, `clampPage`, `readPaginationParams`, `paginateOffset`, `paginateCursor` (accepts a `cursorOf` position extractor — codec lives in the driver), `toPaginationProps(meta, baseUrl, pageParam?)`. Links **relative** (pathname+query), host never reflected. All homes per plan §5.
-- [ ] T004 [US1] Create `packages/contract/pagination/mod.ts` barrel; add `export * from './pagination/mod.ts'` to `packages/contract/mod.ts`; add `"./pagination": "./pagination/mod.ts"` to `packages/contract/deno.json` `exports` (plan §9 / architecture A4).
-- [ ] T005 [US1] Fast gate for contract; commit `feat(T01): DB-agnostic offset+cursor paginator in contract (#198)` + `Epic: #197`.
+- [X] T001 [US1] Write failing tests in `packages/contract/tests/pagination.test.ts`: `paginateOffset` envelope fields (`total`/`perPage`/`currentPage`/`lastPage`/`from`/`to`; links `first`/`last`/`prev`/`next`/`self` **relative**, prev/next null at boundaries); `paginateCursor` (`perPage`/`nextCursor`/`prevCursor`/`hasMore`, **no `total`**); `clampPerPage` (max + default), `clampPage` (floor ≥1 **and** ceil to lastPage); `readPaginationParams`; `toPaginationProps` forwards `pageParam`; empty-set and oversized-`page` edge cases.
+- [X] T002 [US1] Create `packages/contract/pagination/types.ts`: `PaginationEnvelope<T>`, `OffsetMeta`, `CursorMeta`, `PaginationLinks`, `PaginationParams` (no `any`; JSDoc each).
+- [X] T003 [US1] Create `packages/contract/pagination/paginate.ts`: `DEFAULT_PAGE_PARAM`, `MAX_PER_PAGE`, `DEFAULT_PER_PAGE`, `clampPerPage`, `clampPage`, `readPaginationParams`, `paginateOffset`, `paginateCursor` (accepts a `cursorOf` position extractor — codec lives in the driver), `toPaginationProps(meta, baseUrl, pageParam?)`. Links **relative** (pathname+query), host never reflected. All homes per plan §5.
+- [X] T004 [US1] Create `packages/contract/pagination/mod.ts` barrel; add `export * from './pagination/mod.ts'` to `packages/contract/mod.ts`; add `"./pagination": "./pagination/mod.ts"` to `packages/contract/deno.json` `exports` (plan §9 / architecture A4).
+- [X] T005 [US1] Fast gate for contract; commit `feat(T01): DB-agnostic offset+cursor paginator in contract (#198)` + `Epic: #197`.
 
 ## Child T02 — #199 drizzle paginate() + UI binding (depends on T01)
 

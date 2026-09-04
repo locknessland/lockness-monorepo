@@ -9,7 +9,8 @@
         "./lifecycle": "./lifecycle/mod.ts",
         "./lifecycle/internal": "./lifecycle/disposables.ts",
         "./lifecycle/health/internal": "./lifecycle/health.ts",
-        "./environment": "./environment.ts"
+        "./environment": "./environment.ts",
+        "./pagination": "./pagination/mod.ts"
     },
     "tasks": {
         "test": "deno test -A tests/",
