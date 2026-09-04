@@ -65,6 +65,7 @@ const PACKAGES: string[] = [
     'socialite',
     'sse',
     'storage',
+    'testing',
     'ui',
     'upgrade',
     'validator',
