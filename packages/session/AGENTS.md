@@ -62,10 +62,10 @@ application installs it, or the feature stays off.
 | Kind      | Exports                                                                                                                         |
 | :-------- | :------------------------------------------------------------------------------------------------------------------------------ |
 | class     | `CookieSessionDriver`, `DenoKvSessionDriver`, `MemorySessionDriver`, `RedisSessionDriver`, `SessionSecretError`, `SessionStore` |
-| function  | `assertUsableSecret`, `configureSession`, `generateAppKey`, `getSession`, `getSessionConfig`, `sessionMiddleware`               |
+| function  | `assertUsableSecret`, `configureSession`, `getSession`, `getSessionConfig`, `sessionMiddleware`                                 |
 | interface | `RedisConfig`, `Session`, `SessionConfig`, `SessionData`, `SessionDriver`                                                       |
 | typeAlias | `SecretRejection`, `SecretSource`                                                                                               |
-| variable  | `KEY_BYTES`, `KEY_PREFIX`, `REJECTED`                                                                                           |
+| variable  | `KEY_BYTES`, `KEY_PREFIX`, `REJECTED`, `generateAppKey`                                                                         |
 
 Anything not listed is internal and free to change.
 
