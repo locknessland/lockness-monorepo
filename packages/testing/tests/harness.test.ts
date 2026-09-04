@@ -74,3 +74,36 @@ Deno.test('FakeTable - assertHasRow throws when absent', () => {
     }
     assert(threw)
 })
+
+Deno.test('FakeTable - assertMissingRow throws when the row is present', () => {
+    const t = new FakeTable<{ id: number }>()
+    t.insert({ id: 1 })
+    let threw = false
+    try {
+        t.assertMissingRow({ id: 1 })
+    } catch {
+        threw = true
+    }
+    assert(threw, 'a present row must fail assertMissingRow')
+})
+
+Deno.test('FakeTable - assertRowCount throws on the wrong count', () => {
+    const t = new FakeTable<{ id: number }>()
+    t.insert({ id: 1 })
+    let threw = false
+    try {
+        t.assertRowCount(5)
+    } catch {
+        threw = true
+    }
+    assert(threw, 'a wrong count must fail assertRowCount')
+})
+
+Deno.test('actingAs - the last middleware wins, overwriting the identity', async () => {
+    const app = new Hono<{ Variables: { auth: { user?: Authenticatable } } }>()
+    app.use('*', actingAs(fakeUser({ id: 1 })))
+    app.use('*', actingAs(fakeUser({ id: 2 })))
+    app.get('/me', (c) => c.json({ id: c.get('auth').user?.id }))
+    const res = await testClient(app).get('/me')
+    assertEquals(await res.json(), { id: 2 })
+})
