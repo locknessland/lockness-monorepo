@@ -29,13 +29,8 @@ import {
     generateAppKey,
     SessionSecretError,
 } from '../secret.ts'
-import {
-    CookieSessionDriver,
-    lastRejection,
-    open,
-    seal,
-    WIRE_VERSION,
-} from '../drivers/cookie.ts'
+import { CookieSessionDriver } from '../drivers/cookie.ts'
+import { open, openSealed, seal, WIRE_VERSION } from '../drivers/cookie_seal.ts'
 
 const BASE_CONFIG: SessionConfig = {
     driver: 'cookie',
@@ -94,17 +89,23 @@ Deno.test('wire - a truncated payload is rejected before any crypto call', async
     const short = sealed.slice(0, WIRE_VERSION.length + 8)
 
     assertEquals(await open(KEY, short), null)
-    assertEquals(lastRejection(), 'too-short')
+    assertEquals(await openSealed(KEY, short), 'too-short')
 })
 
 Deno.test('wire - an over-long cookie is rejected on length', async () => {
     assertEquals(await open(KEY, WIRE_VERSION + 'A'.repeat(5000)), null)
-    assertEquals(lastRejection(), 'too-long')
+    assertEquals(
+        await openSealed(KEY, WIRE_VERSION + 'A'.repeat(5000)),
+        'too-long',
+    )
 })
 
 Deno.test('wire - a value with no version prefix is rejected', async () => {
     assertEquals(await open(KEY, 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'), null)
-    assertEquals(lastRejection(), 'bad-prefix')
+    assertEquals(
+        await openSealed(KEY, 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'),
+        'bad-prefix',
+    )
 })
 
 Deno.test('wire - an expired payload is rejected', async () => {
@@ -114,7 +115,7 @@ Deno.test('wire - an expired payload is rejected', async () => {
     const sealed = await seal(KEY, { auth_web: 1 }, -1)
 
     assertEquals(await open(KEY, sealed), null)
-    assertEquals(lastRejection(), 'expired')
+    assertEquals(await openSealed(KEY, sealed), 'expired')
 })
 
 Deno.test('wire - two seals of the same data differ', async () => {
@@ -141,7 +142,7 @@ Deno.test('wire - the derived key is never cached', async () => {
     // per request is "cache the derived key" — which, with a per-cookie salt,
     // reinstates the nonce-collision bound the design exists to avoid.
     const source = await Deno.readTextFile(
-        new URL('../drivers/cookie.ts', import.meta.url),
+        new URL('../drivers/cookie_seal.ts', import.meta.url),
     )
 
     // Matched on the SHAPE of module-level mutable state, not on four names a
@@ -150,12 +151,12 @@ Deno.test('wire - the derived key is never cached', async () => {
     assertEquals(
         /^(?:let|const)\s+\w*(?:[Kk]ey|[Cc]ache)\w*\s*(?::|=)/m.test(source),
         false,
-        'cookie.ts declares module-level key/cache state',
+        'cookie_seal.ts declares module-level key/cache state',
     )
     assertEquals(
         /new (?:Weak)?Map<[^>]*CryptoKey/.test(source),
         false,
-        'cookie.ts maps something to a CryptoKey',
+        'cookie_seal.ts maps something to a CryptoKey',
     )
 })
 
@@ -167,7 +168,7 @@ Deno.test('wire - the derivation is HKDF, and no iteration count survives', asyn
     // was replaced, and a bare substring search for the word flags that
     // explanation as the defect it documents.
     const source = await Deno.readTextFile(
-        new URL('../drivers/cookie.ts', import.meta.url),
+        new URL('../drivers/cookie_seal.ts', import.meta.url),
     )
 
     assertEquals(/name:\s*'HKDF'/.test(source), true, 'HKDF is the derivation')
@@ -301,7 +302,10 @@ Deno.test('wire - a tampered SALT is rejected', async () => {
     raw[0] ^= 0xff
 
     assertEquals(await open(KEY, WIRE_VERSION + encodeBase64(raw)), null)
-    assertEquals(lastRejection(), 'tag-mismatch')
+    assertEquals(
+        await openSealed(KEY, WIRE_VERSION + encodeBase64(raw)),
+        'tag-mismatch',
+    )
 })
 
 Deno.test('wire - a tampered IV is rejected', async () => {
@@ -310,14 +314,20 @@ Deno.test('wire - a tampered IV is rejected', async () => {
     raw[16] ^= 0xff
 
     assertEquals(await open(KEY, WIRE_VERSION + encodeBase64(raw)), null)
-    assertEquals(lastRejection(), 'tag-mismatch')
+    assertEquals(
+        await openSealed(KEY, WIRE_VERSION + encodeBase64(raw)),
+        'tag-mismatch',
+    )
 })
 
 Deno.test('wire - invalid base64 after the prefix is rejected on the base64 branch', async () => {
     // The `bad-base64` class had no test at all, so the branch could have been
     // deleted and every remaining assertion would still have passed.
     assertEquals(await open(KEY, WIRE_VERSION + '@@@not base64@@@'), null)
-    assertEquals(lastRejection(), 'bad-base64')
+    assertEquals(
+        await openSealed(KEY, WIRE_VERSION + '@@@not base64@@@'),
+        'bad-base64',
+    )
 })
 
 Deno.test('wire - a well-formed v2 marker over a real v1 body is rejected', async () => {
@@ -328,7 +338,7 @@ Deno.test('wire - a well-formed v2 marker over a real v1 body is rejected', asyn
     const relabelled = 'v2.' + sealed.slice(WIRE_VERSION.length)
 
     assertEquals(await open(KEY, relabelled), null)
-    assertEquals(lastRejection(), 'bad-prefix')
+    assertEquals(await openSealed(KEY, relabelled), 'bad-prefix')
 })
 
 Deno.test('wire - a payload whose data is not an object is rejected', async () => {
