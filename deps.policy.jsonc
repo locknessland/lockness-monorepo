@@ -62,6 +62,11 @@
             "allow": ["cli", "container", "contract"]
         },
         "events": { "tier": "implementation", "allow": ["contract", "hono"] },
+        // `features` and `search` are pure-logic sinks: flag resolution /
+        // tokenised inverted index, no workspace deps (scope + documents are
+        // app-supplied data). Nothing imports them.
+        "features": { "tier": "implementation", "allow": [] },
+        "search": { "tier": "implementation", "allow": [] },
         // `i18n` is a near-pure sink: core soft-loads it at boot, and it imports
         // only hono (Context/cookie/header helpers; the resolver logs nothing,
         // so it needs no contract safeForLog). Zero message-format dependency —
