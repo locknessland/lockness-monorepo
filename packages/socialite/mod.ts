@@ -322,6 +322,8 @@ export abstract class BaseOAuth2Driver implements SocialiteDriver {
      * @param code - The authorization code from the callback.
      * @param codeVerifier - The PKCE verifier (#243); included as `code_verifier`
      *   when present. A custom override must forward this to keep PKCE binding.
+     * @returns The provider's token response.
+     * @throws {Error} When the token endpoint responds with a non-OK status.
      */
     async getTokens(
         code: string,

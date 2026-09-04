@@ -189,7 +189,7 @@ No violations → no Complexity Tracking entries.
 | ARCH-3 (MED) | Verifier cookie name/TTL is a key shared by writer and reader with no named home | **Plan changed** — `OAUTH_VERIFIER_COOKIE`/`OAUTH_VERIFIER_TTL` constants + decision-table row 3 |
 | ARCH-4 (LOW) | Optional-positional params trend toward a long list | **Recorded** — §6 future note: third param → Introduce Parameter Object |
 | ARCH-5 (LOW) | `usesPkce` is on the base class, not the `SocialiteDriver` interface | **Recorded** — §6 states PKCE is a `BaseOAuth2Driver` feature; direct interface implementers own their flow |
-| ARCH-6 (LOW) | Verifier cookie never cleared after use | **Plan changed** — FR-008 clears it on success and throw |
+| ARCH-6 (LOW) | Verifier cookie never cleared after use | **Accepted decision** (FR-008) — `user()` returns a user, not a response, so it cannot reliably clear the cookie; single-use is bounded by Max-Age + the provider's single-use code, matching the #169 state cookie |
 
 ## 11. Security audit
 *`security-expert` against this plan — verdict: needs_followup (1 MEDIUM, 4 LOW), no CRITICAL/HIGH. All folded. Framing: confidential clients (client_secret present) → PKCE is additive defence-in-depth, so PKCE-specific gaps top out at MEDIUM.*
