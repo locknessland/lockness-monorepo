@@ -22,12 +22,12 @@ names does not belong here._
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                                                  |
-| :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`, `events`, `queue`                                                                             |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                         |
-| Imported by                                    | `drizzle`, `init`, `openapi`                                                                              |
-| **Must never import**                          | `core`, `drizzle`, `init`, `openapi` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                                                  |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------ |
+| Imports (static)                               | `contract`, `events`, `queue`                                                                                             |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                         |
+| Imported by                                    | `drizzle`, `init`, `openapi`                                                                                              |
+| **Must never import**                          | `core`, `drizzle`, `init`, `notification`, `openapi` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

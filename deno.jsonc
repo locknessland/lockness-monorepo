@@ -14,6 +14,7 @@
         "./packages/inertia",
         "./packages/logger",
         "./packages/mail",
+        "./packages/notification",
         "./packages/openapi",
         "./packages/queue",
         "./packages/redis",
@@ -147,6 +148,7 @@
         "packages": [
             "drizzle",
             "init",
+            "notification",
             "openapi"
         ]
     },

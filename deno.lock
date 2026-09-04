@@ -4711,6 +4711,13 @@
           "jsr:@std/assert@1"
         ]
       },
+      "packages/notification": {
+        "dependencies": [
+          "jsr:@lockness/container@0.2",
+          "jsr:@lockness/contract@0.2",
+          "jsr:@std/assert@1"
+        ]
+      },
       "packages/openapi": {
         "dependencies": [
           "jsr:@lockness/cli@0.2",

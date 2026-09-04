@@ -58,6 +58,7 @@ const PACKAGES: string[] = [
     'logger',
     'mail',
     'markdown',
+    'notification',
     'openapi',
     'queue',
     'redis',

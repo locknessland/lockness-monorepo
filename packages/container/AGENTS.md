@@ -32,12 +32,12 @@ User-facing documentation: [README.md](README.md) ·
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                                        |
-| :--------------------------------------------- | :---------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract` _(type-only)_                                                                        |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                               |
-| Imported by                                    | `cache`, `core`, `drizzle`                                                                      |
-| **Must never import**                          | `cache`, `core`, `drizzle` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                                        |
+| :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                               | `contract` _(type-only)_                                                                                        |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                               |
+| Imported by                                    | `cache`, `core`, `drizzle`                                                                                      |
+| **Must never import**                          | `cache`, `core`, `drizzle`, `notification` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

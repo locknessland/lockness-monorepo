@@ -20,12 +20,12 @@ names does not belong here._
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                 |
-| :--------------------------------------------- | :--------------------------------------- |
-| Imports (static)                               | `contract`                               |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                        |
-| Imported by                                    | —                                        |
-| **Must never import**                          | nothing — no package depends on this one |
+| Direction                                      | Packages                                                                            |
+| :--------------------------------------------- | :---------------------------------------------------------------------------------- |
+| Imports (static)                               | `contract`                                                                          |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                   |
+| Imported by                                    | `notification`                                                                      |
+| **Must never import**                          | `notification` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming
