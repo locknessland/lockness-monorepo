@@ -173,32 +173,33 @@ refer to these files:
 
 ### Root Documentation (`docs/`)
 
-| Topic                                                           | Description                      |
-| --------------------------------------------------------------- | -------------------------------- |
-| [architecture.md](docs/architecture.md)                         | Package system & layered design  |
-| [getting-started.md](docs/getting-started.md)                   | Quick start tutorial             |
-| [i18n.md](docs/i18n.md)                                         | Internationalization + catalogs  |
-| [installation.md](docs/installation.md)                         | Installation guide               |
-| [lifecycle-events.md](docs/lifecycle-events.md)                 | Framework Lifecycle Events       |
-| [middleware.md](docs/middleware.md)                             | Middleware patterns              |
-| [models.md](docs/models.md)                                     | Database models with Drizzle     |
-| [multi-db-and-factories.md](docs/multi-db-and-factories.md)     | Multi-DB drivers + factories     |
-| [notifications.md](docs/notifications.md)                       | Multi-channel notifications      |
-| [observability-and-crypto.md](docs/observability-and-crypto.md) | OTel + Crypt/Hash + signed URLs  |
-| [pagination-and-resources.md](docs/pagination-and-resources.md) | Pagination + API Resources       |
-| [realtime.md](docs/realtime.md)                                 | WebSockets + broadcasting        |
-| [testing.md](docs/testing.md)                                   | Testing best practices           |
-| [deployment.md](docs/deployment.md)                             | Production deployment            |
-| [releasing.md](docs/releasing.md)                               | Release model and JSR publishing |
-| [compilation.md](docs/compilation.md)                           | Binary compilation               |
-| [nessy.md](docs/nessy.md)                                       | Nessy CLI wrapper                |
-| [packages.md](docs/packages.md)                                 | Package management               |
-| [contribution.md](docs/contribution.md)                         | Contributing guide               |
-| [dependencies.md](docs/dependencies.md)                         | Dependency graph                 |
-| [agentic-ownership.md](docs/agentic-ownership.md)               | Code area → agent → skill map    |
-| [STUBS.md](docs/STUBS.md)                                       | Stub synchronization             |
-| [ui-components-documentation.md](docs/ui-components.md)         | UI components overview           |
-| [vite.md](docs/vite.md)                                         | Vite integration guide           |
+| Topic                                                           | Description                       |
+| --------------------------------------------------------------- | --------------------------------- |
+| [architecture.md](docs/architecture.md)                         | Package system & layered design   |
+| [getting-started.md](docs/getting-started.md)                   | Quick start tutorial              |
+| [i18n.md](docs/i18n.md)                                         | Internationalization + catalogs   |
+| [installation.md](docs/installation.md)                         | Installation guide                |
+| [lifecycle-events.md](docs/lifecycle-events.md)                 | Framework Lifecycle Events        |
+| [middleware.md](docs/middleware.md)                             | Middleware patterns               |
+| [models.md](docs/models.md)                                     | Database models with Drizzle      |
+| [multi-db-and-factories.md](docs/multi-db-and-factories.md)     | Multi-DB drivers + factories      |
+| [notifications.md](docs/notifications.md)                       | Multi-channel notifications       |
+| [observability-and-crypto.md](docs/observability-and-crypto.md) | OTel + Crypt/Hash + signed URLs   |
+| [pagination-and-resources.md](docs/pagination-and-resources.md) | Pagination + API Resources        |
+| [polish.md](docs/polish.md)                                     | Feature flags, search, mail depth |
+| [realtime.md](docs/realtime.md)                                 | WebSockets + broadcasting         |
+| [testing.md](docs/testing.md)                                   | Testing best practices            |
+| [deployment.md](docs/deployment.md)                             | Production deployment             |
+| [releasing.md](docs/releasing.md)                               | Release model and JSR publishing  |
+| [compilation.md](docs/compilation.md)                           | Binary compilation                |
+| [nessy.md](docs/nessy.md)                                       | Nessy CLI wrapper                 |
+| [packages.md](docs/packages.md)                                 | Package management                |
+| [contribution.md](docs/contribution.md)                         | Contributing guide                |
+| [dependencies.md](docs/dependencies.md)                         | Dependency graph                  |
+| [agentic-ownership.md](docs/agentic-ownership.md)               | Code area → agent → skill map     |
+| [STUBS.md](docs/STUBS.md)                                       | Stub synchronization              |
+| [ui-components-documentation.md](docs/ui-components.md)         | UI components overview            |
+| [vite.md](docs/vite.md)                                         | Vite integration guide            |
 
 ### Per-package agent briefs (`packages/*/AGENTS.md`)
 
