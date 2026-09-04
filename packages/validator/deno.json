@@ -10,6 +10,9 @@
     "publish": {
         "include": [
             "mod.ts",
+            "rules/mod.ts",
+            "sanitisers/mod.ts",
+            "validation.ts",
             "zod_decorator.ts",
             "deno.json",
             "README.md"
