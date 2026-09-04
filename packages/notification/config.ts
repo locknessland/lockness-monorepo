@@ -11,6 +11,7 @@
  */
 
 import { defaultManager, type QueueDispatcher } from './manager.ts'
+import type { Notifiable } from './notifiable.ts'
 
 /**
  * A minimal structural view of a Drizzle table used as the notifications
@@ -40,6 +41,13 @@ export interface NotificationConfig {
      * `@lockness/queue`). When set, it is installed on the default manager.
      */
     queueDispatcher?: QueueDispatcher
+    /**
+     * Rehydrate a notifiable by its id — used by the queue worker to reconstruct
+     * the recipient of a queued notification (the job stores only the id).
+     */
+    resolveNotifiable?: (
+        id: string | number,
+    ) => Promise<Notifiable> | Notifiable
 }
 
 let current: NotificationConfig = {}

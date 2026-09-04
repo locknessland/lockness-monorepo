@@ -57,13 +57,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                        |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `BroadcastChannel`, `ChannelManager`, `ChannelPackageMissingError`, `DatabaseChannel`, `LogChannel`, `MailChannel`, `Notification`, `ProviderNotConfiguredError`, `QueueNotConfiguredError`, `SlackChannel`, `SmsChannel`, `UnknownChannelError`                                                               |
-| function  | `configureNotifications`, `getNotificationConfig`, `isQueueable`, `notify`, `registerBuiltInChannels`, `resetNotificationConfig`, `tryImport`                                                                                                                                                                  |
-| interface | `BroadcastContent`, `BroadcasterLike`, `BuiltInChannelOptions`, `Channel`, `ChannelManagerOptions`, `DatabaseChannelDeps`, `DeliveryFailure`, `DeliveryReport`, `InsertableDb`, `LoggerLike`, `MailBuilder`, `MailContent`, `Notifiable`, `NotificationConfig`, `QueueableNotifiable`, `QueuedNotificationJob` |
-| typeAlias | `ModuleImporter`, `NotificationsTable`, `QueueDispatcher`                                                                                                                                                                                                                                                      |
-| variable  | `defaultManager`                                                                                                                                                                                                                                                                                               |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                            |
+| :-------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `BroadcastChannel`, `ChannelManager`, `ChannelPackageMissingError`, `DatabaseChannel`, `LogChannel`, `MailChannel`, `Notification`, `ProviderNotConfiguredError`, `QueueNotConfiguredError`, `QueuedDeliveryError`, `SlackChannel`, `SmsChannel`, `UnknownChannelError`                                                                                            |
+| function  | `configureNotifications`, `createFile`, `getNotificationConfig`, `getNotificationFactory`, `handleMakeNotification`, `handleNotificationJob`, `isQueueable`, `notificationNaming`, `notify`, `processStub`, `registerBuiltInChannels`, `registerNotification`, `registerNotificationCommands`, `resetNotificationConfig`, `resetNotificationRegistry`, `tryImport` |
+| interface | `BroadcastContent`, `BroadcasterLike`, `BuiltInChannelOptions`, `Channel`, `ChannelManagerOptions`, `Cli`, `DatabaseChannelDeps`, `DeliveryFailure`, `DeliveryReport`, `HandleJobOptions`, `InsertableDb`, `LoggerLike`, `MailBuilder`, `MailContent`, `Notifiable`, `NotificationConfig`, `QueueableNotifiable`, `QueuedNotificationJob`                          |
+| typeAlias | `ModuleImporter`, `NotificationFactory`, `NotificationsTable`, `QueueDispatcher`                                                                                                                                                                                                                                                                                   |
+| variable  | `defaultManager`                                                                                                                                                                                                                                                                                                                                                   |
 
 Anything not listed is internal and free to change.
 
@@ -92,14 +92,17 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-6 test files for 14 source files:
+9 test files for 16 source files:
 
 - `packages/notification/tests/channels/broadcast.test.ts`
 - `packages/notification/tests/channels/database.test.ts`
 - `packages/notification/tests/channels/log.test.ts`
 - `packages/notification/tests/channels/mail.test.ts`
+- `packages/notification/tests/cli_commands.test.ts`
 - `packages/notification/tests/manager.test.ts`
 - `packages/notification/tests/optional.test.ts`
+- `packages/notification/tests/queued.test.ts`
+- `packages/notification/tests/wiring.test.ts`
 
 <!-- /generated:tests -->
 
@@ -115,7 +118,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 6 test files directly —
+Then, specific to this package: run its 9 test files directly —
 
 ```bash
 deno test -A packages/notification/

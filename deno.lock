@@ -4715,7 +4715,8 @@
         "dependencies": [
           "jsr:@lockness/container@0.2",
           "jsr:@lockness/contract@0.2",
-          "jsr:@std/assert@1"
+          "jsr:@std/assert@1",
+          "jsr:@std/path@1"
         ]
       },
       "packages/openapi": {
