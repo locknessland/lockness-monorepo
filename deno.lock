@@ -4457,6 +4457,7 @@
         "dependencies": [
           "jsr:@lockness/cli@0.2",
           "jsr:@lockness/container@0.2",
+          "jsr:@lockness/contract@0.2",
           "jsr:@std/path@1",
           "npm:drizzle-orm@~0.36.3",
           "npm:postgres@^3.4.4"
