@@ -55,3 +55,18 @@ export {
     runWithLocale,
     t,
 } from './context.ts'
+export {
+    diffKeys,
+    extractKeys,
+    hasDynamicKeys,
+    type KeyDiff,
+    walkKeys,
+} from './extract.ts'
+export {
+    type Cli,
+    handleExtract,
+    handleMakeLang,
+    isContained,
+    LANG_DIR,
+    registerI18nCommands,
+} from './cli_commands.ts'

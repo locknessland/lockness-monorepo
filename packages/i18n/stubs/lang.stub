@@ -1,0 +1,13 @@
+/**
+ * Translation catalog for {{locale}}.
+ *
+ * Register it in your kernel's i18n config:
+ *   import {{locale}} from './resources/lang/{{locale}}.ts'
+ *   i18n: { catalogs: { '{{locale}}': {{locale}} }, defaultLocale: '{{locale}}' }
+ *
+ * Messages support {name} interpolation and ICU plural/select, e.g.
+ *   'cart.items': '{count, plural, one {# item} other {# items}}'
+ */
+export default {
+    welcome: 'Welcome',
+}

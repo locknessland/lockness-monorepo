@@ -53,13 +53,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                        |
-| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `CatalogRegistry`, `ICUParseError`, `Translator`                                                                                                                                                                                                                                               |
-| function  | `configureI18n`, `currentLocale`, `firstAcceptLanguage`, `flattenMessages`, `getI18nConfig`, `getLocale`, `getRegistry`, `getTranslator`, `isI18nConfigured`, `languageOf`, `localeMiddleware`, `normalizeLocale`, `parseICU`, `renderICU`, `resetI18n`, `resolveLocale`, `runWithLocale`, `t` |
-| interface | `CatalogRegistryOptions`, `I18nConfig`, `Messages`                                                                                                                                                                                                                                             |
-| typeAlias | `ICUNode`, `TranslateParams`                                                                                                                                                                                                                                                                   |
-| variable  | `MAX_ACCEPT_LANGUAGE_RANGES`, `MAX_ICU_DEPTH`, `MAX_ICU_LENGTH`, `MAX_LOCALE_LENGTH`                                                                                                                                                                                                           |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `CatalogRegistry`, `ICUParseError`, `Translator`                                                                                                                                                                                                                                                                                                                                                                                  |
+| function  | `configureI18n`, `currentLocale`, `diffKeys`, `extractKeys`, `firstAcceptLanguage`, `flattenMessages`, `getI18nConfig`, `getLocale`, `getRegistry`, `getTranslator`, `handleExtract`, `handleMakeLang`, `hasDynamicKeys`, `isContained`, `isI18nConfigured`, `languageOf`, `localeMiddleware`, `normalizeLocale`, `parseICU`, `registerI18nCommands`, `renderICU`, `resetI18n`, `resolveLocale`, `runWithLocale`, `t`, `walkKeys` |
+| interface | `CatalogRegistryOptions`, `Cli`, `I18nConfig`, `KeyDiff`, `Messages`                                                                                                                                                                                                                                                                                                                                                              |
+| typeAlias | `ICUNode`, `TranslateParams`                                                                                                                                                                                                                                                                                                                                                                                                      |
+| variable  | `LANG_DIR`, `MAX_ACCEPT_LANGUAGE_RANGES`, `MAX_ICU_DEPTH`, `MAX_ICU_LENGTH`, `MAX_LOCALE_LENGTH`                                                                                                                                                                                                                                                                                                                                  |
 
 Anything not listed is internal and free to change.
 
@@ -90,9 +90,11 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-4 test files for 7 source files:
+6 test files for 9 source files:
 
+- `packages/i18n/tests/cli_commands.test.ts`
 - `packages/i18n/tests/context.test.ts`
+- `packages/i18n/tests/extract.test.ts`
 - `packages/i18n/tests/icu.test.ts`
 - `packages/i18n/tests/resolver.test.ts`
 - `packages/i18n/tests/translator.test.ts`
@@ -111,7 +113,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 4 test files directly —
+Then, specific to this package: run its 6 test files directly —
 
 ```bash
 deno test -A packages/i18n/
