@@ -63,9 +63,9 @@ drops secret-named fields; `ResourceCollection` from a paginated result carries 
 **Independent test**: docs render; examples are copy-pasteable and build `baseUrl` from a fixed path
 (never the request Host); cursor pointed to as the large-table path.
 
-- [ ] T016 [US4] Write `docs/pagination-and-resources.md` (or per-package DOCS.md additions): offset + cursor examples, drizzle `paginate()` with a filtered query, UI binding via `toPaginationProps`, Resource/ResourceCollection output; note the perPage cap and cursor-for-large-tables guidance.
-- [ ] T017 [US4] Update the doc index in `AGENTS.md` / relevant package `DOCS.md` cross-links.
-- [ ] T018 [US4] Fast gate (docs affect nothing compiled, but run fmt); commit `docs(T04): document pagination + API resources (#201)` + `Epic: #197`.
+- [X] T016 [US4] Write `docs/pagination-and-resources.md` (or per-package DOCS.md additions): offset + cursor examples, drizzle `paginate()` with a filtered query, UI binding via `toPaginationProps`, Resource/ResourceCollection output; note the perPage cap and cursor-for-large-tables guidance.
+- [X] T017 [US4] Update the doc index in `AGENTS.md` / relevant package `DOCS.md` cross-links.
+- [X] T018 [US4] Fast gate (docs affect nothing compiled, but run fmt); commit `docs(T04): document pagination + API resources (#201)` + `Epic: #197`.
 
 ---
 
