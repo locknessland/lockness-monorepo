@@ -61,16 +61,16 @@ mechanism and the date. An entry that could have been guessed does not belong._
 
 10 test files for 19 source files:
 
-- `packages/vite/tests/build_test.ts`
-- `packages/vite/tests/client_entry_test.ts`
-- `packages/vite/tests/css_test.ts`
-- `packages/vite/tests/define_config_test.ts`
-- `packages/vite/tests/deno_resolver_test.ts`
-- `packages/vite/tests/dev_server_test.ts`
-- `packages/vite/tests/e2e_smoke_test.ts`
-- `packages/vite/tests/hmr_test.ts`
-- `packages/vite/tests/shared_test.ts`
-- `packages/vite/tests/vite_assets_test.ts`
+- `packages/vite/tests/build.test.ts`
+- `packages/vite/tests/client_entry.test.ts`
+- `packages/vite/tests/css.test.ts`
+- `packages/vite/tests/define_config.test.ts`
+- `packages/vite/tests/deno_resolver.test.ts`
+- `packages/vite/tests/dev_server.test.ts`
+- `packages/vite/tests/e2e_smoke.test.ts`
+- `packages/vite/tests/hmr.test.ts`
+- `packages/vite/tests/shared.test.ts`
+- `packages/vite/tests/vite_assets.test.ts`
 
 <!-- /generated:tests -->
 

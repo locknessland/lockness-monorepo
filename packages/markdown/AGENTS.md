@@ -77,8 +77,8 @@ Anything not listed is internal and free to change.
 3 test files for 4 source files:
 
 - `packages/markdown/tests/codeblock_html_allowlist_test.tsx`
-- `packages/markdown/tests/plain_defaults_test.ts`
-- `packages/markdown/tests/uri_allowlist_test.ts`
+- `packages/markdown/tests/plain_defaults.test.ts`
+- `packages/markdown/tests/uri_allowlist.test.ts`
 
 <!-- /generated:tests -->
 

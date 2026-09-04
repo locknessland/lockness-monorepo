@@ -265,6 +265,74 @@ Integration tests validate actual behavior:
 - Test with real external services
 - Slower but validate end-to-end behavior
 
+## The `@lockness/testing` harness
+
+`@lockness/testing` is an **internal, test-only** workspace package. It is
+**never published** and must never be imported by runtime code — only from a
+`tests/` directory. It bundles the helpers the framework's own tests share.
+
+### HTTP test client
+
+`testClient(app)` wraps `app.request` with `get` / `post` / `put` / `patch` /
+`delete` helpers; a `json` body is serialised and its content-type set for you.
+
+```typescript
+import { testClient } from '@lockness/testing'
+
+Deno.test('GET /ping', async () => {
+    const res = await testClient(app).get('/ping')
+    assertEquals(res.status, 200)
+})
+
+Deno.test('POST /echo', async () => {
+    const res = await testClient(app).post('/echo', { json: { a: 1 } })
+    assertEquals(await res.json(), { a: 1 })
+})
+```
+
+New tests should use `testClient`; existing hand-rolled `app.request` sites are
+migrated opportunistically.
+
+### Acting as a user
+
+`actingAs(user)` is middleware that sets the identity **only on the request
+context** (`c.set('auth', { user })`). It never mints a real session or token
+and never writes to a session/user store — and because the package is
+unpublished, it never reaches a consumer runtime. Pair it with
+`fakeUser(overrides)`.
+
+```typescript
+import { actingAs, fakeUser } from '@lockness/testing'
+
+app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
+```
+
+### Database assertions
+
+`FakeTable<Row>` is an in-memory table with `insert`, `assertHasRow`,
+`assertMissingRow` and `assertRowCount` — assert persistence without a database.
+
+## Test file naming
+
+- One convention: **`*.test.ts`** (or `*.test.tsx` for JSX). `deno test`
+  discovers these; `_test.ts` is legacy and no longer used under `packages/`.
+- Put tests in the package's `tests/` directory. `scripts/deps_analyzer.ts`
+  excludes `tests/` from the measured dependency graph, so a `tests/`-only
+  import (such as `@lockness/testing`) creates no runtime dependency edge.
+
+## Sanitizers and fixtures
+
+- **Keep Deno's sanitizers on.** Never disable the resource / op / exit
+  sanitizers to paper over a leak — close every KV handle, listener and timer
+  the test opens. Use `deno task test:leaks` (`--trace-leaks`) to locate a
+  leak's origin.
+- **Synthetic credentials only.** Fixtures use placeholder secrets and
+  connection strings — never a real password, token or DSN. The pre-commit
+  secret scan is the backstop, not the policy.
+- **Mock at the seam.** Prefer an injected fake (a command-runner, a
+  seeder-loader, a fake connection) over reaching into internals; the code under
+  test should expose the seam.
+
 ## Contributing
 
 When adding new tests to the Lockness framework:
@@ -273,8 +341,11 @@ When adding new tests to the Lockness framework:
 2. ✅ Use in-memory mocks for storage tests
 3. ✅ Keep tests hermetic (no side effects)
 4. ✅ Target < 100ms per test
-5. ✅ Add tests to `tests/` directory with `*.test.ts` naming
-6. ✅ Run `deno task test` before committing
+5. ✅ Add tests to the `tests/` directory with `*.test.ts` naming
+6. ✅ Reuse `@lockness/testing` (`testClient`, `actingAs`, `FakeTable`) — never
+   import it from runtime code
+7. ✅ Use synthetic/placeholder credentials only — never a real secret
+8. ✅ Run `deno task test` before committing
 
 ## References
 

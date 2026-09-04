@@ -86,7 +86,7 @@ Anything not listed is internal and free to change.
 
 - `packages/container/tests/circular.test.ts`
 - `packages/container/tests/container.test.ts`
-- `packages/container/tests/registrations_test.ts`
+- `packages/container/tests/registrations.test.ts`
 
 <!-- /generated:tests -->
 
