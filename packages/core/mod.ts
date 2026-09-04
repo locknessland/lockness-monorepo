@@ -48,6 +48,9 @@ export * from './helpers.ts'
 export { NEVER_SERIALISE, Resource } from './resource/resource.ts'
 export { ResourceCollection } from './resource/collection.ts'
 
+// Application cryptography — Crypt / Hash / HMAC signing (from @lockness/crypto).
+export { Crypt, Hash, sign, verify } from '@lockness/crypto'
+
 // Environment-name resolution (DENO_ENV first, then APP_ENV) — the single home
 // of the production/development rule.
 export * from './environment.ts'

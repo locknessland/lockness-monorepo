@@ -30,64 +30,40 @@
  * @since 0.2.2
  */
 
+import {
+    decodeBase64 as contractDecodeBase64,
+    encodeBase64 as contractEncodeBase64,
+    generateAppKey as contractGenerateAppKey,
+    KEY_BYTES as CONTRACT_KEY_BYTES,
+    KEY_PREFIX as CONTRACT_KEY_PREFIX,
+    KeyMaterialError,
+    type KeyRejection,
+    REJECTED_KEYS,
+    resolveKeyMaterial,
+} from '@lockness/contract'
+
 /** Where a secret came from, so an operator knows what to change. */
 export type SecretSource = 'config' | 'app-key' | 'generated'
 
-/** Why a secret was refused. Carries no part of the value. */
-export type SecretRejection =
-    | 'missing'
-    | 'not-prefixed'
-    | 'not-base64'
-    | 'wrong-length'
-    | 'degenerate'
-    | 'known-placeholder'
+/**
+ * Why a secret was refused. Carries no part of the value. Mirrors
+ * `@lockness/contract`'s {@link KeyRejection} — the validation is single-homed
+ * there now; this alias preserves the session package's public API.
+ */
+export type SecretRejection = KeyRejection
 
-/** The declared-key-material prefix. */
-export const KEY_PREFIX = 'base64:'
+/** The declared-key-material prefix (re-exported from the single home). */
+export const KEY_PREFIX = CONTRACT_KEY_PREFIX
 
-/** The exact decoded size of a usable key. AES-256 wants 32 bytes. */
-export const KEY_BYTES = 32
+/** The exact decoded size of a usable key (re-exported from the single home). */
+export const KEY_BYTES = CONTRACT_KEY_BYTES
 
 /**
- * Every placeholder secret this project has shipped.
- *
- * Once {@link assertUsableSecret} requires a declared shape, none of these could
- * pass anyway — the list is what lets the error *name* the mistake, and it is
- * what the tree-wide grep test enumerates so a placeholder cannot creep back
- * into a stub or a doc. Three of these are longer than sixteen characters, which
- * is why a length floor was the wrong control: `a-very-long-secret-key-32-chars`
- * is the session package's own documented example.
+ * Every placeholder secret this project has shipped. Re-exported from
+ * `@lockness/contract` (the validator's home); `no_placeholder_keys.test.ts`
+ * still enumerates it, and the strings now live beside {@link resolveKeyMaterial}.
  */
-export const REJECTED: readonly string[] = [
-    'change-me-in-production',
-    'your-secret-key-here-change-in-production',
-    'your-secret-key-here',
-    'production-secret-key',
-    'a-very-long-secret-key-32-chars',
-    'your-32-char-secret-key-here!!!',
-    'your-32-character-secret-key!',
-    'your-secret-key-min-32-chars!!!',
-    'change_me',
-    'jwt-secret',
-    'your-secret',
-]
-
-/*
- * `'secret'` is deliberately NOT on that list.
- *
- * It is a legitimate string elsewhere — a DI config value in
- * `@lockness/container`, a `basicAuth` password in `@lockness/hono`'s own
- * examples — so a tree-wide search for it reports fifteen files that have
- * nothing to do with session keys, and a guard that cries wolf is a guard
- * somebody switches off. It cannot pass the shape check regardless: six
- * characters decode to nothing like 32 bytes.
- *
- * That is the division of labour worth remembering. The **shape** is the
- * control; this list only lets an error name the mistake, and lets
- * `no_placeholder_keys.test.ts` find a placeholder somebody pasted back in. An
- * entry too generic to search for makes the second job impossible without
- * helping the first.
- */
+export const REJECTED: readonly string[] = REJECTED_KEYS
 
 const REASONS: Record<SecretRejection, string> = {
     missing: 'no session secret was provided',
@@ -155,18 +131,15 @@ export class SessionSecretError extends Error {
  * await Deno.writeTextFile('.env', `APP_KEY=${generateAppKey()}\n`)
  * ```
  */
-export function generateAppKey(): string {
-    const bytes = crypto.getRandomValues(new Uint8Array(KEY_BYTES))
-    return KEY_PREFIX + encodeBase64(bytes)
-}
+export const generateAppKey: () => string = contractGenerateAppKey
 
 /**
  * Parse a session secret, or refuse it.
  *
- * This is the **single** decider for "is this secret usable". Every gate — the
- * cookie driver, the bootstrap step — calls it rather than testing the secret
- * itself; a second test is a second decider, and they agree only until one
- * changes.
+ * **Delegates to the single home** (`@lockness/contract`'s
+ * {@link resolveKeyMaterial}) — a session app and a session-less `Crypt` app now
+ * share one validator — and re-wraps its failure as a {@link SessionSecretError}
+ * so this package's error type and `source` context are preserved.
  *
  * @param secret - The candidate, or `undefined` when nothing was configured.
  * @param source - Where it came from, for the error message.
@@ -182,75 +155,18 @@ export function assertUsableSecret(
     secret: string | undefined,
     source: SecretSource,
 ): Uint8Array {
-    if (!secret) throw new SessionSecretError('missing', source)
-    if (REJECTED.includes(secret)) {
-        throw new SessionSecretError('known-placeholder', source)
-    }
-    if (!secret.startsWith(KEY_PREFIX)) {
-        throw new SessionSecretError('not-prefixed', source)
-    }
-
-    let bytes: Uint8Array
     try {
-        bytes = decodeBase64(secret.slice(KEY_PREFIX.length))
-    } catch {
-        throw new SessionSecretError('not-base64', source)
+        return resolveKeyMaterial(secret)
+    } catch (error) {
+        if (error instanceof KeyMaterialError) {
+            throw new SessionSecretError(error.reason, source)
+        }
+        throw error
     }
-
-    if (bytes.byteLength !== KEY_BYTES) {
-        throw new SessionSecretError('wrong-length', source)
-    }
-    if (bytes.every((byte) => byte === bytes[0])) {
-        // All-zero, all-0xff, any single byte repeated. Shape-valid and
-        // worthless. This is NOT an entropy test — no parse can be one — it
-        // catches the one specific mistake of padding a value out to 32 bytes
-        // to satisfy the length check.
-        throw new SessionSecretError('degenerate', source)
-    }
-
-    return bytes
 }
 
-/**
- * Base64-encode bytes without spreading them.
- *
- * `String.fromCharCode(...bytes)` throws `RangeError` somewhere between 125 000
- * and 200 000 arguments — measured on this runtime — and a session payload is
- * application-influenced, so the ceiling is reachable.
- *
- * @param bytes - The bytes to encode.
- * @returns Standard base64.
- *
- * @example
- * ```typescript
- * encodeBase64(new Uint8Array([1, 2, 3]))
- * ```
- */
-export function encodeBase64(bytes: Uint8Array): string {
-    let binary = ''
-    for (let i = 0; i < bytes.length; i += 0x8000) {
-        binary += String.fromCharCode(
-            ...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)),
-        )
-    }
-    return btoa(binary)
-}
+/** Base64-encode bytes (re-exported from the single home). */
+export const encodeBase64: (bytes: Uint8Array) => string = contractEncodeBase64
 
-/**
- * Decode standard base64 to bytes.
- *
- * @param value - The base64 text.
- * @returns The decoded bytes.
- * @throws {DOMException} When `value` is not valid base64.
- *
- * @example
- * ```typescript
- * decodeBase64('AQID')
- * ```
- */
-export function decodeBase64(value: string): Uint8Array {
-    const binary = atob(value)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    return bytes
-}
+/** Decode standard base64 to bytes (re-exported from the single home). */
+export const decodeBase64: (value: string) => Uint8Array = contractDecodeBase64

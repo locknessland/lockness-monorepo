@@ -61,6 +61,8 @@ const PACKAGES: string[] = [
     'openapi',
     'queue',
     'redis',
+    'crypto',
+    'telemetry',
     'scheduler',
     'session',
     'socialite',

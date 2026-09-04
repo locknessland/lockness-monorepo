@@ -21,7 +21,10 @@ const ROOT = new URL('../../../', import.meta.url).pathname
  * strings nobody may use — anywhere else, naming one is shipping one.
  */
 const ALLOWED = [
-    'packages/session/secret.ts', // the list itself
+    'packages/contract/crypto_key.ts', // the list's single home (validator)
+    'packages/contract/tests/crypto_key.test.ts', // exercises the validator
+    'packages/crypto/tests/key.test.ts', // asserts a placeholder is rejected
+    'packages/session/secret.ts', // re-exports the list
     'packages/session/tests/secret.test.ts', // exercises the list
     'packages/session/tests/no_placeholder_keys.test.ts', // this file
     'packages/core/tests/session_boot.test.ts', // asserts a placeholder is refused
