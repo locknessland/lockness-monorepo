@@ -52,3 +52,21 @@ export {
     type OutboundFrame,
     type SubscribeResult,
 } from './manager.ts'
+export {
+    type ClientMessage,
+    decodeClientMessage,
+    encodeServerMessage,
+    isValidName,
+    MAX_FRAME_BYTES,
+    MAX_NAME_LENGTH,
+    ProtocolError,
+    type ServerMessage,
+} from './protocol.ts'
+export { type Broadcastable, isBroadcastable } from './broadcastable.ts'
+export {
+    type AnyEventPayload,
+    type BroadcastBridgeOptions,
+    type DispatcherLike,
+    forwardEvent,
+    startBroadcasting,
+} from './events_bridge.ts'

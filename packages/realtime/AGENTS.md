@@ -51,12 +51,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                            |
-| :-------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ChannelManager`, `MemoryBroadcastDriver`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                     |
-| function  | `buildEvents`, `channelKind`, `checkOrigin`, `createWebSocketHandler`, `makeConnection`, `originOf`, `resolveAllowedOrigins`                                                                                                                                       |
-| interface | `AllowedOrigins`, `BroadcastDriver`, `BroadcastMessage`, `ChannelManagerOptions`, `Connection`, `PresenceMember`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
-| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `OutboundFrame`, `WSMessageReceive`                                                                                                                                                                                |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                          |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `ChannelManager`, `MemoryBroadcastDriver`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                                                  |
+| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                     |
+| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `Connection`, `DispatcherLike`, `PresenceMember`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
+| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ClientMessage`, `OutboundFrame`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                            |
+| variable  | `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`                                                                                                                                                                                                                                                                                             |
 
 Anything not listed is internal and free to change.
 
@@ -88,14 +89,20 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-7 test files for 8 source files:
+13 test files for 12 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channels.test.ts`
+- `packages/realtime/tests/client.test.ts`
 - `packages/realtime/tests/driver_redis.test.ts`
+- `packages/realtime/tests/events_bridge.test.ts`
+- `packages/realtime/tests/handler.test.ts`
 - `packages/realtime/tests/identity.test.ts`
+- `packages/realtime/tests/manager.test.ts`
+- `packages/realtime/tests/memory_driver.test.ts`
 - `packages/realtime/tests/origin.test.ts`
 - `packages/realtime/tests/presence.test.ts`
+- `packages/realtime/tests/protocol.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
 <!-- /generated:tests -->
@@ -112,7 +119,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 7 test files directly —
+Then, specific to this package: run its 13 test files directly —
 
 ```bash
 deno test -A packages/realtime/
