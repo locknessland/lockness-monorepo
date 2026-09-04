@@ -57,7 +57,7 @@ The dependency graph is acyclic (DAG).
 | `mail`                  | —                                            | —                                                                   |
 | `markdown`              | hono                                         | —                                                                   |
 | `openapi`               | cli, contract, hono                          | —                                                                   |
-| `queue`                 | contract                                     | —                                                                   |
+| `queue`                 | contract, redis                              | —                                                                   |
 | `redis`                 | contract                                     | —                                                                   |
 | `scheduler`             | —                                            | —                                                                   |
 | `session`               | contract, hono, redis                        | —                                                                   |

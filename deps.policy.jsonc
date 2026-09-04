@@ -67,7 +67,7 @@
             "tier": "implementation",
             "allow": ["cli", "contract", "hono"]
         },
-        "queue": { "tier": "implementation", "allow": ["contract"] },
+        "queue": { "tier": "implementation", "allow": ["contract", "redis"] },
         "scheduler": { "tier": "implementation", "allow": [] },
         "session": {
             "tier": "implementation",
