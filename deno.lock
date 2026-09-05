@@ -4756,7 +4756,8 @@
           "jsr:@lockness/hono@0.2",
           "jsr:@lockness/notification@0.2",
           "jsr:@lockness/redis@0.2",
-          "jsr:@std/assert@1"
+          "jsr:@std/assert@1",
+          "jsr:@std/testing@1"
         ]
       },
       "packages/redis": {
