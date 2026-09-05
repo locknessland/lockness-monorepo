@@ -24,7 +24,7 @@ names does not belong here._
 
 | Direction                                      | Packages                                                                                        |
 | :--------------------------------------------- | :---------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`, `events` _(type-only)_, `hono`, `session`                                           |
+| Imports (static)                               | `contract`, `crypto`, `events` _(type-only)_, `hono`, `session`                                 |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                                               |
 | Imported by                                    | `auth-provider`, `testing`                                                                      |
 | **Must never import**                          | `auth-provider`, `testing` — each already reaches this package, so importing one closes a cycle |
