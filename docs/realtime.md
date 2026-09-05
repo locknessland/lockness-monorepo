@@ -123,6 +123,71 @@ connections to release.
 See [Running on more than one instance](#running-on-more-than-one-instance) for
 the roster, eviction, and the control-plane security posture.
 
+## Control-plane replay protection
+
+Control frames — eviction, and cross-instance presence join/leave — are HMAC
+signed with your `control.secret`. Since #272 they also carry a timestamp and a
+nonce **inside** the signed payload, and a receiving instance refuses a frame it
+has already seen or one issued outside a freshness window.
+
+That closes a gap where signing alone was not enough: a signature says _this
+came from someone holding the secret_, not _this is happening now_. Anyone able
+to read the bus could capture a valid frame and publish it again later, without
+the secret and without forging anything.
+
+```ts
+control: {
+    secret: Deno.env.get('REALTIME_SECRET')!,
+    // How long a frame stays obeyable, and how long its nonce is remembered.
+    // Default: 30_000 (30s).
+    windowMs: 30_000,
+},
+```
+
+**Widen the window only for a fleet whose clocks genuinely drift.** A longer
+window is a longer period in which a captured frame remains replayable against
+an instance that restarted, and a proportionally larger nonce store. It is not a
+robustness dial to turn up "just in case".
+
+### Reading the drop logs
+
+Every rejection says which check refused it, because they mean different things:
+
+| WARN contains        | What it means                                                                                                                                            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `oversized`          | A payload above the byte ceiling, refused before it was even parsed. Bus abuse.                                                                          |
+| `invalid shape`      | A field missing or of the wrong type. Usually a version mismatch or a bug.                                                                               |
+| `absent/invalid MAC` | The signature did not verify. A forgery attempt, or a secret mismatch between instances.                                                                 |
+| `invalid name`       | A routing name outside the permitted charset.                                                                                                            |
+| `STALE`              | Outside the freshness window. **The message names the observed delta** — a large or negative value is clock skew between your instances, not a dead bus. |
+| `DUPLICATE`          | This exact frame was already delivered inside the window. A replay.                                                                                      |
+
+If control frames stop flowing after an upgrade and the logs are full of `STALE`
+with a large delta, the fault is NTP, not the bus.
+
+### Upgrading
+
+The signed payload changed, so **a frame from a pre-#272 instance is rejected by
+an upgraded one, and vice versa**. During a rolling deploy, control frames do
+not cross between old and new instances. This is deliberate — the alternative
+was accepting unversioned frames, which would leave every frame captured during
+the rollout replayable for as long as that acceptance stayed switched on, and
+such switches outlive their rollouts.
+
+The degradation is bounded and self-healing: presence re-reads the authoritative
+Redis roster on every subscribe, and a missed eviction is recovered by the
+durable revocation record. Nothing is permanently lost; some cross-instance
+presence events are simply not delivered while both versions are running.
+
+### One constraint on your connection ids
+
+`manager.evict(id)` names a connection id in a frame that crosses the bus, so
+**a connection id must be unguessable and never reused**. The framework's own
+WebSocket upgrade generates one per connection; if you wire your own transport,
+generate a fresh `crypto.randomUUID()` rather than passing a user id or a
+session id. A stable, guessable id makes a captured eviction frame a repeatable
+weapon against whoever currently holds it.
+
 ## Running on more than one instance
 
 With the Redis driver, presence and eviction are **authoritative across every
