@@ -228,9 +228,44 @@ The `@ApiDoc()` decorator accepts the following properties:
                 schema: Schema
             }
         }
+        resource?: string           // Name of a registered API Resource
+        resourceCollection?: boolean // Wrap the $ref in a { data: [...] } envelope
     }
 }
 ```
+
+## Reusable schemas from API Resources
+
+An API `Resource` (`@lockness/core`) declares a model's wire projection —
+exactly the response schema the document should emit. Register your resources'
+schemas with the `resources` option; each populates `components.schemas`, and a
+response referencing one by name emits a `$ref` to it (resolved only when the
+name is registered, so a `$ref` never dangles):
+
+```typescript
+import { UserResource } from '../app/resource/user_resource.ts'
+
+const spec = generateOpenAPISpec(controllers, {
+    title: 'My API',
+    version: '1.0.0',
+    resources: [
+        // Derived from the projection, or a declared schema() override.
+        { name: 'UserResource', schema: new UserResource(sampleUser).schema() },
+    ],
+})
+
+// In a controller:
+@Get('/:id')
+@ApiDoc({
+    summary: 'Get user',
+    responses: {
+        '200': { description: 'The user', resource: 'UserResource' },
+    },
+})
+show(c: Context) {/* ... */}
+```
+
+Non-resource bodies stay hand-authored via `content`.
 
 ## Example: Full API Documentation
 

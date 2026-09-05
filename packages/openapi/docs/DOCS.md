@@ -298,35 +298,65 @@ async search(c: Context) {
 }
 ```
 
-### Reusable Schemas
+### Reusable Schemas from API Resources
+
+An API `Resource` (`@lockness/core`) already declares a model's wire projection
+— which is exactly the response schema the document should emit. Register your
+resources' schemas via the `resources` option and they populate
+`components.schemas`; a `@ApiDoc` response then references one by name and the
+generator emits a `$ref` to it (never a dangling one).
+
+A resource derives its schema from a representative instance, or declares an
+explicit one by overriding `schema()`:
 
 ```typescript
+import { generateOpenAPISpec } from '@lockness/openapi'
+import { UserResource } from '../app/resource/user_resource.ts'
+
 const spec = generateOpenAPISpec(controllers, {
     title: 'My API',
     version: '1.0.0',
-    components: {
-        schemas: {
-            User: {
-                type: 'object',
-                properties: {
-                    id: { type: 'integer' },
-                    email: { type: 'string', format: 'email' },
-                    name: { type: 'string' },
-                    role: { type: 'string', enum: ['admin', 'user'] },
-                    createdAt: { type: 'string', format: 'date-time' },
-                },
-            },
-            Error: {
-                type: 'object',
-                properties: {
-                    message: { type: 'string' },
-                    code: { type: 'string' },
-                },
-            },
+    resources: [
+        // Derived from the guarded wire shape (never-serialise fields excluded).
+        { name: 'UserResource', schema: new UserResource(sampleUser).schema() },
+    ],
+})
+```
+
+Point a response at a registered resource with `resource` (single) or
+`resource` + `resourceCollection` (a `{ data: [...] }` envelope):
+
+```typescript
+@Get('/:id')
+@ApiDoc({
+    summary: 'Get user',
+    responses: {
+        // → schema: { $ref: '#/components/schemas/UserResource' }
+        '200': { description: 'The user', resource: 'UserResource' },
+        '404': { description: 'Not found' },
+    },
+})
+show(c: Context) {/* ... */}
+
+@Get('/')
+@ApiDoc({
+    summary: 'List users',
+    responses: {
+        // → { type: 'object', properties: { data: { type: 'array',
+        //      items: { $ref: '#/components/schemas/UserResource' } } } }
+        '200': {
+            description: 'A page of users',
+            resource: 'UserResource',
+            resourceCollection: true,
         },
     },
 })
+index(c: Context) {/* ... */}
 ```
+
+A `resource` that is not registered emits no `$ref` — the response keeps its
+description untouched, so a reference never dangles. Non-resource bodies stay
+hand-authored via `content` as shown above.
 
 ### Authentication Documentation
 
