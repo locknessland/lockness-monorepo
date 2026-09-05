@@ -14,6 +14,29 @@ type Reply = {
     value?: string | number | readonly Reply[]
 }
 
+/**
+ * Faithful model of Redis's bundled lua-cjson round-trip: `cjson.decode`
+ * collapses both JSON `[]` and `{}` into the same empty Lua table, and
+ * `cjson.encode` emits that table as `{}`. So any empty collection that passes
+ * through a `cjson.decode` → `cjson.encode` cycle comes back as an empty object
+ * — the exact corruption #269 fixes. Non-empty collections and scalars survive
+ * untouched. The RETRY_SCRIPT emulation runs the parts it re-encodes through
+ * this so the defect is reproduced end-to-end.
+ */
+function cjsonRoundTrip(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.length === 0 ? {} : value.map(cjsonRoundTrip)
+    }
+    if (value !== null && typeof value === 'object') {
+        const entries = Object.entries(value as Record<string, unknown>)
+        if (entries.length === 0) return {}
+        const out: Record<string, unknown> = {}
+        for (const [k, v] of entries) out[k] = cjsonRoundTrip(v)
+        return out
+    }
+    return value
+}
+
 /** A minimal Redis: a sorted set per key + a hash per key. */
 class FakeRedis implements RedisCommandClient {
     #zset = new Map<string, { score: number; member: string }[]>()
@@ -54,17 +77,37 @@ class FakeRedis implements RedisCommandClient {
                 if (raw === undefined) {
                     return Promise.resolve({ type: 'integer', value: 0 })
                 }
-                const { job: dead } = JSON.parse(raw) as { job: SerializedJob }
-                const revived = {
-                    ...dead,
+                const entry = JSON.parse(raw) as {
+                    job: Record<string, unknown>
+                    payload?: string
+                }
+                // Mirror the Lua: the job object (attempts/availableAt reset) is
+                // the only thing re-encoded through cjson. In the current wire
+                // shape the payload rides alongside as an opaque JSON string the
+                // script never decodes, so it is spliced back verbatim; a legacy
+                // entry carries the payload nested in the job, so it goes through
+                // the lossy round-trip.
+                const jobPart = {
+                    ...entry.job,
                     attempts: 0,
                     availableAt: Number(now),
                 }
-                const qkey = `${prefix}${revived.queue}`
+                const encoded = cjsonRoundTrip(jobPart) as Record<
+                    string,
+                    unknown
+                >
+                const member = entry.payload !== undefined
+                    ? JSON.stringify({
+                        ...encoded,
+                        payload: JSON.parse(entry.payload),
+                    })
+                    : JSON.stringify(encoded)
+                const queue = String(entry.job.queue)
+                const qkey = `${prefix}${queue}`
                 const arr = this.#zset.get(qkey) ?? []
                 arr.push({
                     score: Number(now),
-                    member: JSON.stringify(revived),
+                    member,
                 })
                 arr.sort((a, b) => a.score - b.score)
                 this.#zset.set(qkey, arr)
@@ -160,6 +203,73 @@ Deno.test('RedisQueueDriver - deadLetter → listFailed (no payload) → retryFa
     assertEquals((await d.listFailed()).length, 0, 'removed from the DLQ')
     const revived = await d.pop('default')
     assertEquals(revived?.id, 'dead', 're-enqueued and immediately due')
+})
+
+Deno.test('RedisQueueDriver - retryFailed preserves empty-array and empty-object payload fields (#269)', async () => {
+    const d = new RedisQueueDriver(new FakeRedis())
+    const dead: SerializedJob = {
+        id: 'j1',
+        name: 'SendReport',
+        payload: {
+            tags: [],
+            meta: {},
+            recipients: ['a@b.co'],
+            filters: { archived: [] },
+            count: 3,
+        },
+        attempts: 3,
+        maxAttempts: 3,
+        delay: 0,
+        queue: 'default',
+        createdAt: 0,
+        availableAt: 0,
+    }
+    await d.deadLetter(dead, new Error('boom'))
+
+    assertEquals(await d.retryFailed('j1'), true)
+
+    const revived = await d.pop('default')
+    assert(revived, 'the retried job is immediately due')
+    // Byte-equivalent payload: empty [] stays [], empty {} stays {}.
+    assertEquals(revived.payload, {
+        tags: [],
+        meta: {},
+        recipients: ['a@b.co'],
+        filters: { archived: [] },
+        count: 3,
+    })
+    assert(
+        Array.isArray(revived.payload.tags),
+        'the empty array must not become an object',
+    )
+    assert(
+        !Array.isArray(revived.payload.filters) &&
+            Array.isArray(
+                (revived.payload.filters as { archived: unknown }).archived,
+            ),
+        'a nested empty array must not become an object',
+    )
+    // Retry semantics still hold: fresh attempt count.
+    assertEquals(revived.attempts, 0)
+})
+
+Deno.test('RedisQueueDriver - retryFailed still revives a legacy DLQ entry (payload nested in the job)', async () => {
+    const redis = new FakeRedis()
+    const d = new RedisQueueDriver(redis)
+    // Plant an entry in the pre-#269 wire shape: the whole job, payload and
+    // all, nested under `job` with no sibling opaque `payload` string.
+    const legacyJob = job('legacy', 0)
+    await redis.command(
+        'HSET',
+        'lockness:queue:dlq',
+        'legacy',
+        JSON.stringify({ job: legacyJob, error: 'RangeError', failedAt: 0 }),
+    )
+
+    assertEquals(await d.retryFailed('legacy'), true)
+    const revived = await d.pop('default')
+    assertEquals(revived?.id, 'legacy', 'a legacy entry still re-enqueues')
+    assertEquals(revived?.payload, { secret: 'DO_NOT_LEAK' })
 })
 
 Deno.test('RedisQueueDriver - retryFailed on an unknown id is false', async () => {
