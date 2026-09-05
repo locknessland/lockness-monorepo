@@ -39,7 +39,7 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                                         |
 | :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| class     | `Database`, `Factory`                                                                                                                                                           |
+| class     | `Database`, `Factory`, `MalformedCursorError`                                                                                                                                   |
 | function  | `decodeCursor`, `encodeCursor`, `paginate`, `registerDrizzleCommands`, `resolveDialect`                                                                                         |
 | interface | `CommandSpec`, `ConnectionOptions`, `ConnectionResult`, `CursorPaginateOptions`, `DbConnection`, `DecodedCursor`, `DriverHandle`, `DrizzleCommandDeps`, `OffsetPaginateOptions` |
 | typeAlias | `CommandRunner`, `DatabaseSchema`, `Dialect`, `DialectDatabase`, `DriverFactory`, `SeederLoader`                                                                                |
