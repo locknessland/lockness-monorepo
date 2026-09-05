@@ -30,12 +30,12 @@ base64).
 
 <!-- generated:deps -->
 
-| Direction                                      | Packages                                                                                                        |
-| :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`                                                                                                      |
-| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                               |
-| Imported by                                    | `auth`, `core`                                                                                                  |
-| **Must never import**                          | `auth`, `auth-provider`, `core`, `testing` — each already reaches this package, so importing one closes a cycle |
+| Direction                                      | Packages                                                                                                                               |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- |
+| Imports (static)                               | `contract`                                                                                                                             |
+| Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                                      |
+| Imported by                                    | `auth`, `core`, `session`                                                                                                              |
+| **Must never import**                          | `auth`, `auth-provider`, `core`, `devtools`, `session`, `testing` — each already reaches this package, so importing one closes a cycle |
 
 Enforced by `deno task deps:analyze` against `deps.policy.jsonc`. A soft edge is
 deliberately **not** declared in this package's `deno.json`: the consuming

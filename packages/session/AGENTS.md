@@ -44,7 +44,7 @@ User-facing documentation: [README.md](README.md) ·
 
 | Direction                                      | Packages                                                                                                                    |
 | :--------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------- |
-| Imports (static)                               | `contract`, `hono`, `redis`                                                                                                 |
+| Imports (static)                               | `contract`, `crypto`, `hono`, `redis`                                                                                       |
 | Imports (soft, via `tryImportOptionalPackage`) | —                                                                                                                           |
 | Imported by                                    | `auth`, `core`, `devtools`                                                                                                  |
 | **Must never import**                          | `auth`, `auth-provider`, `core`, `devtools`, `testing` — each already reaches this package, so importing one closes a cycle |
