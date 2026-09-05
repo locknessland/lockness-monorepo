@@ -34,12 +34,12 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                 |
-| :-------- | :---------------------------------------------------------------------- |
-| class     | `RedisClient`, `RespError`, `RespFramingError`, `RespServerError`       |
-| function  | `encodeCommand`, `readReply`, `redisMemoKey`, `sha256Hex`, `writeFrame` |
-| interface | `RedisClientConfig`                                                     |
-| typeAlias | `RespReply`                                                             |
+| Kind      | Exports                                                                                          |
+| :-------- | :----------------------------------------------------------------------------------------------- |
+| class     | `RedisClient`, `RespError`, `RespFramingError`, `RespServerError`                                |
+| function  | `credentialFingerprint`, `encodeCommand`, `readReply`, `redisMemoKey`, `sha256Hex`, `writeFrame` |
+| interface | `RedisClientConfig`                                                                              |
+| typeAlias | `RespReply`                                                                                      |
 
 Anything not listed is internal and free to change.
 
@@ -58,9 +58,10 @@ mechanism and the date. An entry that could have been guessed does not belong._
 
 <!-- generated:tests -->
 
-2 test files for 5 source files:
+3 test files for 5 source files:
 
 - `packages/redis/tests/client.test.ts`
+- `packages/redis/tests/memo.test.ts`
 - `packages/redis/tests/resp.test.ts`
 
 <!-- /generated:tests -->
@@ -77,7 +78,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 2 test files directly —
+Then, specific to this package: run its 3 test files directly —
 
 ```bash
 deno test -A packages/redis/
