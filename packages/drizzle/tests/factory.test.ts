@@ -48,11 +48,20 @@ class CounterFactory extends Factory<Row> {
     }
 }
 
-/** Install a fake insert-capable `db` on the container's Database singleton. */
-function fakeInserts(): { table: unknown; rows: unknown }[] {
+/**
+ * Run `fn` with a fake insert-capable `db` installed on the container's
+ * `Database` singleton, restoring the singleton's prior `db` afterwards (via
+ * try/finally) so the mutation never leaks to other tests sharing the
+ * process-wide container. `fn` receives the array recording each insert.
+ */
+async function withFakeInserts(
+    fn: (recorded: { table: unknown; rows: unknown }[]) => Promise<void>,
+): Promise<void> {
     const recorded: { table: unknown; rows: unknown }[] = []
     const svc = container.get(Database)
-    ;(svc as unknown as { db: unknown }).db = {
+    const holder = svc as unknown as { db: unknown }
+    const prevDb = holder.db
+    holder.db = {
         insert: (table: unknown) => ({
             values: (rows: unknown) => {
                 recorded.push({ table, rows })
@@ -60,7 +69,11 @@ function fakeInserts(): { table: unknown; rows: unknown }[] {
             },
         }),
     }
-    return recorded
+    try {
+        await fn(recorded)
+    } finally {
+        holder.db = prevDb
+    }
 }
 
 Deno.test('make() builds one record and applies overrides — pure, no connection', () => {
@@ -81,70 +94,76 @@ Deno.test('makeMany(n) builds n distinct records (definition called fresh each)'
 })
 
 Deno.test('createMany inserts through the Database service and returns the rows', async () => {
-    const recorded = fakeInserts()
-    const rows = await new CounterFactory().createMany(2, { name: 'Same' })
-    assertEquals(rows.length, 2)
-    assert(rows.every((r) => r.name === 'Same'))
-    // One insert statement, carrying the table and the 2 rows.
-    assertEquals(recorded.length, 1)
-    assertEquals((recorded[0].table as { _table: string })._table, 'users')
-    assertEquals((recorded[0].rows as Row[]).length, 2)
+    await withFakeInserts(async (recorded) => {
+        const rows = await new CounterFactory().createMany(2, { name: 'Same' })
+        assertEquals(rows.length, 2)
+        assert(rows.every((r) => r.name === 'Same'))
+        // One insert statement, carrying the table and the 2 rows.
+        assertEquals(recorded.length, 1)
+        assertEquals((recorded[0].table as { _table: string })._table, 'users')
+        assertEquals((recorded[0].rows as Row[]).length, 2)
+    })
 })
 
 Deno.test('create() inserts one and returns it', async () => {
-    const recorded = fakeInserts()
-    const row = await new CounterFactory().create({ email: 'once@x.test' })
-    assertEquals(row.email, 'once@x.test')
-    assertEquals(recorded.length, 1)
-    assertEquals((recorded[0].rows as Row[]).length, 1)
+    await withFakeInserts(async (recorded) => {
+        const row = await new CounterFactory().create({ email: 'once@x.test' })
+        assertEquals(row.email, 'once@x.test')
+        assertEquals(recorded.length, 1)
+        assertEquals((recorded[0].rows as Row[]).length, 1)
+    })
 })
 
 Deno.test('create() refuses to insert under APP_ENV=production without override', async () => {
-    const recorded = fakeInserts()
-    await withAppEnv('production', async () => {
-        await assertRejects(
-            () => new CounterFactory().create(),
-            Error,
-            'production',
-        )
+    await withFakeInserts(async (recorded) => {
+        await withAppEnv('production', async () => {
+            await assertRejects(
+                () => new CounterFactory().create(),
+                Error,
+                'production',
+            )
+        })
+        // The write must never have reached the database.
+        assertEquals(recorded.length, 0)
     })
-    // The write must never have reached the database.
-    assertEquals(recorded.length, 0)
 })
 
 Deno.test('createMany() refuses to insert under APP_ENV=production without override', async () => {
-    const recorded = fakeInserts()
-    await withAppEnv('production', async () => {
-        await assertRejects(
-            () => new CounterFactory().createMany(3),
-            Error,
-            'production',
-        )
+    await withFakeInserts(async (recorded) => {
+        await withAppEnv('production', async () => {
+            await assertRejects(
+                () => new CounterFactory().createMany(3),
+                Error,
+                'production',
+            )
+        })
+        assertEquals(recorded.length, 0)
     })
-    assertEquals(recorded.length, 0)
 })
 
 Deno.test('create() inserts under production when { allowProduction: true } is passed', async () => {
-    const recorded = fakeInserts()
-    await withAppEnv('production', async () => {
-        const row = await new CounterFactory().create(
-            { email: 'forced@x.test' },
-            { allowProduction: true },
-        )
-        assertEquals(row.email, 'forced@x.test')
+    await withFakeInserts(async (recorded) => {
+        await withAppEnv('production', async () => {
+            const row = await new CounterFactory().create(
+                { email: 'forced@x.test' },
+                { allowProduction: true },
+            )
+            assertEquals(row.email, 'forced@x.test')
+        })
+        assertEquals(recorded.length, 1)
     })
-    assertEquals(recorded.length, 1)
 })
 
 Deno.test('createMany() inserts under production when { allowProduction: true } is passed', async () => {
-    const recorded = fakeInserts()
-    await withAppEnv('production', async () => {
-        const rows = await new CounterFactory().createMany(
-            2,
-            {},
-            { allowProduction: true },
-        )
-        assertEquals(rows.length, 2)
+    await withFakeInserts(async (recorded) => {
+        await withAppEnv('production', async () => {
+            const rows = await new CounterFactory().createMany(
+                2,
+                {},
+                { allowProduction: true },
+            )
+            assertEquals(rows.length, 2)
+        })
+        assertEquals(recorded.length, 1)
     })
-    assertEquals(recorded.length, 1)
 })
