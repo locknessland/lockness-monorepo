@@ -43,6 +43,11 @@ export type {
     SeederLoader,
 } from './cli_commands.ts'
 export { Factory } from './factory.ts'
+export type { FactoryCreateOptions } from './factory.ts'
+export {
+    ALLOW_PRODUCTION_FLAG,
+    assertNotProduction,
+} from './production_guard.ts'
 export {
     decodeCursor,
     encodeCursor,

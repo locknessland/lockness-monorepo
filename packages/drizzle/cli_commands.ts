@@ -19,6 +19,10 @@ import { dirname, fromFileUrl, join } from '@std/path'
 import { container } from '@lockness/container'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
+import {
+    ALLOW_PRODUCTION_FLAG,
+    assertNotProduction,
+} from './production_guard.ts'
 
 /**
  * CLI command handler type.
@@ -301,16 +305,27 @@ export async function createFile(
 /**
  * Handle db:seed command - run database seeders.
  *
- * @param args - Command arguments (optional seeder name)
+ * Refuses to run against a production environment unless the
+ * `--allow-production` flag is passed — seeding writes rows unconditionally, so
+ * an accidental run against production is guarded by {@link assertNotProduction}.
+ *
+ * @param args - Command arguments (optional seeder name, optional
+ *   `--allow-production` flag)
+ * @throws {Error} When the environment is production and `--allow-production`
+ *   was not passed.
  */
 async function handleSeed(
     args: string[],
     deps: DrizzleCommandDeps,
 ): Promise<void> {
+    const allowProduction = args.includes(ALLOW_PRODUCTION_FLAG)
+    // Guard BEFORE opening a connection: refuse a production write outright.
+    assertNotProduction('db:seed', allowProduction)
+
     console.log('🌱 Running seeders...')
 
     const db = await deps.connect()
-    const specificSeeder = args[0]
+    const specificSeeder = args.find((a) => !a.startsWith('-'))
 
     try {
         if (specificSeeder) {

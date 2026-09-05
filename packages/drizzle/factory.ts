@@ -26,10 +26,25 @@
 
 import { container } from '@lockness/container'
 import { Database } from './mod.ts'
+import { assertNotProduction } from './production_guard.ts'
 
 /** The minimal insert surface shared by every Drizzle dialect. */
 interface InsertCapable {
     insert(table: unknown): { values(rows: unknown): PromiseLike<unknown> }
+}
+
+/**
+ * Options for the DB-writing factory methods ({@link Factory.create},
+ * {@link Factory.createMany}).
+ */
+export interface FactoryCreateOptions {
+    /**
+     * Explicitly permit the insert to run against a production environment.
+     * Off by default: `create()`/`createMany()` refuse to write when
+     * `DENO_ENV`/`APP_ENV` is `'production'` unless this is `true`. Read-only
+     * `make()`/`makeMany()` are never gated.
+     */
+    readonly allowProduction?: boolean
 }
 
 /**
@@ -77,25 +92,44 @@ export abstract class Factory<TModel extends Record<string, unknown>> {
      * Returns the attributes that were inserted (not a DB-assigned row — RETURNING
      * is not uniform across dialects; query separately for a generated id).
      *
+     * Refuses to run against a production environment unless
+     * `{ allowProduction: true }` is passed — see {@link assertNotProduction}.
+     *
      * @param overrides - Fields to override.
+     * @param options - Write options (e.g. `allowProduction` to bypass the
+     *   production guard).
      * @returns The inserted attributes.
+     * @throws {Error} When the environment is production and `allowProduction`
+     *   is not set.
      */
-    async create(overrides: Partial<TModel> = {}): Promise<TModel> {
-        const [row] = await this.createMany(1, overrides)
+    async create(
+        overrides: Partial<TModel> = {},
+        options: FactoryCreateOptions = {},
+    ): Promise<TModel> {
+        const [row] = await this.createMany(1, overrides, options)
         return row
     }
 
     /**
      * Build and insert `count` records in one statement.
      *
+     * Refuses to run against a production environment unless
+     * `{ allowProduction: true }` is passed — see {@link assertNotProduction}.
+     *
      * @param count - How many to insert.
      * @param overrides - Fields to override on every record.
+     * @param options - Write options (e.g. `allowProduction` to bypass the
+     *   production guard).
      * @returns The inserted attributes.
+     * @throws {Error} When the environment is production and `allowProduction`
+     *   is not set.
      */
     async createMany(
         count: number,
         overrides: Partial<TModel> = {},
+        options: FactoryCreateOptions = {},
     ): Promise<TModel[]> {
+        assertNotProduction('factory create()', options.allowProduction)
         const rows = this.makeMany(count, overrides)
         const db = (container.get(Database).db as unknown) as InsertCapable
         await db.insert(this.table).values(rows)
