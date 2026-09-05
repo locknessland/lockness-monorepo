@@ -81,6 +81,42 @@ Move with the backlog skill's `move.sh` script or `gh project item-edit`.
 2. `.specnaut/scripts/backlog/move.sh <num> Done`.
 3. Verify the state: `gh issue view <num> --json state,stateReason` should read
    `CLOSED` / `COMPLETED`.
+4. **docs audit** — see below. Its findings go in the close comment.
+
+#### The docs audit
+
+Run it on every close where the merge changed a **public API** or **user-visible
+behaviour**. Skip it, and say so in the comment, for a pure refactor, a test-only
+change, or an internal fix nothing outside the package can observe.
+
+Ask three questions, and answer each by grepping rather than by recollection:
+
+1. **Is every new or changed public symbol named in a Markdown file?**
+   `grep -rn "<symbol>" --include="*.md" .` — zero hits on a symbol a consumer is
+   expected to call is the finding.
+2. **Does the package's own `README.md` still describe the old surface?** The
+   README is the user-facing doc for that package; `AGENTS.md` beside it is not a
+   substitute, and neither is JSDoc. A generated `AGENTS.md` block updating on its
+   own is precisely what makes this gap easy to miss.
+3. **Does the relevant `docs/*.md` guide name the API, not just the behaviour?**
+   A guide that describes what the system now does, without naming the method an
+   integrator must implement to get it, reads complete and is not.
+
+Report each gap in the close comment with its file path. **Do not open an issue
+for a gap that is a prose edit** — hand it back to whoever is closing, who is one
+commit away from fixing it. Open one only for the four standard reasons (a
+product decision, a boundary this branch does not touch, a migration, or a fix
+larger than the work being closed).
+
+Why this is a numbered step rather than a habit: on **#271** every automated gate
+was green and the generated `packages/realtime/AGENTS.md` block had refreshed
+itself, so nothing anywhere flagged that `packages/redis/README.md` still
+described `RedisSubscribeConnection` as `psubscribe` plus silent self-heal —
+a public method (`onReconnect`) had shipped with no user-facing doc naming it,
+and `docs/realtime.md` documented the new behaviour without naming the API.
+Question 1 above catches exactly that, in one grep. Added 2026-09-05; this is the
+step `.claude/skills/specnaut/phases/merge-close.md` refers to as the PO's
+"`docs audit` line", which until now had no definition anywhere.
 
 **⚠️ Moving to Done now CLOSES the issue.** Project #2 has an "Auto-close
 issue" workflow, so the move is the close — `gh issue close` afterwards returns

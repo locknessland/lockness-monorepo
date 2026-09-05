@@ -120,6 +120,10 @@ review" once a PR opens); judgment-required moves go through the PO.
   — skipping leaves the item stuck in-progress on the board.
 - **Board hygiene sweep**: `move.sh <num> Done` for CLOSED issues stuck in
   `In progress`/`In review`; reopen mislabelled `Done` items.
+- **docs audit before the close comment**: when the merge changed a public API or
+  user-visible behaviour, run the three-grep audit in the runbook
+  (`### Close a shipped issue`, step 4) and put its findings in the comment. A
+  prose gap goes back to whoever is closing, not into a new issue.
 
 ## Epic concept
 
