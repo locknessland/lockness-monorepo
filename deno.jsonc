@@ -54,6 +54,10 @@
         "test": "deno test -A",
         "test:watch": "deno test -A --watch",
         "test:leaks": "deno test -A --trace-leaks",
+        // The live-broker suites (#273). Skipped by the default `test` task;
+        // this is the ONE sanctioned second occurrence of the gate literal —
+        // it SETS the variable, `packages/redis/tests/live_broker.ts` reads it.
+        "test:redis": "LOCKNESS_REDIS_INTEGRATION=1 deno test -A packages/realtime/tests/ packages/redis/tests/",
         "test:coverage": "rm -rf coverage && deno test -A --coverage=coverage packages/ app/ && deno coverage coverage --lcov > coverage/lcov.info && deno coverage coverage",
         "coverage:floor": "deno run -A scripts/coverage_floor.ts --check",
         "coverage:floor:update": "deno run -A scripts/coverage_floor.ts --update",

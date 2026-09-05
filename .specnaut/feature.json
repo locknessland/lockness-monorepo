@@ -1,1 +1,4 @@
-{ "feature_directory": "/Users/kevin/Sites/lockness/.specnaut/specs/242-atomic-revocation-index", "linked_issue": 276 }
+{
+  "feature_directory": "/Users/kevin/Sites/lockness/.specnaut/specs/243-live-redis-integration",
+  "linked_issue": 273
+}
