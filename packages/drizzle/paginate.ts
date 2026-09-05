@@ -43,6 +43,58 @@ export interface DecodedCursor {
     readonly value: string | number
 }
 
+/**
+ * Error raised when a client-supplied cursor cannot be trusted: it is not a
+ * decodable token, its decoded shape is unexpected, or its column does not
+ * match the one the caller is paging.
+ *
+ * It carries `status = 400` so the framework's default error handler
+ * (which reads an error's `status` property, defaulting to 500) renders a
+ * **400 Bad Request** rather than leaking a 500 — a malformed cursor is client
+ * input, not a server fault. This mirrors the `status`-bearing error
+ * convention already used by `@lockness/auth` (401/403), and keeps
+ * `@lockness/drizzle` inside its dependency boundary: no `@lockness/core` or
+ * `@lockness/hono` import is needed to obtain the 400 mapping.
+ *
+ * @example
+ * ```typescript
+ * try {
+ *   decodeCursor(untrustedToken, 'id')
+ * } catch (error) {
+ *   if (error instanceof MalformedCursorError) {
+ *     return c.json(error.toJSON(), error.status) // 400
+ *   }
+ * }
+ * ```
+ */
+export class MalformedCursorError extends Error {
+    /** HTTP status — the default error handler renders this (400 Bad Request). */
+    readonly status = 400
+    /** Stable error code for client handling. */
+    readonly code = 'E_MALFORMED_CURSOR'
+
+    /**
+     * @param message - Human-readable reason the cursor was rejected.
+     * @param options - Standard error options (e.g. `cause`).
+     */
+    constructor(
+        message = 'Invalid pagination cursor',
+        options?: ErrorOptions,
+    ) {
+        super(message, options)
+        this.name = 'MalformedCursorError'
+    }
+
+    /**
+     * Serialize to a plain object for a JSON response body.
+     *
+     * @returns The error code, message and status.
+     */
+    toJSON(): { code: string; message: string; status: number } {
+        return { code: this.code, message: this.message, status: this.status }
+    }
+}
+
 function b64urlEncode(input: string): string {
     return btoa(input).replaceAll('+', '-').replaceAll('/', '_').replaceAll(
         '=',
@@ -74,21 +126,41 @@ export function encodeCursor(column: string, value: string | number): string {
 /**
  * Decode and validate an opaque cursor token.
  *
+ * When `expectedColumn` is given, the decoded column is checked against it: a
+ * token minted for another column is rejected, so a cursor cannot be replayed
+ * against a different ordering than the one it was issued for. The value is
+ * always bound as a SQL parameter, so this check tightens correctness rather
+ * than closing an injection hole.
+ *
+ * Every rejection path throws {@link MalformedCursorError} (`status = 400`),
+ * turning untrusted client input into a mapped **400 Bad Request** instead of
+ * an uncaught error surfacing as a 500.
+ *
  * @param token - The token from {@link encodeCursor}.
+ * @param expectedColumn - The column the caller is paging; when provided, the
+ * decoded column must equal it.
  * @returns The decoded `{ column, value }`.
- * @throws {Error} When the token is malformed or carries a value of the wrong shape.
+ * @throws {MalformedCursorError} When the token is not decodable, has an
+ * unexpected shape, or (when `expectedColumn` is given) was minted for a
+ * different column.
  *
  * @example
  * ```typescript
- * decodeCursor('eyJjIjoiaWQiLCJ2Ijo0Mn0') // { column: 'id', value: 42 }
+ * decodeCursor('eyJjIjoiaWQiLCJ2Ijo0Mn0', 'id') // { column: 'id', value: 42 }
  * ```
  */
-export function decodeCursor(token: string): DecodedCursor {
+export function decodeCursor(
+    token: string,
+    expectedColumn?: string,
+): DecodedCursor {
     let parsed: unknown
     try {
         parsed = JSON.parse(b64urlDecode(token))
-    } catch {
-        throw new Error('Invalid pagination cursor: not a decodable token')
+    } catch (cause) {
+        throw new MalformedCursorError(
+            'Invalid pagination cursor: not a decodable token',
+            { cause },
+        )
     }
     if (
         typeof parsed !== 'object' || parsed === null ||
@@ -97,9 +169,17 @@ export function decodeCursor(token: string): DecodedCursor {
             typeof (parsed as { v?: unknown }).v,
         )
     ) {
-        throw new Error('Invalid pagination cursor: unexpected shape')
+        throw new MalformedCursorError(
+            'Invalid pagination cursor: unexpected shape',
+        )
     }
     const obj = parsed as { c: string; v: string | number }
+    if (expectedColumn !== undefined && obj.c !== expectedColumn) {
+        throw new MalformedCursorError(
+            `Invalid pagination cursor: column "${obj.c}" does not match the ` +
+                `paged column "${expectedColumn}"`,
+        )
+    }
     return { column: obj.c, value: obj.v }
 }
 
@@ -228,7 +308,9 @@ async function paginateCursorQuery<TRow extends Record<string, unknown>>(
 ): Promise<CursorEnvelope<TRow>> {
     const perPage = clampPerPage(opts.perPage)
     const direction = opts.direction ?? 'asc'
-    const decoded = opts.cursor ? decodeCursor(opts.cursor) : undefined
+    const decoded = opts.cursor
+        ? decodeCursor(opts.cursor, opts.cursorColumn.name)
+        : undefined
 
     // AND-compose the cursor predicate with the caller's conditions — the
     // caller's filter is preserved, never overwritten (security S1).

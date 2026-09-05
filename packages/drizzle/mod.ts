@@ -43,7 +43,12 @@ export type {
     SeederLoader,
 } from './cli_commands.ts'
 export { Factory } from './factory.ts'
-export { decodeCursor, encodeCursor, paginate } from './paginate.ts'
+export {
+    decodeCursor,
+    encodeCursor,
+    MalformedCursorError,
+    paginate,
+} from './paginate.ts'
 export type {
     CursorPaginateOptions,
     DecodedCursor,
