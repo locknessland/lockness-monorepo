@@ -49,3 +49,20 @@ app.get(
   to those channels (`@lockness/events` soft-loaded).
 
 See [docs/realtime.md](../../docs/realtime.md) for the full guide.
+
+## Testing against a real Redis
+
+The unit suite is hermetic. The cross-process behaviours — presence, eviction
+and durable revocation — are additionally covered against a **live broker**,
+because an in-process fake can model Redis's `EXPIRE` and `ZADD` option flags
+wrongly and stay green. That suite is skipped unless you ask for it:
+
+```bash
+docker run -d --rm --name lockness-it-redis -p 63790:6379 redis:7-alpine
+LOCKNESS_REDIS_PORT=63790 deno task test:redis
+docker stop lockness-it-redis
+```
+
+Each run owns its own key namespace and cleans up after itself, including after
+a failure. See [docs/testing.md](../../docs/testing.md) for the full env-var
+contract and what the suite refuses to do.

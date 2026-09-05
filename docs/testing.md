@@ -189,6 +189,77 @@ Target metrics for the full test suite:
 | Events    | 1s      | < 0.5s    | 2x faster     |
 | **Total** | **87s** | **< 30s** | **3x faster** |
 
+## Live-broker integration tests
+
+Most of the suite is hermetic and offline by design. One suite is not: the
+realtime bus talks to a real Redis, because the parts of it that matter — the
+authoritative presence roster, cross-process eviction, and the durable
+revocation index — depend on Redis semantics that an in-process fake can model
+_wrongly_ while every check stays green. That happened twice during #276.
+
+The suite is skipped unless you turn it on, so `deno task test` is unchanged.
+
+### Running it
+
+```bash
+# A throwaway broker on a port nothing else uses.
+docker run -d --rm --name lockness-it-redis -p 63790:6379 redis:7-alpine
+
+LOCKNESS_REDIS_PORT=63790 deno task test:redis
+
+docker stop lockness-it-redis
+```
+
+`deno task test:redis` sets the gate for you. Point it wherever you like:
+
+| Variable                     | Default     | Notes                                                                    |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------ |
+| `LOCKNESS_REDIS_INTEGRATION` | unset       | `1` runs the suite. Set by `deno task test:redis`.                       |
+| `LOCKNESS_REDIS_HOST`        | `127.0.0.1` |                                                                          |
+| `LOCKNESS_REDIS_PORT`        | `6379`      |                                                                          |
+| `LOCKNESS_REDIS_PASSWORD`    | unset       |                                                                          |
+| `LOCKNESS_REDIS_DB`          | `0`         | **Not a containment boundary** — see below.                              |
+| `LOCKNESS_REDIS_TLS`         | `false`     | `1` to wrap the socket. Required with a password on a non-loopback host. |
+
+**Redis 7.0 or newer.** The realtime driver uses `EXPIRE`'s `NX` and `GT` option
+flags, which do not exist before 7.0 and fail silently as no-ops. The preflight
+checks the version and fails naming what it found.
+
+### What it does to your broker
+
+Each run mints a namespace of its own — `lockness-it:<random>` — and every key
+**and every pub/sub topic** it touches lives under it. Cleanup is `SCAN`-scoped
+to that namespace and runs from a `finally`, so a failing run cleans up too.
+There is no `FLUSHDB` path and never will be: a test that can wipe a developer's
+broker is a test nobody runs twice.
+
+The database index is deliberately **not** the containment boundary. It defaults
+to `0` — the database most likely to hold real data — so the namespace rule is
+exercised under the realistic condition rather than a comfortable one.
+
+### Two refusals, on purpose
+
+The suite **fails** rather than skipping when the gate is on and no broker
+answers. A gated suite that skips silently is how "we have live coverage"
+becomes untrue while every check stays green.
+
+It also **refuses** to send `AUTH` in cleartext to a non-loopback host. Set
+`LOCKNESS_REDIS_TLS=1` with a password against anything remote.
+
+### The control secret
+
+The realtime control plane is HMAC-authenticated, so the suite needs a
+per-deployment secret. It **generates one per run** and no secret literal exists
+anywhere in this repository — deliberately. A value published in a framework's
+own docs is a value somebody copies into a deployment, and a key in somebody
+else's deployment cannot be rotated, because you do not know whose.
+
+For your own deployment, generate one and read it from the environment:
+
+```bash
+openssl rand -hex 32   # then: REALTIME_SECRET=... in your environment
+```
+
 ## Examples
 
 ### Session Expiration Test
