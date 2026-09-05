@@ -19,11 +19,8 @@ import { dirname, fromFileUrl, join } from '@std/path'
 import { container } from '@lockness/container'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
-import {
-    modelStubParts,
-    resolveGeneratorDialect,
-} from './generators/dialect_schema.ts'
-import type { Dialect } from './drivers.ts'
+import { handleMakeModel } from './generators/model_generator.ts'
+import { handleMakeSeeder } from './generators/seeder_generator.ts'
 import {
     ALLOW_PRODUCTION_FLAG,
     assertNotProduction,
@@ -108,40 +105,6 @@ export interface DrizzleCommandDeps {
 }
 
 /**
- * Parsed CLI flags for make:model command.
- */
-interface ModelFlags {
-    /** Model name (e.g., 'User') */
-    readonly name: string | undefined
-    /** Whether to create a repository */
-    readonly repository: boolean
-    /** Whether to create a seeder */
-    readonly seeder: boolean
-    /** Whether to create a controller */
-    readonly controller: boolean
-    /** Raw `--dialect` override value, if supplied (else configured/inferred). */
-    readonly dialect: string | undefined
-}
-
-/**
- * Naming conventions derived from a model name.
- */
-interface ModelNaming {
-    /** PascalCase model name (e.g., 'User') */
-    readonly modelName: string
-    /** Lowercase plural table name (e.g., 'users') */
-    readonly tableName: string
-    /** Lowercase file name (e.g., 'user') */
-    readonly fileName: string
-    /** Route path (e.g., 'users') */
-    readonly route: string
-    /** Repository class name (e.g., 'UserRepository') */
-    readonly repositoryName: string
-    /** Repository variable name (e.g., 'userRepository') */
-    readonly repositoryVar: string
-}
-
-/**
  * Seeder class constructor type.
  */
 type SeederConstructor = new () => { run(): Promise<void> }
@@ -153,8 +116,8 @@ type SeederConstructor = new () => { run(): Promise<void> }
 /** Drizzle Kit CLI command base */
 const DRIZZLE_KIT_ARGS = ['run', '-A', 'npm:drizzle-kit'] as const
 
-/** Directory for database seeders */
-const SEEDERS_DIR = './database/seeders' as const
+/** Directory for database seeders. Shared with the seeder generator. */
+export const SEEDERS_DIR = './database/seeders' as const
 
 // =============================================================================
 // Stub Path Resolution
@@ -217,77 +180,8 @@ const defaultLoadSeeder: SeederLoader = (relativePath) =>
  * @param error - The error to extract message from
  * @returns The error message string
  */
-function getErrorMessage(error: unknown): string {
+export function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error)
-}
-
-/**
- * Parse CLI flags from arguments array.
- *
- * Supports short and long flags:
- * - `-r`, `--repository` - Create repository
- * - `-s`, `--seeder` - Create seeder
- * - `-c`, `--controller` - Create controller
- * - `-a`, `--all` - Create all related files
- * - `--dialect <d>` / `--dialect=<d>` - Override the schema dialect
- *
- * The `--dialect` value (whether spelled `--dialect mysql` or `--dialect=mysql`)
- * is consumed here so it is never mistaken for the positional model name.
- *
- * @param args - CLI arguments array
- * @returns Parsed flags object
- */
-function parseFlags(args: readonly string[]): ModelFlags {
-    let dialect: string | undefined
-    const positional: string[] = []
-
-    for (let i = 0; i < args.length; i++) {
-        const arg = args[i]
-        if (arg.startsWith('--dialect=')) {
-            dialect = arg.slice('--dialect='.length)
-            continue
-        }
-        if (arg === '--dialect') {
-            dialect = args[i + 1]
-            i++ // skip the consumed value
-            continue
-        }
-        if (!arg.startsWith('-')) positional.push(arg)
-    }
-
-    const hasFlag = (short: string, long: string): boolean =>
-        args.includes(short) || args.includes(long)
-
-    const all = hasFlag('-a', '--all')
-
-    return {
-        name: positional[0],
-        repository: all || hasFlag('-r', '--repository'),
-        seeder: all || hasFlag('-s', '--seeder'),
-        controller: all || hasFlag('-c', '--controller'),
-        dialect,
-    }
-}
-
-/**
- * Generate naming conventions from a model name.
- *
- * @param name - Base model name (e.g., 'user', 'User')
- * @returns Complete naming conventions
- */
-function generateNaming(name: string): ModelNaming {
-    const modelName = name.charAt(0).toUpperCase() + name.slice(1)
-    const tableName = name.toLowerCase() + 's'
-    const fileName = name.toLowerCase()
-
-    return {
-        modelName,
-        tableName,
-        fileName,
-        route: tableName,
-        repositoryName: `${modelName}Repository`,
-        repositoryVar: `${fileName}Repository`,
-    }
 }
 
 /**
@@ -434,234 +328,6 @@ async function runDatabaseSeeder(loadSeeder: SeederLoader): Promise<void> {
                 console.error(err.stack)
             }
         }
-    }
-}
-
-/**
- * Handle make:seeder command - create a new seeder file.
- *
- * @param args - Command arguments (seeder name)
- */
-async function handleMakeSeeder(args: string[]): Promise<void> {
-    const name = args[0]
-    if (!name) {
-        console.error('❌ Please provide a seeder name (e.g., User)')
-        return
-    }
-
-    const className = name.charAt(0).toUpperCase() + name.slice(1)
-    const fileName = `${name.toLowerCase()}_seeder.ts`
-    const filePath = `${SEEDERS_DIR}/${fileName}`
-
-    const isDatabase = name.toLowerCase() === 'database'
-    const stubName = isDatabase ? 'database_seeder' : 'seeder'
-
-    try {
-        const content = await processStub(stubName, { className })
-        await createFile(filePath, content)
-
-        console.log(`✅ Seeder created at ${filePath}`)
-
-        if (isDatabase) {
-            console.log(
-                '💡 Add your seeders to the `seeders` array in DatabaseSeeder',
-            )
-        }
-    } catch (error) {
-        console.error(`❌ Failed to create seeder: ${getErrorMessage(error)}`)
-    }
-}
-
-/**
- * Handle make:model command - create model and related files.
- *
- * @param args - Command arguments and flags
- */
-async function handleMakeModel(args: string[]): Promise<void> {
-    const flags = parseFlags(args)
-
-    if (!flags.name) {
-        printMakeModelUsage()
-        return
-    }
-
-    const naming = generateNaming(flags.name)
-    const createdFiles: string[] = []
-
-    // Resolve the schema dialect: explicit --dialect flag wins, else infer from
-    // the configured DATABASE_URL, else default postgres.
-    const dialect = resolveGeneratorDialect(
-        flags.dialect,
-        Deno.env.get('DATABASE_URL'),
-    )
-
-    // Always create the model
-    const modelCreated = await createModelFile(naming, dialect)
-    if (!modelCreated) return
-    createdFiles.push(`./app/model/${naming.fileName}.ts`)
-
-    // Create optional files based on flags
-    if (flags.repository) {
-        const created = await createRepositoryFile(naming)
-        if (created) {
-            createdFiles.push(
-                `./app/repository/${naming.fileName}_repository.ts`,
-            )
-        }
-    }
-
-    if (flags.seeder) {
-        const created = await createSeederFile(naming)
-        if (created) {
-            createdFiles.push(`./database/seeders/${naming.fileName}_seeder.ts`)
-        }
-    }
-
-    if (flags.controller) {
-        const created = await createControllerFile(naming)
-        if (created) {
-            createdFiles.push(
-                `./app/controller/${naming.fileName}_controller.ts`,
-            )
-        }
-    }
-
-    // Print summary
-    console.log(`✅ Created ${createdFiles.length} file(s):`)
-    createdFiles.forEach((f) => console.log(`   ${f}`))
-
-    if (createdFiles.length === 1) {
-        console.log('')
-        console.log('💡 Use flags to generate related files:')
-        console.log('   -r  repository   -s  seeder   -c  controller   -a  all')
-    }
-}
-
-/**
- * Print usage information for make:model command.
- */
-function printMakeModelUsage(): void {
-    console.error('❌ Please provide a model name (e.g., Post)')
-    console.log('')
-    console.log('Usage: deno task cli make:model <Name> [options]')
-    console.log('')
-    console.log('Options:')
-    console.log('  -r, --repository    Create a repository')
-    console.log('  -s, --seeder        Create a seeder')
-    console.log('  -c, --controller    Create a CRUD controller')
-    console.log(
-        '  -a, --all           Create all (repository, seeder, controller)',
-    )
-    console.log(
-        '  --dialect <d>       Schema dialect: postgres | mysql | sqlite',
-    )
-    console.log(
-        '                      (defaults to the DATABASE_URL scheme, else postgres)',
-    )
-}
-
-/**
- * Create the model file for the resolved dialect.
- *
- * @param naming - Model naming conventions
- * @param dialect - The resolved schema dialect; selects the table/column helpers
- *   (pg `serial`, mysql `int`+`autoincrement`, sqlite `integer` PK) the stub is
- *   rendered with.
- * @returns True if created successfully
- */
-async function createModelFile(
-    naming: ModelNaming,
-    dialect: Dialect,
-): Promise<boolean> {
-    try {
-        const content = await processStub('model', {
-            ModelName: naming.modelName,
-            tableName: naming.tableName,
-            ...modelStubParts(dialect),
-        })
-        await createFile(`./app/model/${naming.fileName}.ts`, content)
-        return true
-    } catch (error) {
-        console.error(`❌ Failed to create model: ${getErrorMessage(error)}`)
-        return false
-    }
-}
-
-/**
- * Create the repository file.
- *
- * @param naming - Model naming conventions
- * @returns True if created successfully
- */
-async function createRepositoryFile(naming: ModelNaming): Promise<boolean> {
-    try {
-        const content = await processStub('repository', {
-            ModelName: naming.modelName,
-            tableName: naming.tableName,
-            fileName: naming.fileName,
-            RepositoryName: naming.repositoryName,
-        })
-        await createFile(
-            `./app/repository/${naming.fileName}_repository.ts`,
-            content,
-        )
-        return true
-    } catch (error) {
-        console.error(
-            `❌ Failed to create repository: ${getErrorMessage(error)}`,
-        )
-        return false
-    }
-}
-
-/**
- * Create the seeder file.
- *
- * @param naming - Model naming conventions
- * @returns True if created successfully
- */
-async function createSeederFile(naming: ModelNaming): Promise<boolean> {
-    try {
-        const content = await processStub('seeder', {
-            className: naming.modelName,
-        })
-        await createFile(
-            `./database/seeders/${naming.fileName}_seeder.ts`,
-            content,
-        )
-        return true
-    } catch (error) {
-        console.error(`❌ Failed to create seeder: ${getErrorMessage(error)}`)
-        return false
-    }
-}
-
-/**
- * Create the controller file.
- *
- * @param naming - Model naming conventions
- * @returns True if created successfully
- */
-async function createControllerFile(naming: ModelNaming): Promise<boolean> {
-    try {
-        const content = await processStub('controller', {
-            ModelName: naming.modelName,
-            tableName: naming.tableName,
-            fileName: naming.fileName,
-            route: naming.route,
-            RepositoryName: naming.repositoryName,
-            repositoryVar: naming.repositoryVar,
-        })
-        await createFile(
-            `./app/controller/${naming.fileName}_controller.ts`,
-            content,
-        )
-        return true
-    } catch (error) {
-        console.error(
-            `❌ Failed to create controller: ${getErrorMessage(error)}`,
-        )
-        return false
     }
 }
 
@@ -854,25 +520,22 @@ export function registerDrizzleCommands(
         'Seed the database with test data',
     )
 
+    // -------------------------------------------------------------------------
+    // Generation Commands — each handler lives in its own generators/* module
+    // (architecture A-F5), keeping this file focused on command wiring.
+    // -------------------------------------------------------------------------
+
     cli.register(
         'make:seeder',
         handleMakeSeeder,
         'Create a new database seeder',
     )
 
-    // -------------------------------------------------------------------------
-    // Model Generation Command
-    // -------------------------------------------------------------------------
-
     cli.register(
         'make:model',
         handleMakeModel,
         'Create a new Drizzle model (with optional repository, seeder, controller)',
     )
-
-    // -------------------------------------------------------------------------
-    // Factory Generation Command (handler in its own module — A-F5)
-    // -------------------------------------------------------------------------
 
     cli.register(
         'make:factory',
