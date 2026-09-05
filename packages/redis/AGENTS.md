@@ -82,8 +82,22 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
-_None recorded yet. Add one when something here costs you time — with the
-mechanism and the date. An entry that could have been guessed does not belong._
+- **The subscribe socket re-dials every ~30s on an idle bus.** `subscriber.ts`'s
+  read loop calls `readReply(conn)` with the **default** `READ_TIMEOUT_MS`
+  (`resp.ts`, 30s), and `ReplyReader` fixes its deadline at construction — so
+  the deadline bounds even the wait for the _first_ byte. There is no
+  subscribe-mode `PING` keepalive, and a subscribe socket idles by design, so
+  the timeout is taken as a wire fault and the connection tears down and
+  reconnects. It is the only caller using the default deadline; `RedisClient`
+  passes its own. Invisible to the whole test suite, because the fake-server
+  tests finish well under 30s. Discovered 2026-09-05 via the #271 plan audit;
+  tracked as
+  [#274](https://github.com/locknessland/lockness-monorepo/issues/274).
+- **A failed re-dial is never retried.** `#activate`'s catch logs a WARN and
+  returns without scheduling anything, and nothing else calls it again — so one
+  transient connect blip leaves the connection permanently deaf. The WARN now
+  says so explicitly. Tracked as
+  [#275](https://github.com/locknessland/lockness-monorepo/issues/275).
 
 ## Tests
 
