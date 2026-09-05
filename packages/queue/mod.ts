@@ -13,6 +13,7 @@
 
 export type {
     DeadLetterEntry,
+    DeadLetterRetentionOptions,
     DispatchOptions,
     Job,
     JobClass,

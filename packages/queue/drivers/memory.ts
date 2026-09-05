@@ -1,14 +1,27 @@
 /**
  * @fileoverview In-memory queue driver.
  *
- * A process-local `Map` of named queues plus a process-local dead-letter store.
+ * A process-local `Map` of named queues plus a per-instance dead-letter store.
  * The default driver, and the one the tests exercise; holds no external
  * resources.
+ *
+ * The dead-letter store is **bounded** (#247): with no external store to expire
+ * keys for it, the driver enforces retention itself, purging entries older than
+ * the configured window and evicting the oldest once a count cap is exceeded.
  *
  * @module @lockness/queue/drivers/memory
  */
 
-import type { DeadLetterEntry, QueueDriver, SerializedJob } from '../types.ts'
+import type {
+    DeadLetterEntry,
+    DeadLetterRetentionOptions,
+    QueueDriver,
+    SerializedJob,
+} from '../types.ts'
+import {
+    DEFAULT_DEAD_LETTER_MAX_ENTRIES,
+    DEFAULT_DEAD_LETTER_RETENTION_MS,
+} from '../config.ts'
 
 const memoryQueues = new Map<string, SerializedJob[]>()
 
@@ -19,10 +32,29 @@ interface DeadEntry {
     readonly failedAt: number
 }
 
-/** The process-local dead-letter store, keyed by job id. */
-const memoryDeadLetters = new Map<string, DeadEntry>()
-
+/** A process-local {@link QueueDriver} backed by in-memory maps. */
 export class MemoryQueueDriver implements QueueDriver {
+    /** This driver's dead-letter store, keyed by job id. */
+    readonly #deadLetters = new Map<string, DeadEntry>()
+    readonly #retentionMs: number
+    readonly #maxEntries: number
+    readonly #now: () => number
+
+    /**
+     * @param options - Dead-letter retention controls; each field defaults when
+     * unset, so `new MemoryQueueDriver()` uses the framework defaults (#247).
+     * @example
+     * ```typescript
+     * const driver = new MemoryQueueDriver({ retentionMs: 7 * 24 * 3600_000 })
+     * ```
+     */
+    constructor(options: DeadLetterRetentionOptions = {}) {
+        this.#retentionMs = options.retentionMs ??
+            DEFAULT_DEAD_LETTER_RETENTION_MS
+        this.#maxEntries = options.maxEntries ?? DEFAULT_DEAD_LETTER_MAX_ENTRIES
+        this.#now = options.now ?? (() => Date.now())
+    }
+
     private getQueue(name: string): SerializedJob[] {
         if (!memoryQueues.has(name)) {
             memoryQueues.set(name, [])
@@ -61,17 +93,20 @@ export class MemoryQueueDriver implements QueueDriver {
     }
 
     deadLetter(job: SerializedJob, error: Error): Promise<void> {
-        memoryDeadLetters.set(job.id, {
-            job,
-            error: error.name,
-            failedAt: Date.now(),
-        })
+        const failedAt = this.#now()
+        this.#deadLetters.set(job.id, { job, error: error.name, failedAt })
+        // Keep the store bounded on every write: purge aged entries, then cap
+        // the count. Dead-lettering is a rare error-path event, so this is cheap.
+        this.#sweepExpired(failedAt)
+        this.#enforceCap()
         return Promise.resolve()
     }
 
     listFailed(queueName?: string): Promise<DeadLetterEntry[]> {
+        // Purge on read too, so an aged entry is never surfaced to an operator.
+        this.#sweepExpired(this.#now())
         const out: DeadLetterEntry[] = []
-        for (const entry of memoryDeadLetters.values()) {
+        for (const entry of this.#deadLetters.values()) {
             if (queueName !== undefined && entry.job.queue !== queueName) {
                 continue
             }
@@ -88,9 +123,9 @@ export class MemoryQueueDriver implements QueueDriver {
     }
 
     retryFailed(id: string): Promise<boolean> {
-        const entry = memoryDeadLetters.get(id)
+        const entry = this.#deadLetters.get(id)
         if (entry === undefined) return Promise.resolve(false)
-        memoryDeadLetters.delete(id)
+        this.#deadLetters.delete(id)
         const job = { ...entry.job, attempts: 0, availableAt: Date.now() }
         this.getQueue(job.queue).push(job)
         return Promise.resolve(true)
@@ -103,5 +138,29 @@ export class MemoryQueueDriver implements QueueDriver {
     clear(queueName: string): Promise<void> {
         memoryQueues.set(queueName, [])
         return Promise.resolve()
+    }
+
+    /** Drop every dead-letter entry older than the retention window. */
+    #sweepExpired(now: number): void {
+        const cutoff = now - this.#retentionMs
+        for (const [id, entry] of this.#deadLetters) {
+            if (entry.failedAt < cutoff) this.#deadLetters.delete(id)
+        }
+    }
+
+    /** Evict the oldest entries until the store is within the count cap. */
+    #enforceCap(): void {
+        while (this.#deadLetters.size > this.#maxEntries) {
+            let oldestId: string | undefined
+            let oldestAt = Infinity
+            for (const [id, entry] of this.#deadLetters) {
+                if (entry.failedAt < oldestAt) {
+                    oldestAt = entry.failedAt
+                    oldestId = id
+                }
+            }
+            if (oldestId === undefined) break
+            this.#deadLetters.delete(oldestId)
+        }
     }
 }

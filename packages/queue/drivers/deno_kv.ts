@@ -5,6 +5,9 @@
  * Owns the KV handle and registers it with the lifecycle drain so a stopped
  * worker releases the store it was reading from.
  *
+ * Dead-letter entries are written with an `expireIn` equal to the retention
+ * window (#247), so Deno KV self-expires them without a purge pass.
+ *
  * @module @lockness/queue/drivers/deno_kv
  */
 
@@ -13,11 +16,19 @@ import {
     type DisposableHandle,
     registerDisposable,
 } from '@lockness/contract/lifecycle/internal'
-import type { DeadLetterEntry, QueueDriver, SerializedJob } from '../types.ts'
+import type {
+    DeadLetterEntry,
+    DeadLetterRetentionOptions,
+    QueueDriver,
+    SerializedJob,
+} from '../types.ts'
+import { DEFAULT_DEAD_LETTER_RETENTION_MS } from '../config.ts'
 
 export class DenoKvQueueDriver implements QueueDriver {
     private kv: Deno.Kv | null = null
     private kvPath?: string
+    /** Dead-letter retention window, applied as each entry's `expireIn` (#247). */
+    readonly #retentionMs: number
     /**
      * The in-flight (or resolved) open, memoised so two callers racing the cold
      * path share ONE `Deno.openKv` (#140). Keying off the resolved `kv` field
@@ -27,8 +38,16 @@ export class DenoKvQueueDriver implements QueueDriver {
     #kvPromise: Promise<Deno.Kv> | undefined
     #handle?: DisposableHandle
 
-    constructor(kvPath?: string) {
+    /**
+     * @param kvPath - Optional Deno KV path; defaults to the store's default.
+     * @param options - Dead-letter retention controls; only `retentionMs` is
+     * honoured (KV self-expires, so there is no count cap and no clock to
+     * inject). Defaults when unset (#247).
+     */
+    constructor(kvPath?: string, options: DeadLetterRetentionOptions = {}) {
         this.kvPath = kvPath
+        this.#retentionMs = options.retentionMs ??
+            DEFAULT_DEAD_LETTER_RETENTION_MS
     }
 
     private getKv(): Promise<Deno.Kv> {
@@ -148,11 +167,13 @@ export class DenoKvQueueDriver implements QueueDriver {
 
     async deadLetter(job: SerializedJob, error: Error): Promise<void> {
         const kv = await this.getKv()
+        // `expireIn` self-expires the entry after the retention window, so a
+        // dead-lettered payload never lingers past it (#247, AC-2).
         await kv.set(['dlq', job.id], {
             job,
             error: error.name,
             failedAt: Date.now(),
-        })
+        }, { expireIn: this.#retentionMs })
     }
 
     async listFailed(queueName?: string): Promise<DeadLetterEntry[]> {

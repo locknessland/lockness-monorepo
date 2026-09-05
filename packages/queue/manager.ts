@@ -20,9 +20,14 @@ let queueDriver: QueueDriver | null = null
 export function getDriver(): QueueDriver {
     if (!queueDriver) {
         const config = getQueueConfig()
+        // Dead-letter retention (#247), threaded from config into every driver.
+        const retention = {
+            retentionMs: config.deadLetterRetentionMs,
+            maxEntries: config.deadLetterMaxEntries,
+        }
         switch (config.driver) {
             case 'deno-kv':
-                queueDriver = new DenoKvQueueDriver(config.kvPath)
+                queueDriver = new DenoKvQueueDriver(config.kvPath, retention)
                 break
             case 'redis': {
                 if (!config.redis) {
@@ -34,12 +39,13 @@ export function getDriver(): QueueDriver {
                 // so constructing the driver here opens no socket.
                 queueDriver = new RedisQueueDriver(
                     new RedisClient(config.redis),
+                    retention,
                 )
                 break
             }
             case 'memory':
             default:
-                queueDriver = new MemoryQueueDriver()
+                queueDriver = new MemoryQueueDriver(retention)
                 break
         }
     }

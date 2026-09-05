@@ -15,7 +15,13 @@
  * @module @lockness/queue/drivers/redis
  */
 
-import type { DeadLetterEntry, QueueDriver, SerializedJob } from '../types.ts'
+import type {
+    DeadLetterEntry,
+    DeadLetterRetentionOptions,
+    QueueDriver,
+    SerializedJob,
+} from '../types.ts'
+import { DEFAULT_DEAD_LETTER_RETENTION_MS } from '../config.ts'
 
 /** One parsed RESP reply — the structural slice this driver reads. */
 interface CommandReply {
@@ -68,9 +74,24 @@ const RETRY_SCRIPT = "local raw = redis.call('HGET', KEYS[1], ARGV[1]); " +
 /** A durable {@link QueueDriver} over Redis. */
 export class RedisQueueDriver implements QueueDriver {
     readonly #client: RedisCommandClient
+    readonly #retentionMs: number
+    readonly #now: () => number
 
-    constructor(client: RedisCommandClient) {
+    /**
+     * @param client - The Redis command surface (the `@lockness/redis`
+     * `RedisClient` satisfies it; a test passes a fake).
+     * @param options - Dead-letter retention controls; `retentionMs` sizes the
+     * purge window and `now` is an injectable clock. `maxEntries` is ignored —
+     * the Redis store is bounded by age alone. Defaults when unset (#247).
+     */
+    constructor(
+        client: RedisCommandClient,
+        options: DeadLetterRetentionOptions = {},
+    ) {
         this.#client = client
+        this.#retentionMs = options.retentionMs ??
+            DEFAULT_DEAD_LETTER_RETENTION_MS
+        this.#now = options.now ?? (() => Date.now())
     }
 
     async push(job: SerializedJob): Promise<void> {
@@ -108,15 +129,22 @@ export class RedisQueueDriver implements QueueDriver {
     }
 
     async deadLetter(job: SerializedJob, error: Error): Promise<void> {
+        const now = this.#now()
         await this.#client.command(
             'HSET',
             DLQ_KEY,
             job.id,
-            JSON.stringify({ job, error: error.name, failedAt: Date.now() }),
+            JSON.stringify({ job, error: error.name, failedAt: now }),
         )
+        // Per-field hash TTL is not portable across Redis versions, so instead
+        // of a native TTL the store carries each entry's `failedAt` and is
+        // purged opportunistically: dead-lettering is a rare error-path event,
+        // so an O(n) sweep here keeps the hash bounded even with no reads (#247).
+        await this.#purgeExpired(now)
     }
 
     async listFailed(queueName?: string): Promise<DeadLetterEntry[]> {
+        const cutoff = this.#now() - this.#retentionMs
         const reply = await this.#client.command('HVALS', DLQ_KEY)
         const values: readonly CommandReply[] = reply.type === 'array' &&
                 Array.isArray(reply.value)
@@ -130,6 +158,11 @@ export class RedisQueueDriver implements QueueDriver {
                 error: string
                 failedAt: number
             }
+            // Purge on read too, so an aged entry is never surfaced (#247).
+            if (failedAt < cutoff) {
+                await this.#client.command('HDEL', DLQ_KEY, job.id)
+                continue
+            }
             if (queueName !== undefined && job.queue !== queueName) continue
             out.push({
                 id: job.id,
@@ -141,6 +174,34 @@ export class RedisQueueDriver implements QueueDriver {
             })
         }
         return out
+    }
+
+    /**
+     * Delete every dead-letter entry older than the retention window.
+     *
+     * Reads the whole hash (`HVALS`) and `HDEL`s each entry whose `failedAt`
+     * predates `now - retentionMs`. Kept separate from the atomic retry script
+     * so purge never interferes with `retryFailed` (#247).
+     *
+     * @param now - Current epoch ms (the injected clock's value).
+     */
+    async #purgeExpired(now: number): Promise<void> {
+        const cutoff = now - this.#retentionMs
+        const reply = await this.#client.command('HVALS', DLQ_KEY)
+        const values: readonly CommandReply[] = reply.type === 'array' &&
+                Array.isArray(reply.value)
+            ? reply.value
+            : []
+        for (const v of values) {
+            if (v.type !== 'bulk' || typeof v.value !== 'string') continue
+            const { job, failedAt } = JSON.parse(v.value) as {
+                job: SerializedJob
+                failedAt: number
+            }
+            if (failedAt < cutoff) {
+                await this.#client.command('HDEL', DLQ_KEY, job.id)
+            }
+        }
     }
 
     async retryFailed(id: string): Promise<boolean> {

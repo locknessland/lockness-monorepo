@@ -65,6 +65,55 @@ export interface QueueConfig {
      * @default 'fixed'
      */
     backoff?: 'fixed' | 'exponential'
+    /**
+     * How long a dead-lettered job is retained before it is purged, in
+     * milliseconds (#247). A failed job's payload is sensitive data, so it must
+     * not sit in the dead-letter store forever: leaving it there is both a
+     * data-erasure gap and unbounded storage growth in a long-running
+     * deployment. Every driver enforces this window — the Deno KV driver writes
+     * dead-letter entries with an `expireIn` so they self-expire, and the memory
+     * and Redis drivers purge entries older than the window opportunistically on
+     * write and on `listFailed`.
+     * @default 1209600000 (14 days)
+     */
+    deadLetterRetentionMs?: number
+    /**
+     * Upper bound on the number of entries kept in the **in-memory** dead-letter
+     * store (#247). The in-memory driver has no external store to expire keys
+     * for it, so it is bounded by count as well as age: once the count is
+     * exceeded, the oldest entry is evicted. Ignored by the durable drivers,
+     * which are bounded by the retention window alone.
+     * @default 10000
+     */
+    deadLetterMaxEntries?: number
+}
+
+/**
+ * Per-driver dead-letter retention controls (#247).
+ *
+ * Passed to a driver's constructor by the queue manager (derived from
+ * {@link QueueConfig}) or directly when a driver is constructed by hand. Every
+ * field is optional; a driver falls back to the documented default when a field
+ * is unset, so `{}` is a valid, fully-defaulted argument.
+ */
+export interface DeadLetterRetentionOptions {
+    /**
+     * Retention window in milliseconds. Entries older than this are purged.
+     * @default 1209600000 (14 days)
+     */
+    readonly retentionMs?: number
+    /**
+     * Upper bound on entries in the in-memory store (oldest evicted first).
+     * Only the memory driver honours this; durable drivers ignore it.
+     * @default 10000
+     */
+    readonly maxEntries?: number
+    /**
+     * Clock source, injectable so a test can age an entry past the window
+     * deterministically. Production leaves it unset and `Date.now` is used.
+     * @default () => Date.now()
+     */
+    readonly now?: () => number
 }
 
 /**
