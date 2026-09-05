@@ -36,8 +36,13 @@ way everywhere.
   own (through the same `AuthenticatedConnection`).
   `psubscribe(pattern, handler)` calls `handler(topic, payload)` per pushed
   message using the bounded RESP reader; on a wire fault it reconnects and
-  re-issues **every** active pattern, logged at WARN, never silently. It
-  structurally satisfies `@lockness/realtime`'s `RedisSubscriber` port.
+  re-issues **every** active pattern, logged at WARN, never silently.
+  `onReconnect(handler)` registers a nullary callback fired once that re-issue
+  succeeds — the routine moment a pub/sub frame is lost, so a consumer can
+  reconcile whatever the lost frames would have carried. It never fires on the
+  first connect or on a failed re-dial, and a handler that throws is contained
+  and warned without disarming the seam. Both methods structurally satisfy
+  `@lockness/realtime`'s `RedisSubscriber` port.
 - **TLS** — set `tls: true` (or use a `rediss` endpoint) to wrap the socket with
   `Deno.connectTls`; certificate validation is **on** by default (no trust-all).
 - **Memo key** — `redisMemoKey` / `credentialFingerprint` / `hmacSha256Hex` /
@@ -55,6 +60,9 @@ const pong = await client.command('PING')
 
 // Subscribe-mode connection — its own socket, push frames delivered per pattern.
 const sub = new RedisSubscribeConnection({ hostname: '127.0.0.1', port: 6379 })
+sub.onReconnect(() => {
+    // the socket was deaf for a moment — reconcile what the lost frames carried
+})
 sub.psubscribe('lockness:realtime:*', (topic, payload) => {
     // deliver `payload` for `topic`
 })

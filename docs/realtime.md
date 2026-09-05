@@ -186,6 +186,11 @@ recovered only once. The reconnect trigger is additive: an integrator whose
 subscriber does not expose a reconnect hook falls back to the periodic pass
 alone, unchanged.
 
+The hook is `onReconnect(handler)` — an **optional** member of the
+`RedisSubscriber` port. `@lockness/redis`'s `RedisSubscribeConnection`
+implements it; a custom subscriber that wants the reconnect trigger implements
+it too, and one that omits it keeps working.
+
 > **Operational note.** The subscribe socket currently re-dials on an idle bus
 > even with no fault, because it reads with a 30s deadline and sends no
 > keepalive — see
