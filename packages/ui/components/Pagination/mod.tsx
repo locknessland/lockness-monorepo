@@ -163,7 +163,17 @@ function generatePageNumbers(
 }
 
 /**
- * Build URL with page parameter
+ * Build URL with page parameter.
+ *
+ * **Deliberate, reviewed duplication (issue #255).** This is byte-for-byte the
+ * same logic as `buildUrl` in `@lockness/contract`
+ * (`packages/contract/pagination/paginate.ts`) — the numeric `page` here is
+ * just `String(page)` fed to that helper's `value`. Sharing was rejected:
+ * `@lockness/ui` has no `contract` dependency edge by design (its policy allows
+ * only `hono` + `markdown`), and its components are copied verbatim into user
+ * projects, so importing a three-line helper from the foundation would force
+ * every consumer to install `@lockness/contract`. The two sites must keep
+ * producing identical URLs; change them together.
  */
 function buildPageUrl(
     baseUrl: string,

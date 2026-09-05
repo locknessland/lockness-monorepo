@@ -153,6 +153,17 @@ export function readPaginationParams(
  * Build a relative URL by setting one query param on a base path. Host is never
  * retained — a dummy origin lets a relative or query-bearing `baseUrl` parse,
  * and only `pathname + search` is returned (the `@lockness/ui` convention).
+ *
+ * **Deliberate, reviewed duplication (issue #255).** The `@lockness/ui`
+ * `Pagination` component's own `buildPageUrl`
+ * (`packages/ui/components/Pagination/mod.tsx`) is byte-for-byte the same three
+ * lines — its numeric `page` is just `String(page)` fed to `value`. Sharing was
+ * rejected: the only home for a shared helper is here (the foundation), and
+ * `@lockness/ui` has no `contract` edge by design (its policy allows only
+ * `hono` + `markdown`, and its components are copied verbatim into user
+ * projects). Adding `ui → contract` for a three-line URL helper would force
+ * every consumer who copies `<Pagination>` to pull in `@lockness/contract`. The
+ * two sites must keep producing identical URLs; change them together.
  */
 function buildUrl(baseUrl: string, param: string, value: string): string {
     const url = new URL(baseUrl, 'http://localhost')
