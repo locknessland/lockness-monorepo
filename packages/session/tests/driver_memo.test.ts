@@ -16,6 +16,7 @@ import {
     assertStrictEquals,
 } from '@std/assert'
 import { crypto } from '@std/crypto'
+import { credentialFingerprint } from '@lockness/redis'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
@@ -141,16 +142,18 @@ Deno.test('driver memo - driverKey keys memoized drivers and refuses only cookie
         'deno-kv:./s.db',
     )
 
-    // redis: keyed on host/port/db + a SHA-256 digest of the password; the
-    // cleartext password never appears in the key. Pin the EXACT digest, not
-    // merely a 64-hex shape — a length check passes for any hash, including a
-    // weaker or truncated one, so it would not catch the digest primitive being
-    // swapped out (review M3).
+    // redis: keyed on host/port/db + a per-process-keyed HMAC of the password
+    // (#248); the cleartext password never appears in the key. Pin the EXACT
+    // fingerprint via the shared `credentialFingerprint`, not merely a 64-hex
+    // shape — a length check passes for any hash, so it would not catch the
+    // primitive being swapped out (review M3). Also assert it is NOT the bare
+    // SHA-256: a keyed HMAC must not collapse to an offline-brute-forceable
+    // unsalted digest.
     const redisKey = driverKey(config({
         driver: 'redis',
         redis: { hostname: 'h', port: 6379, db: 0, password: 's3cret' },
     }))
-    const expectedDigest = Array.from(
+    const bareSha256 = Array.from(
         new Uint8Array(
             crypto.subtle.digestSync(
                 'SHA-256',
@@ -161,8 +164,13 @@ Deno.test('driver memo - driverKey keys memoized drivers and refuses only cookie
     ).join('')
     assertEquals(
         redisKey,
-        `redis:h:6379:0:${expectedDigest}`,
-        'redis key is host:port:db then the exact SHA-256 of the password',
+        `redis:h:6379:0:${credentialFingerprint('s3cret')}`,
+        'redis key is host:port:db then the keyed HMAC of the password',
+    )
+    assertEquals(
+        redisKey.includes(bareSha256),
+        false,
+        'the key is not a bare SHA-256 of the password (not brute-forceable)',
     )
     assertEquals(
         redisKey.includes('s3cret'),

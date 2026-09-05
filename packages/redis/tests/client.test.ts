@@ -15,6 +15,32 @@ import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import { RedisClient } from '../mod.ts'
 import { startFakeServer } from './fake_server.ts'
 
+/**
+ * Run `body` with `console.warn` captured, and return the messages it emitted.
+ * Restores the real `console.warn` even if `body` throws.
+ */
+async function captureWarnings(
+    body: () => void | Promise<void>,
+): Promise<string[]> {
+    const messages: string[] = []
+    const real = console.warn
+    console.warn = (...args: unknown[]) => {
+        messages.push(args.map((a) => String(a)).join(' '))
+    }
+    try {
+        await body()
+    } finally {
+        console.warn = real
+    }
+    return messages
+}
+
+/** Count the cleartext-AUTH warnings among captured messages. */
+function cleartextWarnings(messages: string[]): number {
+    return messages.filter((m) => m.includes('AUTH will be sent in cleartext'))
+        .length
+}
+
 /** connect() is reachable at runtime for a unit test. */
 type Connectable = { connect(): Promise<Deno.Conn> }
 
@@ -213,6 +239,71 @@ Deno.test('client - close() is idempotent and does not reopen a socket', async (
         },
     )
     server.stop()
+})
+
+Deno.test('client - password with tls:false warns ONCE about cleartext AUTH', async () => {
+    const messages = await captureWarnings(() => {
+        new RedisClient({
+            hostname: 'redis.internal',
+            password: 's3cret',
+            tls: false,
+        })
+    })
+    assertEquals(
+        cleartextWarnings(messages),
+        1,
+        'exactly one cleartext-AUTH warning for password + tls:false',
+    )
+})
+
+Deno.test('client - password with tls:true does NOT warn about cleartext AUTH', async () => {
+    const messages = await captureWarnings(() => {
+        new RedisClient({
+            hostname: 'redis.internal',
+            password: 's3cret',
+            tls: true,
+        })
+    })
+    assertEquals(
+        cleartextWarnings(messages),
+        0,
+        'TLS encrypts the credential — no cleartext warning',
+    )
+})
+
+Deno.test('client - no password does NOT warn about cleartext AUTH', async () => {
+    const messages = await captureWarnings(() => {
+        new RedisClient({ hostname: 'redis.internal', tls: false })
+    })
+    assertEquals(
+        cleartextWarnings(messages),
+        0,
+        'no credential is sent, so there is nothing to warn about',
+    )
+})
+
+Deno.test('client - the cleartext-AUTH warning does not repeat per connection', async () => {
+    const server = await startFakeServer()
+    const messages = await captureWarnings(async () => {
+        const client = new RedisClient({
+            hostname: '127.0.0.1',
+            port: server.port,
+            password: 's3cret',
+            tls: false,
+        })
+        // Multiple commands drive one connect (and any self-heal reconnects)
+        // through the same client; the warning must stay a one-time startup
+        // notice, not per-connection spam.
+        await client.command('PING')
+        await client.command('PING')
+        await client.close()
+    })
+    server.stop()
+    assertEquals(
+        cleartextWarnings(messages),
+        1,
+        'still exactly one warning after several commands (not per-connection)',
+    )
 })
 
 Deno.test('client - the socket registers a shutdown disposable, drained at teardown', async () => {
