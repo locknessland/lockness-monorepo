@@ -11,9 +11,10 @@
  * `memory`, `deno-kv` **and `redis`** are memoized. `redis` joined the memo once
  * its socket became safe to share: its reply reader drains a full frame (#139)
  * and its commands are serialized per connection (#145). It is keyed on
- * host/port/db **and a SHA-256 digest of the password** ({@link driverKey}), so
- * two configs with different credentials never share one authenticated socket,
- * and the key stays safe to log.
+ * host/port/db **and a per-process-keyed HMAC of the password**
+ * ({@link driverKey}), so two configs with different credentials never share one
+ * authenticated socket, and the key stays safe to log — the credential is folded
+ * through a keyed HMAC, not an offline-brute-forceable bare SHA-256 (#248).
  *
  * **`cookie` is the one driver NOT memoized**, a first-class branch here: it
  * closes over the request `Context` and holds no OS resource, so it is built
@@ -28,7 +29,7 @@
  */
 
 import type { Context } from 'hono'
-import { sha256Hex } from '@lockness/redis'
+import { credentialFingerprint } from '@lockness/redis'
 import {
     deregisterDisposable,
     type DisposableHandle,
@@ -134,12 +135,13 @@ export function getOrCreateDriver(
 /**
  * The canonical memo key for a resolved config: what makes two configs the same
  * resource. Over the resource-determining fields only — the driver name, the KV
- * path, and (for redis) host/port/db plus a **SHA-256 digest of the password**.
- * **Never the cleartext password**: the key must stay safe to log, so the
- * credential is folded through the shared `sha256Hex` from `@lockness/redis`
- * (the sole home of that digest; the client authenticates with the raw password
- * and needs none). Two redis configs differing only in password therefore
- * resolve to different keys and never share one authenticated socket.
+ * path, and (for redis) host/port/db plus a **per-process-keyed HMAC of the
+ * password**. **Never the cleartext password**: the key must stay safe to log,
+ * so the credential is folded through the shared `credentialFingerprint` from
+ * `@lockness/redis` (a keyed HMAC, not an offline-brute-forceable bare SHA-256;
+ * the client authenticates with the raw password and needs none). Two redis
+ * configs differing only in password therefore resolve to different keys and
+ * never share one authenticated socket.
  *
  * @param config - A resolved config whose driver is memoized.
  * @returns A stable key string.
@@ -151,7 +153,7 @@ export function getOrCreateDriver(
  * ```typescript
  * driverKey({ driver: 'deno-kv', kvPath: './s.db', ... }) // "deno-kv:./s.db"
  * driverKey({ driver: 'redis', redis: { hostname: 'h', port: 6379, db: 0 } })
- * // "redis:h:6379:0:<sha256(password)>"
+ * // "redis:h:6379:0:<hmac(password)>"
  * ```
  */
 export function driverKey(config: SessionConfig): string {
@@ -168,12 +170,13 @@ export function driverKey(config: SessionConfig): string {
                         'nothing to key.',
                 )
             }
-            // host:port:db identify the resource; the password digest keeps two
-            // different-credential configs on the same host from collapsing onto
-            // one authenticated socket, without the cleartext ever entering the
+            // host:port:db identify the resource; the keyed-HMAC fingerprint of
+            // the password keeps two different-credential configs on the same
+            // host from collapsing onto one authenticated socket, without the
+            // cleartext — or a brute-forceable bare hash — ever entering the
             // (loggable) key.
             return `redis:${r.hostname}:${r.port ?? 6379}:${r.db ?? 0}:${
-                sha256Hex(r.password ?? '')
+                credentialFingerprint(r.password ?? '')
             }`
         }
         default:

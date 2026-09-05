@@ -25,12 +25,13 @@
  * - **TLS.** {@link RedisClientConfig.tls} wraps the socket with
  *   `Deno.connectTls`, certificate validation ON — there is no trust-all option
  *   (FR-016). With TLS off, sending `AUTH` over plaintext is the operator's
- *   explicit choice.
+ *   explicit choice, and the constructor raises a one-time startup warning so
+ *   the cleartext-credential exposure is not silent (#248).
  *
  * The password is a credential: it authenticates the socket and is otherwise
  * redacted from every log line via `safeForLog`, and folded through
- * {@link sha256Hex} (see `memo.ts`) before it can enter any connection-memo key
- * (FR-015).
+ * `credentialFingerprint` (a per-process-keyed HMAC, see `memo.ts`) before it
+ * can enter any connection-memo key (FR-015, #248).
  *
  * @module @lockness/redis/client
  */
@@ -78,7 +79,8 @@ export interface RedisClientConfig {
     /**
      * Password for `AUTH`. Never logged in cleartext (redacted via `safeForLog`)
      * and never placed in a memo key in cleartext (folded through
-     * {@link sha256Hex}).
+     * `credentialFingerprint`, a per-process-keyed HMAC). Setting this with
+     * `tls: false` raises a one-time cleartext-AUTH warning at construction.
      */
     password?: string
     /**
@@ -89,7 +91,8 @@ export interface RedisClientConfig {
     /**
      * Wrap the socket with TLS (`Deno.connectTls`), certificate validation ON.
      * With TLS off, `AUTH` travels over plaintext — the operator's explicit
-     * choice.
+     * choice, flagged by a one-time cleartext-AUTH warning when a password is
+     * also set.
      * @default false
      */
     tls?: boolean
@@ -170,6 +173,18 @@ export class RedisClient {
             disposableName: config.disposableName ?? 'redis',
             disposablePriority: config.disposablePriority ??
                 DEFAULT_DISPOSABLE_PRIORITY,
+        }
+        // A password with TLS off means `AUTH` travels in cleartext. Warn ONCE
+        // here — the constructor runs once per client, so a reconnecting or
+        // self-healing client never re-warns; this is a startup notice, not
+        // per-connection spam (#248). The password itself is never logged.
+        if (this.config.password && !this.config.tls) {
+            console.warn(
+                `[redis] AUTH will be sent in cleartext to ${
+                    safeForLog(this.config.hostname)
+                }: a password is configured with tls:false. ` +
+                    'Enable tls to encrypt the credential in transit.',
+            )
         }
     }
 
