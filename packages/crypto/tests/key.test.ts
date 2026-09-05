@@ -1,7 +1,9 @@
 /**
  * @fileoverview Tests for `resolveAppKey` fail-closed behaviour (security S3/S6/
  * SC-006): a valid override resolves; a placeholder/degenerate override is
- * rejected (the reject path holds regardless of environment).
+ * rejected (the reject path holds regardless of environment); and an
+ * **explicit** development environment yields a stable per-process ephemeral
+ * key when `APP_KEY` is unset (the only case that earns the fallback).
  *
  * @module @lockness/crypto/tests/key
  */
@@ -31,6 +33,32 @@ Deno.test('SC-006: a known-placeholder key is rejected (non-dev env fails closed
         if (priorApp === undefined) Deno.env.delete('APP_ENV')
         else Deno.env.set('APP_ENV', priorApp)
         if (priorDeno !== undefined) Deno.env.set('DENO_ENV', priorDeno)
+    }
+})
+
+Deno.test('an explicit development env yields a stable 32-byte ephemeral key when APP_KEY is unset', () => {
+    // Exercise the ephemeral dev-key branch: no APP_KEY set, environment
+    // EXPLICITLY development. Save/restore all three env vars so no leaked
+    // state reaches sibling tests.
+    const priorKey = Deno.env.get('APP_KEY')
+    const priorApp = Deno.env.get('APP_ENV')
+    const priorDeno = Deno.env.get('DENO_ENV')
+    Deno.env.delete('APP_KEY')
+    Deno.env.delete('DENO_ENV')
+    Deno.env.set('APP_ENV', 'development')
+    try {
+        const key = resolveAppKey()
+        assertEquals(key.byteLength, 32) // 32 usable key bytes
+        // The ephemeral key is per-process and stable — a key that changed per
+        // call would make already-encrypted data undecryptable within the run.
+        assertEquals([...resolveAppKey()], [...key])
+    } finally {
+        if (priorKey === undefined) Deno.env.delete('APP_KEY')
+        else Deno.env.set('APP_KEY', priorKey)
+        if (priorApp === undefined) Deno.env.delete('APP_ENV')
+        else Deno.env.set('APP_ENV', priorApp)
+        if (priorDeno === undefined) Deno.env.delete('DENO_ENV')
+        else Deno.env.set('DENO_ENV', priorDeno)
     }
 })
 
