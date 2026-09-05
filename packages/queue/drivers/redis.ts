@@ -59,16 +59,34 @@ const POP_SCRIPT =
  * with a fresh attempt count, and drop the dead-letter copy — all in one server
  * round-trip so a crash can never leave the job both queued and dead-lettered.
  *
+ * The job's `payload` is **never** `cjson`-decoded here. Redis's bundled
+ * lua-cjson collapses both JSON `[]` and `{}` into one empty Lua table and
+ * re-encodes it as `{}`, so round-tripping the whole job would silently rewrite
+ * an empty-array payload field into an empty object (#269). Instead
+ * {@link RedisQueueDriver.deadLetter} stores the payload as an opaque
+ * pre-serialised JSON string (`entry.payload`) beside a payload-free `entry.job`
+ * of scalars only; the script mutates just those scalars, re-encodes the small
+ * scalar object, then splices the untouched payload string back in by string
+ * surgery. Legacy entries written before #269 carry the payload nested in
+ * `entry.job` with no sibling `entry.payload`; those still take the old lossy
+ * path so they remain retryable.
+ *
  * `KEYS[1]` is the dead-letter hash; `ARGV[1]` the job id, `ARGV[2]` the new
  * `availableAt` score, `ARGV[3]` the queue key prefix. Returns `1` on a revive
  * and `0` when the id is absent (so nothing is enqueued).
  */
 const RETRY_SCRIPT = "local raw = redis.call('HGET', KEYS[1], ARGV[1]); " +
     'if not raw then return 0 end; ' +
-    'local job = cjson.decode(raw).job; ' +
+    'local entry = cjson.decode(raw); ' +
+    'local job = entry.job; ' +
     'job.attempts = 0; ' +
     'job.availableAt = tonumber(ARGV[2]); ' +
-    "redis.call('ZADD', ARGV[3] .. job.queue, ARGV[2], cjson.encode(job)); " +
+    'local member; ' +
+    'if entry.payload ~= nil then ' +
+    'local head = cjson.encode(job); ' +
+    "member = string.sub(head, 1, -2) .. ',\"payload\":' .. entry.payload .. '}'; " +
+    'else member = cjson.encode(job); end; ' +
+    "redis.call('ZADD', ARGV[3] .. job.queue, ARGV[2], member); " +
     "redis.call('HDEL', KEYS[1], ARGV[1]); return 1"
 
 /** A durable {@link QueueDriver} over Redis. */
@@ -130,11 +148,23 @@ export class RedisQueueDriver implements QueueDriver {
 
     async deadLetter(job: SerializedJob, error: Error): Promise<void> {
         const now = this.#now()
+        // Split the payload out as an opaque pre-serialised JSON string so the
+        // atomic retry script (RETRY_SCRIPT) never has to cjson-decode it —
+        // lua-cjson would rewrite an empty-array payload field into an empty
+        // object on the round-trip (#269). What is left under `job` is scalars
+        // only, safe to re-encode. `listFailed` and the purge read only those
+        // scalars, so they are unaffected by the split.
+        const { payload, ...scalars } = job
         await this.#client.command(
             'HSET',
             DLQ_KEY,
             job.id,
-            JSON.stringify({ job, error: error.name, failedAt: now }),
+            JSON.stringify({
+                job: scalars,
+                payload: JSON.stringify(payload),
+                error: error.name,
+                failedAt: now,
+            }),
         )
         // Per-field hash TTL is not portable across Redis versions, so instead
         // of a native TTL the store carries each entry's `failedAt` and is
@@ -153,8 +183,11 @@ export class RedisQueueDriver implements QueueDriver {
         const out: DeadLetterEntry[] = []
         for (const v of values) {
             if (v.type !== 'bulk' || typeof v.value !== 'string') continue
+            // Only scalar job fields are read here; the payload (opaque string
+            // in the #269 shape, nested object in a legacy entry) is never
+            // touched, so `Omit<…, 'payload'>` describes both shapes.
             const { job, error, failedAt } = JSON.parse(v.value) as {
-                job: SerializedJob
+                job: Omit<SerializedJob, 'payload'>
                 error: string
                 failedAt: number
             }
@@ -195,7 +228,7 @@ export class RedisQueueDriver implements QueueDriver {
         for (const v of values) {
             if (v.type !== 'bulk' || typeof v.value !== 'string') continue
             const { job, failedAt } = JSON.parse(v.value) as {
-                job: SerializedJob
+                job: Pick<SerializedJob, 'id'>
                 failedAt: number
             }
             if (failedAt < cutoff) {
