@@ -7,7 +7,7 @@
  */
 
 import type { MakeCommand } from './types.ts'
-import { Stub } from '../../mod.ts'
+import { Stub } from '../../stubs.ts'
 import { STUBS_PATH } from './stub_paths.ts'
 
 /**
