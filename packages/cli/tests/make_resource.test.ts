@@ -5,6 +5,7 @@
 import { assert, assertStringIncludes } from '@std/assert'
 import { Stub } from '../stubs.ts'
 import { MAKE_COMMANDS } from '../commands/make/index.ts'
+import { makeResource } from '../commands/make/resource.ts'
 
 Deno.test('make:resource', async (t) => {
     await t.step('generates a Resource subclass from the stub', async () => {
@@ -39,4 +40,31 @@ Deno.test('make:resource', async (t) => {
         const names = MAKE_COMMANDS.map((c) => c.name)
         assert(names.includes('make:resource'))
     })
+
+    await t.step(
+        'the handler writes the resource file to ./app/resource',
+        async () => {
+            // The handler writes to `./app/resource` relative to cwd. Run it in
+            // an isolated temp dir so the real working tree is never touched,
+            // and restore/remove in a finally so a failed assertion still
+            // cleans up.
+            const dir = await Deno.makeTempDir()
+            const prevCwd = Deno.cwd()
+            Deno.chdir(dir)
+            try {
+                await makeResource.handler(['User'])
+
+                const written = await Deno.readTextFile(
+                    `${dir}/app/resource/user_resource.ts`,
+                )
+                assertStringIncludes(
+                    written,
+                    'export class UserResource extends Resource',
+                )
+            } finally {
+                Deno.chdir(prevCwd)
+                await Deno.remove(dir, { recursive: true })
+            }
+        },
+    )
 })
