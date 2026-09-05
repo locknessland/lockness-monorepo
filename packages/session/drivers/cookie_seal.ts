@@ -1,28 +1,45 @@
 /**
  * @fileoverview Cookie session — the sealed wire format (the crypto value layer).
  *
- * **The format**: `v1.` + base64(`salt ‖ iv ‖ ciphertext`), where the salt is 16
- * random bytes, the IV is 12, and the ciphertext carries an AES-256-GCM tag over
- * a plaintext of `{ d, iat, exp }`.
+ * **Sealing is `@lockness/crypto`'s {@link Crypt}** (#265). Both this driver and
+ * `Crypt` are AES-256-GCM with a fresh per-message HKDF salt, a random 96-bit
+ * IV, and the version prefix bound as GCM `additionalData` — `Crypt` is "the
+ * proven session cookie construction, generalised". So the session no longer
+ * carries its own AES-256-GCM *sealing*: {@link seal} delegates to
+ * {@link Crypt.encrypt}, and new cookies are written in `Crypt`'s wire format
+ * (prefix `c1.`).
  *
- * This module is **pure and offline**: it derives keys, seals and opens, and it
- * does no I/O, holds no request context, and keeps no mutable state. The
- * per-request driver (`cookie.ts`) composes these functions; the revocation
- * decision and the rejection reporting both live there, not here — an offline
- * crypto function must not grow a network call or a side effect.
+ * **The two formats are deliberately not byte-compatible.** `Crypt` derives with
+ * a distinct HKDF `info` (`lockness/crypt/v1`), domain-separated from the legacy
+ * cookie's (`lockness/session/cookie/v1`) by a binding crypto invariant, so a
+ * legacy `v1.` cookie cannot be opened by `Crypt` and vice-versa. To avoid
+ * logging every existing session out, {@link openSealed} keeps an **authenticated
+ * `v1.` read-compat path** alongside the `c1.` `Crypt` path — see the note below.
+ *
+ * Legacy wire: `v1.` + base64(`salt(16) ‖ iv(12) ‖ ciphertext‖tag`) over a
+ * plaintext of `{ d, iat, exp, jti, sub? }`. `Crypt`'s wire is the same layout
+ * under the `c1.` prefix.
+ *
+ * This module is **pure and offline**: it seals and opens, and it does no I/O,
+ * holds no request context, and keeps no mutable state. The per-request driver
+ * (`cookie.ts`) composes these functions; the revocation decision and the
+ * rejection reporting both live there, not here — an offline crypto function
+ * must not grow a network call or a side effect.
  *
  * Which part does what, because it is easy to credit the wrong one:
  *
- * - **The `v1.` prefix is format discrimination, not a security control.** It is
- *   public, an attacker prepends it for free, and a conforming forgery then dies
- *   on the GCM tag. Its value is that a wrong format is rejected *before* `atob`
- *   is called, which is also where the length ceiling lives. It is passed as GCM
- *   `additionalData` as well, so the day a `v2.` exists a downgrade is not free.
- * - **The control is that there is no unencrypted path.** This driver previously
- *   fell back to `btoa` when the secret was empty — which was the package
- *   default — so the cookie was attacker-writable by design. That branch is
- *   gone, and nothing may reintroduce it: a "read the old format too"
- *   compatibility path is a window in which forged cookies still work.
+ * - **The version prefix is format discrimination, not a security control.** It
+ *   is public, an attacker prepends it for free, and a conforming forgery then
+ *   dies on the GCM tag. Its value is that a wrong format is rejected *before*
+ *   base64-decoding, which is also where the length ceiling lives. It is passed
+ *   as GCM `additionalData` as well, so a cross-version downgrade is not free.
+ * - **The control is that there is no *unencrypted* path.** This driver once
+ *   fell back to `btoa` when the secret was empty — the cookie was
+ *   attacker-writable by design. That branch is gone, and nothing may
+ *   reintroduce it. The `v1.` read-compat path is **not** that window: it is
+ *   AES-256-GCM authenticated, so forging a legacy cookie still needs the key.
+ *   What is forbidden is an *unauthenticated* read, not a second authenticated
+ *   format kept only to open the cookies we already issued.
  * - **`exp` lives inside the ciphertext.** `maxAge` on the cookie is a browser
  *   hint an attacker ignores, and this driver keeps no server-side record, so
  *   without an authenticated expiry a captured cookie authenticates for ever —
@@ -36,11 +53,28 @@
  * @module @lockness/session/drivers/cookie_seal
  */
 
+import { Crypt } from '@lockness/crypto'
 import type { SessionData } from '../types.ts'
-import { assertUsableSecret, decodeBase64, encodeBase64 } from '../secret.ts'
+import { assertUsableSecret, decodeBase64 } from '../secret.ts'
 
-/** The wire-format marker. Public by design; see the module note. */
+/**
+ * The legacy wire-format marker, still accepted on read for backward
+ * compatibility. New cookies are sealed in `Crypt`'s format ({@link CRYPT_VERSION}).
+ * Public by design; see the module note.
+ */
 export const WIRE_VERSION = 'v1.'
+
+/**
+ * `@lockness/crypto`'s `Crypt` wire prefix — the format {@link seal} now writes.
+ *
+ * Not exported by `@lockness/crypto`; mirrored here only to *classify* a cookie's
+ * format before delegating, so a truncated or malformed `c1.` cookie still earns
+ * a granular {@link Rejection} rather than collapsing to `tag-mismatch`.
+ * {@link Crypt.decrypt} validates its own prefix independently; this constant is
+ * a read-side classifier, never the authority. Both markers are 3 chars, so the
+ * body always starts at index 3.
+ */
+const CRYPT_VERSION = 'c1.'
 
 /**
  * The first-issuance identity of a session, preserved across re-seals.
@@ -73,9 +107,9 @@ export function mintJti(): string {
     return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-/** 16 bytes of HKDF salt, fresh per cookie. */
+/** 16 bytes of HKDF salt — the legacy cookie's per-message salt. */
 const SALT_BYTES = 16
-/** 12 bytes of AES-GCM IV, fresh per cookie. */
+/** 12 bytes of AES-GCM IV — the legacy cookie's per-message IV. */
 const IV_BYTES = 12
 /** The AES-GCM authentication tag, at the end of the ciphertext. */
 const TAG_BYTES = 16
@@ -83,15 +117,19 @@ const TAG_BYTES = 16
  * The largest cookie value this driver will look at.
  *
  * Browsers cap a cookie at roughly 4 KB, so anything larger was never issued by
- * us. Bounding it before `atob` keeps an oversized header from being decoded and
- * mapped on every request.
+ * us. Bounding it before base64-decoding keeps an oversized header from being
+ * decoded and mapped on every request.
  */
 const MAX_COOKIE_CHARS = 4096
 
-const encoder = new TextEncoder()
 const decoder = new TextDecoder()
-const AAD = encoder.encode(WIRE_VERSION)
-const INFO = encoder.encode('lockness/session/cookie/v1')
+/**
+ * The legacy `v1.` GCM `additionalData` and HKDF `info`. Used **only** by the
+ * `v1.` read-compat path in {@link openSealed}; new cookies are sealed through
+ * {@link Crypt}, which owns its own (`c1.`) domain-separated pair.
+ */
+const LEGACY_AAD = new TextEncoder().encode(WIRE_VERSION)
+const LEGACY_INFO = new TextEncoder().encode('lockness/session/cookie/v1')
 
 /**
  * Why a cookie was refused.
@@ -120,18 +158,19 @@ export type Rejection =
     | 'revoked'
 
 /**
- * Derive this cookie's AES key.
+ * Derive a legacy `v1.` cookie's AES key, for the read-compat path only.
  *
  * HKDF, not PBKDF2: the secret is required to be 32 bytes of real key material
  * (see `secret.ts`), so there is nothing to stretch, and PBKDF2 at 100 000
  * iterations cost 13.45 ms per call on this runtime — twice per request, an
- * unauthenticated client's denial-of-service amplifier.
+ * unauthenticated client's denial-of-service amplifier. New cookies no longer
+ * derive here at all — {@link Crypt} does, under its own `info`.
  *
  * @param keyBytes - The 32 validated key bytes.
- * @param salt - This cookie's salt.
- * @returns An AES-256-GCM key for exactly one message.
+ * @param salt - The legacy cookie's salt.
+ * @returns An AES-256-GCM key for decrypting exactly one legacy message.
  */
-async function deriveKey(
+async function deriveLegacyKey(
     keyBytes: Uint8Array,
     salt: Uint8Array,
 ): Promise<CryptoKey> {
@@ -148,12 +187,12 @@ async function deriveKey(
             name: 'HKDF',
             hash: 'SHA-256',
             salt: salt as BufferSource,
-            info: INFO,
+            info: LEGACY_INFO,
         },
         material,
         { name: 'AES-GCM', length: 256 },
         false,
-        ['encrypt', 'decrypt'],
+        ['decrypt'],
     )
 }
 
@@ -202,32 +241,23 @@ export async function seal(
     return await sealPayload(secret, payload)
 }
 
-/** Encrypt an arbitrary payload object into a cookie value (the seal internals). */
+/**
+ * Encrypt an arbitrary payload object into a cookie value via {@link Crypt}.
+ *
+ * `assertUsableSecret` runs first and is **not** redundant with `Crypt`'s own
+ * key resolution: the session mandates a *configured* secret and must throw
+ * {@link SessionSecretError} when it is absent or unusable. Handing an absent
+ * secret to `Crypt` instead would let it fall back to `APP_KEY` (or, in explicit
+ * development, an ephemeral key) — silently sealing under a key the session
+ * never configured. The validated secret is then passed to `Crypt` as its
+ * explicit key, so both derive from the same 32 bytes.
+ */
 async function sealPayload(
     secret: string | undefined,
     payload: unknown,
 ): Promise<string> {
-    const keyBytes = assertUsableSecret(secret, 'config')
-    const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES))
-    const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES))
-
-    const plaintext = encoder.encode(JSON.stringify(payload))
-    const ciphertext = new Uint8Array(
-        await crypto.subtle.encrypt(
-            { name: 'AES-GCM', iv: iv as BufferSource, additionalData: AAD },
-            await deriveKey(keyBytes, salt),
-            plaintext as BufferSource,
-        ),
-    )
-
-    const combined = new Uint8Array(
-        SALT_BYTES + IV_BYTES + ciphertext.byteLength,
-    )
-    combined.set(salt)
-    combined.set(iv, SALT_BYTES)
-    combined.set(ciphertext, SALT_BYTES + IV_BYTES)
-
-    return WIRE_VERSION + encodeBase64(combined)
+    assertUsableSecret(secret, 'config')
+    return await Crypt.encrypt(JSON.stringify(payload), secret)
 }
 
 /**
@@ -235,9 +265,9 @@ async function sealPayload(
  * construction.
  *
  * **Test-only, and deliberately absent from `mod.ts`.** It exists so a test can
- * craft a GCM-valid cookie with a missing or non-numeric `iat` — a shape a real
- * `seal()` never produces — to prove `open()`'s absolute-cap `iat`-present gate
- * fails closed. Without it that fail-closed branch could be deleted with the
+ * craft a GCM-valid `c1.` cookie with a missing or non-numeric `iat` — a shape a
+ * real `seal()` never produces — to prove `open()`'s absolute-cap `iat`-present
+ * gate fails closed. Without it that fail-closed branch could be deleted with the
  * suite still green.
  *
  * @param secret - The application key.
@@ -332,11 +362,21 @@ export async function openSealed(
     const keyBytes = assertUsableSecret(secret, 'config')
 
     if (value.length > MAX_COOKIE_CHARS) return 'too-long'
-    if (!value.startsWith(WIRE_VERSION)) return 'bad-prefix'
+    // Classify by prefix before touching the body. A cookie is ours only if it
+    // carries the current `Crypt` marker or the legacy one; everything else is a
+    // wrong format, rejected without a crypto call. Keeping the `c1.` classifier
+    // here (rather than deferring wholesale to `Crypt.decrypt`) is what lets a
+    // malformed `c1.` cookie earn a granular `too-short`/`bad-base64` instead of
+    // collapsing to `tag-mismatch`.
+    const isCrypt = value.startsWith(CRYPT_VERSION)
+    const isLegacy = value.startsWith(WIRE_VERSION)
+    if (!isCrypt && !isLegacy) return 'bad-prefix'
 
+    // Structural checks are format-agnostic: both wires are the same
+    // `salt(16) ‖ iv(12) ‖ ciphertext‖tag` layout under a 3-char prefix.
     let combined: Uint8Array
     try {
-        combined = decodeBase64(value.slice(WIRE_VERSION.length))
+        combined = decodeBase64(value.slice(3))
     } catch {
         return 'bad-base64'
     }
@@ -345,19 +385,33 @@ export async function openSealed(
         return 'too-short'
     }
 
-    const salt = combined.subarray(0, SALT_BYTES)
-    const iv = combined.subarray(SALT_BYTES, SALT_BYTES + IV_BYTES)
-    const ciphertext = combined.subarray(SALT_BYTES + IV_BYTES)
-
-    let plaintext: ArrayBuffer
-    try {
-        plaintext = await crypto.subtle.decrypt(
-            { name: 'AES-GCM', iv: iv as BufferSource, additionalData: AAD },
-            await deriveKey(keyBytes, salt),
-            ciphertext as BufferSource,
-        )
-    } catch {
-        return 'tag-mismatch'
+    // Authenticate. New (`c1.`) cookies go through `Crypt` — the single-home
+    // primitive, which returns `null` on any tamper/wrong-key. Legacy (`v1.`)
+    // cookies are opened locally under the session's own domain-separated key,
+    // so no existing session is stranded (#265 backward compatibility).
+    let plaintextText: string
+    if (isCrypt) {
+        const opened = await Crypt.decrypt(value, secret)
+        if (opened === null) return 'tag-mismatch'
+        plaintextText = opened
+    } else {
+        const salt = combined.subarray(0, SALT_BYTES)
+        const iv = combined.subarray(SALT_BYTES, SALT_BYTES + IV_BYTES)
+        const ciphertext = combined.subarray(SALT_BYTES + IV_BYTES)
+        try {
+            const plaintext = await crypto.subtle.decrypt(
+                {
+                    name: 'AES-GCM',
+                    iv: iv as BufferSource,
+                    additionalData: LEGACY_AAD,
+                },
+                await deriveLegacyKey(keyBytes, salt),
+                ciphertext as BufferSource,
+            )
+            plaintextText = decoder.decode(plaintext)
+        } catch {
+            return 'tag-mismatch'
+        }
     }
 
     let payload: {
@@ -368,7 +422,7 @@ export async function openSealed(
         sub?: string
     }
     try {
-        payload = JSON.parse(decoder.decode(plaintext))
+        payload = JSON.parse(plaintextText)
     } catch {
         return 'tag-mismatch'
     }
