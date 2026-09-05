@@ -116,3 +116,19 @@ export class UserSeeder {
 **Factories and seeding are dev/test tooling.** Running `db:seed` against a
 production `DATABASE_URL` inserts generated rows into production — point them at
 a development database.
+
+### Production write-guard
+
+To make an accidental production run fail loudly instead of silently mutating
+data, both write paths are guarded when `DENO_ENV`/`APP_ENV` is `production`:
+
+- **`db:seed`** refuses to run and exits with an error. Override it explicitly
+  with the `--allow-production` flag:
+  `deno task cli db:seed --allow-production`.
+- **Factory `create()` / `createMany()`** throw. Override programmatically with
+  the `{ allowProduction: true }` option:
+  `await new UserFactory().createMany(50, {}, { allowProduction: true })`.
+
+Read-only `make()` / `makeMany()` build in-memory objects and are never gated.
+The guard is centralised in `assertNotProduction()` (exported from
+`@lockness/drizzle`), so future write-oriented dev tooling can reuse it.
