@@ -196,15 +196,18 @@ Deno.test('FR-003: a re-check that throws at reconnect does not disarm the perio
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
     // The fault is injected at the COMMAND BOUNDARY, not by monkey-patching the
-    // driver under test: the first read of the revoked index rejects, exactly as
-    // a Redis blip would, and everything downstream is the real code path.
-    let failNextSmembers = true
+    // driver under test: the first read of the revocation index rejects, exactly
+    // as a Redis blip would, and everything downstream is the real code path.
+    //
+    // Matched on the COMMAND, not on a key literal. #276 renamed the index, and
+    // a predicate pinned to the old key name would have silently stopped
+    // matching — the test would still pass while injecting nothing.
+    // Armed AFTER setup, so it catches the reconcile's read rather than the
+    // markRevoked that seeds it — both are EVAL now.
+    let failNextRead = false
     const flaky = (...args: string[]): Promise<unknown> => {
-        if (
-            failNextSmembers && args[0] === 'SMEMBERS' &&
-            args[1] === 'app:rt:revoked'
-        ) {
-            failNextSmembers = false
+        if (failNextRead && args[0] === 'EVAL') {
+            failNextRead = false
             return Promise.reject(new Error('reconcile exploded'))
         }
         return redis.command(...args)
@@ -229,6 +232,7 @@ Deno.test('FR-003: a re-check that throws at reconnect does not disarm the perio
         const w = fakeConn('w', { id: 4, name: 'Wren' })
         b.manager.register(w)
         await b.driver.markRevoked('w')
+        failNextRead = true
 
         await b.subscriber.fireReconnect()
         await flushMicrotasks()

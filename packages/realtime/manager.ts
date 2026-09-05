@@ -346,13 +346,40 @@ export class ChannelManager<Identity = unknown> {
     async evict(clientId: string): Promise<void> {
         // Durable first (S1/FR-014): even if the control frame is lost, the
         // owning instance recovers the evict on its next reconcile.
-        await this.driver.markRevoked?.(clientId)
+        //
+        // A failure here must NOT cancel the eviction. The local hard-close
+        // needs no Redis at all, so letting a durability write reject out of
+        // this method would skip the one revocation that was still possible —
+        // failing open on the framework's only revocation path. The error is
+        // re-thrown after the revocation has been applied, so the caller still
+        // learns that durability was lost and this evict will not survive a
+        // reconcile (#276 review HIGH-2).
+        let durabilityError: unknown
+        try {
+            await this.driver.markRevoked?.(clientId)
+        } catch (error) {
+            durabilityError = error
+            // Passed as a separate console argument rather than interpolated,
+            // matching this file's existing sink at `onPublishError` — no
+            // string building, so no encoder and no new dependency edge.
+            console.warn(
+                'realtime: the durable revocation write failed — revoking ' +
+                    'anyway, but a lost control frame will NOT be recovered ' +
+                    'by reconcile',
+                error,
+            )
+        }
+        // The revocation itself. Its failure is the more serious of the two, so
+        // it propagates in preference to the durability error — never from a
+        // `finally`, which would mask it.
         if (this.connections.has(clientId)) {
             await this.revokeLocal(clientId)
-            return
+        } else {
+            // The socket lives on another instance — reach it over the control
+            // plane.
+            await this.publishControl({ kind: 'evict', target: clientId })
         }
-        // The socket lives on another instance — reach it over the control plane.
-        await this.publishControl({ kind: 'evict', target: clientId })
+        if (durabilityError !== undefined) throw durabilityError
     }
 
     /**

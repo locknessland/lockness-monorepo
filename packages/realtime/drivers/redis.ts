@@ -58,6 +58,65 @@ import {
     RedisSubscribeConnection,
 } from '@lockness/redis'
 
+/**
+ * Extra seconds on the index key's own TTL, beyond the longest revocation it can
+ * hold. It only has to outlive the newest member, and it is refreshed on every
+ * write; the slack keeps a key that is still being written from expiring under
+ * a member (#276).
+ */
+const INDEX_TTL_SLACK_SECONDS = 60
+
+/**
+ * Record a revocation: ONE operation, expiring at a Redis-decided instant.
+ *
+ * `TIME` is read inside the script, so the expiry is set from Redis's clock
+ * and no instance's wall clock takes part in the decision (#276 FR-012) —
+ * the property #271's monotonicity argument rests on.
+ *
+ * **Every** write here is extend-only, and it takes THREE calls to be so.
+ *
+ * - `ZADD … GT` protects one member's score, so a re-eviction from an instance
+ *   configured with a shorter `revocationTtlSeconds` cannot pull that member's
+ *   expiry back in.
+ * - `EXPIRE … NX` **arms** the key's own TTL, and only when it has none.
+ * - `EXPIRE … GT` **extends** it, and only upward — so the same shorter-TTL
+ *   instance cannot shrink the whole key and take every live revocation in it
+ *   down, which would undo at key granularity what the `ZADD` guarantees at
+ *   member granularity.
+ *
+ * `NX` and `GT` cannot be combined in one `EXPIRE`, and `GT` alone is inert:
+ * Redis treats a key with **no** TTL as having an *infinite* one, so `GT` always
+ * refuses it and the key would simply never expire. That is a real trap — it
+ * looks like a working guard and silently bounds nothing (#276 review cycle 2).
+ *
+ * `KEYS[1]` index key · `ARGV[1]` ttl seconds · `ARGV[2]` connection id ·
+ * `ARGV[3]` the index key's own TTL.
+ */
+const MARK_REVOKED_SCRIPT: string = [
+    "local t = redis.call('TIME')[1]",
+    "redis.call('ZADD', KEYS[1], 'GT', t + ARGV[1], ARGV[2])",
+    "redis.call('EXPIRE', KEYS[1], ARGV[3], 'NX')",
+    "redis.call('EXPIRE', KEYS[1], ARGV[3], 'GT')",
+].join('\n')
+
+/**
+ * Reap expired revocations and return the live ones — ONE operation, ONE
+ * `now`.
+ *
+ * Both halves are bounded by the same `t`, so every member the enumeration
+ * returns has a score strictly greater than the bound the reap just used: a
+ * live revocation cannot be removed, whatever else is happening concurrently
+ * (#276 FR-001). Nothing is read in an earlier round-trip and acted on in a
+ * later one, which is the shape the previous `EXISTS`-then-`SREM` had.
+ *
+ * `KEYS[1]` index key.
+ */
+const LIST_REVOKED_SCRIPT: string = [
+    "local t = redis.call('TIME')[1]",
+    "redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', t)",
+    "return redis.call('ZRANGEBYSCORE', KEYS[1], t, '+inf')",
+].join('\n')
+
 /** A resource the driver owns and must release on {@link RedisBroadcastDriver.close}. */
 interface Closeable {
     /** Release the resource (idempotent). */
@@ -381,13 +440,26 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         return `${this.prefix}:instances`
     }
 
-    /** The index SET of currently-revoked connection ids (FR-014). */
-    private get revokedIndexKey(): string {
+    /**
+     * The revocation index: a sorted set, member = connection id, **score = the
+     * epoch second the revocation expires** (#276).
+     *
+     * A NEW key name, deliberately. The legacy `{prefix}:revoked` is a SET, and
+     * reusing that name for a sorted set would make an old instance's `SADD`
+     * raise `WRONGTYPE` inside `evict()` — whose first await is untried, so the
+     * error would propagate to the caller and the local revoke would never run.
+     */
+    private get revocationIndexKey(): string {
+        return `${this.prefix}:revocations`
+    }
+
+    /** The legacy index SET, read during rollout only (#276 FR-009). */
+    private get legacyRevokedIndexKey(): string {
         return `${this.prefix}:revoked`
     }
 
-    /** The per-target revocation marker key — self-expires on its TTL (FR-014). */
-    private revokedKey(target: string): string {
+    /** The legacy per-target marker key, read during rollout only. */
+    private legacyRevokedKey(target: string): string {
         return `${this.prefix}:revoked:${target}`
     }
 
@@ -567,59 +639,102 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * OPTIONAL (S1/FR-014). Durably record that a connection is revoked. The
-     * marker is a per-target key with a TTL (so it self-expires and the set
-     * never grows without bound) plus an index-set entry for enumeration — the
-     * same liveness pattern the ghost sweep uses. Decision-table home: "whether
-     * a revoked connection stays revoked across a reconnect".
+     * OPTIONAL (S1/FR-014). Durably record that a connection is revoked.
+     *
+     * The record is **one** sorted-set member whose score is the second it
+     * expires (#276) — not a marker key plus a separate index entry, which were
+     * two structures encoding one fact and could be made to disagree. It is
+     * written by {@link MARK_REVOKED_SCRIPT} in a single operation, so there is
+     * no window in which the connection is enumerable but not yet revoked.
+     * Decision-table home: "whether a revoked connection stays revoked across a
+     * reconnect".
      *
      * @param target - The revoked connection id.
+     * @throws {Error} If the write fails — `ChannelManager.evict` revokes the
+     *   socket anyway and re-throws, so the caller learns durability was lost.
      */
     async markRevoked(target: string): Promise<void> {
-        await this.command.command('SADD', this.revokedIndexKey, target)
         await this.command.command(
-            'SET',
-            this.revokedKey(target),
+            'EVAL',
+            MARK_REVOKED_SCRIPT,
             '1',
-            'EX',
+            this.revocationIndexKey,
             String(this.revocationTtlSeconds),
+            target,
+            String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),
         )
     }
 
     /**
-     * Whether a per-target revocation marker is still live (before its TTL).
-     * Internal to {@link listRevoked}'s reap: there is no subscribe-time gate,
-     * because a reconnecting client draws a fresh connection id, so a
-     * per-id check could never catch a reconnect anyway (S1/FR-014).
+     * OPTIONAL (S1/FR-014). The connection ids whose revocation is live now,
+     * reaping expired entries so the index stays bounded (#276 FR-002/FR-003).
      *
-     * @param target - The connection id to check.
-     * @returns `true` while the durable marker names it.
-     */
-    async #markerLive(target: string): Promise<boolean> {
-        return asInteger(
-            await this.command.command('EXISTS', this.revokedKey(target)),
-        ) === 1
-    }
-
-    /**
-     * OPTIONAL (S1/FR-014). The connection ids the durable marker currently
-     * names, reaping index entries whose per-target key has expired so the
-     * index stays bounded.
+     * Reap and enumeration happen inside ONE script, against ONE `now` read from
+     * Redis — so every surviving member's score is strictly greater than the
+     * bound the reap just used, and a live revocation is unremovable. There is
+     * no earlier round-trip whose result could go stale before it is acted on.
+     *
+     * During rollout it also reads the legacy structure (FR-009) so a revocation
+     * written by a not-yet-upgraded instance is still enumerated. Only the new
+     * index is reaped; legacy markers expire on their own TTL.
      *
      * @returns The currently-revoked connection ids.
+     * @example
+     * ```ts
+     * for (const id of await driver.listRevoked()) { /* revoke if local *\/ }
+     * ```
      */
     async listRevoked(): Promise<string[]> {
         const reply = await this.command.command(
-            'SMEMBERS',
-            this.revokedIndexKey,
+            'EVAL',
+            LIST_REVOKED_SCRIPT,
+            '1',
+            this.revocationIndexKey,
         )
-        const ids = asArray(reply) ?? []
+        const members = asArray(reply)
+        if (members === undefined) {
+            // "Nobody is revoked" and "the reply was not the shape we expect"
+            // must not look the same to a caller: the first is routine, the
+            // second means every revocation this instance owns goes unenforced.
+            console.warn(
+                'realtime: the revocation index returned an unexpected reply ' +
+                    'shape — treating it as empty, so no revocation will be ' +
+                    'recovered on this pass',
+            )
+        }
+        const live = new Set<string>()
+        for (const raw of members ?? []) {
+            const id = asBulk(raw)
+            if (id) live.add(id)
+        }
+        for (const id of await this.#legacyRevoked()) live.add(id)
+        return [...live]
+    }
+
+    /**
+     * The legacy two-structure revocations still live, read during rollout only.
+     *
+     * Read, never reaped and never written: a not-yet-upgraded instance is still
+     * maintaining these, and reaping them from here would reintroduce exactly
+     * the cross-round-trip removal #276 removes. They expire on their own `EX`,
+     * and the legacy index set is left as one abandoned key.
+     */
+    async #legacyRevoked(): Promise<string[]> {
+        const reply = await this.command.command(
+            'SMEMBERS',
+            this.legacyRevokedIndexKey,
+        )
         const live: string[] = []
-        for (const raw of ids) {
+        for (const raw of asArray(reply) ?? []) {
             const id = asBulk(raw)
             if (!id) continue
-            if (await this.#markerLive(id)) live.push(id)
-            else await this.command.command('SREM', this.revokedIndexKey, id)
+            const exists = asInteger(
+                await this.command.command(
+                    'EXISTS',
+                    this.legacyRevokedKey(id),
+                ),
+            )
+            if (exists === 1) live.push(id)
         }
         return live
     }
