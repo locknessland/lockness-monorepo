@@ -67,14 +67,58 @@ export function safeForLog(value: string): string {
 }
 
 /**
+ * Matches the `scheme://userinfo@` prefix of a DSN-shaped substring.
+ *
+ * The `userinfo` capture is bounded by `[^@\s/]+`, so it can never cross a `/`
+ * (into the path) or an `@` (into a second authority) — a `host:port` with no
+ * `@` after it is not matched at all, because a bare authority has no userinfo.
+ * The redaction below only fires when that captured userinfo carries a `:`,
+ * i.e. a `user:password` pair; a credential-free DSN (`sqlite:///path`) is left
+ * untouched.
+ */
+const DSN_USERINFO = /([a-z][a-z0-9+.-]*:\/\/)([^@\s/]+)@/gi
+
+/**
+ * Redacts `user:password@` credentials embedded in URL-shaped substrings.
+ *
+ * A Drizzle/Postgres connection failure embeds the full DSN — userinfo
+ * included — in `error.message`, so dropping the error object is not enough:
+ * the message carrier still leaks the password. This rewrites only the
+ * `user:password` userinfo segment to `***:***`, preserving the scheme, host,
+ * port and path so the line stays diagnostic. Only DSN-shaped substrings whose
+ * userinfo contains a `:` are touched — a port (`host:6379`) is not userinfo
+ * and is never mistaken for a credential.
+ *
+ * @param message - The raw error message, possibly carrying a DSN.
+ * @returns The message with any `user:password@` userinfo replaced by `***:***@`.
+ *
+ * @example
+ * ```typescript
+ * redactDsnCredentials('postgres://user:password@host:5432/db')
+ * // 'postgres://***:***@host:5432/db'
+ * ```
+ */
+function redactDsnCredentials(message: string): string {
+    return message.replace(
+        DSN_USERINFO,
+        (match, scheme: string, userinfo: string) =>
+            userinfo.includes(':') ? `${scheme}***:***@` : match,
+    )
+}
+
+/**
  * Render a caught error for a log line.
  *
- * `name` plus a **truncated, encoded** message — never the object, never the
- * stack. `console.error('...', error)` prints both, and teardown is exactly
- * where credential-bearing errors are produced: a Postgres driver failure
- * carries `postgres://user:password@host/db`, a `fetch` rejection carries a URL
- * with its token in the query string. Log stores routinely have broader access
- * than the database those credentials open.
+ * `name` plus a **redacted, truncated, encoded** message — never the object,
+ * never the stack. `console.error('...', error)` prints both, and teardown is
+ * exactly where credential-bearing errors are produced: a Postgres driver
+ * failure carries `postgres://user:password@host/db`, a `fetch` rejection
+ * carries a URL with its token in the query string. Log stores routinely have
+ * broader access than the database those credentials open.
+ *
+ * The DSN userinfo is redacted **before** truncation and encoding, so the
+ * cleartext password can never reach the sink — it is gone before the string is
+ * bounded or escaped, not merely hidden past the truncation boundary.
  *
  * The encoding half is not theoretical either:
  * `packages/session/drivers/redis.ts:104` throws a Redis server's error reply
@@ -99,12 +143,15 @@ export function renderError(error: unknown): string {
     const MAX = 200
 
     if (error instanceof Error) {
-        const message = error.message.length > MAX
-            ? `${error.message.slice(0, MAX)}…`
-            : error.message
+        const redacted = redactDsnCredentials(error.message)
+        const message = redacted.length > MAX
+            ? `${redacted.slice(0, MAX)}…`
+            : redacted
         return `${safeForLog(error.name)}: ${safeForLog(message)}`
     }
 
-    const text = String(error)
-    return safeForLog(text.length > MAX ? `${text.slice(0, MAX)}…` : text)
+    const redacted = redactDsnCredentials(String(error))
+    return safeForLog(
+        redacted.length > MAX ? `${redacted.slice(0, MAX)}…` : redacted,
+    )
 }

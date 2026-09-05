@@ -1,5 +1,5 @@
 import { assertEquals, assertStringIncludes } from '@std/assert'
-import { safeForLog } from '../logging/sanitize.ts'
+import { renderError, safeForLog } from '../logging/sanitize.ts'
 
 Deno.test('safeForLog - neutralises a newline injected through a decoded path', () => {
     // decodeURI turns %0A into a real newline, so this is what reaches the sink.
@@ -61,4 +61,49 @@ Deno.test('safeForLog - truncates at exactly the documented bound', () => {
     const out = safeForLog('a'.repeat(5000))
     assertEquals(out.length, 512 + '\u2026[truncated]'.length)
     assertStringIncludes(out, '[truncated]')
+})
+
+Deno.test('renderError - redacts credentials in a PostgreSQL DSN in the message', () => {
+    // A postgres driver failure carries the whole connection string, userinfo
+    // included, verbatim in error.message.
+    const out = renderError(
+        new Error(
+            'connection failed: postgres://user:password@db.internal:5432/app',
+        ),
+    )
+
+    assertEquals(out.includes('password'), false)
+    // The host, port and database stay so the line is still diagnostic.
+    assertStringIncludes(out, 'db.internal:5432/app')
+    assertStringIncludes(out, 'postgres://***:***@')
+})
+
+Deno.test('renderError - redacts credentials in a MySQL DSN in the message', () => {
+    const out = renderError(
+        new Error('access denied: mysql://user:password@db.internal:3306/app'),
+    )
+
+    assertEquals(out.includes('password'), false)
+    assertStringIncludes(out, 'db.internal:3306/app')
+    assertStringIncludes(out, 'mysql://***:***@')
+})
+
+Deno.test('renderError - leaves a credential-free SQLite/file DSN intact', () => {
+    // SQLite connection strings carry no userinfo; the redactor must not mangle
+    // them, and the `://path` shape must survive untouched.
+    const out = renderError(
+        new Error('unable to open: sqlite:///var/lib/app/app.db'),
+    )
+
+    assertStringIncludes(out, 'sqlite:///var/lib/app/app.db')
+    assertEquals(out.includes('***'), false)
+})
+
+Deno.test('renderError - does not touch a host:port that is not userinfo', () => {
+    // A colon in the host authority (the port) must not be mistaken for a
+    // password separator: there is no `@`, so nothing is redacted.
+    const out = renderError(new Error('timeout reaching redis://cache:6379/0'))
+
+    assertStringIncludes(out, 'redis://cache:6379/0')
+    assertEquals(out.includes('***'), false)
 })
