@@ -1,6 +1,7 @@
 /**
- * @fileoverview RESP2 wire encoding and reply reading for the Redis session
- * driver.
+ * @fileoverview RESP2 wire encoding and reply reading shared by every
+ * Redis-backed surface: the session driver, the scheduler distributed lock, and
+ * the durable queue driver.
  *
  * The one home for three decisions (plan §5, features 007 and 009):
  *

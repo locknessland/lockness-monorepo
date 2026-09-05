@@ -9,8 +9,8 @@
  * complete observation.
  *
  * SC-004 mutation record — measured 2026-09-01: mutating the encoder
- * `bytes.byteLength → arg.length` in `drivers/resp.ts` gives **5 failed / 8
- * passed** across resp.test.ts + redis_wire.test.ts. The five falsifiers are
+ * `bytes.byteLength → arg.length` in `packages/redis/resp.ts` gives **5 failed
+ * / 8 passed** across resp.test.ts + redis_wire.test.ts. The five falsifiers are
  * every test that carries a non-ASCII argument; the timeout below turns what
  * would be a driver hang into a clean 3s failure:
  *   - FR-008 "AUTH with a non-ASCII password …" — the mutated $2 AUTH frame

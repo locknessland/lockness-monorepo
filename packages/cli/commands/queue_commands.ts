@@ -18,6 +18,7 @@ import type { Cli } from '../mod.ts'
  *   - --max-jobs=n - Maximum jobs to process (0 = unlimited)
  *   - --once - Process one job and exit
  * - queue:clear - Clear all jobs from a queue
+ * - queue:retry - Retry failed (dead-lettered) jobs: queue:retry [<id> | --all]
  *
  * @param cli - The CLI instance to register commands on
  *
@@ -50,8 +51,14 @@ export function registerQueueCommands(cli: Cli): void {
         const maxJobs = Number(parseFlag('max-jobs', '0'))
         const once = args.includes('--once')
 
-        // Configure queue driver from env
-        const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') ||
+        // Configure queue driver from env.
+        // NOTE: QUEUE_DRIVER=redis is accepted here but has NO env-based
+        // connection wiring yet — configureQueue receives no Redis connection
+        // options from the environment, so selecting it does not yet stand up a
+        // working Redis-backed worker. That wiring is a follow-up, not delivered
+        // in #250.
+        const driver =
+            (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv' | 'redis') ||
             'memory'
         configureQueue({ driver })
 
@@ -97,7 +104,8 @@ export function registerQueueCommands(cli: Cli): void {
         const { clearQueue, configureQueue } = await import('@lockness/queue')
 
         const queue = args[0] || 'default'
-        const driver = (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv') ||
+        const driver =
+            (Deno.env.get('QUEUE_DRIVER') as 'memory' | 'deno-kv' | 'redis') ||
             'memory'
         configureQueue({ driver })
 

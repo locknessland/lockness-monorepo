@@ -239,10 +239,10 @@ dependency. Two behaviours worth knowing:
   renders as a generic 500. An outage is therefore distinguishable from a miss,
   rather than logging every user out with no trace.
 - **Replies are drained in full and bounded.** Reply reading lives in
-  `drivers/resp.ts` (`readReply`, beside `writeFrame`): it drains the connection
-  until the RESP reply is complete, so a session larger than one 4096-byte read
-  round-trips intact, and it rejects a server-declared bulk length beyond 10 MiB
-  before allocating it.
+  `packages/redis/resp.ts` (`readReply`, beside `writeFrame`): it drains the
+  connection until the RESP reply is complete, so a session larger than one
+  4096-byte read round-trips intact, and it rejects a server-declared bulk
+  length beyond 10 MiB before allocating it.
 - **One shared, serialized connection per process.** The driver is memoized per
   process per resolved config (like `deno-kv`), so a redis-backed app opens
   **one** authenticated connection, not one per request. Sharing is safe because

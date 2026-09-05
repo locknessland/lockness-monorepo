@@ -33,8 +33,11 @@ export function computeNextAvailable(
 ): number {
     const base = config.retryDelay
     if (config.backoff === 'exponential') {
-        // retryDelay * 2^(attempt-1): 1×, 2×, 4×, … Guard the exponent so a
-        // large attempt count cannot overflow into a non-finite delay.
+        // retryDelay * 2^(attempt-1): 1×, 2×, 4×, … `Math.max(0, …)` floors the
+        // exponent at 0 so a non-positive attempt (0 or less) cannot yield a
+        // fractional factor below 1 and a delay shorter than retryDelay. It does
+        // NOT cap large exponents: a very high attempt count still grows the
+        // factor unbounded (eventually to Infinity).
         const factor = 2 ** Math.max(0, attempt - 1)
         return now + base * factor
     }
