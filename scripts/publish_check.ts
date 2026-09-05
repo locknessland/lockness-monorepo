@@ -47,33 +47,119 @@ interface Result {
 }
 
 /**
- * Files `deno publish` would upload for a package.
+ * Enumerate every file under a package directory, as POSIX-style paths
+ * relative to it. `node_modules` is skipped (never publishable, and large);
+ * filtering by `publish.include` / `publish.exclude` is a separate,
+ * pure concern — see {@link selectPublishedFiles}.
  *
  * @param dir - Absolute package directory.
- * @param exclude - Directory names excluded by the manifest's `publish.exclude`.
- * @returns Absolute paths.
+ * @returns Relative POSIX paths, e.g. `mod.ts`, `drivers/local.ts`.
  */
-async function publishableFiles(
-    dir: string,
-    exclude: string[],
-): Promise<string[]> {
+async function enumerateFiles(dir: string): Promise<string[]> {
     const found: string[] = []
     const walk = async (current: string): Promise<void> => {
         for await (const entry of Deno.readDir(current)) {
             const path = join(current, entry.name)
             if (entry.isDirectory) {
                 if (entry.name === 'node_modules') continue
-                if (exclude.some((e) => e.replace(/\/$/, '') === entry.name)) {
-                    continue
-                }
                 await walk(path)
                 continue
             }
-            found.push(path)
+            found.push(path.slice(dir.length + 1).replaceAll('\\', '/'))
         }
     }
     await walk(dir)
     return found
+}
+
+/**
+ * Whether a relative POSIX `path` is matched by a single `deno publish`
+ * include/exclude `pattern`.
+ *
+ * A pattern is either a **glob** (contains `*`, `?`, `[`, `]`, `{`, `}`) —
+ * matched with `**` spanning directory separators and `*`/`?` confined to a
+ * single segment — or a **literal path**, which matches the file itself or,
+ * treated as a directory, everything beneath it (`tests` matches
+ * `tests/unit/a.ts`). Leading `./` and trailing `/` are ignored.
+ *
+ * @param path - Relative POSIX path to test.
+ * @param pattern - A single `publish.include` / `publish.exclude` entry.
+ * @returns `true` when the pattern selects the path.
+ */
+function matchesPattern(path: string, pattern: string): boolean {
+    const normalized = pattern.replace(/^\.\//, '').replace(/\/+$/, '')
+    if (/[*?[\]{}]/.test(normalized)) {
+        let re = ''
+        for (let i = 0; i < normalized.length; i++) {
+            const char = normalized[i]
+            if (char === '*') {
+                if (normalized[i + 1] === '*') {
+                    re += '.*'
+                    i++
+                    if (normalized[i + 1] === '/') i++
+                } else {
+                    re += '[^/]*'
+                }
+            } else if (char === '?') {
+                re += '[^/]'
+            } else if ('.+^${}()|[]\\'.includes(char)) {
+                re += `\\${char}`
+            } else {
+                re += char
+            }
+        }
+        return new RegExp(`^${re}$`).test(path)
+    }
+    return path === normalized || path.startsWith(`${normalized}/`)
+}
+
+/**
+ * The subset of `files` that `deno publish` would upload, honouring **both**
+ * `publish.include` and `publish.exclude` the way the real publish does:
+ *
+ * - `include`, when non-empty, is an **allowlist** — a file ships only if it
+ *   matches at least one include pattern. A file needed at publish time but
+ *   absent from `include` is therefore dropped here, which is exactly what
+ *   lets the caller detect an incomplete allowlist. An empty `include` admits
+ *   every file.
+ * - `exclude` then **subtracts** from that set.
+ * - The manifest (`configFile`) is always published and never excluded — the
+ *   published package is unusable without it — so it is force-kept regardless
+ *   of either list.
+ *
+ * @param files - Relative POSIX paths from the package root (see
+ * {@link enumerateFiles}).
+ * @param include - `publish.include` patterns; `[]` means "no allowlist".
+ * @param exclude - `publish.exclude` patterns.
+ * @param configFile - The manifest filename, always kept. Defaults to
+ * `deno.json`.
+ * @returns The relative paths that would actually be published.
+ * @example
+ * ```ts
+ * // An export references helpers.ts, but the allowlist forgot it:
+ * selectPublishedFiles(
+ *   ['mod.ts', 'helpers.ts', 'deno.json'],
+ *   ['mod.ts', 'deno.json'],
+ *   [],
+ * )
+ * // => ['mod.ts', 'deno.json'] — helpers.ts is dropped, so a type-check of
+ * //    the staged copy fails and the incomplete include is caught.
+ * ```
+ */
+export function selectPublishedFiles(
+    files: string[],
+    include: string[],
+    exclude: string[],
+    configFile = 'deno.json',
+): string[] {
+    return files.filter((file) => {
+        const isConfig = file === configFile
+        const included = include.length === 0 || isConfig ||
+            include.some((pattern) => matchesPattern(file, pattern))
+        if (!included) return false
+        if (isConfig) return true
+        return !exclude.some((pattern) => matchesPattern(file, pattern))
+    })
 }
 
 /**
@@ -88,16 +174,21 @@ async function checkPackage(name: string, scratch: string): Promise<Result> {
     const manifest = JSON.parse(
         await Deno.readTextFile(join(source, 'deno.json')),
     )
+    const include: string[] = manifest.publish?.include ?? []
     const exclude: string[] = manifest.publish?.exclude ?? []
 
     const staged = join(scratch, name)
     await Deno.mkdir(staged, { recursive: true })
 
-    for (const file of await publishableFiles(source, exclude)) {
-        const relative = file.slice(source.length + 1)
+    const published = selectPublishedFiles(
+        await enumerateFiles(source),
+        include,
+        exclude,
+    )
+    for (const relative of published) {
         const target = join(staged, relative)
         await Deno.mkdir(dirname(target), { recursive: true })
-        await Deno.copyFile(file, target)
+        await Deno.copyFile(join(source, relative), target)
     }
 
     const exportsField = manifest.exports ?? {}
@@ -135,6 +226,25 @@ async function checkPackage(name: string, scratch: string): Promise<Result> {
             detail: `undeclared: ${[...new Set(undeclared)].join(', ')}`,
         }
     }
+
+    // A local file the exports reach but `publish.include` never listed: the
+    // allowlist is incomplete, so the file was not staged and `deno check`
+    // fails to load it. This is a real publish failure — distinct from the
+    // tolerated "version not on JSR yet" below, which names a JSR specifier,
+    // not a `file:` URL.
+    const missingLocal = [
+        ...output.matchAll(/Cannot find module ['"](file:[^'"]+)['"]/g),
+    ].map((m) => m[1].split('/').pop() ?? m[1])
+    if (missingLocal.length > 0) {
+        return {
+            name,
+            ok: false,
+            detail: `missing from publish.include: ${
+                [...new Set(missingLocal)].join(', ')
+            }`,
+        }
+    }
+
     if (result.success) return { name, ok: true, detail: 'resolves' }
     return {
         name,
