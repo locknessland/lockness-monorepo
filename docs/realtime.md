@@ -141,8 +141,19 @@ control: {
     // How long a frame stays obeyable, and how long its nonce is remembered.
     // Default: 30_000 (30s).
     windowMs: 30_000,
+    // The largest control payload published or accepted, in bytes.
+    // Default: 8192.
+    maxPayloadBytes: 8192,
 },
 ```
+
+**`maxPayloadBytes` is enforced at both ends.** A publisher refuses to send
+above its own limit and each receiver enforces its own, so raise it on **every**
+instance at once — a fleet running mixed values silently loses the frames that
+fall between them. If your own instance logs
+`refusing to publish an oversized
+control message`, a `PresenceMember.info`
+payload has outgrown the ceiling: shrink it, or raise the option fleet-wide.
 
 **Widen the window only for a fleet whose clocks genuinely drift.** A longer
 window is a longer period in which a captured frame remains replayable against
@@ -153,14 +164,14 @@ robustness dial to turn up "just in case".
 
 Every rejection says which check refused it, because they mean different things:
 
-| WARN contains        | What it means                                                                                                                                            |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `oversized`          | A payload above the byte ceiling, refused before it was even parsed. Bus abuse.                                                                          |
-| `invalid shape`      | A field missing or of the wrong type. Usually a version mismatch or a bug.                                                                               |
-| `absent/invalid MAC` | The signature did not verify. A forgery attempt, or a secret mismatch between instances.                                                                 |
-| `invalid name`       | A routing name outside the permitted charset.                                                                                                            |
-| `STALE`              | Outside the freshness window. **The message names the observed delta** — a large or negative value is clock skew between your instances, not a dead bus. |
-| `DUPLICATE`          | This exact frame was already delivered inside the window. A replay.                                                                                      |
+| WARN contains        | What it means                                                                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `oversized`          | A payload above `maxPayloadBytes` (default 8192), refused before it was even parsed. Usually bus abuse — but see the note above if it is your OWN instance refusing to publish. |
+| `invalid shape`      | A field missing or of the wrong type. Usually a version mismatch or a bug.                                                                                                      |
+| `absent/invalid MAC` | The signature did not verify. A forgery attempt, or a secret mismatch between instances.                                                                                        |
+| `invalid name`       | A routing name outside the permitted charset.                                                                                                                                   |
+| `STALE`              | Outside the freshness window. **The message names the observed delta** — a large or negative value is clock skew between your instances, not a dead bus.                        |
+| `DUPLICATE`          | This exact frame was already delivered inside the window. A replay.                                                                                                             |
 
 If control frames stop flowing after an upgrade and the logs are full of `STALE`
 with a large delta, the fault is NTP, not the bus.
@@ -304,18 +315,34 @@ identically on every instance, via the `control` option:
 
 ```ts
 RedisBroadcastDriver.fromConfig(config, {
-    control: { secret: Deno.env.get('REALTIME_SECRET')! },
+    control: {
+        secret: Deno.env.get('REALTIME_SECRET')!,
+        // Anti-replay and cost bounds, both optional — see
+        // "Control-plane replay protection" above for what these cost.
+        windowMs: 30_000,
+        maxPayloadBytes: 8192,
+    },
 })
 ```
 
 Every control / presence-identity frame carries an HMAC over its payload,
 verified **before** the message is actioned; a frame with an absent or failed
 MAC is dropped with a warning and never obeyed — so a peer with bus `PUBLISH`
-cannot forge an evict or spoof a presence member. Without a `control` secret
-configured, the driver **refuses to publish** a control frame and **drops**
-every inbound one (both with a warning): the control plane and cross-instance
-presence announcements are effectively off, so the secret is **required** for
-any app that uses presence or eviction across instances.
+cannot forge an evict or spoof a presence member.
+
+**Authentication alone is not enough, which is why there is also anti-replay.**
+A MAC says _this came from someone holding the secret_, not _this is happening
+now_: a peer who can also SUBSCRIBE could capture a valid frame and publish it
+again later, with no secret and nothing forged. Frames therefore carry a
+timestamp and a nonce inside the signed payload, and a receiver refuses one that
+is stale or that it has already seen — see
+[Control-plane replay protection](#control-plane-replay-protection) for the
+window, the payload ceiling, what each drop warning means, and the rolling-
+upgrade consequence. Without a `control` secret configured, the driver **refuses
+to publish** a control frame and **drops** every inbound one (both with a
+warning): the control plane and cross-instance presence announcements are
+effectively off, so the secret is **required** for any app that uses presence or
+eviction across instances.
 
 **The reserved `prefix` is NOT a security boundary on its own.** Redis pub/sub
 has no per-topic ACL by default, so the prefix is isolation by convention only —
