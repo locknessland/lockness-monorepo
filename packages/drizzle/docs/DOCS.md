@@ -272,6 +272,15 @@ Flags:
 - `-s, --seeder` - Generate seeder only
 - `-c, --controller` - Generate controller only
 - `-a, --all` - Generate everything
+- `--dialect <d>` - Schema dialect: `postgres` | `mysql` | `sqlite`
+
+The generated schema is **dialect-aware**: `--dialect` selects the table and
+column helpers (`pgTable` + `serial` for postgres, `mysqlTable` + `int`
+autoincrement for mysql, `sqliteTable` + `integer` primary key for sqlite). When
+`--dialect` is omitted, the dialect is inferred from the `DATABASE_URL` scheme,
+falling back to `postgres`. `drizzle.config.ts` is written with the matching
+`drizzle-kit` dialect at install time, so `db:generate` / `db:migrate` target
+the active database.
 
 ### Migration Commands
 
