@@ -247,3 +247,159 @@ Deno.test('cursor paginate — hasMore, opaque nextCursor, trimmed data', async 
     // The cursor is opaque — not the raw id on the wire.
     assertEquals(env.meta.nextCursor !== '2', true)
 })
+
+Deno.test('cursor paginate — first page has no incoming cursor, so no prev query and prevCursor is null (#252)', async () => {
+    // The first page is reached without a cursor: there is no page before it,
+    // and the driver must NOT waste a reverse-order query establishing that.
+    const fetched = [{ id: 1, owner: 'me', name: 'a' }, {
+        id: 2,
+        owner: 'me',
+        name: 'b',
+    }, { id: 3, owner: 'me', name: 'c' }]
+    const { db, records } = fakeDb([fetched])
+
+    const env = await paginate<{ id: number; owner: string; name: string }>(
+        db,
+        users,
+        {
+            strategy: 'cursor',
+            perPage: 2,
+            baseUrl: '/feed',
+            cursorColumn: users.id,
+            cursorOf: (r) => r.id,
+        },
+    )
+
+    assertEquals(env.meta.prevCursor, null)
+    assertEquals(env.links.prev, null)
+    // Exactly ONE query: the forward page. No reverse prev-query on page 1.
+    assertEquals(records.length, 1)
+})
+
+Deno.test('cursor paginate (asc) — prevCursor is a GENUINE previous page from a reverse query, not the incoming token (#252)', async () => {
+    // Page 3 of an ascending feed, reached with the cursor minted on page 2.
+    const cursor = encodeCursor('id', 20)
+    // Forward page (perPage + 1 → hasMore): ids 21,22,(23).
+    const forward = [{ id: 21 }, { id: 22 }, { id: 23 }]
+    // Reverse-order query bounded by the current page's first row (id 21):
+    // `id < 21` DESC, perPage + 1 rows → 20,19,(18). The (perPage+1)-th row,
+    // id 18, is the boundary: a FORWARD `id > 18` returns exactly {19,20} =
+    // the genuine previous page.
+    const reverse = [{ id: 20 }, { id: 19 }, { id: 18 }]
+    const { db, records } = fakeDb([forward, reverse])
+
+    const env = await paginate<{ id: number }>(db, users, {
+        strategy: 'cursor',
+        perPage: 2,
+        baseUrl: '/feed',
+        cursorColumn: users.id,
+        cursorOf: (r) => r.id,
+        cursor,
+    })
+
+    assertEquals(env.meta.nextCursor, encodeCursor('id', 22))
+    // The prev cursor is the reverse-query boundary, NOT the incoming token
+    // (the old defect re-emitted `opts.cursor`, which re-fetches page 3), and
+    // NOT the current page's first row.
+    assertEquals(env.meta.prevCursor, encodeCursor('id', 18))
+    assert(
+        env.meta.prevCursor !== cursor,
+        'prevCursor must not be the incoming (current page) token',
+    )
+    assert(
+        env.meta.prevCursor !== encodeCursor('id', 21),
+        'prevCursor must not be the current page first row',
+    )
+    // Two queries: the forward page, then the reverse-order prev query.
+    assertEquals(records.length, 2)
+    assertEquals(records[1].limit, 3) // perPage + 1
+})
+
+Deno.test('cursor paginate — navigating backward from page N returns page N-1 rows in the correct (caller) order (#252)', async () => {
+    // Page 3 first, to obtain its prevCursor.
+    const page3Forward = [{ id: 21 }, { id: 22 }, { id: 23 }]
+    const page3Reverse = [{ id: 20 }, { id: 19 }, { id: 18 }]
+    const { db: db3 } = fakeDb([page3Forward, page3Reverse])
+    const page3 = await paginate<{ id: number }>(db3, users, {
+        strategy: 'cursor',
+        perPage: 2,
+        baseUrl: '/feed',
+        cursorColumn: users.id,
+        cursorOf: (r) => r.id,
+        cursor: encodeCursor('id', 20),
+    })
+    const prev = page3.meta.prevCursor
+    assertEquals(prev, encodeCursor('id', 18))
+
+    // Follow the prev cursor through the SAME forward mechanism: `id > 18`
+    // ASC → the genuine previous page (page 2) in ascending order.
+    const page2Forward = [{ id: 19 }, { id: 20 }, { id: 21 }]
+    const page2Reverse = [{ id: 18 }, { id: 17 }, { id: 16 }]
+    const { db: db2 } = fakeDb([page2Forward, page2Reverse])
+    const page2 = await paginate<{ id: number }>(db2, users, {
+        strategy: 'cursor',
+        perPage: 2,
+        baseUrl: '/feed',
+        cursorColumn: users.id,
+        cursorOf: (r) => r.id,
+        cursor: prev ?? undefined,
+    })
+
+    // Page N-1's rows, in the caller's ascending order — not reversed.
+    assertEquals(page2.data, [{ id: 19 }, { id: 20 }])
+})
+
+Deno.test('cursor paginate (desc) — reverse-order prev query mints a genuine descending previous page (#252)', async () => {
+    // Descending feed, page reached with cursor id 80.
+    const cursor = encodeCursor('id', 80)
+    // Forward DESC page (`id < 80`): 79,78,(77) → data 79,78.
+    const forward = [{ id: 79 }, { id: 78 }, { id: 77 }]
+    // Reverse of DESC is ASC, bounded by first row id 79: `id > 79` ASC,
+    // perPage + 1 → 80,81,(82). Boundary id 82: a forward DESC `id < 82`
+    // returns {81,80} = the genuine previous page.
+    const reverse = [{ id: 80 }, { id: 81 }, { id: 82 }]
+    const { db, records } = fakeDb([forward, reverse])
+
+    const env = await paginate<{ id: number }>(db, users, {
+        strategy: 'cursor',
+        perPage: 2,
+        baseUrl: '/feed',
+        cursorColumn: users.id,
+        cursorOf: (r) => r.id,
+        direction: 'desc',
+        cursor,
+    })
+
+    assertEquals(env.data, [{ id: 79 }, { id: 78 }])
+    assertEquals(env.meta.nextCursor, encodeCursor('id', 78))
+    assertEquals(env.meta.prevCursor, encodeCursor('id', 82))
+    assert(
+        env.meta.prevCursor !== cursor,
+        'prevCursor must not be the incoming token',
+    )
+    assertEquals(records.length, 2)
+})
+
+Deno.test('cursor paginate — start edge: a short reverse page yields prevCursor null (#252)', async () => {
+    // Page 2 with cursor id 10. The reverse query bounded by first row id 11
+    // (`id < 11` DESC, perPage + 1) returns FEWER than perPage + 1 rows — the
+    // previous page reaches the very start — so there is no boundary token and
+    // prevCursor is null.
+    const forward = [{ id: 11 }, { id: 12 }, { id: 13 }]
+    const reverse = [{ id: 10 }, { id: 9 }]
+    const { db, records } = fakeDb([forward, reverse])
+
+    const env = await paginate<{ id: number }>(db, users, {
+        strategy: 'cursor',
+        perPage: 2,
+        baseUrl: '/feed',
+        cursorColumn: users.id,
+        cursorOf: (r) => r.id,
+        cursor: encodeCursor('id', 10),
+    })
+
+    assertEquals(env.meta.prevCursor, null)
+    assertEquals(env.links.prev, null)
+    // The reverse query WAS issued (to establish there is no full prev page).
+    assertEquals(records.length, 2)
+})

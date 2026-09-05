@@ -313,20 +313,16 @@ async function paginateCursorQuery<TRow extends Record<string, unknown>>(
         : undefined
 
     // AND-compose the cursor predicate with the caller's conditions — the
-    // caller's filter is preserved, never overwritten (security S1).
+    // caller's filter is preserved, never overwritten (security S1). The
+    // forward predicate steps *past* the incoming cursor in the requested
+    // direction (`>` for asc, `<` for desc), strictly, so the boundary row is
+    // neither dropped nor duplicated across pages.
     const cursorPredicate = decoded
         ? (direction === 'desc'
             ? sql`${opts.cursorColumn} < ${decoded.value}`
             : sql`${opts.cursorColumn} > ${decoded.value}`)
         : undefined
-    const conditions = [opts.where, cursorPredicate].filter((
-        c,
-    ): c is SQL => c !== undefined)
-    const where = conditions.length === 0
-        ? undefined
-        : conditions.length === 1
-        ? conditions[0]
-        : and(...conditions)
+    const where = composeWhere(opts.where, cursorPredicate)
 
     // Fetch one extra row to know whether a next page exists.
     const fetched = await db
@@ -347,12 +343,97 @@ async function paginateCursorQuery<TRow extends Record<string, unknown>>(
         ? encodeCursor(opts.cursorColumn.name, opts.cursorOf(lastRow))
         : null
 
+    const prevCursor = await derivePrevCursor(db, table, opts, {
+        perPage,
+        direction,
+        onCursor: decoded !== undefined,
+        firstRow: data[0],
+    })
+
     return paginateCursor<TRow>(data, {
         perPage,
         hasMore,
         nextCursor,
-        prevCursor: opts.cursor ?? null,
+        prevCursor,
         baseUrl: opts.baseUrl,
         cursorParam: opts.cursorParam,
     })
+}
+
+/**
+ * AND-compose a base filter with an optional pagination predicate. Returns the
+ * lone clause when only one is present and `undefined` when neither is, so the
+ * caller's tenancy/ownership filter is preserved rather than overwritten
+ * (security S1).
+ */
+function composeWhere(
+    base: SQL | undefined,
+    predicate: SQL | undefined,
+): SQL | undefined {
+    const conditions = [base, predicate].filter((c): c is SQL =>
+        c !== undefined
+    )
+    if (conditions.length === 0) return undefined
+    if (conditions.length === 1) return conditions[0]
+    return and(...conditions)
+}
+
+/**
+ * Mint a *genuine* previous-page cursor via a reverse-order query.
+ *
+ * The forward page steps past the incoming cursor; its own first row is the
+ * upper bound of the page before it. To find where that previous page begins,
+ * this runs the query in the **reverse** direction (asc ⇄ desc) bounded by that
+ * first row, fetching `perPage + 1` rows. The `(perPage + 1)`-th row — one step
+ * beyond a full previous page — is the boundary: encoded as a cursor, a normal
+ * *forward* fetch from it re-materialises the previous page in the caller's
+ * order, so navigation stays on the single forward mechanism (issue #252).
+ *
+ * Returns `null` when there is no previous page to point at: the first page
+ * (no incoming cursor), an empty current page, or a short reverse page (the
+ * previous page reaches the very start, with no boundary beyond it).
+ */
+async function derivePrevCursor<TRow extends Record<string, unknown>>(
+    db: PostgresJsDatabase<DatabaseSchema>,
+    table: PgTable,
+    opts: CursorPaginateOptions<TRow>,
+    ctx: {
+        perPage: number
+        direction: 'asc' | 'desc'
+        onCursor: boolean
+        firstRow: TRow | undefined
+    },
+): Promise<string | null> {
+    // The first page (no incoming cursor) and an empty page have no predecessor.
+    if (!ctx.onCursor || ctx.firstRow === undefined) return null
+
+    const boundary = opts.cursorOf(ctx.firstRow)
+    // Reverse of the forward predicate: rows on the *near* side of the current
+    // page's first row, strictly, mirroring the forward `>`/`<` so the boundary
+    // is neither dropped nor duplicated.
+    const reversePredicate = ctx.direction === 'desc'
+        ? sql`${opts.cursorColumn} > ${boundary}`
+        : sql`${opts.cursorColumn} < ${boundary}`
+    const where = composeWhere(opts.where, reversePredicate)
+
+    const reverseRows = await db
+        .select()
+        .from(table)
+        .where(where)
+        .orderBy(
+            ctx.direction === 'desc'
+                ? asc(opts.cursorColumn)
+                : desc(opts.cursorColumn),
+        )
+        .limit(ctx.perPage + 1) as TRow[]
+
+    // Fewer than perPage + 1 rows → the previous page reaches the start; the
+    // caller returns there by clearing the cursor, so emit null rather than a
+    // token that would drop the first row(s).
+    const boundaryRow = reverseRows.length > ctx.perPage
+        ? reverseRows[ctx.perPage]
+        : undefined
+    return boundaryRow !== undefined
+        ? encodeCursor(opts.cursorColumn.name, opts.cursorOf(boundaryRow))
+        : null
 }
