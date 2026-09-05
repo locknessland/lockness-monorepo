@@ -1,15 +1,18 @@
 /**
- * The sealed cookie format — `v1.<base64(salt ‖ iv ‖ ciphertext)>`.
+ * The sealed cookie format. Since #265, sealing goes through @lockness/crypto's
+ * `Crypt` — new cookies are written in Crypt's wire (`c1.<base64(salt ‖ iv ‖
+ * ciphertext‖tag)>`), and the legacy `v1.` format is still *read* for backward
+ * compatibility (an authenticated read-compat path, never written again).
  *
  * The controls, in the order they run, and which one actually does the work:
  *
- * - The `v1.` prefix is **format discrimination**, not security. It is public,
+ * - The version prefix is **format discrimination**, not security. It is public,
  *   an attacker prepends it for free, and a conforming forgery then dies on the
  *   GCM tag. Its real value is that it lets a wrong format be rejected before
- *   `atob` is ever called.
- * - **FR-001 is the control**: there is no path that encodes without a key. If
- *   that were ever softened back to a compatibility read, the prefix would
- *   protect nothing.
+ *   base64-decoding is ever attempted.
+ * - **FR-001 is the control**: there is no *unauthenticated* path that encodes
+ *   without a key. The `v1.` read-compat path is not that window — it is GCM
+ *   authenticated, so forging a legacy cookie still needs the key.
  * - The salt is fresh per cookie, so each derived key encrypts exactly one
  *   message. That is why the ~2³² random-96-bit-IV ceiling does not apply —
  *   and why caching the derived key would silently reinstate it.
@@ -52,6 +55,45 @@ Deno.test('wire - a sealed payload round-trips', async () => {
     const sealed = await seal(KEY, { auth_web: 1 }, 3600)
 
     assertEquals(await open(KEY, sealed), { auth_web: 1 })
+})
+
+Deno.test('wire - seal now writes the @lockness/crypto Crypt format, not v1 (#265)', async () => {
+    // The convergence lock: cookie sealing delegates to Crypt, so the driver no
+    // longer emits its own `v1.` wire. Crypt's marker is `c1.` and is
+    // domain-separated from the legacy cookie's HKDF `info`, so the two formats
+    // are deliberately not byte-compatible — hence the read-compat path below.
+    const sealed = await seal(KEY, { auth_web: 1 }, 3600)
+
+    assertEquals(sealed.startsWith(WIRE_VERSION), false, 'no longer writes v1')
+    assertEquals(sealed.startsWith('c1.'), true, 'writes the Crypt c1 format')
+    assertEquals(await open(KEY, sealed), { auth_web: 1 }, 'and round-trips')
+})
+
+Deno.test('wire - a legacy v1 cookie still opens (backward compatibility, #265)', async () => {
+    // The reason a read-compat path exists at all: every session issued before
+    // #265 is a `v1.` cookie, and dropping the read would log every user out on
+    // deploy. A genuine v1 cookie (crafted under the session's own domain key)
+    // must still open through the current, Crypt-based `open()`.
+    const future = Math.floor(Date.now() / 1000) + 3600
+    const legacy = await sealRaw(
+        KEY,
+        JSON.stringify({ d: { auth_web: 7 }, iat: 0, exp: future, jti: 'j' }),
+    )
+
+    assertEquals(legacy.startsWith(WIRE_VERSION), true, 'is a v1 cookie')
+    assertEquals(await open(KEY, legacy), { auth_web: 7 }, 'still opens')
+})
+
+Deno.test('wire - a legacy v1 cookie under another key is rejected', async () => {
+    // The read-compat path is authenticated, not a bypass: a v1 cookie sealed
+    // under a different key must fail the tag, exactly as a c1 cookie would.
+    const future = Math.floor(Date.now() / 1000) + 3600
+    const legacyOther = await sealRaw(
+        OTHER,
+        JSON.stringify({ d: { auth_web: 7 }, iat: 0, exp: future, jti: 'j' }),
+    )
+
+    assertEquals(await open(KEY, legacyOther), null)
 })
 
 Deno.test('wire - the #137 forgery is rejected', async () => {
@@ -181,9 +223,15 @@ Deno.test('wire - sealing a large payload does not blow the stack', async () => 
     // arguments — measured — and session payloads are application-influenced.
     // The encoder must survive it. Whether the result is a *usable* cookie is
     // the next test's question, and the answer is no.
+    //
+    // Asserted on behaviour, not on the prefix literal: sealing goes through
+    // @lockness/crypto's Crypt now (#265), so the marker is `c1.` not `v1.`.
+    // What matters here is that the whole 200k payload was base64-encoded
+    // without a stack blow-up, so the output is a string far larger than input.
     const sealed = await seal(KEY, { blob: 'x'.repeat(200_000) }, 3600)
 
-    assertEquals(sealed.startsWith(WIRE_VERSION), true)
+    assertEquals(typeof sealed, 'string')
+    assertEquals(sealed.length > 200_000, true)
 })
 
 Deno.test('wire - an over-large sealed payload is refused on the way back in', async () => {
@@ -229,17 +277,21 @@ Deno.test('wire - the cookie driver refuses to construct without a usable secret
     )
 })
 
-Deno.test('wire - the version is bound to the tag, not merely prepended', async () => {
-    // Found by negative-testing: removing `additionalData` from BOTH encrypt and
-    // decrypt kept every test green, because a symmetric removal still
-    // round-trips. The property that matters is the binding itself, and it is
-    // asserted in both directions — a payload opens under its own version
-    // marker and under no other. Without that positive half, an implementation
-    // that binds nothing at all would still pass.
+Deno.test('wire - the legacy v1 version is bound to the tag, not merely prepended', async () => {
+    // The property: the version marker is GCM `additionalData`, so relabelling a
+    // body does not open it. It is asserted in both directions — a payload opens
+    // under its own marker and under no other. Without the positive half, an
+    // implementation that binds nothing at all would still pass.
     //
-    // There is no v2 yet. That is exactly why this is written now: the day one
-    // exists, an unbound version byte makes a v2 -> v1 downgrade free.
-    const sealed = await seal(KEY, { auth_web: 1 }, 3600)
+    // Since #265, new cookies seal through @lockness/crypto's Crypt (the `c1.`
+    // format), which owns this property for `c1.` — proven in Crypt's own suite.
+    // What the SESSION still owns is the retained `v1.` read-compat path, so this
+    // test crafts a genuine v1 cookie (via `sealRaw`) and locks the v1 binding.
+    const future = Math.floor(Date.now() / 1000) + 3600
+    const sealed = await sealRaw(
+        KEY,
+        JSON.stringify({ d: { auth_web: 1 }, iat: 0, exp: future }),
+    )
     const raw = decodeBase64(sealed.slice(WIRE_VERSION.length))
     const salt = raw.subarray(0, 16)
     const iv = raw.subarray(16, 28)
@@ -296,26 +348,29 @@ Deno.test('wire - a tampered SALT is rejected', async () => {
     // The salt is an HKDF input, so perturbing it derives a different key and
     // the tag fails. Asserted rather than assumed: the existing tamper test
     // flips the ciphertext tail, which exercises a different byte range
-    // entirely.
+    // entirely. The cookie's own prefix is preserved (both markers are 3 chars),
+    // so the tampered body is authenticated by the format that actually wrote it.
     const sealed = await seal(KEY, { auth_web: 1 }, 3600)
+    const prefix = sealed.slice(0, WIRE_VERSION.length)
     const raw = decodeBase64(sealed.slice(WIRE_VERSION.length))
     raw[0] ^= 0xff
 
-    assertEquals(await open(KEY, WIRE_VERSION + encodeBase64(raw)), null)
+    assertEquals(await open(KEY, prefix + encodeBase64(raw)), null)
     assertEquals(
-        await openSealed(KEY, WIRE_VERSION + encodeBase64(raw)),
+        await openSealed(KEY, prefix + encodeBase64(raw)),
         'tag-mismatch',
     )
 })
 
 Deno.test('wire - a tampered IV is rejected', async () => {
     const sealed = await seal(KEY, { auth_web: 1 }, 3600)
+    const prefix = sealed.slice(0, WIRE_VERSION.length)
     const raw = decodeBase64(sealed.slice(WIRE_VERSION.length))
     raw[16] ^= 0xff
 
-    assertEquals(await open(KEY, WIRE_VERSION + encodeBase64(raw)), null)
+    assertEquals(await open(KEY, prefix + encodeBase64(raw)), null)
     assertEquals(
-        await openSealed(KEY, WIRE_VERSION + encodeBase64(raw)),
+        await openSealed(KEY, prefix + encodeBase64(raw)),
         'tag-mismatch',
     )
 })

@@ -38,7 +38,8 @@ Deno.test('config - a secret set AFTER the factory call still reaches the driver
         false,
         'the middleware emitted the unencrypted #137 cookie',
     )
-    assertEquals(cookie.includes('lockness_session=v1.'), true)
+    // Sealed through @lockness/crypto's Crypt since #265 — the `c1.` wire.
+    assertEquals(cookie.includes('lockness_session=c1.'), true)
 })
 
 Deno.test('config - a session id that is not 64 hex characters is discarded', async () => {
@@ -107,7 +108,9 @@ Deno.test('config - a sealed cookie survives a real HTTP round trip', async () =
     const first = await app.request('http://localhost/set')
     const cookie = (first.headers.get('set-cookie') ?? '').split(';')[0]
 
-    assertEquals(cookie.startsWith('lockness_session=v1.'), true)
+    // New cookies are sealed through @lockness/crypto's Crypt, whose wire marker
+    // is `c1.` (#265). The legacy `v1.` format is still read, never written.
+    assertEquals(cookie.startsWith('lockness_session=c1.'), true)
 
     const second = await app.request('http://localhost/get', {
         headers: { cookie },
