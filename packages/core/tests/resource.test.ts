@@ -59,6 +59,47 @@ Deno.test('the never-serialise denylist strips a mistakenly-named secret', () =>
     assertEquals(NEVER_SERIALISE.includes('token'), true)
 })
 
+Deno.test('Resource.schema() derives a JSON Schema from the projection', () => {
+    // Derived from the guarded wire shape — never-serialise fields never appear.
+    assertEquals(new UserResource(user).schema(), {
+        type: 'object',
+        properties: { id: { type: 'integer' }, name: { type: 'string' } },
+        required: ['id', 'name'],
+    })
+})
+
+Deno.test('Resource.schema() can be overridden to declare an explicit schema', () => {
+    class DeclaredResource extends Resource<User> {
+        override toArray(): Record<string, unknown> {
+            return { id: this.model.id }
+        }
+        override schema() {
+            return {
+                type: 'object',
+                properties: {
+                    id: { type: 'integer', description: 'The user id' },
+                },
+                required: ['id'],
+            }
+        }
+    }
+
+    assertEquals(new DeclaredResource(user).schema(), {
+        type: 'object',
+        properties: { id: { type: 'integer', description: 'The user id' } },
+        required: ['id'],
+    })
+})
+
+Deno.test('Resource.schema() never describes a mistakenly-named secret', () => {
+    // LeakyResource names passwordHash, but toJSON() (hence schema()) drops it.
+    assertEquals(new LeakyResource(user).schema(), {
+        type: 'object',
+        properties: { id: { type: 'integer' } },
+        required: ['id'],
+    })
+})
+
 Deno.test('ResourceCollection without pagination serialises to { data }', () => {
     const coll = new ResourceCollection([
         new UserResource(user),

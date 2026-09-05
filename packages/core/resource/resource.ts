@@ -23,6 +23,8 @@
  * ```
  */
 
+import { deriveJsonSchema, type JsonSchema } from '@lockness/contract'
+
 /**
  * Field names never emitted on the wire, applied by {@link Resource.toJSON}
  * even if a subclass names one. Exact-match, case-sensitive — a belt-and-braces
@@ -78,5 +80,29 @@ export abstract class Resource<TModel> {
      */
     toJSON(): Record<string, unknown> {
         return stripNeverSerialise(this.toArray())
+    }
+
+    /**
+     * The projection's JSON Schema — a model's wire shape *is* the response
+     * schema the OpenAPI document should emit. **Declare or derive:** the
+     * default *derives* one from {@link Resource.toJSON} (so the guarded wire
+     * shape, never a never-serialise field, is described); override it to
+     * *declare* an exact schema (formats, descriptions, enums) instead.
+     *
+     * Deriving reads `this.model`, so build the resource with a representative
+     * instance when registering its schema with the doc generator.
+     *
+     * @returns The JSON Schema describing this resource's projection.
+     *
+     * @example
+     * ```typescript
+     * // Register with @lockness/openapi's generator:
+     * const resources = [
+     *     { name: 'UserResource', schema: new UserResource(sample).schema() },
+     * ]
+     * ```
+     */
+    schema(): JsonSchema {
+        return deriveJsonSchema(this.toJSON())
     }
 }

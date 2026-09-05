@@ -109,6 +109,7 @@
     "denoServeStatic": "function",
     "deregisterDisposable": "function",
     "deregisterHealthCheck": "function",
+    "deriveJsonSchema": "function",
     "discoverSchedules": "function",
     "dispatcher": "function",
     "disposableCount": "function",
