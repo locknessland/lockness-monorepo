@@ -21,6 +21,8 @@
     },
     "imports": {
         "@lockness/auth": "jsr:@lockness/auth@^0.2.0",
-        "drizzle-orm/postgres-js": "npm:drizzle-orm@^0.36.3/postgres-js"
+        "drizzle-orm/postgres-js": "npm:drizzle-orm@^0.36.3/postgres-js",
+        "drizzle-orm/mysql2": "npm:drizzle-orm@^0.36.3/mysql2",
+        "drizzle-orm/libsql": "npm:drizzle-orm@^0.36.3/libsql"
     }
 }

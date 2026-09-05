@@ -6,33 +6,40 @@
  * @module @lockness/auth-provider/drizzle/session
  */
 
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type { Authenticatable, RememberMeToken } from '@lockness/auth'
 import { SessionProviderBase } from '../base/session_provider_base.ts'
+import type { DrizzleDatabase, DrizzleDialect } from './database.ts'
 
 /**
  * Configuration options for Drizzle session user provider.
  *
  * @typeParam User - The user entity type extending {@link Authenticatable}
+ * @typeParam D - The SQL dialect of the Drizzle handle (`pg` by default), so a
+ * `mysql` or `sqlite` `Database` handle from the #214 multi-DB work is accepted.
  */
-export interface DrizzleSessionProviderOptions<User extends Authenticatable> {
+export interface DrizzleSessionProviderOptions<
+    User extends Authenticatable,
+    D extends DrizzleDialect = 'pg',
+> {
     /**
-     * Drizzle database instance (from @lockness/drizzle Database service)
+     * Drizzle database instance (from @lockness/drizzle Database service),
+     * typed by dialect `D`.
      */
-    db: PostgresJsDatabase<Record<string, unknown>>
+    db: DrizzleDatabase<D>
 
     /**
      * Function to find user by ID
      */
     findUserById: (
-        db: PostgresJsDatabase<Record<string, unknown>>,
+        db: DrizzleDatabase<D>,
         id: string | number,
     ) => Promise<User | null>
 
-    /** \n     * Function to find user by email and verify password
+    /**
+     * Function to find user by email and verify password
      */
     findUserByCredentials: (
-        db: PostgresJsDatabase<Record<string, unknown>>,
+        db: DrizzleDatabase<D>,
         email: string,
         password: string,
     ) => Promise<User | null>
@@ -76,14 +83,16 @@ export interface DrizzleSessionProviderOptions<User extends Authenticatable> {
  *   enableRememberTokens: true
  * })
  */
-export class DrizzleSessionProvider<User extends Authenticatable>
-    extends SessionProviderBase<User> {
+export class DrizzleSessionProvider<
+    User extends Authenticatable,
+    D extends DrizzleDialect = 'pg',
+> extends SessionProviderBase<User> {
     /** @internal Provider configuration */
-    readonly #options: Required<DrizzleSessionProviderOptions<User>>
+    readonly #options: Required<DrizzleSessionProviderOptions<User, D>>
     /** @internal Whether remember tokens are enabled */
     readonly #enableRememberTokens: boolean
 
-    constructor(options: DrizzleSessionProviderOptions<User>) {
+    constructor(options: DrizzleSessionProviderOptions<User, D>) {
         super()
         this.#options = {
             ...options,

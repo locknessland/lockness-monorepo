@@ -6,26 +6,32 @@
  * @module @lockness/auth-provider/drizzle/basic-auth
  */
 
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type { Authenticatable } from '@lockness/auth'
 import { BasicAuthProviderBase } from '../base/basic_auth_provider_base.ts'
+import type { DrizzleDatabase, DrizzleDialect } from './database.ts'
 
 /**
  * Configuration options for Drizzle basic auth user provider.
  *
  * @typeParam User - The user entity type extending {@link Authenticatable}
+ * @typeParam D - The SQL dialect of the Drizzle handle (`pg` by default), so a
+ * `mysql` or `sqlite` `Database` handle from the #214 multi-DB work is accepted.
  */
-export interface DrizzleBasicAuthProviderOptions<User extends Authenticatable> {
+export interface DrizzleBasicAuthProviderOptions<
+    User extends Authenticatable,
+    D extends DrizzleDialect = 'pg',
+> {
     /**
-     * Drizzle database instance (from @lockness/drizzle Database service)
+     * Drizzle database instance (from @lockness/drizzle Database service),
+     * typed by dialect `D`.
      */
-    db: PostgresJsDatabase<Record<string, unknown>>
+    db: DrizzleDatabase<D>
 
     /**
      * Function to find user by ID
      */
     findUserById: (
-        db: PostgresJsDatabase<Record<string, unknown>>,
+        db: DrizzleDatabase<D>,
         id: string | number,
     ) => Promise<User | null>
 
@@ -33,7 +39,7 @@ export interface DrizzleBasicAuthProviderOptions<User extends Authenticatable> {
      * Function to find user by email and verify password
      */
     findUserByCredentials: (
-        db: PostgresJsDatabase<Record<string, unknown>>,
+        db: DrizzleDatabase<D>,
         email: string,
         password: string,
     ) => Promise<User | null>
@@ -66,12 +72,14 @@ export interface DrizzleBasicAuthProviderOptions<User extends Authenticatable> {
  *   }
  * })
  */
-export class DrizzleBasicAuthProvider<User extends Authenticatable>
-    extends BasicAuthProviderBase<User> {
+export class DrizzleBasicAuthProvider<
+    User extends Authenticatable,
+    D extends DrizzleDialect = 'pg',
+> extends BasicAuthProviderBase<User> {
     /** @internal Provider configuration */
-    readonly #options: Required<DrizzleBasicAuthProviderOptions<User>>
+    readonly #options: Required<DrizzleBasicAuthProviderOptions<User, D>>
 
-    constructor(options: DrizzleBasicAuthProviderOptions<User>) {
+    constructor(options: DrizzleBasicAuthProviderOptions<User, D>) {
         super()
         this.#options = {
             ...options,

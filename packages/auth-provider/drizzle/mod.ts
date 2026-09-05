@@ -7,6 +7,12 @@
  * @module @lockness/auth-provider/drizzle
  */
 
+export type {
+    DrizzleAuthSchema,
+    DrizzleDatabase,
+    DrizzleDialect,
+} from './database.ts'
+
 export type { DrizzleSessionProviderOptions } from './drizzle_session_provider.ts'
 export { DrizzleSessionProvider } from './drizzle_session_provider.ts'
 

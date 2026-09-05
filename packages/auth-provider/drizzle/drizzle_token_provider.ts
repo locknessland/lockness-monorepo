@@ -6,26 +6,32 @@
  * @module @lockness/auth-provider/drizzle/token
  */
 
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type { AccessToken, Authenticatable } from '@lockness/auth'
 import { TokenProviderBase } from '../base/token_provider_base.ts'
+import type { DrizzleDatabase, DrizzleDialect } from './database.ts'
 
 /**
  * Configuration options for Drizzle token user provider.
  *
  * @typeParam User - The user entity type extending {@link Authenticatable}
+ * @typeParam D - The SQL dialect of the Drizzle handle (`pg` by default), so a
+ * `mysql` or `sqlite` `Database` handle from the #214 multi-DB work is accepted.
  */
-export interface DrizzleTokenProviderOptions<User extends Authenticatable> {
+export interface DrizzleTokenProviderOptions<
+    User extends Authenticatable,
+    D extends DrizzleDialect = 'pg',
+> {
     /**
-     * Drizzle database instance (from @lockness/drizzle Database service)
+     * Drizzle database instance (from @lockness/drizzle Database service),
+     * typed by dialect `D`.
      */
-    db: PostgresJsDatabase<Record<string, unknown>>
+    db: DrizzleDatabase<D>
 
     /**
      * Function to find user by ID
      */
     findUserById: (
-        db: PostgresJsDatabase<Record<string, unknown>>,
+        db: DrizzleDatabase<D>,
         id: string | number,
     ) => Promise<User | null>
 
@@ -33,7 +39,7 @@ export interface DrizzleTokenProviderOptions<User extends Authenticatable> {
      * Function to find user by credentials
      */
     findUserByCredentials: (
-        db: PostgresJsDatabase<Record<string, unknown>>,
+        db: DrizzleDatabase<D>,
         email: string,
         password: string,
     ) => Promise<User | null>
@@ -71,12 +77,14 @@ export interface DrizzleTokenProviderOptions<User extends Authenticatable> {
  *   }
  * })
  */
-export class DrizzleTokenProvider<User extends Authenticatable>
-    extends TokenProviderBase<User> {
+export class DrizzleTokenProvider<
+    User extends Authenticatable,
+    D extends DrizzleDialect = 'pg',
+> extends TokenProviderBase<User> {
     /** @internal Provider configuration */
-    readonly #options: Required<DrizzleTokenProviderOptions<User>>
+    readonly #options: Required<DrizzleTokenProviderOptions<User, D>>
 
-    constructor(options: DrizzleTokenProviderOptions<User>) {
+    constructor(options: DrizzleTokenProviderOptions<User, D>) {
         super()
         this.#options = {
             ...options,
