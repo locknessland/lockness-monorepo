@@ -67,6 +67,52 @@ jobs:
             - name: Run tests (with leak tracing)
               run: deno task test:leaks
 
+    live-redis:
+        name: Live Redis integration
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+
+        # A service container, so the gated suite (#273) actually RUNS somewhere.
+        # Without this job nothing ever sets LOCKNESS_REDIS_INTEGRATION, the
+        # suite skips forever, and "we have live-Redis coverage" quietly becomes
+        # untrue while every check stays green — which is exactly the history
+        # that produced #273 in the first place.
+        services:
+            redis:
+                # 7.x is the floor: the realtime driver's EXPIRE 'NX' / 'GT'
+                # option flags do not exist before Redis 7.0 and fail as no-ops.
+                image: redis:7-alpine
+                ports:
+                    - 6379:6379
+                options: >-
+                    --health-cmd "redis-cli ping"
+                    --health-interval 5s
+                    --health-timeout 3s
+                    --health-retries 10
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              with:
+                  deno-version: v2.x
+
+            - name: Run the live-broker suite
+              # Every LOCKNESS_REDIS_* value is set HERE, in the workflow file.
+              # None of them is ever taken from anything a fork's pull request
+              # can influence — the host is an outbound-connection primitive.
+              env:
+                  LOCKNESS_REDIS_HOST: 127.0.0.1
+                  LOCKNESS_REDIS_PORT: '6379'
+              # --trace-leaks here rather than in the task: the default
+              # `test:leaks` job never sets the gate, so it skips every one of
+              # these tests. Without this flag nothing leak-checks them at all,
+              # and each test opens four sockets.
+              run: deno task test:redis -- --trace-leaks
+
     coverage:
         name: Coverage
         runs-on: ubuntu-latest
