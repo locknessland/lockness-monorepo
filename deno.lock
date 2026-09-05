@@ -4783,6 +4783,7 @@
       "packages/session": {
         "dependencies": [
           "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/crypto@0.2",
           "jsr:@lockness/hono@0.2",
           "jsr:@lockness/redis@0.2",
           "jsr:@std/assert@1",

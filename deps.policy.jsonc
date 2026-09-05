@@ -118,7 +118,7 @@
         "scheduler": { "tier": "implementation", "allow": [] },
         "session": {
             "tier": "implementation",
-            "allow": ["contract", "hono", "redis"]
+            "allow": ["contract", "crypto", "hono", "redis"]
         },
         "testing": {
             "tier": "orchestration",

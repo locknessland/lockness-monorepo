@@ -68,7 +68,7 @@ The dependency graph is acyclic (DAG).
 | `redis`                 | contract                                             | —                                                                                    |
 | `scheduler`             | —                                                    | —                                                                                    |
 | `search`                | —                                                    | —                                                                                    |
-| `session`               | contract, hono, redis                                | —                                                                                    |
+| `session`               | contract, crypto, hono, redis                        | —                                                                                    |
 | `socialite`             | contract, hono                                       | —                                                                                    |
 | `sse`                   | contract                                             | —                                                                                    |
 | `storage`               | —                                                    | —                                                                                    |
