@@ -19,12 +19,30 @@ import { configureQueue, dispatch, QueueWorker } from '@lockness/queue'
 
 ```typescript
 configureQueue({
-    driver: 'memory', // 'memory' | 'deno-kv'
+    driver: 'memory', // 'memory' | 'deno-kv' | 'redis'
     defaultQueue: 'default',
     kvPath: './data/kv', // optional, for deno-kv driver
     retryDelay: 3000, // 3 seconds between retries
+    deadLetterRetentionMs: 14 * 24 * 60 * 60 * 1000, // 14 days (default)
+    deadLetterMaxEntries: 10_000, // in-memory cap only (default)
 })
 ```
+
+### Dead-letter retention
+
+A job that exhausts its retries is moved to the dead-letter store rather than
+dropped. Because a failed job's payload is sensitive data, the store is **not**
+retained indefinitely — every driver enforces a retention window:
+
+- **`deadLetterRetentionMs`** — how long a dead-lettered job is kept, in
+  milliseconds. **Default: 14 days.** The Deno KV driver writes each entry with
+  an `expireIn` so it self-expires; the memory and Redis drivers purge entries
+  older than the window opportunistically, on every `deadLetter` write and on
+  `listFailed`.
+- **`deadLetterMaxEntries`** — an additional count cap for the **in-memory**
+  driver only (it has no external store to expire keys for it). Once exceeded,
+  the oldest entry is evicted. **Default: 10 000.** The durable drivers ignore
+  it; they are bounded by the retention window alone.
 
 ## Basic Usage
 
