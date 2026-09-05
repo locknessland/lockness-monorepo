@@ -174,12 +174,19 @@ the connection revoked and the owning instance recovers the missed evict. It
 self-expires after `revocationTtlSeconds` (default `300`) so the revocation set
 never grows without bound.
 
-It is a **single sorted set** at `{prefix}:revocations`, whose score is the
-second the revocation expires. One structure rather than two matters for
-correctness, not tidiness: reaping expired entries and listing live ones happen
-in one server-side operation against one `now` read from Redis's own clock, so a
-revocation that is live cannot be removed by a concurrent pass, and no
-instance's wall clock takes part in the decision.
+The two methods behind it are `markRevoked(id)` and `listRevoked()` — optional
+members of the `BroadcastDriver` port, alongside
+`onRevocationReconcile(handler)` which says _when_ the re-check runs. A custom
+driver that implements all three gets the same durability guarantees as the
+Redis one; a driver that omits them falls back to fire-and-forget eviction, with
+no recovery from a lost frame.
+
+The Redis driver stores it as a **single sorted set** at `{prefix}:revocations`,
+whose score is the second the revocation expires. One structure rather than two
+matters for correctness, not tidiness: reaping expired entries and listing live
+ones happen in one server-side operation against one `now` read from Redis's own
+clock, so a revocation that is live cannot be removed by a concurrent pass, and
+no instance's wall clock takes part in the decision.
 
 > **Requires Redis 7.0+.** Every write is extend-only and each needs to be:
 > `ZADD … GT` stops a re-eviction shortening one revocation, `EXPIRE … NX` arms

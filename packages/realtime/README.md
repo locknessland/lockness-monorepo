@@ -35,7 +35,13 @@ app.get(
   and `manager.evict(id)` revokes a connection wherever its socket lives. Build
   it with `RedisBroadcastDriver.fromConfig(config, { control: { secret } })` —
   the control plane and presence-identity frames are HMAC-authenticated, and the
-  reserved `prefix` is not a security boundary on its own.
+  reserved `prefix` is not a security boundary on its own. **The Redis driver
+  requires Redis 7.0+**; the memory driver has no such floor.
+- **Durable revocation** — an evict outlives a lost pub/sub frame. A custom
+  `BroadcastDriver` opts in by implementing `markRevoked(id)` and
+  `listRevoked()`, plus `onRevocationReconcile(handler)` to say when the
+  re-check runs; all three are optional, and a driver that omits them gets
+  fire-and-forget eviction. See [realtime.md](../../docs/realtime.md).
 - **A broadcaster** that satisfies `@lockness/notification`'s `BroadcasterLike`
   — real-time is a drop-in notifications broadcast transport.
 - **A JSON wire protocol** + an optional browser client helper.
