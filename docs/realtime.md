@@ -170,14 +170,31 @@ unlike a plain channel leave, which only unsubscribes.
 
 The durable marker is what closes the reliability gap: if the `evict` control
 message is lost while the owning socket is between reconnects, the marker keeps
-the connection revoked and the owning instance recovers the missed evict on its
-**periodic reconcile** (`reconcileIntervalMs`). The marker self-expires after
-`revocationTtlSeconds` (default `300`) so the revocation set never grows without
-bound.
+the connection revoked and the owning instance recovers the missed evict. The
+marker self-expires after `revocationTtlSeconds` (default `300`) so the
+revocation set never grows without bound.
 
-> A reconnect-triggered _immediate_ re-check (recovering a missed evict the
-> instant the owning socket reconnects, rather than on the next reconcile tick)
-> is a documented follow-up. Today recovery is the periodic reconcile.
+**Two triggers re-check the marker**, and every deployment gets both:
+
+| Trigger                    | When it fires                                                                      | What it bounds                                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Subscribe-socket reconnect | The instant the instance's pub/sub socket re-dials and re-issues its subscriptions | Recovery is immediate at the routine moment a frame is lost — a re-dial is precisely the window in which an `evict` goes missing |
+| Periodic reconcile         | Every `reconcileIntervalMs` (default `10000`)                                      | The backstop for a frame lost some other way — dropped by the ingest guard, say — with no socket fault involved                  |
+
+They invoke the **same** re-check, so nothing is recovered twice and nothing is
+recovered only once. The reconnect trigger is additive: an integrator whose
+subscriber does not expose a reconnect hook falls back to the periodic pass
+alone, unchanged.
+
+> **Operational note.** The subscribe socket currently re-dials on an idle bus
+> even with no fault, because it reads with a 30s deadline and sends no
+> keepalive — see
+> [#274](https://github.com/locknessland/lockness-monorepo/issues/274). Each of
+> those re-dials is a window in which a control frame can be lost, which is
+> exactly what the reconnect trigger recovers from. A re-dial that fails to
+> connect is not currently retried
+> ([#275](https://github.com/locknessland/lockness-monorepo/issues/275)); the
+> failure is logged at WARN and names that no further attempt will be made.
 
 ### Security posture: the bus is trusted, the `prefix` is not a boundary
 
