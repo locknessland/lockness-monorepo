@@ -5,9 +5,9 @@ under #562: the pass and the shape of its report change for different reasons,
 and the report is a contract worth reading on its own.
 
 End with a single summary block. **The per-ticket lines and the
-size/priority-missing escalation block are mandatory contract output,
-not optional** — they are how the user verifies the sizing + priority
-contract was honoured.
+size/priority/estimate-missing escalation block are mandatory contract
+output, not optional** — they are how the user verifies the sizing +
+priority + estimate contract was honoured.
 
 Per-ticket lines should note when a value was persisted as a label
 fallback rather than a native field — typically because the project
@@ -18,23 +18,24 @@ in the report.
 ```
 specnaut-groom report
 ─────────────────────
-⚠  groom completed with <K> un-sized/un-prioritised tickets — re-run or fix manually
+⚠  groom completed with <K> un-sized/un-prioritised/un-estimated tickets — re-run or fix manually
     (only emitted when K > 0, at the very top of the summary)
 
 Backlog:    <N> items reviewed, <P> promoted to Ready, <C> awaiting clarification
-            <R> body rewrites, <S> sized, <Z> prioritised
+            <R> body rewrites, <S> sized, <Z> prioritised, <E> estimated
 
 Per-ticket:
   ↳ <backlog-reference> → promoted/comment/closure-recommended
-       size=<X> + priority=<P> (field)
+       size=<X> + priority=<P> + est=<N> (field)
   ↳ <backlog-reference> → comment
        size=<X> (field) + priority=P3 (label fallback — no native option)
   ↳ ...
 
-⚠ size / priority missing:
+⚠ size / priority / estimate missing:
   ↳ <backlog-reference> — <reason: e.g. gh label create failed (rate-limited)>
   ↳ ...
-  (omit this whole section when K == 0)
+  (omit this whole section when K == 0; estimate counts only when the board
+   carries the native Estimate field — see groom.md step 3a)
 
 ⚠ Roadmap dates missing (GitHub backend, soft):
   ↳ <backlog-reference> — Ready since <date>, no target date set

@@ -64,21 +64,31 @@ The PO will:
      - `P1` — must-have for the next sprint or release
      - `P2` — important but deferrable; standard work
      - `P3` — nice-to-have / long horizon; pick up when slack appears
-  3a. **Set Roadmap dates — soft, and only if the board has the fields.**
-     GitHub backend only. Date / Estimate are *optional* Project V2 fields the
-     user adds themselves; a board carrying only `Status` / `Priority` / `Size`
-     is ordinary, not misconfigured. **Gate first** on the once-per-run
+  3a. **Set the native Estimate — mandatory when the board has the field.**
+     GitHub backend only. `Estimate` is a native Project V2 numeric field.
+     **Gate on** the once-per-run `detect-fields.sh` `ESTIMATE_FIELD_ID`:
+     - **Empty (field absent) → skip.** Size carries the sizing signal alone;
+       a board without the field is ordinary, not misconfigured.
+     - **Present → `set-field.sh <num> Estimate <N>` is REQUIRED** for every
+       ticket touched, in story points aligned to `Size`
+       (`XS`=1, `S`=2, `M`=3, `L`=5, `XL`=8) unless the ticket clearly warrants
+       otherwise. A board that has the field but a ticket left unestimated is a
+       contract violation, surfaced under "⚠ size / priority / estimate
+       missing" — same standing as Size and Priority below.
+  3b. **Set Roadmap dates — soft, and only if the board has the fields.**
+     GitHub backend only. Date fields are *optional* Project V2 fields the user
+     adds themselves; a board carrying only `Status` / `Priority` / `Size` is
+     ordinary, not misconfigured. **Gate first** on the once-per-run
      `detect-fields.sh`, which emits `TARGETDATE_FIELD_ID=` /
-     `STARTDATE_FIELD_ID=` / `ESTIMATE_FIELD_ID=` **empty** when the field is
-     absent:
+     `STARTDATE_FIELD_ID=` **empty** when the field is absent:
      - **Both IDs empty → skip this step entirely.** Set nothing, warn nothing,
        omit the "⚠ Roadmap dates missing" section. Never report a value as
        unset when it cannot be set at all.
      - **Field present** — `set-field.sh <num> TargetDate <YYYY-MM-DD>` on
        Backlog → Ready (best-estimate delivery date), `StartDate` on
-       Ready → In Progress (today), `Estimate <N>` optional. A missing *value*
-       on a field that exists never blocks: it emits a `⚠ no target date set`
-       / `⚠ no start date set` line in the final report and the run moves on.
+       Ready → In Progress (today). A missing *value* on a field that exists
+       never blocks: it emits a `⚠ no target date set` / `⚠ no start date set`
+       line in the final report and the run moves on.
   4. **Decide the outcome:**
      - **Promote to `Ready`** when the body is clear, both labels are
        applied, AND no scope decisions remain.
@@ -93,14 +103,15 @@ The PO will:
        reflecting the recommendation, e.g. `priority:P3`). Do not close
        autonomously.
 
-  **Mandatory sizing + priority contract.** Steps 2 and 3 are NOT
-  optional and NOT discretionary — every ticket the PO touches in a
-  groom run MUST exit with both a size and a priority value persisted,
-  regardless of the outcome chosen at step 4. If persistence fails for
-  an external reason (the user lacks scope, the API rate-limited, etc.),
-  the PO MUST capture the failure reason and surface it under "⚠ size /
-  priority missing" in the final report — silent skip is a contract
-  violation.
+  **Mandatory sizing + priority + estimate contract.** Steps 2, 3, and
+  3a are NOT optional and NOT discretionary — every ticket the PO
+  touches in a groom run MUST exit with a size AND a priority persisted,
+  AND an estimate persisted **whenever the board carries the native
+  `Estimate` field** (step 3a's gate), regardless of the outcome chosen
+  at step 4. If persistence fails for an external reason (the user lacks
+  scope, the API rate-limited, etc.), the PO MUST capture the failure
+  reason and surface it under "⚠ size / priority / estimate missing" in
+  the final report — silent skip is a contract violation.
 
 The PO must respect the standard backlog skill — do not bypass its
 scripts.
