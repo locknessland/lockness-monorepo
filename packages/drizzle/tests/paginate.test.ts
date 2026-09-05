@@ -13,7 +13,12 @@ import { eq, type SQL } from 'drizzle-orm'
 import { integer, pgTable, text } from 'drizzle-orm/pg-core'
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js'
 import type { DatabaseSchema } from '../mod.ts'
-import { decodeCursor, encodeCursor, paginate } from '../paginate.ts'
+import {
+    decodeCursor,
+    encodeCursor,
+    MalformedCursorError,
+    paginate,
+} from '../paginate.ts'
 
 const users = pgTable('users', {
     id: integer('id').primaryKey(),
@@ -101,6 +106,41 @@ Deno.test('encodeCursor/decodeCursor round-trip', () => {
 Deno.test('decodeCursor rejects a malformed token', () => {
     assertThrows(() => decodeCursor('!!!not-base64!!!'))
     assertThrows(() => decodeCursor(btoa(JSON.stringify({ nope: 1 }))))
+})
+
+Deno.test('decodeCursor surfaces a typed 400 error, not an uncaught throw', () => {
+    // A client-supplied garbage cursor is a 400, not a 500: the thrown error
+    // is the framework-mapped MalformedCursorError carrying `status = 400`,
+    // which the default error handler renders as a Bad Request.
+    const notDecodable = assertThrows(
+        () => decodeCursor('!!!not-base64!!!'),
+        MalformedCursorError,
+    ) as MalformedCursorError
+    assertEquals(notDecodable.status, 400)
+
+    const wrongShape = assertThrows(
+        () => decodeCursor(encodeCursor('id', 1).slice(0, 4)),
+        MalformedCursorError,
+    ) as MalformedCursorError
+    assertEquals(wrongShape.status, 400)
+})
+
+Deno.test('decodeCursor rejects a token minted for a different column', () => {
+    // A token forged/minted against another column must not be honoured when
+    // the caller pages a different column (AC-1).
+    const foreign = encodeCursor('email', 'a@b.co')
+    const err = assertThrows(
+        () => decodeCursor(foreign, 'id'),
+        MalformedCursorError,
+    ) as MalformedCursorError
+    assertEquals(err.status, 400)
+})
+
+Deno.test('decodeCursor accepts a token whose column matches the caller', () => {
+    assertEquals(decodeCursor(encodeCursor('id', 42), 'id'), {
+        column: 'id',
+        value: 42,
+    })
 })
 
 Deno.test('offset paginate issues count + windowed query and shapes the envelope', async () => {
