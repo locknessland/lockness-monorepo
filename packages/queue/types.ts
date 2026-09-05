@@ -9,18 +9,32 @@
  */
 
 export interface JobPayload {
+    /**
+     * Arbitrary, JSON-serialisable job data keyed by name. Values are typed as
+     * `unknown` because they cross a serialisation boundary; a job narrows them
+     * with its own typed payload interface.
+     */
     [key: string]: unknown
 }
 
 export interface SerializedJob {
+    /** Unique id for this enqueued instance, assigned at dispatch. */
     id: string
+    /** Registered job class name, used to resolve the handler on pop. */
     name: string
+    /** The job's serialised payload data. */
     payload: JobPayload
+    /** Number of times this job has been attempted so far. */
     attempts: number
+    /** Maximum attempts before the job is dead-lettered. */
     maxAttempts: number
+    /** Delay in milliseconds requested at dispatch before first availability. */
     delay: number
+    /** Name of the queue this job belongs to. */
     queue: string
+    /** When the job was enqueued (epoch milliseconds). */
     createdAt: number
+    /** Earliest time the job may be popped (epoch milliseconds); enforces `delay` and retry backoff. */
     availableAt: number
 }
 
