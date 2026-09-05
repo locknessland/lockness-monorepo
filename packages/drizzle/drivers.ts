@@ -52,9 +52,33 @@ export interface DriverHandle {
 }
 
 /**
- * Opens a connection for one dialect and returns its {@link DriverHandle}. The
- * seam the `Database` service loads a driver through — overridable for tests
- * and for custom drivers.
+ * Opens a connection for one dialect and returns its {@link DriverHandle}. This
+ * is the seam the `Database` service loads a driver through — overridable for
+ * tests (to inject a fake handle) and for registering custom drivers.
+ *
+ * Implementations load their adapter + client on demand, so the factory is
+ * asynchronous and the returned promise resolves once the connection is ready.
+ *
+ * @param url - The connection URL / DSN for the target database.
+ * @returns A promise resolving to the {@link DriverHandle} for the connection.
+ * @throws If the client package is missing or the connection cannot be opened;
+ * the error propagates from the underlying `import()` or client constructor.
+ *
+ * @example
+ * ```typescript
+ * const factory: DriverFactory = async (url) => {
+ *     const { drizzle } = await import('drizzle-orm/postgres-js')
+ *     const postgres = (await import('postgres')).default
+ *     const client = postgres(url)
+ *     return {
+ *         db: drizzle(client),
+ *         close: () => client.end(),
+ *         probe: async () => {
+ *             await client`SELECT 1`
+ *         },
+ *     }
+ * }
+ * ```
  */
 export type DriverFactory = (url: string) => Promise<DriverHandle>
 

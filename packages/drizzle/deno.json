@@ -12,6 +12,7 @@
             "tests/"
         ]
     },
+    "//": "hard-rule-2 exception: the mysql2 and @libsql/client npm: specifiers below are the MySQL and SQLite/libSQL client drivers that Drizzle's mysql2 and libsql adapters run on. Neither publishes a JSR build, so npm: is the only registry that ships them, and each is loaded on demand only when its dialect is selected (see drivers.ts).",
     "imports": {
         "@lockness/cli": "jsr:@lockness/cli@^0.2.0",
         "@lockness/container": "jsr:@lockness/container@^0.2.0",
