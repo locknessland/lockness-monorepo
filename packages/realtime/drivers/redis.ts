@@ -98,6 +98,18 @@ export interface RedisSubscriber {
         pattern: string,
         handler: (topic: string, payload: string) => void,
     ): void
+    /**
+     * OPTIONAL (#271/FR-004). Register a handler invoked after a fault-triggered
+     * reconnect has re-issued every active subscription.
+     *
+     * Optional on the type so a subscriber that predates the seam — or a test
+     * double that has no socket to lose — still satisfies this port. When it is
+     * absent the driver falls back to its periodic revocation reconcile alone,
+     * which is exactly #268's shipped behaviour.
+     *
+     * @param handler - Called with no arguments after each successful reconnect.
+     */
+    onReconnect?(handler: () => void | Promise<void>): void
 }
 
 /**
@@ -640,6 +652,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             () => this.#runRevocationReconcile(),
             this.reconcileIntervalMs,
         )
+        // The SECOND trigger (#271): the subscribe socket coming back is the
+        // routine moment an `evict` frame was lost, so re-check immediately
+        // rather than waiting up to `reconcileIntervalMs`. Registered HERE, in
+        // the same method as the timer — "when the revocation re-check runs" has
+        // one home, and a future non-revocation consumer of the reconnect signal
+        // does not belong in it. Routed through `#runRevocationReconcile` (not
+        // the raw handler) so both triggers share its contextual WARN, the only
+        // log line naming WHICH control failed.
+        this.subscriber.onReconnect?.(() => this.#runRevocationReconcile())
     }
 
     /**
@@ -852,7 +873,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * timers. Does NOT proactively drop this instance's roster members: a real
      * crash cannot, so its liveness key simply expires and a surviving instance
      * sweeps it (that is what {@link close} models in the sweep tests).
-     * Idempotent; a no-op for an injected-port driver beyond stopping the timers.
+     * Idempotent; for an injected-port driver it stops the timers and drops the
+     * revocation handler, so a later reconnect on the app-owned subscriber
+     * revokes nothing (FR-007).
      *
      * @returns Resolves once every owned connection is closed.
      * @example
@@ -874,6 +897,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             clearInterval(this.revocationTimer)
             this.revocationTimer = undefined
         }
+        // Clearing the timer is not enough for the RECONNECT trigger (#271): on
+        // the injected-port path `owned` is empty, so the subscriber outlives
+        // this driver and can still fire. Dropping the handler makes
+        // `#runRevocationReconcile`'s existing guard the ONE gate that quiesces
+        // both triggers on both construction paths.
+        this.revocationHandler = undefined
         for (const resource of this.owned) {
             await resource.close()
         }

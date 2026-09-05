@@ -11,6 +11,7 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert'
+import { FakeTime } from '@std/testing/time'
 import { ChannelManager } from '../manager.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import type { BroadcastMessage } from '../driver.ts'
@@ -37,6 +38,14 @@ class FakeRedisBus {
         }
         return Promise.resolve(0)
     }
+    /**
+     * A subscriber that deliberately does NOT implement the optional reconnect
+     * seam (#271/FR-004). It is this file's standing proof that a subscriber
+     * predating the seam — or any app-supplied one — still satisfies the port
+     * and still drives a full revocation cycle through the periodic trigger.
+     * Do not add `onReconnect` here; `tests/fake_redis.ts` is the fake that has
+     * it.
+     */
     subscriberFor() {
         return {
             psubscribe: (
@@ -228,4 +237,32 @@ Deno.test('publish sends PUBLISH with the reserved prefix and JSON payload', asy
     assertEquals(calls[0][0], 'PUBLISH')
     assertEquals(calls[0][1], 'app:rt:news')
     assert(calls[0][2].includes('"event":"e"'))
+})
+
+Deno.test('FR-004: a subscriber without the reconnect seam constructs and arms its periodic trigger', async () => {
+    const bus = new FakeRedisBus()
+    const time = new FakeTime(new Date('2026-09-05T10:00:00Z'))
+    // The fake above deliberately has no `onReconnect`. Registering the
+    // revocation trigger must feature-detect it and fall back to the periodic
+    // timer alone — no throw, no type error.
+    const driver = new RedisBroadcastDriver(
+        { command: bus.command },
+        bus.subscriberFor(),
+        { prefix: 'app:rt', presence: { reconcileIntervalMs: 1000 } },
+    )
+    let ticks = 0
+    try {
+        driver.onRevocationReconcile(() => {
+            ticks++
+        })
+        await time.tickAsync(3_500)
+        assertEquals(
+            ticks,
+            3,
+            'the periodic trigger still fires on its cadence',
+        )
+    } finally {
+        await driver.close()
+        time.restore()
+    }
 })

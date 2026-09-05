@@ -50,13 +50,29 @@ export class FakeRedis {
     readonly command = (...args: string[]): Promise<unknown> =>
         Promise.resolve(this.#exec(args))
 
-    /** A fresh subscriber whose `psubscribe` registrations share this instance. */
+    /**
+     * A fresh subscriber whose `psubscribe` registrations share this instance.
+     *
+     * It also implements the optional reconnect seam (#271), so a test can
+     * simulate a subscribe-socket reconnect with `fireReconnect()` — the real
+     * `RedisSubscribeConnection` fires it after a fault-triggered re-`PSUBSCRIBE`.
+     * `driver_redis.test.ts` keeps its own fake WITHOUT the seam on purpose: it
+     * is the standing proof that an unaware subscriber still works (FR-004).
+     */
     subscriberFor(): {
         psubscribe(pattern: string, handler: Handler): void
+        onReconnect(handler: () => void | Promise<void>): void
+        /** Test-only: simulate a reconnect, awaiting the handler's round-trip. */
+        fireReconnect(): Promise<void>
     } {
+        let onReconnect: (() => void | Promise<void>) | undefined
         return {
             psubscribe: (pattern, handler) =>
                 void this.#subs.push({ re: globToRegExp(pattern), handler }),
+            onReconnect: (handler) => void (onReconnect = handler),
+            fireReconnect: async () => {
+                await onReconnect?.()
+            },
         }
     }
 

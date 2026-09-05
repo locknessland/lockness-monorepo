@@ -21,6 +21,13 @@
  *   holds its own live-pattern set and, on a wire fault, reconnects and re-issues
  *   **every** active `PSUBSCRIBE`, logged at WARN — delivery resumes without app
  *   intervention and never silently.
+ * - **What counts as a reconnect (#271/FR-001/FR-002).** A reconnect is a
+ *   fault-triggered re-open whose patterns were re-issued — not a first connect,
+ *   and not a re-open that failed. The distinction is structural rather than
+ *   inferred: `psubscribe` enters through `#connectAndSubscribe`, the read loop's
+ *   fault path through `#reconnectAll`, and only the second fires
+ *   {@link RedisSubscribeConnection.onReconnect}. Consumers that must reconcile
+ *   what a lost pub/sub frame would have carried hang off that seam.
  *
  * It satisfies `@lockness/realtime`'s `RedisSubscriber` port structurally
  * (`psubscribe(pattern, handler)`), so the broadcast driver consumes it without
@@ -50,6 +57,16 @@ const DEFAULT_DISPOSABLE_PRIORITY = 60
 /** A push-message handler: called with `(topic, payload)` per delivered frame. */
 type MessageHandler = (topic: string, payload: string) => void
 
+/**
+ * A reconnect handler: called with no arguments once a fault-triggered reconnect
+ * has re-issued every active `PSUBSCRIBE`. Deliberately **nullary** — the seam
+ * carries no topic, no payload, and no peer-supplied byte, so nothing a Redis
+ * peer controls crosses it (#271, plan §6 invariants). Unexported, like
+ * {@link MessageHandler}, so the package's public surface gains one method and
+ * no new type name.
+ */
+type ReconnectHandler = () => void | Promise<void>
+
 /** Connection settings for a {@link RedisSubscribeConnection}. */
 export interface RedisSubscribeConnectionConfig
     extends AuthenticatedConnectionConfig {
@@ -77,6 +94,7 @@ export interface RedisSubscribeConnectionConfig
  * @example
  * ```typescript
  * const sub = new RedisSubscribeConnection({ hostname: 'localhost' })
+ * sub.onReconnect(() => reconcileWhateverTheLostFramesCarried())
  * sub.psubscribe('lockness:realtime:*', (topic, payload) => {
  *   // deliver `payload` for `topic`
  * })
@@ -92,6 +110,13 @@ export class RedisSubscribeConnection {
      * every (re)connect.
      */
     private readonly patterns = new Map<string, MessageHandler>()
+    /**
+     * The reconnect seam's handler (#271/FR-001), or `undefined` until
+     * {@link RedisSubscribeConnection.onReconnect} registers one. Single-handler,
+     * last-registration-wins — the same discipline as this package's other
+     * seams.
+     */
+    private reconnectHandler?: ReconnectHandler
     /** The socket the current read loop is draining, or `null` when idle. */
     private loopConn: Deno.Conn | null = null
     /** The current read loop, awaited by {@link close} so no read is left pending. */
@@ -135,7 +160,59 @@ export class RedisSubscribeConnection {
             throw new Error('RedisSubscribeConnection is closed')
         }
         this.patterns.set(pattern, handler)
-        void this.#activate([pattern])
+        void this.#connectAndSubscribe(pattern)
+    }
+
+    /**
+     * Register a handler invoked after a **reconnect** has re-issued every
+     * active `PSUBSCRIBE` (#271/FR-001).
+     *
+     * The routine moment a pub/sub frame is lost is the window in which this
+     * socket was between connects, so the reconnect is the moment a consumer
+     * wants to reconcile whatever the lost frames would have told it.
+     * `@lockness/realtime` uses it to run its durable revocation re-check
+     * immediately, instead of waiting for its periodic tick.
+     *
+     * It fires **only** on a reconnect: never on the first connect (there is
+     * nothing to recover), and never when the re-dial or the re-`PSUBSCRIBE`
+     * failed (a failed reconnect is not a reconnect). A handler that throws or
+     * rejects is contained and logged at WARN — it can neither kill the read
+     * loop nor stop future fires.
+     *
+     * Single-handler: registering again replaces the previous handler rather
+     * than stacking one, matching this package's other seams.
+     *
+     * @param handler - Called with no arguments after each successful reconnect.
+     * @example
+     * ```typescript
+     * sub.onReconnect(() => reconcileWhateverTheLostFramesCarried())
+     * ```
+     */
+    onReconnect(handler: ReconnectHandler): void {
+        this.reconnectHandler = handler
+    }
+
+    /**
+     * The FIRST-CONNECT entry point: dial, issue this one `PSUBSCRIBE`, start the
+     * read loop. It does **not** fire the reconnect seam.
+     *
+     * Split from {@link RedisSubscribeConnection.#reconnectAll} deliberately
+     * (#271, plan §5 row 1): the shared body cannot tell its two callers apart,
+     * so "is this a reconnect" is decided by WHICH entry point was called, not by
+     * a flag threaded through or a state variable read back. Both delegate to
+     * {@link RedisSubscribeConnection.#activate}.
+     */
+    #connectAndSubscribe(pattern: string): Promise<void> {
+        return this.#activate([pattern], false)
+    }
+
+    /**
+     * The RECONNECT entry point: re-dial and re-issue EVERY active pattern
+     * (FR-003), then fire the reconnect seam. The seam fires from here and
+     * nowhere else, and only once the re-issue has actually succeeded.
+     */
+    #reconnectAll(): Promise<void> {
+        return this.#activate([...this.patterns.keys()], true)
     }
 
     /**
@@ -144,7 +221,10 @@ export class RedisSubscribeConnection {
      * WARN (never silent) rather than thrown, because callers are the synchronous
      * `psubscribe` and the background reconnect.
      */
-    async #activate(toIssue: readonly string[]): Promise<void> {
+    async #activate(
+        toIssue: readonly string[],
+        isReconnect: boolean,
+    ): Promise<void> {
         if (this.closed) return
         try {
             const conn = await this.conn.connect()
@@ -160,9 +240,40 @@ export class RedisSubscribeConnection {
                 this.loopConn = conn
                 this.loopDone = this.#readLoop(conn)
             }
+            // The seam fires INSIDE the try and AFTER the re-issue loop, so a
+            // reconnect whose PSUBSCRIBE never landed is not reported as one.
+            if (isReconnect) await this.#fireReconnect()
         } catch (error) {
+            // Terminal either way — nothing here schedules a retry (#275) — but
+            // say which, so the log distinguishes "never connected" from "was
+            // connected and will not come back".
+            const outcome = isReconnect
+                ? 'no further reconnect will be attempted'
+                : 'this subscription never reached the wire and will not be retried'
             console.warn(
                 `[redis-subscribe] PSUBSCRIBE failed at ${
+                    safeForLog(this.hostname)
+                }, ${outcome}: ${renderError(error)}`,
+            )
+        }
+    }
+
+    /**
+     * Invoke the reconnect handler, containing any fault.
+     *
+     * The containment is the seam's own (plan §5): a consumer's throw must not
+     * kill the read loop that is about to resume delivery. It is logged at WARN
+     * via the same encoder as this file's other warnings, and it deliberately
+     * does **not** unregister the handler — a containment that disarms the seam
+     * would turn a recoverable failure into permanent silent degradation.
+     */
+    async #fireReconnect(): Promise<void> {
+        if (this.closed || !this.reconnectHandler) return
+        try {
+            await this.reconnectHandler()
+        } catch (error) {
+            console.warn(
+                `[redis-subscribe] reconnect handler failed at ${
                     safeForLog(this.hostname)
                 }: ${renderError(error)}`,
             )
@@ -191,8 +302,9 @@ export class RedisSubscribeConnection {
                 )
                 this.conn.discard(conn)
                 if (this.loopConn === conn) this.loopConn = null
-                // Re-issue EVERY active pattern on the fresh socket (FR-003).
-                void this.#activate([...this.patterns.keys()])
+                // Re-issue EVERY active pattern on the fresh socket (FR-003),
+                // then fire the reconnect seam (#271/FR-001).
+                void this.#reconnectAll()
                 return
             }
             this.#dispatch(reply)

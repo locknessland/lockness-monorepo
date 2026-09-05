@@ -213,3 +213,52 @@ Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded
         'the oversized-frame fault reconnected and was logged at WARN, never silent',
     )
 })
+
+Deno.test('FR-007: on the fromConfig path, close() leaves nothing that a later socket fault could revive', async () => {
+    const server = await startFakeServer()
+    const config = { hostname: '127.0.0.1', port: server.port }
+    // The OTHER construction path. Here `close()` owns and closes the subscribe
+    // connection, so quiescence has two independent gates — the subscriber's own
+    // `closed` flag and the driver's cleared revocation handler. The
+    // injected-port sibling in `eviction_reconnect.test.ts` covers the path where
+    // only the second exists.
+    const driver = RedisBroadcastDriver.fromConfig(config, { prefix: PREFIX })
+    let reconciles = 0
+    const manager = new ChannelManager<User>({
+        driver,
+        authorize: () => true,
+    })
+    try {
+        driver.onRevocationReconcile(() => {
+            reconciles++
+        })
+        await manager.subscribe(fakeConn('a1', { id: 1 }), 'private-room')
+        await waitFor(
+            () => psubscribeCount(server, PATTERN) >= 1,
+            'the real subscribe socket is up',
+        )
+
+        await driver.close()
+        const psubscribesAtClose = psubscribeCount(server, PATTERN)
+        const reconcilesAtClose = reconciles
+
+        // Force the wire fault a live socket would take. A closed connection
+        // must not re-dial at all, so no reconnect exists to fire the seam.
+        server.dropConnections()
+        await new Promise((r) => setTimeout(r, 60))
+
+        assertEquals(
+            psubscribeCount(server, PATTERN),
+            psubscribesAtClose,
+            'a closed subscribe connection does not re-dial',
+        )
+        assertEquals(
+            reconciles,
+            reconcilesAtClose,
+            'and therefore nothing re-checks revocations after close()',
+        )
+    } finally {
+        await driver.close()
+        server.stop()
+    }
+})

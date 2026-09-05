@@ -206,3 +206,179 @@ Deno.test('subscriber - authenticates via the shared primitive before subscribin
         'the password is never logged in cleartext',
     )
 })
+
+Deno.test('subscriber - onReconnect fires once after a reconnect re-issues its patterns', async () => {
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+    })
+    let fires = 0
+    await captureWarnings(async () => {
+        try {
+            sub.onReconnect(() => {
+                fires++
+            })
+            sub.psubscribe('app:*', () => {})
+            await waitFor(
+                () => psubscribeCount(server, 'app:*') >= 1,
+                'the first PSUBSCRIBE reached the wire',
+            )
+            // FR-002: the first connect is NOT a reconnect.
+            assertEquals(fires, 0, 'no fire on the first connect')
+
+            const acceptsBefore = server.accepts()
+            server.dropConnections()
+            await waitFor(
+                () => psubscribeCount(server, 'app:*') >= 2,
+                'the subscription was re-issued after reconnect',
+            )
+            assert(
+                server.accepts() > acceptsBefore,
+                'the socket was re-dialled',
+            )
+            await waitFor(() => fires >= 1, 'the reconnect handler fired')
+            // Fired exactly once for one reconnect.
+            assertEquals(fires, 1)
+        } finally {
+            await sub.close()
+            server.stop()
+        }
+    })
+})
+
+Deno.test('subscriber - onReconnect does not fire when the re-dial itself fails', async () => {
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+    })
+    let fires = 0
+    // Captured inline rather than via `captureWarnings`, because the test has
+    // to POLL the warnings while the body is still running.
+    const warnings: string[] = []
+    const realWarn = console.warn
+    console.warn = (...args: unknown[]) => {
+        warnings.push(args.map((a) => String(a)).join(' '))
+    }
+    try {
+        sub.onReconnect(() => {
+            fires++
+        })
+        sub.psubscribe('app:*', () => {})
+        await waitFor(
+            () => psubscribeCount(server, 'app:*') >= 1,
+            'the first PSUBSCRIBE reached the wire',
+        )
+        // Closing the listener AND the live socket forces the wire fault and
+        // makes the re-dial fail: a failed reconnect is not a reconnect.
+        server.stop()
+        await waitFor(
+            () => warnings.some((m) => m.includes('PSUBSCRIBE failed')),
+            'the failed re-activation was logged',
+        )
+    } finally {
+        await sub.close()
+        console.warn = realWarn
+    }
+    assertEquals(fires, 0, 'no fire when the re-subscribe never succeeded')
+    assert(
+        warnings.some((m) => m.includes('no further reconnect')),
+        'the terminal state is named in the WARN (FR-009)',
+    )
+})
+
+Deno.test('subscriber - a throwing onReconnect handler neither kills the read loop nor disarms the seam', async () => {
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+    })
+    const got: Array<[string, string]> = []
+    let fires = 0
+    const warnings = await captureWarnings(async () => {
+        try {
+            sub.onReconnect(() => {
+                fires++
+                // Throws on the FIRST reconnect only. The second fire is what
+                // proves the containment did not unregister the handler —
+                // without it, an `undefined`-ing catch would ship green and the
+                // seam would be permanently, silently dead (plan §9 risk 3).
+                if (fires === 1) throw new Error('handler exploded')
+            })
+            sub.psubscribe(
+                'app:*',
+                (topic, payload) => got.push([topic, payload]),
+            )
+            await waitFor(
+                () => psubscribeCount(server, 'app:*') >= 1,
+                'the first PSUBSCRIBE reached the wire',
+            )
+
+            server.dropConnections()
+            await waitFor(
+                () => psubscribeCount(server, 'app:*') >= 2,
+                'the subscription was re-issued after the first reconnect',
+            )
+            await waitFor(() => fires >= 1, 'the handler fired and threw')
+
+            // A SECOND reconnect, after the handler threw on the first.
+            server.dropConnections()
+            await waitFor(
+                () => psubscribeCount(server, 'app:*') >= 3,
+                'the subscription was re-issued after the second reconnect',
+            )
+            await waitFor(
+                () => fires >= 2,
+                'the seam is still armed after its handler threw',
+            )
+
+            // The read loop survived both: delivery resumes. Published ONCE,
+            // outside the poll predicate — a predicate with a side effect fires
+            // on every tick and hides how many frames it actually took.
+            server.publish('app:*', 'app:room', '{"event":"after"}')
+            await waitFor(
+                () => got.length >= 1,
+                'delivery resumed despite the throwing handler',
+            )
+        } finally {
+            await sub.close()
+            server.stop()
+        }
+    })
+    assertEquals(fires, 2, 'the handler fired on BOTH reconnects')
+    assert(
+        warnings.some((m) => m.includes('handler exploded')),
+        'the handler fault was logged at WARN, never swallowed',
+    )
+})
+
+Deno.test('subscriber - onReconnect replaces the previous handler rather than stacking one', async () => {
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+    })
+    const fired: string[] = []
+    await captureWarnings(async () => {
+        try {
+            sub.onReconnect(() => void fired.push('first'))
+            sub.onReconnect(() => void fired.push('second'))
+            sub.psubscribe('app:*', () => {})
+            await waitFor(
+                () => psubscribeCount(server, 'app:*') >= 1,
+                'the first PSUBSCRIBE reached the wire',
+            )
+            server.dropConnections()
+            await waitFor(
+                () => psubscribeCount(server, 'app:*') >= 2,
+                'the subscription was re-issued after reconnect',
+            )
+            await waitFor(() => fired.length >= 1, 'a handler fired')
+        } finally {
+            await sub.close()
+            server.stop()
+        }
+    })
+    assertEquals(fired, ['second'], 'only the last-registered handler runs')
+})
