@@ -107,7 +107,9 @@ export function checkOrigin(
  * Wrap a live socket as a {@link Connection}.
  *
  * @param socket - The underlying socket (a Hono `WSContext` satisfies it).
- * @param id - The stable transport id.
+ * @param id - The stable transport id. Must be unguessable and never reused
+ *   across connections — see {@link Connection.id} for why that is a security
+ *   property and not a style preference.
  * @param identity - The server-derived identity (or `null`).
  * @param metadata - Free-form connection metadata.
  * @returns The connection handed to hooks.

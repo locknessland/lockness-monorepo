@@ -155,6 +155,15 @@ export interface InstanceOptions {
     reconcileIntervalMs?: number
     /** Durable revocation marker TTL, in seconds. */
     revocationTtlSeconds?: number
+    /**
+     * The control-plane secret for this run. Defaults to a fresh per-run value.
+     *
+     * A test passes its own only when it needs to **sign a frame the way a peer
+     * instance would** — #272's replay test has to produce a genuinely valid
+     * frame before it can prove that replaying it is refused. Forging is not the
+     * threat being tested; capture-and-repeat is.
+     */
+    secret?: string
 }
 
 const defaultAuthorize = (
@@ -196,7 +205,7 @@ export async function withInstances<T>(
     body: (instances: LiveInstance[]) => Promise<T>,
     options: InstanceOptions = {},
 ): Promise<T> {
-    const secret = controlSecret()
+    const secret = options.secret ?? controlSecret()
     const config = brokerConfig()
     const instances: LiveInstance[] = []
     try {
@@ -243,7 +252,11 @@ export async function withInstances<T>(
  * the signal, the payload is not.
  *
  * That drop raises `realtime: dropped a control message of invalid shape` in the
- * log, once per probe round, and it is left there deliberately. Suppressing it
+ * log, once per probe round, and it is left there deliberately. Since #272 the
+ * shape gate also requires an integer `ts` and a fixed-width `nonce`, so `'{}'`
+ * still trips it — earlier now, and for more reasons, but with the same
+ * message. If that message ever changes, this comment and the probe's rationale
+ * go stale together. Suppressing it
  * cannot be done honestly — the WARN is raised on the subscribe socket's read
  * loop, after this function has already returned — so an assignment to
  * `console.warn` here would look like it worked while doing nothing. The line is

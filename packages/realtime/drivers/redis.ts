@@ -49,6 +49,7 @@ import type {
     ControlMessage,
 } from '../driver.ts'
 import { isValidName } from '../protocol.ts'
+import { ControlReplayWindow } from '../control_replay_window.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { RealtimeControlConfig } from '../types.ts'
 import {
@@ -220,6 +221,47 @@ export interface RedisBroadcastDriverOptions {
     revocationTtlSeconds?: number
 }
 
+/**
+ * A fresh control-frame nonce: 16 CSPRNG bytes, hex-encoded to a fixed width.
+ *
+ * A counter would be cheaper and is the wrong choice twice over: it collides
+ * across senders (two instances both start at 1), and it collides with itself
+ * after a restart (back to 1, inside a live window). Unpredictability is not
+ * what the anti-replay property requires — an attacker cannot forge a MAC over
+ * a nonce of their choosing — it is simply how uniqueness is obtained across
+ * processes without coordination.
+ *
+ * @returns A 32-character lowercase hex string.
+ */
+function newControlNonce(): string {
+    const bytes = crypto.getRandomValues(new Uint8Array(16))
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * Whether a control frame's `member` is a plain, small presence member.
+ *
+ * `member` was the one field the ingest shape gate never checked, and it is the
+ * one an attacker can make arbitrarily large — which matters because everything
+ * downstream of the gate re-serialises it and hashes it synchronously
+ * (FR-011). `undefined` is valid: an `evict` frame carries no member.
+ *
+ * @param value - The candidate, straight off the wire.
+ * @returns Whether it is safe to canonicalise.
+ */
+function isPlainMember(value: unknown): boolean {
+    if (value === undefined) return true
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        return false
+    }
+    const member = value as { id?: unknown; info?: unknown }
+    const idOk = typeof member.id === 'string' || typeof member.id === 'number'
+    const infoOk = member.info === undefined ||
+        (typeof member.info === 'object' && member.info !== null &&
+            !Array.isArray(member.info))
+    return idOk && infoOk && Object.keys(member).length <= 2
+}
+
 /** Narrow an unknown `RespReply` to its array elements, or `undefined`. */
 function asArray(reply: unknown): readonly unknown[] | undefined {
     return typeof reply === 'object' && reply !== null &&
@@ -259,6 +301,21 @@ interface ControlWire {
     channel?: string
     member?: PresenceMember
     origin: string
+    /**
+     * Epoch milliseconds at issue (#272). Inside the MAC — outside it, an
+     * attacker could re-date a captured frame and the window would be
+     * decorative.
+     */
+    ts: number
+    /**
+     * A per-frame CSPRNG value (#272). Inside the MAC, for the same reason.
+     * Unpredictability is not what the anti-replay property needs — an attacker
+     * cannot forge a MAC over a nonce of their choosing — but a CSPRNG is how
+     * uniqueness survives a restart and holds across instances without
+     * coordination. A counter would collide across senders and again after
+     * every restart.
+     */
+    nonce: string
     mac?: string
 }
 
@@ -266,6 +323,27 @@ const DEFAULT_LIVENESS_TTL_SECONDS = 15
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 5_000
 const DEFAULT_RECONCILE_INTERVAL_MS = 10_000
 const DEFAULT_REVOCATION_TTL_SECONDS = 300
+/**
+ * How long after issue a control frame may still be obeyed (#272). See
+ * `RealtimeControlConfig.windowMs` for why 30s and what widening it costs.
+ */
+const DEFAULT_CONTROL_WINDOW_MS = 30_000
+/**
+ * The byte ceiling on a control payload, checked BEFORE `JSON.parse` and before
+ * any MAC computation.
+ *
+ * A control frame is a kind, two names and a small member — kilobytes at the
+ * outside. Without this bound an unauthenticated PUBLISH costs every instance
+ * in the fleet a parse, a re-serialise and a *synchronous, pure-JS* SHA-256
+ * (`hmacSha256Hex`) over attacker-chosen bytes, on the event loop, before the
+ * MAC has had a chance to reject it. The RESP reader already caps a frame at
+ * 10MB, so this is an amplifier rather than an unbounded one — but 10MB of
+ * blocking hash per packet, multiplied by instance count, is not a cost the MAC
+ * check contains.
+ */
+const DEFAULT_MAX_CONTROL_PAYLOAD_BYTES = 8 * 1024
+/** The exact width of a hex-encoded 16-byte nonce. */
+const CONTROL_NONCE_HEX_LENGTH = 32
 /**
  * The minimum control-secret length, in bytes. The FR-015 MAC is only as strong
  * as its key: a short, guessable secret lets a peer forge an authentic-looking
@@ -312,6 +390,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     private readonly heartbeatIntervalMs: number
     private readonly reconcileIntervalMs: number
     private readonly revocationTtlSeconds: number
+    /**
+     * The anti-replay window (#272) — the single home for whether a control
+     * frame is fresh, whether it has been seen, and what makes two frames the
+     * same frame. Absent when no control secret is configured, because the
+     * control plane is then refused at both ends anyway.
+     */
+    private readonly replayWindow: ControlReplayWindow | undefined
+    /** The control-payload byte ceiling, enforced on BOTH publish and ingest. */
+    private readonly maxControlPayloadBytes: number
     private heartbeatTimer?: ReturnType<typeof setInterval>
     private reconcileTimer?: ReturnType<typeof setInterval>
     private revocationTimer?: ReturnType<typeof setInterval>
@@ -369,6 +456,47 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             DEFAULT_RECONCILE_INTERVAL_MS
         this.revocationTtlSeconds = options.revocationTtlSeconds ??
             DEFAULT_REVOCATION_TTL_SECONDS
+        // The window is built only when a control secret exists: without one
+        // the control plane refuses to publish and refuses to verify, so there
+        // is nothing to remember. The clock is supplied HERE, once — the class
+        // requires it rather than defaulting, so production and tests share one
+        // path through the seam.
+        const windowMs = options.control?.windowMs ?? DEFAULT_CONTROL_WINDOW_MS
+        // Validated at boot, like the secret above it. `NaN` is the dangerous
+        // one and it is easy to produce — `Number(Deno.env.get('...'))` on an
+        // unset variable — because `Math.abs(x) > NaN` is false for every
+        // frame, which silently disables the freshness check and quietly
+        // restores the pre-#272 posture on a fresh process. Zero or negative
+        // does the opposite and drops every frame.
+        if (!Number.isFinite(windowMs) || windowMs <= 0) {
+            throw new Error(
+                'realtime: control.windowMs must be a positive, finite number ' +
+                    `of milliseconds (#272) — got ${windowMs}. A NaN here ` +
+                    'disables the anti-replay freshness check silently.',
+            )
+        }
+        const maxPayloadBytes = options.control?.maxPayloadBytes ??
+            DEFAULT_MAX_CONTROL_PAYLOAD_BYTES
+        if (!Number.isFinite(maxPayloadBytes) || maxPayloadBytes <= 0) {
+            throw new Error(
+                'realtime: control.maxPayloadBytes must be a positive, finite ' +
+                    `byte count (#272) — got ${maxPayloadBytes}.`,
+            )
+        }
+        this.maxControlPayloadBytes = maxPayloadBytes
+        this.replayWindow = this.secret === undefined
+            ? undefined
+            : new ControlReplayWindow({ windowMs, now: () => this.now() })
+    }
+
+    /**
+     * This instance's clock, in epoch milliseconds — the single home for the
+     * time a control frame is stamped with and checked against. Two direct
+     * `Date.now()` calls, one on publish and one on verify, would be two clocks
+     * that must agree.
+     */
+    private now(): number {
+        return Date.now()
     }
 
     /**
@@ -549,13 +677,29 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             channel: control.channel,
             member: control.member,
             origin: this.instanceId,
+            ts: this.now(),
+            nonce: newControlNonce(),
         }
         wire.mac = this.#sign(wire)
-        await this.command.command(
-            'PUBLISH',
-            this.controlTopic,
-            JSON.stringify(wire),
-        )
+        const payload = JSON.stringify(wire)
+        // Enforced on PUBLISH as well as on ingest, and this half is the one
+        // that matters operationally. Every receiver rejects an oversized frame
+        // — so without this check an app whose `PresenceMember.info` grew past
+        // the ceiling would publish happily, update the roster, and have every
+        // remote instance silently drop the frame. The WARN would appear on the
+        // instances that cannot fix it, and never on the one that can.
+        if (payload.length > this.maxControlPayloadBytes) {
+            console.warn(
+                'realtime: refusing to publish an oversized control message ' +
+                    `(${payload.length} bytes > ` +
+                    `${this.maxControlPayloadBytes}). Every peer would drop ` +
+                    'it, so this instance drops it here where the cause is ' +
+                    'visible. Shrink the presence member, or raise ' +
+                    'control.maxPayloadBytes on EVERY instance.',
+            )
+            return
+        }
+        await this.command.command('PUBLISH', this.controlTopic, payload)
     }
 
     /**
@@ -815,6 +959,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             channel: wire.channel,
             member: wire.member,
             origin: wire.origin,
+            // #272: both inside the MAC. A field on the wire but absent here
+            // ships UNAUTHENTICATED, and no test in this package could detect
+            // that before FR-013 — see tests/control_mac_coverage.test.ts.
+            ts: wire.ts,
+            nonce: wire.nonce,
         }))
     }
 
@@ -832,6 +981,19 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             )
             return undefined
         }
+        // COST GATE, before `JSON.parse` and before any hashing (#272/FR-011).
+        // `hmacSha256Hex` is a synchronous, pure-JS SHA-256 that allocates
+        // twice the message length, so without this bound one unauthenticated
+        // PUBLISH costs every instance in the fleet a parse, a re-serialise and
+        // a blocking hash over attacker-chosen bytes. The RESP reader caps a
+        // frame at 10MB; that is an amplifier, not a containment.
+        if (payload.length > this.maxControlPayloadBytes) {
+            console.warn(
+                'realtime: dropped an oversized control payload ' +
+                    `(${payload.length} bytes > ${this.maxControlPayloadBytes})`,
+            )
+            return undefined
+        }
         let wire: ControlWire
         try {
             wire = JSON.parse(payload) as ControlWire
@@ -842,7 +1004,21 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         if (
             typeof wire !== 'object' || wire === null ||
             typeof wire.kind !== 'string' || typeof wire.target !== 'string' ||
-            typeof wire.origin !== 'string' || typeof wire.mac !== 'string'
+            typeof wire.origin !== 'string' || typeof wire.mac !== 'string' ||
+            // #272/FR-012. `Number.isInteger` rather than `typeof === 'number'`:
+            // `1e400` parses to `Infinity`, and `JSON.stringify` collapses
+            // `Infinity`, `-Infinity` and `null` to the same bytes — three
+            // distinct wire values sharing one MAC. Not reachable today, and
+            // one predicate away from never being reachable.
+            !Number.isInteger(wire.ts) ||
+            // An object nonce would be compared by identity in the replay
+            // store, so every replay would be a fresh key: duplicate detection
+            // fails silently while the store grows.
+            typeof wire.nonce !== 'string' ||
+            wire.nonce.length !== CONTROL_NONCE_HEX_LENGTH ||
+            // The one field the shape gate never checked, and the one an
+            // attacker can make arbitrarily large (FR-011).
+            !isPlainMember(wire.member)
         ) {
             console.warn('realtime: dropped a control message of invalid shape')
             return undefined
@@ -859,13 +1035,46 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             )
             return undefined
         }
-        // FR-019: re-validate the routing names on ingest.
+        // FR-019: re-validate the routing names on ingest. `origin` joins them
+        // (#272): it is always a `crypto.randomUUID()` from a legitimate
+        // signer, so this rejects nothing real, and it is what lets the replay
+        // WARNs below name the origin without a log-encoder — importing one
+        // would make `realtime -> contract` a live dependency edge, which this
+        // feature has no reason to add (see #277).
         if (
-            !isValidName(wire.target) ||
+            !isValidName(wire.target) || !isValidName(wire.origin) ||
             (wire.channel !== undefined && !isValidName(wire.channel))
         ) {
             console.warn(
                 'realtime: dropped a control message with an invalid name',
+            )
+            return undefined
+        }
+        // #272: anti-replay, LAST — strictly after the MAC. Admitting an
+        // unauthenticated frame would let anyone with bus PUBLISH write into
+        // the replay store, trading one weakness for a worse one. The verdict
+        // is mapped to a message here rather than logged by the window itself,
+        // so every drop reason has one home (this guard chain).
+        const verdict = this.replayWindow?.admit(
+            wire.origin,
+            wire.nonce,
+            wire.ts,
+        )
+        if (verdict === 'stale') {
+            const skewMs = this.now() - wire.ts
+            console.warn(
+                'realtime: dropped a STALE control message — never obeyed ' +
+                    `(#272). Issued ${skewMs}ms ago by origin ` +
+                    `${wire.origin}; a large or negative value ` +
+                    'here is clock skew between instances, not a dead bus.',
+            )
+            return undefined
+        }
+        if (verdict === 'duplicate') {
+            console.warn(
+                'realtime: dropped a DUPLICATE control message — never ' +
+                    `obeyed (#272). Origin ${wire.origin} already ` +
+                    'delivered this exact frame inside the freshness window.',
             )
             return undefined
         }

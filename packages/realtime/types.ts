@@ -38,6 +38,41 @@ export interface RealtimeControlConfig {
      * MAC. Identical on every instance; never logged in cleartext.
      */
     readonly secret: string
+    /**
+     * How long after issue a control frame may still be obeyed, in
+     * milliseconds — the anti-replay freshness window (#272). Also how long a
+     * frame's nonce is remembered, which is the same number by construction.
+     *
+     * The default absorbs NTP-synchronised skew with a wide margin while
+     * keeping both the replay window and the nonce store small. Widen it only
+     * for a fleet whose clocks genuinely drift: a longer window is a longer
+     * period during which a captured frame remains replayable against an
+     * instance that restarted, and a proportionally larger store.
+     *
+     * A fleet whose clocks are far enough apart will see control frames dropped
+     * as stale — the WARN names the observed delta, so the cause is legible
+     * rather than looking like a dead bus.
+     *
+     * @default 30000
+     */
+    readonly windowMs?: number
+    /**
+     * The largest control payload, in bytes, that will be published or
+     * accepted.
+     *
+     * It bounds cost at ingest: a receiving instance rejects an oversized frame
+     * before parsing it and before hashing it, so an unauthenticated peer
+     * cannot make every instance in the fleet do real work on demand.
+     *
+     * Raise it only if a legitimate frame is genuinely near the limit — a
+     * presence member with an unusually large `info` payload is the realistic
+     * case. **Raise it on every instance at once.** The publisher refuses to
+     * send above its own limit and each receiver enforces its own, so a fleet
+     * running mixed values silently loses the frames that fall between them.
+     *
+     * @default 8192
+     */
+    readonly maxPayloadBytes?: number
 }
 
 /**
@@ -50,7 +85,22 @@ export interface RealtimeControlConfig {
  * @typeParam Identity - The app's identity shape (e.g. a user id or record).
  */
 export interface Connection<Identity = unknown> {
-    /** A stable per-connection transport id (not an identity). */
+    /**
+     * A stable per-connection transport id (not an identity).
+     *
+     * **It must be unguessable and never reused.** The framework's own upgrade
+     * path generates `crypto.randomUUID()`, but an application wiring its own
+     * transport supplies this itself, and "stable" has been read as an
+     * invitation to pass a user id or a session id. It is not.
+     *
+     * The reason is the control plane. `manager.evict(id)` travels between
+     * instances as a signed frame naming this id, and an id that is guessable
+     * or reused across connections turns a captured frame into a repeatable
+     * weapon: it hard-closes whatever socket currently holds that id,
+     * unsubscribes every channel, and removes the member from the authoritative
+     * roster. With a fresh random id per connection the same frame targets
+     * something that no longer exists and does nothing.
+     */
     readonly id: string
     /** The server-verified identity, or `null` for an unauthenticated socket. */
     readonly identity: Identity | null

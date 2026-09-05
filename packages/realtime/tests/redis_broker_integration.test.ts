@@ -37,9 +37,11 @@ import {
     preflight,
     runNamespace,
 } from '../../redis/tests/live_broker.ts'
+import { hmacSha256Hex } from '../../redis/mod.ts'
 import {
     awaitSubscribers,
     connection,
+    controlSecret,
     keys,
     type Reader,
     waitFor,
@@ -454,5 +456,70 @@ integrationTest(
                     `keys under the run: ${created.join(', ')}`,
             )
         })
+    },
+)
+
+// ---------------------------------------------------------------------------
+// #272 FR-010 — anti-replay, against a live broker
+// ---------------------------------------------------------------------------
+
+integrationTest(
+    '#272: a control frame replayed on a LIVE broker is obeyed once, not twice',
+    async (namespace, reader) => {
+        // Deliberately a presence-join and NOT an evict. A replayed evict is a
+        // no-op on its own merits — the target is already gone, so the socket
+        // stays closed whether anti-replay works or not — and an earlier draft
+        // of this test asserted exactly that. It passed with the replay check
+        // fully disabled. A presence-join re-emits to every subscriber on every
+        // delivery, so the count is a real signal.
+        const secret = controlSecret()
+        await withInstances(1, namespace, async ([a]) => {
+            await awaitSubscribers(reader, namespace, 1)
+
+            const watcher = connection('watcher', { id: 1, name: 'Wat' })
+            await a.manager.subscribe(watcher, 'presence-lobby')
+            const joinsSeen = () =>
+                watcher.frames.filter((f) =>
+                    f.includes('"joined"') && f.includes('4242')
+                ).length
+
+            const wire = {
+                kind: 'presence-join',
+                target: 'peer-conn',
+                channel: 'presence-lobby',
+                member: { id: 4242, info: { name: 'Ghost' } },
+                origin: 'peer-instance',
+                ts: Date.now(),
+                nonce: Array.from(
+                    crypto.getRandomValues(new Uint8Array(16)),
+                    (b) => b.toString(16).padStart(2, '0'),
+                ).join(''),
+            }
+            const mac = hmacSha256Hex(
+                new TextEncoder().encode(secret),
+                new TextEncoder().encode(JSON.stringify(wire)),
+            )
+            const frame = JSON.stringify({ ...wire, mac })
+            const topic = keys(namespace).controlTopic
+
+            // First delivery: a legitimate frame from a peer, obeyed.
+            await reader.command('PUBLISH', topic, frame)
+            await waitFor(
+                () => joinsSeen() === 1,
+                'the legitimate join to land',
+            )
+
+            // The attacker's entire capability: the same bytes, again.
+            await reader.command('PUBLISH', topic, frame)
+            await reader.command('PUBLISH', topic, frame)
+            await new Promise((resolve) => setTimeout(resolve, 150))
+
+            assertEquals(
+                joinsSeen(),
+                1,
+                'two replays of the exact frame over a real broker are refused ' +
+                    '— without the check this would be 3',
+            )
+        }, { secret })
     },
 )
