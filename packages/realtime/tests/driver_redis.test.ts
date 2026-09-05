@@ -1,17 +1,19 @@
 /**
- * @fileoverview Tests for cross-process fan-out — SC-004 + SC-004a (S6).
+ * @fileoverview Tests for cross-process fan-out — SC-001 (S6), over the fake bus.
  *
  * A broadcast published by one instance reaches an authorized subscriber on a
  * second instance; the receiving instance re-applies its LOCAL authorization,
  * so a locally-unauthorized connection receives nothing. Proven with a fake
- * Redis pub/sub bus — no live socket.
+ * Redis pub/sub bus — the live-socket variant of SC-001 is qa-tester territory,
+ * and SC-004 (subscribe-socket drop resumes) lives in `redis`'s subscriber test.
  *
  * @module @lockness/realtime/tests/driver_redis
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertThrows } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
+import type { BroadcastMessage } from '../driver.ts'
 import type { Connection } from '../types.ts'
 
 interface User {
@@ -72,7 +74,7 @@ function instance(bus: FakeRedisBus, authorize: (id: User | null) => boolean) {
     return new ChannelManager<User>({ driver, authorize })
 }
 
-Deno.test('SC-004: a broadcast on instance A reaches an authorized subscriber on instance B', async () => {
+Deno.test('SC-001: a broadcast on instance A reaches an authorized subscriber on instance B', async () => {
     const bus = new FakeRedisBus()
     const a = instance(bus, () => true)
     const b = instance(bus, () => true)
@@ -90,7 +92,7 @@ Deno.test('SC-004: a broadcast on instance A reaches an authorized subscriber on
     assertEquals(JSON.parse(sentOf(subB)[0]).channel, 'private-room')
 })
 
-Deno.test('SC-004a: the receiving instance re-applies local authorization (S6)', async () => {
+Deno.test('SC-001a: the receiving instance re-applies local authorization (S6)', async () => {
     const bus = new FakeRedisBus()
     const a = instance(bus, () => true)
     // Instance B denies everyone, so no local subscription exists on B.
@@ -133,6 +135,85 @@ Deno.test('S3 ingest: a Redis message with an out-of-charset event name is dropp
         JSON.stringify({ event: 'bad name!<x>', data: 1 }),
     )
     assertEquals(got.length, 0)
+})
+
+Deno.test('FR-019 ingest: a Redis message whose channel name is out of charset is dropped', () => {
+    const bus = new FakeRedisBus()
+    const driver = new RedisBroadcastDriver(
+        { command: bus.command },
+        bus.subscriberFor(),
+        { prefix: 'app:rt' },
+    )
+    const got: unknown[] = []
+    driver.onMessage((m) => got.push(m))
+    // The event name is valid, but the channel derived from the topic is not —
+    // isValidName(channel) must gate it too, not only the event (FR-019).
+    bus.command(
+        'PUBLISH',
+        'app:rt:bad chan!<x>',
+        JSON.stringify({ event: 'ok', data: 1 }),
+    )
+    assertEquals(got.length, 0)
+})
+
+Deno.test('FR-019 ingest: a Redis message with a non-string event is dropped', () => {
+    const bus = new FakeRedisBus()
+    const driver = new RedisBroadcastDriver(
+        { command: bus.command },
+        bus.subscriberFor(),
+        { prefix: 'app:rt' },
+    )
+    const got: unknown[] = []
+    driver.onMessage((m) => got.push(m))
+    // A well-formed JSON payload with a wrong-shape event field — the shape
+    // guard drops it before fan-out.
+    bus.command(
+        'PUBLISH',
+        'app:rt:news',
+        JSON.stringify({ event: { nested: true }, data: 1 }),
+    )
+    assertEquals(got.length, 0)
+})
+
+Deno.test('FR-019 ingest: a valid channel + event name is delivered', () => {
+    const bus = new FakeRedisBus()
+    const driver = new RedisBroadcastDriver(
+        { command: bus.command },
+        bus.subscriberFor(),
+        { prefix: 'app:rt' },
+    )
+    const got: BroadcastMessage[] = []
+    driver.onMessage((m) => got.push(m))
+    bus.command(
+        'PUBLISH',
+        'app:rt:news',
+        JSON.stringify({ event: 'published', data: { n: 1 } }),
+    )
+    assertEquals(got.length, 1)
+    assertEquals(got[0].channel, 'news')
+    assertEquals(got[0].event, 'published')
+})
+
+Deno.test('FR-015: a control secret below the 32-byte floor is rejected at construction', () => {
+    const bus = new FakeRedisBus()
+    // A short, guessable secret weakens the control-frame MAC — refuse it up
+    // front rather than shipping a forgeable control plane.
+    assertThrows(
+        () =>
+            new RedisBroadcastDriver(
+                { command: bus.command },
+                bus.subscriberFor(),
+                { prefix: 'app:rt', control: { secret: 'too-short' } },
+            ),
+        Error,
+        '32 bytes',
+    )
+    // A secret at or above the floor constructs cleanly.
+    new RedisBroadcastDriver(
+        { command: bus.command },
+        bus.subscriberFor(),
+        { prefix: 'app:rt', control: { secret: 'x'.repeat(32) } },
+    )
 })
 
 Deno.test('publish sends PUBLISH with the reserved prefix and JSON payload', async () => {

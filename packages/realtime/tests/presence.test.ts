@@ -61,7 +61,7 @@ Deno.test('SC-006: a leave (unsubscribe) notifies remaining members', async () =
     await m.subscribe(a, 'presence-room')
     await m.subscribe(b, 'presence-room')
 
-    m.unsubscribe('b', 'presence-room')
+    await m.unsubscribe('b', 'presence-room')
     const aLeft = framesOf(a).find((f) => f.action === 'left')
     assertEquals((aLeft?.member as PresenceMember)?.id, 2)
 })
@@ -73,7 +73,7 @@ Deno.test('SC-006: a disconnect emits a presence leave (unclean disconnect clean
     await m.subscribe(a, 'presence-room')
     await m.subscribe(b, 'presence-room')
 
-    m.disconnect('b')
+    await m.disconnect('b')
     const aLeft = framesOf(a).find((f) => f.action === 'left')
     assertEquals((aLeft?.member as PresenceMember)?.id, 2)
 })

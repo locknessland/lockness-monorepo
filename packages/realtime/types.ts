@@ -14,6 +14,33 @@ import type { WSContext, WSMessageReceive } from '@lockness/hono/network'
 export type { WSContext, WSMessageReceive }
 
 /**
+ * Per-deployment configuration for the authenticity of control-plane and
+ * presence-identity messages (FR-015, #268).
+ *
+ * The reserved control topic is isolation-by-**convention** only — Redis pub/sub
+ * has no per-topic ACL, so anyone with bus `PUBLISH` could otherwise forge an
+ * evict or spoof a presence member. Every control / presence-identity frame
+ * therefore carries an HMAC over its payload, keyed by this **shared** secret;
+ * a frame whose MAC is absent or fails to verify is dropped on ingest and never
+ * obeyed. The secret must be identical on every instance of one deployment (so
+ * the MAC is cross-instance-stable) and is redacted from every log line.
+ *
+ * A value object: it carries the secret, no behaviour.
+ *
+ * @example
+ * ```ts
+ * const control: RealtimeControlConfig = { secret: Deno.env.get('REALTIME_SECRET')! }
+ * ```
+ */
+export interface RealtimeControlConfig {
+    /**
+     * The per-deployment shared secret keying the control/presence authenticity
+     * MAC. Identical on every instance; never logged in cleartext.
+     */
+    readonly secret: string
+}
+
+/**
  * A live WebSocket connection handed to the lifecycle hooks.
  *
  * `identity` is the **server-derived** identity resolved at the upgrade (never

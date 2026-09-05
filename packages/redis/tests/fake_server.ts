@@ -5,8 +5,13 @@
  * declared bulk length** (so it never imports `encodeCommand` and cannot be
  * fooled by the #141 under-declaration), keeps a key→value store, and answers
  * the handful of commands the tests issue: `AUTH`, `SELECT`, `PING`, `GET`,
- * `SET`, `SETEX`, `DEL`, `QUIT`. It replies once per newly-completed command so
- * the client's per-command read resolves and it can proceed.
+ * `SET`, `SETEX`, `DEL`, `QUIT`, and — for the subscribe-mode connection tests
+ * (#268) — `PSUBSCRIBE`/`PUNSUBSCRIBE`. It replies once per newly-completed
+ * command so the client's per-command read resolves and it can proceed, records
+ * every parsed command in {@link FakeServer.commandLog}, and exposes
+ * {@link FakeServer.publish} to push unbidden `pmessage` frames plus
+ * {@link FakeServer.dropConnections} to force a wire fault the subscriber must
+ * self-heal from.
  *
  * @module @lockness/redis/tests/fake_server
  */
@@ -20,10 +25,45 @@ export interface FakeServer {
     port: number
     /** The backing store: key → stored value. */
     store: Map<string, string>
+    /**
+     * Every command parsed off any connection, in arrival order — lets a test
+     * assert the handshake (`AUTH`/`SELECT`) and the `PSUBSCRIBE` frames reached
+     * the wire.
+     */
+    commandLog: string[][]
     /** How many client connections have been accepted so far. */
     accepts(): number
+    /**
+     * Push an unbidden `pmessage` frame to every live connection, as Redis does
+     * for a pattern subscriber. The client dispatches it only if it holds a
+     * handler for `pattern`.
+     *
+     * @param pattern - The subscribed pattern the message matched.
+     * @param topic - The concrete topic the payload was published to.
+     * @param payload - The published payload.
+     */
+    publish(pattern: string, topic: string, payload: string): void
+    /**
+     * Close every live connection while keeping the listener open, forcing an
+     * in-flight client read to fault so its self-heal (reconnect +
+     * re-`PSUBSCRIBE`) can be observed. Newly dialled connections are accepted.
+     */
+    dropConnections(): void
     /** Close the listener and any live connections; safe to call twice. */
     stop(): void
+}
+
+/** A RESP2 array frame of bulk strings and integers, encoded to bytes. */
+function respFrame(parts: readonly (string | number)[]): Uint8Array {
+    let out = `*${parts.length}\r\n`
+    for (const part of parts) {
+        if (typeof part === 'number') {
+            out += `:${part}\r\n`
+        } else {
+            out += `$${encoder.encode(part).byteLength}\r\n${part}\r\n`
+        }
+    }
+    return encoder.encode(out)
 }
 
 /** Parse a RESP2 multibulk stream by declared length; returns full commands. */
@@ -85,6 +125,11 @@ function replyFor(args: string[], store: Map<string, string>): Uint8Array {
         case 'SELECT':
         case 'QUIT':
             return encoder.encode('+OK\r\n')
+        case 'PSUBSCRIBE':
+            // Confirm the pattern subscription: `*3` [ "psubscribe", pattern, n ].
+            return respFrame(['psubscribe', args[1] ?? '', 1])
+        case 'PUNSUBSCRIBE':
+            return respFrame(['punsubscribe', args[1] ?? '', 0])
         case 'PING':
             return encoder.encode('+PONG\r\n')
         case 'SET':
@@ -129,6 +174,7 @@ export function startFakeServer(): Promise<FakeServer> {
     const listener = Deno.listen({ hostname: '127.0.0.1', port: 0 })
     const port = (listener.addr as Deno.NetAddr).port
     const store = new Map<string, string>()
+    const commandLog: string[][] = []
     const conns = new Set<Deno.Conn>()
     let accepts = 0
     let closed = false
@@ -156,6 +202,7 @@ export function startFakeServer(): Promise<FakeServer> {
                             new Uint8Array(chunks),
                         )
                         for (let i = repliedThrough; i < commands.length; i++) {
+                            commandLog.push(commands[i])
                             await conn.write(replyFor(commands[i], store))
                         }
                         repliedThrough = Math.max(
@@ -164,7 +211,7 @@ export function startFakeServer(): Promise<FakeServer> {
                         )
                     }
                 } catch {
-                    // A reset after stop() is the normal end of a test.
+                    // A reset after stop()/dropConnections() is a normal end.
                 } finally {
                     conns.delete(conn)
                     try {
@@ -180,7 +227,25 @@ export function startFakeServer(): Promise<FakeServer> {
     return Promise.resolve({
         port,
         store,
+        commandLog,
         accepts: () => accepts,
+        publish: (pattern: string, topic: string, payload: string) => {
+            const frame = respFrame(['pmessage', pattern, topic, payload])
+            for (const conn of conns) {
+                // Fire-and-forget: a dropped connection just misses the push.
+                conn.write(frame).catch(() => {})
+            }
+        },
+        dropConnections: () => {
+            for (const conn of conns) {
+                try {
+                    conn.close()
+                } catch {
+                    // Already closed.
+                }
+            }
+            conns.clear()
+        },
         stop: () => {
             if (closed) return
             closed = true

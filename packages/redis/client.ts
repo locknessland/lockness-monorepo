@@ -5,10 +5,11 @@
  * scheduler lock (#219) and a durable queue driver (#220) can reuse it verbatim
  * instead of each re-implementing a socket:
  *
- * - **Lazy, single-flight connect.** {@link RedisClient.connect} caches the
- *   in-flight open so a cold-start burst opens exactly one socket; the handshake
- *   (`AUTH`/`SELECT`) runs once, through a private exchange that bypasses the
- *   command queue so it cannot deadlock against it.
+ * - **Shared authenticated socket.** The dial + TLS wrap + `AUTH`/`SELECT`
+ *   handshake + one-time cleartext-AUTH warning + self-heal live in
+ *   {@link AuthenticatedConnection} (FR-013), the one home both this client and
+ *   the subscribe-mode connection consume. This client adds the command
+ *   discipline on top of it, not a second copy of the connect path.
  * - **Serialized commands.** {@link RedisClient.command} chains every exchange
  *   onto a per-connection promise, so two overlapping callers never interleave
  *   their frames on the shared socket — the second's write begins only after the
@@ -16,17 +17,17 @@
  *   exactly one reply per command, so this ordering is a correctness invariant,
  *   not a nicety.
  * - **Self-heal.** A wire fault or a {@link RespFramingError} leaves the socket
- *   desynced, so it is closed and dropped; the next command reconnects clean. A
- *   {@link RespServerError} (a complete `-ERR …` reply) leaves the socket in
- *   sync, so it is kept.
+ *   desynced, so it is closed and dropped via {@link AuthenticatedConnection.discard};
+ *   the next command reconnects clean. A {@link RespServerError} (a complete
+ *   `-ERR …` reply) leaves the socket in sync, so it is kept.
  * - **Lifecycle-drain close.** The socket is registered as a disposable only
  *   once it exists, so a client that never connects enrols nothing; shutdown
  *   drains a `QUIT` **after** any in-flight command rather than tearing it out.
  * - **TLS.** {@link RedisClientConfig.tls} wraps the socket with
  *   `Deno.connectTls`, certificate validation ON — there is no trust-all option
  *   (FR-016). With TLS off, sending `AUTH` over plaintext is the operator's
- *   explicit choice, and the constructor raises a one-time startup warning so
- *   the cleartext-credential exposure is not silent (#248).
+ *   explicit choice, and {@link AuthenticatedConnection} raises a one-time
+ *   startup warning so the cleartext-credential exposure is not silent (#248).
  *
  * The password is a credential: it authenticates the socket and is otherwise
  * redacted from every log line via `safeForLog`, and folded through
@@ -43,17 +44,11 @@ import {
     registerDisposable,
 } from '@lockness/contract/lifecycle/internal'
 import {
-    encodeCommand,
-    readReply,
-    type RespReply,
-    RespServerError,
-    writeFrame,
-} from './resp.ts'
-
-/**
- * The default Redis port, used when {@link RedisClientConfig.port} is omitted.
- */
-const DEFAULT_PORT = 6379
+    AuthenticatedConnection,
+    type AuthenticatedConnectionConfig,
+    exchange,
+} from './connection.ts'
+import { type RespReply, RespServerError } from './resp.ts'
 
 /**
  * The default shutdown-drain priority for a client's disposable. Matches the
@@ -68,34 +63,7 @@ const DEFAULT_DISPOSABLE_PRIORITY = 60
  * TLS-wrapped socket with certificate validation ON — the client ships no
  * trust-all escape hatch (FR-016).
  */
-export interface RedisClientConfig {
-    /** Redis server hostname. */
-    hostname: string
-    /**
-     * Redis server port.
-     * @default 6379
-     */
-    port?: number
-    /**
-     * Password for `AUTH`. Never logged in cleartext (redacted via `safeForLog`)
-     * and never placed in a memo key in cleartext (folded through
-     * `credentialFingerprint`, a per-process-keyed HMAC). Setting this with
-     * `tls: false` raises a one-time cleartext-AUTH warning at construction.
-     */
-    password?: string
-    /**
-     * Database index selected with `SELECT` when non-zero.
-     * @default 0
-     */
-    db?: number
-    /**
-     * Wrap the socket with TLS (`Deno.connectTls`), certificate validation ON.
-     * With TLS off, `AUTH` travels over plaintext — the operator's explicit
-     * choice, flagged by a one-time cleartext-AUTH warning when a password is
-     * also set.
-     * @default false
-     */
-    tls?: boolean
+export interface RedisClientConfig extends AuthenticatedConnectionConfig {
     /**
      * The name the socket's shutdown disposable registers under, so a host
      * package's lifecycle log names the resource it owns.
@@ -131,15 +99,7 @@ export interface RedisClientConfig {
  * ```
  */
 export class RedisClient {
-    private connection: Deno.Conn | null = null
-    /**
-     * The in-flight `connect()` promise, cached so a concurrent cold-start burst
-     * opens ONE socket. Without it, `connect` is a check-then-act across an
-     * `await` and two concurrent first-commands each open and authenticate a
-     * socket, orphaning one. Dropped on rejection and on a desync so the next
-     * command reconnects.
-     */
-    private connectPromise: Promise<Deno.Conn> | null = null
+    private readonly conn: AuthenticatedConnection
     /**
      * The tail of the per-connection command queue. Every `command` chains its
      * exchange onto this promise, so two overlapping calls never interleave their
@@ -150,53 +110,31 @@ export class RedisClient {
      */
     private commandTail: Promise<unknown> = Promise.resolve()
     #handle: DisposableHandle | undefined
-    private readonly config: {
-        hostname: string
-        port: number
-        password?: string
-        db: number
-        tls: boolean
-        disposableName: string
-        disposablePriority: number
-    }
+    private readonly hostname: string
+    private readonly disposableName: string
+    private readonly disposablePriority: number
 
     /**
      * @param config - The connection settings; only `hostname` is required.
      */
     constructor(config: RedisClientConfig) {
-        this.config = {
-            hostname: config.hostname,
-            port: config.port ?? DEFAULT_PORT,
-            password: config.password,
-            db: config.db ?? 0,
-            tls: config.tls ?? false,
-            disposableName: config.disposableName ?? 'redis',
-            disposablePriority: config.disposablePriority ??
-                DEFAULT_DISPOSABLE_PRIORITY,
-        }
-        // A password with TLS off means `AUTH` travels in cleartext. Warn ONCE
-        // here — the constructor runs once per client, so a reconnecting or
-        // self-healing client never re-warns; this is a startup notice, not
-        // per-connection spam (#248). The password itself is never logged.
-        if (this.config.password && !this.config.tls) {
-            console.warn(
-                `[redis] AUTH will be sent in cleartext to ${
-                    safeForLog(this.config.hostname)
-                }: a password is configured with tls:false. ` +
-                    'Enable tls to encrypt the credential in transit.',
-            )
-        }
+        // The dial/TLS/handshake/cleartext-warning/self-heal discipline (and its
+        // one-time cleartext-AUTH warning) all live in the shared primitive.
+        this.conn = new AuthenticatedConnection(config)
+        this.hostname = config.hostname
+        this.disposableName = config.disposableName ?? 'redis'
+        this.disposablePriority = config.disposablePriority ??
+            DEFAULT_DISPOSABLE_PRIORITY
     }
 
     /**
-     * Open (once) and return the authenticated connection.
+     * Open (once) and return the authenticated connection, registering the
+     * shutdown disposable the first time a socket exists.
      *
-     * Single-flighted: the in-flight promise is cached so a concurrent burst
-     * opens one socket and issues `AUTH`/`SELECT` once. Those handshake commands
-     * go through the private {@link RedisClient.#exchange} **directly**, never
-     * `command`, so they cannot re-enter and deadlock the command queue that
-     * awaits `connect()`. On any failure the socket is closed and the cached
-     * promise dropped, so the next command retries (self-heal).
+     * The dial + `AUTH`/`SELECT` handshake are single-flighted inside the shared
+     * {@link AuthenticatedConnection}; this wrapper only enrols the disposable
+     * once a socket has actually been established, so a client that never
+     * connects enrols nothing.
      *
      * @returns The open, authenticated connection.
      * @throws {Error} If the dial, TLS handshake, or `AUTH`/`SELECT` fails; the
@@ -206,76 +144,17 @@ export class RedisClient {
      * await client.connect() // eagerly establish the socket
      * ```
      */
-    connect(): Promise<Deno.Conn> {
-        if (this.connection) return Promise.resolve(this.connection)
-        if (!this.connectPromise) {
-            const p = (async () => {
-                const conn = await (this.config.tls
-                    ? Deno.connectTls({
-                        hostname: this.config.hostname,
-                        port: this.config.port,
-                    })
-                    : Deno.connect({
-                        hostname: this.config.hostname,
-                        port: this.config.port,
-                    }))
-                try {
-                    if (this.config.password) {
-                        await this.#exchange(conn, [
-                            'AUTH',
-                            this.config.password,
-                        ])
-                    }
-                    if (this.config.db !== 0) {
-                        await this.#exchange(conn, [
-                            'SELECT',
-                            String(this.config.db),
-                        ])
-                    }
-                } catch (error) {
-                    // The handshake failed on a fresh socket that was never
-                    // published to `this.connection`; close it and let the
-                    // rejection propagate (the `p.catch` below resets the memo).
-                    // The raw password is never in `error`; log the host only.
-                    try {
-                        conn.close()
-                    } catch {
-                        // Already closed by the failure itself.
-                    }
-                    throw error
-                }
-                this.connection = conn
-                // Registered only once a socket exists, so shutdown releases it.
-                // A client owning nothing enrols nothing.
-                this.#handle ??= registerDisposable({
-                    name: this.config.disposableName,
-                    dispose: () => this.close(),
-                    priority: this.config.disposablePriority,
-                })
-                return conn
-            })()
-            // Self-heal: drop the cached promise on rejection so the next command
-            // retries rather than re-awaiting a permanently-failed connect that
-            // would brick the memoized client until restart. The `=== p` guard
-            // keeps the single-flight — concurrent callers still await one open.
-            p.catch(() => {
-                if (this.connectPromise === p) this.connectPromise = null
-            })
-            this.connectPromise = p
-        }
-        return this.connectPromise
-    }
-
-    /**
-     * One request/reply exchange on an already-open socket: write the frame in
-     * full, then drain exactly one RESP reply. Pure — it touches no shared client
-     * state, so it is reused by both `connect()` (for `AUTH`/`SELECT`, outside
-     * the command queue) and the serialized command path. `resp.ts` owns the
-     * framing (`encodeCommand`/`writeFrame`) and the bounded, nil-aware drain
-     * (`readReply`, #139).
-     */
-    #exchange(conn: Deno.Conn, args: string[]): Promise<RespReply> {
-        return writeFrame(conn, encodeCommand(args)).then(() => readReply(conn))
+    async connect(): Promise<Deno.Conn> {
+        const conn = await this.conn.connect()
+        // Registered only once a socket exists, so shutdown releases it. A client
+        // owning nothing enrols nothing. The `??=` runs synchronously after the
+        // await, so concurrent connects enrol exactly one disposable.
+        this.#handle ??= registerDisposable({
+            name: this.disposableName,
+            dispose: () => this.close(),
+            priority: this.disposablePriority,
+        })
+        return conn
     }
 
     /**
@@ -290,8 +169,7 @@ export class RedisClient {
      * fault, the whole reply off the wire). Every other failure (a wire fault, or
      * a {@link RespFramingError} thrown after the length line but before the
      * payload was drained — possibly 10 MiB and hostile) leaves the socket
-     * DESYNCED, so it is closed and both `connection` and `connectPromise` are
-     * dropped; the next command reconnects clean.
+     * DESYNCED, so it is discarded; the next command reconnects clean.
      *
      * @param args - The command and its arguments, e.g. `('GET', 'k')`.
      * @returns The parsed RESP reply. A bulk keeps `''` distinct from nil.
@@ -315,29 +193,11 @@ export class RedisClient {
     async #serializedExchange(args: string[]): Promise<RespReply> {
         const conn = await this.connect()
         try {
-            return await this.#exchange(conn, args)
+            return await exchange(conn, args)
         } catch (error) {
-            if (!(error instanceof RespServerError)) {
-                this.#discardConnection(conn)
-            }
+            if (!(error instanceof RespServerError)) this.conn.discard(conn)
             throw error
         }
-    }
-
-    /**
-     * Close a desynced socket and drop the shared state pointing at it, so the
-     * next `connect()` opens a fresh one. Clears `connection` only if it still
-     * refers to `conn` (a shutdown `close()` may already have replaced it). The
-     * host is logged at WARN so a self-heal is visible; the password never is.
-     */
-    #discardConnection(conn: Deno.Conn): void {
-        try {
-            conn.close()
-        } catch {
-            // Already closed by the failure itself; nothing to free.
-        }
-        if (this.connection === conn) this.connection = null
-        this.connectPromise = null
     }
 
     /**
@@ -363,30 +223,25 @@ export class RedisClient {
             this.#handle = undefined
         }
         // Nothing live and nothing being opened → do not reopen a socket.
-        if (!this.connection && !this.connectPromise) return Promise.resolve()
+        if (!this.conn.isActive) return Promise.resolve()
 
         const run = this.commandTail.then(async () => {
             // A desync (or a prior close) may have cleared it while we queued.
-            const conn = this.connection
+            const conn = this.conn.socket
             if (!conn) return
             try {
-                await this.#exchange(conn, ['QUIT'])
+                await exchange(conn, ['QUIT'])
             } catch (error) {
                 // QUIT failing does not change the outcome: we close anyway. The
                 // host is logged so the failed drain is visible; not swallowed.
                 console.warn(
                     `[redis] QUIT failed for ${
-                        safeForLog(this.config.hostname)
+                        safeForLog(this.hostname)
                     }, closing anyway: ${renderError(error)}`,
                 )
             }
-            try {
-                conn.close()
-            } catch {
-                // Already closed by the QUIT round-trip or a concurrent close.
-            }
-            if (this.connection === conn) this.connection = null
-            this.connectPromise = null
+            // Close the socket and drop the shared state pointing at it.
+            this.conn.discard(conn)
         })
         this.commandTail = run.catch(() => {})
         return run

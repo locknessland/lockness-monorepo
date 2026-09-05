@@ -221,8 +221,8 @@ Deno.test('redis wire - a write failure closes and discards the connection so th
 
     // Preset a connection whose write always rejects. connect() returns it as
     // already-established, so the command writes into the failing socket.
-    // `client.connection` is the pinned private teardown contract — the socket
-    // now lives on the shared RedisClient the driver composes.
+    // The socket lives on the shared RedisClient's AuthenticatedConnection
+    // (`client.conn.connection`) — the pinned private teardown contract.
     let closed = false
     const failing = {
         write: () => Promise.reject(new Error('BrokenPipe')),
@@ -230,9 +230,9 @@ Deno.test('redis wire - a write failure closes and discards the connection so th
             closed = true
         },
     } as unknown as Deno.Conn
-    const internal =
-        (driver as unknown as { client: { connection: Deno.Conn | null } })
-            .client
+    const internal = (driver as unknown as {
+        client: { conn: { connection: Deno.Conn | null } }
+    }).client.conn
     internal.connection = failing
 
     await assertRejects(

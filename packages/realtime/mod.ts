@@ -22,6 +22,7 @@
 
 export type {
     Connection,
+    RealtimeControlConfig,
     Socket,
     WebSocketHooks,
     WSContext,
@@ -38,7 +39,12 @@ export {
     channelKind,
     type PresenceMember,
 } from './channel.ts'
-export type { BroadcastDriver, BroadcastMessage } from './driver.ts'
+export type {
+    BroadcastDriver,
+    BroadcastMessage,
+    ControlMessage,
+    PresenceCapableDriver,
+} from './driver.ts'
 export { MemoryBroadcastDriver } from './drivers/memory.ts'
 export {
     RedisBroadcastDriver,

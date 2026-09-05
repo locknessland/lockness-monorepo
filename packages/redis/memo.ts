@@ -79,9 +79,12 @@ export function sha256Hex(input: string): string {
  * A hand-rolled HMAC (RFC 2104) over the synchronous {@link sha256Bytes}, so the
  * whole memo-key path stays synchronous — WebCrypto's `crypto.subtle.sign` is
  * async and would ripple through every synchronous `Map` memo that keys on a
- * config. Internal to the package (not re-exported from `mod.ts`); it exists so
- * {@link credentialFingerprint} can key its digest, and is cross-checked against
- * WebCrypto in the tests.
+ * config. It exists so {@link credentialFingerprint} can key its digest, and is
+ * cross-checked against WebCrypto in the tests. Re-exported from `mod.ts` so
+ * `@lockness/realtime` can key its control/presence authenticity MAC (FR-015,
+ * #268) with a **shared per-deployment** secret — a cross-instance-stable HMAC,
+ * unlike {@link credentialFingerprint}'s per-process key which is deliberately
+ * process-local and therefore unusable across instances.
  *
  * @param key - The HMAC key bytes; keys longer than the block size are hashed
  *   down first, per RFC 2104.
