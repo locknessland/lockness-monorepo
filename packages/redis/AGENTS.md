@@ -103,10 +103,11 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-5 test files for 7 source files:
+6 test files for 8 source files:
 
 - `packages/redis/tests/client.test.ts`
 - `packages/redis/tests/connection.test.ts`
+- `packages/redis/tests/lua_eval.test.ts`
 - `packages/redis/tests/memo.test.ts`
 - `packages/redis/tests/resp.test.ts`
 - `packages/redis/tests/subscriber.test.ts`
@@ -125,7 +126,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 5 test files directly —
+Then, specific to this package: run its 6 test files directly —
 
 ```bash
 deno test -A packages/redis/

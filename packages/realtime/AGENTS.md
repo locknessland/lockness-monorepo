@@ -77,6 +77,15 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
+- **The test double used to answer `nil` to any command it did not model**,
+  which made an unmodelled command a silent no-op with a green suite. It now
+  throws (`tests/fake_redis.ts`). If you add a driver command, model it — the
+  failure will tell you. Both #276 plan audits named this independently as the
+  likeliest way that feature could have shipped broken. 2026-09-05.
+- **Revocation liveness is decided by Redis, never by `Date.now()`.** The score
+  in `{prefix}:revocations` is compared against a `TIME` read inside the script.
+  A stored expiry judged against an instance's clock would let a fast-clocked
+  host delete revocations that are live for the whole fleet (#276). 2026-09-05.
 - Presence membership is **single-process authoritative** for the MVP (Redis
   fans join/leave notifications; the `here` set is per-instance). Full
   cross-process presence is a scoped follow-up.
@@ -89,7 +98,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-25 test files for 13 source files:
+26 test files for 13 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channels.test.ts`
@@ -115,6 +124,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_roster_guard.test.ts`
 - `packages/realtime/tests/presence_sweep.test.ts`
 - `packages/realtime/tests/protocol.test.ts`
+- `packages/realtime/tests/revocation_atomicity.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
 <!-- /generated:tests -->
@@ -131,7 +141,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 25 test files directly —
+Then, specific to this package: run its 26 test files directly —
 
 ```bash
 deno test -A packages/realtime/
