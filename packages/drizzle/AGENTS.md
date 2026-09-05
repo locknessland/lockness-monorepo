@@ -51,12 +51,13 @@ Anything not listed is internal and free to change.
 
 ## Where to work
 
-| Concern                                     | Path              |
-| ------------------------------------------- | ----------------- |
-| Service and public API                      | `mod.ts`          |
-| `db:migrate` / `db:rollback` / `make:model` | `cli_commands.ts` |
-| Project bootstrap                           | `install.ts`      |
-| Generated file templates                    | `stubs/`          |
+| Concern                                                  | Path              |
+| -------------------------------------------------------- | ----------------- |
+| Service and public API                                   | `mod.ts`          |
+| `db:migrate` / `db:rollback` / `db:seed`                 | `cli_commands.ts` |
+| `make:model` / `make:seeder` / `make:factory` generators | `generators/`     |
+| Project bootstrap                                        | `install.ts`      |
+| Generated file templates                                 | `stubs/`          |
 
 ## Pitfalls
 
@@ -70,7 +71,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 9 source files:
+8 test files for 11 source files:
 
 - `packages/drizzle/tests/cli_commands.test.ts`
 - `packages/drizzle/tests/factory.test.ts`
