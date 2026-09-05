@@ -1,11 +1,25 @@
 /**
  * @fileoverview Password hashing utilities.
  *
- * Provides secure password hashing and verification using PBKDF2.
+ * Hashing and verification are PBKDF2, and the single-home implementation of
+ * that primitive is `@lockness/crypto`'s {@link Hash} facade. At auth's default
+ * configuration the two produce a byte-identical self-describing string
+ * (`pbkdf2$SHA-256$<iterations>$<salt>$<hash>`), so this module delegates the
+ * default hash and every SHA-256 verification to the facade — the hashing
+ * primitive is owned in one place, not duplicated here.
+ *
+ * Two capabilities the parameter-less facade does not expose stay local, by
+ * design: the configurable-parameter API ({@link configurePasswordHashing} —
+ * custom iteration counts, algorithms, salt/key lengths) and verification of
+ * the legacy parameter-less format. Both remain fully backward compatible.
+ *
  * Follows OWASP 2023 recommendations for iteration counts.
  *
  * @module @lockness/auth/password
  */
+
+import { decodeBase64, encodeBase64 } from '@lockness/contract'
+import { Hash } from '@lockness/crypto'
 
 /**
  * Configuration for password hashing
@@ -23,6 +37,9 @@ export interface PasswordHashConfig {
 
 /**
  * Default configuration (current OWASP guidance for PBKDF2-SHA256).
+ *
+ * These values mirror `@lockness/crypto`'s `Hash` facade exactly, which is what
+ * lets {@link hashPassword} delegate the default hash to the shared primitive.
  */
 const DEFAULT_CONFIG: Required<PasswordHashConfig> = {
     saltLength: 16,
@@ -42,35 +59,36 @@ const LEGACY_ITERATIONS = 100000
 /** Scheme tag prefixing every self-describing hash. Base64 never contains `$`. */
 const PBKDF2_SCHEME = 'pbkdf2'
 
+/**
+ * The derived-key length, in bytes, that `@lockness/crypto`'s `Hash` facade
+ * produces. A self-describing SHA-256 hash of this key length is exactly the
+ * facade's format and is verified through it; anything else came from the
+ * configurable local API and is verified locally.
+ */
+const CRYPTO_KEY_BYTES = 32
+
 let globalConfig: Required<PasswordHashConfig> = { ...DEFAULT_CONFIG }
 
 /**
- * Encode raw bytes as base64.
+ * Whether an effective config is byte-for-byte the shape `@lockness/crypto`'s
+ * `Hash.make` emits, so hashing can be delegated to the shared primitive.
  *
- * @param bytes - The bytes to encode.
- * @returns The base64 string.
+ * @param cfg - The resolved (global + override) configuration.
+ * @returns `true` when every parameter matches the facade's fixed values.
  */
-function toBase64(bytes: Uint8Array): string {
-    let binary = ''
-    for (const b of bytes) binary += String.fromCharCode(b)
-    return btoa(binary)
-}
-
-/**
- * Decode base64 back to raw bytes.
- *
- * @param b64 - The base64 string.
- * @returns The decoded bytes.
- */
-function fromBase64(b64: string): Uint8Array<ArrayBuffer> {
-    const binary = atob(b64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-    return bytes
+function matchesCryptoFacade(cfg: Required<PasswordHashConfig>): boolean {
+    return cfg.hashAlgorithm === 'SHA-256' &&
+        cfg.iterations === DEFAULT_CONFIG.iterations &&
+        cfg.saltLength === DEFAULT_CONFIG.saltLength &&
+        cfg.keyLength === CRYPTO_KEY_BYTES
 }
 
 /**
  * Derive PBKDF2 bits for `password` under the given parameters.
+ *
+ * Retained for the two paths the parameter-less `@lockness/crypto` facade does
+ * not cover: hashing at a non-default configuration, and verifying legacy or
+ * non-SHA-256 self-describing hashes.
  *
  * @param password - The plain-text password.
  * @param salt - The per-hash salt.
@@ -81,7 +99,7 @@ function fromBase64(b64: string): Uint8Array<ArrayBuffer> {
  */
 async function deriveBits(
     password: string,
-    salt: Uint8Array<ArrayBuffer>,
+    salt: Uint8Array,
     iterations: number,
     hashAlgorithm: string,
     keyLengthBytes: number,
@@ -94,7 +112,12 @@ async function deriveBits(
         ['deriveBits'],
     )
     const bits = await crypto.subtle.deriveBits(
-        { name: 'PBKDF2', salt, iterations, hash: hashAlgorithm },
+        {
+            name: 'PBKDF2',
+            salt: salt as BufferSource,
+            iterations,
+            hash: hashAlgorithm,
+        },
         keyMaterial,
         keyLengthBytes * 8,
     )
@@ -153,11 +176,16 @@ export function resetPasswordHashingConfig(): void {
 }
 
 /**
- * Hash a password using PBKDF2
+ * Hash a password using PBKDF2.
+ *
+ * At the default configuration this delegates to `@lockness/crypto`'s
+ * {@link Hash.make}, the single-home implementation of the primitive; a custom
+ * configuration (which the parameter-less facade does not accept) is derived
+ * locally into the same self-describing format.
  *
  * @param password - Plain text password to hash
  * @param config - Optional configuration overrides (falls back to global config)
- * @returns Base64-encoded hash with embedded salt
+ * @returns A self-describing `pbkdf2$<algo>$<iterations>$<salt>$<hash>` string
  *
  * @example
  * ```typescript
@@ -172,6 +200,14 @@ export async function hashPassword(
     config?: PasswordHashConfig,
 ): Promise<string> {
     const cfg = { ...globalConfig, ...config }
+
+    // Default configuration → the shared crypto primitive owns the format.
+    if (matchesCryptoFacade(cfg)) {
+        return await Hash.make(password)
+    }
+
+    // Custom parameters the facade does not expose: derive locally, emitting the
+    // identical self-describing layout so the parameters travel with the hash.
     const salt = crypto.getRandomValues(new Uint8Array(cfg.saltLength))
     const hash = await deriveBits(
         password,
@@ -180,22 +216,29 @@ export async function hashPassword(
         cfg.hashAlgorithm,
         cfg.keyLength,
     )
-
-    // Self-describing PHC-like string: the parameters travel with the hash, so
-    // the default cost can be raised without invalidating stored hashes (#168).
     return [
         PBKDF2_SCHEME,
         cfg.hashAlgorithm,
         cfg.iterations,
-        toBase64(salt),
-        toBase64(hash),
+        encodeBase64(salt),
+        encodeBase64(hash),
     ].join('$')
 }
 
 /**
+ * Verify a password against a previously stored hash.
+ *
+ * Self-describing SHA-256 hashes of the facade's key length — every hash auth
+ * produces at its default config, and every hash any prior version produced —
+ * are verified through `@lockness/crypto`'s {@link Hash.check}, which reads the
+ * iteration count and salt from the string. Non-SHA-256 or non-default-key-length
+ * self-describing hashes (from the configurable API) and legacy parameter-less
+ * hashes are verified locally, so no stored hash is ever stranded.
+ *
  * @param password - Plain text password to verify
  * @param storedHash - Previously hashed password
- * @param config - Optional configuration overrides (must match the config used during hashing)
+ * @param config - Optional configuration overrides (applies only to the legacy
+ * parameter-less format; self-describing hashes carry their own parameters)
  * @returns True if password matches the hash
  *
  * @example
@@ -210,46 +253,70 @@ export async function verifyPassword(
     storedHash: string,
     config?: PasswordHashConfig,
 ): Promise<boolean> {
-    try {
-        if (storedHash.includes('$')) {
-            // Self-describing format: read every parameter from the hash, so
-            // verification never depends on the current global config matching.
-            const [scheme, hashAlgorithm, iterationsRaw, saltB64, hashB64] =
-                storedHash.split('$')
-            if (scheme !== PBKDF2_SCHEME || !saltB64 || !hashB64) return false
-            const iterations = Number.parseInt(iterationsRaw, 10)
-            if (!Number.isInteger(iterations) || iterations <= 0) return false
-            const salt = fromBase64(saltB64)
-            const originalHash = fromBase64(hashB64)
-            const newHash = await deriveBits(
-                password,
-                salt,
-                iterations,
-                hashAlgorithm,
-                originalHash.length,
-            )
-            return timingSafeEqual(originalHash, newHash)
+    if (storedHash.includes('$')) {
+        // Self-describing format: every parameter is read from the hash, so
+        // verification never depends on the current global config.
+        const parts = storedHash.split('$')
+        if (parts.length !== 5) return false
+        const [scheme, hashAlgorithm, iterationsRaw, saltB64, hashB64] = parts
+        if (scheme !== PBKDF2_SCHEME || !saltB64 || !hashB64) return false
+
+        let salt: Uint8Array
+        let originalHash: Uint8Array
+        try {
+            salt = decodeBase64(saltB64)
+            originalHash = decodeBase64(hashB64)
+        } catch {
+            // A malformed hash cannot match any password; deny it. This is the
+            // predicate's contract, not the swallowing of an unexpected error.
+            return false
         }
 
-        // Legacy parameter-less format: base64(salt + hash) at the historical
-        // defaults. An explicit `config` still overrides them.
-        const cfg = {
-            ...DEFAULT_CONFIG,
-            iterations: LEGACY_ITERATIONS,
-            ...config,
+        // The crypto facade owns exactly PBKDF2-SHA-256 with a 32-byte key —
+        // let the single-home primitive verify anything in that shape.
+        if (
+            hashAlgorithm === 'SHA-256' &&
+            originalHash.length === CRYPTO_KEY_BYTES
+        ) {
+            return await Hash.check(password, storedHash)
         }
-        const combined = fromBase64(storedHash)
-        const salt = combined.slice(0, cfg.saltLength)
-        const originalHash = combined.slice(cfg.saltLength)
+
+        // Otherwise the hash came from the configurable local API (custom
+        // algorithm or key length); verify at its embedded parameters.
+        const iterations = Number.parseInt(iterationsRaw, 10)
+        if (!Number.isInteger(iterations) || iterations <= 0) return false
         const newHash = await deriveBits(
             password,
             salt,
-            cfg.iterations,
-            cfg.hashAlgorithm,
+            iterations,
+            hashAlgorithm,
             originalHash.length,
         )
         return timingSafeEqual(originalHash, newHash)
+    }
+
+    // Legacy parameter-less format: base64(salt + hash) at the historical
+    // defaults. An explicit `config` still overrides them.
+    const cfg = {
+        ...DEFAULT_CONFIG,
+        iterations: LEGACY_ITERATIONS,
+        ...config,
+    }
+    let combined: Uint8Array
+    try {
+        combined = decodeBase64(storedHash)
     } catch {
+        // Not valid base64 → cannot match; deny without surfacing an error.
         return false
     }
+    const salt = combined.slice(0, cfg.saltLength)
+    const originalHash = combined.slice(cfg.saltLength)
+    const newHash = await deriveBits(
+        password,
+        salt,
+        cfg.iterations,
+        cfg.hashAlgorithm,
+        originalHash.length,
+    )
+    return timingSafeEqual(originalHash, newHash)
 }
