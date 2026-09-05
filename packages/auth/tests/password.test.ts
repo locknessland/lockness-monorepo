@@ -10,12 +10,32 @@
  */
 
 import { assert, assertEquals } from '@std/assert'
+import { Hash } from '@lockness/crypto'
 import {
     getPasswordHashingConfig,
     hashPassword,
     resetPasswordHashingConfig,
     verifyPassword,
 } from '../password.ts'
+
+/**
+ * A self-describing hash for `planted-modern`, produced by the PBKDF2
+ * construction `password.ts` shipped BEFORE the #264 convergence (default
+ * SHA-256 @ 600000, fixed salt of `0x07` bytes). Its format is byte-identical
+ * to `@lockness/crypto`'s `Hash`, so routing verification through the facade
+ * must keep it verifiable — the cross-version backward-compat lock.
+ */
+const PLANTED_MODERN =
+    'pbkdf2$SHA-256$600000$BwcHBwcHBwcHBwcHBwcHBw==$0/PFCV+dS+nMo3CjTY5LL0LctrYG38+iSvU8r6/IUD4='
+
+/**
+ * A legacy parameter-less hash for `planted-legacy` — `base64(salt(16) +
+ * hash(32))` at the historical 100000 iterations, the shape stored before the
+ * self-describing format existed. The facade cannot read it, so the auth-local
+ * compat path must.
+ */
+const PLANTED_LEGACY =
+    'CQkJCQkJCQkJCQkJCQkJCdL4lKjGd3BfpRgsmjrt3jNWTbb2dZ/sAWR8PMZWoyoC'
 
 /** Reproduce the OLD parameter-less format: base64(salt(16) + hash(32)) @ 100k. */
 async function legacyHash(password: string): Promise<string> {
@@ -85,4 +105,42 @@ Deno.test('a legacy parameter-less 100k hash still verifies (#168)', async () =>
         'raising the default must not strand hashes stored in the old format',
     )
     assert(!(await verifyPassword('nope', legacy)))
+})
+
+Deno.test('a hash stored by pre-#264 auth still verifies after crypto convergence (#264)', async () => {
+    resetPasswordHashingConfig()
+    assert(
+        await verifyPassword('planted-modern', PLANTED_MODERN),
+        'a self-describing hash from the old code must survive the crypto convergence',
+    )
+    assert(!(await verifyPassword('wrong', PLANTED_MODERN)))
+})
+
+Deno.test('a planted legacy parameter-less hash still verifies after crypto convergence (#264)', async () => {
+    resetPasswordHashingConfig()
+    assert(
+        await verifyPassword('planted-legacy', PLANTED_LEGACY),
+        'the auth-local compat path must still read the parameter-less format',
+    )
+    assert(!(await verifyPassword('wrong', PLANTED_LEGACY)))
+})
+
+Deno.test('hashPassword output is verifiable by the @lockness/crypto Hash facade (#264)', async () => {
+    resetPasswordHashingConfig()
+    const h = await hashPassword('shared-format')
+    assert(
+        await Hash.check('shared-format', h),
+        'auth and crypto must share one hash format — this is the convergence lock',
+    )
+    assert(!(await Hash.check('nope', h)))
+})
+
+Deno.test('a @lockness/crypto Hash.make hash verifies through verifyPassword (#264)', async () => {
+    resetPasswordHashingConfig()
+    const stored = await Hash.make('crypto-made')
+    assert(
+        await verifyPassword('crypto-made', stored),
+        'verifyPassword must accept hashes produced by the crypto facade',
+    )
+    assert(!(await verifyPassword('nope', stored)))
 })
