@@ -14,6 +14,7 @@
     },
     "imports": {
         "@lockness/contract": "jsr:@lockness/contract@^0.2.0",
+        "@lockness/crypto": "jsr:@lockness/crypto@^0.2.0",
         "@lockness/events": "jsr:@lockness/events@^0.2.0",
         "@lockness/hono": "jsr:@lockness/hono@^0.2.0",
         "@lockness/session": "jsr:@lockness/session@^0.2.0",

@@ -41,7 +41,7 @@
         // ---- Implementation
         "auth": {
             "tier": "implementation",
-            "allow": ["contract", "events", "hono", "session"]
+            "allow": ["contract", "crypto", "events", "hono", "session"]
         },
         "auth-provider": { "tier": "implementation", "allow": ["auth"] },
         "cache": {

@@ -41,7 +41,7 @@ The dependency graph is acyclic (DAG).
 
 | Package                 | Static                                               | Soft (optional, runtime)                                                             |
 | :---------------------- | :--------------------------------------------------- | :----------------------------------------------------------------------------------- |
-| `auth`                  | contract, events, hono, session                      | —                                                                                    |
+| `auth`                  | contract, crypto, events, hono, session              | —                                                                                    |
 | `auth-provider`         | auth                                                 | —                                                                                    |
 | `cache`                 | container, contract                                  | —                                                                                    |
 | `cli`                   | contract, events, queue                              | —                                                                                    |
