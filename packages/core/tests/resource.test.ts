@@ -36,6 +36,16 @@ class LeakyResource extends Resource<User> {
     }
 }
 
+// A resource that MISTAKENLY names EVERY denylisted key — the guard must strip
+// all of them, whatever the list contains, and keep the one safe field.
+class AllSecretsResource extends Resource<User> {
+    override toArray(): Record<string, unknown> {
+        const out: Record<string, unknown> = { id: this.model.id }
+        for (const key of NEVER_SERIALISE) out[key] = `LEAKED:${key}`
+        return out
+    }
+}
+
 const user: User = {
     id: 1,
     name: 'Ada',
@@ -57,6 +67,26 @@ Deno.test('the never-serialise denylist strips a mistakenly-named secret', () =>
     // The denylist is the documented set.
     assertEquals(NEVER_SERIALISE.includes('passwordHash'), true)
     assertEquals(NEVER_SERIALISE.includes('token'), true)
+})
+
+Deno.test('the never-serialise denylist strips EVERY documented key', () => {
+    // The denylist is non-empty — an empty list would make this vacuously pass.
+    assertEquals(NEVER_SERIALISE.length > 0, true)
+
+    // toArray() plants every denylisted key; toJSON() (the wire path) must drop
+    // all of them and leave nothing behind but the safe field.
+    const wire = new AllSecretsResource(user).toJSON()
+    assertEquals(wire, { id: 1 })
+
+    // Assert each documented key individually, so a regression that leaks any
+    // single one names the offender.
+    for (const key of NEVER_SERIALISE) {
+        assertEquals(
+            Object.hasOwn(wire, key),
+            false,
+            `denylisted key "${key}" leaked onto the wire`,
+        )
+    }
 })
 
 Deno.test('Resource.schema() derives a JSON Schema from the projection', () => {
