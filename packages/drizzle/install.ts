@@ -21,6 +21,8 @@
 import { addPackage, Stub } from '@lockness/cli'
 import { dirname, fromFileUrl, join } from '@std/path'
 import postgres from 'postgres'
+import { resolveDialect } from './drivers.ts'
+import { DRIZZLE_KIT_DIALECT } from './generators/dialect_schema.ts'
 
 // =============================================================================
 // Types
@@ -83,7 +85,10 @@ function resolveStubsDir(): string {
 /**
  * Create the drizzle.config.ts configuration file.
  *
- * Skips creation if the file already exists.
+ * Skips creation if the file already exists. The `drizzle-kit` dialect is
+ * resolved from the configured `DATABASE_URL` scheme (falling back to
+ * `postgresql`), so migrations are generated and run against the active
+ * database rather than always assuming PostgreSQL.
  *
  * @returns True if the file was created, false if it already existed
  */
@@ -96,11 +101,15 @@ export async function createDrizzleConfig(): Promise<boolean> {
         return false
     } catch {
         const stubsDir = resolveStubsDir()
+        const dialect = resolveDialect(
+            undefined,
+            Deno.env.get('DATABASE_URL') ?? '',
+        )
         const content = await Stub.renderFrom(
             stubsDir,
             '',
             'drizzle.config.ts',
-            {},
+            { dialect: DRIZZLE_KIT_DIALECT[dialect] },
         )
 
         await Deno.writeTextFile(configPath, content)

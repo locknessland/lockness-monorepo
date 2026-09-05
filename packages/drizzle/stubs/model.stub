@@ -1,11 +1,11 @@
-import { pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+{{tableImports}}
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod'
 
-export const {{tableName}} = pgTable('{{tableName}}', {
-    id: serial('id').primaryKey(),
+export const {{tableName}} = {{tableFn}}('{{tableName}}', {
+    {{idColumn}}
     // Add your columns here
-    createdAt: timestamp('created_at').defaultNow(),
-    updatedAt: timestamp('updated_at').defaultNow(),
+    {{createdAtColumn}}
+    {{updatedAtColumn}}
 })
 
 // Zod schemas for validation (customize as needed)

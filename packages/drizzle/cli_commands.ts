@@ -20,6 +20,11 @@ import { container } from '@lockness/container'
 import { Database } from './mod.ts'
 import { handleMakeFactory } from './generators/factory_generator.ts'
 import {
+    modelStubParts,
+    resolveGeneratorDialect,
+} from './generators/dialect_schema.ts'
+import type { Dialect } from './drivers.ts'
+import {
     ALLOW_PRODUCTION_FLAG,
     assertNotProduction,
 } from './production_guard.ts'
@@ -114,6 +119,8 @@ interface ModelFlags {
     readonly seeder: boolean
     /** Whether to create a controller */
     readonly controller: boolean
+    /** Raw `--dialect` override value, if supplied (else configured/inferred). */
+    readonly dialect: string | undefined
 }
 
 /**
@@ -222,22 +229,43 @@ function getErrorMessage(error: unknown): string {
  * - `-s`, `--seeder` - Create seeder
  * - `-c`, `--controller` - Create controller
  * - `-a`, `--all` - Create all related files
+ * - `--dialect <d>` / `--dialect=<d>` - Override the schema dialect
+ *
+ * The `--dialect` value (whether spelled `--dialect mysql` or `--dialect=mysql`)
+ * is consumed here so it is never mistaken for the positional model name.
  *
  * @param args - CLI arguments array
  * @returns Parsed flags object
  */
 function parseFlags(args: readonly string[]): ModelFlags {
-    const name = args.find((a) => !a.startsWith('-'))
+    let dialect: string | undefined
+    const positional: string[] = []
+
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i]
+        if (arg.startsWith('--dialect=')) {
+            dialect = arg.slice('--dialect='.length)
+            continue
+        }
+        if (arg === '--dialect') {
+            dialect = args[i + 1]
+            i++ // skip the consumed value
+            continue
+        }
+        if (!arg.startsWith('-')) positional.push(arg)
+    }
+
     const hasFlag = (short: string, long: string): boolean =>
         args.includes(short) || args.includes(long)
 
     const all = hasFlag('-a', '--all')
 
     return {
-        name,
+        name: positional[0],
         repository: all || hasFlag('-r', '--repository'),
         seeder: all || hasFlag('-s', '--seeder'),
         controller: all || hasFlag('-c', '--controller'),
+        dialect,
     }
 }
 
@@ -460,8 +488,15 @@ async function handleMakeModel(args: string[]): Promise<void> {
     const naming = generateNaming(flags.name)
     const createdFiles: string[] = []
 
+    // Resolve the schema dialect: explicit --dialect flag wins, else infer from
+    // the configured DATABASE_URL, else default postgres.
+    const dialect = resolveGeneratorDialect(
+        flags.dialect,
+        Deno.env.get('DATABASE_URL'),
+    )
+
     // Always create the model
-    const modelCreated = await createModelFile(naming)
+    const modelCreated = await createModelFile(naming, dialect)
     if (!modelCreated) return
     createdFiles.push(`./app/model/${naming.fileName}.ts`)
 
@@ -517,19 +552,32 @@ function printMakeModelUsage(): void {
     console.log(
         '  -a, --all           Create all (repository, seeder, controller)',
     )
+    console.log(
+        '  --dialect <d>       Schema dialect: postgres | mysql | sqlite',
+    )
+    console.log(
+        '                      (defaults to the DATABASE_URL scheme, else postgres)',
+    )
 }
 
 /**
- * Create the model file.
+ * Create the model file for the resolved dialect.
  *
  * @param naming - Model naming conventions
+ * @param dialect - The resolved schema dialect; selects the table/column helpers
+ *   (pg `serial`, mysql `int`+`autoincrement`, sqlite `integer` PK) the stub is
+ *   rendered with.
  * @returns True if created successfully
  */
-async function createModelFile(naming: ModelNaming): Promise<boolean> {
+async function createModelFile(
+    naming: ModelNaming,
+    dialect: Dialect,
+): Promise<boolean> {
     try {
         const content = await processStub('model', {
             ModelName: naming.modelName,
             tableName: naming.tableName,
+            ...modelStubParts(dialect),
         })
         await createFile(`./app/model/${naming.fileName}.ts`, content)
         return true
