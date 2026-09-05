@@ -114,6 +114,35 @@ Anything not listed is internal and free to change.
 
 <!-- /generated:tests -->
 
+### The live-broker harness (`tests/live_broker.ts`)
+
+**Not counted above.** `agents_brief.ts` files any non-`.test.ts` file into the
+_source_ inventory, so this module raised the source count from 8 to 9 and
+appears in no test list — which is precisely why it needs naming by hand.
+
+It is the shared harness for suites that run against a **real Redis**, and it
+lives in this package rather than beside its first consumer because
+`@lockness/session` and `@lockness/queue` both declare `@lockness/redis` and
+neither declares `@lockness/realtime`. A `LOCKNESS_REDIS_*` contract homed in
+another package's tests is one they cannot import, and would therefore be
+copied. `@lockness/realtime` already imports it across the boundary
+(`packages/realtime/tests/live_realtime.ts`).
+
+| Export                   | What it decides — each of these has exactly ONE home, and it is here                                                                                                                     |
+| :----------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LIVE_BROKER`            | Whether a gated suite runs. The **only** reader of `LOCKNESS_REDIS_INTEGRATION`; the root `test:redis` task sets it. Use as `Deno.test({ ignore: !LIVE_BROKER })`.                       |
+| `brokerConfig()`         | The connection settings, from `LOCKNESS_REDIS_HOST` / `_PORT` / `_PASSWORD` / `_DB` / `_TLS`. Never read those variables anywhere else.                                                  |
+| `preflight(config)`      | Three refusals: an unreachable broker (a failure, never a skip), a server below `MIN_REDIS_MAJOR`, and a password aimed at a non-loopback host with TLS off. Returns the version string. |
+| `runNamespace()`         | `lockness-it:<random>` over a fixed `[a-z0-9]` alphabet, so it carries no glob metacharacter and is safe as both a `SCAN … MATCH` and a `PSUBSCRIBE` pattern.                            |
+| `teardown(client, ns)`   | `SCAN`-scoped delete of that namespace. Call it from a `finally` — the run that most needs cleaning up is the failing one. There is **no** `FLUSHDB` path and there must never be one.   |
+| `waitFor(cond, msg, ms)` | The project's one poll-until-true. The predicate may be async, because the useful condition is usually a broker round-trip.                                                              |
+
+Writing a new live suite: gate every test on `LIVE_BROKER`, `preflight` once,
+mint one `runNamespace()` per run, keep **every key and every pub/sub topic**
+inside it, and `teardown` in a `finally`.
+`packages/realtime/tests/live_realtime.ts` is the worked example, and
+`docs/testing.md` covers running the suites.
+
 ## Before you call it done
 
 <!-- generated:gate -->

@@ -48,6 +48,14 @@ way everywhere.
 - **Memo key** — `redisMemoKey` / `credentialFingerprint` / `hmacSha256Hex` /
   `sha256Hex` fold the password through a keyed HMAC so a connection cache key
   is never the cleartext password.
+- **A shared live-broker test harness** (`tests/live_broker.ts`) — the gate,
+  connection contract, preflight, run namespace, `SCAN`-scoped teardown and
+  `waitFor` that any package's integration suite uses to run against a **real
+  Redis**. It lives here, not beside its first consumer, because every Redis
+  consumer can import this package and they cannot all import each other.
+  `@lockness/realtime` uses it today. Excluded from the published package — it
+  is for contributors, not for consumers. See [`AGENTS.md`](AGENTS.md) for the
+  API and [`docs/testing.md`](../../docs/testing.md) for running the suites.
 
 ## Usage
 
