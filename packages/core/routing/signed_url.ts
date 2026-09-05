@@ -23,6 +23,10 @@ export const EXPIRES_PARAM = 'expires'
 
 /** Thrown when a URL cannot be canonicalised (e.g. a duplicate query key). */
 export class SignedUrlError extends Error {
+    /**
+     * @param message - Why canonicalisation failed — e.g. the name of the
+     * offending duplicate query parameter.
+     */
     constructor(message: string) {
         super(message)
         this.name = 'SignedUrlError'

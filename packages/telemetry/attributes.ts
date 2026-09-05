@@ -28,7 +28,10 @@ export type AttributeValue = string | number
  *
  * @example
  * ```typescript
- * span.setAttribute-ing buildAttributes(c) // { 'http.request.method', 'http.route' }
+ * const attributes = buildAttributes(c) // { 'http.request.method', 'http.route' }
+ * for (const [key, value] of Object.entries(attributes)) {
+ *     span.setAttribute(key, value)
+ * }
  * ```
  */
 export function buildAttributes(c: Context): Record<string, AttributeValue> {
