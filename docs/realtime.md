@@ -168,11 +168,33 @@ control message so the owning instance revokes it. A revocation-driven evict
 **hard-closes** the socket (close code `4403`), so delivery stops immediately —
 unlike a plain channel leave, which only unsubscribes.
 
-The durable marker is what closes the reliability gap: if the `evict` control
-message is lost while the owning socket is between reconnects, the marker keeps
-the connection revoked and the owning instance recovers the missed evict. The
-marker self-expires after `revocationTtlSeconds` (default `300`) so the
-revocation set never grows without bound.
+The durable record is what closes the reliability gap: if the `evict` control
+message is lost while the owning socket is between reconnects, the record keeps
+the connection revoked and the owning instance recovers the missed evict. It
+self-expires after `revocationTtlSeconds` (default `300`) so the revocation set
+never grows without bound.
+
+It is a **single sorted set** at `{prefix}:revocations`, whose score is the
+second the revocation expires. One structure rather than two matters for
+correctness, not tidiness: reaping expired entries and listing live ones happen
+in one server-side operation against one `now` read from Redis's own clock, so a
+revocation that is live cannot be removed by a concurrent pass, and no
+instance's wall clock takes part in the decision.
+
+> **Requires Redis 7.0+.** Every write is extend-only and each needs to be:
+> `ZADD … GT` stops a re-eviction shortening one revocation, `EXPIRE … NX` arms
+> the index key's own TTL, and `EXPIRE … GT` stops an instance with a shorter
+> `revocationTtlSeconds` shrinking that key and taking every live revocation in
+> it down. `GT` alone cannot arm a TTL — Redis reads a key with none as having
+> an infinite one.
+
+> **Rolling upgrade.** For one release the driver also _reads_ the previous
+> layout (`{prefix}:revoked` plus per-target markers) so a revocation written by
+> a not-yet-upgraded instance is still honoured. It never writes it, and no key
+> changes Redis type under a name an old instance still uses. Removal is tracked
+> in [#278](https://github.com/locknessland/lockness-monorepo/issues/278); after
+> it lands, the abandoned `{prefix}:revoked` key can be deleted by hand — it has
+> no TTL of its own.
 
 **Two triggers re-check the marker**, and every deployment gets both:
 
