@@ -44,6 +44,38 @@ retained indefinitely — every driver enforces a retention window:
   the oldest entry is evicted. **Default: 10 000.** The durable drivers ignore
   it; they are bounded by the retention window alone.
 
+### Redis-backed workers from the environment
+
+The `queue:work`, `queue:clear` and `queue:retry` commands read the driver and
+its connection from the environment, so a Redis-backed worker needs no code
+change — only variables. Set `QUEUE_DRIVER=redis` and the `REDIS_*` connection
+variables (the same names the Redis-backed session store uses):
+
+| Variable         | Maps to    | Notes                                   |
+| ---------------- | ---------- | --------------------------------------- |
+| `REDIS_HOST`     | `hostname` | **Required** when `QUEUE_DRIVER=redis`. |
+| `REDIS_PORT`     | `port`     | Positive integer; Redis default `6379`. |
+| `REDIS_DB`       | `db`       | Positive integer; Redis default `0`.    |
+| `REDIS_PASSWORD` | `password` | Optional `AUTH` credential.             |
+| `REDIS_TLS`      | `tls`      | `true`/`1` to wrap the socket with TLS. |
+
+```bash
+QUEUE_DRIVER=redis \
+REDIS_HOST=redis.internal \
+REDIS_PORT=6379 \
+REDIS_PASSWORD=... \
+REDIS_TLS=true \
+  deno task cli queue:work --queue=emails
+```
+
+`REDIS_HOST` is required (unlike the session store's dev-friendly `localhost`
+default): a background worker is a deployed process, so a silent fallback to
+localhost would mask a misconfiguration. When it is missing the command exits
+with a clear `RedisQueueConfigError` naming the variable, rather than a
+downstream socket error. Setting `REDIS_PASSWORD` with `REDIS_TLS` off sends the
+credential over plaintext — `RedisClient` raises a one-time cleartext-`AUTH`
+warning when it connects (it is neither suppressed nor duplicated here).
+
 ## Basic Usage
 
 ### 1. Define a Job
