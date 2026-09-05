@@ -18,9 +18,12 @@ type Reply = {
 class FakeRedis implements RedisCommandClient {
     #zset = new Map<string, { score: number; member: string }[]>()
     #hash = new Map<string, Map<string, string>>()
+    /** Every command name issued, in order — lets a test assert atomicity. */
+    readonly commands: string[] = []
 
     command(...args: string[]): Promise<Reply> {
         const [cmd, ...rest] = args
+        this.commands.push(cmd)
         switch (cmd) {
             case 'ZADD': {
                 const [key, score, member] = rest
@@ -31,14 +34,42 @@ class FakeRedis implements RedisCommandClient {
                 return Promise.resolve({ type: 'integer', value: 1 })
             }
             case 'EVAL': {
-                // POP_SCRIPT: <script> 1 <key> <now>
-                const key = rest[2]
-                const now = Number(rest[3])
-                const arr = this.#zset.get(key) ?? []
-                const idx = arr.findIndex((e) => e.score <= now)
-                if (idx === -1) return Promise.resolve({ type: 'nil' })
-                const [claimed] = arr.splice(idx, 1)
-                return Promise.resolve({ type: 'bulk', value: claimed.member })
+                const script = rest[0]
+                if (script.includes('ZRANGEBYSCORE')) {
+                    // POP_SCRIPT: <script> 1 <key> <now>
+                    const key = rest[2]
+                    const now = Number(rest[3])
+                    const arr = this.#zset.get(key) ?? []
+                    const idx = arr.findIndex((e) => e.score <= now)
+                    if (idx === -1) return Promise.resolve({ type: 'nil' })
+                    const [claimed] = arr.splice(idx, 1)
+                    return Promise.resolve({
+                        type: 'bulk',
+                        value: claimed.member,
+                    })
+                }
+                // RETRY_SCRIPT: <script> 1 <dlqKey> <id> <now> <queuePrefix>
+                const [dlqKey, id, now, prefix] = rest.slice(2)
+                const raw = this.#hash.get(dlqKey)?.get(id)
+                if (raw === undefined) {
+                    return Promise.resolve({ type: 'integer', value: 0 })
+                }
+                const { job: dead } = JSON.parse(raw) as { job: SerializedJob }
+                const revived = {
+                    ...dead,
+                    attempts: 0,
+                    availableAt: Number(now),
+                }
+                const qkey = `${prefix}${revived.queue}`
+                const arr = this.#zset.get(qkey) ?? []
+                arr.push({
+                    score: Number(now),
+                    member: JSON.stringify(revived),
+                })
+                arr.sort((a, b) => a.score - b.score)
+                this.#zset.set(qkey, arr)
+                this.#hash.get(dlqKey)?.delete(id)
+                return Promise.resolve({ type: 'integer', value: 1 })
             }
             case 'ZCARD':
                 return Promise.resolve({
@@ -134,6 +165,26 @@ Deno.test('RedisQueueDriver - deadLetter → listFailed (no payload) → retryFa
 Deno.test('RedisQueueDriver - retryFailed on an unknown id is false', async () => {
     const d = new RedisQueueDriver(new FakeRedis())
     assertEquals(await d.retryFailed('ghost'), false)
+})
+
+Deno.test('RedisQueueDriver - retryFailed is a single atomic EVAL (no HGET/ZADD/HDEL round-trips)', async () => {
+    const redis = new FakeRedis()
+    const d = new RedisQueueDriver(redis)
+    await d.deadLetter(job('dead', 0), new RangeError('nope'))
+    redis.commands.length = 0 // ignore the deadLetter HSET
+
+    assertEquals(await d.retryFailed('dead'), true)
+    assertEquals(redis.commands, ['EVAL'], 'retry folds into one EVAL')
+})
+
+Deno.test('RedisQueueDriver - retryFailed on a missing id issues one EVAL and touches nothing', async () => {
+    const redis = new FakeRedis()
+    const d = new RedisQueueDriver(redis)
+    redis.commands.length = 0
+
+    assertEquals(await d.retryFailed('ghost'), false)
+    assertEquals(redis.commands, ['EVAL'], 'a miss is still one atomic EVAL')
+    assertEquals(await d.size('default'), 0, 'nothing enqueued on a miss')
 })
 
 Deno.test('RedisQueueDriver - clear empties the queue', async () => {

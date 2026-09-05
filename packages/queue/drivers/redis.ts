@@ -31,9 +31,12 @@ export interface RedisCommandClient {
     command(...args: string[]): Promise<CommandReply>
 }
 
+/** Shared prefix for every queue sorted-set key. */
+const QUEUE_PREFIX = 'lockness:queue:'
+
 /** The queue sorted-set key. */
 function queueKey(name: string): string {
-    return `lockness:queue:${name}`
+    return `${QUEUE_PREFIX}${name}`
 }
 
 /** The single dead-letter hash key. */
@@ -44,6 +47,23 @@ const POP_SCRIPT =
     "local due = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', ARGV[1], 'LIMIT', 0, 1); " +
     'if #due == 0 then return nil end; ' +
     "redis.call('ZREM', KEYS[1], due[1]); return due[1]"
+
+/**
+ * Atomic retry: read the dead-letter entry, re-enqueue its job at score `now`
+ * with a fresh attempt count, and drop the dead-letter copy — all in one server
+ * round-trip so a crash can never leave the job both queued and dead-lettered.
+ *
+ * `KEYS[1]` is the dead-letter hash; `ARGV[1]` the job id, `ARGV[2]` the new
+ * `availableAt` score, `ARGV[3]` the queue key prefix. Returns `1` on a revive
+ * and `0` when the id is absent (so nothing is enqueued).
+ */
+const RETRY_SCRIPT = "local raw = redis.call('HGET', KEYS[1], ARGV[1]); " +
+    'if not raw then return 0 end; ' +
+    'local job = cjson.decode(raw).job; ' +
+    'job.attempts = 0; ' +
+    'job.availableAt = tonumber(ARGV[2]); ' +
+    "redis.call('ZADD', ARGV[3] .. job.queue, ARGV[2], cjson.encode(job)); " +
+    "redis.call('HDEL', KEYS[1], ARGV[1]); return 1"
 
 /** A durable {@link QueueDriver} over Redis. */
 export class RedisQueueDriver implements QueueDriver {
@@ -124,15 +144,16 @@ export class RedisQueueDriver implements QueueDriver {
     }
 
     async retryFailed(id: string): Promise<boolean> {
-        const reply = await this.#client.command('HGET', DLQ_KEY, id)
-        if (reply.type !== 'bulk' || typeof reply.value !== 'string') {
-            return false
-        }
-        const { job } = JSON.parse(reply.value) as { job: SerializedJob }
-        const revived = { ...job, attempts: 0, availableAt: Date.now() }
-        await this.push(revived)
-        await this.#client.command('HDEL', DLQ_KEY, id)
-        return true
+        const reply = await this.#client.command(
+            'EVAL',
+            RETRY_SCRIPT,
+            '1',
+            DLQ_KEY,
+            id,
+            String(Date.now()),
+            QUEUE_PREFIX,
+        )
+        return reply.type === 'integer' && reply.value === 1
     }
 
     async size(queueName: string): Promise<number> {
