@@ -58,19 +58,28 @@ approves; an unauthorized connection never receives that channel's events. A
 presence channel returns the current member roster and emits join/leave to
 members only.
 
-**Revocation** — authorization is point-in-time at subscribe. To act on a logout
-/ kick / account-disable mid-connection, call the eviction primitive:
+**Revocation** — authorization is point-in-time at subscribe. Fan-out is not
+re-authorized per message; it delivers to the subscription set the authorizer
+approved at subscribe time. **Eviction is therefore the one revocation path.**
+To act on a logout / kick / account-disable mid-connection:
 
 ```ts
-manager.unsubscribe(clientId, 'private-orders')
-manager.disconnect(clientId)
+// Leave one channel (a plain channel leave — the socket stays open).
+await manager.unsubscribe(clientId, 'private-orders')
+
+// Disconnect from every channel (still local; the socket is not force-closed).
+await manager.disconnect(clientId)
+
+// Server-only, cross-process eviction — hard-closes the socket wherever it
+// lives, and stays revoked across a reconnect. Prefer this for a real revoke.
+await manager.evict(clientId)
 ```
 
-> Eviction is **single-process** in this release: it removes the connection from
-> the local instance only. Cross-process eviction (propagating a revoke over the
-> Redis driver so it reaches the instance owning the socket) ships with the
-> cross-process presence follow-up — until then, revocation on a multi-instance
-> deployment is enforced per-instance.
+`unsubscribe` and `disconnect` are `async` (a presence leave now round-trips to
+the authoritative roster). `evict` is a **server-only** entry point — it is
+never reachable from a client frame — and on a multi-instance deployment it
+reaches the instance that owns the socket over the Redis driver's control plane.
+See [Running on more than one instance](#running-on-more-than-one-instance).
 
 ## Drivers
 
@@ -80,21 +89,131 @@ subscribe-mode connection. Each receiving instance **re-applies its own
 authorization** — a Redis message is delivered only to that instance's
 authorized local subscribers.
 
+For production, build the driver from a single Redis connection config with
+`RedisBroadcastDriver.fromConfig` — it constructs both ends internally (a
+serialized-command `RedisClient` for `PUBLISH` / roster state, and a dedicated
+subscribe-mode `RedisSubscribeConnection` for the pub/sub socket), mirroring how
+`@lockness/queue` builds its client. Both connections are lazy — nothing dials
+until the first command or subscribe:
+
 ```ts
 import { RedisBroadcastDriver } from '@lockness/realtime'
 
-const manager = new ChannelManager({
-    driver: new RedisBroadcastDriver(redisClient, pubsubConnection, {
+const driver = RedisBroadcastDriver.fromConfig(
+    { hostname: 'localhost', port: 6379 },
+    {
         prefix: 'myapp:rt',
-    }),
+        // Required for the control plane (eviction + cross-instance presence).
+        control: { secret: Deno.env.get('REALTIME_SECRET')! },
+    },
+)
+
+const manager = new ChannelManager({ driver })
+
+// On shutdown — releases the subscribe socket then the command client:
+await driver.close()
+```
+
+The public constructor `new RedisBroadcastDriver(command, subscriber, options)`
+is preserved for tests: it takes an injected command client and subscribe-mode
+connection (a fake bus), so unit tests need no live Redis. `fromConfig` is the
+only path that opens real sockets, and it is the only one whose `close()` has
+connections to release.
+
+See [Running on more than one instance](#running-on-more-than-one-instance) for
+the roster, eviction, and the control-plane security posture.
+
+## Running on more than one instance
+
+With the Redis driver, presence and eviction are **authoritative across every
+instance** behind a load balancer — the gap that kept earlier releases
+single-instance.
+
+### The authoritative presence roster
+
+The `here` set for a presence channel is owned by the driver in Redis (a
+per-channel member store), not by any one instance's memory. When a client joins
+`presence-lobby` on instance A and another joins on instance B, `subscribe`
+returns the **cross-instance** roster (both members) and a `joined` frame
+reaches presence subscribers on **both** instances. A leave — `unsubscribe`,
+`disconnect`, or a socket close — removes the member from the authoritative
+roster and fans a `left` to every instance.
+
+Fan-out itself stays pure pub/sub: the roster is consulted on
+subscribe/unsubscribe/evict only, never on the per-event delivery path.
+
+**Ghost sweep.** Each instance carries an owner id on the roster entries it adds
+and refreshes an instance-liveness key on a heartbeat. If an instance crashes
+without cleanup, a surviving instance's periodic reconcile pass sweeps the dead
+instance's members, so a crash leaves no permanent ghosts. Tune it with the
+`presence` option:
+
+```ts
+RedisBroadcastDriver.fromConfig(config, {
+    control: { secret },
+    presence: {
+        livenessTtlSeconds: 15, // a silent instance is "dead" after this
+        heartbeatIntervalMs: 5000, // this instance refreshes its liveness key
+        reconcileIntervalMs: 10000, // sweep dead instances + re-check revocations
+    },
 })
 ```
 
-> **Presence is single-process authoritative** in this release: the Redis driver
-> fans join/leave notifications, but the authoritative `here` roster is
-> per-instance. Full cross-process presence (a Redis-owned member set) is a
-> tracked follow-up. The subscribe-mode Redis connection is likewise a
-> `@lockness/redis` follow-up — its serialized command client cannot subscribe.
+### Cross-process eviction
+
+`manager.evict(clientId)` revokes a connection wherever its socket lives. It
+first records a **durable revocation marker** in Redis, then either revokes the
+socket locally (if this instance owns it) or publishes an authenticated `evict`
+control message so the owning instance revokes it. A revocation-driven evict
+**hard-closes** the socket (close code `4403`), so delivery stops immediately —
+unlike a plain channel leave, which only unsubscribes.
+
+The durable marker is what closes the reliability gap: if the `evict` control
+message is lost while the owning socket is between reconnects, the marker keeps
+the connection revoked and the owning instance recovers the missed evict on its
+**periodic reconcile** (`reconcileIntervalMs`). The marker self-expires after
+`revocationTtlSeconds` (default `300`) so the revocation set never grows without
+bound.
+
+> A reconnect-triggered _immediate_ re-check (recovering a missed evict the
+> instant the owning socket reconnects, rather than on the next reconcile tick)
+> is a documented follow-up. Today recovery is the periodic reconcile.
+
+### Security posture: the bus is trusted, the `prefix` is not a boundary
+
+Control messages (`evict`) **and** presence-identity announcements
+(`presence-join` / `presence-leave`) are **HMAC-authenticated** with a
+per-deployment shared secret (`RealtimeControlConfig`). The secret is set once,
+identically on every instance, via the `control` option:
+
+```ts
+RedisBroadcastDriver.fromConfig(config, {
+    control: { secret: Deno.env.get('REALTIME_SECRET')! },
+})
+```
+
+Every control / presence-identity frame carries an HMAC over its payload,
+verified **before** the message is actioned; a frame with an absent or failed
+MAC is dropped with a warning and never obeyed — so a peer with bus `PUBLISH`
+cannot forge an evict or spoof a presence member. Without a `control` secret
+configured, the driver **refuses to publish** a control frame and **drops**
+every inbound one (both with a warning): the control plane and cross-instance
+presence announcements are effectively off, so the secret is **required** for
+any app that uses presence or eviction across instances.
+
+**The reserved `prefix` is NOT a security boundary on its own.** Redis pub/sub
+has no per-topic ACL by default, so the prefix is isolation by convention only —
+anyone with `PUBLISH` on the bus can write to a prefixed topic. On a shared or
+multi-tenant Redis, the HMAC (which the framework provides) is what actually
+authenticates the control plane; layer per-prefix Redis ACLs on top where your
+Redis supports them, and hold the roster/pub-sub bus to the same TLS + AUTH
+posture as any other credentialed connection.
+
+The channel-event path keeps its existing defence in depth on top of all this:
+every message off the bus is re-validated on ingest (channel/event names via
+`isValidName`, bounded payload size), and the **receiving** instance re-applies
+its own local authorization before delivering to a subscriber — a peer cannot
+inject an out-of-charset name or reach an unauthorized local connection.
 
 ## As a notifications broadcaster
 

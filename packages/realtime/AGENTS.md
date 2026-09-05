@@ -36,7 +36,7 @@ satisfies `@lockness/notification`'s `BroadcasterLike`.
 
 | Direction                                      | Packages                                 |
 | :--------------------------------------------- | :--------------------------------------- |
-| Imports (static)                               | `hono`                                   |
+| Imports (static)                               | `hono`, `redis`                          |
 | Imports (soft, via `tryImportOptionalPackage`) | `events`                                 |
 | Imported by                                    | —                                        |
 | **Must never import**                          | nothing — no package depends on this one |
@@ -51,13 +51,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                          |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ChannelManager`, `MemoryBroadcastDriver`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                                                  |
-| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                     |
-| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `Connection`, `DispatcherLike`, `PresenceMember`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
-| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ClientMessage`, `OutboundFrame`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                            |
-| variable  | `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`                                                                                                                                                                                                                                                                                             |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                              |
+| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `ChannelManager`, `MemoryBroadcastDriver`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                                                                                                                      |
+| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                         |
+| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `Connection`, `ControlMessage`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
+| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ClientMessage`, `OutboundFrame`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                                |
+| variable  | `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`                                                                                                                                                                                                                                                                                                                                                                 |
 
 Anything not listed is internal and free to change.
 
@@ -89,19 +89,30 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-13 test files for 12 source files:
+24 test files for 13 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channels.test.ts`
 - `packages/realtime/tests/client.test.ts`
+- `packages/realtime/tests/control_auth.test.ts`
+- `packages/realtime/tests/control_plane.test.ts`
+- `packages/realtime/tests/deliver_local_reauth.test.ts`
+- `packages/realtime/tests/disconnect_propagation.test.ts`
+- `packages/realtime/tests/driver_contract.test.ts`
 - `packages/realtime/tests/driver_redis.test.ts`
+- `packages/realtime/tests/driver_redis_live.test.ts`
 - `packages/realtime/tests/events_bridge.test.ts`
+- `packages/realtime/tests/eviction_control.test.ts`
+- `packages/realtime/tests/eviction_durable.test.ts`
 - `packages/realtime/tests/handler.test.ts`
 - `packages/realtime/tests/identity.test.ts`
 - `packages/realtime/tests/manager.test.ts`
 - `packages/realtime/tests/memory_driver.test.ts`
 - `packages/realtime/tests/origin.test.ts`
 - `packages/realtime/tests/presence.test.ts`
+- `packages/realtime/tests/presence_authoritative.test.ts`
+- `packages/realtime/tests/presence_roster_guard.test.ts`
+- `packages/realtime/tests/presence_sweep.test.ts`
 - `packages/realtime/tests/protocol.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
@@ -119,7 +130,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 13 test files directly —
+Then, specific to this package: run its 24 test files directly —
 
 ```bash
 deno test -A packages/realtime/
