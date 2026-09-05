@@ -5,9 +5,32 @@
  * @module @lockness/drizzle/tests/factory
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertRejects } from '@std/assert'
 import { container } from '@lockness/container'
 import { Database, Factory } from '../mod.ts'
+
+/**
+ * Run `fn` with `APP_ENV` forced to `value`, restoring the prior value (or
+ * absence) afterwards so environment mutation never leaks between tests.
+ */
+async function withAppEnv(
+    value: string | undefined,
+    fn: () => Promise<void>,
+): Promise<void> {
+    const prev = Deno.env.get('APP_ENV')
+    const prevDeno = Deno.env.get('DENO_ENV')
+    Deno.env.delete('DENO_ENV')
+    if (value === undefined) Deno.env.delete('APP_ENV')
+    else Deno.env.set('APP_ENV', value)
+    try {
+        await fn()
+    } finally {
+        if (prev === undefined) Deno.env.delete('APP_ENV')
+        else Deno.env.set('APP_ENV', prev)
+        if (prevDeno === undefined) Deno.env.delete('DENO_ENV')
+        else Deno.env.set('DENO_ENV', prevDeno)
+    }
+}
 
 type Row = {
     email: string
@@ -74,4 +97,54 @@ Deno.test('create() inserts one and returns it', async () => {
     assertEquals(row.email, 'once@x.test')
     assertEquals(recorded.length, 1)
     assertEquals((recorded[0].rows as Row[]).length, 1)
+})
+
+Deno.test('create() refuses to insert under APP_ENV=production without override', async () => {
+    const recorded = fakeInserts()
+    await withAppEnv('production', async () => {
+        await assertRejects(
+            () => new CounterFactory().create(),
+            Error,
+            'production',
+        )
+    })
+    // The write must never have reached the database.
+    assertEquals(recorded.length, 0)
+})
+
+Deno.test('createMany() refuses to insert under APP_ENV=production without override', async () => {
+    const recorded = fakeInserts()
+    await withAppEnv('production', async () => {
+        await assertRejects(
+            () => new CounterFactory().createMany(3),
+            Error,
+            'production',
+        )
+    })
+    assertEquals(recorded.length, 0)
+})
+
+Deno.test('create() inserts under production when { allowProduction: true } is passed', async () => {
+    const recorded = fakeInserts()
+    await withAppEnv('production', async () => {
+        const row = await new CounterFactory().create(
+            { email: 'forced@x.test' },
+            { allowProduction: true },
+        )
+        assertEquals(row.email, 'forced@x.test')
+    })
+    assertEquals(recorded.length, 1)
+})
+
+Deno.test('createMany() inserts under production when { allowProduction: true } is passed', async () => {
+    const recorded = fakeInserts()
+    await withAppEnv('production', async () => {
+        const rows = await new CounterFactory().createMany(
+            2,
+            {},
+            { allowProduction: true },
+        )
+        assertEquals(rows.length, 2)
+    })
+    assertEquals(recorded.length, 1)
 })

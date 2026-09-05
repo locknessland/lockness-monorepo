@@ -10,7 +10,7 @@
  * @module @lockness/drizzle/tests/cli_commands
  */
 
-import { assertEquals } from '@std/assert'
+import { assertEquals, assertRejects } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import {
     type CommandRunner,
@@ -287,6 +287,85 @@ Deno.test('db:seed - closes the connection when the seeder throws', async () => 
         // The failure is swallowed and logged; the connection is still closed.
         await cli.run('db:seed')
 
+        assertEquals(events, ['close'])
+    } finally {
+        restore()
+    }
+})
+
+// -----------------------------------------------------------------------------
+// db:seed — production write-guard (#258)
+// -----------------------------------------------------------------------------
+
+/**
+ * Run `fn` with `APP_ENV` forced to `value`, restoring the prior value (or
+ * absence) afterwards so environment mutation never leaks between tests.
+ */
+async function withAppEnv(
+    value: string | undefined,
+    fn: () => Promise<void>,
+): Promise<void> {
+    const prev = Deno.env.get('APP_ENV')
+    const prevDeno = Deno.env.get('DENO_ENV')
+    Deno.env.delete('DENO_ENV')
+    if (value === undefined) Deno.env.delete('APP_ENV')
+    else Deno.env.set('APP_ENV', value)
+    try {
+        await fn()
+    } finally {
+        if (prev === undefined) Deno.env.delete('APP_ENV')
+        else Deno.env.set('APP_ENV', prev)
+        if (prevDeno === undefined) Deno.env.delete('DENO_ENV')
+        else Deno.env.set('DENO_ENV', prevDeno)
+    }
+}
+
+Deno.test('db:seed - refuses to run under APP_ENV=production without --allow-production', async () => {
+    const restore = muteConsole()
+    try {
+        const cli = new FakeCli()
+        const { events, connect } = fakeConnection()
+        let loaded = false
+        const loadSeeder: SeederLoader = () => {
+            loaded = true
+            return Promise.resolve({})
+        }
+        registerDrizzleCommands(cli, { connect, loadSeeder })
+
+        await withAppEnv('production', async () => {
+            await assertRejects(() => cli.run('db:seed'), Error, 'production')
+        })
+
+        // The guard fires before any connection is opened or seeder loaded.
+        assertEquals(events, [])
+        assertEquals(loaded, false)
+    } finally {
+        restore()
+    }
+})
+
+Deno.test('db:seed --allow-production - runs under production with the override flag', async () => {
+    const restore = muteConsole()
+    try {
+        const cli = new FakeCli()
+        const { events, connect } = fakeConnection()
+        const ran: string[] = []
+        class DatabaseSeeder {
+            run(): Promise<void> {
+                ran.push('database')
+                return Promise.resolve()
+            }
+        }
+        const loadSeeder: SeederLoader = () =>
+            Promise.resolve({ DatabaseSeeder })
+        registerDrizzleCommands(cli, { connect, loadSeeder })
+
+        await withAppEnv('production', async () => {
+            await cli.run('db:seed', '--allow-production')
+        })
+
+        // Override authorises the run: seeder executed, connection closed.
+        assertEquals(ran, ['database'])
         assertEquals(events, ['close'])
     } finally {
         restore()
