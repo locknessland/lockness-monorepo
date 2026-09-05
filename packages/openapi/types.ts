@@ -65,6 +65,20 @@ export interface MediaType {
 export interface Response {
     description: string
     content?: Record<string, MediaType>
+    /**
+     * Name of the API Resource whose projection is this response body. When it
+     * matches a resource registered via {@link GenerateSpecOptions.resources},
+     * the generator sets `content['application/json'].schema` to a `$ref` at
+     * `#/components/schemas/<resource>`; unmatched names emit no `$ref` (so a
+     * reference never dangles). Hand-authored `content` takes precedence.
+     */
+    resource?: string
+    /**
+     * When paired with {@link Response.resource}, wraps the `$ref` in the
+     * collection envelope `{ data: [ ...ref ] }` — the shape a
+     * `ResourceCollection` serialises to.
+     */
+    resourceCollection?: boolean
 }
 
 export interface Schema {

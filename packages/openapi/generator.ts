@@ -3,9 +3,15 @@
  * Scans controllers and generates OpenAPI 3.0 spec
  */
 
-import type { ControllerClass } from '@lockness/contract'
+import type { ControllerClass, ResourceSchema } from '@lockness/contract'
 import { getApiDocMetadata, hasApiDoc } from './decorator.ts'
-import type { OpenAPISpec, Operation, PathItem } from './types.ts'
+import type {
+    OpenAPISpec,
+    Operation,
+    PathItem,
+    Response,
+    Schema,
+} from './types.ts'
 
 export interface GenerateSpecOptions {
     title: string
@@ -15,6 +21,44 @@ export interface GenerateSpecOptions {
         url: string
         description?: string
     }>
+    /**
+     * API Resource projection schemas to publish under `components.schemas`.
+     * Each `name` becomes a component key that a `@ApiDoc` response can target
+     * via {@link Response.resource}. Build them from your resources — e.g.
+     * `{ name: 'UserResource', schema: new UserResource(sample).schema() }`.
+     */
+    resources?: ResourceSchema[]
+}
+
+/**
+ * Resolve a resource-backed {@link Response} into one whose JSON content is a
+ * `$ref` to a registered schema. A response is transformed only when it names a
+ * {@link Response.resource} that is registered *and* carries no hand-authored
+ * `content`; otherwise it is returned unchanged (so a `$ref` never dangles).
+ * The marker fields (`resource`, `resourceCollection`) are dropped from output.
+ *
+ * @param response - The response as authored on `@ApiDoc`.
+ * @param registered - Names present in `components.schemas`.
+ * @returns The response with a `$ref` body, or the original response.
+ */
+function resolveResourceResponse(
+    response: Response,
+    registered: ReadonlySet<string>,
+): Response {
+    const { resource, resourceCollection, ...rest } = response
+    if (!resource || rest.content || !registered.has(resource)) {
+        return rest
+    }
+
+    const ref: Schema = { $ref: `#/components/schemas/${resource}` }
+    const schema: Schema = resourceCollection
+        ? {
+            type: 'object',
+            properties: { data: { type: 'array', items: ref } },
+        }
+        : ref
+
+    return { ...rest, content: { 'application/json': { schema } } }
 }
 
 export function generateOpenAPISpec(
@@ -36,6 +80,17 @@ export function generateOpenAPISpec(
         ],
         paths: {},
         tags: [],
+    }
+
+    // Publish registered Resource projections as reusable component schemas.
+    const registered = new Set<string>()
+    if (options.resources && options.resources.length > 0) {
+        const schemas: Record<string, Schema> = {}
+        for (const { name, schema } of options.resources) {
+            schemas[name] = schema
+            registered.add(name)
+        }
+        spec.components = { ...spec.components, schemas }
     }
 
     const tags = new Set<string>()
@@ -86,11 +141,16 @@ export function generateOpenAPISpec(
                     controller.name.replace('Controller', ''),
                 ],
                 parameters: apiDoc.parameters || [],
-                responses: apiDoc.responses || {
-                    '200': {
-                        description: 'Successful response',
-                    },
-                },
+                responses: apiDoc.responses
+                    ? Object.fromEntries(
+                        Object.entries(apiDoc.responses).map((
+                            [status, response],
+                        ) => [
+                            status,
+                            resolveResourceResponse(response, registered),
+                        ]),
+                    )
+                    : { '200': { description: 'Successful response' } },
             }
 
             if (apiDoc.requestBody) {
