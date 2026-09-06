@@ -30,10 +30,41 @@ class FakeRedisBus {
     readonly command = (...args: string[]): Promise<unknown> => {
         if (args[0] === 'PUBLISH') {
             const [, topic, payload] = args
+            let delivered = 0
             for (const s of this.subscribers) {
+                // NOT a glob — a prefix test. Good enough for the shapes this
+                // file publishes, and a trap the moment a topic stops matching
+                // the driver's pattern: an un-re-pointed topic reaches no
+                // handler at all, so every `assertEquals(got.length, 0)` below
+                // passes WITHOUT the code under test running. #288 measured it
+                // — the three negative ingest tests were vacuous for exactly
+                // one commit.
                 if (topic.startsWith(s.pattern.replace(/\*$/, ''))) {
+                    delivered++
                     s.handler(topic, payload)
                 }
+            }
+            // THE FIX FOR THAT CLASS, and it belongs in the double rather than
+            // in each test. A positive control in the test body proves the
+            // TRANSPORT works; it cannot prove that THIS frame was routed, so
+            // a stale topic still slips through. Refusing to publish into the
+            // void catches it once, here, for every test in the file — present
+            // and future.
+            //
+            // Nothing in this file ever publishes a topic no subscriber wants:
+            // the driver's own `publish()` goes to its own pattern, and every
+            // hand-written PUBLISH is aimed at a driver under test.
+            if (delivered === 0) {
+                throw new Error(
+                    `FakeRedisBus: PUBLISH to "${topic}" matched no ` +
+                        `subscriber (${
+                            this.subscribers.map((s) => s.pattern).join(', ') ||
+                            'none registered'
+                        }). Every publish in this file is meant to reach a ` +
+                        'driver, so this is a stale topic, not a scenario — ' +
+                        'and it would otherwise make an ingest assertion pass ' +
+                        'without the ingest code running.',
+                )
             }
         }
         return Promise.resolve(0)
@@ -140,10 +171,27 @@ Deno.test('S3 ingest: a Redis message with an out-of-charset event name is dropp
     // A peer publishes a poisoned event name — it must not reach local fan-out.
     bus.command(
         'PUBLISH',
-        'app:rt:news',
+        'app:rt__event:news',
         JSON.stringify({ event: 'bad name!<x>', data: 1 }),
     )
     assertEquals(got.length, 0)
+    // The positive control, in THIS body. The anti-vacuity guard used to live
+    // in a sibling test, which is a guard for the file rather than for this
+    // assertion: delete or skip that sibling and these three go back to
+    // passing without the code under test running. A good frame on the same
+    // topic proves the transport reached the driver.
+    bus.command(
+        'PUBLISH',
+        'app:rt__event:news',
+        JSON.stringify({ event: 'control-ok', data: 1 }),
+    )
+    assertEquals(
+        got.length,
+        1,
+        'a VALID frame on the same topic was not delivered either, so the ' +
+            'assertion above says nothing about the ingest checks — it says ' +
+            'the message never arrived',
+    )
 })
 
 Deno.test('FR-019 ingest: a Redis message whose channel name is out of charset is dropped', () => {
@@ -159,10 +207,27 @@ Deno.test('FR-019 ingest: a Redis message whose channel name is out of charset i
     // isValidName(channel) must gate it too, not only the event (FR-019).
     bus.command(
         'PUBLISH',
-        'app:rt:bad chan!<x>',
+        'app:rt__event:bad chan!<x>',
         JSON.stringify({ event: 'ok', data: 1 }),
     )
     assertEquals(got.length, 0)
+    // The positive control, in THIS body. The anti-vacuity guard used to live
+    // in a sibling test, which is a guard for the file rather than for this
+    // assertion: delete or skip that sibling and these three go back to
+    // passing without the code under test running. A good frame on the same
+    // topic proves the transport reached the driver.
+    bus.command(
+        'PUBLISH',
+        'app:rt__event:news',
+        JSON.stringify({ event: 'control-ok', data: 1 }),
+    )
+    assertEquals(
+        got.length,
+        1,
+        'a VALID frame on the same topic was not delivered either, so the ' +
+            'assertion above says nothing about the ingest checks — it says ' +
+            'the message never arrived',
+    )
 })
 
 Deno.test('FR-019 ingest: a Redis message with a non-string event is dropped', () => {
@@ -178,10 +243,27 @@ Deno.test('FR-019 ingest: a Redis message with a non-string event is dropped', (
     // guard drops it before fan-out.
     bus.command(
         'PUBLISH',
-        'app:rt:news',
+        'app:rt__event:news',
         JSON.stringify({ event: { nested: true }, data: 1 }),
     )
     assertEquals(got.length, 0)
+    // The positive control, in THIS body. The anti-vacuity guard used to live
+    // in a sibling test, which is a guard for the file rather than for this
+    // assertion: delete or skip that sibling and these three go back to
+    // passing without the code under test running. A good frame on the same
+    // topic proves the transport reached the driver.
+    bus.command(
+        'PUBLISH',
+        'app:rt__event:news',
+        JSON.stringify({ event: 'control-ok', data: 1 }),
+    )
+    assertEquals(
+        got.length,
+        1,
+        'a VALID frame on the same topic was not delivered either, so the ' +
+            'assertion above says nothing about the ingest checks — it says ' +
+            'the message never arrived',
+    )
 })
 
 Deno.test('FR-019 ingest: a valid channel + event name is delivered', () => {
@@ -195,7 +277,7 @@ Deno.test('FR-019 ingest: a valid channel + event name is delivered', () => {
     driver.onMessage((m) => got.push(m))
     bus.command(
         'PUBLISH',
-        'app:rt:news',
+        'app:rt__event:news',
         JSON.stringify({ event: 'published', data: { n: 1 } }),
     )
     assertEquals(got.length, 1)
@@ -235,7 +317,7 @@ Deno.test('publish sends PUBLISH with the reserved prefix and JSON payload', asy
     )
     await driver.publish({ channel: 'news', event: 'e', data: { n: 1 } })
     assertEquals(calls[0][0], 'PUBLISH')
-    assertEquals(calls[0][1], 'app:rt:news')
+    assertEquals(calls[0][1], 'app:rt__event:news')
     assert(calls[0][2].includes('"event":"e"'))
 })
 

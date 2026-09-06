@@ -61,26 +61,36 @@ export function keys(prefix: string): {
     legacyRevoked: string
     ownedPattern: string
     alivePattern: string
-    eventTopic: (channel: string) => string
     controlTopic: string
     probeTopic: string
 } {
     return {
-        presence: (channel: string) => `${prefix}:presence:${channel}`,
-        instances: `${prefix}:instances`,
-        revocations: `${prefix}:revocations`,
+        presence: (channel: string) => `${prefix}__presence:${channel}`,
+        instances: `${prefix}__instances`,
+        revocations: `${prefix}__revocations`,
         legacyRevoked: `${prefix}:revoked`,
         // The owning instance id is `crypto.randomUUID()` inside the driver and
         // is not reachable from here, so these two are patterns, not names.
-        ownedPattern: `${prefix}:owned:*`,
-        alivePattern: `${prefix}:alive:*`,
+        ownedPattern: `${prefix}__owned:*`,
+        alivePattern: `${prefix}__alive:*`,
         // Topics, not keys — and they belong here for the same reason the keys
         // do. The driver derives both from `prefix`, so a suite that builds a
         // topic string inline carries a second spelling of the layout.
-        eventTopic: (channel: string) => `${prefix}:${channel}`,
-        // `__control` uses no `:` separator, so it never matches `${prefix}:*`.
+        //
+        // An `eventTopic(channel)` helper used to sit here too and was deleted
+        // by #288: a repo-wide grep found the declaration and the definition
+        // and no caller. That is worse than a duplicate — a second spelling
+        // nothing executes cannot go red when the layout changes, so it would
+        // have survived this very rename as a silent lie. `probeTopic` below is
+        // the one that is load-bearing.
         controlTopic: `${prefix}__control`,
-        probeTopic: `${prefix}:probe-ready`,
+        // THE READINESS GATE for every live test in this package.
+        // `awaitSubscribers` PUBLISHes here and counts receivers, so this must
+        // be a real event topic under the driver's current marker. Left on the
+        // pre-#288 `${prefix}:probe-ready` it matches no subscription, every
+        // count stays 0, and the whole live suite fails on a 10s timeout with
+        // nothing to say why.
+        probeTopic: `${prefix}__event:probe-ready`,
     }
 }
 

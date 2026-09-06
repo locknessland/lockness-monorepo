@@ -38,6 +38,7 @@ import {
     runNamespace,
 } from '../../redis/tests/live_broker.ts'
 import { hmacSha256Hex } from '../../redis/mod.ts'
+import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import {
     awaitSubscribers,
     connection,
@@ -445,7 +446,11 @@ integrationTest(
                     `assertion below is vacuous. Found: ${created.join(', ')}`,
             )
             assert(
-                created.includes(`${namespace}:revocations`),
+                // Via `keys()`, not an inline literal. This file already
+                // reads the index through it three times above; a fourth
+                // spelling built here is the second home the harness exists to
+                // prevent, and #288 caught it by moving the key.
+                created.includes(keys(namespace).revocations),
                 'the sorted-set index is the key that WAS written: ' +
                     created.join(', '),
             )
@@ -747,5 +752,130 @@ integrationTest(
                 heartbeatIntervalMs: SWEEP_HEARTBEAT_MS,
             },
         )
+    },
+)
+
+integrationTest(
+    "US1/#288: a deployment does NOT receive a NESTED deployment's frames, on a REAL broker",
+    async (namespace, reader) => {
+        // The one assertion no recording double can make. `SC-002` in
+        // prefix_anchoring.test.ts proves the patterns and topics cannot match
+        // under a hand-rolled `globMatches`; this proves the BROKER agrees —
+        // that the model of Redis matching the whole fix rests on is the model
+        // Redis actually implements.
+        //
+        // Nested on purpose: `<ns>` and `<ns>:eu` is the exact configuration
+        // #288 was filed for, and the one an operator reaches by reading
+        // "prefix" as "tenant".
+        const outerPrefix = namespace
+        const innerPrefix = `${namespace}:eu`
+        const outer = RedisBroadcastDriver.fromConfig(brokerConfig(), {
+            prefix: outerPrefix,
+            control: { secret: controlSecret() },
+        })
+        const inner = RedisBroadcastDriver.fromConfig(brokerConfig(), {
+            prefix: innerPrefix,
+            control: { secret: controlSecret() },
+        })
+        const outerGot: string[] = []
+        const innerGot: string[] = []
+        try {
+            outer.onMessage((m) => outerGot.push(`${m.channel}/${m.event}`))
+            inner.onMessage((m) => innerGot.push(`${m.channel}/${m.event}`))
+            // Instrumented, not stubbed. An empty handler proves the seam
+            // exists; it cannot say whether a control frame CROSSED. #288's
+            // second half is that routing must never hand a control frame to
+            // the wrong deployment — so the handler has to count.
+            const outerControl: string[] = []
+            const innerControl: string[] = []
+            outer.onControl((c) => outerControl.push(`${c.kind}/${c.target}`))
+            inner.onControl((c) => innerControl.push(`${c.kind}/${c.target}`))
+            await awaitSubscribers(reader, outerPrefix, 1)
+            await awaitSubscribers(reader, innerPrefix, 1)
+            // The readiness gate PUBLISHes a real event on each deployment's
+            // OWN topic and counts receivers, so both handlers have already
+            // fired once by now — `probe-ready/probe-ready`, from itself, not
+            // from the other. Dropping it here keeps the assertion below an
+            // exact set rather than a filter, which is what makes an extra
+            // arrival impossible to explain away.
+            outerGot.length = 0
+            innerGot.length = 0
+
+            await inner.publish({
+                channel: 'orders',
+                event: 'created',
+                data: { id: 1 },
+            })
+            await inner.publishControl({ kind: 'evict', target: 'conn-1' })
+
+            // THE POSITIVE CONTROL. Without it an empty `outerGot` is equally
+            // explained by "isolated" and by "the broker delivered nothing to
+            // anyone" — a broker that is up but routing nothing would pass the
+            // isolation assertion perfectly.
+            await waitFor(
+                () => innerGot.length >= 1,
+                'the inner deployment received its OWN event — without this ' +
+                    'the isolation assertion below is vacuous',
+            )
+            // Give a leak the same wall-clock the delivery above needed.
+            await outer.publish({
+                channel: 'own',
+                event: 'ping',
+                data: null,
+            })
+            await waitFor(
+                () => outerGot.includes('own/ping'),
+                'the outer deployment received its OWN event — the second ' +
+                    'half of the control, and the barrier that makes the ' +
+                    'absence below a measurement rather than a race',
+            )
+
+            assertEquals(
+                outerGot,
+                ['own/ping'],
+                'the outer deployment received a frame published under the ' +
+                    'nested prefix. Both prefixes are accepted, so this is a ' +
+                    `configuration a user can reach — #288. Got: ${outerGot}`,
+            )
+            assertEquals(
+                outerControl,
+                [],
+                'a CONTROL frame published by the nested deployment reached ' +
+                    "the outer one's control handler. The MAC would not save " +
+                    'it: both deployments here hold the same secret, and on a ' +
+                    'shared broker that is the normal case for one operator ' +
+                    'running two apps.',
+            )
+
+            // THE OTHER DIRECTION. Isolation is a claim about a PAIR, and a
+            // test that only ever publishes from the inner one proves half of
+            // it — the half where the nesting is deepest and a leak is most
+            // likely, but still half.
+            await outer.publish({
+                channel: 'orders',
+                event: 'created',
+                data: { id: 2 },
+            })
+            await outer.publishControl({ kind: 'evict', target: 'conn-2' })
+            await waitFor(
+                () => outerGot.length >= 2,
+                'the outer deployment received its own second event — the ' +
+                    'barrier for the reverse-direction assertions below',
+            )
+            assertEquals(
+                innerGot,
+                ['orders/created'],
+                "the nested deployment received the OUTER one's event. Its " +
+                    'own is the only entry that belongs here.',
+            )
+            assertEquals(
+                innerControl,
+                [],
+                "the nested deployment received the OUTER one's control frame.",
+            )
+        } finally {
+            await outer.close()
+            await inner.close()
+        }
     },
 )

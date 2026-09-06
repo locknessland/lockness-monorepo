@@ -121,14 +121,21 @@ export const ANCHOR_SEPARATORS: readonly string[] = [':', '__']
  * The separator-aware anchoring predicate — the single home for what "anchored"
  * means (#282, plan §5 row 1).
  *
- * **Not `startsWith`.** That definition passes `${prefix}:*`, which matches a
+ * **Not `startsWith`.** That definition passed `${prefix}:*`, which matched a
  * NESTED deployment's topics: with `app` and `app:eu` on one broker, `app:*`
- * matches `app:eu:orders` and `app:eu__control` alike, both survive the ingest
- * name check, and the control frames arrive through `onMessage` rather than
- * `onControl` — so the MAC verification is never reached and the inner
- * deployment's `origin`, `member`, `nonce` and `mac` reach the outer one's
- * subscribers as ordinary events. A containment test built on `startsWith`
- * goes green on exactly that.
+ * matched `app:eu:orders`, and the inner deployment's event payloads reached
+ * the outer one's subscribers. (It matched `app:eu__control` too, but those
+ * frames were dropped on ingest for carrying no `event` field — the MAC was
+ * never *bypassed*, only never *reached*.) A containment test built on
+ * `startsWith` went green on exactly that. #288 closed it by moving every
+ * derived name behind a `__`-leading separator no accepted prefix may contain.
+ *
+ * **Anchoring is not exclusivity, and this predicate only decides anchoring.**
+ * `isAnchored('app___event:x', 'app')` is `true` — that name belongs to a
+ * deployment at `app_`, and it is still anchored under `app` by this
+ * definition. Whether two deployments can reach each other is a property of the
+ * MATCH, tested by `SC-002`'s pair table. Reading a green `SC-001` as evidence
+ * of isolation is the mistake this paragraph exists to prevent.
  *
  * A name is anchored when it **is** the prefix, or continues it with one of the
  * separators the driver actually uses.

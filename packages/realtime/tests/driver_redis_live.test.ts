@@ -40,7 +40,7 @@ interface User {
 }
 
 const PREFIX = 'app:rt'
-const PATTERN = `${PREFIX}:*`
+const PATTERN = `${PREFIX}__event:*`
 
 /** Poll `cond` until it holds or the deadline passes (a fake-socket race gate). */
 async function waitFor(
@@ -130,7 +130,7 @@ Deno.test("SC-001: a broadcast reaches an authorized subscriber on a second inst
         // that fan-out with the exact payload shape the driver publishes.
         server.publish(
             PATTERN,
-            `${PREFIX}:private-room`,
+            `${PREFIX}__event:private-room`,
             JSON.stringify({ event: 'msg', data: { text: 'hello' } }),
         )
 
@@ -177,7 +177,7 @@ Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded
             // rejects it at the length header — before `readExact`, before
             // `JSON.parse`, before any fan-out — desyncing the socket.
             const oversized = 'x'.repeat(10 * 1024 * 1024 + 1)
-            server.publish(PATTERN, `${PREFIX}:private-room`, oversized)
+            server.publish(PATTERN, `${PREFIX}__event:private-room`, oversized)
 
             // The framing fault self-heals: reconnect + re-PSUBSCRIBE (WARN).
             await waitFor(
@@ -193,7 +193,7 @@ Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded
             // earlier oversized frame was dropped, not merely delayed.
             server.publish(
                 PATTERN,
-                `${PREFIX}:private-room`,
+                `${PREFIX}__event:private-room`,
                 JSON.stringify({ event: 'ok', data: 1 }),
             )
             await waitFor(

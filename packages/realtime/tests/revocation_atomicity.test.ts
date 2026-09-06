@@ -24,7 +24,7 @@ import type { Connection } from '../types.ts'
 import { FakeRedis } from './fake_redis.ts'
 
 const PREFIX = 'app:rt'
-const INDEX = `${PREFIX}:revocations`
+const INDEX = `${PREFIX}__revocations`
 
 /** A driver on `redis`, optionally through a command wrapper that injects faults. */
 function driverOn(
