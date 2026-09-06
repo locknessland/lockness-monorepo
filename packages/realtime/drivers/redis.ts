@@ -30,8 +30,10 @@
  * - **Whether a control / presence-identity message is authentic**: the FR-015
  *   HMAC over the payload, keyed by the per-deployment secret, attached on
  *   publish and verified on ingest BEFORE the message is actioned; an absent or
- *   failed MAC is dropped with a WARN and never obeyed. The reserved `prefix` is
- *   NOT a security boundary.
+ *   failed MAC is dropped with a WARN and never obeyed. The reserved `prefix`
+ *   bounds OUTBOUND routing only and is not an inbound boundary — see
+ *   `RedisBroadcastDriverOptions.prefix`, which is the single home for what it
+ *   does and does not guarantee.
  * - **Who is authoritatively "here"** and **how a member is identified for the
  *   sweep**: the per-presence-channel Redis roster keyed by member id, each
  *   entry tagged with the owning-instance id (internal, FR-018), plus the
@@ -219,15 +221,75 @@ export interface RedisPresenceOptions {
  * entire event stream **while its own traffic stays invisible to that
  * deployment**, i.e. the asymmetry hides it from whoever would notice. It also
  * corrupts the #273 reaper's `SCAN MATCH app\\*` into a literal, so its keys are
- * never reaped.
+ * never reaped. (That reaper lives in the test harness —
+ * `tests/live_realtime.ts` — not in shipped code; this file runs no `SCAN`.)
  */
 const PREFIX_GLOB_CHARS: readonly string[] = ['*', '?', '[', ']', '\\']
 
 /**
- * Refuse a prefix that would widen a subscription.
+ * The two-character sequence a prefix may never contain, and which every
+ * reserved separator must begin with (#288).
+ *
+ * **This constant is the isolation guarantee**, and the rule is one decision
+ * with two halves that must be read together:
+ *
+ * 1. `assertUsablePrefix` refuses any prefix containing `__`.
+ * 2. **Every reserved separator this driver introduces MUST begin with it** —
+ *    `__event:`, `__control`, `__presence:` and the rest all do.
+ *
+ * Together they make cross-prefix reach impossible rather than filtered. The
+ * proof is positional and never mentions the channel charset. For accepted
+ * prefixes `P ≠ Q` and any channel `C`, `Q__event:*` cannot match `P__event:C`:
+ *
+ * - `|Q| ≥ |P| + 2` — then `Q` spans the topic's own `__`, so `Q` contains the
+ *   refused sequence and was never accepted.
+ * - `|Q| = |P| + 1` — then `Q = P + "_"`, and the pattern's literal part reads
+ *   `P___event:` against a topic reading `P__event:C`. They diverge at offset
+ *   `|P| + 2`, `_` against `e`.
+ * - `|Q| = |P|` with `P ≠ Q` — they diverge inside the prefix.
+ *
+ * The same argument covers event-pattern-against-control-topic, and every pair
+ * of key families, which is why FR-012 could anchor the keys as well. It is
+ * also why the channel needs no part in it: the channel sits entirely to the
+ * right of every pattern's literal part, so even a wholly unvalidated channel
+ * cannot cross into another accepted prefix.
+ *
+ * **A separator that does not begin with this sequence breaks the proof and
+ * passes every test in the suite.** `#presence:` would look reasonable and
+ * would silently reopen #288 one level down. That is the whole reason this is
+ * a named constant with the proof attached rather than a literal at each site.
+ */
+const RESERVED_SEPARATOR_LEAD = '__'
+
+/**
+ * The charset a prefix may use — a positive allowlist, not a denylist.
+ *
+ * Deliberately the same alphabet as `isValidName`'s `NAME_RE`, so the isolation
+ * proof holds over ONE charset rather than two.
+ *
+ * The prefix defines the isolation boundary and reaches `PSUBSCRIBE` at two
+ * pattern contexts, yet until now it was bounded only by
+ * {@link PREFIX_GLOB_CHARS} — a five-item denylist — while the *less* trusted
+ * channel had an allowlist and a length cap. Nothing exploitable followed from
+ * that (UTF-8 is self-synchronising, so no multi-byte sequence smuggles one of
+ * those five bytes past an `includes` check), and having to reason that out is
+ * exactly what an allowlist removes. It was one line to add before any operator
+ * had a prefix in production config, and a breaking configuration change with
+ * no migration afterwards.
+ */
+const PREFIX_RE = /^[A-Za-z0-9:._-]{1,64}$/
+
+/**
+ * Refuse a prefix that would widen a subscription or break the isolation proof.
+ *
+ * Three checks, in order of what they protect: the allowlist bounds the whole
+ * value, the glob scan names the specific character when one gets through, and
+ * the separator check protects {@link RESERVED_SEPARATOR_LEAD}'s guarantee.
  *
  * @param prefix - The configured prefix.
- * @throws {Error} If it contains a Redis glob metacharacter, or is empty.
+ * @throws {Error} If it is empty, outside {@link PREFIX_RE} (charset or the
+ *   64-character cap), contains a Redis glob metacharacter, or contains the
+ *   reserved separator lead-in `__`.
  */
 function assertUsablePrefix(prefix: string): void {
     if (prefix.length === 0) {
@@ -236,6 +298,12 @@ function assertUsablePrefix(prefix: string): void {
                 'topic is derived from it',
         )
     }
+    // BEFORE the allowlist, deliberately. Every one of these five characters
+    // is already outside PREFIX_RE, so running the allowlist first would make
+    // this loop unreachable — a guard that cannot execute is not defence in
+    // depth, it is dead code that reads as protection. Ordered most-specific
+    // first, it stays live and it is the only check that names WHICH character
+    // is at fault, which is the message that made the `\\` case diagnosable.
     for (const char of PREFIX_GLOB_CHARS) {
         if (prefix.includes(char)) {
             throw new Error(
@@ -246,6 +314,25 @@ function assertUsablePrefix(prefix: string): void {
             )
         }
     }
+    if (prefix.includes(RESERVED_SEPARATOR_LEAD)) {
+        throw new Error(
+            `RedisBroadcastDriver: prefix must not contain ` +
+                `"${RESERVED_SEPARATOR_LEAD}" — it is the lead-in every ` +
+                'reserved separator begins with, and a prefix carrying it can ' +
+                "reach another deployment's topics and keys (#288)",
+        )
+    }
+    // Last: the catch-all. The three checks above each name a specific,
+    // actionable fault; this one bounds everything else — spaces, control
+    // characters, bidi marks, an unbounded length.
+    if (!PREFIX_RE.test(prefix)) {
+        throw new Error(
+            'RedisBroadcastDriver: prefix must match ' +
+                `${PREFIX_RE.source} — the same charset channel names use, ` +
+                'and at most 64 characters. Every key and topic is derived ' +
+                `from it. Got ${prefix.length} character(s).`,
+        )
+    }
 }
 
 /** Options for the Redis broadcast driver. */
@@ -253,12 +340,27 @@ export interface RedisBroadcastDriverOptions {
     /**
      * Reserved name prefix for every key and topic this driver derives.
      *
-     * **Not an isolation boundary**, despite what this docstring said until
-     * #282. It scopes what this driver *writes and subscribes to*; it does not
-     * stop anything else on the broker publishing into `${prefix}:<channel>` —
-     * see this file's header. Calling it "multi-tenant isolation" is what would
-     * lead an operator to give two deployments nested prefixes, which is not
-     * safe: a glob matches `:` like any other character.
+     * **This docstring is the single home for what the prefix guarantees**
+     * (#288). Every other statement of it — this file's header,
+     * `docs/realtime.md`, the package README and AGENTS.md — points here.
+     *
+     * The prefix bounds this driver's **outbound routing**: no deployment
+     * receives another deployment's frames. It is **not** an inbound boundary —
+     * any client on the broker can publish into, and read from, these topics
+     * and keys. Use Redis ACLs for that.
+     *
+     * Outbound isolation is structural, not conventional. Every derived name
+     * sits behind {@link RESERVED_SEPARATOR_LEAD}, which no accepted prefix may
+     * contain, so no pattern one deployment subscribes can match any topic or
+     * key another derives — nested prefixes included. Until #288 the event
+     * topic used a plain `:` separator and a deployment at `app` received the
+     * events of one at `app:eu`; the two legacy revocation key names are the
+     * one documented exception and are removed by #278.
+     *
+     * It said "multi-tenant isolation" until #282, which was wrong in both
+     * directions and is the wording that led operators to nest prefixes in the
+     * first place. The sentence above is deliberately narrower than that:
+     * outbound only, and named as such.
      *
      * Must contain no Redis glob metacharacter. It is interpolated into
      * `PSUBSCRIBE` patterns, where `*`, `?` or `[` would widen the subscription
@@ -644,35 +746,67 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         return driver
     }
 
+    /**
+     * Everything an event topic has before the channel — the **single
+     * production home** of the `__event:` separator (#288).
+     *
+     * All three consumers read it: {@link topic} builds a `PUBLISH` argument
+     * from it, {@link onMessage} builds its `PSUBSCRIBE` pattern by appending
+     * `*`, and the same method strips exactly `this.eventTopicPrefix.length`
+     * characters to recover the channel.
+     *
+     * **A prefix, not a topic, and that is the point.** Homing the decision in
+     * `topic(channel)` would leave `onMessage` needing two values that method
+     * does not return — the pattern and the strip length — reachable only via
+     * `topic('*')` or a recomputed length. `topic('*')` is the shape to avoid
+     * for a second reason: `PUBLISH` is a **literal** context and `PSUBSCRIBE`
+     * a **pattern** context, so one builder serving both means any future
+     * escaping inside `topic()` silently corrupts the subscription instead of
+     * failing loudly.
+     */
+    private get eventTopicPrefix(): string {
+        return `${this.prefix}${RESERVED_SEPARATOR_LEAD}event:`
+    }
+
     /** The reserved topic for a channel's events. */
     private topic(channel: string): string {
-        return `${this.prefix}:${channel}`
+        return `${this.eventTopicPrefix}${channel}`
     }
 
     /**
      * The reserved control topic — the single home for the control-topic name
-     * (#268 §5). Uses a `__control` suffix WITHOUT the `:` separator so it never
-     * matches the `${prefix}:*` event pattern: a control frame is delivered only
-     * via {@link onControl}, never through {@link onMessage}.
+     * (#268 §5).
+     *
+     * Its separator begins with {@link RESERVED_SEPARATOR_LEAD}, which is what
+     * keeps it unreachable from any event pattern — this deployment's own
+     * included — so a control frame is delivered only via {@link onControl},
+     * never through {@link onMessage}, and the MAC check cannot be skipped by
+     * routing.
+     *
+     * Until #288 the stated reason was "uses `__control` WITHOUT the `:`
+     * separator so it never matches the `${prefix}:*` event pattern". That was
+     * true of THIS topic and false as a general rule: the event pattern's own
+     * `:` separator let it reach a nested deployment's control topic. The rule
+     * now lives at {@link RESERVED_SEPARATOR_LEAD} and covers both.
      */
     private get controlTopic(): string {
-        return `${this.prefix}__control`
+        return `${this.prefix}${RESERVED_SEPARATOR_LEAD}control`
     }
 
     private presenceKey(channel: string): string {
-        return `${this.prefix}:presence:${channel}`
+        return `${this.prefix}${RESERVED_SEPARATOR_LEAD}presence:${channel}`
     }
 
     private ownedKey(instanceId: string): string {
-        return `${this.prefix}:owned:${instanceId}`
+        return `${this.prefix}${RESERVED_SEPARATOR_LEAD}owned:${instanceId}`
     }
 
     private aliveKey(instanceId: string): string {
-        return `${this.prefix}:alive:${instanceId}`
+        return `${this.prefix}${RESERVED_SEPARATOR_LEAD}alive:${instanceId}`
     }
 
     private get instancesKey(): string {
-        return `${this.prefix}:instances`
+        return `${this.prefix}${RESERVED_SEPARATOR_LEAD}instances`
     }
 
     /**
@@ -685,15 +819,36 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * error would propagate to the caller and the local revoke would never run.
      */
     private get revocationIndexKey(): string {
-        return `${this.prefix}:revocations`
+        return `${this.prefix}${RESERVED_SEPARATOR_LEAD}revocations`
     }
 
-    /** The legacy index SET, read during rollout only (#276 FR-009). */
+    /**
+     * The legacy index SET, read during rollout only (#276 FR-009).
+     *
+     * **Deliberately NOT anchored, unlike every other name here.** #288
+     * anchored the five live keys behind {@link RESERVED_SEPARATOR_LEAD}; these
+     * two are the documented exception, because they exist for one purpose — to
+     * read what a pre-#276 instance wrote at these exact names. Renaming them
+     * would not harden them, it would delete their only function: they would
+     * address a key nothing has ever written.
+     *
+     * So the cross-prefix collision the anchoring closes remains open for these
+     * two names. Closing it is
+     * [#278](https://github.com/locknessland/lockness-monorepo/issues/278),
+     * which removes the dual-read path outright — the right fix, since an
+     * unanchored legacy name should stop existing rather than be renamed into
+     * something that reads nothing.
+     */
     private get legacyRevokedIndexKey(): string {
         return `${this.prefix}:revoked`
     }
 
-    /** The legacy per-target marker key, read during rollout only. */
+    /**
+     * The legacy per-target marker key, read during rollout only.
+     *
+     * Unanchored for the same reason as {@link legacyRevokedIndexKey}, and
+     * removed by the same issue.
+     */
     private legacyRevokedKey(target: string): string {
         return `${this.prefix}:revoked:${target}`
     }
@@ -719,11 +874,29 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * @param handler - Called with each received message.
      */
     onMessage(handler: (message: BroadcastMessage) => void): void {
-        const pattern = `${this.prefix}:*`
+        const marker = this.eventTopicPrefix
+        const pattern = `${marker}*`
         this.subscriber.psubscribe(pattern, (topic, payload) => {
-            const channel = topic.startsWith(`${this.prefix}:`)
-                ? topic.slice(this.prefix.length + 1)
-                : topic
+            // DENY BY DEFAULT. This used to fall back to `channel = topic` on a
+            // shape mismatch, which turns a routing fault into a plausible,
+            // charset-valid channel name that passes every check below and
+            // reaches local fan-out under a name nobody chose. Unreachable from
+            // a correct broker under a literal-anchored pattern — which is
+            // exactly why it must not be the branch that decides anything.
+            if (!topic.startsWith(marker)) {
+                console.warn(
+                    'realtime: dropped a Redis message whose topic does not ' +
+                        "match this deployment's event marker — the " +
+                        'subscription and the delivery disagree, which no ' +
+                        'correct broker does (#288)',
+                )
+                return
+            }
+            // A FIXED-OFFSET SLICE, never `replace` or `split`. A channel name
+            // may legally contain the separator (`NAME_RE` permits `_` and
+            // `:`), so `replace(marker, '')` would corrupt a channel called
+            // `__event:x` and `split(marker)[1]` would truncate it.
+            const channel = topic.slice(marker.length)
             let parsed: { event?: unknown; data?: unknown }
             try {
                 parsed = JSON.parse(payload)
@@ -733,6 +906,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             }
             // Re-validate names on ingest — a peer (or a poisoned topic) must
             // not inject an out-of-charset channel/event name into local fan-out.
+            //
+            // This is also what used to discard a nested deployment's CONTROL
+            // frames, which arrive with no `event` field. It is now unreachable
+            // for them — no event pattern can match any accepted prefix's
+            // control topic, this deployment's own included — and that is the
+            // point rather than a reason to remove it. Authenticity is decided
+            // in ONE place, `#verifyAndDecode`; this check only ever asked.
             if (
                 typeof parsed.event !== 'string' ||
                 !isValidName(parsed.event) || !isValidName(channel)
