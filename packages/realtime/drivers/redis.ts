@@ -52,6 +52,7 @@ import { isValidName } from '../protocol.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { RealtimeControlConfig } from '../types.ts'
+import { renderError, safeForLog } from '@lockness/contract'
 import {
     hmacSha256Hex,
     RedisClient,
@@ -856,9 +857,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 }
             } catch (error) {
                 console.warn(
-                    `realtime: skipped a malformed roster entry on ${channel}: ${
-                        error instanceof Error ? error.message : String(error)
-                    }`,
+                    `realtime: skipped a malformed roster entry on ${
+                        safeForLog(channel)
+                    }: ${renderError(error)}`,
                 )
             }
         }
@@ -1016,9 +1017,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             await this.revocationHandler()
         } catch (error) {
             console.warn(
-                `realtime: revocation reconcile failed: ${
-                    error instanceof Error ? error.message : String(error)
-                }`,
+                `realtime: revocation reconcile failed: ${renderError(error)}`,
             )
         }
     }
@@ -1120,10 +1119,14 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         }
         // FR-019: re-validate the routing names on ingest. `origin` joins them
         // (#272): it is always a `crypto.randomUUID()` from a legitimate
-        // signer, so this rejects nothing real, and it is what lets the replay
-        // WARNs below name the origin without a log-encoder — importing one
-        // would make `realtime -> contract` a live dependency edge, which this
-        // feature has no reason to add (see #277).
+        // signer, so this rejects nothing real.
+        //
+        // The replay WARNs below still run `origin` through `safeForLog`
+        // (#277). This guard already constrains the charset, so the encoder
+        // rejects nothing either — that is the point. An allowlist upstream and
+        // an encoder at the sink are independent controls, and the encoder is
+        // the one that survives a future caller reaching those WARNs down a
+        // path that does not pass through here.
         if (
             !isValidName(wire.target) || !isValidName(wire.origin) ||
             (wire.channel !== undefined && !isValidName(wire.channel))
@@ -1148,7 +1151,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             console.warn(
                 'realtime: dropped a STALE control message — never obeyed ' +
                     `(#272). Issued ${skewMs}ms ago by origin ` +
-                    `${wire.origin}; a large or negative value ` +
+                    `${safeForLog(wire.origin)}; a large or negative value ` +
                     'here is clock skew between instances, not a dead bus.',
             )
             return undefined
@@ -1156,7 +1159,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         if (verdict === 'duplicate') {
             console.warn(
                 'realtime: dropped a DUPLICATE control message — never ' +
-                    `obeyed (#272). Origin ${wire.origin} already ` +
+                    `obeyed (#272). Origin ${
+                        safeForLog(wire.origin)
+                    } already ` +
                     'delivered this exact frame inside the freshness window.',
             )
             return undefined
@@ -1211,7 +1216,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         } catch (error) {
             console.warn(
                 `realtime: instance-liveness heartbeat failed: ${
-                    error instanceof Error ? error.message : String(error)
+                    renderError(error)
                 }`,
             )
         }
@@ -1238,9 +1243,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             }
         } catch (error) {
             console.warn(
-                `realtime: roster reconcile failed: ${
-                    error instanceof Error ? error.message : String(error)
-                }`,
+                `realtime: roster reconcile failed: ${renderError(error)}`,
             )
         }
         // The durable revocation re-check runs on its OWN dedicated timer
@@ -1269,7 +1272,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         await this.command.command('DEL', this.ownedKey(deadId))
         await this.command.command('SREM', this.instancesKey, deadId)
         console.warn(
-            `realtime: swept ${swept} ghost member(s) of dead instance ${deadId}`,
+            `realtime: swept ${swept} ghost member(s) of dead instance ${
+                safeForLog(deadId)
+            }`,
         )
     }
 
