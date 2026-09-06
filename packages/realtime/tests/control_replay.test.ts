@@ -16,7 +16,7 @@
  * @module @lockness/realtime/tests/control_replay
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertThrows } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import type { ControlMessage } from '../driver.ts'
 import { FakeRedis } from './fake_redis.ts'
@@ -26,11 +26,11 @@ const CONTROL_TOPIC = `${PREFIX}__control`
 const SECRET = 'deployment-secret-with-enough-entropy'
 
 /** A receiving instance, with everything its `onControl` seam was handed. */
-function receiver(redis: FakeRedis, windowMs?: number) {
+function receiver(redis: FakeRedis, windowMs?: number, maxEntries?: number) {
     const driver = new RedisBroadcastDriver(
         { command: redis.command },
         redis.subscriberFor(),
-        { prefix: PREFIX, control: { secret: SECRET, windowMs } },
+        { prefix: PREFIX, control: { secret: SECRET, windowMs, maxEntries } },
     )
     const obeyed: ControlMessage[] = []
     driver.onControl((control) => obeyed.push(control))
@@ -379,4 +379,76 @@ Deno.test('FR-007: an invalid windowMs is refused at construction, not silently 
         }
         assert(threw, `windowMs=${windowMs} must be refused at construction`)
     }
+})
+
+// ---------------------------------------------------------------------------
+// #283 — the entry cap reaches the window from the driver's own config
+// ---------------------------------------------------------------------------
+
+Deno.test('#283: control.maxEntries is FORWARDED to the replay window, not merely accepted', async () => {
+    // The trap this is shaped to avoid is the same one #245's cadence test
+    // names: a driver that silently DROPS the option behaves identically to one
+    // that forwards it, because the default (10 000) would never be reached by
+    // a test. Accepting the option proves nothing.
+    //
+    // So the assertion is behavioural and only possible if the value arrived: a
+    // cap of 2 means the third distinct frame evicts the first, and the first
+    // becomes admissible again. At the default cap it would still be a
+    // duplicate and stay refused.
+    const redis = new FakeRedis()
+    const a = publisher(redis)
+    const b = receiver(redis, undefined, 2)
+    try {
+        await a.driver.publishControl({ kind: 'evict', target: 'v1' })
+        await a.driver.publishControl({ kind: 'evict', target: 'v2' })
+        await a.driver.publishControl({ kind: 'evict', target: 'v3' })
+        assertEquals(b.obeyed.length, 3, 'three distinct frames were obeyed')
+
+        await warningsFrom(async () => {
+            // The FIRST frame's nonce was evicted by the third admission.
+            await replay(redis, a.captured[0])
+        })
+        assertEquals(
+            b.obeyed.length,
+            4,
+            'the evicted nonce is admissible again — which can only be true ' +
+                'if maxEntries:2 reached the window. At the 10 000 default ' +
+                'this replay stays a duplicate and the count is still 3',
+        )
+
+        // The other half: what is still remembered is still refused, so the
+        // window did not simply stop working.
+        await warningsFrom(async () => {
+            await replay(redis, a.captured[2])
+        })
+        assertEquals(
+            b.obeyed.length,
+            4,
+            'the most recent frame is still remembered and still refused',
+        )
+    } finally {
+        await a.driver.close()
+        await b.driver.close()
+    }
+})
+
+Deno.test('#283: an invalid control.maxEntries is refused at construction', async () => {
+    const redis = new FakeRedis()
+    for (const bad of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+        assertThrows(
+            () =>
+                new RedisBroadcastDriver(
+                    { command: redis.command },
+                    redis.subscriberFor(),
+                    {
+                        prefix: PREFIX,
+                        control: { secret: SECRET, maxEntries: bad },
+                    },
+                ),
+            Error,
+            'maxEntries',
+            `maxEntries: ${bad} must be refused, not silently coerced`,
+        )
+    }
+    await Promise.resolve()
 })

@@ -48,13 +48,45 @@ export interface ControlReplayWindowOptions {
     now: () => number
     /**
      * The most nonces to remember at once. Reached only under a frame rate that
-     * outruns the window; past it the OLDEST entry is evicted.
+     * outruns the window; past it, every origin is guaranteed an equal share
+     * (`maxEntries / origins`) and the oldest entry belonging to an origin ABOVE
+     * its share is evicted.
      * @default 10000
      */
     maxEntries?: number
 }
 
 const DEFAULT_MAX_ENTRIES = 10_000
+
+/**
+ * How long before the at-cap warning may be raised again, in milliseconds.
+ *
+ * The latch used to be a plain boolean, so an operator saw the line once per
+ * process however long the condition lasted — and "we hit the cap for ten
+ * seconds during a deploy" and "we have been at the cap for a week" produced
+ * exactly the same single line. Re-arming makes the duration visible without
+ * logging per admission, which at the cap is by definition the hot path.
+ */
+const WARN_INTERVAL_MS = 60_000
+
+/** One remembered frame. The origin is stored, never re-parsed out of the key. */
+interface SeenEntry {
+    /** The publishing instance's id — the per-origin share's subject. */
+    origin: string
+    /** The frame's own timestamp, in epoch milliseconds. */
+    issuedAt: number
+    /**
+     * A monotonic admission counter — the entry's position in arrival order.
+     *
+     * Needed because eviction compares candidates ACROSS origins, and each
+     * origin's entries live in their own map, so there is no single iteration
+     * order to read the answer off. Arrival order, not `issuedAt`: the
+     * freshness gate admits any `ts` within `±windowMs`, so timestamps are not
+     * monotonic and ordering by them would evict a different entry than the one
+     * actually held longest.
+     */
+    seq: number
+}
 
 /**
  * Remembers recently-seen control frames so a replayed one can be refused.
@@ -75,8 +107,38 @@ export class ControlReplayWindow {
      * so the oldest entry is always the first — which is what makes both
      * pruning and cap eviction a walk from the front rather than a sort.
      */
-    readonly #seen = new Map<string, number>()
-    #warnedAtCap = false
+    readonly #seen = new Map<string, SeenEntry>()
+    /**
+     * Each origin's own entries, `origin -> key -> seq`, in arrival order.
+     *
+     * An index, not a duplicate store: it holds keys and sequence numbers, and
+     * `#seen` remains the only home for the entries themselves. It exists so
+     * eviction can ask each origin for its OLDEST entry in O(1) and compare
+     * across origins in O(origins) — replacing a walk of `#seen` that was
+     * O(maxEntries) on a store held by many small origins, and whose bound had
+     * to abandon the very guarantee it was bounding.
+     *
+     * `inner.size` is also the origin's live count, so there is one structure
+     * rather than a count that can drift from the entries it counts.
+     *
+     * Maintained in lockstep with `#seen` through {@link #forget}, the only
+     * place an entry is removed. Per-origin FIFO holds because every removal —
+     * prune or eviction — takes an origin's oldest: prune walks global arrival
+     * order, which within one origin IS its arrival order.
+     */
+    readonly #byOrigin = new Map<string, Map<string, number>>()
+    /** Monotonic admission counter; the source of each entry's `seq`. */
+    #nextSeq = 0
+    /**
+     * When the at-cap warning was last raised.
+     *
+     * `-Infinity` rather than `0`, because the clock is injected: a test (or a
+     * deterministic runtime) whose `now()` returns 0 would make a `0` sentinel
+     * both "never warned" and "warned just now", and the branch would warn on
+     * every admission — the per-admission spam the interval exists to prevent,
+     * on the hot path by definition.
+     */
+    #warnedAt = Number.NEGATIVE_INFINITY
 
     /**
      * @param options - The window, the clock, and the entry cap.
@@ -118,8 +180,15 @@ export class ControlReplayWindow {
         const key = `${origin} ${nonce}`
         if (this.#seen.has(key)) return 'duplicate'
 
-        this.#evictIfAtCap()
-        this.#seen.set(key, issuedAt)
+        this.#evictIfAtCap(now, origin)
+        const seq = this.#nextSeq++
+        this.#seen.set(key, { origin, issuedAt, seq })
+        let owned = this.#byOrigin.get(origin)
+        if (owned === undefined) {
+            owned = new Map<string, number>()
+            this.#byOrigin.set(origin, owned)
+        }
+        owned.set(key, seq)
         return 'ok'
     }
 
@@ -138,7 +207,7 @@ export class ControlReplayWindow {
      * false for an instance that is ingesting nothing.
      */
     #prune(now: number): void {
-        for (const [key, issuedAt] of this.#seen) {
+        for (const [key, entry] of this.#seen) {
             // The `break` is a BOUND on work, not a claim that everything after
             // this point is fresh. Entries are arrival-ordered but carry the
             // FRAME's timestamp, and the freshness gate admits any `ts` within
@@ -153,32 +222,147 @@ export class ControlReplayWindow {
             // freshness gate above returns 'stale' for before the duplicate
             // lookup ever runs. Residue is bounded at roughly two windows, and
             // absolutely by the entry cap.
-            if (now - issuedAt <= this.#windowMs) break
-            this.#seen.delete(key)
+            if (now - entry.issuedAt <= this.#windowMs) break
+            this.#forget(key, entry)
         }
     }
 
     /**
-     * Make room at the cap by dropping the OLDEST entry.
+     * Remove one entry and decrement its origin's count — the single removal
+     * path.
      *
-     * Drop-oldest fails open for exactly one forgotten in-window nonce.
-     * Refusing new entries instead would fail closed — the control plane stops
-     * accepting frames — which is the outcome this feature's own risk table
-     * rates as worse than the replay it prevents.
+     * Both callers (the prune walk and the cap eviction) go through here for
+     * one reason: the ledger and the entry map must never disagree, and two
+     * places that delete are two places that can forget to decrement.
+     *
+     * @param key - The `(origin, nonce)` map key.
+     * @param entry - The record being removed, whose `origin` is decremented.
      */
-    #evictIfAtCap(): void {
+    #forget(key: string, entry: SeenEntry): void {
+        this.#seen.delete(key)
+        const owned = this.#byOrigin.get(entry.origin)
+        if (owned === undefined) return
+        owned.delete(key)
+        if (owned.size === 0) this.#byOrigin.delete(entry.origin)
+    }
+
+    /**
+     * Make room at the cap, without letting one origin crowd the rest out.
+     *
+     * Every origin is guaranteed an equal share of the cap,
+     * `maxEntries / origins`; what goes is the oldest entry belonging to an
+     * origin ABOVE its share, so no instance can be driven to zero remembered
+     * nonces while another is over its share.
+     *
+     * **The guarantee has exactly one hole, and it is stated rather than
+     * implied.** When the cap divides evenly and nobody is over their share,
+     * there is no over-user to charge. The origin asking for the slot pays
+     * instead — unless it is publishing its FIRST frame and holds nothing to
+     * charge, in which case the oldest entry goes and that may belong to an
+     * origin sitting exactly at its share. One entry, once, per newly-arriving
+     * origin at a perfectly-divided cap. `with every origin equal, eviction
+     * falls to the globally oldest` pins that case, and an earlier version of
+     * this comment claimed it could not happen while that test proved it does.
+     *
+     * **Why not plain drop-oldest.** That was the rule before #283. It lets a
+     * busy instance shorten everyone's effective retention to
+     * `maxEntries / total rate`, so an origin that publishes once per window can
+     * have its nonce forgotten before the window is over — silently disarming
+     * its replay protection while the store looks healthy.
+     *
+     * **Why not "evict from whichever origin holds the most".** That was the
+     * first attempt and it was worse. Equalising COUNTS is not equalising
+     * protection: an instance publishing ten times as much needs ten times the
+     * slots to cover the same wall-clock window, so an equal count leaves the
+     * busiest instance with the least coverage — moving the exposure to where
+     * the frames actually are.
+     *
+     * **Why the share is computed, not a constant.** A fixed floor was tried
+     * and had no derivation: 64 entries over a 30s window covers 2.1 frames per
+     * second, while this feature's own worked example (a 5 000-client fleet
+     * reconnecting across two presence channels) implies 33 per second per
+     * instance — sixteen times more. `maxEntries / origins` IS the max-min fair
+     * share; a constant could only ever lower it, and would put an underived
+     * knee at whatever fleet size made it bind.
+     *
+     * **Why candidates come from `#byOrigin` rather than a walk of `#seen`.**
+     * The obvious implementation scans `#seen` from the oldest for the first
+     * evictable entry. On a store held by many small origins that walk is
+     * O(maxEntries) per admission — measured at 47us at a 10 000 cap rising
+     * linearly to 340us at 80 000 — and bounding the walk was worse than the
+     * cost: past the bound it fell back to dropping the globally-oldest entry,
+     * which by construction belongs to an origin the walk had just found to be
+     * AT or under its share. The bound voided the guarantee for exactly the
+     * origins the guarantee exists for. Asking each origin for its own oldest
+     * makes the selection exact and O(origins).
+     *
+     * **Drop-oldest is unchanged for whoever is chosen.** The deliberate trade —
+     * one forgotten in-window nonce, rather than refusing new entries and
+     * failing the control plane closed — is what #272's risk table rates as the
+     * lesser harm, and this does not revisit it.
+     *
+     * @param now - The current time, for the re-arming warning.
+     * @param incoming - The origin about to be admitted. It pays for the
+     *   exact-division case rather than a bystander, when it has an entry to
+     *   pay with.
+     */
+    #evictIfAtCap(now: number, incoming: string): void {
         if (this.#seen.size < this.#maxEntries) return
-        if (!this.#warnedAtCap) {
-            this.#warnedAtCap = true
+
+        if (now - this.#warnedAt >= WARN_INTERVAL_MS) {
+            this.#warnedAt = now
             console.warn(
-                `realtime: the control replay window hit its ${this.#maxEntries}-entry ` +
-                    'cap and is now evicting the oldest nonce per admission. A ' +
-                    'frame older than the evicted entry but still inside the ' +
-                    'window could be replayed once. Lower the window or raise ' +
-                    'the cap.',
+                `realtime: the control replay window is at its ${this.#maxEntries}-entry ` +
+                    `cap across ${this.#byOrigin.size} origin(s) and is ` +
+                    'evicting to make room. A frame older than the evicted ' +
+                    'entry but still inside the window could be replayed once. ' +
+                    'Lower the window or raise control.maxEntries.',
             )
         }
-        const oldest = this.#seen.keys().next()
-        if (!oldest.done) this.#seen.delete(oldest.value)
+
+        const share = Math.floor(
+            this.#maxEntries / Math.max(1, this.#byOrigin.size),
+        )
+        // One pass over ORIGINS — a fleet size — comparing each over-share
+        // origin's oldest entry. `Map` preserves insertion order, so an
+        // origin's oldest is its first key and needs no search.
+        let victim: string | undefined
+        let oldest = Number.POSITIVE_INFINITY
+        for (const owned of this.#byOrigin.values()) {
+            if (owned.size <= share) continue
+            const head = owned.entries().next()
+            if (!head.done && head.value[1] < oldest) {
+                oldest = head.value[1]
+                victim = head.value[0]
+            }
+        }
+        if (victim !== undefined) {
+            const entry = this.#seen.get(victim)
+            if (entry !== undefined) {
+                this.#forget(victim, entry)
+                return
+            }
+        }
+        // Every origin is exactly at its share — reachable only when the cap
+        // divides evenly among them, since otherwise one must be above it.
+        // Nobody is over-using anything, so the cost falls on the origin
+        // ASKING for the slot: it is the one about to exceed its share, and
+        // charging a bystander here is the one remaining way an origin under
+        // its share loses an entry to someone else's traffic. That would make
+        // the guarantee this class documents conditional, and a conditional
+        // guarantee is the shape all three withdrawn rules failed in.
+        const own = this.#byOrigin.get(incoming)
+        const mine = own?.entries().next()
+        if (mine !== undefined && !mine.done) {
+            const entry = this.#seen.get(mine.value[0])
+            if (entry !== undefined) {
+                this.#forget(mine.value[0], entry)
+                return
+            }
+        }
+        // A first-ever frame from this origin: it holds nothing to charge, so
+        // age decides.
+        const first = this.#seen.entries().next()
+        if (!first.done) this.#forget(first.value[0], first.value[1])
     }
 }

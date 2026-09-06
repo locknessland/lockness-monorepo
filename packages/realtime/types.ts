@@ -73,6 +73,34 @@ export interface RealtimeControlConfig {
      * @default 8192
      */
     readonly maxPayloadBytes?: number
+    /**
+     * The most control-frame nonces one instance remembers at a time.
+     *
+     * The store is bounded because it is fed by the bus, and a frame rate that
+     * outruns the freshness window would otherwise grow it without limit. The
+     * cap is reached by ordinary load rather than by attack: a fleet whose
+     * clients all reconnect at once — a rolling deploy, a load-balancer
+     * failover — issues TWO presence control frames per client per channel, a
+     * `leave` as the old socket drops and a `join` as the new one lands, so
+     * roughly 5 000 clients across two presence channels is ~20 000 frames
+     * inside one 30-second window.
+     *
+     * At the cap, every instance is guaranteed an equal share of it
+     * (`maxEntries / instances`), and what is dropped is the oldest nonce
+     * belonging to an instance ABOVE its share — so one noisy instance cannot
+     * crowd the others out, an instance under its share is never evicted at
+     * all, and the surplus above the shares still goes to whoever sent most
+     * recently.
+     * A frame older than the evicted entry but still inside the window becomes
+     * replayable once — the deliberate alternative to refusing new entries,
+     * which would fail the control plane closed.
+     *
+     * Raise it for a large fleet before widening `windowMs`: a bigger store
+     * costs memory, a longer window costs replayability.
+     *
+     * @default 10000
+     */
+    readonly maxEntries?: number
 }
 
 /**

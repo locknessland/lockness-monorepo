@@ -510,6 +510,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * @throws {Error} When a control secret is supplied but is shorter than
      *   {@link MIN_CONTROL_SECRET_BYTES} bytes — a weak key would let a peer
      *   forge an authentic-looking control frame (FR-015).
+     * @throws {Error} When `control.windowMs`, `control.maxPayloadBytes` or
+     *   `control.maxEntries` is not a positive, finite value — each bounds a
+     *   cost paid on every ingest, and a zero or negative bound is a
+     *   misconfiguration that would disable the check rather than tighten it.
+     * @throws {Error} When `prefix` contains a Redis glob metacharacter
+     *   (`*`, `?`, `[`, `]`, `\\`) — such a prefix is `startsWith`-anchored but
+     *   its subscribe pattern reaches into other deployments (#282).
      */
     constructor(
         private readonly command: RedisCommandClient,
@@ -568,9 +575,23 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             )
         }
         this.maxControlPayloadBytes = maxPayloadBytes
+        const maxEntries = options.control?.maxEntries
+        if (
+            maxEntries !== undefined &&
+            (!Number.isInteger(maxEntries) || maxEntries < 1)
+        ) {
+            throw new Error(
+                'realtime: control.maxEntries must be a positive integer ' +
+                    `entry count (#283) — got ${maxEntries}.`,
+            )
+        }
         this.replayWindow = this.secret === undefined
             ? undefined
-            : new ControlReplayWindow({ windowMs, now: () => this.now() })
+            : new ControlReplayWindow({
+                windowMs,
+                now: () => this.now(),
+                maxEntries,
+            })
     }
 
     /**
