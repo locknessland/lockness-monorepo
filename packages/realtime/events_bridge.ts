@@ -13,6 +13,7 @@
  */
 
 import type { ChannelManager } from './manager.ts'
+import { safeForLog } from '@lockness/contract'
 import { channelKind } from './channel.ts'
 import { type Broadcastable, isBroadcastable } from './broadcastable.ts'
 
@@ -58,6 +59,18 @@ async function loadDispatcher(): Promise<DispatcherLike | null> {
         }
         return mod.dispatcher?.() ?? null
     } catch (error) {
+        // CONTROL FLOW, NOT A LOG LINE. Do not convert this to `renderError` or
+        // `safeForLog`, however much it looks like the sites #277 and #291
+        // converted -- it matches the same grep and it is the opposite case.
+        //
+        // This string is never logged. It is substring-matched to decide
+        // whether the optional `@lockness/events` package is simply absent (in
+        // which case the soft edge stays soft and this returns null) or
+        // something else went wrong (rethrow). `renderError` prefixes the error
+        // name and truncates at 200 code points, so a resolver message long
+        // enough to push `Module not found` past the boundary would stop
+        // matching, and an absent optional dependency would start THROWING
+        // instead of degrading. `safeForLog` is wrong here for the same reason.
         const message = error instanceof Error ? error.message : String(error)
         if (
             message.includes('Cannot resolve') ||
@@ -94,8 +107,16 @@ export function forwardEvent(
 
     for (const channel of event.broadcastOn()) {
         if (channelKind(channel) === 'public') {
+            // Encoded HERE rather than at the sink, because `warn` is a
+            // `(message: string) => void` — by the time it runs these values
+            // are already inside one string and nothing downstream can tell
+            // them apart. This site is reached through that helper rather than
+            // a direct `console.*`, which is why a grep of this file for
+            // `console.` finds only the default sink and not this.
             warn(
-                `realtime: event "${name}" broadcasts on public channel "${channel}" — it has no authorizer and reaches every subscriber`,
+                `realtime: event "${safeForLog(name)}" broadcasts on public ` +
+                    `channel "${safeForLog(channel)}" — it has no authorizer ` +
+                    'and reaches every subscriber',
             )
         }
         manager.broadcast(channel, name, data)

@@ -11,6 +11,7 @@
  * @module @lockness/realtime/manager
  */
 
+import { renderError, safeForLog } from '@lockness/contract'
 import type { Connection, WebSocketHooks } from './types.ts'
 import type {
     BroadcastDriver,
@@ -126,7 +127,13 @@ export class ChannelManager<Identity = unknown> {
         this.encode = options.encode ?? ((frame) => JSON.stringify(frame))
         this.onPublishError = options.onPublishError ??
             ((error) =>
-                console.error('realtime: broadcast publish failed', error))
+                console.error(
+                    // The framework's DEFAULT sink, so it is the framework's job
+                    // to make it safe. A caller who supplies their own owns what
+                    // it prints; this one must not hand an unrendered error —
+                    // and its stack — to a log store.
+                    `realtime: broadcast publish failed: ${renderError(error)}`,
+                ))
         this.roster = presenceRoster(this.driver)
         // Local + cross-process delivery share this one path.
         this.driver.onMessage((message) => this.deliverLocal(message))
@@ -359,14 +366,18 @@ export class ChannelManager<Identity = unknown> {
             await this.driver.markRevoked?.(clientId)
         } catch (error) {
             durabilityError = error
-            // Passed as a separate console argument rather than interpolated,
-            // matching this file's existing sink at `onPublishError` — no
-            // string building, so no encoder and no new dependency edge.
+            // Rendered, not passed as a separate console argument. The old
+            // comment here reasoned that not interpolating meant no encoder was
+            // needed — which treats the hazard as log INJECTION when it is
+            // DISCLOSURE. `console.warn(msg, error)` prints the error's message
+            // AND its stack, so the object form leaks strictly more than the
+            // interpolation it was preferred over: measured, a DSN-bearing
+            // failure reached the sink in cleartext with its stack. Teardown is
+            // exactly where credential-bearing errors are produced.
             console.warn(
                 'realtime: the durable revocation write failed — revoking ' +
                     'anyway, but a lost control frame will NOT be recovered ' +
-                    'by reconcile',
-                error,
+                    `by reconcile: ${renderError(error)}`,
             )
         }
         // The revocation itself. Its failure is the more serious of the two, so
@@ -399,10 +410,8 @@ export class ChannelManager<Identity = unknown> {
             await this.disconnect(clientId)
         } catch (error) {
             console.warn(
-                `realtime: evict teardown for ${clientId} failed after ` +
-                    `hard-close: ${
-                        error instanceof Error ? error.message : String(error)
-                    }`,
+                `realtime: evict teardown for ${safeForLog(clientId)} failed ` +
+                    `after hard-close: ${renderError(error)}`,
             )
         }
     }

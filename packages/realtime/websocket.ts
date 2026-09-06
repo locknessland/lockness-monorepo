@@ -13,6 +13,7 @@
 import type { Context, MiddlewareHandler } from '@lockness/hono'
 import { upgradeWebSocket } from '@lockness/hono/deno'
 import type { WSEvents } from '@lockness/hono/network'
+import { renderError } from '@lockness/contract'
 import type { Connection, Socket, WebSocketHooks } from './types.ts'
 
 /** Options for {@link createWebSocketHandler}. */
@@ -164,7 +165,25 @@ export function buildEvents<Identity = unknown>(
             await hooks.onError(conn, error)
         } else {
             // No app handler — never swallow silently (security logging).
-            console.error('realtime: unhandled websocket error', error)
+            //
+            // Rendered, not handed over as an object. This is the framework's
+            // DEFAULT sink and the hottest of the four in this package:
+            // `guard()` routes every throw from the application's `onOpen` and
+            // `onMessage` here, which is exactly where DSN-bearing driver
+            // failures are produced. The object form printed the message AND
+            // the stack, neither passing through the DSN redaction.
+            //
+            // It also encodes, which matters because a CLIENT reaches this:
+            // `decodeClientMessage` interpolates the frame's own `type` field
+            // into `unknown frame type: ...`. Encoding at THIS sink rather
+            // than at that throw site is deliberate — the thrown message also
+            // goes to the app's `onError` hook, and escaping it there would
+            // corrupt what the application sees in order to fix a problem
+            // that exists only at the log. Measured: rendering here escapes an
+            // injected newline and a U+202E override alike.
+            console.error(
+                `realtime: unhandled websocket error: ${renderError(error)}`,
+            )
         }
     }
     const guard = async (
@@ -192,11 +211,23 @@ export function buildEvents<Identity = unknown>(
         },
         onError: (evt, ws) => {
             const conn = connFor(ws)
-            // Preserve the real transport event as the error cause rather than
-            // fabricating a bare generic error.
+            // Preserve the real transport event as the cause rather than
+            // fabricating a bare generic error — AND put its detail in the
+            // message, because `renderError` renders `name: message` and
+            // drops `cause` entirely. Without this the line above would read
+            // `Error: websocket transport error` and carry no information at
+            // all: a diagnostic regression the encoder would otherwise have
+            // introduced right here. The cause stays for the app's `onError`
+            // hook, which still receives the object untouched.
+            const detail = 'message' in evt &&
+                    typeof evt.message === 'string' && evt.message !== ''
+                ? evt.message
+                : evt.type
             void reportError(
                 conn,
-                new Error('websocket transport error', { cause: evt }),
+                new Error(`websocket transport error: ${detail}`, {
+                    cause: evt,
+                }),
             )
         },
     }
