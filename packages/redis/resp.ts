@@ -50,6 +50,39 @@ const MAX_BULK_BYTES = 10 * 1024 * 1024
 const MAX_ARRAY_ELEMENTS = 10_000_000
 
 /**
+ * Ceiling on a single CRLF-terminated RESP **line** — a type byte plus its
+ * payload, or a `$`/`*` length header.
+ *
+ * {@link MAX_BULK_BYTES} guards a bulk *body*, and only once a well-formed
+ * length line has been read. The line itself had no ceiling at all: `readLine`
+ * looped on `#fill` until a CRLF appeared, so the memory a peer could force was
+ * bandwidth x the read deadline rather than a fixed number. That was already
+ * weak at the 30s command-path default; #274 raises the subscribe socket's
+ * deadline, which would have widened it silently.
+ *
+ * 64 KiB is three orders of magnitude above the longest legitimate line (a bulk
+ * length is at most 20 digits), so nothing real is refused.
+ */
+const MAX_LINE_BYTES = 64 * 1024
+
+/**
+ * Ceiling on the TOTAL bytes one `readReply` may pull off the wire.
+ *
+ * {@link MAX_BULK_BYTES} bounds a single bulk body and {@link MAX_LINE_BYTES} a
+ * single line; neither bounds their **sum**. A multi-bulk reply of many
+ * individually-legal elements aggregates without limit, and the parsed
+ * representation is far larger than the wire that produced it — 4 MB of wire
+ * measured at 81.5 MB of heap, a 20.4x amplification. A nested `*` header then
+ * buys a fresh element budget.
+ *
+ * 32 MiB is above any legitimate reply this client issues (the largest is a
+ * roster read). Sized in WIRE bytes, which is the unit the check can enforce —
+ * but the hazard is heap, and at the amplification measured above that is on the
+ * order of hundreds of MiB per concurrent reply. On a small container, lower it.
+ */
+const MAX_REPLY_BYTES = 32 * 1024 * 1024
+
+/**
  * The production ceiling on a single `readReply` drain. A truncated frame that
  * never completes must fail rather than block a request forever; the test-side
  * `withTimeout` covers CI, this covers production (FR-010). Generous, because a
@@ -299,6 +332,8 @@ class ReplyReader {
     readonly #deadline: number
     /** The reply's total time budget, for the timeout message. */
     readonly #timeoutMs: number
+    /** Total bytes pulled off the wire for THIS reply — see MAX_REPLY_BYTES. */
+    #consumed = 0
 
     constructor(conn: Deno.Conn, initial: Uint8Array, timeoutMs: number) {
         this.#conn = conn
@@ -328,8 +363,21 @@ class ReplyReader {
         this.#buf = grown
     }
 
-    /** Pull one more chunk from the socket, bounded by the per-reply deadline. */
+    /**
+     * Pull one more chunk from the socket, bounded by the per-reply deadline and
+     * by {@link MAX_REPLY_BYTES}.
+     *
+     * @throws {RespFramingError} Once the reply's total exceeds the cap. On SIZE
+     *   — a bound that rides on a deadline gets weaker every time the deadline
+     *   grows, and silently. Checked BEFORE each fill, so the true total can
+     *   overshoot by at most one read window.
+     */
     async #fill(): Promise<void> {
+        if (this.#consumed >= MAX_REPLY_BYTES) {
+            throw new RespFramingError(
+                `RESP reply exceeds ${MAX_REPLY_BYTES} bytes in total`,
+            )
+        }
         const remaining = this.#deadline - Date.now()
         if (remaining <= 0) {
             throw new Error(`Redis read timed out after ${this.#timeoutMs}ms`)
@@ -341,6 +389,7 @@ class ReplyReader {
             throw new Error('Redis connection closed mid-reply')
         }
         this.#len += n
+        this.#consumed += n
     }
 
     /** Read the next byte, filling if the window is empty. */
@@ -349,7 +398,13 @@ class ReplyReader {
         return this.#buf[this.#pos++]
     }
 
-    /** Read up to the next CRLF, returning the line without it. */
+    /**
+     * Read up to the next CRLF, returning the line without it.
+     *
+     * @throws {RespFramingError} If the line exceeds {@link MAX_LINE_BYTES}. The
+     *   check is on SIZE, not on time: a peer that never sends a CRLF must be
+     *   refused for what it sent, not merely outlasted.
+     */
     async readLine(): Promise<string> {
         while (true) {
             for (let i = this.#pos; i + 1 < this.#len; i++) {
@@ -360,6 +415,11 @@ class ReplyReader {
                     this.#pos = i + 2
                     return line
                 }
+            }
+            if (this.#len - this.#pos > MAX_LINE_BYTES) {
+                throw new RespFramingError(
+                    `RESP line exceeds ${MAX_LINE_BYTES} bytes without a CRLF`,
+                )
             }
             await this.#fill()
         }

@@ -54,6 +54,45 @@ import { encodeCommand, readReply, type RespReply, writeFrame } from './resp.ts'
  */
 const DEFAULT_DISPOSABLE_PRIORITY = 60
 
+/**
+ * How often a `PING` is written on an otherwise-idle subscribe socket.
+ *
+ * A subscribe socket idles by design, so silence proves nothing on its own. The
+ * keepalive is what makes a healthy peer produce a frame inside
+ * {@link DEFAULT_LIVENESS_MS} — which turns that deadline from a false-positive
+ * generator (#274: ~2 880 teardowns per instance per day) into a real liveness
+ * signal.
+ */
+const DEFAULT_KEEPALIVE_MS = 15_000
+
+/**
+ * The longest silence — from any cause — that is not treated as a fault.
+ *
+ * Three keepalive intervals, so two consecutive lost pongs are tolerated before
+ * the socket is declared dead. It bounds the WHOLE activation, handshake
+ * included: `AUTH`/`SELECT` would otherwise inherit the command path's 30s
+ * default and make half the window an incidental number (#274, FR-014).
+ */
+const DEFAULT_LIVENESS_MS = 45_000
+
+/** The first retry delay after a failed activation, before backoff. */
+const DEFAULT_RETRY_BASE_MS = 250
+
+/**
+ * The backoff ceiling. Retries are **unbounded in count** — going deaf is the
+ * defect (#275), so exhaustion is not an outcome — but bounded in interval.
+ */
+const DEFAULT_RETRY_MAX_MS = 30_000
+
+/**
+ * The minimum ratio between the liveness window and the keepalive interval.
+ *
+ * A strict `>` would admit `keepalive + 1`, in which the keepalive can never
+ * arrive in time on any broker with non-zero RTT — inverting the fix into the
+ * permanent churn it exists to remove.
+ */
+const MIN_LIVENESS_RATIO = 2
+
 /** A push-message handler: called with `(topic, payload)` per delivered frame. */
 type MessageHandler = (topic: string, payload: string) => void
 
@@ -80,6 +119,27 @@ export interface RedisSubscribeConnectionConfig
      * @default 60
      */
     disposablePriority?: number
+    /**
+     * How often to write a keepalive `PING`, in milliseconds.
+     * @default 15000
+     */
+    keepaliveMs?: number
+    /**
+     * The longest silence tolerated before the socket is declared dead, in
+     * milliseconds. Must be at least twice `keepaliveMs`.
+     * @default 45000
+     */
+    livenessMs?: number
+    /**
+     * The first retry delay after a failed activation, in milliseconds.
+     * @default 250
+     */
+    retryBaseMs?: number
+    /**
+     * The backoff ceiling, in milliseconds. Retries never stop; they only slow.
+     * @default 30000
+     */
+    retryMaxMs?: number
 }
 
 /**
@@ -126,16 +186,127 @@ export class RedisSubscribeConnection {
     private readonly hostname: string
     private readonly disposableName: string
     private readonly disposablePriority: number
+    readonly #keepaliveMs: number
+    readonly #livenessMs: number
+    readonly #retryBaseMs: number
+    readonly #retryMaxMs: number
+    /** The keepalive interval's id, or `undefined` when no socket is live. */
+    #keepaliveTimer: ReturnType<typeof setInterval> | undefined
+    /**
+     * The socket the armed keepalive belongs to.
+     *
+     * `#discardSocket` used to clear the keepalive unconditionally, so
+     * discarding a STALE socket while a newer one was live disarmed the live
+     * one's keepalive — and the idle churn this feature removes came silently
+     * back. The timer belongs to a socket, so the clear has to know which.
+     */
+    #keepaliveConn: Deno.Conn | null = null
+    /** The pending retry's id. At most one exists at a time (FR-006). */
+    #retryTimer: ReturnType<typeof setTimeout> | undefined
+    /**
+     * Consecutive failed activations, reset the moment one succeeds. Scoped per
+     * CONNECTION, not per activation: two concurrent boot activations are one
+     * outage, and two counters would report it as two.
+     */
+    #attempts = 0
+    /** When the current failure streak began, for the recovery line (FR-016). */
+    #failingSince = 0
+    /**
+     * When the live socket's read loop started.
+     *
+     * The streak resets only once a socket has survived a full keepalive
+     * interval, not on its first inbound frame. A peer that answers
+     * `PSUBSCRIBE` and then drops delivers a subscribe confirmation every
+     * cycle, and treating that as proof zeroed the backoff on every pass — a
+     * throttle that resets itself is not a throttle.
+     */
+    #loopStartedAt = 0
+    /**
+     * The pending retry chain's reconnect identity, latched **monotonically**:
+     * a retry may promote a chain to "reconnect" and never demote it.
+     *
+     * Both directions were reachable — a `psubscribe` failure carries `false`
+     * while the read loop's fault on the same broken socket carries `true` — and
+     * only one retry slot exists. Latching upward is the fail-safe choice: the
+     * consumer's revocation re-check is idempotent reconciliation, so an extra
+     * fire costs one round-trip and a missed one costs enforcement latency.
+     */
+    #retryIsReconnect = false
+    /**
+     * The write queue. Every frame reaching the socket is appended here, so
+     * `PSUBSCRIBE`, the keepalive `PING` and a retry's re-issue can never
+     * interleave at a short-write boundary. Mirrors {@link RedisClient}'s own
+     * serialization rather than inventing a second shape.
+     *
+     * The interleaving that matters is not the noisy one: a corrupted frame that
+     * Redis rejects self-heals through the read loop's fault path. A corrupted
+     * frame that is still VALID — a `PSUBSCRIBE` on a truncated pattern — raises
+     * nothing, and `#dispatch` then routes by the pmessage's own pattern value,
+     * so every frame is silently dropped forever.
+     */
+    #writeChain: Promise<void> = Promise.resolve()
+    /** Whether `AUTH` travels in cleartext, for the retry WARN (security S5). */
+    readonly #cleartextAuth: boolean
 
     /**
      * @param config - The connection settings; only `hostname` is required.
+     * @throws {RangeError} If any cadence is not positive and finite, if
+     *   `retryMaxMs < retryBaseMs`, or if `livenessMs` is under twice
+     *   `keepaliveMs`.
      */
     constructor(config: RedisSubscribeConnectionConfig) {
-        this.conn = new AuthenticatedConnection(config)
+        this.#keepaliveMs = config.keepaliveMs ?? DEFAULT_KEEPALIVE_MS
+        this.#livenessMs = config.livenessMs ?? DEFAULT_LIVENESS_MS
+        this.#retryBaseMs = config.retryBaseMs ?? DEFAULT_RETRY_BASE_MS
+        this.#retryMaxMs = config.retryMaxMs ?? DEFAULT_RETRY_MAX_MS
+        this.#assertCadences()
+        // The handshake gets the same window as the read loop: without it a peer
+        // that accepts TCP and then answers nothing stalls in AUTH/SELECT for the
+        // command path's 30s, before any liveness logic runs (FR-014).
+        this.conn = new AuthenticatedConnection({
+            ...config,
+            // The caller's value wins when given: this field is on the public
+            // config, and silently overwriting it made a documented option a lie.
+            handshakeTimeoutMs: config.handshakeTimeoutMs ?? this.#livenessMs,
+        })
+        this.#cleartextAuth = config.password !== undefined &&
+            config.tls !== true
         this.hostname = config.hostname
         this.disposableName = config.disposableName ?? 'redis-subscribe'
         this.disposablePriority = config.disposablePriority ??
             DEFAULT_DISPOSABLE_PRIORITY
+    }
+
+    /** Refuse a cadence set that cannot behave (FR-018, invariant 4). */
+    #assertCadences(): void {
+        const named: ReadonlyArray<[string, number]> = [
+            ['keepaliveMs', this.#keepaliveMs],
+            ['livenessMs', this.#livenessMs],
+            ['retryBaseMs', this.#retryBaseMs],
+            ['retryMaxMs', this.#retryMaxMs],
+        ]
+        for (const [name, value] of named) {
+            if (!Number.isFinite(value) || value <= 0) {
+                throw new RangeError(
+                    `RedisSubscribeConnection: ${name} must be a positive finite ` +
+                        `number, received ${value}`,
+                )
+            }
+        }
+        if (this.#retryMaxMs < this.#retryBaseMs) {
+            throw new RangeError(
+                'RedisSubscribeConnection: retryMaxMs must be at least ' +
+                    `retryBaseMs (${this.#retryMaxMs} < ${this.#retryBaseMs})`,
+            )
+        }
+        if (this.#livenessMs < this.#keepaliveMs * MIN_LIVENESS_RATIO) {
+            throw new RangeError(
+                'RedisSubscribeConnection: livenessMs must be at least ' +
+                    `${MIN_LIVENESS_RATIO}x keepaliveMs, or the keepalive cannot ` +
+                    `arrive in time (${this.#livenessMs} < ` +
+                    `${this.#keepaliveMs * MIN_LIVENESS_RATIO})`,
+            )
+        }
     }
 
     /**
@@ -160,7 +331,7 @@ export class RedisSubscribeConnection {
             throw new Error('RedisSubscribeConnection is closed')
         }
         this.patterns.set(pattern, handler)
-        void this.#connectAndSubscribe(pattern)
+        void this.#connectAndSubscribe()
     }
 
     /**
@@ -193,17 +364,25 @@ export class RedisSubscribeConnection {
     }
 
     /**
-     * The FIRST-CONNECT entry point: dial, issue this one `PSUBSCRIBE`, start the
-     * read loop. It does **not** fire the reconnect seam.
+     * The FIRST-CONNECT entry point: dial, issue every recorded pattern, start
+     * the read loop. It does **not** fire the reconnect seam.
      *
      * Split from {@link RedisSubscribeConnection.#reconnectAll} deliberately
-     * (#271, plan §5 row 1): the shared body cannot tell its two callers apart,
-     * so "is this a reconnect" is decided by WHICH entry point was called, not by
-     * a flag threaded through or a state variable read back. Both delegate to
-     * {@link RedisSubscribeConnection.#activate}.
+     * (#271, plan §5): the shared body cannot tell its two callers apart, so "is
+     * this a reconnect" is decided by WHICH entry point was called, not by a flag
+     * threaded through or a state variable read back.
+     *
+     * **It issues every recorded pattern, not the one that triggered it** (#245,
+     * FR-011). It used to take a single pattern, and that was a live defect: the
+     * realtime driver subscribes twice back-to-back over one single-flight dial,
+     * so a transient blip rejected both — and with one retry slot, the survivor
+     * re-entered here and re-issued only its own pattern. The other sat recorded
+     * but never subscribed, leaving the instance permanently deaf on the control
+     * topic with a log that had gone quiet. Re-`PSUBSCRIBE` of a live pattern is
+     * a no-op on Redis, which `#reconnectAll` has always depended on.
      */
-    #connectAndSubscribe(pattern: string): Promise<void> {
-        return this.#activate([pattern], false)
+    #connectAndSubscribe(): Promise<void> {
+        return this.#activate([...this.patterns.keys()], false)
     }
 
     /**
@@ -216,46 +395,240 @@ export class RedisSubscribeConnection {
     }
 
     /**
+     * Append a frame to the socket's single write queue.
+     *
+     * Every writer goes through here — see {@link #writeChain} for why. The chain
+     * is kept alive across a rejection so one failed write cannot wedge the queue
+     * for the recovery that follows it.
+     */
+    #write(conn: Deno.Conn, frame: Uint8Array): Promise<void> {
+        const next = this.#writeChain.then(() => writeFrame(conn, frame))
+        this.#writeChain = next.then(
+            () => {},
+            () => {},
+        )
+        return next
+    }
+
+    /**
+     * Discard a socket and clear the timers that belong to it.
+     *
+     * The single home for "this socket is finished" (plan §5). Every discard site
+     * routes through it, so the keepalive can never outlive the socket it was
+     * pinging — an obligation that would otherwise be re-stated at each site and
+     * silently forgotten at the next one.
+     */
+    #discardSocket(conn: Deno.Conn): void {
+        // Only if the timer belongs to THIS socket. See `#keepaliveConn`.
+        //
+        // Also defensive and also untested: for a STALE socket to be discarded
+        // while a newer one is live, an activation holding the old socket would
+        // have to outlive a reconnect, and every current path discards before it
+        // schedules. The guard is kept because the ownership it encodes is what
+        // a future path would otherwise get wrong silently — the failure mode is
+        // the #274 idle churn coming back with nothing in the log.
+        if (this.#keepaliveConn === conn) this.#clearKeepalive()
+        this.conn.discard(conn)
+        if (this.loopConn === conn) this.loopConn = null
+    }
+
+    /** Stop the keepalive interval, if one is armed. */
+    #clearKeepalive(): void {
+        if (this.#keepaliveTimer !== undefined) {
+            clearInterval(this.#keepaliveTimer)
+            this.#keepaliveTimer = undefined
+        }
+        this.#keepaliveConn = null
+    }
+
+    /** Cancel the pending retry, if one is scheduled. */
+    #clearRetry(): void {
+        if (this.#retryTimer !== undefined) {
+            clearTimeout(this.#retryTimer)
+            this.#retryTimer = undefined
+        }
+    }
+
+    /**
+     * Arm the keepalive on a freshly-activated socket, replacing any previous one.
+     *
+     * Unref'd: a socket waiting for traffic must never be the reason a process
+     * refuses to exit.
+     */
+    #armKeepalive(conn: Deno.Conn): void {
+        this.#clearKeepalive()
+        const id = setInterval(() => {
+            if (this.closed || this.conn.socket !== conn) return
+            // No interpolated token, ever. `PING <id>` would put a value of ours
+            // on the wire and make this frame something an auditor has to reason
+            // about; as a bare literal it is inert.
+            this.#write(conn, encodeCommand(['PING'])).catch((error) => {
+                if (this.closed) return
+                // Logged, never swallowed — but recovery is deliberately NOT
+                // triggered here: the read loop on this same socket is about to
+                // fault, and two triggers would race to reconnect.
+                console.warn(
+                    `[redis-subscribe] keepalive PING failed at ${
+                        safeForLog(this.hostname)
+                    }; the read loop owns the recovery: ${renderError(error)}`,
+                )
+            })
+        }, this.#keepaliveMs)
+        Deno.unrefTimer(id)
+        this.#keepaliveTimer = id
+        this.#keepaliveConn = conn
+    }
+
+    /**
      * Ensure the socket is connected, issue `PSUBSCRIBE` for `toIssue`, and make
-     * sure a read loop is draining it. A connect/subscribe failure is logged at
-     * WARN (never silent) rather than thrown, because callers are the synchronous
-     * `psubscribe` and the background reconnect.
+     * sure a read loop is draining it.
+     *
+     * A failure is logged at WARN and **retried** (#275, FR-004) — never thrown,
+     * because the callers are the synchronous `psubscribe` and a background
+     * timer. Abandoning is not an outcome: this method returning without a
+     * scheduled retry is exactly the permanent deafness the feature removes.
      */
     async #activate(
         toIssue: readonly string[],
         isReconnect: boolean,
     ): Promise<void> {
         if (this.closed) return
+        let conn: Deno.Conn | undefined
         try {
-            const conn = await this.conn.connect()
+            conn = await this.conn.connect()
+            // Re-checked AFTER the await: a dial that resolves once `close()` has
+            // run would otherwise register a disposable the close already
+            // deregistered, and write on a socket nobody owns.
+            if (this.closed) {
+                this.#discardSocket(conn)
+                return
+            }
             this.#handle ??= registerDisposable({
                 name: this.disposableName,
                 dispose: () => this.close(),
                 priority: this.disposablePriority,
             })
             for (const pattern of toIssue) {
-                await writeFrame(conn, encodeCommand(['PSUBSCRIBE', pattern]))
+                await this.#write(conn, encodeCommand(['PSUBSCRIBE', pattern]))
             }
-            if (this.loopConn !== conn && !this.closed) {
+            // Re-checked AGAIN, after the awaited writes. `close()` clears the
+            // keepalive once; an activation whose write resolves during that
+            // close would otherwise re-arm the interval it just cleared, and
+            // nothing would ever clear it again.
+            //
+            // DEFENSIVE AND UNTESTED, deliberately. `close()` discards the
+            // socket, so an in-flight write normally fails and the catch returns
+            // before this point; the guard covers an interleaving at this one
+            // await boundary, which is real but not reachable from the public
+            // surface. Two attempts to test it went green for the wrong reason
+            // and were removed rather than kept.
+            if (this.closed) {
+                this.#discardSocket(conn)
+                return
+            }
+            if (this.loopConn !== conn) {
                 this.loopConn = conn
+                this.#loopStartedAt = Date.now()
                 this.loopDone = this.#readLoop(conn)
             }
+            this.#armKeepalive(conn)
             // The seam fires INSIDE the try and AFTER the re-issue loop, so a
             // reconnect whose PSUBSCRIBE never landed is not reported as one.
             if (isReconnect) await this.#fireReconnect()
         } catch (error) {
-            // Terminal either way — nothing here schedules a retry (#275) — but
-            // say which, so the log distinguishes "never connected" from "was
-            // connected and will not come back".
-            const outcome = isReconnect
-                ? 'no further reconnect will be attempted'
-                : 'this subscription never reached the wire and will not be retried'
-            console.warn(
-                `[redis-subscribe] PSUBSCRIBE failed at ${
-                    safeForLog(this.hostname)
-                }, ${outcome}: ${renderError(error)}`,
-            )
+            if (this.closed) return
+            // BEFORE the retry, and not optional: `connect()` hands back the
+            // cached socket, so a retry that skips this feeds every later attempt
+            // the same corpse and loops forever while logging "retrying".
+            if (conn) this.#discardSocket(conn)
+            this.#scheduleRetry(isReconnect, error)
         }
+    }
+
+    /**
+     * Log the recovery and reset the failure streak.
+     *
+     * An outage that ends must be as visible as one that starts. Without this
+     * line, "recovered", "the process died" and "the loop is wedged" all look
+     * identical to an operator watching the WARN stream stop.
+     */
+    #reportRecovery(): void {
+        if (this.#attempts === 0) return
+        // Survival, not arrival. See `#loopStartedAt`.
+        if (Date.now() - this.#loopStartedAt < this.#keepaliveMs) return
+        const elapsed = Date.now() - this.#failingSince
+        console.warn(
+            `[redis-subscribe] recovered at ${
+                safeForLog(this.hostname)
+            } after ` +
+                `${this.#attempts} failed attempt(s) over ${elapsed}ms; ` +
+                `${this.patterns.size} subscription(s) re-issued`,
+        )
+        this.#attempts = 0
+        this.#failingSince = 0
+    }
+
+    /**
+     * Log a failed activation and schedule the next attempt.
+     *
+     * Backoff is exponential from `retryBaseMs`, capped at `retryMaxMs`, with
+     * **full jitter**: N instances that lose a broker at the same instant would
+     * otherwise compute identical schedules and re-dial it in lockstep forever,
+     * holding a recovering broker in the state that caused the herd.
+     *
+     * Only the attempt that SCHEDULES logs. A second concurrent failure folds
+     * into the pending chain — it is the same outage, and both activations issue
+     * the same pattern set, so a second line would say nothing new.
+     *
+     * **Both re-dial paths come through here** — a failed activation and a read
+     * loop that faulted on a socket which had activated fine. They are different
+     * events (`cause` names which) and one cadence; the second used to have no
+     * cadence at all.
+     */
+    #scheduleRetry(
+        isReconnect: boolean,
+        error: unknown,
+        cause: 'PSUBSCRIBE failed' | 'read fault' = 'PSUBSCRIBE failed',
+    ): void {
+        if (this.closed) return
+        this.#retryIsReconnect ||= isReconnect
+        if (this.#retryTimer !== undefined) return
+
+        // Counted HERE, after the early returns, and in one place for both
+        // callers. Incremented at the call sites it could grow without any dial
+        // being scheduled — a second concurrent failure folding into a pending
+        // chain still bumped the count — which inflated the backoff ceiling for
+        // attempts that never happened.
+        this.#attempts++
+        if (this.#failingSince === 0) this.#failingSince = Date.now()
+
+        const ceiling = Math.min(
+            this.#retryMaxMs,
+            this.#retryBaseMs * 2 ** (this.#attempts - 1),
+        )
+        const delay = Math.max(1, Math.floor(Math.random() * ceiling))
+        const cleartext = this.#cleartextAuth
+            ? ' (AUTH is being re-sent in cleartext on every attempt — tls is off)'
+            : ''
+        // ONE line for both entry paths. The read loop used to log its own and
+        // then re-dial elsewhere, which is how a whole re-dial path came to sit
+        // outside the backoff without anything in the log looking wrong.
+        console.warn(
+            `[redis-subscribe] ${cause} at ${safeForLog(this.hostname)}, ` +
+                `attempt ${this.#attempts}, ${
+                    cause === 'read fault' ? 'reconnecting' : 'retrying'
+                } in ${delay}ms — re-issuing ${this.patterns.size} ` +
+                `subscription(s)${cleartext}: ${renderError(error)}`,
+        )
+
+        const id = setTimeout(() => {
+            this.#retryTimer = undefined
+            const asReconnect = this.#retryIsReconnect
+            this.#retryIsReconnect = false
+            void this.#activate([...this.patterns.keys()], asReconnect)
+        }, delay)
+        Deno.unrefTimer(id)
+        this.#retryTimer = id
     }
 
     /**
@@ -289,24 +662,34 @@ export class RedisSubscribeConnection {
         while (!this.closed && this.conn.socket === conn) {
             let reply: RespReply
             try {
-                // Bounded by `resp.ts` (max bulk length + per-reply deadline), so
-                // an oversized pushed payload is rejected before dispatch.
-                reply = await readReply(conn)
+                // Bounded by `resp.ts` (max bulk length, max line length, and a
+                // per-reply deadline), so an oversized pushed payload is
+                // rejected before dispatch.
+                //
+                // The deadline is this connection's LIVENESS window, not
+                // `resp.ts`'s command-path default. A fresh reader per iteration
+                // is what makes any inbound frame — a pmessage, a subscribe
+                // confirmation, or a keepalive pong — reset the clock.
+                reply = await readReply(conn, this.#livenessMs)
             } catch (error) {
                 if (this.closed) return
-                console.warn(
-                    `[redis-subscribe] read fault on ${
-                        safeForLog(this.hostname)
-                    }, reconnecting and re-issuing ${this.patterns.size} ` +
-                        `subscription(s): ${renderError(error)}`,
-                )
-                this.conn.discard(conn)
-                if (this.loopConn === conn) this.loopConn = null
-                // Re-issue EVERY active pattern on the fresh socket (FR-003),
-                // then fire the reconnect seam (#271/FR-001).
-                void this.#reconnectAll()
+                this.#discardSocket(conn)
+                // Through the SAME backoff a failed activation uses (FR-021).
+                // This path used to re-dial bare, and a peer that accepts,
+                // answers `PSUBSCRIBE` and then drops — an ACL denial, a
+                // `maxclients` refusal, a broker shedding load — spun the client
+                // at the speed of the socket: 7 539 dials per second, measured.
+                // Re-issuing every active pattern and firing the seam is still
+                // what happens (FR-003, #271/FR-001); it just no longer happens
+                // without a delay.
+                this.#scheduleRetry(true, error, 'read fault')
                 return
             }
+            // Proof the socket WORKS, which an activation completing is not:
+            // the streak resets here rather than at the end of `#activate`, or a
+            // connect-fault-connect-fault loop would zero its own backoff on
+            // every pass and never grow.
+            this.#reportRecovery()
             this.#dispatch(reply)
         }
     }
@@ -330,9 +713,15 @@ export class RedisSubscribeConnection {
     /**
      * Close the subscribe socket and release its resources.
      *
-     * Deregisters the shutdown disposable, resolves any in-flight open, closes the
-     * socket (stopping the read loop), and awaits the loop's unwind so no
-     * `conn.read` is left pending. Idempotent.
+     * Deregisters the shutdown disposable, clears the keepalive and any pending
+     * retry, discards the live socket (stopping the read loop), and awaits the
+     * loop's unwind so no `conn.read` is left pending. Idempotent.
+     *
+     * It does **not** await an in-flight dial. Against an unroutable host that
+     * waits out the OS SYN budget — ~75s on macOS, ~130s on Linux — which is
+     * minutes of blocking at exactly the moment an operator restarts during an
+     * outage. The pending dial's own continuation observes `closed` and discards
+     * whatever it receives.
      *
      * @returns Resolves once the socket is closed and the read loop has stopped.
      * @example
@@ -342,24 +731,20 @@ export class RedisSubscribeConnection {
      */
     async close(): Promise<void> {
         this.closed = true
+        this.#clearKeepalive()
+        this.#clearRetry()
         if (this.#handle) {
             deregisterDisposable(this.#handle)
             this.#handle = undefined
         }
-        if (this.conn.isActive) {
-            try {
-                const conn = await this.conn.connect()
-                this.conn.discard(conn)
-            } catch (error) {
-                // The open was already failing; nothing live to close. Logged so
-                // a shutdown-time connect fault is visible, not swallowed.
-                console.warn(
-                    `[redis-subscribe] close observed a failed open at ${
-                        safeForLog(this.hostname)
-                    }: ${renderError(error)}`,
-                )
-            }
-        }
+        // Discard what is live; do NOT await `connect()`. A dial in flight to an
+        // unreachable host does not fail fast — it waits out the OS SYN budget,
+        // ~75s on macOS and ~130s on Linux — and awaiting it made `close()` block
+        // for minutes at exactly the moment an operator restarts during an
+        // outage. The pending dial's own continuation sees `closed` and discards
+        // the socket it receives.
+        const live = this.conn.socket
+        if (live) this.#discardSocket(live)
         this.loopConn = null
         await this.loopDone
     }

@@ -49,6 +49,53 @@ export interface FakeServer {
      * re-`PSUBSCRIBE`) can be observed. Newly dialled connections are accepted.
      */
     dropConnections(): void
+    /**
+     * Make the broker **unreachable**: close the listener so a dial gets
+     * `ECONNREFUSED`, and close every live connection. The port is retained, so
+     * {@link FakeServer.reachable} re-binds the same one.
+     *
+     * This is the ONLY way to prove a failed *connect* (FR-004 / SC-003). Do not
+     * reach for {@link FakeServer.mute} — a bound listener that stops accepting
+     * still completes the TCP handshake into the kernel backlog, so `Deno.connect`
+     * RESOLVES and the client waits on a read instead.
+     */
+    unreachable(): void
+    /**
+     * Undo {@link FakeServer.unreachable} — re-bind the SAME port and resume
+     * accepting. Same port, deliberately: the client dials a fixed address, and
+     * re-binding elsewhere would prove nothing about recovery.
+     */
+    reachable(): void
+    /**
+     * Accept connections but **answer nothing**: commands are still parsed and
+     * logged, and no reply is written. Models a hung or half-open broker.
+     *
+     * This is the ONLY way to prove liveness detection (FR-002 / SC-002). Do not
+     * reach for {@link FakeServer.unreachable} — a refused dial is a different
+     * failure, and a test that uses it proves the connect path instead.
+     */
+    mute(): void
+    /**
+     * Undo {@link FakeServer.mute} and flush every reply withheld while muted, so
+     * a connection that survived the silence resumes mid-stream.
+     */
+    unmute(): void
+    /**
+     * Wait `ms` before writing each reply, modelling a slow-but-alive peer.
+     *
+     * The distinction a per-step budget cannot see: three steps that each answer
+     * inside the window can still take three windows in total. Set to `0` to
+     * disarm.
+     */
+    delayReply(ms: number): void
+    /**
+     * Reply to `op` as usual and then immediately close that connection.
+     *
+     * Models a broker that dies mid-activation — the one failure the read loop
+     * cannot back-stop, because on a FIRST activation the PSUBSCRIBE writes run
+     * before any read loop exists to fault. Set to `null` to disarm.
+     */
+    closeAfter(op: string | null): void
     /** Close the listener and any live connections; safe to call twice. */
     stop(): void
 }
@@ -118,7 +165,11 @@ function parseCommands(
 }
 
 /** The reply bytes for one parsed command against the store. */
-function replyFor(args: string[], store: Map<string, string>): Uint8Array {
+function replyFor(
+    args: string[],
+    store: Map<string, string>,
+    state: { subscribed: boolean },
+): Uint8Array {
     const op = (args[0] ?? '').toUpperCase()
     switch (op) {
         case 'AUTH':
@@ -127,11 +178,19 @@ function replyFor(args: string[], store: Map<string, string>): Uint8Array {
             return encoder.encode('+OK\r\n')
         case 'PSUBSCRIBE':
             // Confirm the pattern subscription: `*3` [ "psubscribe", pattern, n ].
+            state.subscribed = true
             return respFrame(['psubscribe', args[1] ?? '', 1])
         case 'PUNSUBSCRIBE':
             return respFrame(['punsubscribe', args[1] ?? '', 0])
         case 'PING':
-            return encoder.encode('+PONG\r\n')
+            // Redis answers PING differently once the connection has entered
+            // subscribe mode: a multi-bulk ["pong", ""] rather than the `+PONG`
+            // simple string. Modelled because the keepalive (#274) makes PING
+            // load-bearing on the subscribe socket, and a fake that only ever
+            // sends the command-mode shape would prove the wrong thing.
+            return state.subscribed
+                ? respFrame(['pong', ''])
+                : encoder.encode('+PONG\r\n')
         case 'SET':
         case 'SETEX': {
             // SET key value  |  SETEX key ttl value
@@ -171,58 +230,130 @@ function replyFor(args: string[], store: Map<string, string>): Uint8Array {
  * ```
  */
 export function startFakeServer(): Promise<FakeServer> {
-    const listener = Deno.listen({ hostname: '127.0.0.1', port: 0 })
-    const port = (listener.addr as Deno.NetAddr).port
     const store = new Map<string, string>()
     const commandLog: string[][] = []
     const conns = new Set<Deno.Conn>()
+    /** Flush callbacks, one per live connection, used by `unmute()`. */
+    const pending = new Set<() => Promise<void>>()
     let accepts = 0
     let closed = false
-    ;(async () => {
-        while (true) {
-            let conn: Deno.Conn
+    let muted = false
+    let closeAfterOp: string | null = null
+    let replyDelayMs = 0
+
+    // The port is captured once from the ephemeral bind and reused by every
+    // later `reachable()`, so a client dialling a fixed address can be made to
+    // fail and then recover WITHOUT the address changing under it.
+    let listener = Deno.listen({ hostname: '127.0.0.1', port: 0 })
+    const port = (listener.addr as Deno.NetAddr).port
+
+    const serve = (conn: Deno.Conn): void => {
+        const chunks: number[] = []
+        const state = { subscribed: false }
+        let repliedThrough = 0
+        let commandLogged = 0
+        const buf = new Uint8Array(4096)
+
+        // Reply to every command parsed but not yet answered. Called on each
+        // read, and again by `unmute()` for the backlog withheld while muted.
+        // Serialized: `unmute()` calls this while the read loop may already be
+        // inside it, and both walk the same `repliedThrough` range. Without the
+        // guard they replay overlapping commands and interleave their writes —
+        // the fake would then produce exactly the desync the subject under test
+        // is supposed to prevent.
+        let flushing = false
+        const flush = async (): Promise<void> => {
+            if (muted || flushing) return
+            flushing = true
             try {
-                conn = await listener.accept()
-            } catch {
-                // Listener closed by stop(); end the accept loop.
-                break
+                await flushOnce()
+            } finally {
+                flushing = false
             }
-            accepts++
-            conns.add(conn)
-            ;(async () => {
-                const chunks: number[] = []
-                let repliedThrough = 0
-                const buf = new Uint8Array(4096)
-                try {
-                    while (true) {
-                        const n = await conn.read(buf)
-                        if (n === null) break
-                        for (let i = 0; i < n; i++) chunks.push(buf[i])
-                        const { commands } = parseCommands(
-                            new Uint8Array(chunks),
-                        )
-                        for (let i = repliedThrough; i < commands.length; i++) {
-                            commandLog.push(commands[i])
-                            await conn.write(replyFor(commands[i], store))
-                        }
-                        repliedThrough = Math.max(
-                            repliedThrough,
-                            commands.length,
-                        )
-                    }
-                } catch {
-                    // A reset after stop()/dropConnections() is a normal end.
-                } finally {
+        }
+        const flushOnce = async (): Promise<void> => {
+            const { commands } = parseCommands(new Uint8Array(chunks))
+            for (let i = repliedThrough; i < commands.length; i++) {
+                if (replyDelayMs > 0) {
+                    await new Promise((r) => setTimeout(r, replyDelayMs))
+                }
+                await conn.write(replyFor(commands[i], store, state))
+                if (
+                    closeAfterOp !== null &&
+                    (commands[i][0] ?? '').toUpperCase() === closeAfterOp
+                ) {
+                    repliedThrough = commands.length
                     conns.delete(conn)
                     try {
                         conn.close()
                     } catch {
                         // Already closed.
                     }
+                    return
                 }
-            })()
+            }
+            repliedThrough = Math.max(repliedThrough, commands.length)
         }
-    })()
+        pending.add(flush)
+        ;(async () => {
+            try {
+                while (true) {
+                    const n = await conn.read(buf)
+                    if (n === null) break
+                    for (let i = 0; i < n; i++) chunks.push(buf[i])
+                    const { commands } = parseCommands(new Uint8Array(chunks))
+                    // Commands are LOGGED even while muted — a muted broker
+                    // still receives; it just does not answer. Tests assert on
+                    // arrival separately from the reply.
+                    for (let i = commandLogged; i < commands.length; i++) {
+                        commandLog.push(commands[i])
+                    }
+                    commandLogged = Math.max(commandLogged, commands.length)
+                    await flush()
+                }
+            } catch {
+                // A reset after stop()/dropConnections()/unreachable() is a
+                // normal end.
+            } finally {
+                pending.delete(flush)
+                conns.delete(conn)
+                try {
+                    conn.close()
+                } catch {
+                    // Already closed.
+                }
+            }
+        })()
+    }
+
+    const acceptLoop = (l: Deno.Listener): void => {
+        ;(async () => {
+            while (true) {
+                let conn: Deno.Conn
+                try {
+                    conn = await l.accept()
+                } catch {
+                    // Listener closed by stop() or unreachable(); end the loop.
+                    break
+                }
+                accepts++
+                conns.add(conn)
+                serve(conn)
+            }
+        })()
+    }
+    acceptLoop(listener)
+
+    const closeAll = (): void => {
+        for (const conn of conns) {
+            try {
+                conn.close()
+            } catch {
+                // Already closed.
+            }
+        }
+        conns.clear()
+    }
 
     return Promise.resolve({
         port,
@@ -236,27 +367,43 @@ export function startFakeServer(): Promise<FakeServer> {
                 conn.write(frame).catch(() => {})
             }
         },
-        dropConnections: () => {
-            for (const conn of conns) {
-                try {
-                    conn.close()
-                } catch {
-                    // Already closed.
-                }
+        dropConnections: () => closeAll(),
+        unreachable: () => {
+            if (closed) return
+            try {
+                listener.close()
+            } catch {
+                // Already closed by a previous unreachable().
             }
-            conns.clear()
+            closeAll()
+        },
+        reachable: () => {
+            if (closed) return
+            listener = Deno.listen({ hostname: '127.0.0.1', port })
+            acceptLoop(listener)
+        },
+        delayReply: (ms: number) => {
+            replyDelayMs = ms
+        },
+        closeAfter: (op: string | null) => {
+            closeAfterOp = op === null ? null : op.toUpperCase()
+        },
+        mute: () => {
+            muted = true
+        },
+        unmute: () => {
+            muted = false
+            for (const flush of pending) flush().catch(() => {})
         },
         stop: () => {
             if (closed) return
             closed = true
-            listener.close()
-            for (const conn of conns) {
-                try {
-                    conn.close()
-                } catch {
-                    // Already closed.
-                }
+            try {
+                listener.close()
+            } catch {
+                // Already closed by unreachable().
             }
+            closeAll()
         },
     })
 }

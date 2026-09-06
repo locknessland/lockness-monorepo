@@ -44,6 +44,18 @@ const DEFAULT_PORT = 6379
  * escape hatch (FR-004).
  */
 export interface AuthenticatedConnectionConfig {
+    /**
+     * Ceiling on each handshake reply (`AUTH`, `SELECT`), in milliseconds.
+     *
+     * Omitted, the handshake takes `readReply`'s command-path default of 30s —
+     * correct for {@link RedisClient}, and wrong for a caller that has named its
+     * own liveness window. A subscribe socket passes its window here so a peer
+     * that accepts TCP and then answers nothing is detected inside that window
+     * rather than 30 seconds later (#274, FR-014).
+     *
+     * @default undefined - the `readReply` default applies
+     */
+    handshakeTimeoutMs?: number
     /** Redis server hostname. */
     hostname: string
     /**
@@ -81,6 +93,9 @@ export interface AuthenticatedConnectionConfig {
  *
  * @param conn - The open connection to exchange on.
  * @param args - The command and its arguments, e.g. `['AUTH', 'secret']`.
+ * @param timeoutMs - Ceiling on the reply, in milliseconds. Omitted, the
+ *   command-path default in `resp.ts` applies — correct for `RedisClient`, and
+ *   wrong for a caller that has named its own liveness window.
  * @returns The parsed RESP reply.
  * @throws {RespServerError} On a framed server error or an in-sync parse fault.
  * @throws {RespFramingError} On an abandoned frame (the socket is desynced).
@@ -90,8 +105,14 @@ export interface AuthenticatedConnectionConfig {
  * const reply = await exchange(conn, ['PING'])
  * ```
  */
-export function exchange(conn: Deno.Conn, args: string[]): Promise<RespReply> {
-    return writeFrame(conn, encodeCommand(args)).then(() => readReply(conn))
+export function exchange(
+    conn: Deno.Conn,
+    args: string[],
+    timeoutMs?: number,
+): Promise<RespReply> {
+    return writeFrame(conn, encodeCommand(args)).then(() =>
+        timeoutMs === undefined ? readReply(conn) : readReply(conn, timeoutMs)
+    )
 }
 
 /**
@@ -128,6 +149,7 @@ export class AuthenticatedConnection {
         password?: string
         db: number
         tls: boolean
+        handshakeTimeoutMs?: number
     }
 
     /**
@@ -140,6 +162,7 @@ export class AuthenticatedConnection {
             password: config.password,
             db: config.db ?? 0,
             tls: config.tls ?? false,
+            handshakeTimeoutMs: config.handshakeTimeoutMs,
         }
         // A password with TLS off means `AUTH` travels in cleartext. Warn ONCE
         // here — the constructor runs once per connection object, so a
@@ -191,21 +214,28 @@ export class AuthenticatedConnection {
         if (this.connection) return Promise.resolve(this.connection)
         if (!this.connectPromise) {
             const p = (async () => {
-                const conn = await (this.config.tls
-                    ? Deno.connectTls({
-                        hostname: this.config.hostname,
-                        port: this.config.port,
-                    })
-                    : Deno.connect({
-                        hostname: this.config.hostname,
-                        port: this.config.port,
-                    }))
+                // ONE deadline for dial + AUTH + SELECT, fixed before the first
+                // of them, so the window bounds the activation rather than each
+                // step of it.
+                const budget = this.config.handshakeTimeoutMs
+                const deadline = budget === undefined
+                    ? undefined
+                    : Date.now() + budget
+                const conn = await this.#dial(deadline)
                 try {
                     if (this.config.password) {
-                        await exchange(conn, ['AUTH', this.config.password])
+                        await exchange(
+                            conn,
+                            ['AUTH', this.config.password],
+                            this.#remaining(deadline),
+                        )
                     }
                     if (this.config.db !== 0) {
-                        await exchange(conn, ['SELECT', String(this.config.db)])
+                        await exchange(
+                            conn,
+                            ['SELECT', String(this.config.db)],
+                            this.#remaining(deadline),
+                        )
                     }
                 } catch (error) {
                     // The handshake failed on a fresh socket never published to
@@ -232,6 +262,87 @@ export class AuthenticatedConnection {
             this.connectPromise = p
         }
         return this.connectPromise
+    }
+
+    /**
+     * Milliseconds left before `deadline`, or `undefined` when unbounded.
+     *
+     * One budget for the whole activation, not one per step. Applied per step it
+     * multiplied: the dial, `AUTH` and `SELECT` each got the full value, so a
+     * stalling peer cost up to three times the configured window before the read
+     * loop's own deadline even started.
+     */
+    #remaining(deadline: number | undefined): number | undefined {
+        if (deadline === undefined) return undefined
+        return Math.max(1, deadline - Date.now())
+    }
+
+    /**
+     * Open the socket, bounded by the activation's shared deadline.
+     *
+     * Neither `Deno.connect` nor `Deno.connectTls` takes a deadline or an abort
+     * signal, so the bound is a race. A peer that completes the TCP handshake and
+     * then stalls the TLS one would otherwise wedge the connection **permanently
+     * and silently** — no error, no retry, no log line, which is the same shape
+     * as the defect this connection's liveness window exists to remove.
+     *
+     * The losing dial is abandoned, not cancelled — nothing can cancel it. Its
+     * continuation closes whatever socket eventually arrives, so the fd is
+     * released rather than leaked.
+     *
+     * @param deadline - Epoch ms by which the socket must be open, or
+     *   `undefined` for `RedisClient`'s unbounded behaviour.
+     */
+    #dial(deadline: number | undefined): Promise<Deno.Conn> {
+        const open = this.config.tls
+            ? Deno.connectTls({
+                hostname: this.config.hostname,
+                port: this.config.port,
+            })
+            : Deno.connect({
+                hostname: this.config.hostname,
+                port: this.config.port,
+            })
+        const budget = this.#remaining(deadline)
+        if (budget === undefined) return open
+
+        return new Promise<Deno.Conn>((resolve, reject) => {
+            const timer = setTimeout(() => {
+                reject(
+                    new Error(
+                        `Redis dial to ${this.config.hostname}:${this.config.port} ` +
+                            `did not complete within ${budget}ms`,
+                    ),
+                )
+            }, budget)
+            Deno.unrefTimer(timer)
+            // This handler is also the rejection sink for `open`, so no ordering
+            // of (timeout, resolve, reject) can leave an unhandled rejection.
+            open.then(
+                (conn) => {
+                    clearTimeout(timer)
+                    resolve(conn)
+                },
+                (error) => {
+                    clearTimeout(timer)
+                    reject(error)
+                },
+            )
+        }).catch((error) => {
+            // THIS is what returns the abandoned dial's fd — a socket that
+            // arrives after the race was lost belongs to nobody.
+            open.then(
+                (conn) => {
+                    try {
+                        conn.close()
+                    } catch {
+                        // Already closed by the failure itself.
+                    }
+                },
+                () => {},
+            )
+            throw error
+        })
     }
 
     /**

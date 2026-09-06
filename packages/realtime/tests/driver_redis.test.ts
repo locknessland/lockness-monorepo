@@ -266,3 +266,43 @@ Deno.test('FR-004: a subscriber without the reconnect seam constructs and arms i
         time.restore()
     }
 })
+
+Deno.test('#245: fromConfig actually forwards the subscribe cadences', () => {
+    // The knobs README documents are only real if they reach the subscribe
+    // connection. `fromConfig` builds that connection internally, so there is no
+    // way to observe the value from outside — but an INVALID pair is observable,
+    // because `RedisSubscribeConnection` validates at construction and throws.
+    //
+    // A "does it still deliver?" test would have been a false green here: if the
+    // cadences were silently dropped, the production defaults would apply and
+    // delivery would look identical. The throw is the only witness that
+    // distinguishes forwarded from ignored.
+    assertThrows(
+        () =>
+            RedisBroadcastDriver.fromConfig({
+                hostname: '127.0.0.1',
+                port: 6379,
+                // livenessMs must be at least 2x keepaliveMs.
+                keepaliveMs: 1000,
+                livenessMs: 1000,
+            }, { prefix: 'cadence-check' }),
+        RangeError,
+        'livenessMs',
+    )
+})
+
+Deno.test('#245: fromConfig accepts a valid cadence set', async () => {
+    // The other half, and the reason this test exists at all: before the config
+    // type was widened, an object literal carrying `keepaliveMs` was a TS2353
+    // excess-property error, so the documented knobs were unreachable from the
+    // only production construction path. Nothing dials until first use.
+    const driver = RedisBroadcastDriver.fromConfig({
+        hostname: '127.0.0.1',
+        port: 6379,
+        keepaliveMs: 10_000,
+        livenessMs: 30_000,
+        retryBaseMs: 100,
+        retryMaxMs: 5_000,
+    }, { prefix: 'cadence-check' })
+    await driver.close()
+})

@@ -57,6 +57,7 @@ import {
     RedisClient,
     type RedisClientConfig,
     RedisSubscribeConnection,
+    type RedisSubscribeConnectionConfig,
 } from '@lockness/redis'
 
 /**
@@ -370,6 +371,24 @@ function timingSafeEqualHex(a: string, b: string): boolean {
 }
 
 /**
+ * What {@link RedisBroadcastDriver.fromConfig} accepts: a Redis client config,
+ * plus the subscribe socket's liveness and retry cadences.
+ *
+ * The cadences are here because they were otherwise **unreachable**. `fromConfig`
+ * builds the `RedisSubscribeConnection` itself, so an application had no way to
+ * pass one — and because every field is optional, a literal carrying
+ * `keepaliveMs` was rejected as an excess property rather than silently ignored.
+ * `packages/redis/README.md` documents these four by name, and a documented knob
+ * nobody can set is a README that lies.
+ */
+export type RedisBroadcastConnectionConfig =
+    & RedisClientConfig
+    & Pick<
+        RedisSubscribeConnectionConfig,
+        'keepaliveMs' | 'livenessMs' | 'retryBaseMs' | 'retryMaxMs'
+    >
+
+/**
  * A cross-process broadcast driver over Redis pub/sub.
  *
  * @example
@@ -525,7 +544,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * ```
      */
     static fromConfig(
-        config: RedisClientConfig,
+        config: RedisBroadcastConnectionConfig,
         options: RedisBroadcastDriverOptions = {},
     ): RedisBroadcastDriver {
         const command = new RedisClient(config)

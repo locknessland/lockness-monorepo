@@ -174,6 +174,38 @@ Deno.test('readReply - an oversized bulk length is a RespFramingError, not alloc
     assert(error instanceof RespError)
 })
 
+Deno.test('readReply - a line that never terminates is refused on SIZE, not on time', async () => {
+    // #245. `MAX_BULK_BYTES` guards a bulk BODY, and only once a well-formed
+    // length line has been read. The line itself had no ceiling: `readLine`
+    // looped on `#fill` until a CRLF appeared, so the memory a peer could force
+    // was bandwidth x the read deadline rather than a fixed number.
+    //
+    // That mattered the moment #274 raised the subscribe socket's deadline —
+    // a bound riding on a timeout gets weaker every time the timeout grows, and
+    // silently. The `timeoutMs` here is deliberately generous: if this test ever
+    // passes by TIMING OUT rather than by refusing the size, it is proving the
+    // wrong thing.
+    const encoder = new TextEncoder()
+    // A VALID type byte, so the refusal is the length cap and not "unknown
+    // reply type" — the same test passing for a different reason.
+    const first = encoder.encode('+' + 'x'.repeat(8 * 1024 - 1))
+    const chunk = encoder.encode('x'.repeat(8 * 1024))
+    const chunks = [first, ...Array.from({ length: 23 }, () => chunk)]
+    const error = await readReply(mockConn(...chunks), 60_000).then(
+        () => null,
+        (e) => e,
+    )
+    assert(
+        error instanceof RespFramingError,
+        `expected a framing error, received ${String(error)}`,
+    )
+    assert(
+        String(error).includes('without a CRLF'),
+        'the message names WHY it was refused, so an operator is not left ' +
+            'reading a timeout that was really a size limit',
+    )
+})
+
 Deno.test('writeFrame + readReply - a command round-trips over a loopback socket', async () => {
     // A genuine wire round-trip: encode a command, write it to a loopback
     // listener that replies with a canned bulk, and drain the reply. Not "live
@@ -206,5 +238,34 @@ Deno.test('writeFrame - a write that makes no progress raises instead of spinnin
     await assertRejects(
         () => writeFrame(stalled, encodeCommand(['PING'])),
         Error,
+    )
+})
+
+Deno.test('readReply - the TOTAL of a multi-bulk reply is bounded, not just each part', async () => {
+    // #245, review gate. MAX_BULK_BYTES bounds one bulk BODY and MAX_LINE_BYTES
+    // one line; neither bounds their sum. A multi-bulk of individually-legal
+    // elements aggregated without limit, and the parsed form is far larger than
+    // the wire that produced it — 4 MB of wire measured at 81.5 MB of heap.
+    //
+    // As with MAX_LINE_BYTES, the generous timeout is deliberate: if this ever
+    // passes by timing out rather than by refusing the size, it proves nothing.
+    const encoder = new TextEncoder()
+    const megabyte = 'm'.repeat(1024 * 1024)
+    const chunks: Uint8Array[] = [encoder.encode('*64\r\n')]
+    for (let i = 0; i < 40; i++) {
+        chunks.push(encoder.encode(`$${1024 * 1024}\r\n${megabyte}\r\n`))
+    }
+    const error = await readReply(mockConn(...chunks), 60_000).then(
+        () => null,
+        (e) => e,
+    )
+    assert(
+        error instanceof RespFramingError,
+        `expected a framing error, received ${String(error)}`,
+    )
+    assert(
+        String(error).includes('in total'),
+        'the message says it was the AGGREGATE that was refused, so an ' +
+            'operator is not left hunting for an oversized single element',
     )
 })

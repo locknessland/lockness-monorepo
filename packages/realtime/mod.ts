@@ -47,6 +47,7 @@ export type {
 } from './driver.ts'
 export { MemoryBroadcastDriver } from './drivers/memory.ts'
 export {
+    type RedisBroadcastConnectionConfig,
     RedisBroadcastDriver,
     type RedisBroadcastDriverOptions,
     type RedisCommandClient,
