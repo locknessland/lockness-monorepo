@@ -58,6 +58,17 @@ const MUTATIONS: Mutation[] = [
         label: 'evict-teardown stops encoding the client id',
         file: MANAGER,
         edits: [['${safeForLog(clientId)}', '${clientId}']],
+        expectSurvival:
+            'RETIRED BY #304, deliberately and not by neglect. That issue moved ' +
+            'the connection-id charset to the boundary: `register`, `subscribe` ' +
+            'and `evict` now refuse anything outside `isValidName`, so no id ' +
+            'reaching this WARN can carry a control character and ' +
+            '`safeForLog(x) === x` for every id that can. No assertion can ' +
+            'distinguish the encoder from its absence here any more. The ' +
+            'encoder STAYS as the second of two independent controls — the ' +
+            'same argument the driver writes down for its own WARNs — and this ' +
+            'row stays visible rather than being deleted, so the next reader ' +
+            'learns why it cannot be killed instead of wondering why it is gone.',
     },
     {
         label: 'durable-revocation WARN back to passing the error object',

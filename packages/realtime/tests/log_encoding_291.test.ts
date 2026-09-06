@@ -132,11 +132,14 @@ Deno.test('#291 evict-teardown WARN renders the error and encodes the client id'
         listMembers: () => Promise.resolve([]),
         removeMember: () => Promise.reject(DSN_FAILURE()),
     }
-    // Escaped, not a raw U+202E. With the literal on both sides, any tool that
-    // normalises it away changes fixture and assertion together and the test
-    // degrades silently into a tautology — the hazard class this very file
-    // asserts about, written into the file that asserts it.
-    const hostile = 'client‮gnp.txt'
+    // #304 made a hostile id UNCONSTRUCTIBLE: `register` refuses anything
+    // outside `isValidName`, so a bidi override can no longer BE a connection
+    // id. The `safeForLog(clientId)` at the WARN below therefore has no
+    // reachable hostile input any more. It stays as the second of two
+    // independent controls — the same argument the driver's own WARNs make for
+    // their encoders — and the assertion it used to carry now lives in
+    // `connection_id_charset.test.ts` as a throw rather than an escape.
+    const hostile = 'client-gnp.txt'
     // `authorize` defaults to DENY, so without one the subscribe below is
     // refused, no presence member is recorded, unsubscribe short-circuits and
     // the WARN never fires — a green test asserting nothing.
@@ -156,11 +159,12 @@ Deno.test('#291 evict-teardown WARN renders the error and encodes the client id'
         'warn',
         'a teardown failure is a WARN, not an ERROR',
     )
-    assertEquals(
-        warn?.text.includes('‮'),
-        false,
-        'a bidi override reached the sink',
-    )
+    // The id still reaches the line. This does NOT keep the encoder honest —
+    // `safeForLog(x) === x` for every id that can now get here, so no assertion
+    // at this site can tell the encoder from its absence. The claim that it
+    // could was wrong, and the battery proved it by going red. What this
+    // asserts is only that the id is still interpolated at all.
+    assertStringIncludes(warn?.text ?? '', 'client-gnp.txt')
 })
 
 Deno.test('#291 durable-revocation WARN renders the error and stays a WARN', async () => {
