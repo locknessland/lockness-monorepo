@@ -128,6 +128,14 @@ export interface Connection<Identity = unknown> {
      * unsubscribes every channel, and removes the member from the authoritative
      * roster. With a fresh random id per connection the same frame targets
      * something that no longer exists and does nothing.
+     *
+     * **Charset: letters, digits and `:` `.` `_` `-`, at most 200 characters.**
+     * `crypto.randomUUID()` satisfies it. This is not a new constraint — the
+     * control plane has always dropped a frame naming an id outside it — but it
+     * was undocumented and enforced in only one of three paths, so an id like
+     * `user@example.com` evicted on its own instance and silently nowhere else.
+     * `ChannelManager.register` and `subscribe` now refuse such an id outright,
+     * which is the whole of the enforcement: everything downstream may assume it.
      */
     readonly id: string
     /** The server-verified identity, or `null` for an unauthenticated socket. */

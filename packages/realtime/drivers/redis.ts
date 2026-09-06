@@ -1136,9 +1136,25 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         const live = new Set<string>()
         for (const raw of members ?? []) {
             const id = asBulk(raw)
-            if (id) live.add(id)
+            // Filtered, matching what the control-plane ingest has always done
+            // to `wire.target`. Both return paths are broker-sourced: a writer
+            // with bus access could put anything in the index, and reconcile
+            // hands what it finds straight to `revokeLocal`. The asymmetry
+            // between the two paths was the finding, not the reach.
+            //
+            // This drops nothing legitimate written by a version that
+            // ENFORCES the boundary — and that qualifier is load-bearing. A
+            // durable revocation recorded by a PRE-upgrade instance for an
+            // out-of-charset id is discarded here, so during a rolling upgrade
+            // such a connection reconnects un-revoked: the very silent failure
+            // this change removes, reintroduced for exactly the population the
+            // upgrade note addresses. `docs/realtime.md` says to re-issue those
+            // revocations against in-charset ids before deploying.
+            if (id && isValidName(id)) live.add(id)
         }
-        for (const id of await this.#legacyRevoked()) live.add(id)
+        for (const id of await this.#legacyRevoked()) {
+            if (isValidName(id)) live.add(id)
+        }
         return [...live]
     }
 
@@ -1158,7 +1174,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         const live: string[] = []
         for (const raw of asArray(reply) ?? []) {
             const id = asBulk(raw)
-            if (!id) continue
+            // Filtered HERE, not by the caller. The outer filter ran after this
+            // method returned, so an out-of-charset member still reached
+            // `legacyRevokedKey` and bought a round-trip per member on every
+            // reconcile tick. RESP framing makes that no injection risk, but a
+            // guard placed after the sink is not the boundary it is described
+            // as. The caller's filter stays as belt-and-braces.
+            if (!id || !isValidName(id)) continue
             const exists = asInteger(
                 await this.command.command(
                     'EXISTS',

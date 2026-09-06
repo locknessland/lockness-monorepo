@@ -12,6 +12,33 @@
  */
 
 import { renderError, safeForLog } from '@lockness/contract'
+import { isValidName } from './protocol.ts'
+
+/**
+ * A connection id the control plane cannot carry.
+ *
+ * A named type rather than a bare `Error` because this reaches the application
+ * through the same `onError` hook as a transport failure and a driver failure,
+ * and those want different handling: a dead socket is operational, an unusable
+ * id is a bug in the caller's own code that no retry will fix.
+ */
+export class ConnectionIdError extends Error {
+    override readonly name = 'ConnectionIdError'
+
+    /**
+     * @param id - The offending id, encoded before it reaches the message.
+     */
+    constructor(id: string) {
+        super(
+            `realtime: connection id ${safeForLog(id)} is outside the ` +
+                'supported charset (letters, digits and : . _ -, at most 200 ' +
+                'characters). Mint connection ids with `crypto.randomUUID()`. ' +
+                'The control plane drops frames naming an id outside it, so ' +
+                'eviction would work on this instance and silently fail on ' +
+                'every other one.',
+        )
+    }
+}
 import type { Connection, WebSocketHooks } from './types.ts'
 import type {
     BroadcastDriver,
@@ -163,7 +190,19 @@ export class ChannelManager<Identity = unknown> {
     ): WebSocketHooks<Identity> {
         return {
             onOpen: (conn) => {
-                this.register(conn)
+                // CLOSE FIRST, then rethrow. `guard()` in websocket.ts catches
+                // whatever this throws and merely logs it, so a bare throw left
+                // the socket OPEN and untracked: the app's own onOpen — where a
+                // per-socket rate limit or an explicit unauthorized-close lives
+                // — was skipped, onMessage went on firing, and `evict` could
+                // not reclaim it because it rejects the same id. Fail-open on
+                // the seam this breaking change was supposed to make loud.
+                try {
+                    this.register(conn)
+                } catch (error) {
+                    conn.close(1011, 'unusable connection id')
+                    throw error
+                }
                 return userHooks.onOpen?.(conn)
             },
             onMessage: userHooks.onMessage,
@@ -176,11 +215,36 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * Reject a connection id the rest of the framework cannot carry.
+     *
+     * **Loud, at the boundary, once.** Before this, three paths disagreed about
+     * an id outside {@link isValidName}: a local `evict()` worked, a control
+     * frame to another instance was dropped on ingest (`drivers/redis.ts`), and
+     * the durable reconcile recovered it. An application using such an id had a
+     * revocation that worked on one instance and not the others, with nothing
+     * to tell it so — and filtering the reconcile path alone would have made
+     * that two silent failures rather than one.
+     *
+     * The charset is not new; it is what the control plane has always required.
+     * What is new is saying so at the moment the id enters, where an
+     * application can act on it, instead of at a revocation nobody is watching.
+     *
+     * @param id - The connection id to check.
+     * @throws If the id is outside the charset the control plane accepts.
+     */
+    #assertUsableId(id: string): void {
+        if (isValidName(id)) return
+        throw new ConnectionIdError(id)
+    }
+
+    /**
      * Register a live connection (call from the handler's `onOpen`).
      *
      * @param connection - The connection to track.
+     * @throws If `connection.id` is outside the supported charset.
      */
     register(connection: Connection<Identity>): void {
+        this.#assertUsableId(connection.id)
         this.connections.set(connection.id, connection)
     }
 
@@ -196,11 +260,21 @@ export class ChannelManager<Identity = unknown> {
      * @param connection - The subscribing connection.
      * @param channel - The channel name.
      * @returns Whether it was authorized, plus the presence roster when relevant.
+     * @throws {ConnectionIdError} If `connection.id` is outside the supported
+     *   charset. That is a caller bug, not an authorization outcome — a denied
+     *   subscribe answers `{ ok: false }`, and folding the two together would
+     *   put a policy decision and a defect behind the same branch.
      */
     async subscribe(
         connection: Connection<Identity>,
         channel: string,
     ): Promise<SubscribeResult> {
+        // FIRST, before `channelKind` and before the awaited authorize. It
+        // sat after both, so an out-of-charset id returned `{ ok: false }`
+        // whenever the app's authorizer denied — the same id that throws on a
+        // public channel — and the authorizer (a DB read, an audit write, a
+        // rate-limit increment) ran on an id that was never usable.
+        this.#assertUsableId(connection.id)
         const kind = channelKind(channel)
 
         let member: PresenceMember | undefined
@@ -344,13 +418,24 @@ export class ChannelManager<Identity = unknown> {
      * @param clientId - The connection id to evict.
      * @returns Resolves once the durable marker is set and the revocation has
      *   been applied locally or published to the owning instance.
+     * @throws {ConnectionIdError} If `clientId` is outside the supported
+     *   charset. Without this the call would publish a control frame that every
+     *   receiving instance drops on ingest, and return successfully having
+     *   revoked nothing.
      * @example
      * ```ts
      * // A revoked token: kick the connection off every instance.
+     * // Throws ConnectionIdError if the id is not one this framework minted.
      * await manager.evict(connectionId)
      * ```
      */
     async evict(clientId: string): Promise<void> {
+        // The third boundary. `evict` takes an arbitrary string from the
+        // application, and an id outside the charset would publish a control
+        // frame that every receiving instance drops on ingest — a revocation
+        // that reports success and does nothing. Loud here, for the same reason
+        // it is loud at registration.
+        this.#assertUsableId(clientId)
         // Durable first (S1/FR-014): even if the control frame is lost, the
         // owning instance recovers the evict on its next reconcile.
         //
