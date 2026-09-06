@@ -424,31 +424,85 @@ warning): the control plane and cross-instance presence announcements are
 effectively off, so the secret is **required** for any app that uses presence or
 eviction across instances.
 
-**The reserved `prefix` is NOT a security boundary, in either direction.** Redis
-pub/sub has no per-topic ACL by default, so the prefix is isolation by
-convention only — anyone with `PUBLISH` on the bus can write to a prefixed
-topic.
+### What the reserved `prefix` guarantees
 
-**And it does not isolate outbound either. Do not nest one deployment's prefix
-under another's.** The driver subscribes with `${prefix}:*`, and a Redis glob
-matches `:` like any other character, so a deployment at `app` receives the
-events of one at `app:eu`
-([#288](https://github.com/locknessland/lockness-monorepo/issues/288), open).
-The control topic is unaffected — a control frame carries no `event` field and
-is dropped on ingest, so the HMAC is not bypassed — but the event payloads are
-disclosed. Give sibling deployments sibling prefixes (`app:eu`, `app:us`), never
-a parent and a child.
+**Outbound: no deployment receives another deployment's frames.** Nested
+prefixes included — `app` and `app:eu` on one broker are isolated from each
+other. This is structural, not a convention: every topic and key the driver
+derives sits behind a `__`-leading separator (`app__event:orders`,
+`app__control`, `app__presence:room`), and no accepted prefix may contain `__`,
+so no pattern one deployment subscribes can match anything another derives.
 
-**A prefix containing a Redis glob metacharacter is refused at construction.**
-`*` `?` `[` `]` and `\` all reach `PSUBSCRIBE` as a pattern, where they would
-widen the subscription to traffic the deployment does not own — and `app\` is
-the worst of them, because Redis reads `app\:*` as the literal `app:*`, so that
-deployment reads another's whole stream while its own traffic stays invisible to
-the deployment it is reading. On a shared or multi-tenant Redis, the HMAC (which
-the framework provides) is what actually authenticates the control plane; layer
-per-prefix Redis ACLs on top where your Redis supports them, and hold the
-roster/pub-sub bus to the same TLS + AUTH posture as any other credentialed
-connection.
+**Inbound: the prefix guarantees nothing, and that has not changed.** Redis
+pub/sub has no per-topic ACL by default. Any client on the broker can `PUBLISH`
+into `app__event:<channel>` — exactly as guessable as the old name — and can
+also **read**: `PSUBSCRIBE app__control` returns every control frame in clear
+(connection ids, presence `member.info`, instance ids), and the presence
+rosters, instance set and revocation index are readable at their derived key
+names. The HMAC protects **integrity, not confidentiality**.
+
+**The compensating control is a Redis ACL, and it is a condition rather than a
+suggestion.** Without one, "isolated" means only that the _drivers_ do not cross
+— not that a third party cannot read both.
+
+```
+ACL SETUSER app-realtime on '>...' \
+  ~app__*  ~app:revoked  ~app:revoked:* \
+  &app__event:*  &app__control \
+  +@all
+```
+
+Two details, both verified against Redis 7 rather than inferred — get either
+wrong and the ACL undoes the isolation it was added for:
+
+- **Key patterns must be `~<prefix>__*`, never `~<prefix>*`.** The wider form
+  matches a _nested_ deployment's keys: with `app` and `app:eu` on one broker,
+  `~app*` lets the `app` credential `GET app:eu__presence:<channel>` and read
+  the other deployment's roster. That is the disclosure this section exists to
+  describe, handed back by the ACL.
+- **Channel patterns must be spelled EXACTLY as the driver subscribes them.**
+  Redis matches a `PSUBSCRIBE` pattern against `&` patterns **literally**, not
+  by containment, so `&app__*` does **not** authorize `PSUBSCRIBE app__event:*`
+  — it returns `NOPERM`, and the usual reaction to that is `allchannels`, which
+  grants everything. `&app__event:*` and `&app__control` are the two the driver
+  actually issues.
+
+The two `~app:revoked` grants cover the legacy revocation names described below;
+drop them once
+[#278](https://github.com/locknessland/lockness-monorepo/issues/278) removes the
+dual-read path. Hold the bus to the same TLS + AUTH posture as any other
+credentialed connection.
+
+**A prefix must match `[A-Za-z0-9:._-]` and be 1–64 characters, and must not
+contain `__`.** Four checks, each with its own message. The glob metacharacters
+`*` `?` `[` `]` and `\` are named individually because they reach `PSUBSCRIBE`
+as a pattern and would widen the subscription — `app\` worst of all, since Redis
+reads `app\:*` as the literal `app:*`, so that deployment reads another's whole
+stream while its own traffic stays invisible to the deployment it is reading.
+`__` is refused because it is the lead-in every reserved separator begins with;
+a prefix carrying it can reach another deployment's names.
+
+#### Upgrading a running fleet
+
+The event topic changed from `<prefix>:<channel>` to `<prefix>__event:<channel>`
+and five keys moved to `<prefix>__presence:` / `__owned:` / `__alive:` /
+`__instances` / `__revocations`. **Pre- and post-change instances do not
+exchange events**, and they do not see each other's rosters.
+
+Restart the fleet together rather than rolling one instance at a time. Nothing
+is queued and nothing is lost beyond the in-flight window — pub/sub is not
+durable, and rosters and liveness keys are runtime state that rebuilds as
+clients reconnect. There is no compatibility shim: `@lockness/realtime` had not
+been published when this landed, so no deployment could exist to need one, and
+this change is required to land in or before the first release that publishes
+the package.
+
+Two revocation key names — `<prefix>:revoked` and `<prefix>:revoked:<id>` — keep
+their old shape on purpose. They exist only to read what a pre-#276 instance
+wrote at those exact names, so anchoring them would address a key nothing has
+ever written.
+[#278](https://github.com/locknessland/lockness-monorepo/issues/278) removes
+them.
 
 The channel-event path keeps its existing defence in depth on top of all this:
 every message off the bus is re-validated on ingest (channel/event names via
