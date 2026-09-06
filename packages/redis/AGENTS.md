@@ -128,7 +128,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-7 test files for 9 source files:
+7 test files for 10 source files:
 
 - `packages/redis/tests/client.test.ts`
 - `packages/redis/tests/connection.test.ts`
