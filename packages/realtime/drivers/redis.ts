@@ -199,9 +199,72 @@ export interface RedisPresenceOptions {
     reconcileIntervalMs?: number
 }
 
+/**
+ * Redis glob metacharacters. A prefix carrying one of these is refused (#282).
+ *
+ * The prefix reaches `PSUBSCRIBE` at two sites — the event pattern and the
+ * control topic — and both are **pattern** contexts, not literal ones. A `*` in
+ * the prefix therefore widens the subscription to traffic the deployment does
+ * not own, and it does so while remaining trivially "anchored" under any
+ * `startsWith` check, so a containment test alone will not catch it.
+ *
+ * `packages/redis/tests/live_broker.ts:157-172` already applies this discipline
+ * to the test harness's own namespace, with the reasoning written out. The
+ * driver did not apply it to the operator's prefix until now.
+ *
+ * **All five, and the fifth is the nastiest.** A first version listed four and
+ * omitted `\\`. A prefix of `app\\` yields `PSUBSCRIBE app\\:*`, which Redis
+ * reads as the literal `app:*` — so that deployment subscribes to another one's
+ * entire event stream **while its own traffic stays invisible to that
+ * deployment**, i.e. the asymmetry hides it from whoever would notice. It also
+ * corrupts the #273 reaper's `SCAN MATCH app\\*` into a literal, so its keys are
+ * never reaped.
+ */
+const PREFIX_GLOB_CHARS: readonly string[] = ['*', '?', '[', ']', '\\']
+
+/**
+ * Refuse a prefix that would widen a subscription.
+ *
+ * @param prefix - The configured prefix.
+ * @throws {Error} If it contains a Redis glob metacharacter, or is empty.
+ */
+function assertUsablePrefix(prefix: string): void {
+    if (prefix.length === 0) {
+        throw new Error(
+            'RedisBroadcastDriver: prefix must not be empty — every key and ' +
+                'topic is derived from it',
+        )
+    }
+    for (const char of PREFIX_GLOB_CHARS) {
+        if (prefix.includes(char)) {
+            throw new Error(
+                `RedisBroadcastDriver: prefix must not contain the Redis glob ` +
+                    `character "${char}" — it is interpolated into PSUBSCRIBE ` +
+                    `patterns, where it would widen the subscription to traffic ` +
+                    `this deployment does not own`,
+            )
+        }
+    }
+}
+
 /** Options for the Redis broadcast driver. */
 export interface RedisBroadcastDriverOptions {
-    /** Reserved topic prefix for multi-app / multi-tenant isolation. */
+    /**
+     * Reserved name prefix for every key and topic this driver derives.
+     *
+     * **Not an isolation boundary**, despite what this docstring said until
+     * #282. It scopes what this driver *writes and subscribes to*; it does not
+     * stop anything else on the broker publishing into `${prefix}:<channel>` —
+     * see this file's header. Calling it "multi-tenant isolation" is what would
+     * lead an operator to give two deployments nested prefixes, which is not
+     * safe: a glob matches `:` like any other character.
+     *
+     * Must contain no Redis glob metacharacter. It is interpolated into
+     * `PSUBSCRIBE` patterns, where `*`, `?` or `[` would widen the subscription
+     * to traffic the deployment does not own, so one is refused at construction.
+     *
+     * @default "lockness:realtime"
+     */
     prefix?: string
     /**
      * The FR-015 control-plane authenticity secret. Required for the control /
@@ -453,6 +516,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         options: RedisBroadcastDriverOptions = {},
     ) {
         this.prefix = options.prefix ?? 'lockness:realtime'
+        assertUsablePrefix(this.prefix)
         if (options.control?.secret !== undefined) {
             const bytes = new TextEncoder().encode(options.control.secret)
             if (bytes.length < MIN_CONTROL_SECRET_BYTES) {
