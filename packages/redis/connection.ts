@@ -139,10 +139,35 @@ export class AuthenticatedConnection {
     private connection: Deno.Conn | null = null
     /**
      * The in-flight `connect()` promise, cached so a concurrent cold-start burst
-     * opens ONE socket. Dropped on rejection and on {@link discard} so the next
-     * connect retries.
+     * opens ONE socket — **paired with the socket it produced** (#287).
+     *
+     * `conn` is `null` while the dial is running and is filled in the same
+     * statement that sets {@link connection}, so the pairing is established
+     * atomically and a dial that has not settled is not owned by any socket.
+     *
+     * **Why a pair rather than `if (this.connection === conn)`.** That guard is
+     * in fact sufficient for every state reachable today — `connect()`
+     * short-circuits on a non-null `connection`, so a replacement dial can only
+     * START once `connection` is null, and a stale discard therefore compares
+     * against `null` and leaves the dial alone. It is correct by an inference
+     * about a short-circuit two methods away. Three things make that inference
+     * a bad thing to depend on:
+     *
+     * - A future path that nulls `connection` independently reintroduces the
+     *   cancellation, silently and with every test still green.
+     * - `connectPromise` is **never cleared on success** — only in the `p.catch`
+     *   below — so after a settled dial the two fields describe one generation
+     *   through different mechanisms at different instants.
+     * - #286's write deadline makes a LATE discard of an already-replaced
+     *   socket routine, which is what turned this from unreachable into the
+     *   next guard to give way.
+     *
+     * Dropped on rejection and on {@link discard} of **its own** socket, so the
+     * next connect retries.
      */
-    private connectPromise: Promise<Deno.Conn> | null = null
+    private pending:
+        | { promise: Promise<Deno.Conn>; conn: Deno.Conn | null }
+        | null = null
     private readonly config: {
         hostname: string
         port: number
@@ -191,7 +216,7 @@ export class AuthenticatedConnection {
      * `close()` uses so it never *reopens* a socket that was never established.
      */
     get isActive(): boolean {
-        return this.connection !== null || this.connectPromise !== null
+        return this.connection !== null || this.pending !== null
     }
 
     /**
@@ -212,7 +237,7 @@ export class AuthenticatedConnection {
      */
     connect(): Promise<Deno.Conn> {
         if (this.connection) return Promise.resolve(this.connection)
-        if (!this.connectPromise) {
+        if (!this.pending) {
             const p = (async () => {
                 // ONE deadline for dial + AUTH + SELECT, fixed before the first
                 // of them, so the window bounds the activation rather than each
@@ -250,6 +275,10 @@ export class AuthenticatedConnection {
                     throw error
                 }
                 this.connection = conn
+                // The pairing, established in the same statement that publishes
+                // the socket: from here on this dial is owned by `conn`, and a
+                // discard of any other generation cannot cancel it.
+                if (this.pending) this.pending.conn = conn
                 return conn
             })()
             // Self-heal: drop the cached promise on rejection so the next connect
@@ -257,11 +286,11 @@ export class AuthenticatedConnection {
             // `=== p` guard keeps the single-flight — concurrent callers still
             // await one open.
             p.catch(() => {
-                if (this.connectPromise === p) this.connectPromise = null
+                if (this.pending?.promise === p) this.pending = null
             })
-            this.connectPromise = p
+            this.pending = { promise: p, conn: null }
         }
-        return this.connectPromise
+        return this.pending.promise
     }
 
     /**
@@ -364,6 +393,13 @@ export class AuthenticatedConnection {
             // Already closed by the failure itself; nothing to free.
         }
         if (this.connection === conn) this.connection = null
-        this.connectPromise = null
+        // Only this socket's own dial. An unsettled dial (`conn: null`) is not
+        // cancellable by any discard, by construction rather than by inference
+        // — see {@link pending}. Clearing this unconditionally cancelled
+        // whatever dial happened to be in flight, so the next `connect()` saw
+        // no cached promise and dialled again: the single-flight invariant
+        // gone, and with `tls` defaulting to false, one more cleartext AUTH on
+        // the wire (#287).
+        if (this.pending?.conn === conn) this.pending = null
     }
 }

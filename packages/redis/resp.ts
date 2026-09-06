@@ -249,30 +249,133 @@ export function encodeCommand(args: readonly string[]): Uint8Array {
  * caller discards the connection, since a partially written frame cannot be
  * recovered on that socket.
  *
+ * **`timeoutMs` is a PER-FRAME wall-clock deadline, and it is optional** (#286).
+ *
+ * Optional because `exchange` (`connection.ts`) passes its own `timeoutMs` to
+ * `readReply` **only** — so a defaulted deadline here would land on `AUTH`,
+ * `SELECT`, `QUIT` and every `RedisClient.command` without a caller opting in,
+ * and would bypass the handshake's per-step `#remaining` threading, restoring
+ * the deadline multiplication #274 removed. Absent, the loop is unbounded and
+ * behaves exactly as it did before #286.
+ *
+ * Per **frame**, not per `conn.write`, for the reason `ReplyReader` already
+ * records for the read side: a socket dribbling one byte at a time completes
+ * every individual write, clears every per-write timer, and never finishes the
+ * frame. The deadline is fixed once, before the loop.
+ *
  * @param conn - The open connection to write to.
  * @param frame - The complete frame from `encodeCommand`.
+ * @param timeoutMs - Optional per-frame deadline. Omit for an unbounded write.
  * @returns Resolves once every byte of `frame` has been written.
- * @throws {Error} If the connection stops accepting bytes before the frame is
- *   fully written.
+ * @throws {RangeError} If `timeoutMs` is given and is not positive and finite.
+ * @throws {Error} If the connection stops accepting bytes, or the frame is not
+ *   fully written before `timeoutMs` elapses. Either way bytes may remain on
+ *   the wire, so the caller must discard the socket rather than reuse it.
  * @example
  * ```typescript
- * await writeFrame(conn, encodeCommand(['PING']))
+ * await writeFrame(conn, encodeCommand(['PING']))       // unbounded
+ * await writeFrame(conn, encodeCommand(['PING']), 5000) // bounded
  * ```
  */
 export async function writeFrame(
     conn: Deno.Conn,
     frame: Uint8Array,
+    timeoutMs?: number,
 ): Promise<void> {
+    if (
+        timeoutMs !== undefined &&
+        (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
+    ) {
+        throw new RangeError(
+            `Redis write timeout must be positive and finite, got ${timeoutMs}`,
+        )
+    }
+    const deadline = timeoutMs === undefined
+        ? undefined
+        : Date.now() + timeoutMs
     let offset = 0
     while (offset < frame.byteLength) {
-        const written = await conn.write(frame.subarray(offset))
+        const written = deadline === undefined
+            ? await conn.write(frame.subarray(offset))
+            : await writeWithDeadline(conn, frame, offset, deadline, timeoutMs!)
         if (written <= 0) {
-            throw new Error(
+            // A `RespFramingError`, like the timeout beside it. Both mean the
+            // same thing to a caller — a partial frame is on the wire and the
+            // socket must be discarded — and until the review gate this one
+            // threw a bare `Error`, so the keepalive's `instanceof` check
+            // skipped it and that branch neither discarded nor scheduled. Two
+            // seats found it independently; one error type, one obligation.
+            //
+            // The offset stays EXACT here, unlike the timeout's: this write
+            // RETURNED, so nothing is still advancing behind us.
+            throw new RespFramingError(
                 `Redis write stalled after ${offset} of ${frame.byteLength} bytes`,
             )
         }
         offset += written
     }
+}
+
+/**
+ * One `conn.write`, bounded by what is left of the frame's deadline.
+ *
+ * **The offset in the timeout message is a LOWER BOUND and says so.** Losing
+ * the race does not cancel the underlying `conn.write` — Deno has no mechanism
+ * to — so it may still be advancing the socket after this rejects. A message
+ * that named an exact figure would be claiming a precision it cannot have, and
+ * the next person to read it in an incident would trust the number.
+ */
+function writeWithDeadline(
+    conn: Deno.Conn,
+    frame: Uint8Array,
+    offset: number,
+    deadline: number,
+    timeoutMs: number,
+): Promise<number> {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) {
+        return Promise.reject(writeTimeout(offset, frame, timeoutMs))
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const guard = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+            () => reject(writeTimeout(offset, frame, timeoutMs)),
+            remaining,
+        )
+    })
+    return Promise.race([conn.write(frame.subarray(offset)), guard])
+        .finally(() => clearTimeout(timer)) as Promise<number>
+}
+
+/**
+ * The per-frame timeout error, with its offset marked as a lower bound.
+ *
+ * **A `RespFramingError`, deliberately.** That type already means exactly this
+ * — bytes remain on the wire, the socket is desynced, discard it — and
+ * `client.ts` already routes on it. Carrying the obligation in the TYPE rather
+ * than in a comment is what makes it reach the one caller most likely to miss
+ * it: the keepalive's fire-and-forget `.catch`, which deliberately does not
+ * recover because it assumes the read loop will also see the fault. That
+ * assumption holds for a socket error and is FALSE for a timeout — the socket
+ * is alive and merely slow, the read loop keeps draining, and the abandoned
+ * partial frame silently splices onto the next write.
+ */
+function writeTimeout(
+    offset: number,
+    frame: Uint8Array,
+    timeoutMs: number,
+): RespFramingError {
+    // ORDERED FOR TRUNCATION. `renderError` caps a message at 200 characters,
+    // so the actionable half has to come first — an earlier version put
+    // "discard the socket" at the end and it was cut off in the very log line
+    // an operator would be reading. Measured, not guessed: the test asserting
+    // it went red.
+    return new RespFramingError(
+        `Redis write timed out after ${timeoutMs}ms — discard the socket, ` +
+            `bytes may remain on the wire (at least ${offset} of ` +
+            `${frame.byteLength} written; a lower bound, the abandoned write ` +
+            'cannot be cancelled)',
+    )
 }
 
 /**
@@ -298,6 +401,49 @@ function readWithTimeout(
     return Promise.race([conn.read(buf), guard]).finally(() =>
         clearTimeout(timer)
     ) as Promise<number | null>
+}
+
+/**
+ * Parse a RESP length prefix — the **single home** for what one may be (#287).
+ *
+ * `Number()` was doing this job and it is far too permissive for a value that
+ * decides how many bytes to take off a socket. Measured, not asserted — every
+ * one of these was accepted as a length before this function existed:
+ *
+ * | Line | `Number()` | Taken as |
+ * | :--- | :--- | :--- |
+ * | `""` / `" "` | `0` | 0 |
+ * | `"0x10"` | `16` | 16 |
+ * | `"1e3"` | `1000` | 1000 |
+ * | `"+5"` / `"5."` | `5` | 5 |
+ * | `"0b11"` | `3` | 3 |
+ *
+ * RESP2 mandates decimal digits. `NaN`, `Infinity` and negatives below `-1`
+ * were already rejected; this is about what slipped **through**, each of which
+ * reads the wrong number of bytes and desyncs the socket without raising.
+ *
+ * **What this is worth, stated honestly.** Only the broker or a
+ * machine-in-the-middle on a plaintext link can put those bytes on the wire,
+ * and either already owns the stream — a hostile broker does not need
+ * `Number("")` to answer command B with command A's reply, it can just send
+ * them out of order. So the value here is that a mis-read becomes **loud**
+ * rather than becoming impossible. That is defence in depth, and it should not
+ * be read as an access-control fix.
+ *
+ * @param line - The characters between the type byte and the CRLF.
+ * @returns The length, or `null` when the line is not a valid prefix.
+ * @example
+ * ```typescript
+ * parseLength('42')   // 42
+ * parseLength('-1')   // -1  — nil, distinct from empty
+ * parseLength('0x10') // null
+ * ```
+ */
+function parseLength(line: string): number | null {
+    if (line === '-1') return -1
+    if (!/^[0-9]+$/.test(line)) return null
+    const value = Number(line)
+    return Number.isSafeInteger(value) ? value : null
 }
 
 /** The bytes each `#fill` pulls from the socket per `conn.read`. */
@@ -452,6 +598,14 @@ async function parseReply(reader: ReplyReader): Promise<RespReply> {
             throw new RespServerError(await reader.readLine())
         case 0x3a /* : */: {
             const line = await reader.readLine()
+            // DELIBERATELY still `Number()`, not `parseLength` (#287, out of
+            // scope). An integer REPLY's value is not a frame length: nothing
+            // downstream uses it to decide how many bytes to take off the
+            // socket, so a loose parse desyncs nothing. Tightening it here
+            // would change the error a caller sees from `RespServerError`
+            // (socket in sync, connection retained by `client.ts`) to
+            // `RespFramingError` (socket discarded) — a behaviour change with
+            // no defect behind it. The next consistency pass stops here.
             const value = Number(line)
             if (!Number.isFinite(value)) {
                 // The reply line was fully read before the value was rejected —
@@ -463,7 +617,7 @@ async function parseReply(reader: ReplyReader): Promise<RespReply> {
         }
         case 0x24 /* $ */: {
             const lenLine = await reader.readLine()
-            const len = Number(lenLine)
+            const len = parseLength(lenLine) ?? Number.NaN
             if (len === -1) return { type: 'nil' } // nil bulk, distinct from ''
             if (!Number.isInteger(len) || len < -1) {
                 // The declared body length is unusable, so the payload cannot be
@@ -486,12 +640,24 @@ async function parseReply(reader: ReplyReader): Promise<RespReply> {
                 )
             }
             const payload = decoder.decode(await reader.readExact(len))
-            await reader.readExact(2) // trailing CRLF
+            // VERIFIED, not merely consumed (#287). The length check above stops
+            // the client believing a bad length; this stops it believing the
+            // frame ended where the length said it did. Two bytes swallowed
+            // unchecked slide the cursor silently, which is the same class of
+            // fault one step later.
+            const terminator = await reader.readExact(2)
+            if (terminator[0] !== 0x0d || terminator[1] !== 0x0a) {
+                throw new RespFramingError(
+                    `RESP bulk body of ${len} bytes was not followed by CRLF ` +
+                        '— the declared length and the frame disagree, so the ' +
+                        'socket is desynced',
+                )
+            }
             return { type: 'bulk', value: payload }
         }
         case 0x2a /* * */: {
             const lenLine = await reader.readLine()
-            const len = Number(lenLine)
+            const len = parseLength(lenLine) ?? Number.NaN
             if (len === -1) return { type: 'nil' } // nil array, distinct from []
             if (!Number.isInteger(len) || len < -1) {
                 // An unusable element count: how many replies follow cannot be

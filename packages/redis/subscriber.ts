@@ -46,7 +46,13 @@ import {
     AuthenticatedConnection,
     type AuthenticatedConnectionConfig,
 } from './connection.ts'
-import { encodeCommand, readReply, type RespReply, writeFrame } from './resp.ts'
+import {
+    encodeCommand,
+    readReply,
+    RespFramingError,
+    type RespReply,
+    writeFrame,
+} from './resp.ts'
 
 /**
  * The default shutdown-drain priority for the subscribe socket's disposable.
@@ -92,6 +98,31 @@ const DEFAULT_RETRY_MAX_MS = 30_000
  * permanent churn it exists to remove.
  */
 const MIN_LIVENESS_RATIO = 2
+
+/**
+ * The ceiling on how long one frame may take to reach the socket (#286).
+ *
+ * The write budget is `Math.min(livenessMs, WRITE_STALL_CEILING_MS)` — derived
+ * from the operator's one knob, then capped. **Not the liveness window raw**,
+ * because the two legs measure different physics:
+ *
+ * - The liveness window is a tolerance for **silence**, correctly a function of
+ *   `keepaliveMs` — three intervals, so two consecutive lost pongs are
+ *   tolerated.
+ * - A write budget is a tolerance for **backpressure** on a ~40-byte frame that
+ *   either enters the kernel send buffer immediately or does not, because the
+ *   peer's receive window is shut. Nothing about that is a function of how
+ *   often we ping.
+ *
+ * `#assertCadences` bounds the RATIO and finiteness but has no upper bound. So
+ * an operator who raises `keepaliveMs` to 60s for a quiet bus is forced to
+ * `livenessMs >= 120s`, and without this cap would thereby have set write-stall
+ * detection to two minutes — having touched nothing named "write". Five seconds
+ * is generous for a frame this size on any link where the peer is reading at
+ * all; a peer that has not accepted 40 bytes in five seconds is not slow, it is
+ * wedged.
+ */
+const WRITE_STALL_CEILING_MS = 5_000
 
 /** A push-message handler: called with `(topic, payload)` per delivered frame. */
 type MessageHandler = (topic: string, payload: string) => void
@@ -245,6 +276,38 @@ export class RedisSubscribeConnection {
      * so every frame is silently dropped forever.
      */
     #writeChain: Promise<void> = Promise.resolve()
+    /**
+     * The socket {@link #writeChain} belongs to — the pairing that makes the
+     * queue per **generation** rather than per connection object (#286).
+     *
+     * Mirrors {@link #keepaliveTimer} / {@link #keepaliveConn} deliberately,
+     * including the conditional clear in {@link #discardSocket}. An
+     * unconditional reset is the shape that was a live defect one field over:
+     * discarding a STALE socket while a newer one was live disarmed the live
+     * one's keepalive. Here it would delete the live socket's write
+     * serialization — the thing that stops two writes splicing at a short-write
+     * boundary into a still-valid truncated frame, which raises nothing and
+     * drops every message forever.
+     */
+    #writeChainConn: Deno.Conn | null = null
+    /**
+     * Handler faults per pattern, for the current socket generation (#296).
+     *
+     * Cleared in {@link #discardSocket}, so the first fault after every
+     * reconnect is logged in full. That reset is what stops a suppression
+     * window hiding a security-control failure for the lifetime of a process.
+     */
+    readonly #handlerFaults = new Map<string, number>()
+    /**
+     * How long one frame may take to reach the socket — the write leg's bound
+     * (#286), `Math.min(livenessMs, WRITE_STALL_CEILING_MS)`.
+     *
+     * Passed to `writeFrame`, which owns the enforcement: only its loop holds
+     * the byte offset, and `resp.ts` already owns "a frame is fully on the wire
+     * before a reply is read". A timer here would make this file a second
+     * decider of when a frame is complete.
+     */
+    #writeDeadlineMs!: number
     /** Whether `AUTH` travels in cleartext, for the retry WARN (security S5). */
     readonly #cleartextAuth: boolean
 
@@ -257,6 +320,12 @@ export class RedisSubscribeConnection {
     constructor(config: RedisSubscribeConnectionConfig) {
         this.#keepaliveMs = config.keepaliveMs ?? DEFAULT_KEEPALIVE_MS
         this.#livenessMs = config.livenessMs ?? DEFAULT_LIVENESS_MS
+        // Derived once, from the one knob the operator sets, then capped.
+        // See WRITE_STALL_CEILING_MS for why not the window raw.
+        this.#writeDeadlineMs = Math.min(
+            this.#livenessMs,
+            WRITE_STALL_CEILING_MS,
+        )
         this.#retryBaseMs = config.retryBaseMs ?? DEFAULT_RETRY_BASE_MS
         this.#retryMaxMs = config.retryMaxMs ?? DEFAULT_RETRY_MAX_MS
         this.#assertCadences()
@@ -402,7 +471,30 @@ export class RedisSubscribeConnection {
      * for the recovery that follows it.
      */
     #write(conn: Deno.Conn, frame: Uint8Array): Promise<void> {
-        const next = this.#writeChain.then(() => writeFrame(conn, frame))
+        // MECHANISM 1 — rebase on a generation change, so a new socket's first
+        // write does not queue behind a dead socket's backlog. The recovery
+        // would otherwise wait for the thing it is recovering from.
+        if (this.#writeChainConn !== conn) {
+            this.#writeChain = Promise.resolve()
+            this.#writeChainConn = conn
+        }
+        const next = this.#writeChain.then(() => {
+            // MECHANISM 2 — re-check INSIDE the queued closure. Rebasing the
+            // field does not cancel a write already chained behind an in-flight
+            // one, so without this a queued frame still reaches a dead socket.
+            //
+            // It REJECTS rather than resolving quietly: a silently-dropped
+            // write would leave `#activate`'s await unsettled, which is #286's
+            // own defect — an activation that neither completes nor fails —
+            // relocated into the queue reset.
+            if (this.#writeChainConn !== conn) {
+                throw new Error(
+                    'Redis write abandoned: the socket generation changed ' +
+                        'while this frame was queued. Nothing was written.',
+                )
+            }
+            return writeFrame(conn, frame, this.#writeDeadlineMs)
+        })
         this.#writeChain = next.then(
             () => {},
             () => {},
@@ -419,6 +511,17 @@ export class RedisSubscribeConnection {
      * silently forgotten at the next one.
      */
     #discardSocket(conn: Deno.Conn): void {
+        // Unconditional, unlike the clears below, and deliberately: this is a
+        // per-generation REPORTING counter, not a resource owned by a socket.
+        // Resetting it for a generation that is already gone costs one extra
+        // log line; failing to reset it silences a real fault.
+        this.#handlerFaults.clear()
+        // Conditional, like every other clear in this method. See
+        // `#writeChainConn` for what an unconditional one costs.
+        if (this.#writeChainConn === conn) {
+            this.#writeChain = Promise.resolve()
+            this.#writeChainConn = null
+        }
         // Only if the timer belongs to THIS socket. See `#keepaliveConn`.
         //
         // Also defensive and also untested: for a STALE socket to be discarded
@@ -458,15 +561,47 @@ export class RedisSubscribeConnection {
     #armKeepalive(conn: Deno.Conn): void {
         this.#clearKeepalive()
         const id = setInterval(() => {
-            if (this.closed || this.conn.socket !== conn) return
+            // The socket check moved into `#write`, which is the single funnel
+            // both writers pass through — keeping it here too would be two
+            // homes for one predicate. `closed` stays: it also skips the frame
+            // allocation below.
+            if (this.closed) return
             // No interpolated token, ever. `PING <id>` would put a value of ours
             // on the wire and make this frame something an auditor has to reason
             // about; as a bare literal it is inert.
             this.#write(conn, encodeCommand(['PING'])).catch((error) => {
                 if (this.closed) return
-                // Logged, never swallowed — but recovery is deliberately NOT
-                // triggered here: the read loop on this same socket is about to
-                // fault, and two triggers would race to reconnect.
+                // TWO OBLIGATIONS, and they are not the same one (#286).
+                //
+                // SCHEDULING stays `#activate`'s job: the read loop on this
+                // same socket is about to fault, and two triggers would race to
+                // reconnect. That is still true and unchanged.
+                //
+                // DISCARDING is owed by whoever observed the failure, and this
+                // path used to owe it and not pay. The old reasoning assumed
+                // the read loop would also see the fault — true of a socket
+                // error, FALSE of a write timeout, where the socket is alive
+                // and merely slow. The partial PING then sits mid-frame and the
+                // next PSUBSCRIBE is consumed as its continuation: a spliced
+                // but still-VALID frame, which raises nothing and drops every
+                // message forever (see `#writeChain`).
+                //
+                // And it SCHEDULES, which the plan for #286 first said it must
+                // not. A test found why that was wrong: `#discardSocket` alone
+                // makes `#readLoop`'s `while (this.conn.socket === conn)`
+                // condition false, so the loop exits **quietly** rather than
+                // faulting — nothing re-dials, and the connection is
+                // permanently deaf. That is the defect this whole feature
+                // exists to remove, reintroduced by the fix for it.
+                //
+                // The "two triggers would race" worry the old comment carried
+                // is already answered where it belongs: `#scheduleRetry`
+                // returns early when `#retryTimer !== undefined`, so a second
+                // caller is a no-op rather than a second dial.
+                if (error instanceof RespFramingError) {
+                    this.#discardSocket(conn)
+                    this.#scheduleRetry(true, error, 'keepalive write stalled')
+                }
                 console.warn(
                     `[redis-subscribe] keepalive PING failed at ${
                         safeForLog(this.hostname)
@@ -588,7 +723,10 @@ export class RedisSubscribeConnection {
     #scheduleRetry(
         isReconnect: boolean,
         error: unknown,
-        cause: 'PSUBSCRIBE failed' | 'read fault' = 'PSUBSCRIBE failed',
+        cause:
+            | 'PSUBSCRIBE failed'
+            | 'read fault'
+            | 'keepalive write stalled' = 'PSUBSCRIBE failed',
     ): void {
         if (this.closed) return
         this.#retryIsReconnect ||= isReconnect
@@ -707,7 +845,87 @@ export class RedisSubscribeConnection {
             return
         }
         const handler = this.patterns.get(pattern.value)
-        if (handler) handler(topic.value, payload.value)
+        if (!handler) return
+        try {
+            const result: unknown = handler(topic.value, payload.value)
+            // ASYNC HANDLERS TOO. `catch` sees a synchronous throw and nothing
+            // else, so an `async` handler — or any handler returning a promise
+            // — hands back a REJECTED promise that nothing awaits, which is the
+            // very unobserved rejection #296 is about. The port's handler type
+            // returns `void`, and TypeScript assigns a `Promise<void>` to that
+            // happily, so an application reaches this by writing the natural
+            // thing. Found at the review gate: containment that covers only
+            // half the shapes an application can pass is containment that will
+            // be reported as not working.
+            if (
+                typeof (result as { then?: unknown } | null | undefined)
+                    ?.then === 'function'
+            ) {
+                Promise.resolve(result).catch((error: unknown) =>
+                    this.#reportHandlerFault(pattern.value, error)
+                )
+            }
+        } catch (error) {
+            this.#reportHandlerFault(pattern.value, error)
+        }
+    }
+
+    /**
+     * Report a fault raised by an application handler, without letting it
+     * escape into the read loop (#296).
+     *
+     * **Why this exists at all.** `#dispatch` sat outside `#readLoop`'s `try`,
+     * so a throw here propagated out of a promise nothing awaited for
+     * rejection and Deno terminated the process with code 1. One bug in one
+     * application broadcast handler took down the whole server and every
+     * unrelated connection on it — and the payload that triggered it arrives
+     * from a peer, so the trigger is remote even though the defect is the
+     * app's.
+     *
+     * **Why containment is SAFE here, which is not self-evident.** Dropping a
+     * message instead of crashing is fail-OPEN, and one consumer of this seam —
+     * `@lockness/realtime`'s control plane — uses it to enforce evictions. It
+     * is safe because that consumer has a durable backstop (its revocation
+     * reconcile), so a dropped eviction is delayed rather than lost. **A
+     * consumer without such a backstop must not rely on this catch.** That is
+     * why the line is ERROR with a stable prefix an alert can match, and not a
+     * WARN.
+     *
+     * **What the line may carry, and what it may not.** The pattern and the
+     * error. Never `topic`, and never `payload`. `safeForLog` would not make
+     * that safe — it is a log-injection encoder, not a redactor, and it
+     * truncates at 512 characters, while a realtime control payload is a signed
+     * `{kind, target, origin, ts, nonce, mac}` frame that fits comfortably
+     * inside that. Logging it would write a replayable authenticated `evict`
+     * into the log store, where the per-process replay window that normally
+     * guards it does not apply to a restarted instance. `renderError` is
+     * required rather than optional for the error itself, because an
+     * application's message routinely embeds the payload it choked on.
+     *
+     * **Throttled, and never detached.** The peer chooses the frame rate, so a
+     * handler that throws on every frame is a peer-driven log flood — and a
+     * blocked stderr back-pressures this very read loop into missing its
+     * liveness window. The first fault per pattern per socket generation is
+     * logged in full; the rest are counted. Detaching the handler is not on the
+     * table: it would turn a recoverable application defect into permanent
+     * silent loss, the same reasoning `#fireReconnect` records for its own
+     * seam.
+     */
+    #reportHandlerFault(pattern: string, error: unknown): void {
+        const seen = this.#handlerFaults.get(pattern) ?? 0
+        this.#handlerFaults.set(pattern, seen + 1)
+        if (seen > 0) {
+            // Already reported for this pattern on this socket generation. The
+            // count is emitted with the first fault of the NEXT generation, so
+            // suppression can never hide the failure indefinitely.
+            return
+        }
+        console.error(
+            `[redis-subscribe] a handler for ${safeForLog(pattern)} threw; ` +
+                'the message was DROPPED and delivery continues. Further ' +
+                'faults for this pattern are counted, not logged, until the ' +
+                `socket reconnects: ${renderError(error)}`,
+        )
     }
 
     /**
