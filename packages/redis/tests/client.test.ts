@@ -14,7 +14,11 @@ import { assert, assertEquals, assertRejects } from '@std/assert'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import { RedisClient } from '../mod.ts'
 import { deadlineIn, exchange } from '../connection.ts'
-import { RespFramingError } from '../resp.ts'
+import {
+    MAX_COMMAND_FRAME_BYTES,
+    RespCommandTooLargeError,
+    RespFramingError,
+} from '../resp.ts'
 import { startFakeServer } from './fake_server.ts'
 
 /**
@@ -198,6 +202,12 @@ Deno.test('client - a mid-stream read fault discards the desynced socket, next c
         },
         async () => {
             const client = new RedisClient({
+                // A negligible refusal window (#299). This test is about the
+                // DISCARD and the reconnect after it; the backoff would
+                // otherwise refuse the second command — which is its job, and
+                // is asserted on its own below.
+                retryBaseMs: 1,
+                retryMaxMs: 1,
                 hostname: '127.0.0.1',
                 port: server.port,
             })
@@ -208,6 +218,7 @@ Deno.test('client - a mid-stream read fault discards the desynced socket, next c
                 firstThrew = true
             }
             assertEquals(firstThrew, true, 'the wire fault surfaced')
+            await new Promise((r) => setTimeout(r, 8))
             assertEquals(await client.command('GET', 'k'), {
                 type: 'bulk',
                 value: 'recovered',
@@ -448,10 +459,18 @@ Deno.test('#297: a write-leg framing error discards the socket, through RedisCli
         configurable: true,
         writable: true,
     })
-    const client = new RedisClient({ hostname: '127.0.0.1', port: 1 })
+    const client = new RedisClient({
+        retryBaseMs: 1,
+        retryMaxMs: 1,
+        hostname: '127.0.0.1',
+        port: 1,
+    })
     try {
         await assertRejects(() => client.command('GET', 'k'), RespFramingError)
         assertEquals(opens, 1, 'the first command dialled once')
+        // Past the (deliberately negligible) refusal window, so this asserts
+        // the discard rather than the backoff.
+        await new Promise((r) => setTimeout(r, 8))
         await assertRejects(() => client.command('GET', 'k'), RespFramingError)
         assertEquals(
             opens,
@@ -459,6 +478,454 @@ Deno.test('#297: a write-leg framing error discards the socket, through RedisCli
             'the wedged socket was NOT discarded — the second command reused ' +
                 'it, so a framing fault on the write leg leaves a desynced ' +
                 'socket in place for every later command',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await client.close()
+    }
+})
+
+Deno.test('#300: an oversized command does NOT discard the socket', async () => {
+    // The half a throw cannot deliver. `#serializedExchange`'s rule is
+    // "everything that is not a RespServerError is a desync", so a new error
+    // type is a desync by construction — and the refusal would close a healthy
+    // authenticated socket over a caller-side input error, which with #299's
+    // backoff then refuses every consumer sharing this client.
+    //
+    // Nothing was written: the frame was refused inside `encodeCommand`.
+    let opens = 0
+    const real = Deno.connect
+    const server = await startFakeServer()
+    Object.defineProperty(Deno, 'connect', {
+        value: (opts: Deno.ConnectOptions) => {
+            opens++
+            return real(opts)
+        },
+        configurable: true,
+        writable: true,
+    })
+    const client = new RedisClient({
+        hostname: '127.0.0.1',
+        port: server.port,
+    })
+    try {
+        await client.command('SET', 'warm', 'v')
+        assertEquals(opens, 1, 'the connection is established')
+        await assertRejects(
+            () =>
+                client.command(
+                    'SET',
+                    'k',
+                    'x'.repeat(MAX_COMMAND_FRAME_BYTES + 1),
+                ),
+            RespCommandTooLargeError,
+        )
+        // The socket must be the SAME one, and the next command must not dial.
+        await client.command('SET', 'still', 'here')
+        assertEquals(
+            opens,
+            1,
+            'the oversized command discarded a healthy socket — the next ' +
+                'command had to re-dial, and the caller-side input error ' +
+                'became a shared-state reconnect',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await client.close()
+        server.stop()
+    }
+})
+
+/** A socket that fails every command, so every exchange faults. */
+function faultingConn(): Deno.Conn {
+    return {
+        write: (bytes: Uint8Array) => Promise.resolve(bytes.byteLength),
+        read: () => Promise.reject(new Error('connection reset')),
+        close: () => {},
+        localAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+        remoteAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+    } as unknown as Deno.Conn
+}
+
+Deno.test('#299: a wedged broker cannot be driven into a dial per command', async () => {
+    // Before this, a forced discard re-dialled on the very next command with no
+    // backoff and no circuit breaker — so a wedged or hostile peer drove the
+    // loop at the application's command rate, re-sending AUTH in cleartext on
+    // every cycle since `tls` defaults to false.
+    let opens = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            opens++
+            return Promise.resolve(faultingConn())
+        },
+        configurable: true,
+        writable: true,
+    })
+    const client = new RedisClient({
+        hostname: '127.0.0.1',
+        port: 1,
+        retryBaseMs: 2000,
+        retryMaxMs: 2000,
+    })
+    try {
+        for (let i = 0; i < 40; i++) {
+            await assertRejects(() => client.command('GET', 'k'), Error)
+        }
+        assertEquals(
+            opens,
+            2,
+            `40 commands produced ${opens} dials. Two is the design: the first ` +
+                'fault re-dials immediately so a transient blip costs nothing, ' +
+                'and the second opens the window. Unbounded, this is 40 — and ' +
+                '40 cleartext AUTH frames on the wire.',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await client.close()
+    }
+})
+
+Deno.test('#299: a refused command REJECTS rather than waiting out the window', async () => {
+    // The one place this must differ from the subscribe path. There, a retry is
+    // scheduled and nobody is waiting; here a caller holds the promise, and
+    // parking it would turn a fast failure back into a slow one.
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => Promise.resolve(faultingConn()),
+        configurable: true,
+        writable: true,
+    })
+    const client = new RedisClient({
+        hostname: '127.0.0.1',
+        port: 1,
+        retryBaseMs: 5000,
+        retryMaxMs: 5000,
+    })
+    try {
+        // Two faults: the first re-dials immediately, the second opens the
+        // window that the third command below must be refused by.
+        await assertRejects(() => client.command('GET', 'k'), Error)
+        await assertRejects(() => client.command('GET', 'k'), Error)
+        const started = Date.now()
+        const error = await assertRejects(
+            () => client.command('GET', 'k'),
+            Error,
+        )
+        const elapsed = Date.now() - started
+        assert(
+            elapsed < 100,
+            `the refusal took ${elapsed}ms against a 5000ms window — it slept`,
+        )
+        assert(
+            /backing off/i.test(error.message),
+            `it must say why: ${error.message}`,
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await client.close()
+    }
+})
+
+Deno.test('#299: a peer answering one command per cycle cannot pin the ceiling', async () => {
+    // THE FINDING THE PLAN AUDIT CAUGHT. "Proved healthy" as "one completed
+    // exchange" is defeated by a broker that answers once and then faults: the
+    // streak zeroes every cycle, the ceiling never leaves its floor, and the
+    // client re-dials several times a second forever — re-sending AUTH in
+    // cleartext each time. `subscriber.ts` records the same correction on its
+    // own path: a throttle that resets itself is not a throttle.
+    //
+    // The fix is survival, not arrival: the socket must have been live longer
+    // than the delay that produced it.
+    let opens = 0
+    let answered = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            opens++
+            return Promise.resolve(
+                {
+                    write: (bytes: Uint8Array) =>
+                        Promise.resolve(bytes.byteLength),
+                    read: (buf: Uint8Array) => {
+                        // One good reply per socket, SLOWLY, then faults.
+                        //
+                        // The delay is what makes this fixture discriminating:
+                        // the socket is comfortably older than the survival
+                        // threshold by the time it answers, so an age check
+                        // alone is satisfied and only "more than one exchange
+                        // on this socket" can refuse the reset. Without the
+                        // delay the age check masks the count check and neither
+                        // is individually necessary — which a mutation run
+                        // showed, with both surviving.
+                        if (answered++ % 2 === 0) {
+                            return new Promise<number>((resolve) =>
+                                setTimeout(() => {
+                                    const ok = new TextEncoder().encode(
+                                        '+OK\r\n',
+                                    )
+                                    buf.set(ok)
+                                    resolve(ok.byteLength)
+                                }, 12)
+                            )
+                        }
+                        return Promise.reject(new Error('connection reset'))
+                    },
+                    close: () => {},
+                    localAddr: {
+                        transport: 'tcp',
+                        hostname: '127.0.0.1',
+                        port: 0,
+                    },
+                    remoteAddr: {
+                        transport: 'tcp',
+                        hostname: '127.0.0.1',
+                        port: 0,
+                    },
+                } as unknown as Deno.Conn,
+            )
+        },
+        configurable: true,
+        writable: true,
+    })
+    const client = new RedisClient({
+        hostname: '127.0.0.1',
+        port: 1,
+        retryBaseMs: 10,
+        retryMaxMs: 10,
+    })
+    try {
+        for (let i = 0; i < 30; i++) {
+            try {
+                await client.command('GET', 'k')
+            } catch {
+                // Alternating success and fault is the point.
+            }
+        }
+        assert(
+            opens <= 2,
+            `${opens} dials. A peer that answers one command per socket reset ` +
+                'the streak on every cycle, so the ceiling stayed at its floor.',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await client.close()
+    }
+})
+
+Deno.test('#299: a nonsense cadence is refused at construction', () => {
+    // Unvalidated, `NaN` makes the ceiling NaN, the delay NaN, the window
+    // instant NaN, and `Date.now() < NaN` is FALSE — the guard never fires and
+    // the backoff silently does not exist, with every test green. The same NaN
+    // on the subscribe path reaches setTimeout and produces a LOUD hot loop;
+    // here it produces silence indistinguishable from health.
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+        let threw = false
+        try {
+            new RedisClient({ hostname: '127.0.0.1', retryBaseMs: bad })
+        } catch (error) {
+            threw = error instanceof RangeError
+        }
+        assert(threw, `retryBaseMs of ${bad} was accepted`)
+    }
+    let inverted = false
+    try {
+        new RedisClient({
+            hostname: '127.0.0.1',
+            retryBaseMs: 1000,
+            retryMaxMs: 500,
+        })
+    } catch (error) {
+        inverted = error instanceof RangeError
+    }
+    assert(inverted, 'retryMaxMs below retryBaseMs was accepted')
+})
+
+Deno.test('#299: the client RECOVERS — a healthy socket clears the streak', async () => {
+    // The test whose absence let a dead branch ship. Nothing asserted the
+    // client ever comes back, so a survival check that could never be satisfied
+    // — it timed one exchange's round-trip instead of the socket's age, and a
+    // fast broker answers in a millisecond against a 250ms threshold — passed
+    // every existing test while `#attempts` grew monotonically for the life of
+    // the process.
+    //
+    // Recovery is asserted BEHAVIOURALLY: after a real recovery a fresh fault
+    // must re-dial immediately (streak back to 1, no window), which is only
+    // true if the streak actually reset.
+    const server = await startFakeServer()
+    let opens = 0
+    let faulting = true
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: (opts: Deno.ConnectOptions) => {
+            opens++
+            if (faulting) {
+                return Promise.resolve(
+                    {
+                        write: (b: Uint8Array) => Promise.resolve(b.byteLength),
+                        read: () => Promise.reject(new Error('reset')),
+                        close: () => {},
+                        localAddr: {
+                            transport: 'tcp',
+                            hostname: '127.0.0.1',
+                            port: 0,
+                        },
+                        remoteAddr: {
+                            transport: 'tcp',
+                            hostname: '127.0.0.1',
+                            port: 0,
+                        },
+                    } as unknown as Deno.Conn,
+                )
+            }
+            return real(opts)
+        },
+        configurable: true,
+        writable: true,
+    })
+    const client = new RedisClient({
+        hostname: '127.0.0.1',
+        port: server.port,
+        retryBaseMs: 30,
+        retryMaxMs: 30,
+    })
+    try {
+        // Two faults open a window.
+        await assertRejects(() => client.command('GET', 'k'), Error)
+        await assertRejects(() => client.command('GET', 'k'), Error)
+        // Let it close, then let the broker behave.
+        await new Promise((r) => setTimeout(r, 60))
+        faulting = false
+        // TWO exchanges on one socket, and past the survival threshold — one is
+        // deliberately not proof, because a peer answering once per socket
+        // would otherwise reset the throttle on every cycle.
+        await client.command('SET', 'k', 'v')
+        await new Promise((r) => setTimeout(r, 40))
+        await client.command('GET', 'k')
+
+        // The streak is clear, so ONE fault must not be enough to refuse the
+        // next command — the first fault re-dials, only the second opens a
+        // window. If the streak never reset it is already at 2, and the very
+        // next command after a single fault is refused. That difference is
+        // observable without reaching into private state.
+        server.dropConnections()
+        await assertRejects(() => client.command('GET', 'k'), Error)
+        const dialsBefore = opens
+        await client.command('GET', 'k')
+        assertEquals(
+            opens,
+            dialsBefore + 1,
+            'after a recovery, a single fault refused the next command ' +
+                'instead of re-dialling — so the streak never reset, and the ' +
+                'survival check is unsatisfiable',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await client.close()
+        server.stop()
+    }
+})
+
+Deno.test('#299: two FAST exchanges on a YOUNG socket do not clear the streak', async () => {
+    // The age half of the survival rule, and the fixture that makes it
+    // individually necessary — a mutation run showed the count check alone
+    // satisfied every earlier fixture, so removing the age check changed
+    // nothing and it read as covered.
+    //
+    // A peer can serve two commands in under a millisecond and then wedge.
+    // Resetting on the count alone would clear the throttle for exactly that
+    // peer. Here the socket answers twice instantly and then faults: with the
+    // age check the streak survives, so the NEXT fault opens a window and the
+    // command after it is refused. Without it the streak zeroes and that
+    // command dials instead.
+    let opens = 0
+    let mode: 'fault' | 'fast' = 'fault'
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            opens++
+            const fast = mode === 'fast'
+            let served = 0
+            return Promise.resolve(
+                {
+                    write: (b: Uint8Array) => Promise.resolve(b.byteLength),
+                    read: (buf: Uint8Array) => {
+                        // Two instant replies, then faults — all well inside
+                        // the survival threshold.
+                        if (fast && served++ < 2) {
+                            const ok = new TextEncoder().encode('+OK\r\n')
+                            buf.set(ok)
+                            return Promise.resolve(ok.byteLength)
+                        }
+                        return Promise.reject(new Error('reset'))
+                    },
+                    close: () => {},
+                    localAddr: {
+                        transport: 'tcp',
+                        hostname: '127.0.0.1',
+                        port: 0,
+                    },
+                    remoteAddr: {
+                        transport: 'tcp',
+                        hostname: '127.0.0.1',
+                        port: 0,
+                    },
+                } as unknown as Deno.Conn,
+            )
+        },
+        configurable: true,
+        writable: true,
+    })
+    const client = new RedisClient({
+        hostname: '127.0.0.1',
+        port: 1,
+        retryBaseMs: 400,
+        retryMaxMs: 400,
+    })
+    try {
+        await assertRejects(() => client.command('GET', 'k'), Error)
+        await assertRejects(() => client.command('GET', 'k'), Error)
+        // Past the window, then a socket that serves two commands instantly.
+        await new Promise((r) => setTimeout(r, 420))
+        mode = 'fast'
+        await client.command('GET', 'k')
+        await client.command('GET', 'k')
+        // Its third read faults. The socket is milliseconds old, so this must
+        // NOT have been treated as a recovery.
+        await assertRejects(() => client.command('GET', 'k'), Error)
+        const dialsBefore = opens
+        await assertRejects(() => client.command('GET', 'k'), Error)
+        assertEquals(
+            opens,
+            dialsBefore,
+            'the streak was cleared by two exchanges on a socket only ' +
+                'milliseconds old, so the fault after them opened no window ' +
+                'and this command re-dialled — a peer that serves two commands ' +
+                'and wedges resets the throttle every cycle',
         )
     } finally {
         Object.defineProperty(Deno, 'connect', {

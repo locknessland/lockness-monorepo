@@ -11,10 +11,13 @@
  * @module @lockness/redis/tests/resp
  */
 
-import { assert, assertEquals, assertRejects } from '@std/assert'
+import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import {
     encodeCommand,
+    MAX_BULK_BYTES,
+    MAX_COMMAND_FRAME_BYTES,
     readReply,
+    RespCommandTooLargeError,
     RespError,
     RespFramingError,
     RespServerError,
@@ -423,5 +426,119 @@ Deno.test('readReply - the TOTAL of a multi-bulk reply is bounded, not just each
         String(error).includes('in total'),
         'the message says it was the AGGREGATE that was refused, so an ' +
             'operator is not left hunting for an oversized single element',
+    )
+})
+
+Deno.test('#300: an oversized command is refused WITHOUT being encoded', () => {
+    // "Before writeFrame" is not "before the allocation". `encodeCommand`
+    // allocates `encoder.encode(arg)` per argument and then the assembled
+    // frame, so a check downstream of it costs ~2x the payload in transient
+    // heap before refusing — the refusal becomes the memory event it exists to
+    // prevent. `resp.ts` already states the correct principle twice on the read
+    // side: MAX_BULK_BYTES "throws BEFORE any buffer of the declared size is
+    // allocated".
+    //
+    // The cheap pre-check is on `Σ args[i].length` in UTF-16 units, which is a
+    // sound LOWER bound on the UTF-8 byte length — a BMP char is 1 unit and >=1
+    // byte, an astral pair is 2 units and 4 bytes, an unpaired surrogate is 1
+    // unit and 3 bytes — so it refuses with no false positives and no encode.
+    // Six times the limit, so the encode this must NOT do is measurable.
+    // Measured on this machine: encoding 60 MB of ASCII takes ~41ms, 20 MB
+    // ~12ms, and the pre-check is a loop over `args.length` — microseconds. The
+    // bound below is set from that measurement, not guessed; an earlier version
+    // used 200ms with a payload at the limit, where encoding costs ~5ms, so it
+    // passed with the pre-check deleted and proved nothing.
+    const huge = 'x'.repeat(60 * 1024 * 1024)
+    const before = performance.now()
+    assertThrows(
+        () => encodeCommand(['SETEX', 'k', '60', huge]),
+        RespCommandTooLargeError,
+    )
+    const elapsed = performance.now() - before
+    assert(
+        elapsed < 20,
+        `refusing took ${elapsed.toFixed(1)}ms. Encoding this payload costs ` +
+            '~41ms, so it was encoded before being refused — which is the ' +
+            'memory event the bound exists to prevent.',
+    )
+})
+
+Deno.test('#300: a multi-byte payload under the UTF-16 bound is still refused', () => {
+    // The case the cheap pre-check cannot see, and therefore the one that says
+    // the exact check is load-bearing. `String.length` is UTF-16 code units,
+    // which is a LOWER bound on UTF-8 bytes — sound for refusing, blind to a
+    // payload that is under the limit in units and over it in bytes.
+    //
+    // `é` is 1 unit and 2 bytes: this payload is 5,242,888 units (under the
+    // 10 MiB limit) and 10,485,776 bytes (over it). Only the exact check after
+    // the encode catches it.
+    const multi = 'é'.repeat(Math.floor(MAX_COMMAND_FRAME_BYTES / 2) + 8)
+    assert(
+        multi.length <= MAX_COMMAND_FRAME_BYTES,
+        'the fixture must be UNDER the limit in UTF-16 units, or the ' +
+            'pre-check catches it and this proves nothing about the exact one',
+    )
+    assertThrows(
+        () => encodeCommand(['SET', 'k', multi]),
+        RespCommandTooLargeError,
+    )
+})
+
+Deno.test('#300: the refusal names the verb and a BUCKETED size, never the exact one', () => {
+    // An exact frame size is a length derived from arguments: for a fixed verb
+    // and arity it inverts to their summed byte length. An attacker padding a
+    // field they influence inside a blob that also holds a secret reads the
+    // secret's length to the byte in one probe. `resp.ts` records #297 removing
+    // this exact class.
+    //
+    // Asserted as an EQUALITY, not an absence: two payloads of different sizes
+    // inside one bucket must produce byte-identical messages. An absence test
+    // cannot catch a number it was not told to look for, and that is precisely
+    // what let the previous disclosure survive.
+    const bucket = 1024 * 1024
+    const a = 'x'.repeat(MAX_COMMAND_FRAME_BYTES + 1)
+    const b = 'x'.repeat(MAX_COMMAND_FRAME_BYTES + 1 + Math.floor(bucket / 2))
+    const messageOf = (payload: string) => {
+        try {
+            encodeCommand(['SETEX', 'k', '60', payload])
+        } catch (error) {
+            return (error as Error).message
+        }
+        throw new Error('it was not refused')
+    }
+    const first = messageOf(a)
+    assertEquals(
+        first,
+        messageOf(b),
+        'two payloads inside one bucket produced different messages, so the ' +
+            'message carries resolution finer than the bucket',
+    )
+    assert(/SETEX/.test(first), `it must name the verb: ${first}`)
+    assert(
+        !first.includes(String(MAX_COMMAND_FRAME_BYTES + 1)),
+        `it names the exact size: ${first}`,
+    )
+})
+
+Deno.test('#300: a frame just under the limit still encodes', () => {
+    // A bound that cannot be approached is a bound set wrong.
+    const fits = 'x'.repeat(MAX_COMMAND_FRAME_BYTES - 64)
+    const frame = encodeCommand(['SET', 'k', fits])
+    assert(frame.byteLength <= MAX_COMMAND_FRAME_BYTES)
+})
+
+Deno.test('#300: the write bound never exceeds the read bound', () => {
+    // The round-trip invariant, and the reason the bound is DERIVED rather than
+    // chosen. A value this client can write must be a value it can read back:
+    // above MAX_BULK_BYTES the reply raises RespFramingError on every GET, the
+    // socket is discarded, and the key is a poison pill that survives process
+    // restart because it lives in Redis rather than in memory.
+    //
+    // The payload survey the first plan draft asked for cannot be conducted —
+    // session and queue bound nothing — so this inequality IS the derivation.
+    assert(
+        MAX_COMMAND_FRAME_BYTES <= MAX_BULK_BYTES,
+        `a frame of ${MAX_COMMAND_FRAME_BYTES} bytes can be written and never ` +
+            `read: the reply bound is ${MAX_BULK_BYTES}`,
     )
 })
