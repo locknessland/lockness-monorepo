@@ -58,12 +58,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                       |
-| :-------- | :---------------------------------------------------------------------------------------------------------------------------- |
-| class     | `AuthenticatedConnection`, `RedisClient`, `RedisSubscribeConnection`, `RespError`, `RespFramingError`, `RespServerError`      |
-| function  | `credentialFingerprint`, `encodeCommand`, `exchange`, `hmacSha256Hex`, `readReply`, `redisMemoKey`, `sha256Hex`, `writeFrame` |
-| interface | `AuthenticatedConnectionConfig`, `RedisClientConfig`, `RedisSubscribeConnectionConfig`                                        |
-| typeAlias | `RespReply`                                                                                                                   |
+| Kind      | Exports                                                                                                                                              |
+| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `AuthenticatedConnection`, `RedisClient`, `RedisSubscribeConnection`, `RespCommandTooLargeError`, `RespError`, `RespFramingError`, `RespServerError` |
+| function  | `credentialFingerprint`, `encodeCommand`, `exchange`, `hmacSha256Hex`, `readReply`, `redisMemoKey`, `sha256Hex`, `writeFrame`                        |
+| interface | `AuthenticatedConnectionConfig`, `RedisClientConfig`, `RedisSubscribeConnectionConfig`                                                               |
+| typeAlias | `RespReply`                                                                                                                                          |
+| variable  | `MAX_BULK_BYTES`, `MAX_COMMAND_FRAME_BYTES`                                                                                                          |
 
 Anything not listed is internal and free to change.
 
@@ -128,8 +129,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-7 test files for 10 source files:
+8 test files for 11 source files:
 
+- `packages/redis/tests/backoff.test.ts`
 - `packages/redis/tests/client.test.ts`
 - `packages/redis/tests/connection.test.ts`
 - `packages/redis/tests/live_subscribe_liveness.test.ts`
@@ -181,7 +183,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 7 test files directly —
+Then, specific to this package: run its 8 test files directly —
 
 ```bash
 deno test -A packages/redis/
