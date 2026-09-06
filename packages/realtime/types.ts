@@ -134,8 +134,11 @@ export interface Connection<Identity = unknown> {
      * control plane has always dropped a frame naming an id outside it — but it
      * was undocumented and enforced in only one of three paths, so an id like
      * `user@example.com` evicted on its own instance and silently nowhere else.
-     * `ChannelManager.register` and `subscribe` now refuse such an id outright,
-     * which is the whole of the enforcement: everything downstream may assume it.
+     * `ChannelManager.register`, `subscribe` and `evict` all refuse such an id
+     * outright, and everything downstream may assume it **of `Connection.id`**.
+     * That scope is deliberate: `PresenceMember.id`, which an application's
+     * authorizer returns and which rides the same control frame, is checked
+     * only for its type and is not covered here (#306).
      */
     readonly id: string
     /** The server-verified identity, or `null` for an unauthenticated socket. */
