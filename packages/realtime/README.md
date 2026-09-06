@@ -37,8 +37,14 @@ app.get(
   a memory or Redis driver. The Redis driver runs across instances: broadcasts
   fan out over pub/sub, the presence `here` roster is authoritative in Redis,
   and `manager.evict(id)` revokes a connection wherever its socket lives. Build
-  it with `RedisBroadcastDriver.fromConfig(config, { control: { secret } })` —
-  the control plane and presence-identity frames are HMAC-authenticated **and
+  it with `RedisBroadcastDriver.fromConfig(config, { control: { secret } })`,
+  where `config` is a `RedisBroadcastConnectionConfig` — a Redis client config
+  plus the subscribe socket's liveness and retry cadences (`keepaliveMs`,
+  `livenessMs`, `retryBaseMs`, `retryMaxMs`; see
+  [`@lockness/redis`'s README](../redis/README.md) for the defaults and the
+  constraints between them). The subscribe socket keeps itself alive on an idle
+  bus and retries a failed re-dial indefinitely rather than going deaf — the
+  control plane and presence-identity frames are HMAC-authenticated **and
   replay-protected** (a timestamp and nonce inside the signed payload; stale or
   repeated frames are refused), with a configurable payload ceiling. The
   reserved `prefix` is not a security boundary on its own. **The Redis driver

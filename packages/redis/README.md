@@ -94,8 +94,9 @@ being prevented, so there is no exhaustion state: retries slow down, they do not
 stop. Backoff carries full jitter, so a fleet that loses a broker at the same
 instant does not re-dial it in lockstep.
 
-Four knobs, on `RedisSubscribeConnection` and on
-`RedisBroadcastDriver.fromConfig`:
+Four knobs, on `RedisSubscribeConnectionConfig` (which
+`RedisSubscribeConnection` takes) and, through `RedisBroadcastConnectionConfig`,
+on `RedisBroadcastDriver.fromConfig`:
 
 | Option        | Default  | What it decides                                                                                                                 |
 | ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
