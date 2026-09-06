@@ -134,7 +134,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-31 test files for 17 source files:
+32 test files for 18 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channels.test.ts`
@@ -155,6 +155,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/eviction_reconnect.test.ts`
 - `packages/realtime/tests/handler.test.ts`
 - `packages/realtime/tests/identity.test.ts`
+- `packages/realtime/tests/log_encoding_291.test.ts`
 - `packages/realtime/tests/manager.test.ts`
 - `packages/realtime/tests/memory_driver.test.ts`
 - `packages/realtime/tests/origin.test.ts`
@@ -182,7 +183,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 31 test files directly —
+Then, specific to this package: run its 32 test files directly —
 
 ```bash
 deno test -A packages/realtime/
