@@ -46,3 +46,6 @@ CLAUDE.md
 # --- End Specnaut: gitignore ---
 # Claude Code runtime locks (session-scoped, never committed)
 .claude/scheduled_tasks.lock
+
+# Mutation-battery locks (packages/*/tests/mutations/harness.ts) — never committed.
+*.mutation-lock
