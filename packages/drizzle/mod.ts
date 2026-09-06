@@ -175,6 +175,30 @@ export class Database<D extends Dialect = 'postgres'> {
     ): Promise<ConnectionResult> {
         const dialect = resolveDialect(options.driver, url)
 
+        /**
+         * Render a connection failure with the DSN removed by IDENTITY.
+         *
+         * `renderError`'s pattern-based redaction is the net for a DSN nobody
+         * holds. Here we hold it, so we can do better than a pattern — and we
+         * have to. Measured: a `/` in the password makes WHATWG `new URL()`
+         * throw, and the thrown message carries the whole DSN; the same `/` is
+         * what a pattern cannot span without eating every scoped-package URL.
+         * The characters that break the parser and the characters that break
+         * the pattern are the same set, so the site that produces the error is
+         * the only place that can be sure. A raw space or `@` in the password
+         * has the same shape and is closed by the same substring replace.
+         *
+         * `followCause: false` for a second reason: this string is RETURNED as
+         * `ConnectionResult.error`, not only logged, so an application may put
+         * it somewhere a log line would never go. That is the same distinction
+         * `@lockness/telemetry` draws for a span.
+         */
+        const render = (error: unknown): string =>
+            renderError(error, { followCause: false }).replaceAll(
+                url,
+                '<dsn redacted>',
+            )
+
         let handle
         try {
             handle = await this.#factories[dialect](url)
@@ -184,7 +208,7 @@ export class Database<D extends Dialect = 'postgres'> {
             const message =
                 `Failed to initialise the '${dialect}' driver — ensure its client package (${
                     CLIENT_PACKAGE[dialect]
-                }) is installed. ${renderError(error)}`
+                }) is installed. ${render(error)}`
             console.error('❌ Database connection failed:', message)
             return { success: false, error: message }
         }
@@ -201,9 +225,11 @@ export class Database<D extends Dialect = 'postgres'> {
             }
             return { success: true }
         } catch (error) {
-            // Connection/probe failure — renderError drops the error object,
-            // stack and cause, so a credential carried on the error cannot leak.
-            const message = renderError(error)
+            // Connection/probe failure. `render` drops the error object and the
+            // stack, follows no cause, and removes the DSN by identity rather
+            // than by pattern — see its definition above for why a pattern is
+            // not enough at this particular site.
+            const message = render(error)
             console.error('❌ Database connection failed:', message)
             return { success: false, error: message }
         }
