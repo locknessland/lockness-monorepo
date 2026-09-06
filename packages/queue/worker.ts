@@ -8,6 +8,7 @@
  * @module @lockness/queue/worker
  */
 
+import { renderError, safeForLog } from '@lockness/contract'
 import {
     deregisterDisposable,
     type DisposableHandle,
@@ -60,9 +61,44 @@ export class QueueWorker {
 
         while (this.running) {
             let processed = false
+            // Tracked beside `processed` because they are different facts and
+            // the success exit below must not confuse them. `continue` on a
+            // fault leaves `processed` false, which without this reads as "the
+            // queue is empty" — so a `stopWhenEmpty` worker printed "Queue
+            // empty. Stopping." and exited 0 during a broker outage or an auth
+            // failure. Before this branch the rejection propagated and CI saw a
+            // failure; silently succeeding is worse than crashing.
+            let faulted = false
 
             for (const queueName of this.options.queues) {
-                const job = await getDriver().pop(queueName)
+                // A DRIVER FAULT MUST NOT KILL THE WORKER (#299 AC 5).
+                //
+                // `pop()` was awaited bare, so a rejection escaped `start()`
+                // and terminated the loop. That was survivable while a Redis
+                // outage took ~30 seconds to surface; once the client fails
+                // fast it happens in milliseconds, and under a restart
+                // supervisor each restart builds a fresh client with a fresh
+                // backoff streak — so the throttle the client just gained is
+                // reset on every crash and never grows. The backoff's lifetime
+                // is the process's, and the process's lifetime would be
+                // milliseconds.
+                //
+                // Falling through to the existing sleep is what makes the
+                // worker ride out an outage on the client's cadence instead.
+                let job
+                try {
+                    job = await getDriver().pop(queueName)
+                } catch (error) {
+                    faulted = true
+                    console.warn(
+                        `[queue] ${
+                            safeForLog(queueName)
+                        }: pop failed; retrying after the poll interval: ${
+                            renderError(error)
+                        }`,
+                    )
+                    continue
+                }
 
                 if (job) {
                     processed = true
@@ -83,7 +119,7 @@ export class QueueWorker {
             }
 
             if (!processed) {
-                if (this.options.stopWhenEmpty) {
+                if (this.options.stopWhenEmpty && !faulted) {
                     console.log('📭 Queue empty. Stopping.')
                     this.stop()
                     return
