@@ -40,7 +40,34 @@ const decoder = new TextDecoder()
  * (plaintext) link (FR-010, Security S1). A declared length above this throws
  * **before** any buffer of the declared size is allocated.
  */
-const MAX_BULK_BYTES = 10 * 1024 * 1024
+export const MAX_BULK_BYTES = 10 * 1024 * 1024
+
+/**
+ * The largest command frame this client will put on the wire (#300).
+ *
+ * **DERIVED from {@link MAX_BULK_BYTES}, never an independent literal**, and
+ * the derivation is a round-trip invariant rather than a survey: *a value this
+ * client writes must be a value it can read back.* A bound above the reply
+ * bound produces a poison key — stored successfully, then `RespFramingError` on
+ * every read, a socket discard, and (with #299) a backoff window. It survives
+ * process restart, because the poison is in Redis rather than in memory. One
+ * inequality now; a data migration afterwards.
+ *
+ * The survey the first plan draft asked for — "the largest legitimate session
+ * blob and queue payload" — **cannot be conducted**: `session/drivers/redis.ts`
+ * and `queue/drivers/redis.ts` bound nothing, so any number chosen for them
+ * would be the round number that draft forbade. The one consumer that does
+ * bound itself is realtime, at 8 KiB for a control payload — far below this.
+ *
+ * Named `MAX_COMMAND_FRAME_BYTES` rather than `MAX_FRAME_BYTES` because
+ * `@lockness/realtime` already exports the latter, meaning an inbound WebSocket
+ * frame at 16 KiB, and realtime imports this package — the two names would meet
+ * in one import namespace 640x apart in value.
+ */
+export const MAX_COMMAND_FRAME_BYTES = MAX_BULK_BYTES
+
+/** One MiB — the resolution the refusal message reports a size at. */
+const SIZE_BUCKET_BYTES = 1024 * 1024
 
 /**
  * Cardinality ceiling for a multi-bulk (`*`) reply — the array analogue of
@@ -183,6 +210,28 @@ export class RespServerError extends RespError {
     }
 }
 
+export class RespCommandTooLargeError extends RespError {
+    /**
+     * A command whose encoded frame would exceed
+     * {@link MAX_COMMAND_FRAME_BYTES} (#300).
+     *
+     * **Extends `RespError` and deliberately NOT `RespFramingError`.** Nothing
+     * reached the wire, so there is nothing to discard, and
+     * `RespFramingError` means the opposite — bytes remain and the socket is
+     * desynced. `RedisClient` must exempt this type explicitly: its rule is
+     * "everything that is not a `RespServerError` is a desync", so a new type
+     * would otherwise close a healthy authenticated socket over a caller-side
+     * input error.
+     *
+     * @param message - Names the verb, the limit, and a bucketed size — never
+     *   an argument, and never a size at finer resolution than the bucket.
+     */
+    constructor(message: string) {
+        super(message)
+        this.name = 'RespCommandTooLargeError'
+    }
+}
+
 /**
  * A structural framing fault raised **after the length/type line was read but
  * BEFORE the declared payload was drained** — an oversized bulk length, a
@@ -241,6 +290,22 @@ const CRLF = encoder.encode('\r\n')
  * ```
  */
 export function encodeCommand(args: readonly string[]): Uint8Array {
+    // REFUSED BEFORE THE ALLOCATION, not after (#300). The loop below allocates
+    // `encoder.encode(arg)` per argument and then the assembled frame, so a
+    // check downstream of it costs ~2x the payload in transient heap before
+    // refusing — the refusal becomes the memory event it exists to prevent.
+    // This file already states the principle twice on the read side.
+    //
+    // `String.length` is UTF-16 code units, which is a sound LOWER bound on the
+    // UTF-8 byte length: a BMP character is 1 unit and at least 1 byte, an
+    // astral pair is 2 units and 4 bytes, an unpaired surrogate is 1 unit and 3
+    // bytes as U+FFFD. So this refuses with no false positives and no encode.
+    let lowerBound = 0
+    for (const arg of args) lowerBound += arg.length
+    if (lowerBound > MAX_COMMAND_FRAME_BYTES) {
+        throw commandTooLarge(args, lowerBound)
+    }
+
     const header = encoder.encode(`*${args.length}\r\n`)
     const parts: Uint8Array[] = [header]
     let total = header.byteLength
@@ -251,6 +316,11 @@ export function encodeCommand(args: readonly string[]): Uint8Array {
         parts.push(prefix, bytes, CRLF)
         total += prefix.byteLength + bytes.byteLength + CRLF.byteLength
     }
+
+    // The exact check, for the near-boundary case the lower bound let through.
+    // Reached only when the frame is close to the limit, so the allocation it
+    // guards is bounded by the limit itself.
+    if (total > MAX_COMMAND_FRAME_BYTES) throw commandTooLarge(args, total)
 
     const frame = new Uint8Array(total)
     let offset = 0
@@ -412,6 +482,36 @@ function writeTimeout(offset: number, timeoutMs: number): RespFramingError {
         `Redis write timed out after ${timeoutMs}ms — discard the socket, ` +
             `bytes may remain on the wire (at least ${offset} written; a ` +
             'lower bound, the abandoned write cannot be cancelled)',
+    )
+}
+
+/**
+ * The oversized-command refusal, with its size reported at bucket resolution.
+ *
+ * **The size is bucketed on purpose.** An exact frame size is a length derived
+ * from the arguments: for a fixed verb and arity it inverts to their summed
+ * byte length, so an attacker padding a field they influence inside a blob that
+ * also holds a secret could read the secret's length to the byte in one probe.
+ * #297 removed exactly this class of disclosure from the write-timeout error.
+ * Rounding to a MiB leaves an operator everything actionable — "your payload is
+ * about 12 MiB against a 10 MiB limit" — and drops the oracle's resolution by
+ * six orders of magnitude.
+ *
+ * The verb is named because `exchange`'s budget errors already name it, and it
+ * is not an argument.
+ */
+function commandTooLarge(
+    args: readonly string[],
+    atLeastBytes: number,
+): RespCommandTooLargeError {
+    const buckets = Math.ceil(atLeastBytes / SIZE_BUCKET_BYTES)
+    return new RespCommandTooLargeError(
+        `Redis ${
+            args[0] ?? 'command'
+        } refused: the encoded frame exceeds the ` +
+            `${MAX_COMMAND_FRAME_BYTES}-byte limit (approximately ` +
+            `${buckets} MiB). Nothing was written, so the connection is ` +
+            'unaffected.',
     )
 }
 

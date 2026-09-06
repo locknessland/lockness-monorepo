@@ -16,7 +16,10 @@
 
 export {
     encodeCommand,
+    MAX_BULK_BYTES,
+    MAX_COMMAND_FRAME_BYTES,
     readReply,
+    RespCommandTooLargeError,
     RespError,
     RespFramingError,
     type RespReply,
