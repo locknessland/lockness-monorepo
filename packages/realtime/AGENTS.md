@@ -77,6 +77,30 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
+- **A containment check must never consult `keys()`.** `live_realtime.ts`'s
+  `keys()` is a verbatim second copy of the driver's nine name templates. It is
+  correct for _read-back_ — asserting a key holds what you put there — and wrong
+  for _containment_, because a check that reads it asserts agreement between two
+  models rather than anchoring. `tests/prefix_anchoring.test.ts` observes the
+  ports instead, and decides which strings are prefix-derived differentially, by
+  running the same exercise under two prefixes.
+- **Containment cannot be checked with a keyspace scan.**
+  `SCAN MATCH ${prefix}*` returns only keys already under the prefix, so it
+  cannot see the defect. A whole-keyspace diff is no better: five of the ten
+  derived names never become a key at all — two are `PUBLISH`/`PSUBSCRIBE`
+  arguments, one is the subscribe pattern, and two are read-only by design. Only
+  the port sees all ten.
+- **"Anchored" is prefix PLUS a separator.** `startsWith` is not enough:
+  `${prefix}:*` "begins with" the prefix and still over-matches into a nested
+  deployment. That over-match is a real, reproduced disclosure — see
+  [#288](https://github.com/locknessland/lockness-monorepo/issues/288), whose
+  acceptance test is landed `ignore`d in `tests/prefix_anchoring.test.ts`.
+- **`prefix` is not an isolation boundary, in either direction.** Inbound:
+  anything on the broker can `PUBLISH` into `${prefix}:<channel>`. Outbound: it
+  is anchored, and that is what this package tests. The options docstring used
+  to call it "multi-tenant isolation"; it no longer does, because that wording
+  is what leads an operator to the nested prefixes #288 is about.
+
 - **The test double used to answer `nil` to any command it did not model**,
   which made an unmodelled command a silent no-op with a green suite. It now
   throws (`tests/fake_redis.ts`). If you add a driver command, model it — the
@@ -98,7 +122,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-30 test files for 15 source files:
+31 test files for 16 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channels.test.ts`
@@ -122,6 +146,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/manager.test.ts`
 - `packages/realtime/tests/memory_driver.test.ts`
 - `packages/realtime/tests/origin.test.ts`
+- `packages/realtime/tests/prefix_anchoring.test.ts`
 - `packages/realtime/tests/presence.test.ts`
 - `packages/realtime/tests/presence_authoritative.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
@@ -145,7 +170,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 30 test files directly —
+Then, specific to this package: run its 31 test files directly —
 
 ```bash
 deno test -A packages/realtime/
