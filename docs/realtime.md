@@ -385,13 +385,31 @@ warning): the control plane and cross-instance presence announcements are
 effectively off, so the secret is **required** for any app that uses presence or
 eviction across instances.
 
-**The reserved `prefix` is NOT a security boundary on its own.** Redis pub/sub
-has no per-topic ACL by default, so the prefix is isolation by convention only —
-anyone with `PUBLISH` on the bus can write to a prefixed topic. On a shared or
-multi-tenant Redis, the HMAC (which the framework provides) is what actually
-authenticates the control plane; layer per-prefix Redis ACLs on top where your
-Redis supports them, and hold the roster/pub-sub bus to the same TLS + AUTH
-posture as any other credentialed connection.
+**The reserved `prefix` is NOT a security boundary, in either direction.** Redis
+pub/sub has no per-topic ACL by default, so the prefix is isolation by
+convention only — anyone with `PUBLISH` on the bus can write to a prefixed
+topic.
+
+**And it does not isolate outbound either. Do not nest one deployment's prefix
+under another's.** The driver subscribes with `${prefix}:*`, and a Redis glob
+matches `:` like any other character, so a deployment at `app` receives the
+events of one at `app:eu`
+([#288](https://github.com/locknessland/lockness-monorepo/issues/288), open).
+The control topic is unaffected — a control frame carries no `event` field and
+is dropped on ingest, so the HMAC is not bypassed — but the event payloads are
+disclosed. Give sibling deployments sibling prefixes (`app:eu`, `app:us`), never
+a parent and a child.
+
+**A prefix containing a Redis glob metacharacter is refused at construction.**
+`*` `?` `[` `]` and `\` all reach `PSUBSCRIBE` as a pattern, where they would
+widen the subscription to traffic the deployment does not own — and `app\` is
+the worst of them, because Redis reads `app\:*` as the literal `app:*`, so that
+deployment reads another's whole stream while its own traffic stays invisible to
+the deployment it is reading. On a shared or multi-tenant Redis, the HMAC (which
+the framework provides) is what actually authenticates the control plane; layer
+per-prefix Redis ACLs on top where your Redis supports them, and hold the
+roster/pub-sub bus to the same TLS + AUTH posture as any other credentialed
+connection.
 
 The channel-event path keeps its existing defence in depth on top of all this:
 every message off the bus is re-validated on ingest (channel/event names via

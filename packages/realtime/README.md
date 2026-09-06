@@ -47,10 +47,16 @@ app.get(
   control plane and presence-identity frames are HMAC-authenticated **and
   replay-protected** (a timestamp and nonce inside the signed payload; stale or
   repeated frames are refused), with a configurable payload ceiling. The
-  reserved `prefix` is not a security boundary on its own. **The Redis driver
-  requires Redis 7.0+**; the memory driver has no such floor. Note the control
-  wire format changed: during a rolling upgrade, control frames do not cross
-  between old and new instances — see
+  reserved `prefix` is not a security boundary in **either** direction: nothing
+  stops another client publishing into it, and a prefix that _nests_ under
+  another deployment's is read by that deployment's subscription (see
+  [#288](https://github.com/locknessland/lockness-monorepo/issues/288)) — so do
+  not give two deployments prefixes like `app` and `app:eu`. A prefix containing
+  a Redis glob metacharacter (`*` `?` `[` `]` `\`) is **refused at
+  construction**, because those reach `PSUBSCRIBE` as a pattern and would widen
+  the subscription. **The Redis driver requires Redis 7.0+**; the memory driver
+  has no such floor. Note the control wire format changed: during a rolling
+  upgrade, control frames do not cross between old and new instances — see
   [docs/realtime.md](../../docs/realtime.md#control-plane-replay-protection).
 - **Durable revocation** — an evict outlives a lost pub/sub frame. A custom
   `BroadcastDriver` opts in by implementing `markRevoked(id)` and

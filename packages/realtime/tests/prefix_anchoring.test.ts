@@ -21,29 +21,38 @@
  *
  * ## Mutations run against this file (#282 FR-007)
  *
- * Re-derived after the review gate, not extended. The first table attributed
- * the `ownedKey`/`aliveKey` mutations to `SC-001`, and the gate proved `SC-001`
- * did not catch them — a mutation table listing a test that does not fail is
- * worse than no table, because it is read as evidence.
- *
- * Each was applied, observed RED, and reverted:
+ * **Twenty-three, all red.** The count is stated because it was twice wrong:
+ * this table said sixteen after the count had grown, and the merge report said
+ * twenty-four. A mutation table is evidence, so a number in it that nobody can
+ * reproduce is worse than no number — the script that produces this figure is
+ * the one below, and it prints its own total.
  *
  * | Mutation | Caught by |
  * | :--- | :--- |
  * | `isAnchored` weakened to `startsWith` | `FR-003` |
- * | Each of the nine members un-anchored, in turn | `SC-001` (count pinned) |
- * | The `:634` subscribe pattern un-anchored | `SC-001`, `FR-001` |
+ * | Each of the nine members un-anchored, in turn (9) | `SC-001` |
+ * | The inline subscribe pattern un-anchored | `SC-001`, `FR-001` |
  * | A `psubscribe` site dropped from the recorder | `FR-001` |
  * | A member removed from the pinned roster | `SC-004` |
- * | The glob guard removed | `SC-005` |
- * | Each of the five guard characters dropped in turn | `SC-005` |
+ * | The glob guard removed entirely | `SC-005` |
+ * | Each of the five guard characters dropped, in turn (5) | `SC-005` |
+ * | The guard's `includes` weakened to `startsWith` | `SC-005` |
  * | `globMatches` neutered to `return true` | `globMatches models the broker` |
+ * | `globMatches`'s trailing-escape bound flipped | `globMatches models the broker` |
+ * | `topic` dropped from the exercise, `presenceKey` duplicated | `SC-001` |
  *
- * Sixteen mutations, sixteen red. Three of them were GREEN before the review
- * gate: `ownedKey` and `aliveKey` embed a per-driver `crypto.randomUUID()`, so
- * the differential's normalise-match dropped them and `SC-001` covered eight of
- * ten while appearing to cover all; and `globMatches` had never executed at all,
- * because its only caller was an ignored test.
+ * **Five of these were GREEN before a reviewer caught them**, and each was the
+ * same class — an observation that cannot see its own violation:
+ *
+ * - `ownedKey` and `aliveKey` embed a per-driver `crypto.randomUUID()`, so the
+ *   differential's normalise-match dropped them: `SC-001` covered eight of ten
+ *   while appearing to cover all.
+ * - `globMatches` had never executed, because its only caller was an ignored
+ *   test — so both of its mutations were green.
+ * - The bad-prefix fixture was `'app[1]'`, carrying `[` **and** `]`, so dropping
+ *   `[` from the guard still threw on `]`.
+ * - The last row was green against a pinned COUNT: drop one name, add one shape,
+ *   the total is unchanged. It is red only against the exact set.
  *
  * @module @lockness/realtime/tests/prefix_anchoring
  */
