@@ -269,7 +269,7 @@ Redis roster on every subscribe, and a missed eviction is recovered by the
 durable revocation record. Nothing is permanently lost; some cross-instance
 presence events are simply not delivered while both versions are running.
 
-### One constraint on your connection ids
+### Two constraints on your connection ids
 
 `manager.evict(id)` names a connection id in a frame that crosses the bus, so
 **a connection id must be unguessable and never reused**. The framework's own
@@ -277,6 +277,28 @@ WebSocket upgrade generates one per connection; if you wire your own transport,
 generate a fresh `crypto.randomUUID()` rather than passing a user id or a
 session id. A stable, guessable id makes a captured eviction frame a repeatable
 weapon against whoever currently holds it.
+
+**It must also stay inside the charset the control plane can carry**: letters,
+digits and `:` `.` `_` `-`, at most 200 characters. `crypto.randomUUID()`
+satisfies it.
+
+This is not a new requirement — the control plane has always dropped a frame
+naming an id outside it — but it used to be enforced in only one of three
+places. An id like `user@example.com` evicted correctly on its own instance, was
+silently dropped by every other one, and was still recovered by the durable
+reconcile. An application had no way to notice.
+
+`register`, `subscribe` and `evict` now **throw** on such an id, at the moment
+you supply it. If you are upgrading and you mint your own ids, check them
+against that charset before you deploy: the failure moves from silent and
+partial to immediate and obvious, which is the point, but it does move.
+
+**One thing to do before a rolling upgrade.** A durable revocation already
+recorded against an out-of-charset id is dropped by the reconcile on an upgraded
+instance, so such a connection would come back un-revoked while both versions
+are running — the same silent failure, for exactly the deployments this note is
+addressed to. Re-issue those revocations against in-charset ids first, or drain
+them by waiting out `revocationTtlSeconds` before you deploy.
 
 ## Running on more than one instance
 
