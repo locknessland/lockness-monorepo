@@ -241,6 +241,162 @@ Deno.test('writeFrame - a write that makes no progress raises instead of spinnin
     )
 })
 
+Deno.test('#287: a length prefix is decimal digits or -1, and nothing else', async () => {
+    // Every row measured against `Number()` before this landed, and every one
+    // of them was ACCEPTED as a length — reading the wrong number of bytes off
+    // the socket and desyncing it without raising.
+    const rejected = ['', ' ', '0x10', '1e3', '+5', '0b11', '5.', '-2', '1_0']
+    for (const bad of rejected) {
+        for (const type of ['$', '*']) {
+            await assertRejects(
+                () => readReply(mockConn(wire(`${type}${bad}\r\n`))),
+                RespFramingError,
+                undefined,
+                `a ${type} length of ${JSON.stringify(bad)} was accepted`,
+            )
+        }
+    }
+    // And the two forms that must still work.
+    assertEquals(await readReply(mockConn(wire('$-1\r\n'))), { type: 'nil' })
+    assertEquals(await readReply(mockConn(wire('$2\r\nhi\r\n'))), {
+        type: 'bulk',
+        value: 'hi',
+    })
+})
+
+Deno.test('#287: a bulk body must be followed by CRLF, not merely two bytes', async () => {
+    // The other half of the same trust. The length check stops the client
+    // believing a bad length; this stops it believing the frame ended where the
+    // length said. Two bytes consumed unchecked slide the cursor silently.
+    await assertRejects(
+        () => readReply(mockConn(wire('$2\r\nhiXX'))),
+        RespFramingError,
+        undefined,
+        'a bulk body followed by non-CRLF was accepted',
+    )
+})
+
+Deno.test('#286: a write that never settles rejects on its deadline', async () => {
+    // The leg #245's liveness window does not cover. `written <= 0` catches a
+    // socket that reports no progress; this is the other shape — a socket that
+    // reports NOTHING, because `conn.write` never settles. A peer that accepts
+    // the connection and then stops draining produces exactly that, and until
+    // now it left the caller suspended with no error, no retry and no log line.
+    const stalled = {
+        write: () => new Promise<number>(() => {}),
+    } as unknown as Deno.Conn
+    const started = Date.now()
+    const error = await assertRejects(
+        () => writeFrame(stalled, encodeCommand(['PING']), 60),
+        Error,
+    )
+    const elapsed = Date.now() - started
+    assert(elapsed < 2000, `it waited ${elapsed}ms — the deadline did nothing`)
+    assert(
+        /timed out/i.test(error.message),
+        `the message must say what happened, got: ${error.message}`,
+    )
+})
+
+Deno.test('#286: the deadline is per FRAME, not per write', async () => {
+    // The distinction that decides whether the bound works at all. A socket
+    // dribbling one byte per tick keeps a PER-WRITE timer alive forever — each
+    // write completes, each timer is cleared, and the frame never finishes.
+    // `ReplyReader` already records this reasoning for the read side ("a
+    // per-REPLY wall-clock deadline, not a timer reset on every conn.read");
+    // the write side has the identical failure mode.
+    //
+    // 20ms per byte against a 60ms budget: every individual write is well
+    // inside any per-write timeout, and the frame still must not complete.
+    let written = 0
+    const dribble = {
+        write: () =>
+            new Promise<number>((resolve) =>
+                setTimeout(() => {
+                    written++
+                    resolve(1)
+                }, 20)
+            ),
+    } as unknown as Deno.Conn
+    const frame = encodeCommand(['PING'])
+    const error = await assertRejects(
+        () => writeFrame(dribble, frame, 60),
+        Error,
+    )
+    assert(
+        written > 0 && written < frame.byteLength,
+        `the socket must have made SOME progress and not finished — wrote ` +
+            `${written} of ${frame.byteLength}. If it wrote the whole frame ` +
+            'this fixture no longer tests a per-frame deadline.',
+    )
+    assert(/timed out/i.test(error.message), error.message)
+})
+
+Deno.test('#286: the stall message does not claim an exact byte offset', async () => {
+    // An abandoned `conn.write` cannot be cancelled and may still be advancing
+    // the offset after the deadline fires, so any number in this message is a
+    // lower bound and must say so. The `written <= 0` error keeps its exact
+    // offset — it has one, because that write returned.
+    const dribble = {
+        write: () =>
+            new Promise<number>((resolve) => setTimeout(() => resolve(1), 20)),
+    } as unknown as Deno.Conn
+    const error = await assertRejects(
+        () => writeFrame(dribble, encodeCommand(['PING']), 60),
+        Error,
+    )
+    assert(
+        /at least/i.test(error.message),
+        'the confirmed count must be marked as a lower bound, got: ' +
+            error.message,
+    )
+})
+
+Deno.test('#286: an absent deadline leaves the loop unbounded, exactly as before', async () => {
+    // Q1. The parameter is OPTIONAL and `undefined` means unbounded, which is
+    // what keeps the command path out of this change: `exchange` passes its
+    // timeout to `readReply` only, so a DEFAULTED write deadline would have
+    // reached AUTH, SELECT, QUIT and every RedisClient.command without a caller
+    // opting in — and bypassed the handshake's per-step `#remaining`
+    // threading, restoring the multiplication #274 fixed.
+    //
+    // Asserting a non-event, so it needs its own control: the same socket with
+    // a deadline DOES reject, three lines down.
+    const stalled = {
+        write: () => new Promise<number>(() => {}),
+    } as unknown as Deno.Conn
+    const unbounded = writeFrame(stalled, encodeCommand(['PING']))
+    const raced = await Promise.race([
+        unbounded.then(() => 'settled'),
+        new Promise((resolve) =>
+            setTimeout(() => resolve('still pending'), 120)
+        ),
+    ])
+    assertEquals(raced, 'still pending')
+    await assertRejects(
+        () => writeFrame(stalled, encodeCommand(['PING']), 40),
+        Error,
+        undefined,
+        'the control: the same socket WITH a deadline must reject, or the ' +
+            'assertion above proves nothing about the deadline being absent',
+    )
+})
+
+Deno.test('#286: writeFrame refuses a nonsense deadline', async () => {
+    // FR-010. An exported parameter with no defined behaviour for 0 / NaN /
+    // negative is a public API that accepts a value and does something
+    // arbitrary with it.
+    const ok = { write: () => Promise.resolve(1) } as unknown as Deno.Conn
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+        await assertRejects(
+            () => writeFrame(ok, encodeCommand(['PING']), bad),
+            RangeError,
+            undefined,
+            `a timeout of ${bad} was accepted`,
+        )
+    }
+})
+
 Deno.test('readReply - the TOTAL of a multi-bulk reply is bounded, not just each part', async () => {
     // #245, review gate. MAX_BULK_BYTES bounds one bulk BODY and MAX_LINE_BYTES
     // one line; neither bounds their sum. A multi-bulk of individually-legal

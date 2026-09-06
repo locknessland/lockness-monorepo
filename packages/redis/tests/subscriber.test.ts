@@ -419,15 +419,67 @@ const FAST = {
     retryMaxMs: 40,
 } as const
 
-/** Capture `console.warn` while the body runs, so a test can POLL the output. */
-function liveWarnings(): { messages: string[]; restore: () => void } {
+/**
+ * Capture `console.warn` for the lifetime of a `using` binding.
+ *
+ * **The binding owns the restore; the caller cannot forget it** (#287). The
+ * original shape handed back a `restore()` for the caller to call, so a test
+ * that threw before reaching it left `console.warn` patched for every test
+ * after it in this file — and every later assertion about log output then
+ * passed for the wrong reason, silently. That is a test-integrity control, not
+ * housekeeping: the assertions #286 and #296 depend on are exactly the kind
+ * that would pass.
+ *
+ * A first attempt added a `restored` flag and kept the handback. The flag
+ * guards a DOUBLE restore, which was never the failure mode — the failure mode
+ * is never restoring at all — and the review gate measured its test passing
+ * identically against the unfixed helper. `Symbol.dispose` is the fix: the
+ * language runs it on scope exit, return or throw, and there is nothing left to
+ * remember.
+ *
+ * @returns The live message array, plus the disposer `using` invokes.
+ * @example
+ * ```typescript
+ * using warn = liveWarnings()
+ * // ... drive the subject ...
+ * assert(warn.messages.some((m) => /expected/.test(m)))
+ * ```
+ */
+function liveWarnings(): { messages: string[]; [Symbol.dispose]: () => void } {
     const messages: string[] = []
     const real = console.warn
     console.warn = (...args: unknown[]) => {
         messages.push(args.map((a) => String(a)).join(' '))
     }
-    return { messages, restore: () => void (console.warn = real) }
+    return { messages, [Symbol.dispose]: () => void (console.warn = real) }
 }
+
+Deno.test('#287: a captured console.warn is restored even when the body throws', () => {
+    // The test the first attempt got wrong: it called `restore()` itself inside
+    // its own catch, so the mechanism it named was never exercised — and it
+    // passed against the unfixed helper. Measured at the review gate.
+    //
+    // Here nothing restores the global except the `using` binding going out of
+    // scope. Delete `[Symbol.dispose]` and this goes red.
+    const before = console.warn
+    let patchedInside = false
+    try {
+        using warn = liveWarnings()
+        void warn.messages
+        patchedInside = console.warn !== before
+        throw new Error('the body threw')
+    } catch {
+        // Swallowed on purpose: the assertion is about the global, not the throw.
+    }
+    assert(patchedInside, 'the helper did patch the global')
+    assertEquals(
+        console.warn,
+        before,
+        'console.warn was left patched by a body that threw — every later ' +
+            'assertion about log output in this file would now pass for the ' +
+            'wrong reason',
+    )
+})
 
 /** How many times `op` appears in the server's command log. */
 function countOp(server: FakeServer, op: string): number {
@@ -482,7 +534,8 @@ Deno.test('FR-001/SC-001: an idle socket is NOT torn down (#274)', async () => {
         port: server.port,
         ...FAST,
     })
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         sub.psubscribe('app:*', () => {})
         await waitFor(
@@ -509,7 +562,6 @@ Deno.test('FR-001/SC-001: an idle socket is NOT torn down (#274)', async () => {
                 'would pass for the wrong reason (the deadline simply being long)',
         )
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -598,7 +650,8 @@ Deno.test('FR-011/SC-007: a RETRIED activation issues every recorded pattern', a
         ...FAST,
     })
     const got: string[] = []
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         // Both recorded while nothing can dial — exactly the boot race.
         sub.psubscribe('events:*', (topic) => void got.push(`events ${topic}`))
@@ -621,7 +674,6 @@ Deno.test('FR-011/SC-007: a RETRIED activation issues every recorded pattern', a
         await waitFor(() => got.length === 2, 'both handlers received', 4000)
         assertEquals(got.sort(), ['control control', 'events events:a'])
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -733,7 +785,8 @@ Deno.test('FR-002/SC-002: a peer that answers nothing is detected inside the win
         port: server.port,
         ...FAST,
     })
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         sub.psubscribe('app:*', () => {})
         await waitFor(
@@ -765,7 +818,6 @@ Deno.test('FR-002/SC-002: a peer that answers nothing is detected inside the win
             FAST.livenessMs * 20,
         )
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -786,7 +838,8 @@ Deno.test('FR-014/SC-010: the HANDSHAKE is bounded by the liveness window too', 
         db: 2,
         ...FAST,
     })
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         const start = Date.now()
         sub.psubscribe('app:*', () => {})
@@ -810,7 +863,6 @@ Deno.test('FR-014/SC-010: the HANDSHAKE is bounded by the liveness window too', 
             assert(!message.includes('secret'), 'no password byte, in any line')
         }
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -824,7 +876,8 @@ Deno.test('FR-004/SC-003: a re-dial that fails is retried until it succeeds (#27
         ...FAST,
     })
     const delivered: string[] = []
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         sub.psubscribe(
             'app:*',
@@ -866,7 +919,6 @@ Deno.test('FR-004/SC-003: a re-dial that fails is retried until it succeeds (#27
             4000,
         )
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -891,7 +943,8 @@ Deno.test('FR-012/SC-008: a socket that failed an activation is never re-used', 
         password: 'secret',
         ...FAST,
     })
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         sub.psubscribe('m'.repeat(1024 * 1024), () => {})
         await waitFor(
@@ -910,7 +963,6 @@ Deno.test('FR-012/SC-008: a socket that failed an activation is never re-used', 
             'the retry dialled again rather than re-using the dead socket',
         )
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -924,7 +976,8 @@ Deno.test('FR-007/SC-005: a multi-attempt recovery fires the seam EXACTLY once',
         ...FAST,
     })
     let fires = 0
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         sub.onReconnect(() => void fires++)
         sub.psubscribe('app:*', () => {})
@@ -948,7 +1001,6 @@ Deno.test('FR-007/SC-005: a multi-attempt recovery fires the seam EXACTLY once',
             'once for the whole recovery — not once per failed attempt',
         )
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -963,7 +1015,8 @@ Deno.test('FR-007: a retried FIRST connect fires nothing — there is nothing to
         ...FAST,
     })
     let fires = 0
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         sub.onReconnect(() => void fires++)
         sub.psubscribe('app:*', () => {})
@@ -987,7 +1040,6 @@ Deno.test('FR-007: a retried FIRST connect fires nothing — there is nothing to
                 'never had state to lose',
         )
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -1007,7 +1059,8 @@ Deno.test('FR-005: the cleartext-AUTH exposure is named, and only when it is rea
         port: server.port,
         ...FAST,
     })
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         withPassword.psubscribe('a:*', () => {})
         await waitFor(
@@ -1035,7 +1088,6 @@ Deno.test('FR-005: the cleartext-AUTH exposure is named, and only when it is rea
             'no notice when there is no credential to expose',
         )
     } finally {
-        restore()
         await withPassword.close()
         await without.close()
         server.stop()
@@ -1059,7 +1111,8 @@ Deno.test({
             port: 6379,
             ...FAST,
         })
-        const { messages: warnings, restore } = liveWarnings()
+        using warn = liveWarnings()
+        const warnings = warn.messages
         try {
             sub.psubscribe('app:*', () => {})
             await new Promise((r) => setTimeout(r, 50))
@@ -1083,7 +1136,8 @@ Deno.test({
                     'budget otherwise',
             )
         } finally {
-            restore()
+            // Nothing to undo by hand: the `using` binding above restores
+            // `console.warn` on scope exit, whichever way this block leaves.
         }
     },
 })
@@ -1108,7 +1162,8 @@ Deno.test('FR-017: a coalesced retry chain latches toward "reconnect", never awa
         retryMaxMs: 400,
     })
     let fires = 0
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         sub.onReconnect(() => void fires++)
         sub.psubscribe('app:*', () => {})
@@ -1137,7 +1192,6 @@ Deno.test('FR-017: a coalesced retry chain latches toward "reconnect", never awa
                 'and the consumer never runs its post-reconnect reconciliation',
         )
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -1161,7 +1215,8 @@ Deno.test('FR-004: a socket that faults IMMEDIATELY after subscribing backs off 
         retryBaseMs: 40,
         retryMaxMs: 200,
     })
-    const { restore } = liveWarnings()
+    using warn = liveWarnings()
+    void warn
     try {
         sub.psubscribe('app:*', () => {})
         await waitFor(
@@ -1181,7 +1236,6 @@ Deno.test('FR-004: a socket that faults IMMEDIATELY after subscribing backs off 
                 'client at the speed of the loopback',
         )
     } finally {
-        restore()
         server.closeAfter(null)
         await sub.close()
         server.stop()
@@ -1227,7 +1281,8 @@ Deno.test('FR-006: close() cancels a PENDING retry', async () => {
 
     const server = await startFakeServer()
     server.unreachable()
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         const sub = new RedisSubscribeConnection({
             hostname: '127.0.0.1',
@@ -1270,7 +1325,6 @@ Deno.test('FR-006: close() cancels a PENDING retry', async () => {
     } finally {
         globalThis.setTimeout = realSetTimeout
         globalThis.clearTimeout = realClearTimeout
-        restore()
         server.stop()
     }
 })
@@ -1298,7 +1352,8 @@ Deno.test({
             retryBaseMs: 5,
             retryMaxMs: 40,
         })
-        const { messages, restore } = liveWarnings()
+        using warn = liveWarnings()
+        const messages = warn.messages
         try {
             const start = Date.now()
             sub.psubscribe('app:*', () => {})
@@ -1314,7 +1369,6 @@ Deno.test({
                     '(120ms) and a few retries, not by the OS SYN budget',
             )
         } finally {
-            restore()
             await sub.close()
         }
     },
@@ -1340,7 +1394,8 @@ Deno.test('FR-014: a caller-supplied handshakeTimeoutMs is honoured, not overwri
         retryBaseMs: 5,
         retryMaxMs: 40,
     })
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         const start = Date.now()
         sub.psubscribe('app:*', () => {})
@@ -1356,7 +1411,6 @@ Deno.test('FR-014: a caller-supplied handshakeTimeoutMs is honoured, not overwri
                 'and would have been given the 6000ms livenessMs instead',
         )
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -1383,7 +1437,8 @@ Deno.test('FR-015: the backoff carries full jitter and respects its cap', async 
         retryBaseMs: CEILING,
         retryMaxMs: CEILING,
     })
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         sub.psubscribe('app:*', () => {})
         await waitFor(
@@ -1410,7 +1465,6 @@ Deno.test('FR-015: the backoff carries full jitter and respects its cap', async 
                 'together re-dials a recovering broker in lockstep',
         )
     } finally {
-        restore()
         await sub.close()
         server.stop()
     }
@@ -1508,7 +1562,8 @@ Deno.test('FR-014: the activation budget is SHARED across its steps, not per ste
         retryBaseMs: 2000,
         retryMaxMs: 2000,
     })
-    const { messages, restore } = liveWarnings()
+    using warn = liveWarnings()
+    const messages = warn.messages
     try {
         sub.psubscribe('app:*', () => {})
         await waitFor(
@@ -1525,8 +1580,431 @@ Deno.test('FR-014: the activation budget is SHARED across its steps, not per ste
                 'budget running out during the handshake looks like',
         )
     } finally {
-        restore()
         server.delayReply(0)
+        await sub.close()
+        server.stop()
+    }
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #286 — the write leg
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A socket that completes its dial and then never accepts a byte.
+ *
+ * The shape #286 is about, and the one no fake SERVER can produce: a listener
+ * that stops reading still has a kernel receive buffer, so a 40-byte
+ * `PSUBSCRIBE` lands in it and `conn.write` resolves. Stalling the write means
+ * stalling it at the socket, so the socket is the fake.
+ */
+function stalledWriteConn(): Deno.Conn {
+    return {
+        write: () => new Promise<number>(() => {}),
+        read: () => new Promise<number | null>(() => {}),
+        close: () => {},
+        localAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+        remoteAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+    } as unknown as Deno.Conn
+}
+
+Deno.test('#286: a PSUBSCRIBE write that never settles fails the activation instead of hanging it', async () => {
+    // Before this, `#activate` awaited a write with no deadline: no error, no
+    // retry, no log line. The `catch` that calls `#scheduleRetry` was never
+    // entered, so every machine #245 built was bypassed by the one leg it did
+    // not cover.
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => Promise.resolve(stalledWriteConn()),
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 60,
+        livenessMs: 200,
+        retryBaseMs: 5000,
+        retryMaxMs: 5000,
+    })
+    using warn = liveWarnings()
+    const messages = warn.messages
+    try {
+        sub.psubscribe('app:*', () => {})
+        await waitFor(
+            () => messages.some((m) => /timed out/i.test(m)),
+            'the stalled write surfaced as a failed activation',
+            3000,
+        )
+        const line = messages.find((m) => /timed out/i.test(m))!
+        // The DERIVED budget, not the liveness window and not a literal. With
+        // livenessMs 200 the min() picks the window; the ceiling case is the
+        // test below.
+        assert(
+            /200ms/.test(line),
+            `the write budget must be min(livenessMs, ceiling) = 200ms here, ` +
+                `got: ${line}`,
+        )
+        assert(
+            /discard the socket/i.test(line),
+            'the error must tell the caller bytes may remain on the wire',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await sub.close()
+    }
+})
+
+Deno.test({
+    name: '#286: the write budget is CAPPED, not the liveness window raw',
+    // ~5s by construction: the whole point is that a 20s liveness window does
+    // NOT become a 20s write budget, and the only observable is the deadline
+    // firing at the ceiling. A cheaper fixture cannot tell min() from identity,
+    // because with a small window the two agree — which is exactly how this
+    // decision would have shipped untested.
+    sanitizeOps: false,
+    sanitizeResources: false,
+    async fn() {
+        const real = Deno.connect
+        Object.defineProperty(Deno, 'connect', {
+            value: () => Promise.resolve(stalledWriteConn()),
+            configurable: true,
+            writable: true,
+        })
+        const sub = new RedisSubscribeConnection({
+            hostname: '127.0.0.1',
+            port: 1,
+            keepaliveMs: 10_000,
+            livenessMs: 20_000,
+            retryBaseMs: 60_000,
+            retryMaxMs: 60_000,
+        })
+        using warn = liveWarnings()
+        const messages = warn.messages
+        const started = Date.now()
+        try {
+            sub.psubscribe('app:*', () => {})
+            await waitFor(
+                () => messages.some((m) => /timed out/i.test(m)),
+                'the write deadline fired at the ceiling, not the window',
+                9000,
+            )
+            const elapsed = Date.now() - started
+            const line = messages.find((m) => /timed out/i.test(m))!
+            assert(
+                /5000ms/.test(line),
+                `a 20s liveness window must not become a 20s write budget. ` +
+                    `Got: ${line}`,
+            )
+            assert(
+                elapsed < 9000,
+                `it waited ${elapsed}ms — the cap did nothing`,
+            )
+        } finally {
+            Object.defineProperty(Deno, 'connect', {
+                value: real,
+                configurable: true,
+                writable: true,
+            })
+            await sub.close()
+        }
+    },
+})
+
+/**
+ * A socket whose writes take `writeMs`, and whose read can be faulted on demand.
+ *
+ * Slow writes are what let a SECOND write queue behind an in-flight one — the
+ * only way to build a backlog, since `#activate` awaits its PSUBSCRIBEs one at
+ * a time. The keepalive is the concurrent writer that supplies it.
+ */
+function slowWriteConn(writeMs: number): {
+    conn: Deno.Conn
+    faultRead: (error: Error) => void
+} {
+    let rejectRead: ((error: Error) => void) | undefined
+    const conn = {
+        write: (bytes: Uint8Array) =>
+            new Promise<number>((resolve) =>
+                setTimeout(() => resolve(bytes.byteLength), writeMs)
+            ),
+        read: () =>
+            new Promise<number | null>((_, reject) => {
+                rejectRead = reject
+            }),
+        close: () => {},
+        localAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+        remoteAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+    } as unknown as Deno.Conn
+    return { conn, faultRead: (error) => rejectRead?.(error) }
+}
+
+Deno.test('#286: a write queued against a socket that is then discarded REJECTS, and reaches no socket', async () => {
+    // The half of #286 that is not the deadline. `#writeChain` was
+    // per-CONNECTION and `#discardSocket` did not reset it, so a write queued
+    // against a dead socket sat ahead of every later write — including the
+    // recovered socket's re-PSUBSCRIBE. The recovery queued behind the thing it
+    // was recovering from.
+    //
+    // Two mechanisms are needed and this covers both: rebasing the field does
+    // not cancel a frame ALREADY chained behind an in-flight one, so the queued
+    // closure re-checks its generation and rejects. Rejects, not resolves — a
+    // silently-dropped write leaves the caller's await unsettled, which is
+    // #286's own defect relocated into the queue reset.
+    const { conn, faultRead } = slowWriteConn(200)
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => Promise.resolve(conn),
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 40, // fires while the PSUBSCRIBE write is still in flight
+        livenessMs: 5000, // long, so the deadline is not what ends this
+        retryBaseMs: 60_000, // no re-dial: the point is the ABANDONED write
+        retryMaxMs: 60_000,
+    })
+    using warn = liveWarnings()
+    const messages = warn.messages
+    try {
+        sub.psubscribe('app:*', () => {})
+        // Wait past activation. The keepalive is armed and the read loop
+        // started only AFTER the PSUBSCRIBE writes — an earlier version of this
+        // test faulted at 80ms, when neither existed yet, and timed out proving
+        // nothing. With a 200ms write and a 40ms keepalive, PING #2 is queued
+        // behind PING #1 by the time we fault.
+        await new Promise((r) => setTimeout(r, 320))
+        // Now the socket dies. The read loop faults, `#discardSocket` runs, and
+        // the queued PING's closure has its generation pulled out from under it.
+        faultRead(new Error('socket fault'))
+        await waitFor(
+            () => messages.some((m) => /abandoned/i.test(m)),
+            'the queued write was abandoned rather than sent to a dead socket',
+            3000,
+        )
+        const line = messages.find((m) => /abandoned/i.test(m))!
+        assert(
+            /socket generation changed/i.test(line),
+            `it must say WHY it was abandoned, got: ${line}`,
+        )
+        assert(
+            /Bad resource ID|BadResource/i.test(line) === false,
+            'a Deno resource error means the frame reached the dead socket ' +
+                `and the guard did not fire: ${line}`,
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await sub.close()
+    }
+})
+
+Deno.test('#286: a keepalive write that times out DISCARDS the socket', async () => {
+    // The obligation the keepalive used to owe and not pay. Its `.catch` logs
+    // and deliberately does not schedule a recovery, on the reasoning that "the
+    // read loop on this same socket is about to fault". Sound while every write
+    // failure was a socket error the read loop would also see — and false for a
+    // TIMEOUT, which is what #286 introduces: the socket is alive, the read
+    // loop keeps draining, and a partial PING sits mid-frame waiting for the
+    // next PSUBSCRIBE to be spliced onto it.
+    //
+    // Scheduling stays where it was. Only the discard moved.
+    let dials = 0
+    let writes = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            dials++
+            const first = dials === 1
+            return Promise.resolve(
+                {
+                    // Generation 1 accepts the PSUBSCRIBE and then wedges, so
+                    // the KEEPALIVE is the write that times out. Generation 2
+                    // behaves, so the test ends on a live socket rather than a
+                    // loop.
+                    write: (bytes: Uint8Array) => {
+                        writes++
+                        return first && writes > 1
+                            ? new Promise<number>(() => {})
+                            : Promise.resolve(bytes.byteLength)
+                    },
+                    // The socket KEEPS ANSWERING. Without this the read
+                    // deadline (`livenessMs`) always fires before the write
+                    // deadline, which is `min(livenessMs, ceiling)` and so can
+                    // never be longer — the first version of this test proved a
+                    // re-dial that the READ loop had caused, not the keepalive.
+                    // A reply every 50ms resets the read window and leaves the
+                    // wedged write as the only thing that can end this.
+                    read: (buf: Uint8Array) =>
+                        new Promise<number | null>((resolve) =>
+                            setTimeout(() => {
+                                const pong = new TextEncoder().encode(
+                                    '+PONG\r\n',
+                                )
+                                buf.set(pong)
+                                resolve(pong.byteLength)
+                            }, 50)
+                        ),
+                    close: () => {},
+                    localAddr: {
+                        transport: 'tcp',
+                        hostname: '127.0.0.1',
+                        port: 0,
+                    },
+                    remoteAddr: {
+                        transport: 'tcp',
+                        hostname: '127.0.0.1',
+                        port: 0,
+                    },
+                } as unknown as Deno.Conn,
+            )
+        },
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 60,
+        livenessMs: 200,
+        retryBaseMs: 40,
+        retryMaxMs: 80,
+    })
+    using warn = liveWarnings()
+    const messages = warn.messages
+    try {
+        sub.psubscribe('app:*', () => {})
+        await waitFor(
+            () => dials >= 2,
+            'the wedged socket was discarded and re-dialled — without the ' +
+                'discard the keepalive just logs and the dead socket is kept',
+            4000,
+        )
+        assert(
+            messages.some((m) => /keepalive PING failed/.test(m)),
+            'the keepalive still logs its own failure; only the discard moved',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await sub.close()
+    }
+})
+
+Deno.test('#296: a SYNCHRONOUS handler throw is contained, without a live broker', async () => {
+    // #296's only test was live-env-gated, so the default `deno task test`
+    // gate carried no coverage of it at all — the review gate's point. The
+    // PROCESS-EXIT half genuinely needs a real broker (no in-process double
+    // reproduces one), but the containment half does not, and that is the half
+    // a regression would break first.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+    })
+    const seen: string[] = []
+    using warn = liveWarnings()
+    void warn
+    const realError = console.error
+    const errors: string[] = []
+    console.error = (...args: unknown[]) => {
+        errors.push(args.map((a) => String(a)).join(' '))
+    }
+    try {
+        sub.psubscribe('app:*', (_topic, payload) => {
+            seen.push(payload)
+            if (payload === 'boom') throw new Error('handler exploded')
+        })
+        await waitFor(
+            () =>
+                server.commandLog.some((c) =>
+                    c[0]?.toUpperCase() === 'PSUBSCRIBE'
+                ),
+            'the subscription reached the server',
+        )
+        server.publish('app:*', 'app:a', 'first')
+        server.publish('app:*', 'app:a', 'boom')
+        server.publish('app:*', 'app:a', 'after')
+        await waitFor(
+            () => seen.includes('after'),
+            'delivery continued past the throw — the read loop survived it',
+        )
+        assertEquals(seen, ['first', 'boom', 'after'])
+        assert(
+            errors.some((e) => /handler exploded/.test(e)),
+            'the fault was reported, not swallowed',
+        )
+    } finally {
+        console.error = realError
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('#296: an ASYNC handler rejection is contained too', async () => {
+    // The gap the review gate found. `try/catch` sees a synchronous throw and
+    // nothing else, so an `async` handler hands back a REJECTED promise that
+    // nothing awaits — the unobserved rejection #296 is about, reached by
+    // writing the natural thing. The port's handler type returns `void`, and
+    // TypeScript assigns a `Promise<void>` to that without complaint, so an
+    // application arrives here with no warning at all.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+    })
+    const seen: string[] = []
+    using warn = liveWarnings()
+    void warn
+    const realError = console.error
+    const errors: string[] = []
+    console.error = (...args: unknown[]) => {
+        errors.push(args.map((a) => String(a)).join(' '))
+    }
+    try {
+        sub.psubscribe(
+            'app:*',
+            ((_topic: string, payload: string) => {
+                seen.push(payload)
+                // eslint-disable-next-line — an async handler, which the `void`
+                // return type of the port permits by assignment.
+                return payload === 'boom'
+                    ? Promise.reject(new Error('async handler exploded'))
+                    : Promise.resolve()
+            }) as unknown as (topic: string, payload: string) => void,
+        )
+        await waitFor(
+            () =>
+                server.commandLog.some((c) =>
+                    c[0]?.toUpperCase() === 'PSUBSCRIBE'
+                ),
+            'the subscription reached the server',
+        )
+        server.publish('app:*', 'app:a', 'boom')
+        await waitFor(
+            () => errors.some((e) => /async handler exploded/.test(e)),
+            'the rejected promise was contained and reported, not left ' +
+                'unobserved for the runtime to turn into a process exit',
+        )
+        server.publish('app:*', 'app:a', 'after')
+        await waitFor(
+            () => seen.includes('after'),
+            'delivery continued past the rejection',
+        )
+    } finally {
+        console.error = realError
         await sub.close()
         server.stop()
     }

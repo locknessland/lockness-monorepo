@@ -270,3 +270,64 @@ Deno.test('connection - a failed handshake closes the socket and drops the memo'
         },
     )
 })
+
+Deno.test('#287: discard of a STALE socket does not cancel an in-flight dial', async () => {
+    // The guard that has no witness today. `discard` clears `connection`
+    // CONDITIONALLY (`if (this.connection === conn)`) and then clears
+    // `connectPromise` UNCONDITIONALLY on the very next line — so a discard of
+    // any socket cancels whatever dial happens to be in flight.
+    //
+    // Unreachable before #245, which is why it shipped: nothing called
+    // `discard` while a dial was running. #245's retry machinery makes
+    // concurrent activation routine, and #286's write deadline makes a LATE
+    // discard of an already-replaced socket routine on top of that — an
+    // activation whose write times out discards the socket it was holding,
+    // which by then may be two generations old.
+    //
+    // What the cancellation costs: the next `connect()` sees a null
+    // `connectPromise`, dials AGAIN, and the single-flight invariant — N
+    // concurrent callers open exactly ONE socket — is gone. With `tls`
+    // defaulting to false, the extra dial re-sends AUTH in cleartext.
+    const server = await startFakeServer()
+    const real = Deno.connect
+    let opens = 0
+    await withConnectStub(
+        (opts) => {
+            opens++
+            return new Promise((resolve) =>
+                setTimeout(() => resolve(real(opts)), 40)
+            )
+        },
+        async () => {
+            const conn = new AuthenticatedConnection({
+                hostname: '127.0.0.1',
+                port: server.port,
+            })
+            // A socket from an earlier generation. It is discarded below while
+            // a fresh dial is in flight — the exact interleaving #286 makes
+            // routine.
+            const stale = await real({
+                hostname: '127.0.0.1',
+                port: server.port,
+            })
+
+            const dialA = conn.connect()
+            // Discard a socket this connection does not currently hold.
+            conn.discard(stale)
+            const dialB = conn.connect()
+
+            const [a, b] = await Promise.all([dialA, dialB])
+            assertEquals(
+                opens,
+                1,
+                'a discard of an unrelated socket cancelled the in-flight ' +
+                    'single-flight, so the second connect() dialled again',
+            )
+            assert(a === b, 'both callers must receive the same socket')
+
+            const socket = conn.socket
+            if (socket) conn.discard(socket)
+        },
+    )
+    server.stop()
+})
