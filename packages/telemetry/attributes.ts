@@ -61,5 +61,12 @@ export function toRecordedException(
     error: unknown,
 ): { name: string; message: string } {
     const name = error instanceof Error ? error.name : 'Error'
-    return { name, message: renderError(error) }
+    // `followCause: false` — the head error only. A span leaves the process for
+    // a trace backend, which is a different trust boundary from a log line an
+    // operator reads: this function already drops the stack for that exact
+    // reason. `renderError` redacts a cause like any other text, so a DSN in
+    // one is safe — but redaction only knows the shapes it knows, and a bare
+    // API key in a cause is not one of them. Console sinks take the full chain
+    // (#302); this one does not.
+    return { name, message: renderError(error, { followCause: false }) }
 }
