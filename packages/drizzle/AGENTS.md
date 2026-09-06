@@ -71,9 +71,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 11 source files:
+9 test files for 11 source files:
 
 - `packages/drizzle/tests/cli_commands.test.ts`
+- `packages/drizzle/tests/database.test.ts`
 - `packages/drizzle/tests/factory.test.ts`
 - `packages/drizzle/tests/install.test.ts`
 - `packages/drizzle/tests/make_factory.test.ts`
@@ -96,7 +97,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 8 test files directly —
+Then, specific to this package: run its 9 test files directly —
 
 ```bash
 deno test -A packages/drizzle/
