@@ -185,6 +185,9 @@ control: {
     // The largest control payload published or accepted, in bytes.
     // Default: 8192.
     maxPayloadBytes: 8192,
+    // The most frame nonces one instance remembers at a time.
+    // Default: 10_000.
+    maxEntries: 10_000,
 },
 ```
 
@@ -201,6 +204,40 @@ window is a longer period in which a captured frame remains replayable against
 an instance that restarted, and a proportionally larger nonce store. It is not a
 robustness dial to turn up "just in case".
 
+**`maxEntries` is reached by ordinary load, not only by attack.** A client
+reconnecting produces **two** presence control frames per channel — a `leave` as
+the old socket drops and a `join` as the new one lands — so a rolling deploy or
+a load-balancer failover puts roughly `clients x channels x 2` frames inside one
+window. For 5 000 clients across two presence channels that is about 20 000,
+well past the 10 000 default. At the cap every instance is guaranteed an equal
+share of it — `maxEntries` divided by the number of instances currently in the
+store — and what is dropped is the oldest nonce belonging to an instance
+**above** its share. An instance under its share is never evicted to make room
+for another's traffic. When the cap divides evenly and nobody is over their
+share, the instance asking for the slot pays with its own oldest nonce rather
+than a bystander's — except on its very first frame, when it holds nothing to
+pay with and the oldest nonce in the store goes instead. That is one nonce,
+once, per instance joining a perfectly-divided cap. The surplus above the shares
+goes to whoever sent most recently. The cost of any eviction is that a frame
+older than the evicted entry but still inside the window could be replayed once.
+That is deliberate: refusing new entries instead would fail the control plane
+closed, which is worse than the replay it prevents.
+
+**Size `maxEntries` against your fleet, not just your traffic.** The guarantee
+is an equal share, and an equal share of a cap that is too small is still small:
+500 instances sharing the 10 000 default get 20 nonces each, which at a busy
+moment is a fraction of one window. No allocation rule can do better — there are
+only 10 000 slots — so the number to change is the cap. The at-cap WARN names
+both the cap and how many instances are currently sharing it, which is exactly
+the pair you need to size it.
+
+**Raise `maxEntries` before you widen `windowMs`.** A bigger store costs memory;
+a longer window costs replayability. The WARN names both the cap and how many
+instances are sharing it, and it repeats at most once a minute while frames keep
+arriving — so a single line means a brief burst, and a repeating one means you
+are living at the cap. It is raised on admission, not on a timer, so a store
+that fills and then goes quiet logs once and stops.
+
 ### Reading the drop logs
 
 Every rejection says which check refused it, because they mean different things:
@@ -213,6 +250,7 @@ Every rejection says which check refused it, because they mean different things:
 | `invalid name`       | A routing name outside the permitted charset.                                                                                                                                   |
 | `STALE`              | Outside the freshness window. **The message names the observed delta** — a large or negative value is clock skew between your instances, not a dead bus.                        |
 | `DUPLICATE`          | This exact frame was already delivered inside the window. A replay.                                                                                                             |
+| `at its ... cap`     | The nonce store is full and is now evicting to make room. Not a rejection — the frames still flow. Raise `maxEntries`, or reduce the reconnect storm producing them.            |
 
 If control frames stop flowing after an upgrade and the logs are full of `STALE`
 with a large delta, the fault is NTP, not the bus.
@@ -362,6 +400,7 @@ RedisBroadcastDriver.fromConfig(config, {
         // "Control-plane replay protection" above for what these cost.
         windowMs: 30_000,
         maxPayloadBytes: 8192,
+        maxEntries: 10_000,
     },
 })
 ```
