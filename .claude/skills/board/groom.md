@@ -99,7 +99,8 @@ The PO will:
        replies.
      - **Recommend closure** if the item is genuinely stale or
        duplicates a closed ticket — leave a comment recommending
-       `not_planned`. Steps 2 and 3 are still mandatory (apply labels
+       `not planned` — the CLI flag takes a space; the API field reads
+       back as `NOT_PLANNED`. Steps 2 and 3 are still mandatory (apply labels
        reflecting the recommendation, e.g. `priority:P3`). Do not close
        autonomously.
 

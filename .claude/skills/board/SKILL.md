@@ -146,7 +146,8 @@ project` calls and read configuration from `backlog-config.yml`.
 For closing or editing, use `gh` directly:
 
 ```bash
-gh issue close  <num> --repo <repo> --reason completed     # or not_planned
+gh issue close  <num> --repo <repo> --reason completed
+gh issue close  <num> --repo <repo> --reason "not planned"   # a SPACE, not an underscore
 gh issue edit   <num> --repo <repo> --title "…" --body "…"
 ```
 
