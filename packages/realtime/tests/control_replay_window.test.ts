@@ -576,17 +576,21 @@ Deno.test('#283: heads are COMPARED, not taken in origin-discovery order', () =>
         w.advance(10_000)
         for (let i = 0; i < 5; i++) w.seen.admit('b', `b${i}`, w.now)
 
-        // `a` publishes again while its own old entries are STILL fresh, so its
-        // bucket is never empty and never re-registered.
+        // `a` publishes again while its own old entries are still held, so its
+        // bucket is never empty and never re-registered. This batch takes the
+        // store to the cap; `a` is the only origin over its share, so it pays
+        // for its own admissions and its three originals go.
         w.advance(10_000)
         for (let i = 0; i < 6; i++) w.seen.admit('a', `new${i}`, w.now)
 
-        // Now past the window for `a`'s first three only. The next admission
-        // prunes them, leaving `a` discovered-first but holding a NEWER head
-        // than `b`.
         w.advance(15_000)
         w.seen.admit('c', 'c0', w.now)
-        assertEquals(w.seen.size, 12, '6 a + 5 b + 1 c, a‘s stale three pruned')
+        assertEquals(
+            w.seen.size,
+            12,
+            '6 a + 5 b + 1 c — a is discovered first but now holds a NEWER ' +
+                'head than b',
+        )
 
         w.seen.admit('c', 'c1', w.now) // forces one eviction
 
