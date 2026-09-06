@@ -36,7 +36,7 @@ satisfies `@lockness/notification`'s `BroadcasterLike`.
 
 | Direction                                      | Packages                                 |
 | :--------------------------------------------- | :--------------------------------------- |
-| Imports (static)                               | `hono`, `redis`                          |
+| Imports (static)                               | `contract`, `hono`, `redis`              |
 | Imports (soft, via `tryImportOptionalPackage`) | `events`                                 |
 | Imported by                                    | —                                        |
 | **Must never import**                          | nothing — no package depends on this one |
