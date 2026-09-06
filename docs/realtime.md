@@ -120,6 +120,47 @@ connection (a fake bus), so unit tests need no live Redis. `fromConfig` is the
 only path that opens real sockets, and it is the only one whose `close()` has
 connections to release.
 
+### Keeping the subscribe socket alive
+
+The subscribe socket is how every cross-process event and every control frame
+reaches an instance, and it idles by design — on a quiet bus, nothing arrives
+for minutes at a time. So silence alone cannot be read as a fault, and it cannot
+be ignored either: a broker that stops answering has to be noticed.
+
+The connection keeps one **liveness clock**. It writes a `PING` at a short
+cadence, and treats a longer silence — from any cause — as a dead peer. Any
+inbound frame resets it. A failed re-dial is retried with jittered backoff and
+**never abandoned**: an instance that goes deaf stays deaf until it is
+restarted, which is a worse outcome than retrying forever against a broker that
+is down.
+
+The cadences are operator-tunable through the same config object, typed as
+`RedisBroadcastConnectionConfig`:
+
+```ts
+const driver = RedisBroadcastDriver.fromConfig(
+    {
+        hostname: 'localhost',
+        port: 6379,
+        // Defaults: 15s / 45s / 250ms / 30s.
+        keepaliveMs: 10_000,
+        livenessMs: 30_000,
+        retryBaseMs: 250,
+        retryMaxMs: 30_000,
+    },
+    {
+        prefix: 'myapp:rt',
+        control: { secret: Deno.env.get('REALTIME_SECRET')! },
+    },
+)
+```
+
+`livenessMs` must be at least **twice** `keepaliveMs`, or the keepalive cannot
+arrive before the window closes and the connection churns permanently. That, and
+every other cadence constraint, throws a `RangeError` at construction rather
+than degrading in production. The full table is in
+[`@lockness/redis`'s README](../packages/redis/README.md).
+
 See [Running on more than one instance](#running-on-more-than-one-instance) for
 the roster, eviction, and the control-plane security posture.
 

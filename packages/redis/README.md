@@ -80,3 +80,72 @@ await sub.close()
 
 Consumers build their own commands on `client.command(...)`. See
 [`AGENTS.md`](AGENTS.md) for the agent-facing brief.
+
+## Keeping the subscribe socket alive
+
+A subscribe socket idles by design, so silence proves nothing on its own. The
+connection keeps one **liveness clock**: it writes a `PING` at a short cadence,
+and treats a longer silence — from any cause — as a dead peer. Any inbound frame
+resets it, whether that is a delivered message, a subscribe confirmation, or the
+keepalive's own pong.
+
+A failed activation is **retried, never abandoned**. Going deaf is the failure
+being prevented, so there is no exhaustion state: retries slow down, they do not
+stop. Backoff carries full jitter, so a fleet that loses a broker at the same
+instant does not re-dial it in lockstep.
+
+Four knobs, on `RedisSubscribeConnection` and on
+`RedisBroadcastDriver.fromConfig`:
+
+| Option        | Default  | What it decides                                                                                                                 |
+| ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `keepaliveMs` | `15_000` | How often a `PING` is written on an idle socket                                                                                 |
+| `livenessMs`  | `45_000` | The longest silence tolerated before the socket is declared dead. Bounds the **whole activation**, `AUTH` and `SELECT` included |
+| `retryBaseMs` | `250`    | The first retry delay after a failed activation                                                                                 |
+| `retryMaxMs`  | `30_000` | The backoff ceiling. Retries are unbounded in count, bounded in interval                                                        |
+
+`livenessMs` must be **at least twice** `keepaliveMs`, every value must be
+positive and finite, and `retryMaxMs` must not be below `retryBaseMs`. A set
+that breaks any of those throws a `RangeError` at construction rather than
+degrading in production — at `keepaliveMs + 1` the pong can never arrive in
+time, which turns the liveness window back into the churn it exists to remove.
+
+```ts
+const sub = new RedisSubscribeConnection({
+    hostname: '127.0.0.1',
+    port: 6379,
+    keepaliveMs: 10_000,
+    livenessMs: 30_000,
+})
+```
+
+**What the window actually bounds.** `livenessMs` covers the **whole
+activation** — the dial, the `AUTH`/`SELECT` handshake, and the read loop. That
+was not true at first: `AUTH` and `SELECT` inherited the command path's
+30-second default, and the dial itself was unbounded, so a peer that completed
+TCP and then stalled the TLS handshake wedged the socket permanently and
+silently. Set `handshakeTimeoutMs` explicitly to give the dial and handshake a
+different budget from the read loop; left unset, it follows `livenessMs`.
+
+**Reply size bounds.** Three, and all of them are size checks rather than
+timeouts, because a bound that rides on a deadline gets weaker every time the
+deadline grows — silently:
+
+| Constant                   | Bounds                                              |
+| -------------------------- | --------------------------------------------------- |
+| `MAX_BULK_BYTES` (10 MiB)  | one bulk body                                       |
+| `MAX_LINE_BYTES` (64 KiB)  | one CRLF-terminated line                            |
+| `MAX_REPLY_BYTES` (32 MiB) | the **total** one `readReply` may pull off the wire |
+
+The third exists because the first two bound the parts and not the sum: a
+multi-bulk reply of individually-legal elements aggregated without limit, and
+the parsed form is far larger than the wire that produced it — 4 MB of wire
+measured at 81.5 MB of heap.
+
+**Operational notes.** Every failed attempt logs at WARN with its attempt number
+and the delay before the next one, and a recovery logs once with how many
+attempts it took — an outage that ends is as visible as one that starts. When
+`tls` is off and a password is set, the retry line also says that `AUTH` is
+being re-sent in cleartext (never the value): the constructor's one-time warning
+has long scrolled away by the time a retry loop is running, and a client that
+never gives up knocks on that address indefinitely.

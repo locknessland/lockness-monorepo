@@ -82,31 +82,57 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
-- **The subscribe socket re-dials every ~30s on an idle bus.** `subscriber.ts`'s
-  read loop calls `readReply(conn)` with the **default** `READ_TIMEOUT_MS`
-  (`resp.ts`, 30s), and `ReplyReader` fixes its deadline at construction — so
-  the deadline bounds even the wait for the _first_ byte. There is no
-  subscribe-mode `PING` keepalive, and a subscribe socket idles by design, so
-  the timeout is taken as a wire fault and the connection tears down and
-  reconnects. It is the only caller using the default deadline; `RedisClient`
-  passes its own. Invisible to the whole test suite, because the fake-server
-  tests finish well under 30s. Discovered 2026-09-05 via the #271 plan audit;
-  tracked as
-  [#274](https://github.com/locknessland/lockness-monorepo/issues/274).
-- **A failed re-dial is never retried.** `#activate`'s catch logs a WARN and
-  returns without scheduling anything, and nothing else calls it again — so one
-  transient connect blip leaves the connection permanently deaf. The WARN now
-  says so explicitly. Tracked as
-  [#275](https://github.com/locknessland/lockness-monorepo/issues/275).
+- **Every writer on the subscribe socket goes through the write path.** The
+  socket has three writers — `PSUBSCRIBE`, the keepalive `PING`, and a retry's
+  re-issue — and `writeFrame` loops on short writes, so two concurrent writes
+  can splice. The dangerous outcome is not the noisy one: a frame Redis rejects
+  self-heals through the read loop. A spliced-but-still-valid frame — a
+  `PSUBSCRIBE` on a truncated pattern — raises nothing, and `#dispatch` then
+  routes by the pmessage's own pattern value, so every frame is silently dropped
+  forever. Never call `writeFrame(conn, …)` directly in `subscriber.ts`.
+- **Both activation entry points issue EVERY recorded pattern.**
+  `#connectAndSubscribe` used to take a single pattern, which was a live defect:
+  `@lockness/realtime` psubscribes twice back-to-back over one single-flight
+  dial, so a blip rejected both and the one retry slot re-issued only one of
+  them. The other stayed recorded-but-unsubscribed for the life of the process.
+  Re-`PSUBSCRIBE` of a live pattern is a no-op, which is what makes this safe.
+- **`readReply`'s default deadline belongs to the COMMAND path, and `exchange`
+  takes it.** A recurring misreading — including in
+  [#274](https://github.com/locknessland/lockness-monorepo/issues/274)'s own
+  body — is that `RedisClient` passes its own read deadline. It does not:
+  `client.ts` → `exchange` (`connection.ts`) → `readReply(conn)` with no second
+  argument. `AUTH` and `SELECT` go through that same `exchange`, which is why
+  the subscribe socket passes `handshakeTimeoutMs` — without it, half its
+  liveness window was the command path's 30s.
+- **A discard must clear the timers.** Use `#discardSocket(conn)`, never
+  `this.conn.discard(conn)` directly, or the keepalive outlives the socket it
+  was pinging. And `#activate`'s catch must discard **before** scheduling a
+  retry: `connect()` returns the cached socket, so a retry that skips it feeds
+  every later attempt the same dead socket while logging "retrying" forever.
+- **A bound on peer-controlled input is a SIZE check, never a timeout.** Three
+  reply bounds exist for this reason — `MAX_BULK_BYTES` (one body),
+  `MAX_LINE_BYTES` (one line), `MAX_REPLY_BYTES` (the total). The first two
+  bound the parts and not the sum, which is how a multi-bulk of legal elements
+  aggregated without limit. A bound riding on a deadline gets weaker every time
+  the deadline grows, and nothing says so.
+- **The dial is bounded, and it has to be raced.** Neither `Deno.connect` nor
+  `Deno.connectTls` takes a deadline or an abort signal, so `#dial` races the
+  open against a timer and abandons the loser — closing whatever socket
+  eventually arrives so the fd is released. Without it a peer that completes TCP
+  and stalls TLS wedges the connection with no error, no retry and no log.
+- **`close()` must not await a dial.** A connect to an unroutable host waits out
+  the OS SYN budget (~75s macOS, ~130s Linux). Loopback tests cannot see this —
+  `ECONNREFUSED` on 127.0.0.1 is instant — which is how it survived until #245.
 
 ## Tests
 
 <!-- generated:tests -->
 
-6 test files for 9 source files:
+7 test files for 9 source files:
 
 - `packages/redis/tests/client.test.ts`
 - `packages/redis/tests/connection.test.ts`
+- `packages/redis/tests/live_subscribe_liveness.test.ts`
 - `packages/redis/tests/lua_eval.test.ts`
 - `packages/redis/tests/memo.test.ts`
 - `packages/redis/tests/resp.test.ts`
@@ -155,7 +181,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 6 test files directly —
+Then, specific to this package: run its 7 test files directly —
 
 ```bash
 deno test -A packages/redis/
