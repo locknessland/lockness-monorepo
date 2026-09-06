@@ -1,4 +1,4 @@
 {
-  "feature_directory": "/Users/kevin/Sites/lockness/.specnaut/specs/248-redis-subscribe-hardening",
-  "linked_issue": 286
+  "feature_directory": "/Users/kevin/Sites/lockness/.specnaut/specs/249-command-write-deadline",
+  "linked_issue": 297
 }
