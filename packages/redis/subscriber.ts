@@ -49,6 +49,7 @@ import {
 import {
     encodeCommand,
     readReply,
+    RespCommandTooLargeError,
     RespFramingError,
     type RespReply,
     WRITE_STALL_CEILING_MS,
@@ -648,6 +649,22 @@ export class RedisSubscribeConnection {
             if (isReconnect) await this.#fireReconnect()
         } catch (error) {
             if (this.closed) return
+            // A RETRY THAT CANNOT CONVERGE IS NOT A RETRY (#300). An oversized
+            // `PSUBSCRIBE` pattern is refused by `encodeCommand` before the
+            // socket is touched, and re-issuing the identical pattern produces
+            // the identical refusal — forever, while the log says "retrying".
+            // Patterns are kilobytes, so this is unreachable in practice; it is
+            // guarded because an unreachable infinite loop is still an infinite
+            // loop, and the log would be actively misleading.
+            if (error instanceof RespCommandTooLargeError) {
+                if (conn) this.#discardSocket(conn)
+                console.error(
+                    `[redis-subscribe] a subscription pattern is too large to ` +
+                        `send to ${safeForLog(this.hostname)} and retrying ` +
+                        `cannot help: ${renderError(error)}`,
+                )
+                return
+            }
             // BEFORE the retry, and not optional: `connect()` hands back the
             // cached socket, so a retry that skips this feeds every later attempt
             // the same corpse and loops forever while logging "retrying".
