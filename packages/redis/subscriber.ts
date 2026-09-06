@@ -51,6 +51,7 @@ import {
     readReply,
     RespFramingError,
     type RespReply,
+    WRITE_STALL_CEILING_MS,
     writeFrame,
 } from './resp.ts'
 
@@ -98,31 +99,6 @@ const DEFAULT_RETRY_MAX_MS = 30_000
  * permanent churn it exists to remove.
  */
 const MIN_LIVENESS_RATIO = 2
-
-/**
- * The ceiling on how long one frame may take to reach the socket (#286).
- *
- * The write budget is `Math.min(livenessMs, WRITE_STALL_CEILING_MS)` — derived
- * from the operator's one knob, then capped. **Not the liveness window raw**,
- * because the two legs measure different physics:
- *
- * - The liveness window is a tolerance for **silence**, correctly a function of
- *   `keepaliveMs` — three intervals, so two consecutive lost pongs are
- *   tolerated.
- * - A write budget is a tolerance for **backpressure** on a ~40-byte frame that
- *   either enters the kernel send buffer immediately or does not, because the
- *   peer's receive window is shut. Nothing about that is a function of how
- *   often we ping.
- *
- * `#assertCadences` bounds the RATIO and finiteness but has no upper bound. So
- * an operator who raises `keepaliveMs` to 60s for a quiet bus is forced to
- * `livenessMs >= 120s`, and without this cap would thereby have set write-stall
- * detection to two minutes — having touched nothing named "write". Five seconds
- * is generous for a frame this size on any link where the peer is reading at
- * all; a peer that has not accepted 40 bytes in five seconds is not slow, it is
- * wedged.
- */
-const WRITE_STALL_CEILING_MS = 5_000
 
 /** A push-message handler: called with `(topic, payload)` per delivered frame. */
 type MessageHandler = (topic: string, payload: string) => void

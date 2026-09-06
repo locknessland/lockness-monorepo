@@ -88,7 +88,32 @@ const MAX_REPLY_BYTES = 32 * 1024 * 1024
  * `withTimeout` covers CI, this covers production (FR-010). Generous, because a
  * healthy reply completes in milliseconds.
  */
-const READ_TIMEOUT_MS = 30_000
+export const READ_TIMEOUT_MS = 30_000
+
+/**
+ * The ceiling on how long one frame may take to reach the socket (#286).
+ *
+ * The write budget is `Math.min(livenessMs, WRITE_STALL_CEILING_MS)` — derived
+ * from the operator's one knob, then capped. **Not the liveness window raw**,
+ * because the two legs measure different physics:
+ *
+ * - The liveness window is a tolerance for **silence**, correctly a function of
+ *   `keepaliveMs` — three intervals, so two consecutive lost pongs are
+ *   tolerated.
+ * - A write budget is a tolerance for **backpressure** on a ~40-byte frame that
+ *   either enters the kernel send buffer immediately or does not, because the
+ *   peer's receive window is shut. Nothing about that is a function of how
+ *   often we ping.
+ *
+ * `#assertCadences` bounds the RATIO and finiteness but has no upper bound. So
+ * an operator who raises `keepaliveMs` to 60s for a quiet bus is forced to
+ * `livenessMs >= 120s`, and without this cap would thereby have set write-stall
+ * detection to two minutes — having touched nothing named "write". Five seconds
+ * is generous for a frame this size on any link where the peer is reading at
+ * all; a peer that has not accepted 40 bytes in five seconds is not slow, it is
+ * wedged.
+ */
+export const WRITE_STALL_CEILING_MS = 5_000
 
 /** Unconsumed bytes past the last full reply, retained per connection (A-L2). */
 const leftovers = new WeakMap<Deno.Conn, Uint8Array>()
@@ -308,8 +333,15 @@ export async function writeFrame(
             //
             // The offset stays EXACT here, unlike the timeout's: this write
             // RETURNED, so nothing is still advancing behind us.
+            //
+            // And it names NO total. #297 removed `frame.byteLength` from the
+            // timeout error one branch down and left it here — the same
+            // disclosure, in the sibling branch of the same loop, guarded by a
+            // test that asserted only absences and so could not see it. For
+            // `encodeCommand(['AUTH', pw])` the frame length is invertible to
+            // the password's byte length.
             throw new RespFramingError(
-                `Redis write stalled after ${offset} of ${frame.byteLength} bytes`,
+                `Redis write stalled after ${offset} bytes`,
             )
         }
         offset += written
@@ -334,12 +366,12 @@ function writeWithDeadline(
 ): Promise<number> {
     const remaining = deadline - Date.now()
     if (remaining <= 0) {
-        return Promise.reject(writeTimeout(offset, frame, timeoutMs))
+        return Promise.reject(writeTimeout(offset, timeoutMs))
     }
     let timer: ReturnType<typeof setTimeout> | undefined
     const guard = new Promise<never>((_, reject) => {
         timer = setTimeout(
-            () => reject(writeTimeout(offset, frame, timeoutMs)),
+            () => reject(writeTimeout(offset, timeoutMs)),
             remaining,
         )
     })
@@ -349,6 +381,16 @@ function writeWithDeadline(
 
 /**
  * The per-frame timeout error, with its offset marked as a lower bound.
+ *
+ * **It names no length derived from an argument** (#297). It used to carry
+ * `frame.byteLength`, and for `encodeCommand(['AUTH', pw])` that is an
+ * invertible function of the password's byte length — 8/16/32/64-byte passwords
+ * give 28/37/53/85-byte frames. The rendered message was 169 characters, so
+ * `renderError`'s 200-char cap did not truncate it away, and consumers do log
+ * `renderError(error)`. Unreachable until the handshake's write leg gained a
+ * deadline, which is why the constraint arrives with the feature that created
+ * the path. The offset alone already tells an operator the write made no
+ * progress.
  *
  * **A `RespFramingError`, deliberately.** That type already means exactly this
  * — bytes remain on the wire, the socket is desynced, discard it — and
@@ -360,11 +402,7 @@ function writeWithDeadline(
  * is alive and merely slow, the read loop keeps draining, and the abandoned
  * partial frame silently splices onto the next write.
  */
-function writeTimeout(
-    offset: number,
-    frame: Uint8Array,
-    timeoutMs: number,
-): RespFramingError {
+function writeTimeout(offset: number, timeoutMs: number): RespFramingError {
     // ORDERED FOR TRUNCATION. `renderError` caps a message at 200 characters,
     // so the actionable half has to come first — an earlier version put
     // "discard the socket" at the end and it was cut off in the very log line
@@ -372,9 +410,8 @@ function writeTimeout(
     // it went red.
     return new RespFramingError(
         `Redis write timed out after ${timeoutMs}ms — discard the socket, ` +
-            `bytes may remain on the wire (at least ${offset} of ` +
-            `${frame.byteLength} written; a lower bound, the abandoned write ` +
-            'cannot be cancelled)',
+            `bytes may remain on the wire (at least ${offset} written; a ` +
+            'lower bound, the abandoned write cannot be cancelled)',
     )
 }
 

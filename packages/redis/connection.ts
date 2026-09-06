@@ -31,7 +31,15 @@
  */
 
 import { safeForLog } from '@lockness/contract'
-import { encodeCommand, readReply, type RespReply, writeFrame } from './resp.ts'
+import {
+    encodeCommand,
+    READ_TIMEOUT_MS,
+    readReply,
+    RespFramingError,
+    type RespReply,
+    WRITE_STALL_CEILING_MS,
+    writeFrame,
+} from './resp.ts'
 
 /** The default Redis port, used when {@link AuthenticatedConnectionConfig.port} is omitted. */
 const DEFAULT_PORT = 6379
@@ -105,14 +113,110 @@ export interface AuthenticatedConnectionConfig {
  * const reply = await exchange(conn, ['PING'])
  * ```
  */
-export function exchange(
+declare const deadlineBrand: unique symbol
+
+/**
+ * An epoch-millisecond **instant**, not a duration.
+ *
+ * Branded so `exchange(conn, args, 5000)` stops compiling — it currently does
+ * compile, and would mean an instant in 1970. The distinction is the whole
+ * point of this feature: a duration handed to each step multiplies, an instant
+ * does not, and that multiplication is precisely what #274 removed.
+ *
+ * The handshake stays bounded today only because both of its call sites
+ * recompute the remainder on the line before the call. The moment one hoists
+ * that out — a retry loop, a batch, or a socket-generation object carrying a
+ * budget — the multiplication comes back silently, with every test green. The
+ * brand is what makes that a compile error instead.
+ */
+export type Deadline = number & { readonly [deadlineBrand]: true }
+
+/** Mint a deadline `ms` from now. */
+export function deadlineIn(ms: number): Deadline {
+    return (Date.now() + ms) as Deadline
+}
+
+/**
+ * Milliseconds left before `deadline`, **unclamped**.
+ *
+ * Returns a non-positive number when the budget is spent, and that is the
+ * point: the previous version clamped with `Math.max(1, …)` and so could never
+ * report *expired*, which made every "no time left" guard downstream
+ * unreachable — a guard whose mutation is a guaranteed survivor is not a guard.
+ * "How long is left" and "what to do when the answer is none" are two
+ * decisions; `#dial` wants a clamp, `exchange` wants a fault.
+ */
+function remaining(deadline: Deadline | undefined): number | undefined {
+    return deadline === undefined ? undefined : deadline - Date.now()
+}
+
+/**
+ * One request/reply exchange, bounded by a single budget shared by both legs.
+ *
+ * **Both legs, from one deadline.** Until #297 the `timeoutMs` reached
+ * `readReply` only, so `writeFrame` ran unbounded and a peer that accepted the
+ * connection and then stopped draining hung the caller forever — with no
+ * error, no retry and no log line, and with the handshake's carefully threaded
+ * budget doing nothing because it only ever reached the read.
+ *
+ * **Two write ceilings, deliberately.** `writeCeilingMs` bounds the write leg
+ * on top of the shared budget, and the handshake passes
+ * {@link WRITE_STALL_CEILING_MS} because `AUTH` and `SELECT` are ~40-byte
+ * frames — exactly what that constant was written for. The command path passes
+ * nothing and takes the full remaining budget, because its frames are not
+ * ~40 bytes: a `SETEX` of a session blob can be megabytes, and a 5s ceiling
+ * would reject legitimate large writes. One ceiling for both would be wrong in
+ * one direction or the other.
+ *
+ * @param conn - The open connection to exchange on.
+ * @param args - The command and its arguments, e.g. `['AUTH', 'secret']`.
+ * @param deadline - The instant the whole exchange must finish by. Omitted, it
+ *   is {@link READ_TIMEOUT_MS} from now — the ceiling the read leg already had,
+ *   so the read's worst case is unchanged in the healthy case and the write
+ *   gains a bound it never had.
+ * @param writeCeilingMs - An additional cap on the write leg alone.
+ * @returns The parsed RESP reply.
+ * @throws {RespServerError} On a framed server error or an in-sync parse fault.
+ * @throws {RespFramingError} On an abandoned frame — including a budget already
+ *   spent before either leg ran. Not a `RangeError`: the discard obligation is
+ *   carried by this type, and callers route on it.
+ * @throws {Error} On a wire fault or read timeout.
+ * @example
+ * ```typescript
+ * const reply = await exchange(conn, ['PING'])
+ * ```
+ */
+export async function exchange(
     conn: Deno.Conn,
     args: string[],
-    timeoutMs?: number,
+    deadline?: Deadline,
+    writeCeilingMs?: number,
 ): Promise<RespReply> {
-    return writeFrame(conn, encodeCommand(args)).then(() =>
-        timeoutMs === undefined ? readReply(conn) : readReply(conn, timeoutMs)
+    const budget = deadline ?? deadlineIn(READ_TIMEOUT_MS)
+    const forWrite = remaining(budget)!
+    if (forWrite <= 0) {
+        throw new RespFramingError(
+            `Redis ${args[0] ?? 'command'} abandoned: its budget was already ` +
+                'spent before the write began',
+        )
+    }
+    await writeFrame(
+        conn,
+        encodeCommand(args),
+        writeCeilingMs === undefined
+            ? forWrite
+            : Math.min(forWrite, writeCeilingMs),
     )
+    const forRead = remaining(budget)!
+    if (forRead <= 0) {
+        throw new RespFramingError(
+            `Redis ${
+                args[0] ?? 'command'
+            } abandoned: its budget was spent by ` +
+                'the write, leaving nothing to read the reply',
+        )
+    }
+    return await readReply(conn, forRead)
 }
 
 /**
@@ -181,6 +285,23 @@ export class AuthenticatedConnection {
      * @param config - The connection settings; only `hostname` is required.
      */
     constructor(config: AuthenticatedConnectionConfig) {
+        // Validated here because this branch routes it into a SECOND consumer
+        // (#297): it reached `readReply` alone, and now bounds the write leg
+        // too. Unchecked, `NaN` yields a `NaN` deadline, `setTimeout(…, NaN)`
+        // fires immediately, and every handshake fails instantly with "after
+        // NaNms" — a misconfiguration that presents as a broker outage.
+        // `RedisSubscribeConnection` already validates its own cadences this
+        // way and then passed this one straight through.
+        const handshake = config.handshakeTimeoutMs
+        if (
+            handshake !== undefined &&
+            (!Number.isFinite(handshake) || handshake <= 0)
+        ) {
+            throw new RangeError(
+                'AuthenticatedConnection: handshakeTimeoutMs must be positive ' +
+                    `and finite, got ${handshake}`,
+            )
+        }
         this.config = {
             hostname: config.hostname,
             port: config.port ?? DEFAULT_PORT,
@@ -245,21 +366,23 @@ export class AuthenticatedConnection {
                 const budget = this.config.handshakeTimeoutMs
                 const deadline = budget === undefined
                     ? undefined
-                    : Date.now() + budget
+                    : deadlineIn(budget)
                 const conn = await this.#dial(deadline)
                 try {
                     if (this.config.password) {
                         await exchange(
                             conn,
                             ['AUTH', this.config.password],
-                            this.#remaining(deadline),
+                            deadline,
+                            WRITE_STALL_CEILING_MS,
                         )
                     }
                     if (this.config.db !== 0) {
                         await exchange(
                             conn,
                             ['SELECT', String(this.config.db)],
-                            this.#remaining(deadline),
+                            deadline,
+                            WRITE_STALL_CEILING_MS,
                         )
                     }
                 } catch (error) {
@@ -301,9 +424,13 @@ export class AuthenticatedConnection {
      * stalling peer cost up to three times the configured window before the read
      * loop's own deadline even started.
      */
-    #remaining(deadline: number | undefined): number | undefined {
-        if (deadline === undefined) return undefined
-        return Math.max(1, deadline - Date.now())
+    #remaining(deadline: Deadline | undefined): number | undefined {
+        const left = remaining(deadline)
+        // The clamp lives HERE, and only here. `Deno.connect` has no meaningful
+        // behaviour for a zero or negative timeout, so a spent budget still
+        // gets one millisecond and fails through the dial's own timer.
+        // `exchange` wants the opposite — see `remaining`.
+        return left === undefined ? undefined : Math.max(1, left)
     }
 
     /**
@@ -322,7 +449,7 @@ export class AuthenticatedConnection {
      * @param deadline - Epoch ms by which the socket must be open, or
      *   `undefined` for `RedisClient`'s unbounded behaviour.
      */
-    #dial(deadline: number | undefined): Promise<Deno.Conn> {
+    #dial(deadline: Deadline | undefined): Promise<Deno.Conn> {
         const open = this.config.tls
             ? Deno.connectTls({
                 hostname: this.config.hostname,
