@@ -152,6 +152,29 @@ const MUTATIONS: readonly Mutation[] = [
             'if (false) {',
         ]],
     },
+    {
+        label:
+            '#297 the legs stop sharing one budget (read gets its own window)',
+        file: CONN,
+        edits: [[
+            'const forRead = remaining(budget)!',
+            'const forRead = READ_TIMEOUT_MS',
+        ]],
+    },
+    {
+        label: '#297 the post-write budget guard removed',
+        file: CONN,
+        edits: [['    if (forRead <= 0) {', '    if (false) {']],
+        expectSurvival:
+            'Near-unreachable by construction, and that is why it is recorded ' +
+            'rather than tested: `writeFrame` is handed exactly the remaining ' +
+            'budget, so a write that consumes all of it raises its own timeout ' +
+            'first. The guard fires only if a write returns at the same instant ' +
+            'its deadline expires — a race, not a scenario. Kept as a ' +
+            'belt-and-braces check against ever handing `readReply` a ' +
+            'non-positive timeout. An earlier test claimed to cover it and ' +
+            'failed, which is how the unreachability was found.',
+    },
     // ── #296: containment ──────────────────────────────────────────────────
     {
         label: '#296 the handler call is unguarded again (needs a live broker)',
@@ -189,15 +212,9 @@ const MUTATIONS: readonly Mutation[] = [
         label: '#286 the zero-progress stall is a bare Error again',
         file: RESP,
         edits: [[
-            'throw new RespFramingError(\n                `Redis write stalled after ${offset} of ${frame.byteLength} bytes`,\n            )',
-            'throw new Error(\n                `Redis write stalled after ${offset} of ${frame.byteLength} bytes`,\n            )',
+            'throw new RespFramingError(\n                `Redis write stalled after ${offset} bytes`,\n            )',
+            'throw new Error(\n                `Redis write stalled after ${offset} bytes`,\n            )',
         ]],
-        expectSurvival:
-            'The zero-progress branch needs a socket that returns 0 from ' +
-            '`conn.write` AND is owned by the keepalive, which no fixture ' +
-            'builds — the resp-level test covers the throw, not which type it ' +
-            'is. Kept as one type for one obligation: two seats found the ' +
-            'inconsistency by reading, and reading is what will find it again.',
     },
     {
         label: '#296 the per-generation fault counter never resets',

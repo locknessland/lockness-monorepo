@@ -10,9 +10,11 @@
  * @module @lockness/redis/tests/client
  */
 
-import { assertEquals } from '@std/assert'
+import { assert, assertEquals, assertRejects } from '@std/assert'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import { RedisClient } from '../mod.ts'
+import { deadlineIn, exchange } from '../connection.ts'
+import { RespFramingError } from '../resp.ts'
 import { startFakeServer } from './fake_server.ts'
 
 /**
@@ -325,5 +327,145 @@ Deno.test('client - the socket registers a shutdown disposable, drained at teard
     } finally {
         await client.close()
         server.stop()
+    }
+})
+
+/** A socket that dials and answers reads, but never accepts a byte. */
+function wedgedWriteConn(): Deno.Conn {
+    return {
+        write: () => new Promise<number>(() => {}),
+        read: () => new Promise<number | null>(() => {}),
+        close: () => {},
+        localAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+        remoteAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+    } as unknown as Deno.Conn
+}
+
+Deno.test('#297: a command against a wedged broker rejects instead of hanging', async () => {
+    // The defect, on the path that reaches 92 call sites across session, queue,
+    // core's scheduler locks and realtime. `exchange` passed its timeout to
+    // `readReply` only, so `writeFrame` had none and a peer that accepts the
+    // connection and then stops draining left the caller's promise unsettled
+    // forever. A hung scheduler lock is a scheduler that never runs again.
+    //
+    // Exercised through `exchange` directly, with an injected deadline. Driven
+    // through `RedisClient.command` the bound is real but it is
+    // `READ_TIMEOUT_MS` — 30 seconds — because no per-command budget exists and
+    // the plan deliberately declined to add one. A first version of this test
+    // asserted the command finished in under 5s and failed after 30, which was
+    // the code being right and the assertion being wrong.
+    const conn = wedgedWriteConn()
+    const started = Date.now()
+    const error = await assertRejects(
+        () => exchange(conn, ['GET', 'k'], deadlineIn(200)),
+        RespFramingError,
+    )
+    const elapsed = Date.now() - started
+    assert(elapsed < 3000, `it waited ${elapsed}ms against a 200ms budget`)
+    assert(/timed out/i.test(error.message), error.message)
+})
+
+Deno.test('#297: exchange refuses a budget that is already spent, before either leg', async () => {
+    // A `RespFramingError`, not a `RangeError`. The discard obligation is
+    // carried by the type — `client.ts` routes negatively on `RespServerError`
+    // and `subscriber.ts` routes POSITIVELY on `RespFramingError` — and the
+    // comment at that second site records this exact gap as a defect already
+    // found twice. Designing it back in a third time is what the plan audit
+    // stopped.
+    //
+    // This is also the guard that only became reachable when `remaining` lost
+    // its `Math.max(1, …)` clamp: with the clamp, an expired budget silently
+    // became a 1ms allowance and this branch could never run.
+    let wrote = false
+    const conn = {
+        write: () => {
+            wrote = true
+            return Promise.resolve(1)
+        },
+        read: () => new Promise<number | null>(() => {}),
+        close: () => {},
+        localAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+        remoteAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+    } as unknown as Deno.Conn
+    const spent = (Date.now() - 1000) as unknown as Parameters<
+        typeof exchange
+    >[2]
+    const error = await assertRejects(
+        () => exchange(conn, ['GET', 'k'], spent),
+        RespFramingError,
+    )
+    assert(!wrote, 'it wrote to the socket despite having no budget left')
+    assert(
+        /already spent/i.test(error.message) && /GET/.test(error.message),
+        `the message must name the verb and the cause: ${error.message}`,
+    )
+    assert(
+        !error.message.includes('k'),
+        'the message must not name an argument',
+    )
+})
+
+Deno.test('#297: a write-leg framing error discards the socket, through RedisClient', async () => {
+    // The review gate's first HIGH, and it was right: both tests above call
+    // `exchange` directly, so `client.ts`'s routing of a WRITE-leg
+    // `RespFramingError` to `discard` had no witness at all — and T013/T014
+    // were marked done on the strength of reading the code rather than
+    // exercising it.
+    //
+    // The routing is negative (`!(error instanceof RespServerError)`), and
+    // `RespFramingError` and `RespServerError` are siblings under `RespError`,
+    // so a write-leg framing error SHOULD fall into the discard branch. This
+    // is what turns "should" into a fact.
+    let opens = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            opens++
+            return Promise.resolve(
+                {
+                    // Rejects the way a timed-out or zero-progress write does.
+                    write: () =>
+                        Promise.reject(
+                            new RespFramingError(
+                                'Redis write stalled after 0 bytes',
+                            ),
+                        ),
+                    read: () => new Promise<number | null>(() => {}),
+                    close: () => {},
+                    localAddr: {
+                        transport: 'tcp',
+                        hostname: '127.0.0.1',
+                        port: 0,
+                    },
+                    remoteAddr: {
+                        transport: 'tcp',
+                        hostname: '127.0.0.1',
+                        port: 0,
+                    },
+                } as unknown as Deno.Conn,
+            )
+        },
+        configurable: true,
+        writable: true,
+    })
+    const client = new RedisClient({ hostname: '127.0.0.1', port: 1 })
+    try {
+        await assertRejects(() => client.command('GET', 'k'), RespFramingError)
+        assertEquals(opens, 1, 'the first command dialled once')
+        await assertRejects(() => client.command('GET', 'k'), RespFramingError)
+        assertEquals(
+            opens,
+            2,
+            'the wedged socket was NOT discarded — the second command reused ' +
+                'it, so a framing fault on the write leg leaves a desynced ' +
+                'socket in place for every later command',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await client.close()
     }
 })
