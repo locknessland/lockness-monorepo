@@ -1,4 +1,4 @@
-import { assertEquals, assertStringIncludes } from '@std/assert'
+import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { renderError, safeForLog } from '../logging/sanitize.ts'
 
 Deno.test('safeForLog - neutralises a newline injected through a decoded path', () => {
@@ -466,4 +466,444 @@ Deno.test('renderError - a redacted DSN keeps its evidence behind a hostile pref
     assertStringIncludes(out, escapeOf(0x202e))
     assertEquals(out.includes('password'), false)
     assertStringIncludes(out, 'postgres://***:***@')
+})
+
+// ---------------------------------------------------------------------------
+// #301 / #303 — what `redactDsnCredentials` must and must not match.
+// ---------------------------------------------------------------------------
+
+/**
+ * Redaction is the one place where matching TOO MUCH is the safe direction.
+ *
+ * An over-match costs a line some diagnostic value; an under-match puts a
+ * credential in a log store. Every table below is written with that asymmetry
+ * in mind: the "must redact" rows are the security property, and the "must not"
+ * rows are the bound that stops the rule eating ordinary prose.
+ */
+/**
+ * Every codepoint JS `\s` matches that is NOT ASCII whitespace.
+ *
+ * These are exactly the codepoints #301 is about: `\s` was the old terminator
+ * class, so each of these ended the userinfo match and leaked the password,
+ * while ASCII whitespace terminates by design and must go on doing so.
+ * Computed rather than listed, for the same reason `everyFormatCodepoint()`
+ * above is computed: a hand-written list of seven had exactly ONE member of
+ * this set in it (U+FEFF), so it looked complete while missing fifteen —
+ * U+00A0 among them, which is what a copy-paste out of a web page produces.
+ */
+function everyNonAsciiWhitespace(): number[] {
+    const ascii = new Set([0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20])
+    const found: number[] = []
+    for (let code = 0; code <= 0x10ffff; code++) {
+        if (code >= 0xd800 && code <= 0xdfff) continue
+        if (ascii.has(code)) continue
+        if (/\s/.test(String.fromCodePoint(code))) found.push(code)
+    }
+    return found
+}
+
+Deno.test('renderError - no non-ASCII whitespace can end the userinfo match', () => {
+    // #301, stated as the criterion rather than as a sample. The old class was
+    // `[^@\s/]+`, so every codepoint below leaked the password it sat next to.
+    const set = everyNonAsciiWhitespace()
+    assertEquals(set.length, 19, 'the JS \\s set this shipped against')
+
+    const leaked: string[] = []
+    for (const code of set) {
+        const dsn = `postgres://user:pass${
+            String.fromCodePoint(code)
+        }@db.internal:5432/db`
+        const out = renderError(new Error(`connect failed: ${dsn}`))
+        if (out.includes('pass') || !out.includes('postgres://***:***@')) {
+            leaked.push(`U+${code.toString(16).toUpperCase().padStart(4, '0')}`)
+        }
+    }
+    assertEquals(leaked, [], 'codepoints that still end the match')
+})
+
+Deno.test('renderError - nor can an invisible format character', () => {
+    // The ADJACENT class, labelled as adjacent. None of these is in JS `\s`, so
+    // none of them leaked even before #301 — they pass today by accident of
+    // where a JS engine drew a line, not by design. Asserting them alongside
+    // the real regression guard would have recorded the accident as intent, so
+    // they get their own test and their own reason.
+    for (const code of [0x200b, 0x61c, 0x202e, 0x2060, 0xad, 0x180e]) {
+        const dsn = `postgres://user:pass${
+            String.fromCodePoint(code)
+        }@db.internal:5432/db`
+        const out = renderError(new Error(`connect failed: ${dsn}`))
+        assertEquals(out.includes('pass'), false, `U+${code.toString(16)}`)
+        assertStringIncludes(out, 'postgres://***:***@')
+    }
+})
+
+Deno.test('renderError - redacts a password containing a slash', () => {
+    // The character that closes this is the same character that OPENS it. A `/`
+    // in the userinfo makes WHATWG `new URL()` throw, and the thrown message
+    // carries the whole DSN — so the redactor was failing on precisely the
+    // inputs that generate the error message it exists to clean. A `/` turns up
+    // in a random 16-byte base64 secret about a third of the time.
+    const dsn = 'postgres://app:aB3/xY9+z@db.internal:5432/prod'
+    let thrown: unknown
+    try {
+        new URL(dsn)
+    } catch (error) {
+        thrown = error
+    }
+    assert(thrown, 'the fixture must actually produce the parser error')
+
+    const out = renderError(thrown)
+    assertEquals(
+        out.includes('aB3/xY9+z'),
+        false,
+        'the password reached the sink',
+    )
+    assertStringIncludes(out, 'postgres://***:***@db.internal:5432/prod')
+})
+
+Deno.test('renderError - the slash residual is whitespace, and it is known', () => {
+    // Not every character can be spanned, and pretending otherwise is how the
+    // last gap survived. Whitespace still terminates, because removing it would
+    // let the rule eat `see http://docs and mail bob@y.com`. A DSN whose
+    // password holds a raw space therefore still leaks here — which is exactly
+    // why `Database.connect` redacts by substring against the URL it holds
+    // instead of relying on this function.
+    const out = renderError(new Error('postgres://app:my pass@db:5432/prod'))
+    assertStringIncludes(
+        out,
+        'my pass',
+        'the residual changed — update the docs',
+    )
+})
+
+Deno.test('renderError - redacts a colon-less userinfo, the token-in-URL shape', () => {
+    // #303. The old gate fired only when the userinfo carried a `:`, which is
+    // how every bare-token URL — the shape GitHub, GitLab and most APIs accept
+    // — reached the log verbatim. A `fetch` rejection carries the URL in
+    // `error.message`, so this is the common case, not the exotic one.
+    const out = renderError(
+        new Error(
+            'request failed: https://ghp_S3cr3tToken@github.com/org/repo',
+        ),
+    )
+
+    assertEquals(
+        out.includes('ghp_S3cr3tToken'),
+        false,
+        'the token reached the sink',
+    )
+    assertStringIncludes(out, 'https://***@github.com/org/repo')
+})
+
+Deno.test('renderError - keeps the two userinfo shapes distinguishable', () => {
+    // `***:***` for a pair, `***` for a single value. The shape is the only
+    // thing left of the credential, and it is what tells an operator whether a
+    // password was configured at all.
+    assertStringIncludes(
+        renderError(new Error('x postgres://u:p@h/d')),
+        'postgres://***:***@',
+    )
+    assertStringIncludes(
+        renderError(new Error('x https://t@h/d')),
+        'https://***@',
+    )
+})
+
+Deno.test('renderError - does not eat things that only look like a DSN', () => {
+    // The bound. Each row is a control that failed to survive an earlier draft
+    // of this rule, or that the old `:`-gate and `\s` terminator were the only
+    // thing protecting.
+    const untouched: [string, string][] = [
+        [
+            'redis://cache:6379/0',
+            'a port is not userinfo — there is no @ at all',
+        ],
+        [
+            'sqlite:///var/lib/app/app.db',
+            'no userinfo: the / follows the :// directly',
+        ],
+        ['https://github.com/org/repo', 'an ordinary URL'],
+        ['mailto:user@example.com', 'an @ with no ://'],
+        [
+            'failed to reach https://api.example.com/v1 for admin@corp.com',
+            'prose: the path / terminates the userinfo before the email',
+        ],
+        [
+            'https://api.example.com:8443/path@thing',
+            'a host:port whose PATH contains an @. Only reachable as a control ' +
+            'because `/` is permitted in the span now; the port shape is ' +
+            'what keeps it out.',
+        ],
+        [
+            'upstream 502: {"url":"https://api.example.com","contact":"support@example.com"}',
+            'a JSON error body. JSON.stringify emits no spaces, so whitespace ' +
+            'does not save this one — it rendered as ' +
+            'https://***:***@example.com, destroying the host AND asserting ' +
+            'a user:password pair that never existed. The ***:*** form is a ' +
+            'deliberate signal, so that was a forgery, not just noise.',
+        ],
+        [
+            'GET https://api.example.com?email=bob@example.com failed',
+            'a query string carrying an email — the same forgery through ?',
+        ],
+        [
+            'see https://api.example.com#frag@x',
+            'and through a fragment',
+        ],
+        [
+            'failed to load https://jsr.io/@std/assert/1.0.17/equals.ts',
+            'a SCOPED PACKAGE url — the @ is in the PATH, and only the `/` ' +
+            'terminator keeps the match off it. Without it this renders ' +
+            'as https://***@std/assert/... and mangles the commonest log ' +
+            'line in this ecosystem. The mutation battery found this gap; ' +
+            'none of the other five controls could see it.',
+        ],
+        [
+            'GET https://cdn.example.com/assets/logo@2x.png 404',
+            'the same shape outside a registry: an @ in a filename',
+        ],
+        [
+            'see http://docs and mail bob@y.com',
+            'prose with NO path slash — whitespace is the only terminator, ' +
+            'which is why it cannot simply be dropped from the class',
+        ],
+    ]
+
+    for (const [message, why] of untouched) {
+        // Exact equality, not `includes`. A one-sided check sees an over-match
+        // that DELETES the region it looked at, and misses one that ADDS a
+        // redaction beside it — and the two older tests this table duplicates
+        // carry an `includes('***') === false` half that the table had
+        // dropped. Every row here is ASCII, single-line, under the cap and
+        // backslash-free, so the exact form is available for free.
+        assertEquals(renderError(new Error(message)), `Error: ${message}`, why)
+    }
+})
+
+// ---------------------------------------------------------------------------
+// #302 — renderError follows the cause chain.
+// ---------------------------------------------------------------------------
+
+Deno.test('renderError - follows the cause chain instead of dropping it', () => {
+    // A wrapper whose whole content is its cause used to render to nothing:
+    // `Error: websocket transport error` and not one word about what failed.
+    const out = renderError(
+        new Error('websocket transport error', {
+            cause: new Error('ECONNRESET'),
+        }),
+    )
+
+    // Exact, so the separator literal is pinned. Every `includes` form here
+    // passes with the leading space dropped, rendering
+    // `...transport errorcaused by:...`.
+    assertEquals(
+        out,
+        'Error: websocket transport error caused by: Error: ECONNRESET',
+    )
+})
+
+Deno.test('renderError - a credential in a cause is redacted like any other', () => {
+    // The whole chain goes through the same redaction and the same cap. A cause
+    // that skipped either would be a hole opened by the fix for #302.
+    const out = renderError(
+        new Error('startup failed', {
+            cause: new Error('postgres://svc:S3cr3t@db.internal:5432/app'),
+        }),
+    )
+
+    assertEquals(
+        out.includes('S3cr3t'),
+        false,
+        'a password reached the sink via a cause',
+    )
+    assertStringIncludes(out, 'postgres://***:***@')
+})
+
+Deno.test('renderError - the chain is bounded and a cycle terminates', () => {
+    // Depth first: a five-deep chain renders three links and stops.
+    let deep = new Error('root')
+    for (const label of ['c1', 'c2', 'c3', 'c4']) {
+        deep = new Error(label, { cause: deep })
+    }
+    const bounded = renderError(deep)
+    assertEquals(
+        bounded.split('caused by:').length - 1,
+        2,
+        'the chain must stop at two links beyond the top error',
+    )
+    assertEquals(bounded.includes('root'), false, 'the bound was not applied')
+
+    // Then a cycle, which has no depth to run out of.
+    const a = new Error('a')
+    const b = new Error('b', { cause: a })
+    ;(a as { cause?: unknown }).cause = b
+    const cyclic = renderError(a)
+    assertStringIncludes(cyclic, 'Error: a')
+    assertStringIncludes(cyclic, 'Error: b')
+    // The marker, not just the two names. Without it this test passes with the
+    // cycle guard deleted outright: the depth bound stops the walk either way,
+    // so `a -> b -> a` renders three links and both names appear regardless.
+    // Measured — the first version of this test could not see its own mutant.
+    assertStringIncludes(cyclic, '[cycle]')
+})
+
+Deno.test('renderError - renders a non-Error cause through the same rules', () => {
+    // EXACT equality per row. The previous version asserted only that
+    // `Error: wrapper` was present — which the HEAD produces, whatever the
+    // cause branch does — and that the render was one line, which is a
+    // tautology for data containing no newline. Neither assertion could read
+    // the value the loop existed to produce. Measured: three mutants of the
+    // non-Error branch survived it, and so did dropping the `null` half of the
+    // chain terminator.
+    const rows: [unknown, string][] = [
+        [new Event('error'), 'Error: wrapper caused by: [object Event]'],
+        ['a bare string', 'Error: wrapper caused by: a bare string'],
+        [{ code: 'ECONNRESET' }, 'Error: wrapper caused by: [object Object]'],
+        // These two stop the walk, which is the only thing that distinguishes
+        // the terminator's `null` half from its `undefined` half.
+        [null, 'Error: wrapper'],
+        [undefined, 'Error: wrapper'],
+    ]
+
+    for (const [cause, expected] of rows) {
+        assertEquals(renderError(new Error('wrapper', { cause })), expected)
+    }
+})
+
+Deno.test('renderError - a non-Error at the TOP level is redacted too', () => {
+    // Nothing in this suite passed a non-Error to renderError at all, so the
+    // whole branch — its redaction, its cap and its encoder — was unasserted.
+    // A rejected promise carrying a string is an ordinary way to reach it.
+    assertEquals(
+        renderError('connect failed: postgres://u:S3cr3t@h:5432/db'),
+        'connect failed: postgres://***:***@h:5432/db',
+    )
+    // The cap applies on this path as well as the Error path.
+    const long = renderError('x'.repeat(400))
+    assertEquals(
+        long.length,
+        201,
+        'capped at 200 code points plus the ellipsis',
+    )
+    // And so does the encoder.
+    assertStringIncludes(renderError('a\u0000b'), '\\x00')
+})
+
+Deno.test('renderError - is total, whatever a cause does', () => {
+    // A log encoder is called from `catch` blocks, several of them shutdown
+    // drains and one a `void guard(...)` whose rejection Deno turns into a
+    // process exit. A throw here replaces the error being reported, at the one
+    // moment nothing is left to catch it.
+    //
+    // Before the cause chain, a well-formed Error could not make renderError
+    // throw. A cause can, and four of these did — measured, and the throwing
+    // GETTER survived the first fix because the read happens in the walk rather
+    // than in renderOne.
+    const throwing = new Error('head')
+    Object.defineProperty(throwing, 'cause', {
+        get() {
+            throw new Error('getter boom')
+        },
+    })
+    const looping = new Error('head')
+    ;(looping as { cause?: unknown }).cause = new Proxy({}, {
+        get() {
+            throw new Error('proxy boom')
+        },
+    })
+
+    const hostile: [string, Error][] = [
+        [
+            'null-prototype cause',
+            new Error('h', { cause: Object.create(null) }),
+        ],
+        [
+            'toString throws',
+            new Error('h', {
+                cause: {
+                    toString() {
+                        throw new Error('boom')
+                    },
+                },
+            }),
+        ],
+        [
+            'toPrimitive throws',
+            new Error('h', {
+                cause: {
+                    [Symbol.toPrimitive]() {
+                        throw new Error('boom')
+                    },
+                },
+            }),
+        ],
+        [
+            'non-string message',
+            new Error('h', {
+                cause: Object.assign(new Error('x'), { message: 42 }),
+            }),
+        ],
+        [
+            'absent message',
+            new Error('h', {
+                cause: Object.create(Error.prototype),
+            }),
+        ],
+        ['throwing cause getter', throwing],
+        ['throwing proxy cause', looping],
+    ]
+
+    for (const [why, error] of hostile) {
+        const out = renderError(error)
+        // Total, and still says something — the same rule the encoder follows
+        // for a control character: a replacement leaves evidence.
+        assertEquals(out.length > 0, true, why)
+        assertEquals(out.split('\n').length, 1, `${why}: multi-line`)
+    }
+})
+
+Deno.test('renderError - a hostile error name cannot inflate the line', () => {
+    // `name` was uncapped, which is why this file's own length bound was wrong.
+    // safeForLog can emit nine characters per code point, so one name could
+    // contribute thousands to a line reasoned about as a few hundred.
+    const wide = new Error('short')
+    wide.name = 'N'.repeat(500)
+    assertEquals(renderError(wide).length < 200, true, 'the name is not capped')
+})
+
+Deno.test('renderError - a long scheme-legal run does not stall the event loop', () => {
+    // The scheme group `[a-z][a-z0-9+.-]*` backtracks O(n) per start position
+    // over a run of scheme-legal characters. Measured on the unbounded form:
+    // 44 ms at n=8k, 704 ms at n=32k, 11.6 SECONDS at n=128k — and this is
+    // reachable from a websocket frame, whose `type` field is interpolated into
+    // `unknown frame type: ...` and rendered by the default error sink.
+    //
+    // `{0,31}` makes it linear at no expressiveness cost: no URI scheme is 32
+    // characters. Measured after: 5 ms at n=64k, where the unbounded form took
+    // ~2.4 s. The threshold below is 100x the observed figure, so it fails only
+    // on a genuine complexity regression rather than on a slow machine.
+    const started = performance.now()
+    renderError(new Error('a'.repeat(64_000)))
+    const elapsed = performance.now() - started
+
+    assertEquals(
+        elapsed < 500,
+        true,
+        `redaction took ${elapsed.toFixed(0)}ms — the scheme group is ` +
+            'backtracking again',
+    )
+})
+
+Deno.test('renderError - the sink policy is honoured in both directions', () => {
+    // `RenderErrorOptions` is public and introduced by this change, and its
+    // only exercise was one value of it from a DOWNSTREAM package. The contract
+    // package's own suite would have stayed green with the parameter deleted.
+    const wrapped = new Error('outer', { cause: new Error('inner') })
+
+    assertEquals(renderError(wrapped, { followCause: false }), 'Error: outer')
+    assertEquals(
+        renderError(wrapped, { followCause: true }),
+        'Error: outer caused by: Error: inner',
+    )
+    assertEquals(renderError(wrapped), 'Error: outer caused by: Error: inner')
 })

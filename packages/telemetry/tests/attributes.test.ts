@@ -48,3 +48,19 @@ Deno.test('S4: toRecordedException redacts — name + message, no stack, no plan
     assert(!serialised.includes('CAUSESECRET'), 'cause must not leak')
     assert(!('stack' in recorded), 'no stack field')
 })
+
+Deno.test('S4: a span carries the head error only, never the cause chain', () => {
+    // The carve-out, asserted rather than left to the option's default. #302
+    // made renderError follow `error.cause` for console sinks; a span leaves
+    // the process, so this one stays head-only. Without this test the carve-out
+    // is one boolean nobody would notice being dropped.
+    const recorded = toRecordedException(
+        new Error('startup failed', { cause: new Error('ECONNRESET') }),
+    )
+
+    assertEquals(recorded.message, 'Error: startup failed')
+    assert(
+        !recorded.message.includes('ECONNRESET'),
+        'the cause reached the trace backend',
+    )
+})
