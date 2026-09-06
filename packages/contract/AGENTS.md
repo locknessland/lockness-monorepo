@@ -77,7 +77,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 26 source files:
+8 test files for 27 source files:
 
 - `packages/contract/tests/crypto_key.test.ts`
 - `packages/contract/tests/disposables.test.ts`
