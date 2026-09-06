@@ -153,6 +153,22 @@ export interface InstanceOptions {
     ) => PresenceMember | false
     /** Ghost-sweep and reconcile cadence, in ms. */
     reconcileIntervalMs?: number
+    /**
+     * Instance-liveness key TTL, in seconds.
+     *
+     * The ghost sweep waits for a dead instance's `{prefix}:alive:<id>` key to
+     * EXPIRE, and Redis's `EX` granularity is one second — so a sweep scenario
+     * cannot run faster than this, and the default of 15 s would make it a
+     * 15-second test. One second is the floor the broker allows, not a value
+     * chosen for speed.
+     */
+    livenessTtlSeconds?: number
+    /**
+     * Liveness heartbeat cadence, in ms. Must stay under
+     * `livenessTtlSeconds * 1000`, or a LIVE instance lets its own key lapse
+     * and sweeps itself.
+     */
+    heartbeatIntervalMs?: number
     /** Durable revocation marker TTL, in seconds. */
     revocationTtlSeconds?: number
     /**
@@ -215,6 +231,8 @@ export async function withInstances<T>(
                 control: { secret },
                 presence: {
                     reconcileIntervalMs: options.reconcileIntervalMs ?? 60_000,
+                    livenessTtlSeconds: options.livenessTtlSeconds ?? 15,
+                    heartbeatIntervalMs: options.heartbeatIntervalMs ?? 5_000,
                 },
                 revocationTtlSeconds: options.revocationTtlSeconds ?? 300,
             })
@@ -346,6 +364,17 @@ export interface Reader {
      * independent of what this file believes the layout to be.
      */
     scanKeys(namespace: string): Promise<string[]>
+    /**
+     * Every key matching a glob, via `SCAN … MATCH` — the read-back for the
+     * patterns {@link keys} exposes.
+     *
+     * `ownedPattern` and `alivePattern` are patterns rather than names because
+     * the owning instance id is a `crypto.randomUUID()` inside the driver and
+     * is not reachable from a test. Without this, a caller re-spells the layout
+     * inline as `` `${prefix}:owned:` `` — a second home for the one decision
+     * this module exists to hold.
+     */
+    scanMatch(pattern: string): Promise<string[]>
     /** A key's TTL in seconds: `-1` = no TTL, `-2` = absent. */
     ttlOf(key: string): Promise<number>
     /** How many members a sorted set holds. */
@@ -381,6 +410,37 @@ export async function withReader<T>(
             .map((r) => (r.type === 'bulk' ? r.value : undefined))
             .filter((r): r is string => r !== undefined)
     }
+    /**
+     * One `SCAN … MATCH` loop, shared by both read-backs.
+     *
+     * Cursor-based rather than `KEYS`: `KEYS` blocks the broker for the length
+     * of the scan, and a test suite that does it to a shared development
+     * instance is indistinguishable from an outage.
+     */
+    const scan = async (pattern: string): Promise<string[]> => {
+        let cursor = '0'
+        const found: string[] = []
+        do {
+            const reply = await client.command(
+                'SCAN',
+                cursor,
+                'MATCH',
+                pattern,
+                'COUNT',
+                '500',
+            )
+            if (reply.type !== 'array' || reply.value.length !== 2) break
+            const next = reply.value[0]
+            cursor = next.type === 'bulk' ? next.value : '0'
+            const batch = reply.value[1]
+            if (batch.type !== 'array') continue
+            for (const entry of batch.value) {
+                if (entry.type === 'bulk') found.push(entry.value)
+            }
+        } while (cursor !== '0')
+        return found.sort()
+    }
+
     const reader: Reader = {
         command: (...args: string[]) => client.command(...args),
         roster: async (prefix: string, channel: string) => {
@@ -405,29 +465,8 @@ export async function withReader<T>(
         revokedAtAnyScore: (prefix: string) =>
             readZRange(keys(prefix).revocations, '-inf'),
         now: () => readNow(),
-        scanKeys: async (namespace: string) => {
-            let cursor = '0'
-            const found: string[] = []
-            do {
-                const reply = await client.command(
-                    'SCAN',
-                    cursor,
-                    'MATCH',
-                    `${namespace}*`,
-                    'COUNT',
-                    '500',
-                )
-                if (reply.type !== 'array' || reply.value.length !== 2) break
-                const next = reply.value[0]
-                cursor = next.type === 'bulk' ? next.value : '0'
-                const batch = reply.value[1]
-                if (batch.type !== 'array') continue
-                for (const entry of batch.value) {
-                    if (entry.type === 'bulk') found.push(entry.value)
-                }
-            } while (cursor !== '0')
-            return found.sort()
-        },
+        scanKeys: (namespace: string) => scan(`${namespace}*`),
+        scanMatch: (pattern: string) => scan(pattern),
         ttlOf: async (key: string) => {
             const reply = await client.command('TTL', key)
             return reply.type === 'integer' ? reply.value : -2

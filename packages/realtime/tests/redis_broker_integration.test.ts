@@ -523,3 +523,229 @@ integrationTest(
         }, { secret })
     },
 )
+
+// ---------------------------------------------------------------------------
+// US5 — the ghost sweep (#268 Q1/FR-008), against a real broker (#281)
+//
+// This is the path that removes a CRASHED instance's roster members. Every
+// other scenario above tears its instances down cleanly, so none of them
+// reaches it: the members simply never become ghosts.
+//
+// `driver.close()` is the crash model, and it is an honest one — it stops the
+// timers and drops the sockets but deliberately does NOT `SREM` the instance
+// or `DEL` its liveness key, precisely because a real crash cannot. The
+// surviving instance has to notice the expiry and clean up after it.
+//
+// The cadences are the floor the broker allows, not values picked for speed:
+// `EX` granularity is one second, so a sweep cannot be observed faster than
+// that no matter what the reconcile interval says.
+// ---------------------------------------------------------------------------
+
+// Mutation battery — every one applied to `drivers/redis.ts`, run against a
+// real broker, and observed before being reverted. A sweep test that only ever
+// runs green proves the sweep happened, not that the test would notice if it
+// stopped.
+//
+//   | # | Mutation                                          | Observed |
+//   | - | ------------------------------------------------- | -------- |
+//   | 1 | `#reconcile` never calls `#sweepInstance`          | RED      |
+//   | 2 | the heartbeat `SET` drops its `EX` argument        | RED      |
+//   | 3 | `#sweepInstance` skips the `SREM`                  | RED      |
+//   | 4 | `#sweepInstance` skips the owned-set `DEL`         | RED      |
+//   | 5 | the sweep `DEL`s the whole presence hash           | RED      |
+//   | 6 | the `if (alive === 0)` liveness gate is removed    | RED      |
+//   | 7 | the `id === this.instanceId` self-skip is removed  | GREEN    |
+//
+// **Row 6 is why there are three instances.** It was GREEN — in 269ms — when
+// this scenario had only a survivor and a corpse, and it is the DESTRUCTIVE
+// direction: a driver that sweeps live peers evicts connected users from every
+// presence channel. Two instances cannot catch it, because an instance never
+// sweeps itself, so "sweep the dead one" and "sweep every peer" produce the
+// same roster. The bystander's member is the assertion that separates them.
+//
+// **Row 7 is GREEN because it is an EQUIVALENT mutant, and that is recorded
+// rather than hidden.** Without the self-skip, `#reconcile` evaluates `EXISTS`
+// on its own liveness key — which is present while the instance heartbeats, so
+// no sweep follows and behaviour is unchanged. It diverges only once an
+// instance lets its OWN key lapse, which requires
+// `heartbeatIntervalMs >= livenessTtlSeconds * 1000`. The driver does not
+// validate that relationship; a test cannot pin a guard whose precondition the
+// production code permits, so the gap is filed rather than papered over here.
+//
+// Row 5 is why all three members share ONE channel: with a single owner,
+// deleting the dead owner's field and deleting the whole hash are
+// indistinguishable. Row 2 is why the TTL is asserted rather than the key's
+// presence: a `SET` without `EX` means a crashed instance is never swept at
+// all, and every presence-only assertion still passes.
+
+/** Liveness TTL for the sweep scenarios — Redis `EX` cannot go below 1s. */
+const SWEEP_LIVENESS_SECONDS = 1
+/** Well under the TTL, or a LIVE instance would let its own key lapse. */
+const SWEEP_HEARTBEAT_MS = 250
+/** Fast enough that the sweep is bounded by the TTL, not by this. */
+const SWEEP_RECONCILE_MS = 250
+/** Generous: the TTL is 1s, so this is ~8 chances to observe the sweep. */
+const SWEEP_TIMEOUT_MS = 8_000
+
+integrationTest(
+    'US5/FR-008: a crashed instance’s members are swept, and a LIVE peer’s are not',
+    async (namespace, reader) => {
+        // THREE instances, not two. Two proves the sweep fires; it cannot prove
+        // the sweep is SELECTIVE about which instance it fires against, because
+        // with only a survivor and a corpse "sweep the dead one" and "sweep
+        // every peer" have identical outcomes — an instance never sweeps itself
+        // (`id === this.instanceId`, drivers/redis.ts:1238), so the survivor's
+        // own member survives either way.
+        //
+        // The third instance stays alive and heartbeating, and its member is
+        // the assertion that pins the `if (alive === 0)` liveness gate. Deleting
+        // that gate is the DESTRUCTIVE failure — a driver that sweeps live peers
+        // silently evicts connected users from every presence channel — and the
+        // two-instance version of this test passed it in 269ms.
+        await withInstances(
+            3,
+            namespace,
+            async ([survivor, doomed, bystander]) => {
+                await awaitSubscribers(reader, namespace, 3)
+
+                // All three in the SAME channel. One channel, three owners: a sweep
+                // that deletes the whole presence hash rather than the dead
+                // instance's fields would pass a single-owner test perfectly.
+                await survivor.manager.subscribe(
+                    connection('survivor-conn', { id: 1, name: 'Ada' }),
+                    'presence-ops',
+                )
+                await doomed.manager.subscribe(
+                    connection('doomed-conn', { id: 2, name: 'Boris' }),
+                    'presence-ops',
+                )
+                await bystander.manager.subscribe(
+                    connection('bystander-conn', { id: 3, name: 'Cleo' }),
+                    'presence-ops',
+                )
+
+                await waitFor(
+                    async () =>
+                        (await reader.roster(namespace, 'presence-ops'))
+                            .size === 3,
+                    'all three members to reach the authoritative roster',
+                )
+
+                // Each liveness key is BOUNDED. A `SET` without `EX` leaves a key
+                // that never expires, so a crashed instance is never swept at all —
+                // and every presence-only assertion still passes.
+                //
+                // `>= 0`, not `> 0`: at a 1s TTL Redis legitimately reports 0 for a
+                // key with under half a second left, and rejecting that would be a
+                // flake of this test's own making. What is being excluded is `-1`
+                // (no expiry set — the actual defect) and `-2` (absent).
+                const aliveKeys = await reader.scanMatch(
+                    keys(namespace).alivePattern,
+                )
+                assertEquals(
+                    aliveKeys.length,
+                    3,
+                    'each instance registered exactly one liveness key',
+                )
+                for (const key of aliveKeys) {
+                    const ttl = await reader.ttlOf(key)
+                    assert(
+                        ttl >= 0 && ttl <= SWEEP_LIVENESS_SECONDS,
+                        `the liveness key ${key} carries a bounded TTL, not -1 ` +
+                            `(no expiry) or -2 (absent); saw ${ttl}`,
+                    )
+                }
+
+                // Identify the doomed instance's owned-set by its CONTENTS, before
+                // the crash. Counting the sets is not enough: three exist and two
+                // must remain, but "two remain" is satisfied just as well by
+                // deleting the survivor's set as by deleting the ghost's. The
+                // instance id is a `crypto.randomUUID()` inside the driver and is
+                // not reachable from a test, so its own member is what names it.
+                const ownedBefore = await reader.scanMatch(
+                    keys(namespace).ownedPattern,
+                )
+                assertEquals(
+                    ownedBefore.length,
+                    3,
+                    'each instance owns its own member-set before the crash',
+                )
+                const ownerOf = async (entry: string): Promise<string> => {
+                    for (const key of ownedBefore) {
+                        const reply = await reader.command('SMEMBERS', key)
+                        const held = reply.type === 'array'
+                            ? reply.value.flatMap((r) =>
+                                r.type === 'bulk' ? [r.value] : []
+                            )
+                            : []
+                        if (held.includes(entry)) return key
+                    }
+                    throw new Error(`no owned-set holds ${entry}`)
+                }
+                // `${channel} ${field}` — OWNED_SEP is a space (drivers/redis.ts:423).
+                const ghostSet = await ownerOf('presence-ops 2')
+
+                // The crash. No SREM, no DEL — the liveness key must lapse on its
+                // own and a survivor must act on that.
+                await doomed.driver.close()
+
+                await waitFor(
+                    async () =>
+                        (await reader.roster(namespace, 'presence-ops'))
+                            .size === 2,
+                    'a survivor to sweep the dead instance’s ghost member',
+                    SWEEP_TIMEOUT_MS,
+                )
+
+                // Settle past several more reconcile ticks before asserting what
+                // SURVIVED. Without this the assertions race the first tick and a
+                // sweep that over-reaches has not yet had a chance to do it — which
+                // is exactly how the two-instance version of this test let the
+                // liveness gate be deleted and still passed.
+                await new Promise((resolve) =>
+                    setTimeout(resolve, SWEEP_RECONCILE_MS * 4)
+                )
+
+                const roster = await reader.roster(namespace, 'presence-ops')
+                assertEquals(
+                    [...roster.keys()].sort(),
+                    ['1', '3'],
+                    'the ghost is gone and BOTH live members remain — member 3 is ' +
+                        'the liveness gate: without `if (alive === 0)` the sweep ' +
+                        'runs against a heartbeating peer and evicts it too',
+                )
+
+                // The dead instance is forgotten, so the reconcile stops re-checking
+                // it: its owned-set is deleted and its id is out of the instances
+                // set. Both inside one waitFor — the `SREM` is issued a round-trip
+                // AFTER the `DEL`, so asserting it outside the wait checks a command
+                // that may not have landed yet.
+                await waitFor(
+                    async () => {
+                        const owned = await reader.scanMatch(
+                            keys(namespace).ownedPattern,
+                        )
+                        const reply = await reader.command(
+                            'SMEMBERS',
+                            keys(namespace).instances,
+                        )
+                        const ids = reply.type === 'array'
+                            ? reply.value.length
+                            : 0
+                        return !owned.includes(ghostSet) &&
+                            owned.length === 2 &&
+                            ids === 2
+                    },
+                    'the dead instance’s owned-set to be DELeted (its own, not a ' +
+                        'live peer’s) and its id SREMed from the instances set',
+                    SWEEP_TIMEOUT_MS,
+                )
+            },
+            {
+                reconcileIntervalMs: SWEEP_RECONCILE_MS,
+                livenessTtlSeconds: SWEEP_LIVENESS_SECONDS,
+                heartbeatIntervalMs: SWEEP_HEARTBEAT_MS,
+            },
+        )
+    },
+)
