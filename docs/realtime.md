@@ -288,10 +288,43 @@ places. An id like `user@example.com` evicted correctly on its own instance, was
 silently dropped by every other one, and was still recovered by the durable
 reconcile. An application had no way to notice.
 
-`register`, `subscribe` and `evict` now **throw** on such an id, at the moment
-you supply it. If you are upgrading and you mint your own ids, check them
-against that charset before you deploy: the failure moves from silent and
-partial to immediate and obvious, which is the point, but it does move.
+`register`, `subscribe` and `evict` now **throw `ConnectionIdError`** on such an
+id, at the moment you supply it. If you are upgrading and you mint your own ids,
+check them against that charset before you deploy: the failure moves from silent
+and partial to immediate and obvious, which is the point, but it does move.
+
+### The presence member id is bounded too — by length, not by charset
+
+`PresenceMember.id` is the other id-shaped value that crosses the control plane.
+It comes from your `authorize()` and becomes a field on the authoritative
+presence roster, and `subscribe` **throws `PresenceMemberIdError`** when its
+string form is empty or longer than 200 characters, or when a numeric id is not
+finite.
+
+**Its charset is deliberately unconstrained**, unlike a connection id. A member
+id is your users' identity — an email, a username, an id from an external
+provider — and the connection-id charset would reject `user@example.com` on the
+`@`. It would also buy nothing: Redis commands are length-prefixed so no value
+can forge one, control frames carry a MAC, and the roster's internal
+`<channel> <member>` entries are parsed on the first space behind a
+charset-bounded channel name, so a member id containing spaces is unambiguous.
+
+Length is the part nothing below bounds, and it is not cosmetic. The roster
+write happens _before_ the frame that announces it, and an oversized frame is
+dropped with a warning — so without this the member landed in the roster on one
+instance, was never announced to any other, and `subscribe` still returned
+success. Both error types are exported from `@lockness/realtime`, so an
+`onError` handler can tell "a bug in my own code that no retry will fix" from a
+dead socket:
+
+```ts
+import { ConnectionIdError, PresenceMemberIdError } from '@lockness/realtime'
+
+if (error instanceof PresenceMemberIdError) {
+    // The authorizer returned an id the roster cannot carry — fix the
+    // authorizer, do not retry.
+}
+```
 
 **One thing to do before a rolling upgrade.** A durable revocation already
 recorded against an out-of-charset id is dropped by the reconcile on an upgraded
