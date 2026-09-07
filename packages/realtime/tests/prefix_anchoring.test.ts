@@ -106,6 +106,34 @@
  *   contain the WHOLE marker, so `slice`, `replace` and `split` all agreed and
  *   the row proved nothing. The channel has to repeat the marker in full.
  *
+ * ## Mutations run for #315 (binding by identity, not by glob shape)
+ *
+ * **Two run, both killed** — `tests/mutations/subscription_identity_315.ts`,
+ * whose exit code is the survivor count. The number comes from that script, not
+ * from a hand count: the two figures above were each wrong once.
+ *
+ * | Mutation | Killed by |
+ * | :--- | :--- |
+ * | the event subscription opened on the control topic | `SC-002` |
+ * | a THIRD subscription, in neither family | `SC-002` |
+ *
+ * **This is the sixth entry in the catalogue above, and the only one caught
+ * before it cost anything.** Four sites told the two subscriptions apart with
+ * `pattern.endsWith('*')` — a fact about neither of them. Nothing was vacuous
+ * on `main`: both patterns had their expected shapes and the suite was checking
+ * what it claimed. But an event subscription that stopped ending in a star made
+ * `filter(endsWith('*'))` return `[]`, so `SC-002`'s US2 loop ran zero times
+ * and the suite stayed green having stopped checking that routing alone can
+ * never hand a control frame to `onMessage`, where `#verifyAndDecode` is not.
+ * `assert(ownControl !== undefined)` read like a guard against that and was
+ * not one: it asserted that *some* pattern lacks a trailing star, which the
+ * wrong binding satisfies.
+ *
+ * Both rows also break `FR-001`'s exact-set pin, so a bare kill would say
+ * nothing. The evidence is the ATTRIBUTION: each row names `SC-002`, and run
+ * against the pre-#315 file the same two rows report MISATTRIBUTED — `SC-002`
+ * passed in both. That one test moving from pass to fail is the whole change.
+ *
  * @module @lockness/realtime/tests/prefix_anchoring
  */
 
@@ -486,6 +514,112 @@ function topicsOf(recording: { subscriptions: { pattern: string }[] }) {
     return recording.subscriptions.map((s) => s.pattern.replace('*', 'orders'))
 }
 
+/**
+ * Split a recording's subscriptions into the control one and the event ones,
+ * **by identity** — never by glob shape (#315).
+ *
+ * The driver opens exactly two: a control topic (`${prefix}__control`,
+ * glob-free) and an event glob (`${prefix}__event:*`). Four sites in this file
+ * told them apart with `pattern.endsWith('*')`, which separates them *today*
+ * and is a property of neither. If the event subscription ever stops ending in
+ * a star, `filter(endsWith('*'))` returns `[]`, the US2 loop below never runs,
+ * and the suite goes green **having stopped checking the thing it exists to
+ * check** — that routing alone can never hand a control frame to `onMessage`,
+ * where `#verifyAndDecode` is not.
+ *
+ * That is the sixth entry in this file's own catalogue of observations that
+ * cannot see their own violation (see the header). The old
+ * `assert(ownControl !== undefined)` read like a guard against it and was not
+ * one: it asserted that *some* pattern lacks a trailing star, which the wrong
+ * binding satisfies.
+ *
+ * **The two names are literals here on purpose**, and it is the opposite of the
+ * literal `topicsOf` avoids. That one would have to be edited to go green when
+ * the wire shape changes, which is how a wire-format test stops testing the
+ * wire format. These are the identities the #282/#288 property is *stated in
+ * terms of*, so a driver that stops using them must make this file fail — which
+ * is what the three assertions below do, loudly, instead of binding to the
+ * other subscription and continuing.
+ *
+ * @param prefix - The deployment prefix the recording was made under.
+ * @param subscriptions - Everything the recording port captured.
+ * @returns The one subscription that IS the control topic.
+ * @throws {AssertionError} If it is absent or duplicated.
+ */
+function controlSubscription<T extends { pattern: string }>(
+    prefix: string,
+    subscriptions: readonly T[],
+): T {
+    const controlTopic = `${prefix}__control`
+    const found = subscriptions.filter((s) => s.pattern === controlTopic)
+    assertEquals(
+        found.length,
+        1,
+        `exactly one subscription must BE "${controlTopic}"; saw ` +
+            `${found.length} in ${patternsIn(subscriptions)}`,
+    )
+    return found[0]
+}
+
+/**
+ * Every event subscription in a recording, by identity — anchored under
+ * `${prefix}__event:`. See {@link controlSubscription}.
+ *
+ * @param prefix - The deployment prefix the recording was made under.
+ * @param subscriptions - Everything the recording port captured.
+ * @returns The event subscriptions, in recorded order.
+ * @throws {AssertionError} If none is anchored under the event head.
+ */
+function eventSubscriptions<T extends { pattern: string }>(
+    prefix: string,
+    subscriptions: readonly T[],
+): T[] {
+    const eventHead = `${prefix}__event:`
+    const found = subscriptions.filter((s) => s.pattern.startsWith(eventHead))
+    assert(
+        found.length > 0,
+        `no subscription is anchored under "${eventHead}"; saw ` +
+            patternsIn(subscriptions),
+    )
+    return found
+}
+
+/**
+ * Both of the above, plus the claim that they account for EVERYTHING recorded.
+ *
+ * Only for a recording where both seams are registered. `deliver` below never
+ * calls `onControl` — which is what opens the control subscription — so it asks
+ * for the event subscriptions alone rather than relaxing this into an optional
+ * control, which would put the absence back out of sight.
+ *
+ * @param prefix - The deployment prefix the recording was made under.
+ * @param subscriptions - Everything the recording port captured.
+ * @returns The control subscription and every event subscription.
+ * @throws {AssertionError} If either is missing, or if any subscription is
+ * neither.
+ */
+function splitSubscriptions<T extends { pattern: string }>(
+    prefix: string,
+    subscriptions: readonly T[],
+): { control: T; events: T[] } {
+    const control = controlSubscription(prefix, subscriptions)
+    const events = eventSubscriptions(prefix, subscriptions)
+    // Nothing unaccounted for. Without this the two claims above hold while a
+    // third subscription — the one that would carry the leak — goes unexamined.
+    assertEquals(
+        1 + events.length,
+        subscriptions.length,
+        'a subscription is neither the control topic nor anchored under the ' +
+            `event head: ${patternsIn(subscriptions)}`,
+    )
+    return { control, events }
+}
+
+/** The recorded patterns, for an assertion message. */
+function patternsIn(subscriptions: readonly { pattern: string }[]): string {
+    return JSON.stringify(subscriptions.map((s) => s.pattern))
+}
+
 Deno.test('SC-002: no accepted prefix can reach another, in either direction', async () => {
     for (const [self, other] of ISOLATION_PAIRS) {
         const mine = await exercise(self)
@@ -515,16 +649,12 @@ Deno.test('SC-002: no accepted prefix can reach another, in either direction', a
         // A deployment's own event pattern must not reach its own control
         // topic either (US2) — routing alone must never be able to hand a
         // control frame to `onMessage`, where `#verifyAndDecode` is not.
-        const eventPatterns = myPatterns.filter((pattern) =>
-            pattern.endsWith('*')
-        )
-        const ownControl = myPatterns.find((pattern) => !pattern.endsWith('*'))
-        assert(ownControl !== undefined, 'the control subscription is missing')
-        for (const pattern of eventPatterns) {
+        const { control, events } = splitSubscriptions(self, mine.subscriptions)
+        for (const { pattern } of events) {
             assert(
-                !globMatches(pattern, ownControl),
+                !globMatches(pattern, control.pattern),
                 `"${pattern}" matches this deployment's OWN control topic ` +
-                    `"${ownControl}". A control frame routed to onMessage ` +
+                    `"${control.pattern}". A control frame routed to onMessage ` +
                     'never reaches the MAC check.',
             )
         }
@@ -560,9 +690,10 @@ async function deliver(prefix: string, topic: string, payload: string) {
     const driver = new RedisBroadcastDriver(command, subscriber, { prefix })
     const got: { channel: string; event: string }[] = []
     driver.onMessage((m) => got.push({ channel: m.channel, event: m.event }))
-    const events = recording.subscriptions.find((s) => s.pattern.endsWith('*'))
-    assert(events !== undefined, 'the event subscription is missing')
-    events.handler(topic, payload)
+    // Events only: this helper never registers `onControl`, and that seam is
+    // what opens the control subscription (drivers/redis.ts, `onControl`).
+    const events = eventSubscriptions(prefix, recording.subscriptions)
+    events[0].handler(topic, payload)
     await driver.close()
     return got
 }
@@ -712,15 +843,26 @@ Deno.test('FR-004: a subscription reaches ONLY its own family, within one prefix
         value.startsWith('alpha') && !patterns.includes(value)
     )
 
-    for (const pattern of patterns) {
+    // By identity, not by shape (#315): which subscription this is decides what
+    // it may reach, and `endsWith('*')` is a fact about neither.
+    const { control, events } = splitSubscriptions(
+        'alpha',
+        recording.subscriptions,
+    )
+    const expectations: [string, string[]][] = [
+        // The control topic is glob-free and reaches only itself, which is not
+        // in `names` — so nothing.
+        [control.pattern, []],
+        // An event subscription reaches event topics and nothing else. The
+        // exercise publishes on exactly one channel.
+        ...events.map((s): [string, string[]] => [
+            s.pattern,
+            ['alpha__event:room'],
+        ]),
+    ]
+
+    for (const [pattern, expected] of expectations) {
         const reached = names.filter((name) => globMatches(pattern, name))
-        const expected = pattern.endsWith('*')
-            // The event pattern reaches event topics and nothing else. The
-            // exercise publishes on exactly one channel.
-            ? ['alpha__event:room']
-            // The control topic is glob-free and reaches only itself, which is
-            // not in `names` — so nothing.
-            : []
         assertEquals(
             reached.sort(),
             expected,
