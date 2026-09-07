@@ -158,16 +158,21 @@ async function publicSurface(
 }
 
 /**
- * Source and test files a package holds.
+ * Source files, test files and mutation batteries a package holds.
+ *
+ * Three categories, not two. A battery under `tests/mutations/` is an
+ * executable `.ts` rather than a `.test.ts`, so counting it as source made a
+ * test-only commit render as a production-code addition (#317).
  *
  * @param packageName - Short package name.
- * @returns Repo-relative source and test paths.
+ * @returns Repo-relative source, test and battery paths.
  */
 async function inventory(
     packageName: string,
-): Promise<{ source: string[]; tests: string[] }> {
+): Promise<{ source: string[]; tests: string[]; batteries: string[] }> {
     const source: string[] = []
     const tests: string[] = []
+    const batteries: string[] = []
 
     const walk = async (dir: string): Promise<void> => {
         for await (const entry of Deno.readDir(dir)) {
@@ -182,12 +187,21 @@ async function inventory(
             if (!/\.tsx?$/.test(entry.name)) continue
             const relative = path.slice(ROOT.length + 1)
             if (/[._]test\.tsx?$/.test(entry.name)) tests.push(relative)
-            else if (!relative.includes('/stubs/')) source.push(relative)
+            // A mutation battery is a `.ts` executable, not a `.test.ts`, so it
+            // used to land in the SOURCE count — a test-only commit then read
+            // on the board as if it had added production code (#317).
+            else if (relative.includes('/tests/mutations/')) {
+                batteries.push(relative)
+            } else if (!relative.includes('/stubs/')) source.push(relative)
         }
     }
 
     await walk(join(PACKAGES_DIR, packageName))
-    return { source: source.sort(), tests: tests.sort() }
+    return {
+        source: source.sort(),
+        tests: tests.sort(),
+        batteries: batteries.sort(),
+    }
 }
 
 /** A generated block, keyed by its marker name. */
@@ -260,13 +274,25 @@ async function renderBlocks(name: string, graph: Graph): Promise<Blocks> {
             'Anything not listed is internal and free to change.',
         ]
 
-    const { source, tests } = await inventory(name)
+    const { source, tests, batteries } = await inventory(name)
+    const batteryLines = batteries.length === 0 ? [] : [
+        '',
+        `${batteries.length} mutation batter${
+            batteries.length === 1 ? 'y' : 'ies'
+        } — **\`deno test\` does not run these.** Each is an`,
+        'executable that mutates a source file, re-runs the suites that should',
+        'notice, and exits with the number of unexpected survivors. See',
+        '[testing.md](../../docs/testing.md#mutation-batteries).',
+        '',
+        ...batteries.map((b) => `- \`${b}\``),
+    ]
     const testLines = tests.length === 0
         ? [
             `**This package has no tests.** ${source.length} source file${
                 source.length === 1 ? '' : 's'
             } ship untested — treat any change here as unguarded, and add`,
             'coverage for what you touch rather than trusting the suite.',
+            ...batteryLines,
         ]
         : [
             `${tests.length} test file${
@@ -276,6 +302,7 @@ async function renderBlocks(name: string, graph: Graph): Promise<Blocks> {
             }:`,
             '',
             ...tests.map((t) => `- \`${t}\``),
+            ...batteryLines,
         ]
 
     const gate = [
