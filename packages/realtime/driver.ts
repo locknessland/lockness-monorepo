@@ -46,6 +46,33 @@ export interface BroadcastMessage {
  * the message is ever obeyed. The HMAC computation/verification itself is not
  * implemented here (US3 / T026); only the field is declared.
  */
+/**
+ * Why a control frame was not published, and which frame it was (#318).
+ *
+ * Delivered to {@link BroadcastDriver.onControlRefused}. Carries the channel
+ * and the reason so a refusal is actionable without correlating raw logs across
+ * instances — the two refusals have different fixes (shrink the member, or
+ * configure a secret) and a single "publish failed" signal would not separate
+ * them.
+ */
+export interface ControlRefusal {
+    /**
+     * `oversize` — the serialized frame exceeds the configured ceiling, so
+     * every peer would drop it on ingest. `no-secret` — no control secret is
+     * configured, so the frame would be unauthenticated and dropped by every
+     * peer's FR-015 check.
+     */
+    readonly reason: 'oversize' | 'no-secret'
+    /** The kind of frame that was refused. */
+    readonly kind: ControlMessage['kind']
+    /** The presence channel, when the refused frame named one. */
+    readonly channel?: string
+    /** The serialized frame's size in bytes. Present only for `oversize`. */
+    readonly bytes?: number
+    /** The configured ceiling in bytes. Present only for `oversize`. */
+    readonly limit?: number
+}
+
 export interface ControlMessage {
     /**
      * The control kind. `evict` revokes a connection; `presence-join` /
@@ -161,6 +188,26 @@ export interface BroadcastDriver {
      * @returns The currently-revoked connection ids.
      */
     listRevoked?(): string[] | Promise<string[]>
+    /**
+     * OPTIONAL (#318). Register the handler the driver invokes when it declines
+     * to publish a control frame.
+     *
+     * {@link publishControl} warns and RETURNS on a refusal, so from the
+     * manager's side a refused frame and a published one are the same
+     * `void | Promise<void>`. `subscribe` answers `{ ok: true }`, the
+     * authoritative roster is correct, and peers already in the channel hold a
+     * stale roster until they resubscribe — with the only signal anywhere a
+     * WARN on the single instance that refused. This seam is how that becomes
+     * observable to something an operator can alert on.
+     *
+     * It reports; it does not decide. #312 settled that a refusal never rolls
+     * back the roster write, and this seam does not reopen that.
+     *
+     * @param handler - Called with each refusal, before `publishControl`
+     *   returns. A throwing handler is contained and logged; it never becomes
+     *   the caller's problem.
+     */
+    onControlRefused?(handler: (refusal: ControlRefusal) => void): void
     /**
      * OPTIONAL (S1/FR-014). Register the handler the driver invokes on its
      * periodic reconcile pass, so the owning instance re-checks

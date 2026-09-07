@@ -43,6 +43,7 @@ export type {
     BroadcastDriver,
     BroadcastMessage,
     ControlMessage,
+    ControlRefusal,
     PresenceCapableDriver,
 } from './driver.ts'
 export { MemoryBroadcastDriver } from './drivers/memory.ts'

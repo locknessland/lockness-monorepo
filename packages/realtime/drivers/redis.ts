@@ -49,6 +49,7 @@ import type {
     BroadcastDriver,
     BroadcastMessage,
     ControlMessage,
+    ControlRefusal,
 } from '../driver.ts'
 import { isValidName } from '../protocol.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
@@ -610,6 +611,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     private readonly replayWindow: ControlReplayWindow | undefined
     /** The control-payload byte ceiling, enforced on BOTH publish and ingest. */
     private readonly maxControlPayloadBytes: number
+    /** #318 — notified whenever a control frame is declined. */
+    private controlRefusedHandler?: (refusal: ControlRefusal) => void
     private heartbeatTimer?: ReturnType<typeof setInterval>
     private reconcileTimer?: ReturnType<typeof setInterval>
     private revocationTimer?: ReturnType<typeof setInterval>
@@ -1026,9 +1029,41 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      *
      * @param control - The control message to broadcast (its `mac` is set here).
      */
+    onControlRefused(handler: (refusal: ControlRefusal) => void): void {
+        this.controlRefusedHandler = handler
+    }
+
+    /**
+     * WARN, then notify the seam. Both, always — the log is what an operator
+     * reading one instance finds, the seam is what anything aggregating across
+     * instances can act on, and neither replaces the other.
+     *
+     * The handler is application code on a path whose whole point is that a
+     * failure here is already being swallowed, so a throw from it is contained
+     * and logged rather than propagated: turning an observability callback into
+     * the caller's exception would make publishing MORE fragile than before the
+     * seam existed.
+     */
+    #refuseControl(refusal: ControlRefusal, message: string): void {
+        console.warn(message)
+        try {
+            this.controlRefusedHandler?.(refusal)
+        } catch (error) {
+            console.warn(
+                'realtime: an onControlRefused handler threw; the refusal ' +
+                    `itself is unaffected: ${renderError(error)}`,
+            )
+        }
+    }
+
     async publishControl(control: ControlMessage): Promise<void> {
         if (!this.secret) {
-            console.warn(
+            this.#refuseControl(
+                {
+                    reason: 'no-secret',
+                    kind: control.kind,
+                    channel: control.channel,
+                },
                 'realtime: refusing to publish an unauthenticated control ' +
                     'message — no control secret configured (FR-015)',
             )
@@ -1052,7 +1087,14 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // remote instance silently drop the frame. The WARN would appear on the
         // instances that cannot fix it, and never on the one that can.
         if (payload.length > this.maxControlPayloadBytes) {
-            console.warn(
+            this.#refuseControl(
+                {
+                    reason: 'oversize',
+                    kind: control.kind,
+                    channel: control.channel,
+                    bytes: payload.length,
+                    limit: this.maxControlPayloadBytes,
+                },
                 'realtime: refusing to publish an oversized control message ' +
                     `(${payload.length} bytes > ` +
                     `${this.maxControlPayloadBytes}). Every peer would drop ` +
