@@ -241,8 +241,14 @@ export async function withInstances<T>(
                 control: { secret },
                 presence: {
                     reconcileIntervalMs: options.reconcileIntervalMs ?? 60_000,
-                    livenessTtlSeconds: options.livenessTtlSeconds ?? 15,
-                    heartbeatIntervalMs: options.heartbeatIntervalMs ?? 5_000,
+                    // No `?? 15` / `?? 5_000` here (#293). Those restated the
+                    // driver's own defaults in a second place, and the two are
+                    // now bound by a constructor guard — a copy that drifts
+                    // would make this helper build configurations the driver
+                    // refuses, or worse, ones it accepts for the wrong reason.
+                    // Passing `undefined` lets the single owner decide.
+                    livenessTtlSeconds: options.livenessTtlSeconds,
+                    heartbeatIntervalMs: options.heartbeatIntervalMs,
                 },
                 revocationTtlSeconds: options.revocationTtlSeconds ?? 300,
             })

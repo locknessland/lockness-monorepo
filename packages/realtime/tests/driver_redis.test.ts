@@ -285,6 +285,78 @@ Deno.test('FR-019 ingest: a valid channel + event name is delivered', () => {
     assertEquals(got[0].event, 'published')
 })
 
+Deno.test('#293: a heartbeat that cannot outrun its own liveness TTL is rejected at construction', () => {
+    const bus = new FakeRedisBus()
+    const build = (presence: Record<string, number>) =>
+        new RedisBroadcastDriver(
+            { command: bus.command },
+            bus.subscriberFor(),
+            { prefix: 'app:rt', presence },
+        )
+
+    // The failure this refuses is not a crash — it is a HEALTHY instance being
+    // swept. Its own liveness key lapses between beats, every peer reads
+    // EXISTS 0, and its presence members are removed from every roster while
+    // its sockets stay open.
+    assertThrows(
+        () => build({ heartbeatIntervalMs: 15_000, livenessTtlSeconds: 15 }),
+        Error,
+        'at most HALF',
+    )
+    // A MARGIN, not a strict inequality. One beat per window lands exactly on
+    // the boundary and races the expiry — losing whenever the round-trip is
+    // slower than the slack, which is when the broker is busy.
+    assertThrows(
+        () => build({ heartbeatIntervalMs: 14_999, livenessTtlSeconds: 15 }),
+        Error,
+        'at most HALF',
+    )
+    assertThrows(
+        () => build({ heartbeatIntervalMs: 7_501, livenessTtlSeconds: 15 }),
+        Error,
+        'at most HALF',
+    )
+    // The message names BOTH values; a guard that says only "invalid" leaves
+    // the operator to work out which of the two to move.
+    assertThrows(
+        () => build({ heartbeatIntervalMs: 15_000, livenessTtlSeconds: 15 }),
+        Error,
+        'heartbeatIntervalMs=15000ms and livenessTtlSeconds=15s',
+    )
+
+    // NaN is the dangerous input and it is easy to produce —
+    // `Number(Deno.env.get('...'))` on an unset variable. Every comparison
+    // against NaN is false, so without the finiteness check it would slip past
+    // the relation above and disable the guard on a fresh process.
+    assertThrows(
+        () => build({ heartbeatIntervalMs: NaN, livenessTtlSeconds: 15 }),
+        Error,
+        'positive, finite',
+    )
+    assertThrows(
+        () => build({ heartbeatIntervalMs: 5_000, livenessTtlSeconds: NaN }),
+        Error,
+        'positive, finite',
+    )
+    assertThrows(
+        () => build({ heartbeatIntervalMs: 0, livenessTtlSeconds: 15 }),
+        Error,
+        'positive, finite',
+    )
+
+    // Exactly half is the boundary and it is ALLOWED — the guard is `> half`,
+    // not `>= half`. Pinned so a later tightening cannot pass unnoticed.
+    build({ heartbeatIntervalMs: 7_500, livenessTtlSeconds: 15 })
+    // And the shipped defaults satisfy it with room to spare: 5000ms against a
+    // 15s TTL is three beats per window, not two.
+    new RedisBroadcastDriver(
+        { command: bus.command },
+        bus.subscriberFor(),
+        { prefix: 'app:rt' },
+    )
+    build({ heartbeatIntervalMs: 5_000, livenessTtlSeconds: 15 })
+})
+
 Deno.test('FR-015: a control secret below the 32-byte floor is rejected at construction', () => {
     const bus = new FakeRedisBus()
     // A short, guessable secret weakens the control-frame MAC — refuse it up

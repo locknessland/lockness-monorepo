@@ -571,11 +571,26 @@ integrationTest(
 // **Row 7 is GREEN because it is an EQUIVALENT mutant, and that is recorded
 // rather than hidden.** Without the self-skip, `#reconcile` evaluates `EXISTS`
 // on its own liveness key — which is present while the instance heartbeats, so
-// no sweep follows and behaviour is unchanged. It diverges only once an
-// instance lets its OWN key lapse, which requires
-// `heartbeatIntervalMs >= livenessTtlSeconds * 1000`. The driver does not
-// validate that relationship; a test cannot pin a guard whose precondition the
-// production code permits, so the gap is filed rather than papered over here.
+// no sweep follows and behaviour is unchanged.
+//
+// #293 was filed expecting to make this row RED, and it does not. Recorded
+// because the reasoning was wrong in a way worth keeping: the row diverges only
+// once an instance lets its OWN key lapse, and #293's guard makes the
+// configuration that permits it — `heartbeatIntervalMs` at or above half the
+// TTL — unconstructible. Refusing the bad state moves the mutant FURTHER from
+// killable, not closer. Nor is there a boot window to exploit: `start()`
+// awaits one `#heartbeat()` before arming the interval, so the key exists from
+// the first reconcile onward. Re-measured against a real broker with the guard
+// landed: 14 passed, 0 failed.
+//
+// The path that would still diverge is a TRANSIENT one the config cannot
+// refuse — two consecutive heartbeat `SET`s failing while the instance is
+// otherwise alive and serving sockets, so its own key lapses and, without the
+// self-skip, it sweeps its own members out of every roster. Reaching it needs a
+// command client that drops writes to the alive key for a window, which is a
+// new scenario rather than a row in this table. Filed rather than papered over
+// — and the self-skip stays either way, because a guard being unreachable from
+// a valid configuration is the desired state, not a redundancy.
 //
 // Row 5 is why all three members share ONE channel: with a single owner,
 // deleting the dead owner's field and deleting the whole hash are
