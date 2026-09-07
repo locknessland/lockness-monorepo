@@ -489,6 +489,15 @@ interface ControlWire {
 const DEFAULT_LIVENESS_TTL_SECONDS = 15
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 5_000
 const DEFAULT_RECONCILE_INTERVAL_MS = 10_000
+/**
+ * How long after a FAILED seam-triggered reconcile the single retry runs
+ * (#308).
+ *
+ * An order of magnitude under `DEFAULT_RECONCILE_INTERVAL_MS`, so the retry is
+ * still a fast path and not a second timer — and not instant, because the
+ * failure it answers is usually a broker that just refused a command.
+ */
+const RECONCILE_RETRY_MS = 1_000
 const DEFAULT_REVOCATION_TTL_SECONDS = 300
 /**
  * How long after issue a control frame may still be obeyed (#272). See
@@ -587,6 +596,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     private heartbeatTimer?: ReturnType<typeof setInterval>
     private reconcileTimer?: ReturnType<typeof setInterval>
     private revocationTimer?: ReturnType<typeof setInterval>
+    /**
+     * The ONE retry a failed seam-triggered reconcile gets (#308).
+     *
+     * At most one exists: the retry itself never retries, so a broker that
+     * keeps failing costs one extra round-trip per outage rather than a loop.
+     */
+    private revocationRetryTimer?: ReturnType<typeof setTimeout>
     private sweepStarted = false
     /**
      * The owning instance's revocation re-check (S1/FR-014). Registered by the
@@ -1271,22 +1287,61 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // does not belong in it. Routed through `#runRevocationReconcile` (not
         // the raw handler) so both triggers share its contextual WARN, the only
         // log line naming WHICH control failed.
-        this.subscriber.onReconnect?.(() => this.#runRevocationReconcile())
+        this.subscriber.onReconnect?.(() =>
+            this.#runRevocationReconcile('reconnect')
+        )
     }
 
     /**
-     * Run the registered revocation re-check once, on the dedicated cadence. A
-     * failure is logged at WARN and never swallowed silently; the timer keeps
-     * running so the next pass still bounds exposure to ~`reconcileIntervalMs`.
+     * Run the registered revocation re-check once. A failure is logged at WARN
+     * and never swallowed silently; the timer keeps running so the next pass
+     * still bounds exposure to ~`reconcileIntervalMs`.
+     *
+     * **The trigger is named in the log, and it decides whether a failure is
+     * retried (#308).** The two triggers are not equivalent on failure. The
+     * timer's next pass is already scheduled, so a failed timer pass costs
+     * nothing but latency. The SEAM fires once per outage and its intent is
+     * consumed by the activation that fired it, so a failed seam pass is
+     * retried by nothing at all — enforcement silently reverts to the periodic
+     * timer, which is exactly the pre-#271 exposure the seam exists to remove.
+     * The condition is broker-controllable: heal the subscribe socket while
+     * stalling the command socket's `EVAL`.
+     *
+     * Naming the trigger is half the fix on its own. Both lines read
+     * identically before this, so an operator watching a WARN stream could not
+     * tell that the fast path had been lost rather than a routine pass having
+     * failed — and those want different responses.
+     *
+     * @param trigger - What ran this pass. `reconnect` is the only one that
+     *   earns a retry, and `reconnect-retry` is that retry, which does not
+     *   retry itself.
      */
-    async #runRevocationReconcile(): Promise<void> {
+    async #runRevocationReconcile(
+        trigger: 'timer' | 'reconnect' | 'reconnect-retry' = 'timer',
+    ): Promise<void> {
         if (!this.revocationHandler) return
         try {
             await this.revocationHandler()
         } catch (error) {
             console.warn(
-                `realtime: revocation reconcile failed: ${renderError(error)}`,
+                `realtime: revocation reconcile failed (${trigger}): ${
+                    renderError(error)
+                }`,
             )
+            if (trigger !== 'reconnect') return
+            // ONE retry, and only one. Chaining would turn a broker that keeps
+            // failing into a hot loop against the command socket, which is the
+            // opposite of what a bounded enforcement window needs.
+            if (this.revocationRetryTimer !== undefined) {
+                clearTimeout(this.revocationRetryTimer)
+            }
+            const id = setTimeout(
+                () => void this.#runRevocationReconcile('reconnect-retry'),
+                RECONCILE_RETRY_MS,
+            )
+            // Unref'd: this must never be the reason a process stays alive.
+            Deno.unrefTimer(id)
+            this.revocationRetryTimer = id
         }
     }
 
@@ -1576,6 +1631,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         if (this.revocationTimer !== undefined) {
             clearInterval(this.revocationTimer)
             this.revocationTimer = undefined
+        }
+        if (this.revocationRetryTimer !== undefined) {
+            clearTimeout(this.revocationRetryTimer)
+            this.revocationRetryTimer = undefined
         }
         // Clearing the timer is not enough for the RECONNECT trigger (#271): on
         // the injected-port path `owned` is empty, so the subscriber outlives
