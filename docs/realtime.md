@@ -443,6 +443,39 @@ recovered only once. The reconnect trigger is additive: an integrator whose
 subscriber does not expose a reconnect hook falls back to the periodic pass
 alone, unchanged.
 
+**What happens when a re-check FAILS is not the same for both.** The WARN names
+which trigger it was, because the two want different responses:
+
+| Trigger   | On failure                                                                                                                                                                                                                 |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Reconnect | Retried once, an order of magnitude inside `reconcileIntervalMs`. The reconnect fires once per outage, so without that retry a failed pass is retried by nothing and enforcement silently falls back to the periodic timer |
+| Periodic  | Not retried. Its next pass is already scheduled, so retrying would double its rate for as long as the broker is unhealthy — a load spike at exactly the wrong moment                                                       |
+
+The retry does not retry itself: a broker that keeps refusing costs one extra
+round-trip per outage, not a loop.
+
+**The re-check runs concurrently with delivery, and that is the shipped
+contract.** The subscribe socket's read loop is started before the reconnect
+handler is invoked, so a message can be delivered while the re-check is still in
+flight — a window of roughly one round-trip on the Redis command connection,
+after each socket fault. A connection revoked during that window can receive
+broadcasts until the re-check lands.
+
+This is a deliberate trade, not an oversight. Firing the handler before delivery
+resumes would let an application-supplied handler gate **all** delivery for as
+long as it runs, turning a bounded authorization window into an unbounded
+availability one. The periodic pass bounds the exposure either way, which is why
+`reconcileIntervalMs` is an enforcement bound and should not be lengthened.
+
+Two consequences worth stating plainly:
+
+- **A fired reconnect handler is not proof that frames are flowing.** An
+  activation waits only for its `PSUBSCRIBE` to reach the socket, never for the
+  broker to acknowledge it.
+- **If your application cannot tolerate that window**, gate delivery yourself
+  for the duration of your re-check — with a timeout, so a stuck re-check
+  degrades to delivery-without-a-gate rather than to silence.
+
 The hook is `onReconnect(handler)` — an **optional** member of the
 `RedisSubscriber` port. `@lockness/redis`'s `RedisSubscribeConnection`
 implements it; a custom subscriber that wants the reconnect trigger implements

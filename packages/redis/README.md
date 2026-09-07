@@ -41,8 +41,15 @@ way everywhere.
   succeeds — the routine moment a pub/sub frame is lost, so a consumer can
   reconcile whatever the lost frames would have carried. It never fires on the
   first connect or on a failed re-dial, and a handler that throws is contained
-  and warned without disarming the seam. Both methods structurally satisfy
-  `@lockness/realtime`'s `RedisSubscriber` port.
+  and warned without disarming the seam. **Delivery resumes before the handler
+  completes**, deliberately: the read loop is started first, so a message can be
+  dispatched while the handler is still running. Firing before delivery would
+  let a consumer's handler gate every message for as long as it runs, which
+  trades a bounded window for an unbounded one — a consumer that needs frames
+  held back must hold them back itself, with a timeout. Note too that a fire is
+  not proof frames are flowing: an activation waits only for its `PSUBSCRIBE` to
+  reach the socket, never for the broker to acknowledge it. Both methods
+  structurally satisfy `@lockness/realtime`'s `RedisSubscriber` port.
 - **TLS** — set `tls: true` (or use a `rediss` endpoint) to wrap the socket with
   `Deno.connectTls`; certificate validation is **on** by default (no trust-all).
 - **Memo key** — `redisMemoKey` / `credentialFingerprint` / `hmacSha256Hex` /
