@@ -481,15 +481,21 @@ The hook is `onReconnect(handler)` — an **optional** member of the
 implements it; a custom subscriber that wants the reconnect trigger implements
 it too, and one that omits it keeps working.
 
-> **Operational note.** The subscribe socket currently re-dials on an idle bus
-> even with no fault, because it reads with a 30s deadline and sends no
-> keepalive — see
-> [#274](https://github.com/locknessland/lockness-monorepo/issues/274). Each of
-> those re-dials is a window in which a control frame can be lost, which is
-> exactly what the reconnect trigger recovers from. A re-dial that fails to
-> connect is not currently retried
-> ([#275](https://github.com/locknessland/lockness-monorepo/issues/275)); the
-> failure is logged at WARN and names that no further attempt will be made.
+> **Operational note — this describes history, not current behaviour.** The
+> subscribe socket used to re-dial on an idle bus with no fault at all, because
+> it read with a 30s deadline and sent no keepalive, so every quiet window was a
+> window in which a control frame could be lost.
+> [#274](https://github.com/locknessland/lockness-monorepo/issues/274) removed
+> that: a keepalive `PING` holds an idle socket up, and its test asserts a
+> single socket across eight windows of silence. A re-dial that fails to connect
+> used to be abandoned with a WARN saying so;
+> [#275](https://github.com/locknessland/lockness-monorepo/issues/275) put it
+> behind the same bounded backoff every other re-dial uses, so it is retried
+> rather than given up on.
+>
+> **Reconnects are therefore fault-only.** That matters for reading the
+> concurrency window above: it opens after a socket fault, not on a timer, and
+> not thousands of times a day on a quiet bus.
 
 ### Security posture: the bus is trusted, the `prefix` is not a boundary
 
