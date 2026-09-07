@@ -20,22 +20,48 @@
  * @module @lockness/redis/tests/mutations/subscribe_hardening_248
  */
 
+/**
+ * UNRESOLVED AS OF THE #305 MIGRATION — four rows, and the battery exits
+ * non-zero because of them. That is deliberate: a red instrument that says
+ * exactly what is wrong beats a green one that lies, and relabelling a row to
+ * whatever test happens to fail is the thing `killedBy` exists to prevent.
+ *
+ * Migrating this battery surfaced them; before it, every one reported KILLED.
+ *
+ * 1. `#287 the promise is never paired with its socket` — killed by roughly
+ *    twenty tests across the client, connection and subscriber suites, and NOT
+ *    by `#287: discard of a STALE socket does not cancel an in-flight dial`,
+ *    which is the control written for it. The mutation is so broad that
+ *    everything fails, which is not the same as being covered: the specific
+ *    claim has no witness.
+ *
+ * 2/3. `#296 the handler call is unguarded again` and `#296 an ASYNC handler
+ *    rejection escapes containment` — killed with `(none named)`. Removing
+ *    containment lets the fault escape and take the test PROCESS down, so the
+ *    run dies before any test name is printed. The harness reads an uncaught
+ *    error as a kill, correctly, but nothing attributes it. Pinning these needs
+ *    a control that survives the crash.
+ *
+ * 4. `#296 the pattern is logged unencoded` — NOT STABLE. It reported
+ *    MISATTRIBUTED (killed by `#299: a peer answering one command per cycle
+ *    cannot pin the ceiling`) on one run and SURVIVED on the next, with no
+ *    change in between; `#286 no rebase on a generation change` flipped the
+ *    same way. Two identical runs, two verdicts — so some `#299` control in
+ *    this directory is timing-dependent, and any row it happens to kill is
+ *    recorded by a coin flip. That is a defect in the suite, not in the rows,
+ *    and it has to be fixed before either row's verdict means anything.
+ */
+
+import { type Mutation, runBattery } from '@mutations/harness.ts'
+
 const SUB = new URL('../../subscriber.ts', import.meta.url)
 const RESP = new URL('../../resp.ts', import.meta.url)
 const CONN = new URL('../../connection.ts', import.meta.url)
 const TESTS = new URL('../subscriber.test.ts', import.meta.url)
-const SUITE = new URL('../', import.meta.url).pathname
+const SUITES = [new URL('../', import.meta.url).pathname]
 
 /** One mutation, and what it is expected to prove. */
-interface Mutation {
-    label: string
-    file: URL
-    edits: readonly (readonly [string, string])[]
-    /** A guard kept without a witness — the reason is required, not optional. */
-    expectSurvival?: string
-}
-
-const MUTATIONS: readonly Mutation[] = [
+const MUTATIONS: Mutation[] = [
     // ── #287: the single-flight guard ──────────────────────────────────────
     {
         label: '#287 discard clears the dial unconditionally (the defect)',
@@ -44,6 +70,7 @@ const MUTATIONS: readonly Mutation[] = [
             'if (this.pending?.conn === conn) this.pending = null',
             'this.pending = null',
         ]],
+        killedBy: 'discard of a STALE socket does not cancel an in-flight dial',
     },
     {
         label: '#287 the promise is never paired with its socket',
@@ -52,6 +79,7 @@ const MUTATIONS: readonly Mutation[] = [
             'if (this.pending) this.pending.conn = conn',
             'if (false) this.pending!.conn = conn',
         ]],
+        killedBy: 'discard of a STALE socket does not cancel an in-flight dial',
     },
     // ── #286: the write deadline ───────────────────────────────────────────
     {
@@ -61,6 +89,7 @@ const MUTATIONS: readonly Mutation[] = [
             'return writeFrame(conn, frame, this.#writeDeadlineMs)',
             'return writeFrame(conn, frame)',
         ]],
+        killedBy: 'a PSUBSCRIBE write that never settles fails the activation',
     },
     {
         label: '#286 the ceiling is removed (raw liveness window)',
@@ -69,6 +98,7 @@ const MUTATIONS: readonly Mutation[] = [
             'this.#writeDeadlineMs = Math.min(\n            this.#livenessMs,\n            WRITE_STALL_CEILING_MS,\n        )',
             'this.#writeDeadlineMs = this.#livenessMs',
         ]],
+        killedBy: 'the write budget is CAPPED, not the liveness window raw',
     },
     {
         label: '#286 the deadline is per-write rather than per-frame',
@@ -77,6 +107,7 @@ const MUTATIONS: readonly Mutation[] = [
             'const remaining = deadline - Date.now()',
             'const remaining = timeoutMs',
         ]],
+        killedBy: '#286: the deadline is per FRAME, not per write',
     },
     {
         label: '#286 writeFrame accepts a nonsense deadline',
@@ -85,6 +116,7 @@ const MUTATIONS: readonly Mutation[] = [
             'if (\n        timeoutMs !== undefined &&\n        (!Number.isFinite(timeoutMs) || timeoutMs <= 0)\n    ) {',
             'if (false) {',
         ]],
+        killedBy: '#286: writeFrame refuses a nonsense deadline',
     },
     // ── #286: the write chain ──────────────────────────────────────────────
     {
@@ -95,6 +127,8 @@ const MUTATIONS: readonly Mutation[] = [
             'if (this.#writeChainConn !== conn) {\n                throw new Error(',
             'if (false) {\n                throw new Error(',
         ]],
+        killedBy:
+            'a write queued against a socket that is then discarded REJECTS',
     },
     {
         label: '#286 no rebase on a generation change',
@@ -103,6 +137,8 @@ const MUTATIONS: readonly Mutation[] = [
             'if (this.#writeChainConn !== conn) {\n            this.#writeChain = Promise.resolve()\n            this.#writeChainConn = conn\n        }',
             'this.#writeChainConn = conn',
         ]],
+        killedBy:
+            'a write queued against a socket that is then discarded REJECTS',
         expectSurvival:
             'Redundant with the conditional clear in `#discardSocket`, given ' +
             'that every current path discards a socket before replacing it — ' +
@@ -118,6 +154,7 @@ const MUTATIONS: readonly Mutation[] = [
             'if (this.#writeChainConn === conn) {\n            this.#writeChain = Promise.resolve()\n            this.#writeChainConn = null\n        }',
             'this.#writeChain = Promise.resolve()\n        this.#writeChainConn = null',
         ]],
+        killedBy: 'an idle socket is NOT torn down',
         expectSurvival:
             'Reaching it needs a STALE discard while a newer generation is ' +
             'live, which needs two generations plus a late-firing deadline — ' +
@@ -134,6 +171,7 @@ const MUTATIONS: readonly Mutation[] = [
             "if (error instanceof RespFramingError) {\n                    this.#discardSocket(conn)\n                    this.#scheduleRetry(true, error, 'keepalive write stalled')\n                }",
             'if (false) {\n                    this.#discardSocket(conn)\n                }',
         ]],
+        killedBy: 'a keepalive write that times out DISCARDS the socket',
     },
     // ── #287: the strict parser ────────────────────────────────────────────
     {
@@ -143,6 +181,8 @@ const MUTATIONS: readonly Mutation[] = [
             "function parseLength(line: string): number | null {\n    if (line === '-1') return -1\n    if (!/^[0-9]+$/.test(line)) return null",
             "function parseLength(line: string): number | null {\n    if (line === '-1') return -1\n    if (false) return null",
         ]],
+        killedBy:
+            '#287: a length prefix is decimal digits or -1, and nothing else',
     },
     {
         label: '#287 the bulk terminator is consumed without being checked',
@@ -151,6 +191,8 @@ const MUTATIONS: readonly Mutation[] = [
             'if (terminator[0] !== 0x0d || terminator[1] !== 0x0a) {',
             'if (false) {',
         ]],
+        killedBy:
+            '#287: a bulk body must be followed by CRLF, not merely two bytes',
     },
     {
         label:
@@ -160,11 +202,15 @@ const MUTATIONS: readonly Mutation[] = [
             'const forRead = remaining(budget)!',
             'const forRead = READ_TIMEOUT_MS',
         ]],
+        killedBy:
+            'the write consumes the shared budget, leaving the read the remainder',
     },
     {
         label: '#297 the post-write budget guard removed',
         file: CONN,
         edits: [['    if (forRead <= 0) {', '    if (false) {']],
+        killedBy:
+            'the write consumes the shared budget, leaving the read the remainder',
         expectSurvival:
             'Near-unreachable by construction, and that is why it is recorded ' +
             'rather than tested: `writeFrame` is handed exactly the remaining ' +
@@ -183,6 +229,8 @@ const MUTATIONS: readonly Mutation[] = [
             '} catch (error) {\n            this.#reportHandlerFault(pattern.value, error)\n        }',
             '} catch (error) {\n            throw error\n        }',
         ]],
+        killedBy:
+            'a SYNCHRONOUS handler throw is contained, without a live broker',
     },
     {
         label: '#296 the pattern is logged unencoded (needs a live broker)',
@@ -191,6 +239,8 @@ const MUTATIONS: readonly Mutation[] = [
             'a handler for ${safeForLog(pattern)} threw',
             'a handler for ${pattern} threw',
         ]],
+        killedBy:
+            'a SYNCHRONOUS handler throw is contained, without a live broker',
     },
     {
         label: '#296 an ASYNC handler rejection escapes containment',
@@ -199,6 +249,7 @@ const MUTATIONS: readonly Mutation[] = [
             'Promise.resolve(result).catch((error: unknown) =>\n                    this.#reportHandlerFault(pattern.value, error)\n                )',
             'void result',
         ]],
+        killedBy: 'an ASYNC handler rejection is contained too',
     },
     {
         label: '#287 the warn helper stops restoring on scope exit',
@@ -207,6 +258,8 @@ const MUTATIONS: readonly Mutation[] = [
             'return { messages, [Symbol.dispose]: () => void (console.warn = real) }',
             'return { messages, [Symbol.dispose]: () => {} }',
         ]],
+        killedBy:
+            'a captured console.warn is restored even when the body throws',
     },
     {
         label: '#286 the zero-progress stall is a bare Error again',
@@ -215,6 +268,7 @@ const MUTATIONS: readonly Mutation[] = [
             'throw new RespFramingError(\n                `Redis write stalled after ${offset} bytes`,\n            )',
             'throw new Error(\n                `Redis write stalled after ${offset} bytes`,\n            )',
         ]],
+        killedBy: 'the ZERO-PROGRESS write error names no total either',
     },
     {
         label: '#296 the per-generation fault counter never resets',
@@ -223,6 +277,8 @@ const MUTATIONS: readonly Mutation[] = [
             '        this.#handlerFaults.clear()',
             '        // reset removed',
         ]],
+        killedBy:
+            'a SYNCHRONOUS handler throw is contained, without a live broker',
         expectSurvival:
             'Reaching it needs a reconnect plus repeated throws on both ' +
             'generations. It degrades reporting only — a suppressed count ' +
@@ -234,134 +290,10 @@ const MUTATIONS: readonly Mutation[] = [
 /** What a run of the suite under a mutation actually told us. */
 type Outcome = 'killed' | 'survived' | 'did-not-compile'
 
-async function suite(): Promise<Outcome> {
-    const run = await new Deno.Command(Deno.execPath(), {
-        args: ['test', '--allow-all', SUITE],
-        env: Deno.env.toObject(),
-    }).output()
-    const raw = new TextDecoder().decode(run.stdout) +
-        new TextDecoder().decode(run.stderr)
-    // deno-lint-ignore no-control-regex
-    const out = raw.replace(/\x1b\[[0-9;]*m/g, '')
-    // AN UNCAUGHT MODULE ERROR IS A KILL, and it has to be checked BEFORE the
-    // summary — not only when the summary is missing.
-    //
-    // Measured the hard way: the async-containment mutation takes the whole
-    // test file down with an unhandled rejection, and Deno then prints a
-    // summary reading `0 passed | 0 failed`. Reading only the failure count
-    // called that mutant a SURVIVOR when it was killed. That is the same class
-    // of defect this battery exists to find — an instrument reporting a result
-    // it did not measure — arriving in the instrument itself.
-    // A MUTANT THAT DOES NOT COMPILE IS DEAD, NOT A SURVIVOR — and this is the
-    // third distinct way this script has misreported a result, each found by
-    // measuring rather than by reading. `if (false) { … }` around a block that
-    // was the only consumer of a local makes that local unused, TypeScript
-    // refuses the file, no test runs, and "no failures" reads as green.
-    if (/Type checking failed|TS\d+ \[ERROR\]/.test(out)) {
-        return 'did-not-compile'
-    }
-    // An uncaught module error is a kill, and it has to be checked BEFORE the
-    // summary rather than only when one is missing: an unhandled rejection
-    // takes the file down and Deno still prints a count.
-    const uncaught = /uncaught error|error: Test failed/.test(out)
-    const summary = out.match(/(\d+) passed[^|]*\| (\d+) failed/)
-    if (!summary) return uncaught ? 'killed' : 'did-not-compile'
-    return uncaught || Number(summary[2]) > 0 ? 'killed' : 'survived'
+if (import.meta.main) {
+    Deno.exit(
+        await runBattery('#248 — subscribe hardening', SUITES, MUTATIONS) > 0
+            ? 1
+            : 0,
+    )
 }
-
-/**
- * Files this run has mutated and not yet restored.
- *
- * **A `finally` is not enough, and that was proved rather than argued**: a
- * reviewer aborted this script mid-run and left a live mutant in `resp.ts`. No
- * `finally` runs on SIGINT or SIGTERM, so a script that edits the working tree
- * has to restore on the signal too. A mutation battery that can leave the
- * repository holding a defect is a worse hazard than the ones it hunts.
- */
-const inFlight = new Map<string, string>()
-
-function restoreAll(): void {
-    for (const [path, original] of inFlight) {
-        try {
-            Deno.writeTextFileSync(path, original)
-        } catch {
-            // Best effort: a partially-restored tree is still better reported
-            // than silently left, and the message below says which file.
-        }
-    }
-    if (inFlight.size > 0) {
-        console.error(
-            `\nInterrupted — restored ${inFlight.size} mutated file(s): ${
-                [...inFlight.keys()].join(', ')
-            }`,
-        )
-    }
-    inFlight.clear()
-}
-
-for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    Deno.addSignalListener(signal, () => {
-        restoreAll()
-        Deno.exit(130)
-    })
-}
-
-let unexpected = 0
-console.log('#248 mutation battery — subscribe-connection hardening\n')
-for (const mutation of MUTATIONS) {
-    const original = await Deno.readTextFile(mutation.file)
-    let mutated = original
-    let ok = true
-    for (const [from, to] of mutation.edits) {
-        const hits = mutated.split(from).length - 1
-        if (hits !== 1) {
-            console.log(
-                `DEAD MUTANT  ${mutation.label} — an anchor matched ${hits} ` +
-                    'times. The source moved; fix the anchor rather than ' +
-                    'reading this run.',
-            )
-            ok = false
-            unexpected++
-            break
-        }
-        mutated = mutated.replace(from, to)
-    }
-    if (!ok) continue
-    inFlight.set(mutation.file.pathname, original)
-    await Deno.writeTextFile(mutation.file, mutated)
-    if (await Deno.readTextFile(mutation.file) === original) {
-        await Deno.writeTextFile(mutation.file, original)
-        inFlight.delete(mutation.file.pathname)
-        console.log(`DEAD MUTANT  ${mutation.label} — file unchanged`)
-        unexpected++
-        continue
-    }
-    let outcome: Outcome
-    try {
-        outcome = await suite()
-    } finally {
-        await Deno.writeTextFile(mutation.file, original)
-        inFlight.delete(mutation.file.pathname)
-    }
-    if (outcome === 'did-not-compile') {
-        console.log(
-            `DEAD MUTANT  ${mutation.label} — the mutated source does not ` +
-                'type-check, so no test ran. Rewrite the edit so it compiles; ' +
-                'a mutant that cannot execute proves nothing either way.',
-        )
-        unexpected++
-        continue
-    }
-    if (outcome === 'killed') {
-        console.log(`KILLED       ${mutation.label}`)
-    } else if (mutation.expectSurvival) {
-        console.log(
-            `SURVIVED*    ${mutation.label}\n             ${mutation.expectSurvival}`,
-        )
-    } else {
-        console.log(`SURVIVED     ${mutation.label}`)
-        unexpected++
-    }
-}
-console.log(`\n${unexpected} unexpected survivor(s).`)
-Deno.exit(unexpected)
