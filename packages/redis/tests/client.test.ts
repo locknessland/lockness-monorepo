@@ -718,10 +718,23 @@ Deno.test('#299: a peer answering one command per cycle cannot pin the ceiling',
                 // Alternating success and fault is the point.
             }
         }
+        // THROTTLED vs HOT, which is the only distinction this test can make
+        // honestly — the same reasoning `FR-004` states in the subscriber
+        // suite. `opens <= 2` was wall-clock coupled: it held only while the
+        // 30 iterations finished before the backoff window expired, so under
+        // load a third dial appeared and failed the run with nothing wrong in
+        // the subject. Observed once in nine full-suite runs.
+        //
+        // The bound is measured, not guessed. Healthy: 2 dials, occasionally
+        // 3 under load. With the exchange-count half of the survival rule
+        // removed — #299's actual defect — the same fixture produces 15. Five
+        // sits clear of the noise and nowhere near the defect, so the test
+        // still fails loudly for the reason it exists.
         assert(
-            opens <= 2,
+            opens <= 5,
             `${opens} dials. A peer that answers one command per socket reset ` +
-                'the streak on every cycle, so the ceiling stayed at its floor.',
+                'the streak on every cycle, so the ceiling stayed at its ' +
+                'floor. The defect measures ~15 here; healthy is 2-3.',
         )
     } finally {
         Object.defineProperty(Deno, 'connect', {
