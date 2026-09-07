@@ -23,6 +23,10 @@ import { type Mutation, runBattery } from '@mutations/harness.ts'
 const MANAGER = new URL('../../manager.ts', import.meta.url)
 const SUITES = [
     new URL('../presence_member_id.test.ts', import.meta.url).pathname,
+    // #312's recording roster. Row 5 below was an equivalent mutant against
+    // the first suite alone — it uses no roster, so a write that had already
+    // happened was invisible to it.
+    new URL('../roster_control_atomicity.test.ts', import.meta.url).pathname,
 ]
 
 const MUTATIONS: Mutation[] = [
@@ -78,20 +82,16 @@ const MUTATIONS: Mutation[] = [
                 '            if (this.roster) await this.roster.addMember(channel, member)\n            this.#assertUsableMemberId(member.id)',
             ],
         ],
-        killedBy:
-            'an OVERSIZED member id is refused before anything is written',
-        // Still throws, so `subscribe` still rejects — but only AFTER the
-        // roster has the oversized field. The suite cannot see a Redis write
-        // that has already happened, so this row records honestly that the
-        // ORDERING is not pinned by a test, only by the comment at the call
-        // site. Pinning it needs a roster double that records writes.
-        expectSurvival:
-            'The guard still throws, so every assertion about REFUSAL still ' +
-            'holds — what changes is that the roster was already written when ' +
-            'it did. These tests use no roster, so nothing here can observe ' +
-            'the difference. Recorded rather than deleted: the ordering is the ' +
-            'reason the guard sits where it does, and it is currently held by ' +
-            'a comment alone.',
+        // RED since #312, and the path is worth keeping. It survived here for
+        // as long as `presence_member_id.test.ts` was the only suite: the
+        // guard still THROWS when moved, so every assertion about refusal
+        // still held, and those tests use no roster — so a write that had
+        // already happened was invisible. The ordering was the reason the
+        // guard sits where it does and was held by a comment alone.
+        //
+        // `roster_control_atomicity.test.ts` records every roster op, and an
+        // EMPTY log is the assertion the first suite had no way to make.
+        killedBy: 'the member-id assertion runs BEFORE the roster write',
     },
     {
         label:
