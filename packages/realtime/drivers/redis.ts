@@ -528,8 +528,19 @@ const CONTROL_NONCE_HEX_LENGTH = 32
 const MIN_CONTROL_SECRET_BYTES = 32
 /**
  * Field separator inside an owned-member set entry — `channel memberId`, joined
- * by a single space. Unambiguous because {@link isValidName} forbids spaces in a
- * channel name, so the first space always marks the channel/member boundary.
+ * by a single space. Unambiguous because the first space always marks the
+ * channel/member boundary: a channel name cannot contain one, and a member id
+ * after it may.
+ *
+ * **That was an unenforced claim until #314.** `isValidName` ran only on the
+ * WebSocket wire (`decodeClientMessage`), never on `ChannelManager.subscribe`'s
+ * public path — so a channel with a space could be created programmatically,
+ * and `#sweepInstance` then split `presence-my room u1` into channel
+ * `presence-my` and field `room u1`, issuing `HDEL` against a key that does not
+ * exist and leaving the members unreclaimed forever. Only the death-recovery
+ * path broke, because `removeMember` re-joins the full string, which is why it
+ * went unnoticed. `ChannelManager`'s `#assertUsableChannel` is the enforcement
+ * point this docstring now depends on rather than assumes.
  */
 const OWNED_SEP = ' '
 
