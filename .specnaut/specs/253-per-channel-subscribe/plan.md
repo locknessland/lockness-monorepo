@@ -304,5 +304,37 @@ an isolation bug and must not be fixed as one.**
 
 ## 12. Open questions
 
-_Presented at stop 1 — see the session transcript. Answers are recorded here
-with their date once given._
+### Q1 — sequencing, given the CRITICAL. **ANSWERED 2026-09-07: park behind #298.**
+
+The CRITICAL requires changing `psubscribe`'s contract, and the correct shape
+for that change (a per-generation "confirmed issued" record) is a **fourth**
+member of the group #298 exists to consolidate. Building it here would be the
+fifth repetition of the pattern #298 was filed to stop.
+
+**Decision: #295 does not proceed. It is gated on #298**, which itself needs a
+`/specnaut plan` re-entry (its banked plan failed both audits and its section 12
+still reads `_pending the stop_`). The subscriber gets consolidated once, rather
+than growing a fourth parallel field and then being consolidated.
+
+**Nothing is left exposed by parking.** Both HIGH security findings (S1's
+pattern-context charset gap, S3's vacuous test migration) are hazards this
+feature would **introduce**; neither is live today, because no channel name
+currently reaches a `PSUBSCRIBE` pattern context. Parking costs the fan-out win
+and nothing else.
+
+### Q2 — is `watchChannel` awaitable? **DEFERRED with Q1, and it must be
+answered before any code.**
+
+It is the one decision that becomes **port-breaking later**: adding a return
+promise after `watchChannel?()` ships means changing `BroadcastDriver`,
+`subscribe`'s contract and every driver. An async port closes the **write leg
+only** — `#activate` never awaits `+psubscribe`, which `#dispatch` discards — so
+the answer also has to name the residual rather than imply the window is closed.
+
+### Q3 — the two breaking constraints. **DEFERRED with Q1.**
+
+FR-016 (channel charset at the watch boundary) and FR-017 (watched-channel caps)
+are both cheap now and **breaking once deployments have live channels that
+violate them** — the argument `PREFIX_RE`'s own docstring makes about itself:
+"one line to add before any operator had a prefix in production config, and a
+breaking configuration change with no migration afterwards".
