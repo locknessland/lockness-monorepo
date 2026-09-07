@@ -337,6 +337,58 @@ Deno.test('#287: discard of a STALE socket does not cancel an in-flight dial', a
     server.stop()
 })
 
+Deno.test('#287: discarding the socket a dial PRODUCED frees that dial', async () => {
+    // The other direction, and the one that had no witness. The test above
+    // proves the guard is not too BROAD — an unrelated discard must not cancel
+    // a live dial. Nothing proved it is not too NARROW, and a mutation that
+    // never pairs the dial with its socket (`if (false) this.pending!.conn =
+    // conn`) passes it: with `pending.conn` stuck at `null`, a discard of the
+    // stale socket compares `null === stale`, declines to cancel, and the
+    // assertions above are satisfied for the wrong reason.
+    //
+    // What that mutation actually breaks is here. `pending` is NEVER cleared on
+    // success — only in the `p.catch` and in `discard` of its own socket — so
+    // if the pairing is missing, `discard` cannot recognise the socket as the
+    // dial's own, the memo survives its own socket's death, and every later
+    // `connect()` re-awaits a settled promise holding a CLOSED socket. Not a
+    // lost optimisation: the connection never recovers.
+    const server = await startFakeServer()
+    const real = Deno.connect
+    let opens = 0
+    await withConnectStub(
+        (opts) => {
+            opens++
+            return real(opts)
+        },
+        async () => {
+            const conn = new AuthenticatedConnection({
+                hostname: '127.0.0.1',
+                port: server.port,
+            })
+            const first = await conn.connect()
+            assertEquals(opens, 1, 'one dial so far')
+
+            conn.discard(first)
+
+            const second = await conn.connect()
+            assert(
+                second !== first,
+                'the discarded socket was handed back — `discard` did not ' +
+                    'free the dial that produced it, so the memo outlived the ' +
+                    'socket and this connection can never reconnect',
+            )
+            assertEquals(
+                opens,
+                2,
+                'the second connect() must DIAL rather than re-await the ' +
+                    'settled promise of a socket that is already closed',
+            )
+            conn.discard(second)
+        },
+    )
+    server.stop()
+})
+
 /** A socket that dials, answers reads, and never accepts a byte. */
 function wedgedWriteConn(): Deno.Conn {
     return {
