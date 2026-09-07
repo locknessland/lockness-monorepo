@@ -21,23 +21,43 @@
  */
 
 /**
- * ONE UNRESOLVED ROW, and the battery exits non-zero because of it. That is
- * deliberate: a red instrument that says exactly what is wrong beats a green
- * one that lies, and relabelling a row to whatever test happens to fail is
+ * EVERY ROW RESOLVED as of #319. This battery carried one deliberate red for a
+ * long time, and the reason it was kept is the reason it can now be closed
+ * honestly: a red instrument that says exactly what is wrong beats a green one
+ * that lies, and relabelling a row to whatever test happens to fail is
  * precisely what `killedBy` exists to prevent.
  *
  * Migrating this battery to the shared harness (#305) surfaced nine
  * misattributions. Before the migration every one of them reported KILLED.
  *
- * STILL OPEN — `#287 the promise is never paired with its socket`. Killed by
- * roughly twenty tests across the client, connection and subscriber suites,
- * and NOT by `#287: discard of a STALE socket does not cancel an in-flight
- * dial`, the control written for it. A mutation broad enough that everything
- * fails is not the same as a mutation that is covered: the specific claim —
- * that the dial promise is paired with the socket it belongs to — still has no
- * witness of its own.
+ * CLOSED BY A NEW WITNESS, not by a relabel — `#287 the promise is never
+ * paired with its socket`. It was killed by roughly twenty tests across the
+ * client, connection and subscriber suites and NOT by `#287: discard of a
+ * STALE socket does not cancel an in-flight dial`, the control written for it.
+ * The row was held open on the grounds that a mutation broad enough for
+ * everything to fail is not the same as a mutation that is covered.
  *
- * RESOLVED, recorded because the reasoning is worth more than the outcome:
+ * That was right, and it also pointed at the wrong direction. The old control
+ * proves the guard is not too BROAD — an unrelated discard must not cancel a
+ * live dial. This mutation makes it too NARROW, so that control passes: with
+ * `pending.conn` stuck at `null` the stale discard compares `null === stale`,
+ * declines to cancel, and every assertion is satisfied for the wrong reason.
+ *
+ * What the mutation actually breaks had no test at all. `pending` is never
+ * cleared on success, so without the pairing `discard` cannot recognise the
+ * socket as its own dial's, the memo outlives its own socket, and every later
+ * `connect()` re-awaits a settled promise holding a CLOSED socket — the
+ * connection never recovers. `#287: discarding the socket a dial PRODUCED
+ * frees that dial` (`tests/connection.test.ts`) is that witness, verified RED
+ * under this row's mutation and green on `main`, with the old control passing
+ * in the same run.
+ *
+ * **A control written for a guard tests ONE direction of it.** This row sat
+ * open because the missing test was the mirror of the one that existed, and
+ * nothing in the record said which direction the existing control covered.
+ *
+ * RESOLVED EARLIER, recorded because the reasoning is worth more than the
+ * outcome:
  *
  * - Five rows named the wrong test and were retargeted to the on-point control
  *   that actually fires (`#286: the deadline is per FRAME, not per write` and
@@ -64,6 +84,7 @@
  */
 
 import { type Mutation, runBattery } from '@mutations/harness.ts'
+import { LIVE_BROKER } from '../live_broker.ts'
 
 const SUB = new URL('../../subscriber.ts', import.meta.url)
 const RESP = new URL('../../resp.ts', import.meta.url)
@@ -90,7 +111,10 @@ const MUTATIONS: Mutation[] = [
             'if (this.pending) this.pending.conn = conn',
             'if (false) this.pending!.conn = conn',
         ]],
-        killedBy: 'discard of a STALE socket does not cancel an in-flight dial',
+        // The MIRROR of the stale-discard control, which PASSES under this
+        // mutation (see the header). This one fails: without the pairing the
+        // memo survives its own socket's death.
+        killedBy: 'discarding the socket a dial PRODUCED frees that dial',
     },
     // ── #286: the write deadline ───────────────────────────────────────────
     {
@@ -299,10 +323,49 @@ const MUTATIONS: Mutation[] = [
 /** What a run of the suite under a mutation actually told us. */
 type Outcome = 'killed' | 'survived' | 'did-not-compile'
 
+/**
+ * The rows whose subject is a PROCESS EXIT — an unguarded handler throw
+ * escaping the read loop — which no in-process double reproduces (#319).
+ *
+ * The other four live-broker batteries refuse to start at all without one.
+ * This battery does not, because sixteen of its twenty rows are broker-free and
+ * losing them offline would be a real cost. It runs those and **names the rows
+ * it did not run**, then exits 2 — the code every battery here uses for "I
+ * could not run everything", which `deno task mutate` reports as PARTIAL rather
+ * than as a pass.
+ *
+ * Silence was the alternative and it is the one thing that must not happen:
+ * without a broker these rows' suite is `ignored`, Deno reports `ok`, and the
+ * harness reads that as green — so each would print SURVIVED, and a reader
+ * would take four false coverage gaps for real ones.
+ */
+const NEEDS_BROKER = (m: Mutation) => m.label.startsWith('#296')
+
 if (import.meta.main) {
-    Deno.exit(
-        await runBattery('#248 — subscribe hardening', SUITES, MUTATIONS) > 0
-            ? 1
-            : 0,
+    const skipped = LIVE_BROKER ? [] : MUTATIONS.filter(NEEDS_BROKER)
+    const rows = LIVE_BROKER
+        ? MUTATIONS
+        : MUTATIONS.filter((m) => !NEEDS_BROKER(m))
+
+    const unresolved = await runBattery(
+        '#248 — subscribe hardening',
+        SUITES,
+        rows,
     )
+
+    if (skipped.length > 0) {
+        console.error(
+            `\nPARTIAL — ${skipped.length} row(s) NOT run, they need a live ` +
+                'broker (the defect is a process exit):',
+        )
+        for (const m of skipped) console.error(`  - ${m.label}`)
+        console.error(
+            '\n  LOCKNESS_REDIS_INTEGRATION=1 LOCKNESS_REDIS_PORT=<port> \\\n' +
+                '    deno run -A packages/redis/tests/mutations/subscribe_hardening_248.ts',
+        )
+    }
+
+    // Unresolved rows outrank partiality: a real red must not be reported as
+    // "could not run".
+    Deno.exit(unresolved > 0 ? 1 : skipped.length > 0 ? 2 : 0)
 }
