@@ -81,6 +81,18 @@ export async function runSuites(suites: string[]): Promise<RunResult> {
     const outcome: Outcome = uncaught || Number(summary[2]) > 0
         ? 'killed'
         : 'survived'
+    // A KILL WITH NO NAME IS STILL A KILL, and it must stay attributable.
+    // Some mutants do not fail a test — they take the test FILE down. Removing
+    // a containment `catch` lets the fault escape the read loop, and Deno
+    // reports `<file> (uncaught error)` with no `... FAILED` line anywhere, so
+    // the name list comes back empty and every such row reads MISATTRIBUTED
+    // however it is labelled. Naming the crash lets a row DECLARE that this is
+    // how its mutant dies (`killedBy: '(uncaught error)'`) instead of the
+    // battery carrying a permanent red it can never resolve — which is the
+    // pressure that gets a real gap relabelled into silence.
+    if (outcome === 'killed' && failed.length === 0 && uncaught) {
+        failed.push('(uncaught error)')
+    }
     return { outcome, failed }
 }
 

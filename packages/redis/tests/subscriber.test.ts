@@ -12,7 +12,7 @@
  * @module @lockness/redis/tests/subscriber
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { RedisSubscribeConnection } from '../subscriber.ts'
 import { type FakeServer, startFakeServer } from './fake_server.ts'
 
@@ -2203,6 +2203,61 @@ Deno.test('#296: a SYNCHRONOUS handler throw is contained, without a live broker
             errors.some((e) => /handler exploded/.test(e)),
             'the fault was reported, not swallowed',
         )
+    } finally {
+        console.error = realError
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('#296: the pattern in a handler-fault report is ENCODED, not raw', async () => {
+    // #305 found this gap by migrating the battery: the row that removes
+    // `safeForLog` from this WARN survived 10 runs out of 10, because every
+    // other test subscribes `app:*` — a pattern for which `safeForLog(p) === p`,
+    // so the encoder and its absence are indistinguishable. A control that
+    // cannot tell the two apart is not a control.
+    //
+    // The pattern is caller-supplied and reaches a log sink, which is the whole
+    // reason #291 put an encoder on it: a raw control character here can forge
+    // a line break and fabricate a second log entry.
+    const HOSTILE = 'app:\u0007*'
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+    })
+    using warn = liveWarnings()
+    void warn
+    const realError = console.error
+    const errors: string[] = []
+    console.error = (...args: unknown[]) => {
+        errors.push(args.map((a) => String(a)).join(' '))
+    }
+    try {
+        sub.psubscribe(HOSTILE, () => {
+            throw new Error('handler exploded')
+        })
+        await waitFor(
+            () =>
+                server.commandLog.some((c) =>
+                    c[0]?.toUpperCase() === 'PSUBSCRIBE'
+                ),
+            'the subscription reached the server',
+        )
+        server.publish(HOSTILE, 'app:a', 'boom')
+        await waitFor(
+            () => errors.some((e) => e.includes('handler exploded')),
+            'the fault was reported',
+            4000,
+        )
+        const line = errors.find((e) => e.includes('handler exploded')) ?? ''
+        assert(
+            !line.includes('\u0007'),
+            'the RAW control character reached the log line. A pattern is ' +
+                'caller-supplied, and an unescaped control character in a log ' +
+                'sink can forge a line break and fabricate a second entry',
+        )
+        assertStringIncludes(line, '\\x07')
     } finally {
         console.error = realError
         await sub.close()

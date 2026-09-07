@@ -21,35 +21,46 @@
  */
 
 /**
- * UNRESOLVED AS OF THE #305 MIGRATION — four rows, and the battery exits
- * non-zero because of them. That is deliberate: a red instrument that says
- * exactly what is wrong beats a green one that lies, and relabelling a row to
- * whatever test happens to fail is the thing `killedBy` exists to prevent.
+ * ONE UNRESOLVED ROW, and the battery exits non-zero because of it. That is
+ * deliberate: a red instrument that says exactly what is wrong beats a green
+ * one that lies, and relabelling a row to whatever test happens to fail is
+ * precisely what `killedBy` exists to prevent.
  *
- * Migrating this battery surfaced them; before it, every one reported KILLED.
+ * Migrating this battery to the shared harness (#305) surfaced nine
+ * misattributions. Before the migration every one of them reported KILLED.
  *
- * 1. `#287 the promise is never paired with its socket` — killed by roughly
- *    twenty tests across the client, connection and subscriber suites, and NOT
- *    by `#287: discard of a STALE socket does not cancel an in-flight dial`,
- *    which is the control written for it. The mutation is so broad that
- *    everything fails, which is not the same as being covered: the specific
- *    claim has no witness.
+ * STILL OPEN — `#287 the promise is never paired with its socket`. Killed by
+ * roughly twenty tests across the client, connection and subscriber suites,
+ * and NOT by `#287: discard of a STALE socket does not cancel an in-flight
+ * dial`, the control written for it. A mutation broad enough that everything
+ * fails is not the same as a mutation that is covered: the specific claim —
+ * that the dial promise is paired with the socket it belongs to — still has no
+ * witness of its own.
  *
- * 2/3. `#296 the handler call is unguarded again` and `#296 an ASYNC handler
- *    rejection escapes containment` — killed with `(none named)`. Removing
- *    containment lets the fault escape and take the test PROCESS down, so the
- *    run dies before any test name is printed. The harness reads an uncaught
- *    error as a kill, correctly, but nothing attributes it. Pinning these needs
- *    a control that survives the crash.
+ * RESOLVED, recorded because the reasoning is worth more than the outcome:
  *
- * 4. `#296 the pattern is logged unencoded` — NOT STABLE. It reported
- *    MISATTRIBUTED (killed by `#299: a peer answering one command per cycle
- *    cannot pin the ceiling`) on one run and SURVIVED on the next, with no
- *    change in between; `#286 no rebase on a generation change` flipped the
- *    same way. Two identical runs, two verdicts — so some `#299` control in
- *    this directory is timing-dependent, and any row it happens to kill is
- *    recorded by a coin flip. That is a defect in the suite, not in the rows,
- *    and it has to be fixed before either row's verdict means anything.
+ * - Five rows named the wrong test and were retargeted to the on-point control
+ *   that actually fires (`#286: the deadline is per FRAME, not per write` and
+ *   siblings). A wrong guess at the killer is not a coverage gap.
+ *
+ * - `#296 the handler call is unguarded again` and `#296 an ASYNC handler
+ *   rejection escapes containment` kill by taking the test FILE down: removing
+ *   containment lets the fault escape the read loop, and Deno then reports
+ *   `<file> (uncaught error)` with no `... FAILED` line anywhere. The harness
+ *   now names that crash, so a row can DECLARE it dies that way
+ *   (`killedBy: '(uncaught error)'`) instead of carrying a red it can never
+ *   resolve — which is the pressure that gets a real gap relabelled into
+ *   silence.
+ *
+ * - `#296 the pattern is logged unencoded` looked timing-dependent:
+ *   MISATTRIBUTED on one run, SURVIVED on the next. Measured rather than
+ *   inferred, the directory is 25/25 green at baseline and the mutant survives
+ *   10 runs out of 10 — so that one `#299` failure was a coincidental flake,
+ *   not a flaky control, and the row was a REAL uncovered gap all along. Every
+ *   other test subscribes `app:*`, for which `safeForLog(p) === p`, so the
+ *   encoder and its absence were indistinguishable. A control that cannot tell
+ *   the two apart is not a control. `#296: the pattern in a handler-fault
+ *   report is ENCODED, not raw` closes it with a hostile pattern.
  */
 
 import { type Mutation, runBattery } from '@mutations/harness.ts'
@@ -223,24 +234,22 @@ const MUTATIONS: Mutation[] = [
     },
     // ── #296: containment ──────────────────────────────────────────────────
     {
-        label: '#296 the handler call is unguarded again (needs a live broker)',
+        label: '#296 the handler call is unguarded again',
         file: SUB,
         edits: [[
             '} catch (error) {\n            this.#reportHandlerFault(pattern.value, error)\n        }',
             '} catch (error) {\n            throw error\n        }',
         ]],
-        killedBy:
-            'a SYNCHRONOUS handler throw is contained, without a live broker',
+        killedBy: '(uncaught error)',
     },
     {
-        label: '#296 the pattern is logged unencoded (needs a live broker)',
+        label: '#296 the pattern is logged unencoded',
         file: SUB,
         edits: [[
             'a handler for ${safeForLog(pattern)} threw',
             'a handler for ${pattern} threw',
         ]],
-        killedBy:
-            'a SYNCHRONOUS handler throw is contained, without a live broker',
+        killedBy: 'the pattern in a handler-fault report is ENCODED, not raw',
     },
     {
         label: '#296 an ASYNC handler rejection escapes containment',
@@ -249,7 +258,7 @@ const MUTATIONS: Mutation[] = [
             'Promise.resolve(result).catch((error: unknown) =>\n                    this.#reportHandlerFault(pattern.value, error)\n                )',
             'void result',
         ]],
-        killedBy: 'an ASYNC handler rejection is contained too',
+        killedBy: '(uncaught error)',
     },
     {
         label: '#287 the warn helper stops restoring on scope exit',
