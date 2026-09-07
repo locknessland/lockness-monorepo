@@ -260,6 +260,112 @@ For your own deployment, generate one and read it from the environment:
 openssl rand -hex 32   # then: REALTIME_SECRET=... in your environment
 ```
 
+## Mutation batteries
+
+A test that passes proves the code ran. It does not prove the test would have
+noticed had the code been wrong — and those are different claims. A **mutation
+battery** checks the second one: it breaks a source file on purpose, re-runs the
+suites that should catch it, and reports whether they did.
+
+There are 15 in the repo — 11 in `@lockness/realtime`, 2 in `@lockness/redis`, 2
+in `@lockness/contract` — all on one harness at `tests/mutations/harness.ts`,
+imported through the `@mutations/` alias declared in `deno.jsonc`.
+
+### Running one
+
+A battery is an executable, not a test file. **`deno test` does not run it**,
+which is deliberate: it edits files on disk, so it must never start concurrently
+with the suite it mutates.
+
+```bash
+deno run -A packages/realtime/tests/mutations/prefix_288.ts
+```
+
+Its exit code is the number of **unexpected** survivors, so it is usable in a
+script without parsing output. Each package's `AGENTS.md` lists its own
+batteries under **Tests**.
+
+### What a row looks like
+
+```ts
+{
+    label: 'the owned-entry parse splits on the LAST space, not the first',
+    file: DRIVER,
+    edits: [['entry.indexOf(OWNED_SEP)', 'entry.lastIndexOf(OWNED_SEP)']],
+    killedBy: 'a crashed instance’s members are swept',
+}
+```
+
+`killedBy` is not decoration, and it is the field most worth getting right. It
+names a test that **must** be among the failures, so a row cannot pass on a kill
+from an unrelated test while the check it was written to prove is absent — the
+harness reports that case as `MISATTRIBUTED` rather than as a kill. Where a
+mutation trips several tests, the attribution is what makes the row mean the one
+thing it claims.
+
+The harness runs a green baseline before mutating anything, takes an atomic
+per-file lock, requires every anchor to match **exactly once**, restores the
+file on `SIGINT`/`SIGTERM`, and reports a mutant that fails to type-check as
+`DEAD` rather than aborting the run.
+
+### `expectSurvival` — a surviving row can be correct
+
+Some mutants cannot change behaviour on any input the public API admits. They
+are **equivalent mutants**, and the convention is to record one with its reason,
+never to delete the row:
+
+```ts
+expectSurvival:
+    'Equivalent. The two forms differ only at `sep === 0` — an entry that ' +
+    'BEGINS with a space, i.e. an empty channel name, which ' +
+    '`ChannelManager.subscribe` refuses at the boundary.',
+```
+
+A row carrying `expectSurvival` prints as `SURVIVED*` with its reason and does
+not count toward the exit code. Deleting it instead would erase the evidence
+that the case was examined, and the next person re-derives it. A guard that is
+unreachable from every valid input is the desired state, not a redundancy.
+
+**Write the reason as a claim someone could falsify.** Two rows in this repo
+were recorded as equivalent and later shown to be killable once a fixture
+existed that could tell the difference — see the self-skip row in
+`packages/realtime/tests/redis_broker_integration.test.ts`, which kept all three
+of its readings rather than overwriting them.
+
+### Batteries that need a live broker
+
+Three batteries mutate code whose suite only runs against a real Redis:
+`live_conformance_285.ts`, `self_skip_310.ts` and `sweep_parse_316.ts`. They
+**refuse to start** without one — `Deno.exit(2)`, not a skip:
+
+```bash
+LOCKNESS_REDIS_INTEGRATION=1 LOCKNESS_REDIS_PORT=63790 \
+  deno run -A packages/realtime/tests/mutations/sweep_parse_316.ts
+```
+
+The hard exit is the whole point. Without a broker the mutated suite is
+`ignored`, Deno reports `ok`, and the harness reads that as green — so **every
+row would report SURVIVED**, and the battery would announce a catastrophe that
+is really a missing service. A silent skip here is worse than a failure: it
+inverts the result instead of withholding it.
+
+### When a battery earns its place
+
+Not on every change. Write one when the answer to _"would anything have noticed
+if this were wrong?"_ is not obvious from reading the suite — a guard whose
+absence is silent, an ordering held by a comment, a parse whose alternative
+implementation agrees on the fixture you happened to pick. The batteries in this
+repo exist because each of those was true at least once.
+
+Two habits worth copying:
+
+- **Prove the mutant is live.** A mutation on a line the suite never reaches
+  reads as a result and is not one. If a row is meant to become killable because
+  of a change you made, run it **both ways** — against the tree before and after
+  — and record both numbers.
+- **A negative from a lighter workload is not evidence.** A row that survives
+  under one suite may die under another; say which suites you ran.
+
 ## Examples
 
 ### Session Expiration Test

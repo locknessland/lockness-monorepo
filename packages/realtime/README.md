@@ -103,3 +103,20 @@ docker stop lockness-it-redis
 Each run owns its own key namespace and cleans up after itself, including after
 a failure. See [docs/testing.md](../../docs/testing.md) for the full env-var
 contract and what the suite refuses to do.
+
+**Mutation batteries.** This package carries 11 of the repo's 15 — executables
+that break a source file on purpose and check that the suites notice.
+`deno
+test` does not run them; each is invoked directly, and its exit code is
+the number of unexpected survivors:
+
+```bash
+deno run -A packages/realtime/tests/mutations/prefix_288.ts
+```
+
+Three of them mutate code whose suite needs the live broker and **refuse to
+start** without one, because an `ignored` suite reads as green and would turn
+every row into a false survival. The convention — `killedBy` attribution,
+`expectSurvival` for a recorded equivalent mutant, and when a battery is worth
+writing at all — is in
+[docs/testing.md](../../docs/testing.md#mutation-batteries).
