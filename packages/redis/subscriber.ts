@@ -24,10 +24,14 @@
  * - **What counts as a reconnect (#271/FR-001/FR-002).** A reconnect is a
  *   fault-triggered re-open whose patterns were re-issued — not a first connect,
  *   and not a re-open that failed. The distinction is structural rather than
- *   inferred: `psubscribe` enters through `#connectAndSubscribe`, the read loop's
- *   fault path through `#reconnectAll`, and only the second fires
- *   {@link RedisSubscribeConnection.onReconnect}. Consumers that must reconcile
- *   what a lost pub/sub frame would have carried hang off that seam.
+ *   inferred — but it is a property of the OUTAGE, not of the caller (#290).
+ *   The read loop's fault and a stalled keepalive record a reconnect intent;
+ *   whichever activation then SUCCEEDS consumes it and fires
+ *   {@link RedisSubscribeConnection.onReconnect}, whether that activation came
+ *   from the retry timer or from an ordinary `psubscribe`. Deciding by entry
+ *   point instead meant a user joining a room could be the call that healed a
+ *   broker, and the seam then fired up to `retryMaxMs` late. Consumers that must
+ *   reconcile what a lost pub/sub frame would have carried hang off that seam.
  *
  * It satisfies `@lockness/realtime`'s `RedisSubscriber` port structurally
  * (`psubscribe(pattern, handler)`), so the broadcast driver consumes it without
@@ -230,16 +234,33 @@ export class RedisSubscribeConnection {
      */
     #loopStartedAt = 0
     /**
-     * The pending retry chain's reconnect identity, latched **monotonically**:
-     * a retry may promote a chain to "reconnect" and never demote it.
+     * The OUTAGE's reconnect identity. Latched **monotonically while an outage
+     * is open** — any path may promote it to "reconnect" and none may demote it
+     * — and cleared in exactly one place: an activation that succeeds while
+     * still holding the live socket. That clear is the outage ending, not a
+     * demotion.
      *
      * Both directions were reachable — a `psubscribe` failure carries `false`
      * while the read loop's fault on the same broken socket carries `true` — and
      * only one retry slot exists. Latching upward is the fail-safe choice: the
      * consumer's revocation re-check is idempotent reconciliation, so an extra
      * fire costs one round-trip and a missed one costs enforcement latency.
+     *
+     * **It belongs to the outage, not to the retry chain** (#290). It used to be
+     * consumed by the retry timer on its way into {@link #activate}, which made
+     * it a property of the CALLER: an ordinary `psubscribe()` — a user joining a
+     * new room — that happened to be the call re-dialling a healed broker
+     * restored delivery carrying `false`, and the seam fired only when the
+     * pending retry got round to it, up to `retryMaxMs` later. The consumer is
+     * `@lockness/realtime`'s revocation re-check, so what was lost was #271's
+     * fast path: reconciliation that runs after the frames are already flowing
+     * has not bounded the exposure it exists to bound.
+     *
+     * So it is now read at ACTIVATION time and cleared only by an activation
+     * that SUCCEEDS — a fired-then-failed retry cannot lower it for the
+     * activation that follows.
      */
-    #retryIsReconnect = false
+    #reconnectIntent = false
     /**
      * The write queue. Every frame reaching the socket is appended here, so
      * `PSUBSCRIBE`, the keepalive `PING` and a retry's re-issue can never
@@ -399,6 +420,19 @@ export class RedisSubscribeConnection {
      * Single-handler: registering again replaces the previous handler rather
      * than stacking one, matching this package's other seams.
      *
+     * **Delivery resumes BEFORE the handler completes, and that is deliberate.**
+     * The read loop is started first, so a `pmessage` can be dispatched while
+     * the handler is still running — the window is one round-trip on whatever
+     * the handler talks to, not a microtask. Firing before the read loop
+     * instead would let an application-supplied handler gate all delivery
+     * indefinitely, trading a bounded authorization window for an unbounded
+     * availability one. A consumer that needs frames gated for the duration of
+     * its reconciliation must gate them itself.
+     *
+     * And **a fire is not proof that frames are flowing**: an activation awaits
+     * only that its `PSUBSCRIBE` reached the socket, never that the broker
+     * answered `+psubscribe`.
+     *
      * @param handler - Called with no arguments after each successful reconnect.
      * @example
      * ```typescript
@@ -410,13 +444,29 @@ export class RedisSubscribeConnection {
     }
 
     /**
-     * The FIRST-CONNECT entry point: dial, issue every recorded pattern, start
-     * the read loop. It does **not** fire the reconnect seam.
+     * The one entry point: dial, issue every recorded pattern, start the read
+     * loop, and fire the reconnect seam if an outage is outstanding.
      *
-     * Split from {@link RedisSubscribeConnection.#reconnectAll} deliberately
-     * (#271, plan §5): the shared body cannot tell its two callers apart, so "is
-     * this a reconnect" is decided by WHICH entry point was called, not by a flag
-     * threaded through or a state variable read back.
+     * There used to be two — this and a `#reconnectAll` that passed
+     * `isReconnect: true` — because "is this a reconnect" was decided by WHICH
+     * entry point was called rather than by state read back (#271, plan §5).
+     *
+     * **Only one half of that was still true.** `#reconnectAll` had no caller
+     * at all: the read loop's fault path routes through `#scheduleRetry` so it
+     * shares one backoff (#275/FR-021), and the timer re-entered `#activate`
+     * directly.
+     *
+     * The `isReconnect` argument, by contrast, was very much LIVE — the retry
+     * timer passed the latch it had just consumed, and that was the only way
+     * the seam ever fired. Do not read this note as "the `true` branch was
+     * unreachable"; it was the load-bearing one. What moved is the DECISION's
+     * location, not its existence: the two argument sites were
+     * `#connectAndSubscribe`'s literal `false` and the timer's consumed latch,
+     * and consuming at the timer is precisely the #290 defect. Reading
+     * {@link #reconnectIntent} at the point of success makes it the single home
+     * for the decision — and the promotions in `#scheduleRetry`'s callers
+     * (the read fault, the keepalive stall) are what feed it. They are not
+     * dead; removing them disables the seam outright.
      *
      * **It issues every recorded pattern, not the one that triggered it** (#245,
      * FR-011). It used to take a single pattern, and that was a live defect: the
@@ -425,19 +475,10 @@ export class RedisSubscribeConnection {
      * re-entered here and re-issued only its own pattern. The other sat recorded
      * but never subscribed, leaving the instance permanently deaf on the control
      * topic with a log that had gone quiet. Re-`PSUBSCRIBE` of a live pattern is
-     * a no-op on Redis, which `#reconnectAll` has always depended on.
+     * a no-op on Redis, which the re-issue has always depended on.
      */
     #connectAndSubscribe(): Promise<void> {
-        return this.#activate([...this.patterns.keys()], false)
-    }
-
-    /**
-     * The RECONNECT entry point: re-dial and re-issue EVERY active pattern
-     * (FR-003), then fire the reconnect seam. The seam fires from here and
-     * nowhere else, and only once the re-issue has actually succeeded.
-     */
-    #reconnectAll(): Promise<void> {
-        return this.#activate([...this.patterns.keys()], true)
+        return this.#activate([...this.patterns.keys()])
     }
 
     /**
@@ -600,10 +641,7 @@ export class RedisSubscribeConnection {
      * timer. Abandoning is not an outcome: this method returning without a
      * scheduled retry is exactly the permanent deafness the feature removes.
      */
-    async #activate(
-        toIssue: readonly string[],
-        isReconnect: boolean,
-    ): Promise<void> {
+    async #activate(toIssue: readonly string[]): Promise<void> {
         if (this.closed) return
         let conn: Deno.Conn | undefined
         try {
@@ -638,6 +676,42 @@ export class RedisSubscribeConnection {
                 this.#discardSocket(conn)
                 return
             }
+            // OWNERSHIP, re-checked after the awaited writes (#290 review, HIGH).
+            // A read fault on this same socket can land inside those awaits:
+            // `#readLoop` discards the socket — nulling `conn.socket` AND
+            // `loopConn` — and promotes the intent through `#scheduleRetry`.
+            // Without this guard the continuation resumed on a corpse: it saw
+            // `loopConn !== conn` and restarted a read loop that exits at once
+            // and QUIETLY (its `conn.socket === conn` condition is already
+            // false), armed a keepalive on a closed socket, then consumed the
+            // intent and fired the seam with nothing subscribed anywhere — and
+            // the retry that actually restored delivery found the latch clear
+            // and fired nothing. One phantom recovery, and the real one silent.
+            //
+            // "Cleared only by an activation that SUCCEEDS" has to mean the
+            // activation still holds the live socket, not merely that it did
+            // not throw. Returning leaves the intent for the retry the read
+            // fault already scheduled.
+            //
+            // DEFENSIVE AND UNTESTED, deliberately — the same call the two
+            // `closed` re-checks above make, for a different reason. Two
+            // attempts to pin it went green for the wrong reason and were
+            // removed rather than kept:
+            //
+            // - `accepts()` and the command log are SERVER-side counters, and
+            //   sampling them for a CLIENT-side fire read `accept 1` on a
+            //   perfectly healthy activation.
+            // - Publishing a probe from inside the handler and requiring its
+            //   delivery asserts something this class does not promise: an
+            //   activation awaits only that its `PSUBSCRIBE` reached the
+            //   socket, never that the broker answered `+psubscribe`, so a
+            //   legitimate fire can precede a peer-side close it cannot yet
+            //   know about. And forcing the interleaving with
+            //   `closeAfter('PSUBSCRIBE')` churns MANY outages, so a later one
+            //   fires normally and hides the phantom entirely.
+            //
+            // What is pinned is the consume-once half, by FR-025.
+            if (this.conn.socket !== conn) return
             if (this.loopConn !== conn) {
                 this.loopConn = conn
                 this.#loopStartedAt = Date.now()
@@ -646,7 +720,20 @@ export class RedisSubscribeConnection {
             this.#armKeepalive(conn)
             // The seam fires INSIDE the try and AFTER the re-issue loop, so a
             // reconnect whose PSUBSCRIBE never landed is not reported as one.
-            if (isReconnect) await this.#fireReconnect()
+            //
+            // And the intent is CONSUMED HERE — at the success that ends the
+            // outage, not at the retry timer's fire (#290, FR-022). Reading the
+            // latch rather than taking the answer from whoever called is the
+            // whole fix: whichever caller drove this activation, it is the one
+            // that restored delivery, so it is the one that owes the seam.
+            //
+            // Clearing before the await keeps a concurrent activation that
+            // succeeds during the handler from firing a second time: `connect()`
+            // is single-flight, so two activations racing one outage share a
+            // socket and would otherwise both report it.
+            const asReconnect = this.#reconnectIntent
+            this.#reconnectIntent = false
+            if (asReconnect) await this.#fireReconnect()
         } catch (error) {
             if (this.closed) return
             // A RETRY THAT CANNOT CONVERGE IS NOT A RETRY (#300). An oversized
@@ -665,11 +752,25 @@ export class RedisSubscribeConnection {
                 )
                 return
             }
-            // BEFORE the retry, and not optional: `connect()` hands back the
-            // cached socket, so a retry that skips this feeds every later attempt
-            // the same corpse and loops forever while logging "retrying".
+            // Whether delivery was established is READ, not assumed. A first
+            // connect that fails promotes nothing — `loopConn` is null, and
+            // "a retried FIRST connect fires nothing" depends on that. But an
+            // activation writing to the CACHED socket can fail after that socket
+            // had been delivering for hours (broker back-pressure stalling a
+            // `PSUBSCRIBE`), and it is about to close it; claiming it "learned
+            // nothing" there was simply false, and left the promotion to a race
+            // with the read loop's own rejection.
+            //
+            // Captured BEFORE the discard, which nulls `loopConn`.
+            const wasDelivering = this.loopConn === conn
+            // The discard is BEFORE the retry, and not optional: `connect()`
+            // hands back the cached socket, so a retry that skips this feeds
+            // every later attempt the same corpse and loops forever while
+            // logging "retrying".
             if (conn) this.#discardSocket(conn)
-            this.#scheduleRetry(isReconnect, error)
+            // It demotes nothing either: `#scheduleRetry` latches monotonically
+            // and a failed activation never consumed the latch.
+            this.#scheduleRetry(wasDelivering, error)
         }
     }
 
@@ -722,7 +823,9 @@ export class RedisSubscribeConnection {
             | 'keepalive write stalled' = 'PSUBSCRIBE failed',
     ): void {
         if (this.closed) return
-        this.#retryIsReconnect ||= isReconnect
+        // Still promoted here: the read loop's fault and the keepalive stall
+        // reach the latch through this method and never through `#activate`.
+        this.#reconnectIntent ||= isReconnect
         if (this.#retryTimer !== undefined) return
 
         // Counted HERE, after the early returns, and in one place for both
@@ -754,9 +857,11 @@ export class RedisSubscribeConnection {
 
         const id = setTimeout(() => {
             this.#retryTimer = undefined
-            const asReconnect = this.#retryIsReconnect
-            this.#retryIsReconnect = false
-            void this.#activate([...this.patterns.keys()], asReconnect)
+            // The latch is NOT read here (#290). This callback used to consume
+            // it on the way in, which handed a property of the outage to one
+            // caller and let a failed attempt drop it. `#activate` reads it
+            // itself and clears it only on success.
+            void this.#activate([...this.patterns.keys()])
         }, delay)
         Deno.unrefTimer(id)
         this.#retryTimer = id
