@@ -318,7 +318,9 @@ Two cases still stop and ask, both deliberately:
   corrupts a source file.
 
 ```bash
-find packages -name '*.mutation-lock' -delete   # only for those two cases
+# Only for those two cases. Two kinds of lock exist and this clears both:
+find packages -name '*.mutation-lock' -delete   # one per guarded source
+rm -f tests/mutations/.runner-lock              # one per `deno task mutate` run
 ```
 
 A single battery still runs directly, which is what you want while writing one:

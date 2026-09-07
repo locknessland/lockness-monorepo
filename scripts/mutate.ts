@@ -27,6 +27,12 @@
  * rather than implied, because a guard whose reach is assumed wider than it is
  * is worse than no guard.
  *
+ * Since #320 the lock also **reclaims itself**. It records the owning pid, and
+ * a lock whose owner is gone is removed — loudly, naming the pid and when it
+ * was taken — so a `SIGKILL` no longer leaves a refusal that outlives its
+ * reason. A lock held by a LIVE process still refuses, unchanged, and a lock
+ * this runner cannot safely judge is left alone rather than broken.
+ *
  * ```bash
  * deno task mutate                 # every battery
  * deno task mutate redis           # one package
