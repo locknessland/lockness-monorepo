@@ -297,14 +297,28 @@ in a battery nobody has touched is noticed without anyone deciding to look —
 three of those four rotted rows were broken by merges that touched neither the
 battery nor the row's subject.
 
-**If a run is killed** — `Ctrl-C` is handled, but a `SIGKILL` (the OOM killer,
-say) is not — it leaves `*.mutation-lock` files beside the sources it was
-holding, and the next run refuses. That refusal is correct; the recovery is
-manual. Check that no battery is running, confirm the source files are pristine
-(`git status`), then delete the locks:
+**If a run is killed** — `Ctrl-C` is handled, but a `SIGKILL` (the OOM killer, a
+CI runner eviction, `kill -9`) is not — it leaves `*.mutation-lock` files beside
+the sources it was holding. **The next run reclaims them itself**: each lock
+records the owning pid, and a lock whose owner is gone is removed, loudly,
+naming the lock, the dead pid and when it was taken. No manual step.
+
+A lock held by a **live** process still refuses, unchanged — two batteries over
+one file snapshot each other's live mutant and "restore" it permanently.
+
+Two cases still stop and ask, both deliberately:
+
+- **The guarded source is not pristine.** A `SIGKILL` can leave a mutant on
+  disk, and mutating a mutant produces a source nobody wrote plus a "restore"
+  that writes it back. The lock stands and the file is named; restore it, then
+  delete the lock.
+- **The pid was reused.** A recycled pid reads as alive, so a genuinely stale
+  lock can still refuse. The timestamp in the lock is what tells you. Erring
+  this way is deliberate: refusing a run costs a message, breaking a live one
+  corrupts a source file.
 
 ```bash
-find packages -name '*.mutation-lock' -delete
+find packages -name '*.mutation-lock' -delete   # only for those two cases
 ```
 
 A single battery still runs directly, which is what you want while writing one:
