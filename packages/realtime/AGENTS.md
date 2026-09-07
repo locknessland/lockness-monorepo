@@ -77,6 +77,24 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
+- **`heartbeatIntervalMs` and `livenessTtlSeconds` are ONE setting with two
+  numbers.** The heartbeat is what keeps this instance's `{prefix}:alive:<id>`
+  key alive, and that key's TTL is `livenessTtlSeconds`. Beat slower than the
+  TTL and a healthy instance lets its own key lapse between beats, so every peer
+  sweeps its presence members out of the roster while its sockets stay open —
+  with nothing in the log looking wrong. The constructor now refuses an interval
+  above half the TTL
+  ([#293](https://github.com/locknessland/lockness-monorepo/issues/293)); two
+  beats per window, because one lands on the boundary and races the expiry.
+- **Refusing a bad state can move a mutant FURTHER from killable.** #293 was
+  filed expecting its guard to make the `id === this.instanceId` self-skip a
+  killable mutant. It does the opposite: the row diverges only when an instance
+  lets its own liveness key lapse, and the guard makes that configuration
+  unconstructible. Measured on a real broker after the guard landed — still
+  green. A guard that is unreachable from every valid configuration is the
+  desired state, not a redundancy to delete, and "we added validation, so the
+  mutant is now covered" is the reasoning to distrust.
+
 - **Assert on `commandLog()`, never on a wrapped `command`.** A test that wraps
   the driver's `command` function sees only what the driver issues _directly_ —
   a script's own writes reach the store through the Lua evaluator, so they never
