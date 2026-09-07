@@ -33,6 +33,8 @@
 #   0   field / type updated
 #   10  no such field / type on the project / org (caller should fall back to a label)
 #   11  field / type present but the value is unrecognised (Priority/Size/IssueType only — date/number axes defer to gh for value validation)
+#   13  field exists but the write was REFUSED — see #284: an issue-level date
+#       field pushed through the project mutation, or the reverse
 #   12  issue is not on the project / not in the repo
 #   1   usage / unexpected error
 set -euo pipefail
@@ -106,6 +108,55 @@ case "$FIELD_LOWER" in
     if [ -z "$FIELD_ID" ]; then
       echo "no native '$CANONICAL' field on Project #$PROJECT_NUMBER — fall back to label or skip" >&2
       exit 10
+    fi
+
+    # ISSUE-LEVEL FIELDS TAKE A DIFFERENT MUTATION (#284). `gh project
+    # item-edit` speaks `updateProjectV2ItemFieldValue`, which refuses them
+    # outright: "Issue field values cannot be updated using the
+    # updateProjectV2ItemFieldValue mutation". They are not project items at
+    # all, so there is no item id to look up — the issue's own node id is the
+    # target. detect-fields.sh says which surface this axis lives on.
+    SCOPE_VAR="${PREFIX}_FIELD_SCOPE"
+    if [ "${!SCOPE_VAR-}" = "issue" ]; then
+      ISSUE_NODE_ID=$(gh api graphql -f query='
+        query($owner:String!, $name:String!, $num:Int!) {
+          repository(owner:$owner, name:$name) { issue(number:$num) { id } }
+        }' -f owner="$REPO_OWNER" -f name="$REPO_NAME" -F num="$NUM" \
+        | jq -r '.data.repository.issue.id')
+      if [ -z "$ISSUE_NODE_ID" ] || [ "$ISSUE_NODE_ID" = "null" ]; then
+        echo "issue #$NUM not found in $REPO" >&2
+        exit 12
+      fi
+      if [ "$KIND" = "date" ]; then
+        VALUE_ARG=(-f value="$VALUE")
+        VALUE_FIELD='dateValue: $value'
+        VALUE_TYPE="String"
+      else
+        VALUE_ARG=(-F value="$VALUE")
+        VALUE_FIELD='numberValue: $value'
+        VALUE_TYPE="Float"
+      fi
+      TMP_ERR=$(mktemp)
+      # A REFUSED WRITE MUST NOT LOOK LIKE A DONE ONE. `gh` failing here used
+      # to abort under `set -e` carrying gh's own exit code, which a caller
+      # cannot tell apart from any other failure; 13 says "the field exists and
+      # the write was refused", which is the case a caller has to act on.
+      if ! gh api graphql -f query="
+        mutation(\$issue:ID!, \$field:ID!, \$value:$VALUE_TYPE!) {
+          updateIssueFieldValue(input:{
+            issueId: \$issue,
+            issueField: { fieldId: \$field, $VALUE_FIELD }
+          }) { clientMutationId }
+        }" -f issue="$ISSUE_NODE_ID" -f field="$FIELD_ID" "${VALUE_ARG[@]}" \
+        >/dev/null 2>"$TMP_ERR"; then
+        cat "$TMP_ERR" >&2
+        rm -f "$TMP_ERR"
+        echo "could not write issue-level '$CANONICAL' on #$NUM" >&2
+        exit 13
+      fi
+      rm -f "$TMP_ERR"
+      echo "✓ #$NUM $CANONICAL → $VALUE (issue field)"
+      exit 0
     fi
 
     # Targeted item-ID lookup, same shape as the Priority/Size path

@@ -70,9 +70,66 @@ emit_simple() {
   echo "${prefix}_FIELD_ID=$field_id"
 }
 
-emit_simple "Start date"  STARTDATE
-emit_simple "Target date" TARGETDATE
+# ISSUE-LEVEL FIELDS ARE A SECOND, DIFFERENT SURFACE (#284). A repository can
+# carry `Start date` / `Target date` / `Priority` / `Effort` as ISSUE fields,
+# which look identical from the board and are written by a DIFFERENT mutation:
+# `updateIssueFieldValue`, not `updateProjectV2ItemFieldValue`. Emitting only
+# the project id was a silent failure in the direction that matters — the groom
+# contract reads a non-empty id as "the field exists, setting it is REQUIRED",
+# and then every write is refused with "Issue field values cannot be updated
+# using the updateProjectV2ItemFieldValue mutation".
+#
+# So each date axis now emits a SCOPE alongside its id, and the id emitted is
+# the one that can actually be written.
+ISSUE_FIELDS_JSON=$(gh api graphql -f query='
+  query($owner:String!, $name:String!) {
+    repository(owner:$owner, name:$name) {
+      issueFields(first:50) { nodes { __typename
+        ... on IssueFieldDate { id name }
+        ... on IssueFieldSingleSelect { id name }
+        ... on IssueFieldNumber { id name }
+      } }
+    }
+  }' -f owner="$REPO_OWNER" -f name="$REPO_NAME" 2>/dev/null \
+  | jq -c '[.data.repository.issueFields.nodes[] | select(.id)]' 2>/dev/null) \
+  || ISSUE_FIELDS_JSON='[]'
+[ -n "$ISSUE_FIELDS_JSON" ] || ISSUE_FIELDS_JSON='[]'
+
+issue_field_id() {
+  echo "$ISSUE_FIELDS_JSON" | jq -r --arg n "$1" '
+    .[] | select((.name | ascii_downcase) == ($n | ascii_downcase)) | .id
+  ' | head -1
+}
+
+# Issue-level WINS when both exist. On a repo carrying both, the project copy
+# is the one that cannot be written — preferring it is how #284 happened. A
+# repo with only the project field is unaffected and reports `project`.
+emit_dated() {
+  local field="$1" prefix="$2" issue_id
+  issue_id=$(issue_field_id "$field")
+  if [ -n "$issue_id" ]; then
+    echo "${prefix}_FIELD_ID=$issue_id"
+    echo "${prefix}_FIELD_SCOPE=issue"
+    return
+  fi
+  emit_simple "$field" "$prefix"
+  echo "${prefix}_FIELD_SCOPE=project"
+}
+
+emit_dated  "Start date"  STARTDATE
+emit_dated  "Target date" TARGETDATE
 emit_simple "Estimate"    ESTIMATE
+echo "ESTIMATE_FIELD_SCOPE=project"
+
+# The DRIFT SURFACE this repo actually has, reported rather than silently
+# tolerated (#284). Issue-level `Priority` / `Effort` are distinct from the
+# project's `Priority` / `Size` that Specnaut writes to, and two surfaces
+# holding the same judgement is exactly the dual-signal drift the
+# classification contract exists to prevent.
+for dup in Priority Effort; do
+  dup_id=$(issue_field_id "$dup")
+  [ -n "$dup_id" ] && echo "ISSUE_LEVEL_${dup}_FIELD_ID=$dup_id" || true
+done
 
 # Project node ID — handy for callers that also want to write field values.
 echo "PROJECT_NODE_ID=$(gh project view "$PROJECT_NUMBER" --owner "$REPO_OWNER" --format json | jq -r '.id')"
