@@ -541,6 +541,12 @@ const MIN_CONTROL_SECRET_BYTES = 32
  * path broke, because `removeMember` re-joins the full string, which is why it
  * went unnoticed. `ChannelManager`'s `#assertUsableChannel` is the enforcement
  * point this docstring now depends on rather than assumes.
+ *
+ * The other half — that a member id after the first space may contain more — is
+ * proven by the US5/FR-008 live-broker scenario since #316, whose ghost carries
+ * a two-space id. Before that its id was `2`, so `indexOf` and `lastIndexOf`
+ * agreed on every entry and the sweep could have parsed on the LAST space
+ * undetected: the line ran on every pass and no fixture could observe it.
  */
 const OWNED_SEP = ' '
 
