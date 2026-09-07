@@ -91,12 +91,37 @@ Anything not listed is internal and free to change.
   `PSUBSCRIBE` on a truncated pattern — raises nothing, and `#dispatch` then
   routes by the pmessage's own pattern value, so every frame is silently dropped
   forever. Never call `writeFrame(conn, …)` directly in `subscriber.ts`.
-- **Both activation entry points issue EVERY recorded pattern.**
-  `#connectAndSubscribe` used to take a single pattern, which was a live defect:
-  `@lockness/realtime` psubscribes twice back-to-back over one single-flight
-  dial, so a blip rejected both and the one retry slot re-issued only one of
-  them. The other stayed recorded-but-unsubscribed for the life of the process.
-  Re-`PSUBSCRIBE` of a live pattern is a no-op, which is what makes this safe.
+- **Activation issues EVERY recorded pattern.** `#connectAndSubscribe` used to
+  take a single pattern, which was a live defect: `@lockness/realtime`
+  psubscribes twice back-to-back over one single-flight dial, so a blip rejected
+  both and the one retry slot re-issued only one of them. The other stayed
+  recorded-but-unsubscribed for the life of the process. Re-`PSUBSCRIBE` of a
+  live pattern is a no-op, which is what makes this safe.
+- **The reconnect intent belongs to the OUTAGE, not to the caller.** There used
+  to be two entry points, and which one you called decided whether `onReconnect`
+  fired. That is why
+  [#290](https://github.com/locknessland/lockness-monorepo/issues/290) happened:
+  the retry timer consumed the latch on its way in, so an ordinary `psubscribe`
+  — a user joining a room — that happened to be the call re-dialling a healed
+  broker restored delivery reporting `false`, and the seam fired up to
+  `retryMaxMs` (30s) later instead. The consumer is realtime's revocation
+  re-check, and a reconciliation that runs after the frames are flowing has not
+  bounded the exposure it exists to bound. `#reconnectIntent` is now read at
+  activation time and cleared only by an activation that **succeeds**; only the
+  read loop and the keepalive promote it, because only they ran on a socket that
+  had worked. `#reconnectAll` was deleted with the fix because it had no caller
+  at all. `#activate`'s `isReconnect` argument went too, but do NOT read that as
+  "it was dead": the retry timer passed the latch it had just consumed, and that
+  branch was the only way the seam ever fired. What moved is where the decision
+  is made, not whether it exists — and the promotions in `#scheduleRetry`'s
+  callers (the read fault, the keepalive stall) still feed it. Remove those and
+  the seam stops firing altogether.
+- **An activation must still OWN the socket to consume the intent.** A read
+  fault can land inside `#activate`'s awaited writes, discard the socket and
+  promote the intent; without the `this.conn.socket !== conn` guard the
+  continuation resumed on a corpse and spent the intent firing a seam with
+  nothing subscribed, leaving the retry that really healed it silent.
+  "Succeeded" means "still holds the live socket", not "did not throw".
 - **`readReply`'s default deadline belongs to the COMMAND path, and `exchange`
   takes it.** A recurring misreading — including in
   [#274](https://github.com/locknessland/lockness-monorepo/issues/274)'s own
@@ -129,7 +154,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 11 source files:
+8 test files for 12 source files:
 
 - `packages/redis/tests/backoff.test.ts`
 - `packages/redis/tests/client.test.ts`
