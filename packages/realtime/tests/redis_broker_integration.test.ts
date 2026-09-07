@@ -67,6 +67,42 @@ function integrationTest(
 }
 
 // ---------------------------------------------------------------------------
+// #294 — the harness's own edges
+// ---------------------------------------------------------------------------
+
+integrationTest(
+    '#294: scanMatch refuses a pattern that escapes the run namespace',
+    async (namespace, reader) => {
+        // `scanKeys` builds `<namespace>*` itself and structurally cannot
+        // escape; `scanMatch` takes a caller's glob and, until #294, could not
+        // enforce the same thing. Every caller today derives its pattern from
+        // `keys(namespace)`, so this guards the caller that has not been
+        // written yet — on a SHARED broker an unanchored glob reads another
+        // run's keys and reports them as this run's, which is the failure that
+        // makes a green assertion mean nothing.
+        const anchored = await reader.scanMatch(`${namespace}*`)
+        assert(Array.isArray(anchored), 'an anchored pattern still works')
+
+        let refused = ''
+        try {
+            await reader.scanMatch('*')
+        } catch (error) {
+            refused = error instanceof Error ? error.message : String(error)
+        }
+        assert(
+            refused.includes('not anchored'),
+            `an unanchored pattern was accepted: ${refused || '(no throw)'}`,
+        )
+        // The message has to name the namespace, or the next person to hit
+        // this cannot tell which run refused them.
+        assert(
+            refused.includes(namespace),
+            'the refusal names the run namespace it expected',
+        )
+    },
+)
+
+// ---------------------------------------------------------------------------
 // US1 — cross-process delivery (SC-001)
 // ---------------------------------------------------------------------------
 

@@ -174,9 +174,18 @@ export interface InstanceOptions {
      */
     livenessTtlSeconds?: number
     /**
-     * Liveness heartbeat cadence, in ms. Must stay under
-     * `livenessTtlSeconds * 1000`, or a LIVE instance lets its own key lapse
-     * and sweeps itself.
+     * Liveness heartbeat cadence, in ms. Must stay at or under HALF
+     * `livenessTtlSeconds * 1000` — the driver refuses anything slower (#293),
+     * because a LIVE instance would let its own liveness key lapse between
+     * beats.
+     *
+     * When that happens the instance does NOT sweep itself: `#reconcile` skips
+     * `id === this.instanceId`, so an instance never sweeps its own members.
+     * Its PEERS sweep it — each of them reads `EXISTS 0` on its liveness key
+     * and removes its presence members from every roster they hold. The
+     * distinction matters because that self-skip is a guard under active
+     * discussion, and a comment that misattributes the sweep sends the next
+     * reader to the wrong function.
      */
     heartbeatIntervalMs?: number
     /** Durable revocation marker TTL, in seconds. */
@@ -389,6 +398,16 @@ export interface Reader {
      * is not reachable from a test. Without this, a caller re-spells the layout
      * inline as `` `${prefix}:owned:` `` — a second home for the one decision
      * this module exists to hold.
+     *
+     * **The pattern MUST be anchored to the run's namespace, and this is
+     * enforced rather than asked for.** Unlike {@link Reader.scanKeys}, which
+     * builds `<namespace>*` itself and structurally cannot escape, this takes
+     * a caller's glob — so on a SHARED broker an unanchored one would scan
+     * another run's keys and report them as this run's. Every current caller
+     * passes a `keys(namespace).*Pattern` and is unaffected; the check exists
+     * for the caller that has not been written yet.
+     *
+     * @throws {Error} If `pattern` does not begin with the run's namespace.
      */
     scanMatch(pattern: string): Promise<string[]>
     /** A key's TTL in seconds: `-1` = no TTL, `-2` = absent. */
@@ -481,8 +500,23 @@ export async function withReader<T>(
         revokedAtAnyScore: (prefix: string) =>
             readZRange(keys(prefix).revocations, '-inf'),
         now: () => readNow(),
-        scanKeys: (namespace: string) => scan(`${namespace}*`),
-        scanMatch: (pattern: string) => scan(pattern),
+        scanKeys: (ns: string) => scan(`${ns}*`),
+        scanMatch: (pattern: string) => {
+            // See the port's JSDoc: anchored by CHECK, not by convention. The
+            // namespace is in scope here because `withReader` takes it, so no
+            // caller has to pass it twice.
+            if (!pattern.startsWith(namespace)) {
+                throw new Error(
+                    `scanMatch pattern ${JSON.stringify(pattern)} is not ` +
+                        `anchored to the run namespace ${
+                            JSON.stringify(namespace)
+                        }. On a shared broker it would scan another run's ` +
+                        "keys and report them as this one's — derive it from " +
+                        '`keys(namespace)`.',
+                )
+            }
+            return scan(pattern)
+        },
         ttlOf: async (key: string) => {
             const reply = await client.command('TTL', key)
             return reply.type === 'integer' ? reply.value : -2
