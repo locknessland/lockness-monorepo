@@ -313,8 +313,11 @@ A single battery still runs directly, which is what you want while writing one:
 deno run -A packages/realtime/tests/mutations/prefix_288.ts
 ```
 
-Its exit code is the number of unresolved rows. Each package's `AGENTS.md` lists
-its own batteries under **Tests**.
+Its exit code is `0` when every row resolved and `1` when one did not — except
+`2`, which means it could not run every row and is not a pass either way. Prefer
+`deno task mutate`, which spells that out; run directly and a bare `2` is easy
+to misread as two survivors. Each package's `AGENTS.md` lists its own batteries
+under **Tests**.
 
 ### What a row looks like
 
@@ -365,10 +368,10 @@ of its readings rather than overwriting them.
 
 ### Batteries that need a live broker
 
-**Four batteries need one; only three enforce it.** `live_conformance_285.ts`,
-`self_skip_310.ts` and `sweep_parse_316.ts` mutate code whose suite only runs
-against a real Redis, and they **refuse to start** without one — `Deno.exit(2)`,
-not a skip:
+**Four need one, and all four now enforce it — in two different ways.**
+`live_conformance_285.ts`, `self_skip_310.ts` and `sweep_parse_316.ts` mutate
+code whose suite only runs against a real Redis, and they **refuse to start**
+without one — `Deno.exit(2)`, not a skip:
 
 ```bash
 LOCKNESS_REDIS_INTEGRATION=1 LOCKNESS_REDIS_PORT=63790 \
@@ -382,10 +385,14 @@ is really a missing service. A silent skip here is worse than a failure: it
 inverts the result instead of withholding it.
 
 `packages/redis/tests/mutations/subscribe_hardening_248.ts` is the fourth, and
-it carries **no gate** — the requirement is stated only in its `@fileoverview`.
-Its `#296` rows need a real broker because the defect they mutate is a process
-exit, which no in-process double reproduces. Run it broker-less and those rows
-give exactly the reading this section warns about. Pass the gate:
+it enforces the requirement **per row** rather than for the whole file. Its four
+`#296` rows need a real broker — the defect they mutate is a process exit, which
+no in-process double reproduces — while sixteen of its twenty rows do not, and
+refusing to start would throw those sixteen away offline for nothing. So it runs
+them, **names the four it withheld**, and exits `2`.
+
+Either shape is honest; what neither may do is stay quiet. Pass the gate to run
+everything:
 
 ```bash
 LOCKNESS_REDIS_INTEGRATION=1 LOCKNESS_REDIS_PORT=63790 \

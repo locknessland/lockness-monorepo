@@ -280,9 +280,10 @@ async function renderBlocks(name: string, graph: Graph): Promise<Blocks> {
         `${batteries.length} mutation batter${
             batteries.length === 1 ? 'y' : 'ies'
         } — **\`deno test\` does not run these.** Each is an`,
-        'executable that mutates a source file, re-runs the suites that should',
-        'notice, and exits with the number of unexpected survivors. See',
-        '[testing.md](../../docs/testing.md#mutation-batteries).',
+        'executable that mutates a source file and re-runs the suites that',
+        'should notice. Run them with `deno task mutate` (all of them, one at a',
+        'time) or `deno task mutate <name>` (one); nightly CI runs the full',
+        'sweep. See [testing.md](../../docs/testing.md#mutation-batteries).',
         '',
         ...batteries.map((b) => `- \`${b}\``),
     ]

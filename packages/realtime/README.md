@@ -107,8 +107,14 @@ contract and what the suite refuses to do.
 **Mutation batteries.** This package carries 11 of the repo's 15 — executables
 that break a source file on purpose and check that the suites notice.
 `deno
-test` does not run them; each is invoked directly, and its exit code is
-the number of unexpected survivors:
+test` does not run them; `deno task mutate` does, one at a time:
+
+```bash
+deno task mutate realtime   # this package's 11
+deno task mutate            # all 15, as nightly CI runs them
+```
+
+A single battery still runs directly while you are writing one:
 
 ```bash
 deno run -A packages/realtime/tests/mutations/prefix_288.ts
