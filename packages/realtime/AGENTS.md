@@ -187,7 +187,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-38 test files for 24 source files:
+38 test files for 25 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channel_name_boundary.test.ts`
