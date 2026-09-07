@@ -46,6 +46,7 @@ import {
     keys,
     type Reader,
     waitFor,
+    withFaultyInstance,
     withInstances,
     withReader,
 } from './live_realtime.ts'
@@ -595,7 +596,7 @@ integrationTest(
 //   | 4 | `#sweepInstance` skips the owned-set `DEL`         | RED      |
 //   | 5 | the sweep `DEL`s the whole presence hash           | RED      |
 //   | 6 | the `if (alive === 0)` liveness gate is removed    | RED      |
-//   | 7 | the `id === this.instanceId` self-skip is removed  | GREEN    |
+//   | 7 | the `id === this.instanceId` self-skip is removed  | RED      |
 //   | 8 | the owned-entry parse splits on the LAST space      | RED      |
 //   | 9 | `if (sep < 0) continue` becomes `sep <= 0`          | GREEN    |
 //
@@ -625,29 +626,36 @@ integrationTest(
 // sweeps itself, so "sweep the dead one" and "sweep every peer" produce the
 // same roster. The bystander's member is the assertion that separates them.
 //
-// **Row 7 is GREEN because it is an EQUIVALENT mutant, and that is recorded
-// rather than hidden.** Without the self-skip, `#reconcile` evaluates `EXISTS`
-// on its own liveness key — which is present while the instance heartbeats, so
-// no sweep follows and behaviour is unchanged.
+// **Row 7 was recorded GREEN twice, and is RED since #310.** It is worth
+// keeping the whole path, because each reading was correct about the suite it
+// was measured against and wrong about the guard.
 //
-// #293 was filed expecting to make this row RED, and it does not. Recorded
-// because the reasoning was wrong in a way worth keeping: the row diverges only
-// once an instance lets its OWN key lapse, and #293's guard makes the
-// configuration that permits it — `heartbeatIntervalMs` at or above half the
-// TTL — unconstructible. Refusing the bad state moves the mutant FURTHER from
-// killable, not closer. Nor is there a boot window to exploit: `start()`
-// awaits one `#heartbeat()` before arming the interval, so the key exists from
-// the first reconcile onward. Re-measured against a real broker with the guard
-// landed: 14 passed, 0 failed.
+// It was first recorded as an EQUIVALENT mutant: without the self-skip,
+// `#reconcile` evaluates `EXISTS` on its own liveness key, which is present
+// while the instance heartbeats, so no sweep follows. #293 was then filed
+// expecting to make it RED, and moved it the other way — the configuration that
+// would let an instance's own key lapse (`heartbeatIntervalMs` at or above half
+// the TTL) is now refused at construction, so refusing the bad state moved the
+// mutant FURTHER from killable. Nor was there a boot window: `start()` awaits
+// one `#heartbeat()` before arming the interval. Re-measured on a real broker
+// with the guard landed: 14 passed, 0 failed.
 //
-// The path that would still diverge is a TRANSIENT one the config cannot
-// refuse — two consecutive heartbeat `SET`s failing while the instance is
-// otherwise alive and serving sockets, so its own key lapses and, without the
-// self-skip, it sweeps its own members out of every roster. Reaching it needs a
-// command client that drops writes to the alive key for a window, which is a
-// new scenario rather than a row in this table. Filed rather than papered over
-// — and the self-skip stays either way, because a guard being unreachable from
-// a valid configuration is the desired state, not a redundancy.
+// What both readings missed is that "unreachable" was a claim about the
+// CONFIGURATION, and the divergent path is TRANSIENT — the liveness `SET`
+// failing for a window while the instance is otherwise healthy. `#heartbeat`
+// catches and logs at WARN, so nothing else stops: the instance keeps accepting
+// joins and writing rosters while its own key expires underneath it, and
+// without the self-skip it then reads `EXISTS 0` on ITSELF and evicts its own
+// connected users from every presence channel it holds.
+//
+// `US5/#310` below injects exactly that and nothing else, through
+// `withFaultyInstance`. Measured both ways on a real broker: the row SURVIVES
+// against this suite without that scenario, and is KILLED with it. The battery
+// is `tests/mutations/self_skip_310.ts`.
+//
+// The self-skip would have stayed either way — a guard unreachable from a valid
+// configuration is the desired state, not a redundancy. What changed is that
+// "unreachable" is no longer the reason given for leaving it untested.
 //
 // Row 5 is why all three members share ONE channel: with a single owner,
 // deleting the dead owner's field and deleting the whole hash are
@@ -867,6 +875,104 @@ integrationTest(
                             info: { name: identity.name },
                         }
                         : false,
+            },
+        )
+    },
+)
+
+integrationTest(
+    'US5/#310: an instance whose OWN liveness key lapses does not sweep ITSELF',
+    async (namespace, reader) => {
+        // Row 7 of the table above, made reachable. The self-skip
+        // (`id === this.instanceId`) cannot be reached from any valid
+        // CONFIGURATION — #293's guard makes a heartbeat slower than half the
+        // TTL unconstructible, and `start()` awaits one `#heartbeat()` before
+        // arming the interval, so there is no boot window. The remaining path
+        // is TRANSIENT and can only be injected: the liveness `SET` failing for
+        // a window while the instance is otherwise healthy.
+        //
+        // ONE instance, deliberately. A peer would sweep this one the moment
+        // its key lapsed — correctly, since from the peer's side that is
+        // indistinguishable from a crash — and the roster would empty with or
+        // without the self-skip. The claim "its OWN members survive" only means
+        // something when nobody else can remove them.
+        await withFaultyInstance(
+            namespace,
+            async ({ manager }, fault) => {
+                await manager.subscribe(
+                    connection('resident-conn', { id: 1, name: 'Ada' }),
+                    'presence-ops',
+                )
+                await waitFor(
+                    async () =>
+                        (await reader.roster(namespace, 'presence-ops'))
+                            .size === 1,
+                    'the member to reach the authoritative roster',
+                )
+                assertEquals(
+                    (await reader.scanMatch(keys(namespace).alivePattern))
+                        .length,
+                    1,
+                    'the instance registered its liveness key before the fault',
+                )
+
+                fault.breakLivenessWrites()
+                await waitFor(
+                    async () =>
+                        (await reader.scanMatch(keys(namespace).alivePattern))
+                            .length === 0,
+                    'the instance’s OWN liveness key to lapse',
+                    SWEEP_TIMEOUT_MS,
+                )
+                assert(
+                    fault.refused() > 0,
+                    'the fault must actually have refused a write — a lapse ' +
+                        'with zero refusals means the key expired for some ' +
+                        'other reason and this scenario proves nothing',
+                )
+
+                // Several reconcile ticks with its own key gone. This is the
+                // window in which a driver without the self-skip reads
+                // `EXISTS 0` on ITSELF and sweeps its own members out of the
+                // roster.
+                await new Promise((resolve) =>
+                    setTimeout(resolve, SWEEP_RECONCILE_MS * 5)
+                )
+
+                // STILL SERVING, and that is half the point: an instance that
+                // had simply stopped would also keep its roster. A fresh join
+                // has to reach the authoritative roster while the fault is
+                // still on — only the liveness `SET` is refused, every other
+                // command goes to the broker.
+                await manager.subscribe(
+                    connection('late-conn', { id: 2, name: 'Boris' }),
+                    'presence-ops',
+                )
+                await waitFor(
+                    async () =>
+                        (await reader.roster(namespace, 'presence-ops'))
+                            .size === 2,
+                    'a join accepted DURING the fault to reach the roster',
+                    SWEEP_TIMEOUT_MS,
+                )
+
+                await new Promise((resolve) =>
+                    setTimeout(resolve, SWEEP_RECONCILE_MS * 5)
+                )
+                const roster = await reader.roster(namespace, 'presence-ops')
+                assertEquals(
+                    [...roster.keys()].sort(),
+                    ['1', '2'],
+                    'an instance never sweeps itself. Without the self-skip it ' +
+                        'reads EXISTS 0 on its own liveness key and evicts its ' +
+                        'own connected users from every presence channel it ' +
+                        'holds — while still serving them.',
+                )
+            },
+            {
+                reconcileIntervalMs: SWEEP_RECONCILE_MS,
+                livenessTtlSeconds: SWEEP_LIVENESS_SECONDS,
+                heartbeatIntervalMs: SWEEP_HEARTBEAT_MS,
             },
         )
     },

@@ -22,14 +22,21 @@
  * @module @lockness/realtime/tests/live_realtime
  */
 
-import { RedisClient, type RespReply } from '../../redis/mod.ts'
+import {
+    RedisClient,
+    RedisSubscribeConnection,
+    type RespReply,
+} from '../../redis/mod.ts'
 import {
     brokerConfig,
     teardown,
     waitFor,
 } from '../../redis/tests/live_broker.ts'
 import { ChannelManager } from '../manager.ts'
-import { RedisBroadcastDriver } from '../drivers/redis.ts'
+import {
+    RedisBroadcastDriver,
+    type RedisCommandClient,
+} from '../drivers/redis.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
 
@@ -276,6 +283,116 @@ export async function withInstances<T>(
                 )
             )
         }
+    }
+}
+
+/**
+ * A switch over one instance's liveness writes, handed to the scenario (#310).
+ *
+ * The self-skip in `#reconcile` (`id === this.instanceId`) is unreachable from
+ * any valid CONFIGURATION — #293's guard makes a heartbeat slower than half the
+ * TTL unconstructible, and `start()` awaits one `#heartbeat()` before arming the
+ * interval, so there is no boot window either. The one path that still reaches
+ * it is TRANSIENT: the liveness `SET` failing for a window while the instance is
+ * otherwise healthy and still serving. That cannot be configured, only injected.
+ */
+export interface LivenessFault {
+    /**
+     * Start refusing `SET {prefix}__alive:*`. Every other command — the
+     * heartbeat's own `SADD`, the reconcile's `EXISTS`, every roster write —
+     * still goes to the broker, which is what keeps the instance *alive* rather
+     * than merely stopped.
+     */
+    breakLivenessWrites(): void
+    /** Stop refusing them. */
+    healLivenessWrites(): void
+    /** How many liveness writes have been refused so far. */
+    refused(): number
+}
+
+/**
+ * Run `body` with ONE live instance whose liveness writes can be broken.
+ *
+ * Built from injected ports rather than `fromConfig`, because the command port
+ * has to be wrapped — so this owns its two sockets explicitly (`fromConfig`'s
+ * `owned` list is what `close()` normally walks, and an injected-port driver
+ * has none).
+ *
+ * **One instance, not two, and that is the whole design.** A peer would sweep
+ * this instance the moment its liveness key lapsed — correctly, since from the
+ * peer's side it is indistinguishable from a crash — and the roster would empty
+ * whether or not the self-skip is present. The assertion "its OWN members
+ * survive" is only meaningful with nobody else able to remove them.
+ *
+ * The refusal is a THROW, not a silent success: `#heartbeat` catches and logs
+ * at WARN, which is exactly why the instance carries on serving while its own
+ * key expires underneath it.
+ *
+ * @param namespace - The run namespace, used as the driver's `prefix`.
+ * @param body - The scenario, receiving the instance and the fault switch.
+ * @param options - Cadences, as for {@link withInstances}.
+ * @returns Whatever `body` returns.
+ * @example
+ * ```typescript
+ * await withFaultyInstance(ns, async ({ manager }, fault) => {
+ *   await manager.subscribe(conn, 'presence-ops')
+ *   fault.breakLivenessWrites()
+ * })
+ * ```
+ */
+export async function withFaultyInstance<T>(
+    namespace: string,
+    body: (instance: LiveInstance, fault: LivenessFault) => Promise<T>,
+    options: InstanceOptions = {},
+): Promise<T> {
+    const config = brokerConfig()
+    const client = new RedisClient(config)
+    const subscriber = new RedisSubscribeConnection(config)
+    const alivePrefix = `${namespace}__alive:`
+    let broken = false
+    let refused = 0
+    const command: RedisCommandClient = {
+        command: (...args: string[]) => {
+            if (
+                broken && args[0] === 'SET' && args[1]?.startsWith(alivePrefix)
+            ) {
+                refused++
+                return Promise.reject(
+                    new Error('injected: liveness write refused (#310)'),
+                )
+            }
+            return client.command(...args)
+        },
+    }
+    const driver = new RedisBroadcastDriver(command, subscriber, {
+        prefix: namespace,
+        control: { secret: options.secret ?? controlSecret() },
+        presence: {
+            reconcileIntervalMs: options.reconcileIntervalMs ?? 60_000,
+            livenessTtlSeconds: options.livenessTtlSeconds,
+            heartbeatIntervalMs: options.heartbeatIntervalMs,
+        },
+        revocationTtlSeconds: options.revocationTtlSeconds ?? 300,
+    })
+    const authorize = options.authorize?.(0) ?? defaultAuthorize
+    const instance: LiveInstance = {
+        driver,
+        manager: new ChannelManager<TestUser>({ driver, authorize }),
+    }
+    try {
+        return await body(instance, {
+            breakLivenessWrites: () => void (broken = true),
+            healLivenessWrites: () => void (broken = false),
+            refused: () => refused,
+        })
+    } finally {
+        await driver.close().catch((error) =>
+            console.warn(
+                `[live-realtime] the faulty driver failed to close: ${error}`,
+            )
+        )
+        await subscriber.close().catch(() => {})
+        await client.close().catch(() => {})
     }
 }
 
