@@ -825,6 +825,27 @@ export class RedisSubscribeConnection {
         if (this.closed) return
         // Still promoted here: the read loop's fault and the keepalive stall
         // reach the latch through this method and never through `#activate`.
+        //
+        // BEFORE the early return, and it stays there (#307). Below it, a
+        // `true` folding into an already-armed chain would be dropped and the
+        // reconnect never reported.
+        //
+        // No test pins the ordering, and #307 set out to write one before
+        // establishing that the order it needs is no longer reachable. Arming
+        // with `false` requires `#activate`'s catch to see
+        // `this.loopConn !== conn`, which since #290 means "no read loop is
+        // running on this socket" — and without one, no later `true` can
+        // arrive, because both of its sources (the read fault, the keepalive)
+        // need a live socket. Every discard site pairs with a schedule except
+        // the `RespCommandTooLargeError` return above, which the comment there
+        // already calls unreachable in practice. So the losing order needs
+        // that path, plus a failed dial, plus winning a race against the old
+        // loop's fault.
+        //
+        // Kept because the cost is zero and the failure it prevents is silent:
+        // a reconnect that never fires looks exactly like an outage that never
+        // happened. `reconnect_intent_290.ts` carries the row and the
+        // reasoning, so this is re-checkable rather than folklore.
         this.#reconnectIntent ||= isReconnect
         if (this.#retryTimer !== undefined) return
 
