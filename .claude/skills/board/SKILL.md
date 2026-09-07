@@ -192,7 +192,22 @@ Specnaut change — the skill is path-aware.
   applies: `10` = field / type absent (use the label), `11` = present
   but the value is unrecognised (for Priority/Size, add the option to
   the field then re-run; for Issue Type, fix the call), `12` = issue
-  not on the project / not in the repo.
+  not on the project / not in the repo, `13` = the field exists and the
+  write was REFUSED (see the drift note below).
+- **A repository can carry ISSUE-LEVEL fields that shadow the project's,
+  and they are a third drift surface (#284).** This repo has issue-level
+  `Priority`, `Effort`, `Start date` and `Target date` alongside the
+  project's `Priority` / `Size`. They look identical on the board and are
+  written by a DIFFERENT mutation — `updateIssueFieldValue`, not
+  `updateProjectV2ItemFieldValue` — so a caller aiming the project
+  mutation at one is refused outright. **The project's `Priority` /
+  `Size` remain canonical for classification here**; issue-level
+  `Priority` / `Effort` are not written by Specnaut and must not be, or
+  the same judgement lives in two places and neither is authoritative.
+  The date axes are the exception: on this repo `Start date` /
+  `Target date` exist ONLY as issue fields, so `detect-fields.sh` emits
+  the issue-level id plus a `*_FIELD_SCOPE` line and `set-field.sh`
+  routes on it.
 
 ### Prerequisites
 
