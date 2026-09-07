@@ -343,11 +343,15 @@ refused, so anything already subscribed can still be cleaned up.
 
 Length is the part nothing below bounds, and it is not cosmetic. The roster
 write happens _before_ the frame that announces it, and an oversized frame is
-dropped with a warning — so without this the member landed in the roster on one
-instance, was never announced to any other, and `subscribe` still returned
-success. Both error types are exported from `@lockness/realtime`, so an
-`onError` handler can tell "a bug in my own code that no retry will fix" from a
-dead socket:
+dropped with a warning — so without this the member reached the authoritative
+roster, was never **announced** to any other instance, and `subscribe` still
+returned success. What that costs is the live `joined` push to peers already in
+the channel: the roster itself is shared and correct, so anyone who reads it —
+including the snapshot handed back to the joiner — still sees the member, and
+`disconnect` removes it on the ordinary path. That is the behaviour Lockness
+accepts deliberately, settled in #312. Both error types are exported from
+`@lockness/realtime`, so an `onError` handler can tell "a bug in my own code
+that no retry will fix" from a dead socket:
 
 ```ts
 import {

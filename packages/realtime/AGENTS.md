@@ -188,9 +188,19 @@ Anything not listed is internal and free to change.
   in `{prefix}:revocations` is compared against a `TIME` read inside the script.
   A stored expiry judged against an instance's clock would let a fast-clocked
   host delete revocations that are live for the whole fleet (#276). 2026-09-05.
-- Presence membership is **single-process authoritative** for the MVP (Redis
-  fans join/leave notifications; the `here` set is per-instance). Full
-  cross-process presence is a scoped follow-up.
+- **Presence membership is CROSS-PROCESS authoritative** since #268 (shipped
+  2026-09-05, `6ed138f4`). The roster lives in the driver — `rosterSnapshot`
+  reads `roster.listMembers()` off it, never local state (`manager.ts`) — and
+  every instance shares it. This line previously said "single-process
+  authoritative for the MVP, the `here` set is per-instance", which was true
+  before #268 and is the premise #312 had to disprove: a reader of the stale
+  version reasons that a member "landed in the roster on one instance", and
+  reopens a question that is settled. A refused `presence-join` control frame
+  loses the live PUSH to peers already in the channel; it does not lose roster
+  state, and the divergence is bounded by the connection's lifetime because
+  `disconnect` removes the member on the ordinary path
+  ([#312](https://github.com/locknessland/lockness-monorepo/issues/312)).
+  2026-09-07.
 - Nothing imports `realtime` (pure sink), and `@lockness/core` is untouched
   (app-wired) — keep it that way.
 - `@lockness/notification` is a **dev/test dependency only** (the SC-005
