@@ -40,9 +40,16 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'the subscribe() boundary guard removed',
         file: MANAGER,
+        // Anchored on the comment that belongs to THIS call site, not on the
+        // line that followed it. The old anchor spanned the gap to
+        // `const kind = channelKind(channel)` to disambiguate from
+        // `register()`'s identical call — and #314 inserted the channel
+        // assertion into that gap, so the row went DEAD and reported nothing.
+        // A battery row is only as durable as what its anchor assumes will
+        // stay adjacent.
         edits: [[
-            'this.#assertUsableId(connection.id)\n        const kind = channelKind(channel)',
-            'const kind = channelKind(channel)',
+            '        // rate-limit increment) ran on an id that was never usable.\n        this.#assertUsableId(connection.id)\n',
+            '',
         ]],
         killedBy: 'subscribing with an out-of-charset id throws too',
     },
@@ -64,7 +71,15 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'the id is no longer encoded into the throw message',
         file: MANAGER,
-        edits: [['safeForLog(id)', 'id']],
+        // `safeForLog(id)` alone stopped being unique when #306 added
+        // `PresenceMemberIdError`, which encodes its own id the same way — so
+        // this row has been DEAD since that merge, reporting nothing while
+        // looking like a row. Anchored on the surrounding message text now,
+        // which names the error this row is actually about.
+        edits: [[
+            'realtime: connection id ${safeForLog(id)} is outside the ',
+            'realtime: connection id ${id} is outside the ',
+        ]],
         killedBy: 'the message names the id and the rule',
     },
     {
