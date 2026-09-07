@@ -79,6 +79,16 @@
     },
     "imports": {
         "@/": "./",
+        // The mutation-battery harness (#305). A repo-local alias, like the
+        // five below it — not a registry dependency, so hard rule #2 does not
+        // reach it. It lives at the repo root rather than inside a package
+        // because every package's batteries need it: `@lockness/contract`
+        // reaches `tests/` from no export and excludes it from `publish`, so
+        // there is no bare specifier to import it by, and adding an export
+        // into an excluded directory breaks `publish:check`. The alternative
+        // was a `../../../` chain out of each package, which is what this
+        // replaces.
+        "@mutations/": "./tests/mutations/",
         "@controller/": "./app/controller/",
         "@service/": "./app/service/",
         "@middleware/": "./app/middleware/",

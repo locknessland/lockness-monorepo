@@ -20,7 +20,7 @@
  * @module @lockness/contract/tests/mutations/dsn_redaction_301_303
  */
 
-import { type Mutation, runBattery } from './harness.ts'
+import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const SOURCE = new URL('../../logging/sanitize.ts', import.meta.url)
 const TELEMETRY = new URL('../../../telemetry/attributes.ts', import.meta.url)

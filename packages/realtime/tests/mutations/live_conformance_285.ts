@@ -28,10 +28,7 @@
  * @module @lockness/realtime/tests/mutations/live_conformance_285
  */
 
-import {
-    type Mutation,
-    runBattery,
-} from '../../../contract/tests/mutations/harness.ts'
+import { type Mutation, runBattery } from '@mutations/harness.ts'
 import { LIVE_BROKER } from '../../../redis/tests/live_broker.ts'
 
 const FAKE = new URL('../fake_redis.ts', import.meta.url)

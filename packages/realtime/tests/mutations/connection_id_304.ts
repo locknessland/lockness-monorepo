@@ -19,10 +19,7 @@
  * @module @lockness/realtime/tests/mutations/connection_id_304
  */
 
-import {
-    type Mutation,
-    runBattery,
-} from '../../../contract/tests/mutations/harness.ts'
+import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const MANAGER = new URL('../../manager.ts', import.meta.url)
 const DRIVER = new URL('../../drivers/redis.ts', import.meta.url)

@@ -26,7 +26,7 @@
  * @module @lockness/contract/tests/mutations/bidi_292
  */
 
-import { type Mutation, runBattery } from './harness.ts'
+import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const SOURCE = new URL('../../logging/sanitize.ts', import.meta.url)
 const SUITE = new URL('../log_sanitize.test.ts', import.meta.url).pathname

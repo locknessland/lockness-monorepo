@@ -25,10 +25,7 @@
  * @module @lockness/redis/tests/mutations/reconnect_intent_290
  */
 
-import {
-    type Mutation,
-    runBattery,
-} from '../../../contract/tests/mutations/harness.ts'
+import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const SUBSCRIBER = new URL('../../subscriber.ts', import.meta.url)
 const SUITES = [
