@@ -49,3 +49,6 @@ CLAUDE.md
 
 # Mutation-battery locks (packages/*/tests/mutations/harness.ts) — never committed.
 *.mutation-lock
+
+# The mutation runner's lock (scripts/mutate.ts) — a live run holds it.
+tests/mutations/.runner-lock
