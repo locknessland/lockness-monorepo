@@ -647,6 +647,49 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             DEFAULT_LIVENESS_TTL_SECONDS
         this.heartbeatIntervalMs = options.presence?.heartbeatIntervalMs ??
             DEFAULT_HEARTBEAT_INTERVAL_MS
+        // THE TWO ARE NOT INDEPENDENT (#293). The heartbeat is what keeps this
+        // instance's own `{prefix}:alive:<id>` key alive, and that key's TTL is
+        // `livenessTtlSeconds`. Beat slower than the TTL and a HEALTHY, running
+        // instance lets its own key lapse between beats: every peer's
+        // `#reconcile` then reads `EXISTS` 0 for it and sweeps its presence
+        // members out of the roster — repeatedly, for as long as it runs.
+        // Connected users vanish from every presence channel while their
+        // sockets stay open, and nothing in the log looks wrong.
+        //
+        // TWO beats per window, not one. A beat landing exactly at the boundary
+        // races the expiry, and it loses whenever the round-trip is slower than
+        // the slack — which is exactly when the broker is under load.
+        //
+        // Finiteness first, for the reason `control.windowMs` gives below:
+        // every comparison against NaN is false, so a
+        // `Number(Deno.env.get('...'))` on an unset variable would slip past
+        // the relation and disable this guard silently on a fresh process.
+        if (
+            !Number.isFinite(this.heartbeatIntervalMs) ||
+            this.heartbeatIntervalMs <= 0 ||
+            !Number.isFinite(this.livenessTtlSeconds) ||
+            this.livenessTtlSeconds <= 0
+        ) {
+            throw new Error(
+                'realtime: presence.heartbeatIntervalMs and ' +
+                    'presence.livenessTtlSeconds must both be positive, finite ' +
+                    `numbers (#293) — got heartbeatIntervalMs=${this.heartbeatIntervalMs} ` +
+                    `and livenessTtlSeconds=${this.livenessTtlSeconds}.`,
+            )
+        }
+        if (this.heartbeatIntervalMs * 2 > this.livenessTtlSeconds * 1000) {
+            throw new Error(
+                'realtime: presence.heartbeatIntervalMs must be at most HALF ' +
+                    'of presence.livenessTtlSeconds, so a running instance ' +
+                    `beats at least twice per TTL window (#293) — got ` +
+                    `heartbeatIntervalMs=${this.heartbeatIntervalMs}ms and ` +
+                    `livenessTtlSeconds=${this.livenessTtlSeconds}s ` +
+                    `(${this.livenessTtlSeconds * 1000}ms). At one beat per ` +
+                    'window a healthy instance races its own liveness-key ' +
+                    'expiry, and its peers sweep its presence members out of ' +
+                    'every roster while it is still serving those sockets.',
+            )
+        }
         this.reconcileIntervalMs = options.presence?.reconcileIntervalMs ??
             DEFAULT_RECONCILE_INTERVAL_MS
         this.revocationTtlSeconds = options.revocationTtlSeconds ??
