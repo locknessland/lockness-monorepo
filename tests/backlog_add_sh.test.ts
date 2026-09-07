@@ -134,11 +134,21 @@ Deno.test('#289: the ordinary attach path is unchanged', async () => {
     assertEquals(code, 0)
     assertStringIncludes(stdout, '✓ attached to Project #2')
     assertStringIncludes(stdout, '✓ placed in Backlog')
-    // No recovery query on the happy path — it costs an API call, and the
-    // id came back from `item-add` itself.
+    // No RECOVERY query on the happy path — it costs an API call, and the id
+    // came back from `item-add` itself.
+    //
+    // Matched on `projectItems`, the recovery query's own signature, not on
+    // `api graphql` at large. The broad version broke the moment #284 gave
+    // `detect-fields.sh` a graphql call of its own: the assertion could not
+    // tell one script's query from another's, so an unrelated change to a
+    // DIFFERENT script failed this test. An assertion that names the thing it
+    // is about does not have that failure mode.
+    const graphql = log.split('\n').filter((l) => l.startsWith('api graphql'))
     assert(
-        !log.includes('api graphql'),
-        'the recovery query ran when nothing had collided',
+        !graphql.some((l) => l.includes('projectItems')),
+        `the recovery query ran when nothing had collided:\n${
+            graphql.join('\n')
+        }`,
     )
     const edit = log.split('\n').find((l) => l.startsWith('project item-edit'))
     assert(edit && edit.includes('PVTI_fresh_item'), `wrong id edited: ${edit}`)
