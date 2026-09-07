@@ -336,6 +336,24 @@ RedisBroadcastDriver.fromConfig(config, {
 })
 ```
 
+**The first two are one setting with two numbers.** The heartbeat is what keeps
+this instance's own liveness key alive, and that key's TTL is
+`livenessTtlSeconds` — so the constructor **refuses** a configuration where
+`heartbeatIntervalMs * 2 > livenessTtlSeconds * 1000`. Beat any slower and a
+perfectly healthy instance lets its own key lapse between beats: every peer's
+reconcile then treats it as dead and sweeps its presence members out of the
+roster, repeatedly, while its sockets stay open and nothing in the log looks
+wrong.
+
+The factor of two is a margin, not bookkeeping. One beat per TTL window lands on
+the boundary and races the expiry, losing whenever the round-trip is slower than
+the slack — which is exactly when the broker is under load. The defaults above
+leave three beats per window.
+
+Tightening `livenessTtlSeconds` therefore means revisiting `heartbeatIntervalMs`
+in the same edit: dropping the TTL to `5` while leaving the heartbeat at `5000`
+now throws at construction rather than degrading silently in production.
+
 ### Cross-process eviction
 
 `manager.evict(clientId)` revokes a connection wherever its socket lives. It
