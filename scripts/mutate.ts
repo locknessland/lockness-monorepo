@@ -40,6 +40,7 @@
  * @module scripts/mutate
  */
 
+import { reclaimStaleLock } from '@mutations/harness.ts'
 import { walk } from '@std/fs'
 import { relative } from '@std/path'
 
@@ -120,16 +121,35 @@ async function runBatteryFile(path: string): Promise<Outcome> {
 
 /** Take the runner lock, or explain who holds it and stop. */
 async function lock(): Promise<void> {
+    // A SIGKILL runs neither the `finally` nor the signal handlers, so this
+    // lock outlives its owner and every later run refuses (#320). Survivable
+    // by hand; fatal on the nightly job, which has no hand.
+    const stale = await reclaimStaleLock(LOCK)
+    if (stale.outcome === 'reclaimed') {
+        console.warn(
+            `Reclaimed a stale runner lock — pid ${stale.pid} is gone ` +
+                `(locked at ${stale.since ?? 'an unrecorded time'}).`,
+        )
+    } else if (stale.outcome === 'unsafe') {
+        console.error(`Refusing to reclaim ${LOCK} — ${stale.reason}`)
+        Deno.exit(1)
+    }
     try {
-        await Deno.writeTextFile(LOCK, `${Deno.pid}\n`, { createNew: true })
+        await Deno.writeTextFile(
+            LOCK,
+            `${Deno.pid} ${new Date().toISOString()}\n`,
+            { createNew: true },
+        )
     } catch (error) {
         if (!(error instanceof Deno.errors.AlreadyExists)) throw error
         const holder = await Deno.readTextFile(LOCK).catch(() => '?')
         console.error(
-            `A mutation run is already in progress (pid ${holder.trim()}).\n` +
+            `A mutation run is already in progress (${holder.trim()}).\n` +
                 'Batteries edit source files on disk, so two runs corrupt each ' +
-                "other's results rather than merely racing. If no run is " +
-                `active, remove ${relative(ROOT, LOCK)}.`,
+                "other's results rather than merely racing.\n" +
+                'A lock left by a KILLED run is reclaimed automatically, so ' +
+                'seeing this means the owning process is alive — or its pid ' +
+                `has been reused. Check, then remove ${relative(ROOT, LOCK)}.`,
         )
         Deno.exit(1)
     }
