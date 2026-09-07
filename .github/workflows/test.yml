@@ -9,6 +9,11 @@ on:
         branches:
             - main
             - develop
+    # For the `mutations` job below, which is too slow to run per-PR and
+    # detects decay that no single PR caused.
+    schedule:
+        - cron: '17 3 * * *'
+    workflow_dispatch:
 
 jobs:
     test:
@@ -112,6 +117,53 @@ jobs:
               # these tests. Without this flag nothing leak-checks them at all,
               # and each test opens four sockets.
               run: deno task test:redis -- --trace-leaks
+
+    mutations:
+        name: Mutation batteries
+        runs-on: ubuntu-latest
+        # NIGHTLY, not per-PR. The batteries mutate a source file and re-run a
+        # whole suite for every row — 15 batteries, several minutes each — so a
+        # per-PR lane would dominate CI time for a signal that changes slowly.
+        #
+        # The decay this catches is not caused by the PR that triggers it: three
+        # of the four rotted rows found in the first full sweep were broken by
+        # merges that touched neither the battery nor the row's subject. So the
+        # requirement is that decay in an UNTOUCHED battery is noticed without a
+        # human deciding to look, which a schedule satisfies and a per-PR filter
+        # by touched package does not.
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+        services:
+            redis:
+                image: redis:7-alpine
+                ports:
+                    - 6379:6379
+                options: >-
+                    --health-cmd "redis-cli ping"
+                    --health-interval 5s
+                    --health-timeout 3s
+                    --health-retries 10
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+            - name: Setup Deno
+              uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
+              with:
+                  deno-version: v2.x
+
+            # `--require-all` because this job HAS the broker: a battery that
+            # refuses to start here is a fault, not an absent prerequisite.
+            # Without it a missing service would read as a pass over the rows
+            # that never ran — the exact inversion the batteries' own exit-2
+            # gate exists to prevent.
+            - name: Run every mutation battery
+              env:
+                  LOCKNESS_REDIS_INTEGRATION: '1'
+                  LOCKNESS_REDIS_HOST: 127.0.0.1
+                  LOCKNESS_REDIS_PORT: '6379'
+              run: deno task mutate --require-all
 
     coverage:
         name: Coverage
