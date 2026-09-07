@@ -334,9 +334,10 @@ of its readings rather than overwriting them.
 
 ### Batteries that need a live broker
 
-Three batteries mutate code whose suite only runs against a real Redis:
-`live_conformance_285.ts`, `self_skip_310.ts` and `sweep_parse_316.ts`. They
-**refuse to start** without one — `Deno.exit(2)`, not a skip:
+**Four batteries need one; only three enforce it.** `live_conformance_285.ts`,
+`self_skip_310.ts` and `sweep_parse_316.ts` mutate code whose suite only runs
+against a real Redis, and they **refuse to start** without one — `Deno.exit(2)`,
+not a skip:
 
 ```bash
 LOCKNESS_REDIS_INTEGRATION=1 LOCKNESS_REDIS_PORT=63790 \
@@ -348,6 +349,17 @@ The hard exit is the whole point. Without a broker the mutated suite is
 row would report SURVIVED**, and the battery would announce a catastrophe that
 is really a missing service. A silent skip here is worse than a failure: it
 inverts the result instead of withholding it.
+
+`packages/redis/tests/mutations/subscribe_hardening_248.ts` is the fourth, and
+it carries **no gate** — the requirement is stated only in its `@fileoverview`.
+Its `#296` rows need a real broker because the defect they mutate is a process
+exit, which no in-process double reproduces. Run it broker-less and those rows
+give exactly the reading this section warns about. Pass the gate:
+
+```bash
+LOCKNESS_REDIS_INTEGRATION=1 LOCKNESS_REDIS_PORT=63790 \
+  deno run -A packages/redis/tests/mutations/subscribe_hardening_248.ts
+```
 
 ### When a battery earns its place
 
@@ -496,6 +508,12 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
 - Put tests in the package's `tests/` directory. `scripts/deps_analyzer.ts`
   excludes `tests/` from the measured dependency graph, so a `tests/`-only
   import (such as `@lockness/testing`) creates no runtime dependency edge.
+- **One carve-out:** a [mutation battery](#mutation-batteries) lives in
+  `tests/mutations/` and is named `<subject>_<issue>.ts` — a plain `.ts`, so
+  `deno test` does **not** discover it. That is deliberate: a battery edits
+  files on disk, and it must never start concurrently with the suite it mutates.
+  `scripts/agents_brief.ts` counts these as their own category rather than as
+  source files.
 
 ## Sanitizers and fixtures
 
