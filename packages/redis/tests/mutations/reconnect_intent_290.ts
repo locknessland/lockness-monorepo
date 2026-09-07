@@ -135,12 +135,45 @@ const MUTATIONS: Mutation[] = [
             'read fault, the keepalive stall) both need a live one. Every ' +
             'discard site pairs with a schedule except the ' +
             '`RespCommandTooLargeError` return, which is itself documented as ' +
-            'unreachable in practice. #307 asked for a test constructing a ' +
+            'unreachable in practice — an argument that rests entirely on the ' +
+            'row below reading `wasDelivering`, so read the two together. ' +
+            '#307 asked for a test constructing a ' +
             'muted-write `false`; measured, that path now yields `true`, so ' +
             'the construction the issue prescribes cannot be written. The ' +
             'placement stays: it costs nothing, and the failure it prevents ' +
             'is a reconnect that never fires, which looks exactly like an ' +
             'outage that never happened.',
+    },
+    {
+        // #313. Row 5 pins this line against a flat `true`; this pins the
+        // other direction, which is the one that matters more. A flat `false`
+        // is exactly the regression that makes #307's losing order reachable
+        // again — and it would land in silence, because #307's own survivor
+        // row keeps surviving and the battery stays green while the reasoning
+        // written in two places quietly stops being true.
+        label: 'the failed activation promotes a flat `false` instead of ' +
+            'reading wasDelivering',
+        file: SUBSCRIBER,
+        edits: [[
+            'this.#scheduleRetry(wasDelivering, error)',
+            'this.#scheduleRetry(false, error)',
+        ]],
+        killedBy: 'the activation that ENDS an outage',
+        expectSurvival:
+            'SURVIVES, and the survival is the finding #313 asked for. A ' +
+            'failed activation on a delivering socket has just discarded it, ' +
+            "so that socket's pending `readReply` rejects and the read loop " +
+            'promotes `true` anyway — `wasDelivering` is defence in depth ' +
+            'against losing that race, not a fix for an observable loss. The ' +
+            'security seat that proposed it said the same: it could not ' +
+            'construct a reliable loss either, and called the old flat `false` ' +
+            '"correctness by race margin". So this row cannot be killed today ' +
+            "for the same reason #307's row cannot. THAT PAIRING IS THE " +
+            'POINT: #307 argues the promotion placement is unreachable BECAUSE ' +
+            'this line reads `wasDelivering`, so if this ever becomes a flat ' +
+            "`false` again, #307's argument is false and its row silently " +
+            'stops meaning anything. Neither row can prove the other; together ' +
+            'they at least make the dependency visible to whoever edits either.',
     },
 ]
 
