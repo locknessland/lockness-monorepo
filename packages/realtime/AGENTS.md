@@ -77,6 +77,30 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
+- **Assert on `commandLog()`, never on a wrapped `command`.** A test that wraps
+  the driver's `command` function sees only what the driver issues _directly_ —
+  a script's own writes reach the store through the Lua evaluator, so they never
+  pass the wrapper. #276 shipped an assertion that was structurally unable to
+  fail for exactly that reason, and it looked like coverage. `FakeRedis` exposes
+  `commandLog()`, which records every command including script-internal ones.
+- **A modelled command can model the wrong thing, and the throwing `default:`
+  will not catch it.** That guard fires for an _unmodelled_ command; #276 was
+  wrong twice over commands the fake already had. Both times the divergence was
+  a silently-ignored option token — an `EXPIRE … GT` armed where real Redis
+  refuses it, so an inert production guard looked like a working one. Since #280
+  every modelled arm **refuses** an argument it does not read — an unknown
+  option, a wrong arity, a non-numeric score — rather than ignoring it, and
+  refusals are recorded so a caller that catches and warns cannot swallow one
+  (`assertNoRejections()`). That is the rule to keep: if you add an argument to
+  a call site, add it to the arm or make the arm refuse it. Never let it pass
+  unread.
+- **The fake is not Redis, and the gap is the interesting part.** It models the
+  driver's command surface only, so a behaviour no test exercises is one nobody
+  has checked — #280's audit found five divergences the issue had not listed,
+  two clocks and a `DEL` that never reached sorted sets among them. When you
+  start relying on a semantic, add a row to `fake_redis_conformance.test.ts`
+  stating what real Redis does; that file is the record of what has actually
+  been verified.
 - **A containment check must never consult `keys()`.** `live_realtime.ts`'s
   `keys()` is a verbatim second copy of the driver's nine name templates. It is
   correct for _read-back_ — asserting a key holds what you put there — and wrong
@@ -134,7 +158,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-33 test files for 19 source files:
+34 test files for 20 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channels.test.ts`
@@ -154,6 +178,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/eviction_control.test.ts`
 - `packages/realtime/tests/eviction_durable.test.ts`
 - `packages/realtime/tests/eviction_reconnect.test.ts`
+- `packages/realtime/tests/fake_redis_conformance.test.ts`
 - `packages/realtime/tests/handler.test.ts`
 - `packages/realtime/tests/identity.test.ts`
 - `packages/realtime/tests/log_encoding_291.test.ts`
@@ -184,7 +209,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 33 test files directly —
+Then, specific to this package: run its 34 test files directly —
 
 ```bash
 deno test -A packages/realtime/
