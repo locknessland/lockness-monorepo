@@ -112,6 +112,36 @@ const MUTATIONS: Mutation[] = [
         ]],
         killedBy: 'fire the seam once, not twice',
     },
+    {
+        // #307. Recorded as a survivor with its reasoning, rather than left as
+        // a gap someone re-discovers — and rather than relabelled onto
+        // whichever test happens to fail.
+        label:
+            'the promotion moved BELOW the early return — a `true` folding ' +
+            'into an armed chain is dropped',
+        file: SUBSCRIBER,
+        edits: [[
+            'this.#reconnectIntent ||= isReconnect\n        if (this.#retryTimer !== undefined) return',
+            'if (this.#retryTimer !== undefined) return\n        this.#reconnectIntent ||= isReconnect',
+        ]],
+        killedBy: 'latches toward',
+        expectSurvival:
+            'UNREACHABLE, not uncovered — and the difference is the whole ' +
+            'point of recording it. Losing a fire needs a `false` to arm the ' +
+            "chain BEFORE a `true` folds in. Only `#activate`'s catch can " +
+            'pass `false`, and since #290 it decides on `wasDelivering`, so a ' +
+            '`false` means no read loop is running on that socket — leaving ' +
+            'nothing to produce the later `true`, whose only two sources (the ' +
+            'read fault, the keepalive stall) both need a live one. Every ' +
+            'discard site pairs with a schedule except the ' +
+            '`RespCommandTooLargeError` return, which is itself documented as ' +
+            'unreachable in practice. #307 asked for a test constructing a ' +
+            'muted-write `false`; measured, that path now yields `true`, so ' +
+            'the construction the issue prescribes cannot be written. The ' +
+            'placement stays: it costs nothing, and the failure it prevents ' +
+            'is a reconnect that never fires, which looks exactly like an ' +
+            'outage that never happened.',
+    },
 ]
 
 if (import.meta.main) {
