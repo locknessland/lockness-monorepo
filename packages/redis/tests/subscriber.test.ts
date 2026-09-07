@@ -1173,11 +1173,26 @@ Deno.test('FR-017: a coalesced retry chain latches toward "reconnect", never awa
         )
         server.unreachable()
         await waitFor(
-            () => messages.some((m) => m.includes('retrying in')),
+            // `'reconnecting in'` is what the read-fault path logs; `'retrying
+            // in'` belongs to a failed ACTIVATION. Waiting on the wrong one
+            // waited for the retry timer to have fired and failed once — a rung
+            // deeper into the chain than this step wants, and it then raced
+            // `reachable()` against a chain already in flight (#290).
+            () => messages.some((m) => m.includes('reconnecting in')),
             'the read loop faulted and scheduled a reconnect retry',
             4000,
         )
         // `false` arrives second, into the chain a reconnect already owns.
+        //
+        // PREMISE, and it leaves no trace: this dial must be REFUSED, which
+        // holds only because `connect()` runs synchronously into `#dial` before
+        // the next statement re-binds the port. `#scheduleRetry` returns at its
+        // `#retryTimer !== undefined` guard BEFORE it logs or counts, so a
+        // coalesced second failure is invisible — no line, no attempt count, no
+        // server-side event. If an `await` ever appears ahead of `#dial` this
+        // test silently degrades into a slower FR-022 and stays green under the
+        // same name. The battery's row 4 attribution is the only other evidence
+        // that the demotion path is exercised at all; treat it as load-bearing.
         sub.psubscribe('late:*', () => {})
         server.reachable()
         await waitFor(
@@ -1190,6 +1205,231 @@ Deno.test('FR-017: a coalesced retry chain latches toward "reconnect", never awa
             1,
             'the recovery is still a reconnect. A demoted chain fires nothing ' +
                 'and the consumer never runs its post-reconnect reconciliation',
+        )
+    } finally {
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('FR-022: the activation that ENDS an outage is a reconnect, whichever caller drove it', async () => {
+    // #290. The latch used to live only on the retry chain: `#scheduleRetry`
+    // recorded the intent, and the timer callback CONSUMED it on the way into
+    // `#activate`. So an ordinary `psubscribe()` — a user joining a new room —
+    // that happened to be the call which re-dialled a healed broker restored
+    // delivery while carrying `isReconnect: false`, and the seam did not fire.
+    //
+    // Not skipped, LATE: the pending retry still fired it up to `retryMaxMs`
+    // (30s by default) later, by which point frames had been flowing for the
+    // whole window. #271's whole point is that the seam is the FAST path.
+    //
+    // Reconnect intent is a property of the OUTAGE, not of the caller that
+    // happens to drive the activation ending it — so the latch is now read at
+    // activation time and cleared only by an activation that SUCCEEDS.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        keepaliveMs: 40,
+        livenessMs: 500,
+        // Only to hold the retry chain pending across the window below. Full
+        // jitter means the delay is uniform in [1, 3000), so a retry CAN still
+        // land inside it — see the premise pin before the assertion.
+        retryBaseMs: 3000,
+        retryMaxMs: 3000,
+    })
+    let fires = 0
+    using warn = liveWarnings()
+    const messages = warn.messages
+    try {
+        sub.onReconnect(() => void fires++)
+        sub.psubscribe('app:*', () => {})
+        await waitFor(
+            () => psubscribeCount(server, 'app:*') >= 1,
+            'the first PSUBSCRIBE reached the wire',
+        )
+        server.unreachable()
+        await waitFor(
+            // The message the read-fault path actually logs. `'retrying in'`
+            // belongs to the failed-activation path, and waiting on it here
+            // means waiting for the retry timer to have fired AND failed once —
+            // one whole rung deeper into the chain than this step needs.
+            () => messages.some((m) => m.includes('reconnecting in')),
+            'the read loop faulted and scheduled a reconnect',
+            4000,
+        )
+        // PIN THE PREMISE: nothing has fired yet, so a `1` below is this
+        // activation's doing and not a leftover from the first connect.
+        assertEquals(fires, 0, 'the seam has not fired during the outage')
+
+        // Synchronous pair, deliberately: a `setTimeout` callback cannot
+        // interleave between two statements in one tick, so the pending retry
+        // cannot be the call that observes a healed broker first.
+        server.reachable()
+        sub.psubscribe('late:*', () => {})
+
+        // Gate on the CLIENT-side event this test asserts. Waiting on the
+        // server's command log instead gates on a different task in the same
+        // event loop: the fake server can parse the frame before the client's
+        // write-promise continuation resumes and reaches the latch, so the
+        // assertion sampled `0` on correct code. Observed failing 1 run in 10
+        // under concurrent load — the same wrong-event mistake the FR-017
+        // predicate above was changed to fix.
+        await waitFor(
+            () => fires >= 1,
+            'the activation that healed the broker fired the seam',
+            4000,
+        )
+        // ATTRIBUTION, which the `fires === 0` pin above cannot give: full
+        // jitter puts the pending retry anywhere in [1, 3000)ms, so it CAN
+        // land in this window and heal the broker itself — passing this test
+        // green while exercising the old path. A retry-timer activation
+        // re-issues EVERY recorded pattern on the shared single-flight socket,
+        // so it is visible on the wire: these counts would read 3 and 2.
+        assertEquals(
+            psubscribeCount(server, 'app:*'),
+            2,
+            'exactly one activation re-issued the patterns after the outage',
+        )
+        assertEquals(psubscribeCount(server, 'late:*'), 1)
+        assertEquals(
+            fires,
+            1,
+            'the seam fires with the activation that restored delivery, not ' +
+                'up to retryMaxMs later. A consumer reconciling what the lost ' +
+                'frames carried has not bounded the exposure if it runs after ' +
+                'the frames are already flowing',
+        )
+    } finally {
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('FR-023: the reconnect intent is consumed ONCE — a later psubscribe on a healthy socket fires nothing', async () => {
+    // The other half of #290's latch: it is read at activation time, so it must
+    // also be CLEARED there. Left set, every subsequent activation on a
+    // perfectly healthy socket reports a reconnect that is not happening — and
+    // `psubscribe()` is an activation, so an app adding rooms would run the
+    // consumer's revocation reconciliation on every join, forever.
+    //
+    // Cheap on purpose: it needs a healed outage and one ordinary subscribe
+    // afterwards, not a second outage.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        keepaliveMs: 40,
+        livenessMs: 500,
+        retryBaseMs: 20,
+        retryMaxMs: 20,
+    })
+    let fires = 0
+    // Captured only to keep the retry chain's WARN lines off the test output;
+    // nothing here asserts on them.
+    using warn = liveWarnings()
+    void warn
+    try {
+        sub.onReconnect(() => void fires++)
+        sub.psubscribe('app:*', () => {})
+        await waitFor(
+            () => psubscribeCount(server, 'app:*') >= 1,
+            'the first PSUBSCRIBE reached the wire',
+        )
+        // Drop every socket while the listener stays bound: the read loop
+        // faults, the retry chain re-dials straight away, and the seam fires
+        // exactly once for that outage. (`unreachable()` + `reachable()` in one
+        // tick cannot work here — the OS has not released the port yet.)
+        server.dropConnections()
+        await waitFor(() => fires >= 1, 'the outage was reconciled', 4000)
+        const afterRecovery = fires
+        // Pinned, not merely captured: asserting a zero DELTA below is blind to
+        // an outage that fired twice, which is the very property the
+        // clear-before-await ordering protects.
+        assertEquals(afterRecovery, 1, 'one outage, one fire')
+
+        // An ORDINARY subscribe now — a user joining a room on a socket that is
+        // healthy and has nothing outstanding.
+        sub.psubscribe('later:*', () => {})
+        await waitFor(
+            () => psubscribeCount(server, 'later:*') >= 1,
+            'the later pattern reached the wire on the live socket',
+        )
+        await new Promise((r) => setTimeout(r, 200))
+        assertEquals(
+            fires,
+            afterRecovery,
+            'the intent was already consumed by the activation that ended the ' +
+                'outage. Firing again means every future subscribe re-runs the ' +
+                'consumer reconciliation on a connection that lost nothing',
+        )
+    } finally {
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('FR-025: two activations racing ONE outage fire the seam once, not twice', async () => {
+    // The clear-before-await ordering at the consume site had a comment
+    // claiming this guarantee and nothing exercising it (#290 review, MEDIUM).
+    //
+    // `connect()` is single-flight, so two `psubscribe()` calls in one tick
+    // during an outage become two activations over ONE socket, and both reach
+    // the latch. Clearing before the handler is awaited is what makes the
+    // second read `false`. Move the clear below the `await` and the first
+    // activation is still suspended inside the handler when the second reads
+    // `true` — two reconciliations for one outage, on a consumer whose whole
+    // point is that it runs once per lost-frame window.
+    //
+    // The 50ms handler is what makes this deterministic rather than lucky: the
+    // second activation is guaranteed to reach the latch while the first is
+    // suspended in `#fireReconnect`.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        keepaliveMs: 200,
+        livenessMs: 500,
+        // Long enough that the retry chain is a bystander here; the two
+        // psubscribe activations are the subject.
+        retryBaseMs: 5000,
+        retryMaxMs: 5000,
+    })
+    let fires = 0
+    using warn = liveWarnings()
+    const messages = warn.messages
+    try {
+        sub.onReconnect(async () => {
+            fires++
+            await new Promise((r) => setTimeout(r, 50))
+        })
+        sub.psubscribe('app:*', () => {})
+        await waitFor(
+            () => psubscribeCount(server, 'app:*') >= 1,
+            'the first PSUBSCRIBE reached the wire',
+        )
+        server.dropConnections()
+        await waitFor(
+            () => messages.some((m) => m.includes('reconnecting in')),
+            'the read loop faulted and latched the intent',
+            4000,
+        )
+        // ONE tick, two activations, one single-flight dial.
+        sub.psubscribe('x:*', () => {})
+        sub.psubscribe('y:*', () => {})
+        await waitFor(
+            () =>
+                psubscribeCount(server, 'x:*') >= 1 &&
+                psubscribeCount(server, 'y:*') >= 1,
+            'both activations reached the wire over the shared socket',
+            4000,
+        )
+        await new Promise((r) => setTimeout(r, 300))
+        assertEquals(
+            fires,
+            1,
+            'one outage, one reconciliation. Two activations sharing a socket ' +
+                'must not each report the recovery',
         )
     } finally {
         await sub.close()
@@ -1252,6 +1492,15 @@ Deno.test('FR-006: close() cancels a PENDING retry', async () => {
     // The witness is therefore the timer itself, same as FR-008.
     const realSetTimeout = globalThis.setTimeout
     const realClearTimeout = globalThis.clearTimeout
+    // PIN THE JITTER. `#scheduleRetry` uses FULL jitter — the delay is uniform
+    // in [1, ceiling), not anchored near it — so `retryBaseMs` is not the floor
+    // the config below once called it. A low draw fires the retry before
+    // `close()` reaches it, leaving no pending timer to cancel and failing this
+    // test with nothing wrong in the subject. Observed at ~5% once #290 made
+    // the file long enough to widen the window. Near-1 keeps the delay at the
+    // top of the range, which is the premise this test needs and never had.
+    const realRandom = Math.random
+    Math.random = () => 0.999
     const cleared: unknown[] = []
     // Keyed on the EXACT delay the WARN reports, not a range. A first draft
     // captured every timer between 1 and 200ms and stayed green under mutation,
@@ -1289,8 +1538,8 @@ Deno.test('FR-006: close() cancels a PENDING retry', async () => {
             port: server.port,
             keepaliveMs: 50,
             livenessMs: 200,
-            // A floor well above the poll interval so the pending retry is
-            // still pending when close() runs.
+            // The ceiling, not a floor — see the `Math.random` pin above, which
+            // is what actually keeps the retry pending until close() runs.
             retryBaseMs: 150,
             retryMaxMs: 150,
         })
@@ -1300,11 +1549,19 @@ Deno.test('FR-006: close() cancels a PENDING retry', async () => {
             'a retry is scheduled and still pending',
             4000,
         )
-        // EVERY announced delay, not just the first. Jitter can draw a 1ms
-        // delay, so the first retry may already have fired and re-scheduled
-        // under a different delay before close() lands — an earlier version
-        // tracked only the first and failed intermittently for that reason,
-        // with nothing wrong in the subject.
+        await sub.close()
+        // EVERY announced delay, not just the first, and scanned AFTER close().
+        // Jitter can draw a 1ms delay, so the pending retry may fire and
+        // re-schedule under a different delay at any moment — an earlier
+        // version tracked only the first and failed intermittently for that
+        // reason. Snapshotting the set BEFORE close() had the same defect one
+        // step removed: a retry re-arming between the scan and the close left
+        // the surviving timer's delay outside `announced`, so the only id
+        // examined was one that had already fired and could never have been
+        // cleared. Observed once in 96 concurrent runs, and the window is a
+        // function of how long the whole file takes — #290 added three tests
+        // and pushed it from 14s to 22s. Reading the live `messages` and
+        // `byDelay` after the close closes the window instead of narrowing it.
         const announced = messages
             .flatMap((m) => {
                 const hit = /retrying in (\d+)ms/.exec(m)
@@ -1316,7 +1573,6 @@ Deno.test('FR-006: close() cancels a PENDING retry', async () => {
             retryIds.length >= 1,
             `no timer was armed with any announced delay (${announced})`,
         )
-        await sub.close()
         assert(
             retryIds.some((id) => cleared.includes(id)),
             'close() left the pending retry scheduled — harmless once, and ' +
@@ -1325,6 +1581,7 @@ Deno.test('FR-006: close() cancels a PENDING retry', async () => {
     } finally {
         globalThis.setTimeout = realSetTimeout
         globalThis.clearTimeout = realClearTimeout
+        Math.random = realRandom
         server.stop()
     }
 })
