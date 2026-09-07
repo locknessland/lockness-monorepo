@@ -12,7 +12,7 @@
  */
 
 import { renderError, safeForLog } from '@lockness/contract'
-import { isValidName } from './protocol.ts'
+import { isValidName, MAX_NAME_LENGTH } from './protocol.ts'
 
 /**
  * A connection id the control plane cannot carry.
@@ -22,6 +22,25 @@ import { isValidName } from './protocol.ts'
  * and those want different handling: a dead socket is operational, an unusable
  * id is a bug in the caller's own code that no retry will fix.
  */
+export class PresenceMemberIdError extends Error {
+    override readonly name = 'PresenceMemberIdError'
+
+    /**
+     * @param id - The offending id, encoded before it reaches the message.
+     */
+    constructor(id: string) {
+        super(
+            `realtime: presence member id ${safeForLog(id)} is unusable — it ` +
+                `must be a finite value whose string form is 1 to ` +
+                `${MAX_NAME_LENGTH} characters (#306). It becomes a Redis ` +
+                'hash field on the authoritative roster, and an oversized one ' +
+                'is written there BEFORE the control frame that announces it ' +
+                'is refused for size — leaving the member on this instance, ' +
+                'absent from every other, and `subscribe` still answering ok.',
+        )
+    }
+}
+
 export class ConnectionIdError extends Error {
     override readonly name = 'ConnectionIdError'
 
@@ -238,6 +257,56 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * Assert a presence member's id can cross the control plane and land in
+     * the roster (#306).
+     *
+     * **LENGTH ONLY, and the charset is deliberately NOT constrained.** This
+     * value is application identity, not a framework-minted name: real
+     * deployments key presence on an email, a username or an external
+     * provider's id, and `isValidName`'s charset rejects `a@b.com` on the `@`.
+     * Borrowing {@link Connection.id}'s charset here would break those
+     * applications to buy nothing, because the three ways a hostile id could
+     * hurt are all closed elsewhere:
+     *
+     * - Not command injection — `encodeCommand` emits length-prefixed RESP
+     *   bulk strings, so a CRLF or a space in the value cannot forge a command.
+     * - Not owned-set parser confusion — the entry is `<channel> <field>` and
+     *   the parse is `indexOf(' ')`, which takes the FIRST space. `channel` is
+     *   charset-bounded, so the separator is unambiguous and a field may
+     *   contain spaces freely. (#306 credited the MEMBER id's charset for this,
+     *   which does not exist; the channel's is what makes it hold.)
+     * - Not frame forgery — control frames carry a MAC.
+     *
+     * What is NOT closed elsewhere is length. The id becomes a Redis hash field
+     * on the authoritative roster, and the only two caps upstream of it are a
+     * 10 MiB RESP frame and an 8 KiB control payload — neither a bound on this
+     * value. Worse, the roster write happens BEFORE the control publish, and
+     * the oversize check there only warns and returns: an oversized id is
+     * already in the hash while the frame announcing it is silently dropped and
+     * `subscribe` still answers `{ ok: true }`. Refusing at the boundary is
+     * what keeps that from being a partial write.
+     *
+     * A NUMERIC id is checked as a number first. `String(1e21)` is `"1e+21"`,
+     * whose `+` is outside `isValidName` — which is why a charset predicate
+     * could not be applied to this type without rejecting a legitimate large
+     * integer. Length has no such problem. Non-finite numbers are refused
+     * outright: `String(NaN)` is `"NaN"`, a perfectly ordinary-looking field
+     * name that every NaN-identified member would silently share.
+     *
+     * @param id - The member id to check, as supplied by `authorize()`.
+     * @throws {PresenceMemberIdError} If the id is empty, over
+     *   {@link MAX_NAME_LENGTH} characters, or a non-finite number.
+     */
+    #assertUsableMemberId(id: string | number): void {
+        if (typeof id === 'number' && !Number.isFinite(id)) {
+            throw new PresenceMemberIdError(String(id))
+        }
+        const text = String(id)
+        if (text.length > 0 && text.length <= MAX_NAME_LENGTH) return
+        throw new PresenceMemberIdError(text)
+    }
+
+    /**
      * Register a live connection (call from the handler's `onOpen`).
      *
      * @param connection - The connection to track.
@@ -288,6 +357,10 @@ export class ChannelManager<Identity = unknown> {
             if (result === false) return { ok: false }
             if (kind === 'presence') {
                 member = result === true ? { id: connection.id } : result
+                // BEFORE the roster write and before the control publish
+                // (#306). Asserting after either one is what makes an
+                // oversized id a partial write rather than a refusal.
+                this.#assertUsableMemberId(member.id)
             }
         }
 
