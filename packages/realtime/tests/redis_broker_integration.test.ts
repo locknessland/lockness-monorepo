@@ -596,6 +596,27 @@ integrationTest(
 //   | 5 | the sweep `DEL`s the whole presence hash           | RED      |
 //   | 6 | the `if (alive === 0)` liveness gate is removed    | RED      |
 //   | 7 | the `id === this.instanceId` self-skip is removed  | GREEN    |
+//   | 8 | the owned-entry parse splits on the LAST space      | RED      |
+//   | 9 | `if (sep < 0) continue` becomes `sep <= 0`          | GREEN    |
+//
+// **Rows 8 and 9 are #316**, and row 8 is the reason `GHOST_MEMBER_ID` exists.
+// The parse (`entry.indexOf(OWNED_SEP)`) ran on every pass of this scenario for
+// the whole of #281 and could not be observed, because the fixture id was `2`:
+// with one space in the entry, `indexOf` and `lastIndexOf` return the same
+// index. Executing a line is not covering it. With a two-space id the mutation
+// splits `presence-ops Boris Ivanov Jr` into channel `presence-ops Boris
+// Ivanov` and field `Jr`, the `HDEL` hits a key that does not exist, and the
+// ghost is never reclaimed — #314's second consequence, reached from the sweep
+// side instead of the guard side.
+//
+// Row 9 is GREEN and is an EQUIVALENT mutant, recorded rather than dropped: the
+// two forms differ only at `sep === 0`, an entry that BEGINS with a space, which
+// means an empty channel name. `ChannelManager.subscribe` refuses that
+// (#314's `#assertUsableChannel`, via `isValidName`), so no `addMember` can
+// write one. The guard being unreachable from a valid input is the desired
+// state, exactly as for row 7.
+//
+// Both rows are automated in `tests/mutations/sweep_parse_316.ts`.
 //
 // **Row 6 is why there are three instances.** It was GREEN — in 269ms — when
 // this scenario had only a survivor and a corpse, and it is the DESTRUCTIVE
@@ -642,6 +663,31 @@ const SWEEP_HEARTBEAT_MS = 250
 const SWEEP_RECONCILE_MS = 250
 /** Generous: the TTL is 1s, so this is ~8 chances to observe the sweep. */
 const SWEEP_TIMEOUT_MS = 8_000
+
+/** Which instance `withInstances` hands to the crash — the second of three. */
+const DOOMED_INDEX = 1
+/**
+ * The doomed instance's presence member id, carrying TWO spaces (#316).
+ *
+ * Not decoration. The owned-set entry is `` `${channel} ${memberId}` `` and the
+ * sweep splits it on the FIRST space — a choice that is **unobservable** while
+ * the id has no space of its own, because `indexOf` and `lastIndexOf` then
+ * return the same index. This scenario ran for the whole of #281 with the id
+ * `2`, executing the parse on every pass and unable to notice if it reversed.
+ *
+ * Two spaces, not one: with one, `lastIndexOf` still yields a channel that is
+ * wrong but a field that is right, and the `HDEL` misses for a reason harder to
+ * read. With `Boris Ivanov Jr` the split lands at channel
+ * `presence-ops Boris Ivanov`, field `Jr`, and the ghost is simply never
+ * reclaimed.
+ *
+ * A spaced id is a SUPPORTED input, not a hostile one: #306 left
+ * `PresenceMember.id` charset-free on purpose (an email, a display name, an
+ * external id), and #314's `OWNED_SEP` docstring promises in as many words that
+ * a member id after the first space may contain more. This fixture is what
+ * makes that promise a test rather than a claim.
+ */
+const GHOST_MEMBER_ID = 'Boris Ivanov Jr'
 
 integrationTest(
     'US5/FR-008: a crashed instance’s members are swept, and a LIVE peer’s are not',
@@ -738,8 +784,13 @@ integrationTest(
                     }
                     throw new Error(`no owned-set holds ${entry}`)
                 }
-                // `${channel} ${field}` — OWNED_SEP is a space (drivers/redis.ts:423).
-                const ghostSet = await ownerOf('presence-ops 2')
+                // `${channel} ${field}` — OWNED_SEP is a space, and the sweep
+                // splits on the FIRST one (drivers/redis.ts, `OWNED_SEP`).
+                // `GHOST_MEMBER_ID` holds two more spaces after it, so this
+                // lookup is also the fixture that makes that choice observable.
+                const ghostSet = await ownerOf(
+                    `presence-ops ${GHOST_MEMBER_ID}`,
+                )
 
                 // The crash. No SREM, no DEL — the liveness key must lapse on its
                 // own and a survivor must act on that.
@@ -801,6 +852,21 @@ integrationTest(
                 reconcileIntervalMs: SWEEP_RECONCILE_MS,
                 livenessTtlSeconds: SWEEP_LIVENESS_SECONDS,
                 heartbeatIntervalMs: SWEEP_HEARTBEAT_MS,
+                // Only the DOOMED instance gets the spaced id. The survivor and
+                // the bystander keep numeric ids so the surviving-roster
+                // assertion below stays an exact `['1', '3']` — the ghost is the
+                // one whose reclamation the separator governs, and giving all
+                // three spaced ids would test the parse three times while making
+                // the liveness-gate assertion harder to read.
+                authorize: (index) => (identity) =>
+                    identity
+                        ? {
+                            id: index === DOOMED_INDEX
+                                ? GHOST_MEMBER_ID
+                                : identity.id,
+                            info: { name: identity.name },
+                        }
+                        : false,
             },
         )
     },
