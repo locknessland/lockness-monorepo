@@ -311,6 +311,59 @@ cannot contain one — so a member id containing spaces is unambiguous. That las
 clause was a convention until #314 and is now a refusal: `subscribe` throws
 `ChannelNameError` on a channel outside the same charset.
 
+### `PresenceMember.info` has a ceiling, and it is the whole control frame
+
+`info` is the one presence field nothing bounds, and it is the field the docs
+send you to for avatars and profile blobs. The limit is not on `info` itself: a
+presence join is announced to other instances as a **signed control frame**
+carrying the whole member, and the driver refuses to publish a frame over
+`control.maxPayloadBytes` — **8192 bytes by default** — because every peer would
+drop it on ingest anyway.
+
+What a refusal costs is narrow and worth stating exactly, because it is easy to
+over- or under-read:
+
+- The join **succeeds**. `subscribe` returns `{ ok: true }`.
+- The **authoritative roster is written and correct**. Anyone who reads it —
+  including the snapshot handed back to the joiner — sees the member.
+- What is lost is the live `joined` push to peers **already in the channel**.
+  Their clients hold a stale roster until they resubscribe.
+- `disconnect` removes the member on the ordinary path, so the staleness lasts
+  the connection's lifetime and no longer.
+
+That behaviour is deliberate (#312): rolling the roster write back would trade a
+lost notification for a real state divergence — the member locally subscribed
+and absent from the authoritative store.
+
+**Budget `info` against the frame, not against 8192.** The frame also carries
+the kind, the target, the channel, the origin instance id, a timestamp, a nonce
+and a MAC, so the member's own share is a few hundred bytes less than the
+ceiling. Keep `info` to identity-shaped values — a display name, an avatar
+**URL** — and put the blob behind that URL.
+
+#### Seeing it happen
+
+A refusal is a `console.warn` on the single instance that refused, which is
+nobody's alert. Register the driver seam to get it somewhere an operator can act
+on:
+
+```ts
+driver.onControlRefused((refusal) => {
+    // refusal.reason — 'oversize' | 'no-secret'
+    // refusal.kind, refusal.channel, refusal.bytes, refusal.limit
+    metrics.increment('realtime.control_refused', {
+        reason: refusal.reason,
+        channel: refusal.channel ?? '-',
+    })
+})
+```
+
+The two reasons have different fixes — shrink the member, or configure a control
+secret — which is why `reason` is an enum rather than a message. A handler that
+throws is contained and logged: this seam reports on a path whose whole point is
+that the failure is already being swallowed, so it must never make publishing
+more fragile than it was without it.
+
 ### The channel name is bounded too, by the same charset as a connection id
 
 `subscribe` throws `ChannelNameError` on a channel outside
