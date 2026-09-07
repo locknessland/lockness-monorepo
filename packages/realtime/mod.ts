@@ -62,6 +62,7 @@ export {
     // fixes" from "a dead socket" on the shared `onError` hook — which needs
     // `instanceof`, which needs this line. #306 adds the presence-member
     // sibling and closes the same gap for it.
+    ChannelNameError,
     ConnectionIdError,
     type OutboundFrame,
     PresenceMemberIdError,

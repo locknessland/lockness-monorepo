@@ -22,6 +22,23 @@ import { isValidName, MAX_NAME_LENGTH } from './protocol.ts'
  * and those want different handling: a dead socket is operational, an unusable
  * id is a bug in the caller's own code that no retry will fix.
  */
+export class ChannelNameError extends Error {
+    override readonly name = 'ChannelNameError'
+
+    /**
+     * @param channel - The offending name, encoded before it reaches the message.
+     */
+    constructor(channel: string) {
+        super(
+            `realtime: channel name ${safeForLog(channel)} is outside the ` +
+                'supported charset (letters, digits and : . _ -, at most 200 ' +
+                'characters). The control plane drops frames naming a channel ' +
+                'outside it, so a presence join would succeed on this instance ' +
+                'and be silently dropped by every other one.',
+        )
+    }
+}
+
 export class PresenceMemberIdError extends Error {
     override readonly name = 'PresenceMemberIdError'
 
@@ -271,10 +288,13 @@ export class ChannelManager<Identity = unknown> {
      * - Not command injection — `encodeCommand` emits length-prefixed RESP
      *   bulk strings, so a CRLF or a space in the value cannot forge a command.
      * - Not owned-set parser confusion — the entry is `<channel> <field>` and
-     *   the parse is `indexOf(' ')`, which takes the FIRST space. `channel` is
-     *   charset-bounded, so the separator is unambiguous and a field may
-     *   contain spaces freely. (#306 credited the MEMBER id's charset for this,
-     *   which does not exist; the channel's is what makes it hold.)
+     *   the parse is `indexOf(' ')`, which takes the FIRST space, so a field
+     *   may contain spaces freely. That rests on the channel containing none —
+     *   which #306 asserted and **nothing enforced**: `isValidName` ran only on
+     *   the WebSocket wire, never on `subscribe`'s public path. #314 added
+     *   {@link #assertUsableChannel}, and this claim now cites an enforcement
+     *   point instead of a convention. (#306 originally credited the MEMBER
+     *   id's charset, which does not exist at all.)
      * - Not frame forgery — control frames carry a MAC.
      *
      * What is NOT closed elsewhere is length. The id becomes a Redis hash field
@@ -297,6 +317,44 @@ export class ChannelManager<Identity = unknown> {
      * @throws {PresenceMemberIdError} If the id is empty, over
      *   {@link MAX_NAME_LENGTH} characters, or a non-finite number.
      */
+    /**
+     * Assert a channel name can cross the control plane and be parsed back out
+     * of the roster's owned-member set (#314).
+     *
+     * **`subscribe` asserted two of the three values it received and skipped
+     * this one.** `connection.id` goes through `#assertUsableId` (#304) and a
+     * presence `member.id` through `#assertUsableMemberId` (#306); the channel
+     * went through nothing. The only channel validation in the package was
+     * `decodeClientMessage`, which guards the WebSocket wire — so the
+     * framework's own socket path refused a name the public programmatic API
+     * accepted, which is the asymmetry #304 was opened about, one value over.
+     *
+     * Two consequences were live, both reachable with a channel containing a
+     * space:
+     *
+     * - **Cross-instance presence stopped working for that channel.** The
+     *   `presence-join` control frame carries it, and every receiving instance
+     *   drops the frame on ingest for exactly this charset. The join succeeded
+     *   locally, `subscribe` answered `{ ok: true }`, and no peer ever learned.
+     * - **The ghost sweep mis-parsed.** An owned-set entry is
+     *   `` `${channel} ${field}` `` and the sweep splits on the FIRST space, so
+     *   `presence-my room` + `u1` split to channel `presence-my` and field
+     *   `room u1`. The `HDEL` then hit a key that does not exist and the members
+     *   were never reclaimed. Only the death-recovery path broke — the ordinary
+     *   `removeMember` re-joins the full string — which is why nothing caught it.
+     *
+     * Two shipped docstrings already asserted this invariant
+     * (`OWNED_SEP`'s and {@link #assertUsableMemberId}'s), which is worse than a
+     * gap: the next reader takes it as settled. Both now cite this method.
+     *
+     * @param channel - The channel name to check.
+     * @throws {ChannelNameError} If the name is outside `isValidName`.
+     */
+    #assertUsableChannel(channel: string): void {
+        if (isValidName(channel)) return
+        throw new ChannelNameError(channel)
+    }
+
     #assertUsableMemberId(id: string | number): void {
         if (typeof id === 'number' && !Number.isFinite(id)) {
             throw new PresenceMemberIdError(String(id))
@@ -344,6 +402,11 @@ export class ChannelManager<Identity = unknown> {
         // public channel — and the authorizer (a DB read, an audit write, a
         // rate-limit increment) ran on an id that was never usable.
         this.#assertUsableId(connection.id)
+        // BEFORE `channelKind` and before the awaited authorizer, for the same
+        // reason the id assertion is (#314): the authorizer may be a DB read, an
+        // audit write or a rate-limit increment, and running it for a channel
+        // that can never work spends that side effect on nothing.
+        this.#assertUsableChannel(channel)
         const kind = channelKind(channel)
 
         let member: PresenceMember | undefined
@@ -433,6 +496,13 @@ export class ChannelManager<Identity = unknown> {
      * @param channel - The channel to leave.
      * @returns Resolves once the roster removal and `left` announcement have run.
      */
+    // DELIBERATELY NOT CHANNEL-ASSERTED (#314). This is a REMOVAL path, and
+    // refusing a removal strands the state it would have removed. It is also
+    // reached from `disconnect`, which iterates `subscriptions.keys()` — so on
+    // a process that predates the boundary guard, throwing here would make
+    // every disconnect fail on the first legacy name and leak every channel
+    // after it. Accepting a name we would no longer create is the correct
+    // asymmetry: creation is guarded, cleanup is total.
     async unsubscribe(clientId: string, channel: string): Promise<void> {
         this.subscriptions.get(channel)?.delete(clientId)
         const members = this.presence.get(channel)
@@ -595,6 +665,13 @@ export class ChannelManager<Identity = unknown> {
      * @param event - The event name.
      * @param data - The payload.
      */
+    // DELIBERATELY NOT CHANNEL-ASSERTED (#314). A broadcast reaches only a
+    // PUBLISH, which is a literal context, and `deliverLocal` re-keys on the
+    // channel recovered from the delivered topic. With `subscribe` guarded
+    // nothing can be subscribed to an unusable name, so a broadcast to one
+    // fans out to an empty set — inert, not incorrect. Guarding it would add a
+    // throw on a path that cannot produce the failure this issue is about,
+    // while breaking a caller mid-flight during an upgrade.
     broadcast(channel: string, event: string, data: unknown): void {
         try {
             const result = this.driver.publish({ channel, event, data })
