@@ -79,6 +79,11 @@ app.get(
   `listRevoked()`, plus `onRevocationReconcile(handler)` to say when the
   re-check runs; all three are optional, and a driver that omits them gets
   fire-and-forget eviction. See [realtime.md](../../docs/realtime.md).
+- **Refusal reporting** — the fourth optional seam. `onControlRefused(handler)`
+  hands you a `ControlRefusal` (`reason`, `kind`, `channel`, `bytes`, `limit`)
+  whenever the driver declines to publish a control frame, so an oversized
+  presence member is something you can alert on rather than a WARN on one
+  instance. See [realtime.md](../../docs/realtime.md).
 - **A broadcaster** that satisfies `@lockness/notification`'s `BroadcasterLike`
   — real-time is a drop-in notifications broadcast transport.
 - **A JSON wire protocol** + an optional browser client helper.

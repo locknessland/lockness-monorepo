@@ -348,15 +348,20 @@ nobody's alert. Register the driver seam to get it somewhere an operator can act
 on:
 
 ```ts
-driver.onControlRefused((refusal) => {
-    // refusal.reason — 'oversize' | 'no-secret'
-    // refusal.kind, refusal.channel, refusal.bytes, refusal.limit
+import type { ControlRefusal } from '@lockness/realtime'
+
+driver.onControlRefused((refusal: ControlRefusal) => {
+    // reason — 'oversize' | 'no-secret'
+    // kind, channel, and for an oversize refusal: bytes and limit
     metrics.increment('realtime.control_refused', {
         reason: refusal.reason,
         channel: refusal.channel ?? '-',
     })
 })
 ```
+
+`ControlRefusal` is exported from `@lockness/realtime`, and `onControlRefused`
+is optional on `BroadcastDriver` — a custom driver that omits it is unaffected.
 
 The two reasons have different fixes — shrink the member, or configure a control
 secret — which is why `reason` is an enum rather than a message. A handler that
