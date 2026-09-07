@@ -86,14 +86,27 @@ Anything not listed is internal and free to change.
   above half the TTL
   ([#293](https://github.com/locknessland/lockness-monorepo/issues/293)); two
   beats per window, because one lands on the boundary and races the expiry.
-- **Refusing a bad state can move a mutant FURTHER from killable.** #293 was
-  filed expecting its guard to make the `id === this.instanceId` self-skip a
-  killable mutant. It does the opposite: the row diverges only when an instance
+- **Refusing a bad state can move a mutant FURTHER from killable — and
+  "unreachable" is a claim about the CONFIGURATION, not about the guard.** #293
+  was filed expecting its guard to make the `id === this.instanceId` self-skip a
+  killable mutant. It did the opposite: the row diverges only when an instance
   lets its own liveness key lapse, and the guard makes that configuration
   unconstructible. Measured on a real broker after the guard landed — still
-  green. A guard that is unreachable from every valid configuration is the
-  desired state, not a redundancy to delete, and "we added validation, so the
-  mutant is now covered" is the reasoning to distrust.
+  green. "We added validation, so the mutant is now covered" remains the
+  reasoning to distrust.
+
+  **That closed the configural path and left the transient one open**, and the
+  row is RED since
+  [#310](https://github.com/locknessland/lockness-monorepo/issues/310): the
+  liveness `SET` can fail for a window while the instance is otherwise healthy —
+  `#heartbeat` catches and logs at WARN, so it keeps accepting joins and writing
+  rosters while its own key expires underneath it. `withFaultyInstance`
+  (`tests/live_realtime.ts`) injects exactly that and nothing else; the battery
+  is `tests/mutations/self_skip_310.ts`, and it SURVIVES against the suite
+  without that scenario. The self-skip would have stayed either way — a guard
+  unreachable from every valid configuration is the desired state, not a
+  redundancy to delete — but unreachability is no longer the reason for leaving
+  it untested.
 
 - **Assert on `commandLog()`, never on a wrapped `command`.** A test that wraps
   the driver's `command` function sees only what the driver issues _directly_ —
