@@ -53,7 +53,7 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                              |
 | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ChannelManager`, `MemoryBroadcastDriver`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                                                                                                                      |
+| class     | `ChannelManager`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                                                                        |
 | function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                         |
 | interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `Connection`, `ControlMessage`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
 | typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ClientMessage`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                              |
@@ -187,7 +187,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-35 test files for 21 source files:
+36 test files for 22 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channels.test.ts`
@@ -218,6 +218,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/prefix_anchoring.test.ts`
 - `packages/realtime/tests/presence.test.ts`
 - `packages/realtime/tests/presence_authoritative.test.ts`
+- `packages/realtime/tests/presence_member_id.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
 - `packages/realtime/tests/presence_sweep.test.ts`
 - `packages/realtime/tests/protocol.test.ts`
@@ -239,7 +240,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 35 test files directly —
+Then, specific to this package: run its 36 test files directly —
 
 ```bash
 deno test -A packages/realtime/
