@@ -5,9 +5,37 @@
  * `PUBLISH`, the roster hash (`HSET`/`HDEL`/`HGETALL`), the owned/instances sets
  * (`SADD`/`SREM`/`SMEMBERS`/`DEL`) and the liveness string (`SET … EX`/`EXISTS`)
  * — returning `RespReply`-shaped values so the driver's real reply-narrowing
- * runs unchanged. String TTL is evaluated against `Date.now()`, so a `FakeTime`
- * test drives key expiry deterministically. Pub/sub fan-out is synchronous, like
- * the existing `driver_redis.test.ts` fake bus.
+ * runs unchanged. Pub/sub fan-out is synchronous, like the existing
+ * `driver_redis.test.ts` fake bus.
+ *
+ * **One clock and one expiry registry** (#280). Every arm reads `#now()`, which
+ * {@link FakeRedis.setTime} overrides, and every TTL lives in `#keyExpiry` in
+ * epoch seconds regardless of the value's type. Before that there were two of
+ * each: `EXPIRE` and the sorted-set TTL honoured `setTime()` while `SET … EX`
+ * and the string liveness check read the wall clock, so advancing the clock
+ * expired sorted sets and never expired string keys — and either half could be
+ * the one a test believed.
+ *
+ * **An option this fake does not model is REFUSED, never ignored.** #276
+ * shipped a security fix that was wrong twice with a green suite because an
+ * ignored option token made an inert guard look like a working one. Refusals go
+ * through a ledger, so a driver that catches and warns — which it does around
+ * its heartbeat, its reconcile and its revocation pass — cannot turn a
+ * modelled divergence back into silence: call
+ * {@link FakeRedis.assertNoRejections} in a teardown.
+ *
+ * **Not everything is modelled, and that is stated rather than implied.** The
+ * arms cover the commands the driver issues; anything else throws from the
+ * `default:`. Within a modelled arm, an unread argument is a bug — see the
+ * pitfall in `packages/realtime/AGENTS.md`.
+ *
+ * **`setTime()` now reaches the liveness key.** Unifying the clock means a
+ * test that moves the fake clock by hundreds of seconds expires the driver's
+ * `SET … EX` alive key too, where before it never expired inside a test.
+ * Nothing depends on that today — `#reconcile` runs on a real `setInterval`
+ * that does not fire inside a sub-millisecond test — but a test that later
+ * gains a reconcile tick will see instances swept that used to read as alive.
+ * Stated here rather than left to be discovered.
  *
  * A test helper — never imported by production code.
  *
@@ -73,7 +101,18 @@ export class FakeRedis {
      * fake's shared `Date.now()` could never express that.
      */
     #timeSeconds: number | undefined
-    readonly #strings = new Map<string, { value: string; expireAt?: number }>()
+    readonly #strings = new Map<string, string>()
+
+    /**
+     * Every option this fake refused, kept so a swallowed throw still fails.
+     *
+     * The driver `console.warn`s around its heartbeat, its reconcile and its
+     * revocation pass, so a throw from here goes SILENT on exactly the paths
+     * these guards were added for — the #276 shape, one layer down, where the
+     * suite stays green because nothing asserted the effect. A consumer suite
+     * calls {@link assertNoRejections} in a teardown and the run fails anyway.
+     */
+    readonly #rejections: string[] = []
     readonly #subs: Array<{ re: RegExp; handler: Handler }> = []
 
     /** The command client each driver publishes and stores state through. */
@@ -107,14 +146,106 @@ export class FakeRedis {
     }
 
     /** Whether a string key is present and unexpired (lazy-expiring on read). */
-    #alive(key: string): boolean {
-        const s = this.#strings.get(key)
-        if (!s) return false
-        if (s.expireAt !== undefined && Date.now() >= s.expireAt) {
-            this.#strings.delete(key)
+    /**
+     * Refuse a command shape, recording it so a swallowed throw still counts.
+     *
+     * @param message - What was refused and why.
+     * @throws Always.
+     */
+    #reject(message: string): never {
+        this.#rejections.push(message)
+        throw new Error(message)
+    }
+
+    /**
+     * Throw if any command was refused during the run.
+     *
+     * Call it in a teardown. A driver that catches and warns turns a modelled
+     * divergence back into the silence this fake exists to break.
+     *
+     * @throws If any command was rejected.
+     * @example
+     * ```typescript
+     * } finally {
+     *     redis.assertNoRejections()
+     * }
+     * ```
+     */
+    assertNoRejections(): void {
+        if (this.#rejections.length === 0) return
+        throw new Error(
+            `FakeRedis refused ${this.#rejections.length} command(s), and the ` +
+                `caller swallowed each one:\n  ${
+                    this.#rejections.join('\n  ')
+                }`,
+        )
+    }
+
+    /**
+     * Whether `key`'s key-level TTL has passed.
+     *
+     * `#keyExpiry` is authoritative for EVERY type. It used to be consulted
+     * only through `#liveZset`, so `EXPIRE` on a string, a set or a hash was
+     * inert for existence and `DEL` over four logically-expired keys returned
+     * 3 where Redis returns 0.
+     */
+    #expired(key: string): boolean {
+        const at = this.#keyExpiry.get(key)
+        return at !== undefined && this.#now() >= at
+    }
+
+    /**
+     * Whether `key` holds anything at all, of any type.
+     *
+     * Redis's keyspace is one namespace across every type; this fake keeps a
+     * map per type, so "does it exist" has to ask all of them. `EXISTS` asked
+     * only `#strings`, which made it answer 0 for every set, hash and sorted
+     * set in the store — including the revocation index.
+     */
+    #keyExists(key: string): boolean {
+        if (this.#expired(key)) {
+            this.#dropKey(key)
             return false
         }
-        return true
+        return this.#strings.has(key) || this.#sets.has(key) ||
+            this.#hashes.has(key) || this.#zsets.has(key)
+    }
+
+    /**
+     * Delete `key` from every store, reporting whether anything went.
+     *
+     * The key-level TTL goes with it: leaving an entry in `#keyExpiry` for a
+     * deleted key would make a later re-creation inherit an expiry it never
+     * asked for.
+     */
+    /**
+     * Drop `key` if the collection at it is now empty.
+     *
+     * Redis removes a key when its last element goes; this fake did not, so
+     * `SREM`, `HDEL` and `ZREMRANGEBYSCORE` each left an empty container
+     * behind. That was invisible while `EXISTS` consulted only `#strings` —
+     * making `EXISTS` see every type made it observable, and wrong on the #276
+     * revocation index itself, which the reap drives to empty by design.
+     */
+    #dropIfEmpty(key: string): void {
+        if (
+            this.#sets.get(key)?.size === 0 ||
+            this.#hashes.get(key)?.size === 0 ||
+            this.#zsets.get(key)?.size === 0
+        ) {
+            this.#dropKey(key)
+        }
+    }
+
+    #dropKey(key: string): boolean {
+        const existed = this.#strings.has(key) || this.#sets.has(key) ||
+            this.#hashes.has(key) || this.#zsets.has(key)
+        this.#strings.delete(key)
+        this.#sets.delete(key)
+        this.#hashes.delete(key)
+        this.#zsets.delete(key)
+        this.#keyExpiry.delete(key)
+        return existed
     }
 
     /**
@@ -184,11 +315,7 @@ export class FakeRedis {
      * key-level TTL has passed, as Redis would.
      */
     #liveZset(key: string): Map<string, number> | undefined {
-        const expiry = this.#keyExpiry.get(key)
-        if (expiry !== undefined && this.#now() >= expiry) {
-            this.#zsets.delete(key)
-            this.#keyExpiry.delete(key)
-        }
+        if (this.#expired(key)) this.#dropKey(key)
         return this.#zsets.get(key)
     }
 
@@ -219,29 +346,55 @@ export class FakeRedis {
                 // exists to stop, and #276 depends on GT to guarantee a
                 // re-eviction can only extend a live revocation.
                 const [key, ...tail] = rest
-                const gt = tail[0]?.toUpperCase() === 'GT'
-                const flags = tail.filter((t) =>
-                    ['GT', 'LT', 'NX', 'XX', 'CH'].includes(t.toUpperCase())
-                )
-                const unsupported = flags.filter((f) =>
-                    f.toUpperCase() !== 'GT'
-                )
-                if (unsupported.length > 0) {
-                    throw new Error(
-                        `FakeRedis: unmodelled ZADD option(s) ${
-                            unsupported.join(', ')
-                        }`,
+                // Flags are read from the LEADING position only. The old scan
+                // ran `filter` over the whole tail, so a MEMBER named `gt` was
+                // silently accepted as a flag and one named `nx` raised a
+                // spurious rejection — the argument list decided by content
+                // rather than by position.
+                let cursor = 0
+                let gt = false
+                while (cursor < tail.length) {
+                    const token = tail[cursor].toUpperCase()
+                    if (!['GT', 'LT', 'NX', 'XX', 'CH'].includes(token)) break
+                    if (token !== 'GT') {
+                        this.#reject(
+                            `FakeRedis: unmodelled ZADD option ${tail[cursor]}`,
+                        )
+                    }
+                    gt = true
+                    cursor++
+                }
+                const pairs = tail.slice(cursor)
+                if (pairs.length === 0 || pairs.length % 2 !== 0) {
+                    this.#reject(
+                        'FakeRedis: ZADD needs score/member pairs, got ' +
+                            `${pairs.length} argument(s)`,
                     )
                 }
-                const [rawScore, member] = gt ? tail.slice(1) : tail
-                const zset = this.#liveZset(key) ??
-                    new Map<string, number>()
+                const zset = this.#liveZset(key) ?? new Map<string, number>()
                 this.#zsets.set(key, zset)
-                const score = Number(rawScore)
-                const existing = zset.get(member)
-                const added = existing === undefined
-                if (added || !gt || score > existing) zset.set(member, score)
-                return { type: 'integer', value: added ? 1 : 0 }
+                // VARIADIC. It read one pair and dropped the rest — the same
+                // "a second argument silently dropped" class DEL, EXISTS, HSET
+                // and HDEL were all fixed for, left in the one arm #276
+                // actually depends on.
+                let added = 0
+                for (let i = 0; i < pairs.length; i += 2) {
+                    const score = Number(pairs[i])
+                    if (!Number.isFinite(score)) {
+                        this.#reject(
+                            `FakeRedis: ZADD score must be a number, got '${
+                                pairs[i]
+                            }'`,
+                        )
+                    }
+                    const member = pairs[i + 1]
+                    const existing = zset.get(member)
+                    if (existing === undefined) added++
+                    if (existing === undefined || !gt || score > existing) {
+                        zset.set(member, score)
+                    }
+                }
+                return { type: 'integer', value: added }
             }
             case 'ZREMRANGEBYSCORE': {
                 const [key, rawMin, rawMax] = rest
@@ -262,10 +415,22 @@ export class FakeRedis {
                         removed++
                     }
                 }
+                this.#dropIfEmpty(key)
                 return { type: 'integer', value: removed }
             }
             case 'ZRANGEBYSCORE': {
-                const [key, rawMin, rawMax] = rest
+                // ZRANGEBYSCORE key min max [WITHSCORES] [LIMIT offset count] —
+                // neither option is modelled, and both change the REPLY SHAPE,
+                // so ignoring one hands the caller a different array than Redis
+                // would and nothing says so.
+                const [key, rawMin, rawMax, ...opts] = rest
+                if (opts.length > 0) {
+                    this.#reject(
+                        `FakeRedis: unmodelled ZRANGEBYSCORE option(s) ${
+                            opts.join(' ')
+                        }`,
+                    )
+                }
                 const min = this.#bound(rawMin)
                 const max = this.#bound(rawMax)
                 const zset = this.#liveZset(key)
@@ -280,7 +445,11 @@ export class FakeRedis {
                             : score <= max.value
                         return aboveMin && belowMax
                     })
-                    .sort((a, b) => a[1] - b[1])
+                    // Score first, then MEMBER lexicographically — Redis's own
+                    // tie-break. A stable sort left ties in insertion order,
+                    // and revocation scores are whole seconds from `TIME`, so
+                    // two evictions in one second tie routinely.
+                    .sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : 1))
                     .map(([member]): Reply => ({ type: 'bulk', value: member }))
                 return { type: 'array', value: members }
             }
@@ -294,12 +463,17 @@ export class FakeRedis {
                     !known.includes(f.toUpperCase())
                 )
                 if (unsupported.length > 0) {
-                    throw new Error(
+                    this.#reject(
                         `FakeRedis: unmodelled EXPIRE option(s) ${
                             unsupported.join(', ')
                         }`,
                     )
                 }
+                // Redis returns 0 and records NOTHING for a key that is not
+                // there. Writing the expiry anyway let a later create inherit a
+                // TTL it never asked for — the hazard `#dropKey` exists to
+                // prevent, closed on DEL and left open here.
+                if (!this.#keyExists(key)) return { type: 'integer', value: 0 }
                 const nx = flags.some((f) => f.toUpperCase() === 'NX')
                 const gt = flags.some((f) => f.toUpperCase() === 'GT')
                 const at = this.#now() + Number(rawSeconds)
@@ -349,6 +523,11 @@ export class FakeRedis {
                 return { type: 'bulk', value: result as string }
             }
             case 'PUBLISH': {
+                if (rest.length !== 2) {
+                    this.#reject(
+                        `FakeRedis: PUBLISH takes topic and payload, got ${rest.length}`,
+                    )
+                }
                 const [topic, payload] = rest
                 let n = 0
                 for (const s of this.#subs) {
@@ -360,19 +539,41 @@ export class FakeRedis {
                 return { type: 'integer', value: n }
             }
             case 'HSET': {
-                const [key, field, value] = rest
+                // HSET key field value [field value ...] -> fields ADDED, not
+                // fields written. A trailing field with no value is an error in
+                // Redis, and half-applying it here would leave a store no real
+                // sequence of commands could produce.
+                const [key, ...pairs] = rest
+                if (pairs.length === 0 || pairs.length % 2 !== 0) {
+                    this.#reject(
+                        'FakeRedis: HSET needs field/value pairs, got ' +
+                            `${pairs.length} argument(s) after the key`,
+                    )
+                }
                 let h = this.#hashes.get(key)
                 if (!h) this.#hashes.set(key, h = new Map())
-                const isNew = h.has(field) ? 0 : 1
-                h.set(field, value)
-                return { type: 'integer', value: isNew }
+                let added = 0
+                for (let i = 0; i < pairs.length; i += 2) {
+                    if (!h.has(pairs[i])) added++
+                    h.set(pairs[i], pairs[i + 1])
+                }
+                return { type: 'integer', value: added }
             }
             case 'HDEL': {
-                const [key, field] = rest
-                const removed = this.#hashes.get(key)?.delete(field) ? 1 : 0
+                // HDEL key field [field ...] -> the count actually removed.
+                const [key, ...fields] = rest
+                const h = this.#hashes.get(key)
+                let removed = 0
+                for (const field of fields) if (h?.delete(field)) removed++
+                this.#dropIfEmpty(key)
                 return { type: 'integer', value: removed }
             }
             case 'HGETALL': {
+                if (rest.length !== 1) {
+                    this.#reject(
+                        `FakeRedis: HGETALL takes one key, got ${rest.length}`,
+                    )
+                }
                 const h = this.#hashes.get(rest[0])
                 const flat: Reply[] = []
                 for (const [field, value] of h ?? []) {
@@ -383,6 +584,9 @@ export class FakeRedis {
             }
             case 'SADD': {
                 const [key, ...members] = rest
+                if (members.length === 0) {
+                    this.#reject('FakeRedis: SADD needs at least one member')
+                }
                 let set = this.#sets.get(key)
                 if (!set) this.#sets.set(key, set = new Set())
                 let added = 0
@@ -397,9 +601,15 @@ export class FakeRedis {
                 const set = this.#sets.get(key)
                 let removed = 0
                 for (const m of members) if (set?.delete(m)) removed++
+                this.#dropIfEmpty(key)
                 return { type: 'integer', value: removed }
             }
             case 'SMEMBERS': {
+                if (rest.length !== 1) {
+                    this.#reject(
+                        `FakeRedis: SMEMBERS takes one key, got ${rest.length}`,
+                    )
+                }
                 const set = this.#sets.get(rest[0])
                 return {
                     type: 'array',
@@ -410,28 +620,69 @@ export class FakeRedis {
                 }
             }
             case 'DEL': {
-                const key = rest[0]
-                const existed = this.#hashes.delete(key) ||
-                    this.#sets.delete(key) || this.#strings.delete(key)
-                return { type: 'integer', value: existed ? 1 : 0 }
+                // DEL key [key ...] -> the count actually removed. This read
+                // `rest[0]` alone and never touched `#zsets`, so deleting the
+                // revocation index — a ZSET — returned 0 and left every member
+                // in place: a cleanup that silently did nothing.
+                let removed = 0
+                for (const key of rest) if (this.#dropKey(key)) removed++
+                return { type: 'integer', value: removed }
             }
             case 'SET': {
+                // SET key value [EX seconds] — every other option is REJECTED.
+                // Silently ignoring NX is the shape that made an inert guard
+                // look like a working one: the caller believes it wrote only if
+                // the key was absent, and the fake wrote unconditionally.
                 const [key, value, ...opts] = rest
                 let expireAt: number | undefined
-                const ex = opts.indexOf('EX')
-                if (ex >= 0) {
-                    expireAt = Date.now() + Number(opts[ex + 1]) * 1000
+                for (let i = 0; i < opts.length; i++) {
+                    if (opts[i].toUpperCase() !== 'EX') {
+                        this.#reject(
+                            `FakeRedis: unmodelled SET option '${opts[i]}' — ` +
+                                'model it rather than letting it silently no-op',
+                        )
+                    }
+                    if (expireAt !== undefined) {
+                        this.#reject('FakeRedis: SET given EX twice')
+                    }
+                    // The argument is CHECKED. `opts[++i]` consumed it blindly,
+                    // so `SET k v EX` and `SET k v EX abc` both returned OK
+                    // holding NaN — and `NaN >= x` is false forever, making the
+                    // key IMMORTAL. A silent no-op in the very arm rewritten to
+                    // stop silent no-ops.
+                    const raw = opts[++i]
+                    const seconds = Number(raw)
+                    if (
+                        raw === undefined || raw === '' ||
+                        !Number.isFinite(seconds)
+                    ) {
+                        this.#reject(
+                            `FakeRedis: SET EX needs an integer, got '${raw}'`,
+                        )
+                    }
+                    expireAt = this.#now() + seconds
                 }
-                this.#strings.set(key, { value, expireAt })
+                this.#strings.set(key, value)
+                // A plain SET CLEARS any existing TTL, as Redis does. With one
+                // registry that has to be said rather than falling out of an
+                // `expireAt: undefined` overwrite.
+                if (expireAt === undefined) this.#keyExpiry.delete(key)
+                else this.#keyExpiry.set(key, expireAt)
                 return { type: 'simple', value: 'OK' }
             }
-            case 'EXISTS':
-                return { type: 'integer', value: this.#alive(rest[0]) ? 1 : 0 }
+            case 'EXISTS': {
+                // EXISTS key [key ...] -> a COUNT, and across every type. It
+                // read `rest[0]` and consulted only `#strings`, so it answered
+                // 0 for every set, hash and sorted set in the store.
+                let found = 0
+                for (const key of rest) if (this.#keyExists(key)) found++
+                return { type: 'integer', value: found }
+            }
             default:
                 // A `nil` here would be indistinguishable from a legitimate miss,
                 // so an unmodelled command would make the driver a silent no-op
                 // and every test green. Fail loudly instead (#276 FR-008).
-                throw new Error(
+                this.#reject(
                     `FakeRedis: unmodelled command '${cmd}' — model it in ` +
                         `#exec rather than letting it silently no-op`,
                 )
