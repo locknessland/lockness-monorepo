@@ -89,8 +89,9 @@ Anything not listed is internal and free to change.
 - `packages/contract/tests/static_decorator.test.ts`
 
 2 mutation batteries — **`deno test` does not run these.** Each is an executable
-that mutates a source file, re-runs the suites that should notice, and exits
-with the number of unexpected survivors. See
+that mutates a source file and re-runs the suites that should notice. Run them
+with `deno task mutate` (all of them, one at a time) or
+`deno task mutate <name>` (one); nightly CI runs the full sweep. See
 [testing.md](../../docs/testing.md#mutation-batteries).
 
 - `packages/contract/tests/mutations/bidi_292.ts`
