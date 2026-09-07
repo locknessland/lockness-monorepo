@@ -271,19 +271,50 @@ There are 15 in the repo — 11 in `@lockness/realtime`, 2 in `@lockness/redis`,
 in `@lockness/contract` — all on one harness at `tests/mutations/harness.ts`,
 imported through the `@mutations/` alias declared in `deno.jsonc`.
 
-### Running one
+### Running them
 
-A battery is an executable, not a test file. **`deno test` does not run it**,
-which is deliberate: it edits files on disk, so it must never start concurrently
-with the suite it mutates.
+```bash
+deno task mutate                 # every battery, serially
+deno task mutate redis           # one package
+deno task mutate prefix_288      # one battery, by path substring
+deno task mutate --require-all   # a battery that cannot run is a FAILURE
+```
+
+This is the entry point. A battery is an executable, not a test file —
+**`deno test` does not discover one**, deliberately, because it edits files on
+disk and must never start concurrently with the suite it mutates. The runner
+goes one at a time for the same reason, and takes a lock so a second run refuses
+rather than interleaving.
+
+It exits non-zero on any unresolved row, and **`DEAD MUTANT` and `MISATTRIBUTED`
+count as unresolved**. That is the point of it: both still print as rows, and
+treating them as diagnostics is how four rotted rows went unnoticed across
+twelve batteries' lifetime. A partial run says so, and names the batteries that
+did not execute.
+
+Nightly CI runs `deno task mutate --require-all` with a Redis service, so decay
+in a battery nobody has touched is noticed without anyone deciding to look —
+three of those four rotted rows were broken by merges that touched neither the
+battery nor the row's subject.
+
+**If a run is killed** — `Ctrl-C` is handled, but a `SIGKILL` (the OOM killer,
+say) is not — it leaves `*.mutation-lock` files beside the sources it was
+holding, and the next run refuses. That refusal is correct; the recovery is
+manual. Check that no battery is running, confirm the source files are pristine
+(`git status`), then delete the locks:
+
+```bash
+find packages -name '*.mutation-lock' -delete
+```
+
+A single battery still runs directly, which is what you want while writing one:
 
 ```bash
 deno run -A packages/realtime/tests/mutations/prefix_288.ts
 ```
 
-Its exit code is the number of **unexpected** survivors, so it is usable in a
-script without parsing output. Each package's `AGENTS.md` lists its own
-batteries under **Tests**.
+Its exit code is the number of unresolved rows. Each package's `AGENTS.md` lists
+its own batteries under **Tests**.
 
 ### What a row looks like
 
