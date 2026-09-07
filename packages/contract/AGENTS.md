@@ -77,7 +77,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-8 test files for 28 source files:
+8 test files for 26 source files:
 
 - `packages/contract/tests/crypto_key.test.ts`
 - `packages/contract/tests/disposables.test.ts`
@@ -87,6 +87,14 @@ Anything not listed is internal and free to change.
 - `packages/contract/tests/pagination.test.ts`
 - `packages/contract/tests/resource_derive.test.ts`
 - `packages/contract/tests/static_decorator.test.ts`
+
+2 mutation batteries — **`deno test` does not run these.** Each is an executable
+that mutates a source file, re-runs the suites that should notice, and exits
+with the number of unexpected survivors. See
+[testing.md](../../docs/testing.md#mutation-batteries).
+
+- `packages/contract/tests/mutations/bidi_292.ts`
+- `packages/contract/tests/mutations/dsn_redaction_301_303.ts`
 
 <!-- /generated:tests -->
 
