@@ -94,6 +94,17 @@ Anything not listed is internal and free to change.
   (`assertNoRejections()`). That is the rule to keep: if you add an argument to
   a call site, add it to the arm or make the arm refuse it. Never let it pass
   unread.
+- **A new `case` in `FakeRedis.#exec` ships with a conformance sequence.**
+  `tests/live_fake_conformance.test.ts` drives identical command sequences
+  through the fake and a real broker and diffs the replies, so a modelled arm
+  that lies is caught by Redis itself rather than by whoever next re-reads it.
+  Run it with `LOCKNESS_REDIS_PORT=<port> deno task test:redis`; it is `ignored`
+  without a broker and never runs in the default suite. Two rules that file
+  learned the hard way: resolve the key namespace **once** (`runNamespace()`
+  mints a fresh one per call, and calling it per key made every step operate on
+  an empty key, so the suite passed while detecting nothing), and put a declared
+  modelling gap **last** on its key, because the broker applies what the fake
+  refuses and every later step on that key then diverges for the wrong reason.
 - **The fake is not Redis, and the gap is the interesting part.** It models the
   driver's command surface only, so a behaviour no test exercises is one nobody
   has checked — #280's audit found five divergences the issue had not listed,
@@ -158,7 +169,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-34 test files for 20 source files:
+35 test files for 20 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channels.test.ts`
@@ -181,6 +192,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/fake_redis_conformance.test.ts`
 - `packages/realtime/tests/handler.test.ts`
 - `packages/realtime/tests/identity.test.ts`
+- `packages/realtime/tests/live_fake_conformance.test.ts`
 - `packages/realtime/tests/log_encoding_291.test.ts`
 - `packages/realtime/tests/manager.test.ts`
 - `packages/realtime/tests/memory_driver.test.ts`
@@ -209,7 +221,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 34 test files directly —
+Then, specific to this package: run its 35 test files directly —
 
 ```bash
 deno test -A packages/realtime/
