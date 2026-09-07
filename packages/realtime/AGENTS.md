@@ -169,7 +169,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-35 test files for 20 source files:
+35 test files for 21 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channels.test.ts`
