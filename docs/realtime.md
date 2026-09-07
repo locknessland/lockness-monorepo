@@ -306,8 +306,40 @@ id is your users' identity — an email, a username, an id from an external
 provider — and the connection-id charset would reject `user@example.com` on the
 `@`. It would also buy nothing: Redis commands are length-prefixed so no value
 can forge one, control frames carry a MAC, and the roster's internal
-`<channel> <member>` entries are parsed on the first space behind a
-charset-bounded channel name, so a member id containing spaces is unambiguous.
+`<channel> <member>` entries are parsed on the first space, and a channel name
+cannot contain one — so a member id containing spaces is unambiguous. That last
+clause was a convention until #314 and is now a refusal: `subscribe` throws
+`ChannelNameError` on a channel outside the same charset.
+
+### The channel name is bounded too, by the same charset as a connection id
+
+`subscribe` throws `ChannelNameError` on a channel outside
+`[A-Za-z0-9:._-]{1,200}` — the same charset a connection id must match, and the
+same one the WebSocket wire has always enforced.
+
+**Only the programmatic API changes.** A client subscribing over a socket was
+already refused by the frame decoder; what was missing was the check on
+`manager.subscribe`, which server code calls directly. So the framework's own
+socket path refused a name the public API accepted.
+
+Two things broke because of it, both reachable with a channel containing a
+space, and both silently:
+
+- **Cross-instance presence stopped working for that channel.** The
+  `presence-join` control frame carries the channel and every receiving instance
+  drops it on ingest for exactly this charset. The join succeeded locally,
+  `subscribe` returned `{ ok: true }`, and no peer ever learned.
+- **The ghost sweep stopped reclaiming that channel's members.** A roster
+  owned-entry is `<channel> <member>` split on the first space, so
+  `presence-my room` + `u1` split to channel `presence-my` and the cleanup
+  deleted from a key that does not exist.
+
+**If you are upgrading and you build channel names from data** — a tenant slug,
+a room title, anything user-supplied — check them against that charset before
+you deploy. `subscribe` now throws where it previously succeeded locally and
+failed everywhere else; the failure moves from silent and partial to immediate,
+which is the point, but it does move. `unsubscribe` is deliberately _not_
+refused, so anything already subscribed can still be cleaned up.
 
 Length is the part nothing below bounds, and it is not cosmetic. The roster
 write happens _before_ the frame that announces it, and an oversized frame is
@@ -318,7 +350,11 @@ success. Both error types are exported from `@lockness/realtime`, so an
 dead socket:
 
 ```ts
-import { ConnectionIdError, PresenceMemberIdError } from '@lockness/realtime'
+import {
+    ChannelNameError,
+    ConnectionIdError,
+    PresenceMemberIdError,
+} from '@lockness/realtime'
 
 if (error instanceof PresenceMemberIdError) {
     // The authorizer returned an id the roster cannot carry — fix the

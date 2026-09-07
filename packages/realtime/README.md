@@ -59,18 +59,21 @@ app.get(
   wire format changed: during a rolling upgrade, control frames do not cross
   between old and new instances — see
   [docs/realtime.md](../../docs/realtime.md#control-plane-replay-protection).
-- **Ids that cross the control plane are bounded at the boundary** — and the two
-  bounds are deliberately different. A `Connection.id` must match
-  `[A-Za-z0-9:._-]`, at most 200 characters; `register`, `subscribe` and `evict`
-  throw `ConnectionIdError` otherwise, because a frame naming an id outside that
-  charset is dropped by every _other_ instance and the failure was previously
-  silent and partial. A `PresenceMember.id` — the value your `authorize()`
-  returns — is bounded only by **length** (1–200 characters, and a numeric id
-  must be finite), raising `PresenceMemberIdError`: it is your users' identity,
-  so an email or a username has to keep working, and the charset would buy
-  nothing that length-prefixed commands and MAC-signed frames do not already.
-  Both error types are exported so an `onError` handler can separate a caller
-  bug from a dead socket.
+- **Names that cross the control plane are bounded at the boundary** — three of
+  them, and the bounds are deliberately not the same. A `Connection.id` must
+  match `[A-Za-z0-9:._-]`, at most 200 characters; `register`, `subscribe` and
+  `evict` throw `ConnectionIdError` otherwise, because a frame naming an id
+  outside that charset is dropped by every _other_ instance and the failure was
+  previously silent and partial. A `PresenceMember.id` — the value your
+  `authorize()` returns — is bounded only by **length** (1–200 characters, and a
+  numeric id must be finite), raising `PresenceMemberIdError`: it is your users'
+  identity, so an email or a username has to keep working, and the charset would
+  buy nothing that length-prefixed commands and MAC-signed frames do not
+  already. A **channel name** must match the connection-id charset and raises
+  `ChannelNameError`: it travels the control plane on a presence join, and it is
+  the left half of the roster's `<channel> <member>` entries, which are parsed
+  on the first space. All three error types are exported so an `onError` handler
+  can separate a caller bug from a dead socket.
 - **Durable revocation** — an evict outlives a lost pub/sub frame. A custom
   `BroadcastDriver` opts in by implementing `markRevoked(id)` and
   `listRevoked()`, plus `onRevocationReconcile(handler)` to say when the
