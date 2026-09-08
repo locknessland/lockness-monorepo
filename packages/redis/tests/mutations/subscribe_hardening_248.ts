@@ -159,44 +159,135 @@ const MUTATIONS: Mutation[] = [
             '#286 no in-closure generation check (a queued write reaches a dead socket)',
         file: SUB,
         edits: [[
-            'if (this.#writeChainConn !== conn) {\n                throw new Error(',
-            'if (false) {\n                throw new Error(',
+            'if (this.#generation?.conn !== conn) {\n                throw new Error(ABANDONED_WRITE)',
+            'if (false) {\n                throw new Error(ABANDONED_WRITE)',
         ]],
         killedBy:
             'a write queued against a socket that is then discarded REJECTS',
+        // Anchor repaired by #298, not re-aimed: the in-closure re-check is the
+        // same guard, now asking `#generation?.conn` where it asked
+        // `#writeChainConn`. The 16-space indent is load-bearing — the same
+        // predicate appears at `#activate`'s install site.
     },
     {
-        label: '#286 no rebase on a generation change',
+        // SUBSUMES two #286 rows whose anchors #298 deleted. Both mutated a
+        // per-field ownership guard; there is now ONE guard, so there is one
+        // row — and it is KILLED, where both predecessors were recorded
+        // survivors. Their reasons are carried forward below rather than
+        // deleted with their anchors: a dead anchor is reported loudly by this
+        // harness, but a deleted row loses its reason with no trace at all.
+        //
+        // From `#286 no rebase on a generation change`: it was "redundant with
+        // the conditional clear in `#discardSocket`, given that every current
+        // path discards a socket before replacing it — so no reachable sequence
+        // distinguishes them. Kept because that is a property of the CALLERS,
+        // not of this method." That sentence is the argument #298 was built on,
+        // and the refactor converts the caller property into structure: there
+        // is no longer a rebase to make, because `SocketGeneration.conn` is
+        // `readonly` and generations are created at one site.
+        //
+        // From `#286 the discard clear is made unconditional`: reaching it
+        // "needs a STALE discard while a newer generation is live, which needs
+        // two generations plus a late-firing deadline — constructible in
+        // principle and not constructed here. This is the highest-value
+        // uncovered guard in the branch." It is constructed now, by
+        // `#298/SC-001`, which is why this row is KILLED.
+        label: '#298 the single ownership check is removed',
         file: SUB,
         edits: [[
-            'if (this.#writeChainConn !== conn) {\n            this.#writeChain = Promise.resolve()\n            this.#writeChainConn = conn\n        }',
-            'this.#writeChainConn = conn',
+            'if (this.#generation?.conn === conn) {',
+            'if (this.#generation !== null) {',
         ]],
-        killedBy:
-            'a write queued against a socket that is then discarded REJECTS',
-        expectSurvival:
-            'Redundant with the conditional clear in `#discardSocket`, given ' +
-            'that every current path discards a socket before replacing it — ' +
-            'so no reachable sequence distinguishes them. Kept because that ' +
-            'is a property of the CALLERS, not of this method, and the file ' +
-            'already records the cost of depending on it: the `#keepaliveConn` ' +
-            'comment describes the same assumption holding until it did not.',
+        killedBy: 'a STALE discard leaves the LIVE generation armed',
     },
     {
-        label: '#286 the discard clear is made unconditional',
+        label: '#298 the generation is dropped without releasing it',
         file: SUB,
         edits: [[
-            'if (this.#writeChainConn === conn) {\n            this.#writeChain = Promise.resolve()\n            this.#writeChainConn = null\n        }',
-            'this.#writeChain = Promise.resolve()\n        this.#writeChainConn = null',
+            '        this.clearKeepalive()\n        this.#writeChain = Promise.resolve()',
+            '        this.#writeChain = Promise.resolve()',
         ]],
-        killedBy: 'an idle socket is NOT torn down',
-        expectSurvival:
-            'Reaching it needs a STALE discard while a newer generation is ' +
-            'live, which needs two generations plus a late-firing deadline — ' +
-            'constructible in principle (the plan audit wrote the sequence ' +
-            'out) and not constructed here. This is the highest-value ' +
-            'uncovered guard in the branch and it is named as such rather ' +
-            'than left to look covered.',
+        killedBy: 'a dropped generation stops pinging',
+        // The member this issue was filed about is the one a plain reference
+        // drop does not release: a `setInterval` id survives losing its object,
+        // and being unref'd it does not even keep the process alive to be
+        // noticed. #274's idle churn, returning through the object built to
+        // prevent it.
+    },
+    {
+        label: '#298 the socket close is gated behind the ownership check',
+        file: SUB,
+        edits: [[
+            '        this.conn.discard(conn)',
+            '        if (this.#generation?.conn === conn) this.conn.discard(conn)',
+        ]],
+        killedBy: 'the release is gated, the CLOSE is not',
+        // The tidy-up that looks right and leaks: `this.conn.discard` is the
+        // only path that closes the socket, clears the cached socket and clears
+        // the single-flight `pending`. Gated, a stale discard leaks an
+        // established AUTH'd socket and an fd, and leaves `pending` on a dead
+        // dial — #287, already paid for once.
+    },
+    {
+        label:
+            '#298 a generation is built per ACTIVATION rather than per SOCKET',
+        file: SUB,
+        edits: [[
+            'if (this.#generation?.conn !== conn) {\n                this.#generation?.release()\n                this.#generation = new SocketGeneration(conn)\n            }',
+            'this.#generation = new SocketGeneration(conn)',
+        ]],
+        killedBy: 'a SECOND psubscribe on a live socket does not re-generation',
+        // The install side. `connect()` hands back the CACHED socket, so a
+        // second `psubscribe()` reaches `#activate` holding the live one — and
+        // a per-activation generation drops the live write chain and orphans
+        // the live keepalive. Reachable on the second call, not through a race,
+        // and invisible except as a DOUBLED ping rate: the orphan's id is gone,
+        // it is unref'd, and it writes to a socket that is still alive.
+    },
+    {
+        label: '#298 close() awaits the generation rather than the class',
+        file: SUB,
+        edits: [[
+            '        this.loopConn = null\n        await this.loopDone',
+            '        this.loopConn = null\n        await (this.#generation === null ? undefined : this.loopDone)',
+        ]],
+        killedBy: 'close() still awaits the loop the discard faulted',
+        // Why `loopDone` is not a member. `close()` discards and THEN awaits
+        // the unwind, so the promise must outlive the drop — and awaiting
+        // `undefined` satisfies "close awaits the loop" perfectly while
+        // awaiting nothing at all. A regression here is timing-dependent and
+        // green.
+    },
+    {
+        label: '#298 onReconnect fires on a first connect',
+        file: SUB,
+        edits: [[
+            'const wasDelivering = this.loopConn === conn',
+            'const wasDelivering = this.loopConn === conn || conn === undefined',
+        ]],
+        killedBy: 'onReconnect fires on a recovery, and only on a recovery',
+        // A11's shape, from the plan re-entry's architecture audit. A
+        // generation-identity read of this line evaluates `undefined ===
+        // undefined` on a failed dial and promotes reconnect intent on a FIRST
+        // connect — firing realtime's #271 revocation re-check for a
+        // connection that never had a subscriber. `wasDelivering` feeds
+        // `#reconnectIntent`, not the recovery log, which is what the first
+        // draft of FR-012 got wrong.
+    },
+    {
+        label: '#298 a generation reaches a log line through an alias',
+        file: SUB,
+        edits: [[
+            '`[redis-subscribe] a handler for ${safeForLog(pattern)} threw; ` +',
+            '`[redis-subscribe] a handler for ${safeForLog(pattern)} on ${\n                (() => this.#generation)()\n            } threw; ` +',
+        ]],
+        killedBy: 'no log line can carry a generation member',
+        // Deliberately ALIASED, so it slips past the source-level half of the
+        // witness and can only be caught at runtime. It mutates the
+        // handler-fault ERROR because that is the one log site that fires with
+        // a LIVE generation — everywhere else the generation has just been
+        // released and renders as "null", which is why the first version of
+        // this witness was a false pass.
     },
     // ── #286: the keepalive's discard obligation ───────────────────────────
     {
@@ -328,8 +419,8 @@ type Outcome = 'killed' | 'survived' | 'did-not-compile'
  * escaping the read loop — which no in-process double reproduces (#319).
  *
  * The other four live-broker batteries refuse to start at all without one.
- * This battery does not, because sixteen of its twenty rows are broker-free and
- * losing them offline would be a real cost. It runs those and **names the rows
+ * This battery does not, because twenty-one of its twenty-five rows are
+ * broker-free and losing them offline would be a real cost. It runs those and **names the rows
  * it did not run**, then exits 2 — the code every battery here uses for "I
  * could not run everything", which `deno task mutate` reports as PARTIAL rather
  * than as a pass.

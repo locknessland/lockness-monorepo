@@ -14,6 +14,7 @@
 
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { RedisSubscribeConnection } from '../subscriber.ts'
+import { RespFramingError } from '../resp.ts'
 import { type FakeServer, startFakeServer } from './fake_server.ts'
 
 /** Poll `cond` until it holds or the deadline passes (a fake-socket race gate). */
@@ -2319,5 +2320,709 @@ Deno.test('#296: an ASYNC handler rejection is contained too', async () => {
         console.error = realError
         await sub.close()
         server.stop()
+    }
+})
+
+// ── #298: the socket generation object ─────────────────────────────────────
+
+/**
+ * A scripted socket whose reads and one write are held open for the test.
+ *
+ * The two-generation scenarios below cannot be built from wall-clock timing —
+ * they need a STALE discard to land while a NEWER generation is live, which is
+ * a specific interleaving rather than a delay. So each socket hands the test a
+ * gate for the events that matter and nothing races.
+ */
+function scriptedConn(options: {
+    /** Wedge the Nth write (1-based) on a promise the test settles. */
+    wedgeWrite?: number
+    onWrite?: (n: number) => void
+}): {
+    conn: Deno.Conn
+    writes: () => number
+    pings: () => number
+    closed: () => number
+    faultRead: (error: Error) => void
+    settleWedged: (error: Error) => void
+} {
+    let writes = 0
+    let pings = 0
+    let closed = 0
+    const decoder = new TextDecoder()
+    let rejectRead: ((error: Error) => void) | undefined
+    let rejectWedged: ((error: Error) => void) | undefined
+    const conn = {
+        write: (bytes: Uint8Array) => {
+            // A CLOSED socket fails its writes, exactly as a real one does with
+            // `BadResource`. Without this the fake stays writable forever and a
+            // timer that outlived its socket goes on "succeeding" — which is how
+            // the first draft of SC-012 passed against the very leak it exists
+            // to catch.
+            if (closed > 0) {
+                return Promise.reject(new Error('Bad resource ID (closed)'))
+            }
+            writes++
+            // PINGs are counted apart from PSUBSCRIBEs, because "the keepalive
+            // is still armed" and "something wrote to this socket" are not the
+            // same claim — and a review seat found SC-001 conflating them.
+            if (decoder.decode(bytes).includes('PING')) pings++
+            options.onWrite?.(writes)
+            if (
+                options.wedgeWrite !== undefined &&
+                writes === options.wedgeWrite
+            ) {
+                return new Promise<number>((_, reject) => {
+                    rejectWedged = reject
+                })
+            }
+            return Promise.resolve(bytes.byteLength)
+        },
+        read: (_buf: Uint8Array) =>
+            new Promise<number | null>((_, reject) => {
+                rejectRead = reject
+            }),
+        close: () => {
+            closed++
+        },
+        localAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+        remoteAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+    } as unknown as Deno.Conn
+    return {
+        conn,
+        writes: () => writes,
+        pings: () => pings,
+        closed: () => closed,
+        faultRead: (error) => rejectRead?.(error),
+        settleWedged: (error) => rejectWedged?.(error),
+    }
+}
+
+Deno.test('#298/SC-001: a STALE discard leaves the LIVE generation armed', async () => {
+    // The highest-value uncovered guard in the #248 branch, named as such by
+    // that battery's own `#286 the discard clear is made unconditional` row:
+    // "constructible in principle and not constructed here". This constructs it.
+    //
+    // The shape it protects has already been a live defect twice, one field at a
+    // time — the keepalive's comment records the first ("discarding a STALE
+    // socket while a newer one was live disarmed the live one's keepalive, and
+    // the idle churn this feature removes came silently back") and #286 hit the
+    // identical shape for the write chain. #298 replaces the per-field guards
+    // with one, so one witness now covers what would have needed three.
+    const gen1 = scriptedConn({ wedgeWrite: 2 }) // write 1 = PSUBSCRIBE, 2 = PING
+    const gen2 = scriptedConn({})
+    let dials = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            dials++
+            return Promise.resolve(dials === 1 ? gen1.conn : gen2.conn)
+        },
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 40,
+        livenessMs: 5000, // long: nothing here may be ended by a read deadline
+        // NO automatic retry. The first draft used a fast one and the witness
+        // was DEAD: the keepalive's stall path discards AND schedules, so the
+        // retry re-dialled the cached socket and re-armed the very keepalive the
+        // mutant had just disarmed — restoring the evidence before it could be
+        // read. Generation 2 is brought up by a second `psubscribe` instead, so
+        // nothing re-arms behind the assertion.
+        retryBaseMs: 60_000,
+        retryMaxMs: 60_000,
+    })
+    // The retry is pinned to the TOP of its jitter window rather than merely
+    // given a long base. `#scheduleRetry` uses FULL jitter — the delay is
+    // uniform on [1, ceiling) — so `retryBaseMs: 60_000` left roughly a 5%
+    // chance of a retry firing inside this test's assertion window, and a fired
+    // retry re-arms the very keepalive the mutant disarmed. That is the same
+    // failure that made this witness DEAD three times; raising the base lowered
+    // the probability without removing it, and a review seat caught that the
+    // comment claimed isolation the code did not have.
+    const realRandom = Math.random
+    Math.random = () => 0.999999
+    using warn = liveWarnings()
+    try {
+        sub.psubscribe('app:*', () => {})
+        // Generation 1 is live and its keepalive has fired at least once — that
+        // PING is the write now wedged, and it is what will later produce the
+        // stale discard.
+        await waitFor(
+            () => gen1.writes() >= 2,
+            'generation 1 subscribed and its keepalive fired',
+            3000,
+        )
+        // Generation 1 dies. This discard is OWNED — it is the live generation
+        // — so it releases, and the retry brings up generation 2.
+        gen1.faultRead(new Error('socket fault'))
+        await waitFor(
+            () => gen1.closed() >= 1,
+            'generation 1 was discarded by its own read fault',
+            3000,
+        )
+        // Generation 2, brought up by a caller rather than by the retry timer.
+        sub.psubscribe('other:*', () => {})
+        // Wait for a real PING on generation 2, and count PINGs from here on.
+        // Counting WRITES was the second hole in this witness: the second
+        // re-issued PSUBSCRIBE landed after the baseline and satisfied the
+        // growth assertion by itself, so the keepalive never had to be alive.
+        // A PSUBSCRIBE can no longer be mistaken for a heartbeat.
+        await waitFor(
+            () => dials >= 2 && gen2.pings() >= 1,
+            'generation 2 re-issued both patterns and its keepalive fired',
+            3000,
+        )
+        const before = gen2.pings()
+        // NOW the stale one lands: generation 1's wedged PING rejects with a
+        // framing error, and the keepalive's catch calls `#discardSocket(conn1)`
+        // while conn2 is live. One ownership check has to answer for the timer,
+        // the write chain and the read loop at once.
+        gen1.settleWedged(new RespFramingError('injected: write stalled'))
+        await waitFor(
+            () => warn.messages.some((m) => /keepalive PING failed/.test(m)),
+            'the stale generation reported its own failure',
+            3000,
+        )
+        // The claim: generation 2's keepalive is STILL ARMED. Asserted on its
+        // writes, not on a private field — an unconditional clear disarms it
+        // here and nothing else in the suite notices.
+        await waitFor(
+            () => gen2.pings() > before,
+            'the LIVE generation kept pinging after the stale discard — an ' +
+                'unconditional clear disarms it and the #274 idle churn returns',
+            3000,
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        Math.random = realRandom
+        await sub.close()
+    }
+})
+
+Deno.test('#298/SC-012: a dropped generation stops pinging', async () => {
+    // FR-014, and the reason the generation releases through a CALL rather than
+    // by dropping the reference. `keepaliveTimer` is a `setInterval` id: losing
+    // the object frees the field and leaves the interval running forever. The
+    // member this whole issue was filed about is the one a plain drop leaks.
+    //
+    // Observed on the WARN stream rather than on writes, deliberately. A leaked
+    // interval still calls `#write`, which refuses a frame for a generation that
+    // is gone — so no byte reaches the dead socket either way, and counting
+    // writes would pass while the interval ran forever. What a leak actually
+    // produces is this line, repeating for a socket long since closed.
+    const gen1 = scriptedConn({})
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => Promise.resolve(gen1.conn),
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 30,
+        livenessMs: 5000,
+        retryBaseMs: 60_000, // no successor: the point is the DROPPED generation
+        retryMaxMs: 60_000,
+    })
+    using warn = liveWarnings()
+    try {
+        sub.psubscribe('app:*', () => {})
+        await waitFor(
+            () => gen1.writes() >= 2,
+            'the generation subscribed and its keepalive fired at least once',
+            3000,
+        )
+        gen1.faultRead(new Error('socket fault'))
+        await waitFor(
+            () => gen1.closed() >= 1,
+            'the socket was discarded',
+            3000,
+        )
+        const settled = warn.messages.filter((m) =>
+            /keepalive PING failed/.test(m)
+        ).length
+        // Three keepalive windows. A leaked interval fires in every one of them.
+        await new Promise((r) => setTimeout(r, 30 * 3 + 60))
+        const after = warn.messages.filter((m) =>
+            /keepalive PING failed/.test(m)
+        ).length
+        assertEquals(
+            after,
+            settled,
+            'the dropped generation kept pinging — its interval outlived it, ' +
+                'which is #274 returning through the object that was supposed ' +
+                'to prevent it',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await sub.close()
+    }
+})
+
+Deno.test('#298/SC-002: the release is gated, the CLOSE is not', async () => {
+    // FR-004. `#discardSocket` gates what it releases on owning the socket, and
+    // `this.conn.discard(conn)` sits inside it UNGATED. Gating that too is the
+    // natural-looking tidy-up and it leaks an established, AUTH'd socket and a
+    // file descriptor per stale discard — plus it leaves the single-flight
+    // `pending` on a dead dial, which is #287, already paid for once.
+    //
+    // The reachable case is a dial that lands after `close()`: `#activate`'s
+    // re-check discards a socket for which NO generation was ever created, so
+    // the ownership check is false and only the ungated close frees it.
+    const gen1 = scriptedConn({})
+    let releaseDial: (() => void) | undefined
+    const dialled = new Promise<void>((r) => {
+        releaseDial = r
+    })
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => dialled.then(() => gen1.conn),
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 1000,
+        livenessMs: 5000,
+        retryBaseMs: 60_000,
+        retryMaxMs: 60_000,
+    })
+    try {
+        sub.psubscribe('app:*', () => {})
+        // Close while the dial is still in flight, so no generation exists for
+        // the socket that is about to arrive.
+        await sub.close()
+        releaseDial!()
+        await waitFor(
+            () => gen1.closed() >= 1,
+            'the socket that arrived after close() was CLOSED — an ownership ' +
+                'check around `this.conn.discard` leaks it, with an fd, and ' +
+                'leaves `pending` pointing at a dead dial (#287)',
+            3000,
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await sub.close()
+    }
+})
+
+Deno.test('#298/SC-009: onReconnect fires on a recovery, and only on a recovery', async () => {
+    // FR-012's real stake, and the criterion that replaced one which passed
+    // under its own regression. `wasDelivering` does NOT feed the recovery LOG —
+    // it feeds `#scheduleRetry` → `#reconnectIntent` → `onReconnect` →
+    // `@lockness/realtime`'s #271 revocation re-check. So what a wrong
+    // translation of that read costs is not a line in the log; it is how quickly
+    // a revoked subscriber stops receiving broadcasts.
+    //
+    // Three paths, because the middle one is the one nothing covered: the suite
+    // already pins a failed FIRST DIAL (`FR-007: a retried FIRST connect fires
+    // nothing`) and a fault after delivery (`FR-007/SC-005`), and neither
+    // reaches a dial that SUCCEEDS and then fails its PSUBSCRIBE — where a
+    // generation-based read flips from `false` to `true` silently.
+    const run = async (
+        script: (gen1: ReturnType<typeof scriptedConn>) => void,
+        opts: { dialFails?: boolean; wedgePsubscribe?: boolean } = {},
+    ): Promise<number> => {
+        const dialFails = opts.dialFails === true
+        // Wedged only where the path needs a PSUBSCRIBE to fail. Deriving this
+        // from `dialFails` wedged generation 1's subscribe on the delivery path
+        // too, so no read loop ever started and there was no delivery to lose —
+        // the path-3 assertion then timed out instead of measuring anything.
+        const gen1 = scriptedConn({
+            wedgeWrite: opts.wedgePsubscribe === true ? 1 : undefined,
+        })
+        const gen2 = scriptedConn({})
+        let dials = 0
+        const real = Deno.connect
+        Object.defineProperty(Deno, 'connect', {
+            value: () => {
+                dials++
+                if (dialFails && dials === 1) {
+                    return Promise.reject(new Error('ECONNREFUSED (injected)'))
+                }
+                return Promise.resolve(dials === 1 ? gen1.conn : gen2.conn)
+            },
+            configurable: true,
+            writable: true,
+        })
+        const sub = new RedisSubscribeConnection({
+            hostname: '127.0.0.1',
+            port: 1,
+            keepaliveMs: 1000,
+            livenessMs: 5000,
+            retryBaseMs: 20,
+            retryMaxMs: 20,
+        })
+        let fires = 0
+        sub.onReconnect(() => {
+            fires++
+        })
+        using _warn = liveWarnings()
+        try {
+            sub.psubscribe('app:*', () => {})
+            script(gen1)
+            await waitFor(
+                () => gen2.writes() >= 1,
+                'the successor generation subscribed',
+                4000,
+            )
+            // One more retry window, so a LATE fire is counted rather than
+            // missed by a check that ran too early.
+            await new Promise((r) => setTimeout(r, 80))
+            return fires
+        } finally {
+            Object.defineProperty(Deno, 'connect', {
+                value: real,
+                configurable: true,
+                writable: true,
+            })
+            await sub.close()
+        }
+    }
+
+    // Path 1 — the first dial never lands. There is nothing to reconcile,
+    // because nothing was ever delivering.
+    assertEquals(
+        await run(() => {}, { dialFails: true }),
+        0,
+        'a retried FIRST connect reconciles nothing',
+    )
+
+    // Path 2 — the dial LANDS and the PSUBSCRIBE fails. Still a first connect:
+    // no read loop ever ran on that socket, so nothing was delivering. This is
+    // the path a generation-identity read would flip to `true`, firing the seam
+    // on a connection that never had a subscriber to revoke.
+    assertEquals(
+        await run(
+            (gen1) =>
+                setTimeout(
+                    () =>
+                        gen1.settleWedged(
+                            new RespFramingError(
+                                'injected: PSUBSCRIBE stalled',
+                            ),
+                        ),
+                    30,
+                ),
+            { wedgePsubscribe: true },
+        ),
+        0,
+        'a first connect whose PSUBSCRIBE fails is not a RECONNECT — it has ' +
+            'no delivery to restore, and firing here reconciles a revocation ' +
+            'set nobody is subscribed to',
+    )
+
+    // Path 3 — delivery had begun and was lost. This is a real recovery, and
+    // the seam owes exactly one fire.
+    assertEquals(
+        await run(
+            (gen1) =>
+                setTimeout(() => gen1.faultRead(new Error('socket fault')), 40),
+        ),
+        1,
+        'a fault after delivery began fires the seam exactly once',
+    )
+})
+
+Deno.test('#298/SC-003: a SECOND psubscribe on a live socket does not re-generation it', async () => {
+    // FR-003's install side, and the half the plan's first draft never
+    // mentioned. `psubscribe()` on an established connection reaches `#activate`
+    // and `connect()` hands back the CACHED socket — so a generation created per
+    // ACTIVATION rather than per SOCKET drops the live write chain and orphans
+    // the live keepalive. Reachable on the second call, not through a race.
+    //
+    // An orphaned interval is invisible by every direct means: its id is gone,
+    // it is unref'd so it does not hold the process open, and it writes to a
+    // socket that is still alive so nothing errors. What it does do is DOUBLE
+    // the ping rate, and that is what this counts.
+    const gen = scriptedConn({})
+    let dials = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            dials++
+            return Promise.resolve(gen.conn)
+        },
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 40,
+        livenessMs: 5000,
+        retryBaseMs: 60_000,
+        retryMaxMs: 60_000,
+    })
+    using _warn = liveWarnings()
+    try {
+        sub.psubscribe('app:*', () => {})
+        await waitFor(() => gen.writes() >= 1, 'the first pattern subscribed')
+        // The second call. One socket, one generation — `connect()` returns the
+        // cached socket, so nothing here is a new generation.
+        sub.psubscribe('other:*', () => {})
+        await waitFor(
+            () => gen.writes() >= 3,
+            'the second call re-issued both patterns on the SAME socket',
+            3000,
+        )
+        assertEquals(dials, 1, 'one socket, so one generation')
+        const settled = gen.writes()
+        // Ten keepalive windows. One interval writes ~10 pings; an orphan plus
+        // its replacement writes ~20. The bound sits between them with room for
+        // timer drift in either direction, because the claim is "one interval,
+        // not two" and not "exactly ten".
+        await new Promise((r) => setTimeout(r, 40 * 10))
+        const pings = gen.writes() - settled
+        assert(
+            pings >= 3,
+            `the keepalive must still be armed after the second psubscribe, ` +
+                `saw ${pings} pings`,
+        )
+        assert(
+            pings < 15,
+            `two intervals are firing — the second psubscribe built a new ` +
+                `generation for a socket that already had one and orphaned ` +
+                `its timer, saw ${pings} pings where one interval writes ~10`,
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await sub.close()
+    }
+})
+
+Deno.test('#298/SC-004: close() still awaits the loop the discard faulted', async () => {
+    // FR-006. `loopDone` is NOT a member of the generation, and this is the
+    // reason: `close()` discards the socket and THEN awaits the loop's unwind,
+    // so the promise has to outlive the drop. Folding it in would make `close()`
+    // await `#generation?.loopDone` — `undefined` after the discard — and
+    // awaiting nothing satisfies "close awaits the loop" perfectly while
+    // awaiting nothing at all.
+    //
+    // The first version of this test compared against a `setTimeout(0)` and was
+    // WRONG: an already-resolved promise still settles before a macrotask, so it
+    // went red against correct code. What distinguishes the two is not ordering
+    // within a turn — it is whether `close()` waits for an unwind that has not
+    // happened yet. So the socket here unwinds LATE, and `close()` must not
+    // return before it does.
+    const UNWIND_MS = 60
+    let unwound = false
+    let rejectRead: ((error: Error) => void) | undefined
+    const conn = {
+        write: (bytes: Uint8Array) => Promise.resolve(bytes.byteLength),
+        read: (_buf: Uint8Array) =>
+            new Promise<number | null>((_, reject) => {
+                rejectRead = reject
+            }),
+        // A real socket fails its pending read when it is closed. This one takes
+        // its time about it, which is the whole instrument: the gap between the
+        // discard and the unwind is where a dropped `loopDone` would let
+        // `close()` slip through.
+        close: () => {
+            setTimeout(() => {
+                unwound = true
+                rejectRead?.(new Error('Bad resource ID (closed)'))
+            }, UNWIND_MS)
+        },
+        localAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+        remoteAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+    } as unknown as Deno.Conn
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => Promise.resolve(conn),
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 1000,
+        livenessMs: 5000,
+        retryBaseMs: 60_000,
+        retryMaxMs: 60_000,
+    })
+    using _warn = liveWarnings()
+    try {
+        sub.psubscribe('app:*', () => {})
+        await waitFor(
+            () => rejectRead !== undefined,
+            'the read loop is draining',
+        )
+        await sub.close()
+        assert(
+            unwound,
+            'close() returned while the read loop was still unwinding — it ' +
+                'awaited a `loopDone` that had been dropped with the ' +
+                'generation, and awaiting nothing always looks like success',
+        )
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        // Idempotent, and needed: the body's `close()` sits after a `waitFor`
+        // that can throw, and a test that leaks a live connection fails the NEXT
+        // test instead of this one.
+        await sub.close()
+    }
+})
+
+Deno.test('#298/SC-013: no log line can carry a generation member', async () => {
+    // FR-009's second clause, re-phrased positively during the plan re-entry
+    // because the original was satisfied VACUOUSLY: no member is a string
+    // today, so "introduces no identifier into any log line" was true by
+    // accident and nothing would notice when it stopped being.
+    //
+    // **Two halves, and the reason for each is a correction.**
+    //
+    // The first draft was a runtime capture over a fault, a discard and a
+    // recovery, asserting no line contained `[object`. It passed against a
+    // deliberate `${this.#generation}` interpolation, because on THAT path the
+    // generation has just been released and renders as `"null"`. From that I
+    // concluded a runtime witness was impossible and moved wholly to source.
+    // **A review seat showed the conclusion was too broad**: the handler-fault
+    // ERROR at `#reportHandlerFault` fires with a LIVE generation, so the
+    // runtime half is not only possible there, it is the half that survives a
+    // rename the source check cannot see (`const g = this.#generation` and then
+    // `${g}`). Both halves are kept, and each covers the other's blind spot.
+    //
+    // The SOURCE half is exhaustive over spellings but literal: it covers lines
+    // nobody has written yet, and misses an aliased read.
+    // The RUNTIME half is exhaustive over aliases but samples only the lines
+    // that fire, in the states they fire in.
+    // #295's is the reason to write this now: its fourth member is a set of
+    // broker-acknowledged patterns, peer-adjacent strings retained per
+    // generation, and the cheapest moment to forbid logging their contents is
+    // before the member exists.
+    const source = await Deno.readTextFile(
+        new URL('../subscriber.ts', import.meta.url),
+    )
+    // A count or a boolean derived from a member stays legal, which is what the
+    // requirement permits — `${gen.issued.size}` is fine, `${gen.issued}` and
+    // `${[...gen.issued]}` are not. Only the interpolation forms are refused.
+    for (const forbidden of ['${this.#generation', '${generation', '${gen.']) {
+        assert(
+            !source.includes(forbidden),
+            `subscriber.ts interpolates a socket generation into a template ` +
+                `literal (\`${forbidden}\`). Only a count or a boolean ` +
+                `derived from a member may reach a log line; no member's ` +
+                `contents may (FR-009).`,
+        )
+    }
+
+    // RUNTIME HALF A — the handler-fault ERROR, which fires while the
+    // generation is LIVE. This is the site the source check's blind spot lands
+    // on, and the one my "a runtime witness is impossible" claim got wrong.
+    {
+        const server = await startFakeServer()
+        const live = new RedisSubscribeConnection({
+            hostname: '127.0.0.1',
+            port: server.port,
+        })
+        const realError = console.error
+        const errors: string[] = []
+        console.error = (...args: unknown[]) => {
+            errors.push(args.map((a) => String(a)).join(' '))
+        }
+        try {
+            live.psubscribe('app:*', () => {
+                throw new Error('handler exploded')
+            })
+            await waitFor(
+                () =>
+                    server.commandLog.some((c) =>
+                        c[0]?.toUpperCase() === 'PSUBSCRIBE'
+                    ),
+                'the subscription reached the server',
+            )
+            server.publish('app:*', 'app:a', 'boom')
+            await waitFor(
+                () => errors.some((e) => e.includes('handler exploded')),
+                'the fault was reported while the generation was live',
+                4000,
+            )
+            for (const line of errors) {
+                assert(
+                    !line.includes('[object'),
+                    'a log line written with a LIVE generation stringified an ' +
+                        `object rather than a value: ${line}`,
+                )
+            }
+        } finally {
+            console.error = realError
+            await live.close()
+            server.stop()
+        }
+    }
+
+    // RUNTIME HALF B — the fault/discard/recovery cycle, which catches an
+    // accidental object interpolation from anywhere, not only from a generation.
+    const gen1 = scriptedConn({})
+    const gen2 = scriptedConn({})
+    let dials = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            dials++
+            return Promise.resolve(dials === 1 ? gen1.conn : gen2.conn)
+        },
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 40,
+        livenessMs: 5000,
+        retryBaseMs: 20,
+        retryMaxMs: 20,
+    })
+    using warn = liveWarnings()
+    try {
+        sub.psubscribe('app:*', () => {})
+        await waitFor(() => gen1.writes() >= 1, 'generation 1 subscribed')
+        gen1.faultRead(new Error('socket fault'))
+        await waitFor(
+            () => dials >= 2 && gen2.writes() >= 1,
+            'the retry recovered onto generation 2',
+            4000,
+        )
+        assert(warn.messages.length > 0, 'the cycle logged something')
+        for (const line of warn.messages) {
+            assert(
+                !line.includes('[object'),
+                `a log line stringified an object rather than a value: ${line}`,
+            )
+            assertStringIncludes(line, '[redis-subscribe]')
+        }
+    } finally {
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+        await sub.close()
     }
 })
