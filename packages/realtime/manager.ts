@@ -23,53 +23,161 @@ import { isValidName, MAX_NAME_LENGTH } from './protocol.ts'
  * id is a bug in the caller's own code that no retry will fix.
  */
 /**
- * The per-instance watched-channel cap (#295/FR-017).
+ * The DEFAULT per-instance watched-channel cap (#295/FR-017, #322).
  *
- * Not a free choice: it is also the N that SC-007 proves a full reconnect
- * re-issue at, and the bound R-8 puts on the post-outage revocation window. A
- * cap and a criterion at two different numbers is two answers to one question.
+ * **The couplings belong to this default, not to the cap.** This number is also
+ * the N that #295's SC-007 proves a full reconnect re-issue at, and the bound
+ * its R-8 puts on the post-outage revocation window. A deployment that raises
+ * `maxWatchedChannels` past it voids **both**: the re-issue is proven at 1 000,
+ * not at whatever was chosen, and the revocation window widens with the set.
+ * That is a legitimate trade — it is not a free one, and `docs/realtime.md`'s
+ * upgrade note says so where an operator actually picks the number.
  */
 export const MAX_WATCHED_CHANNELS = 1_000
 
-/** The per-connection watched-channel cap (#295/FR-017). */
+/** The DEFAULT per-connection watched-channel cap (#295/FR-017, #322). */
 export const MAX_CHANNELS_PER_CONNECTION = 100
 
 /**
- * Raised when a subscribe would take this instance or this connection past its
- * watched-channel cap (#295/FR-017).
+ * Refuse a cap that is not a positive integer, at construction.
  *
- * **Exported from the first release and raised from the second.** FR-017b lands
- * the caps over two releases — one that WARNs with the breached scope and its
- * actual count, one that refuses — because nothing in the framework measures
- * channels-per-instance today, so nobody, this plan included, can say whether
- * 1 000 is generous or tight. One release of WARNs answers that from real
- * deployments before the refusal costs anyone anything. The type ships now so
- * an application can catch it before it can be thrown.
+ * @param option - The option's name, so the message names what to fix.
+ * @param value - The resolved value.
+ * @throws {Error} If `value` is not a positive integer.
+ */
+function assertCap(option: string, value: number): void {
+    if (!Number.isInteger(value) || value <= 0) {
+        throw new Error(
+            `realtime: ${option} must be a positive integer, received ` +
+                `${
+                    JSON.stringify(value)
+                }. A cap discovered at the thousandth ` +
+                'subscribe is a misconfiguration discovered in production.',
+        )
+    }
+}
+
+/**
+ * Refuse a reservation share outside `(0, 1]`, at construction.
+ *
+ * A fraction, not a count — {@link assertCap}'s integer test would refuse every
+ * legitimate value.
+ *
+ * @param option - The option's name.
+ * @param value - The resolved value.
+ * @throws {Error} If `value` is not a finite number in `(0, 1]`.
+ */
+function assertShare(option: string, value: number): void {
+    if (!Number.isFinite(value) || value <= 0 || value > 1) {
+        throw new Error(
+            `realtime: ${option} must be a number greater than 0 and at most ` +
+                `1, received ${JSON.stringify(value)}. Use 1 to disable the ` +
+                'reservation.',
+        )
+    }
+}
+
+/**
+ * Render a cap breach for a human, without the numbers.
+ *
+ * The count and the limit stay on the error as properties; they are deliberately
+ * absent from the message, which many applications forward to the client as a
+ * close-frame reason. The instance-wide count is a load signal covering every
+ * other user of the deployment, and the caller that triggers this ran no
+ * authorizer when the channel is public.
+ *
+ * @param scope - The breached scope; unknown values render generically.
+ * @returns The message body.
+ */
+function renderLimitBreach(scope: string): string {
+    if (scope === 'connection') {
+        return 'this connection is at its watched-channel limit'
+    }
+    if (scope === 'instance-anonymous') {
+        return 'connections with no identity have used their share of this ' +
+            "instance's watched-channel budget, which is reserved so an " +
+            'anonymous socket cannot deny hosting to identified connections'
+    }
+    if (scope === 'instance') {
+        return 'this instance is at its watched-channel limit'
+    }
+    return `this ${scope} is at its watched-channel limit`
+}
+
+/**
+ * The scopes a cap breach can carry: `'instance'`, `'connection'` and
+ * `'instance-anonymous'` today.
+ *
+ * **Deliberately `string`, not a union of those three.** This set is OPEN — it
+ * gained `'instance-anonymous'` in #322 and may gain more — and a closed union
+ * would let an application write an exhaustive `switch` that the next addition
+ * silently breaks at every catch site. Typing it as `string` makes that
+ * mistake unwriteable: handle an unrecognised scope as a generic cap breach.
+ *
+ * @see {@link CHANNEL_LIMIT_SCOPES} for the values known at this version.
+ */
+export type ChannelLimitScope = string
+
+/**
+ * The cap-breach scopes this version raises.
+ *
+ * Provided so an application can compare against a named constant rather than
+ * a magic string, without gaining a closed type it could switch on
+ * exhaustively — see {@link ChannelLimitScope}.
+ */
+export const CHANNEL_LIMIT_SCOPES = [
+    'instance',
+    'connection',
+    'instance-anonymous',
+] as const
+
+/**
+ * Raised when a subscribe would take this instance or this connection past its
+ * watched-channel cap (#295/FR-017, #322).
  *
  * **A throw, not `{ ok: false }`.** `subscribe`'s contract is that a denied
  * subscribe answers `{ ok: false }` and a caller bug throws; a cap breach is
  * neither — it is resource exhaustion driven by a legitimate client. Answering
  * `{ ok: false }` would make it indistinguishable from an authorization denial
  * in every application's client code.
+ *
+ * **The numbers are on the error, not in the message.** `count` and `limit` are
+ * what server-side logging should read; the message omits them because an
+ * application that forwards it to the client would hand an unauthenticated
+ * caller a live load signal for the whole deployment.
+ *
+ * @example
+ * ```ts
+ * try {
+ *     await manager.subscribe(connection, 'public-feed')
+ * } catch (error) {
+ *     if (error instanceof ChannelLimitError) {
+ *         log.warn('cap breach', { scope: error.scope, count: error.count })
+ *     }
+ * }
+ * ```
  */
 export class ChannelLimitError extends Error {
     override readonly name = 'ChannelLimitError'
 
     /**
-     * @param scope - Which cap was breached.
+     * @param scope - Which cap was breached. An open set — see
+     *   {@link ChannelLimitScope}.
      * @param count - The count at the moment of the breach.
      * @param limit - The cap that was reached.
      */
     constructor(
-        readonly scope: 'instance' | 'connection',
+        readonly scope: ChannelLimitScope,
         readonly count: number,
         readonly limit: number,
     ) {
         super(
-            `realtime: this ${scope} already holds ${count} watched ` +
-                `channel(s), at the limit of ${limit} (#295). Each one is a ` +
+            `realtime: ${
+                renderLimitBreach(scope)
+            }. Each watched channel is a ` +
                 'broker subscription re-issued on every reconnect, so the set ' +
-                'is bounded deliberately — raise the limit knowing that, or ' +
+                'is bounded deliberately — read `count` and `limit` for the ' +
+                'numbers, raise the limit knowing the reconnect cost, or ' +
                 'shard the deployment.',
         )
     }
@@ -233,6 +341,38 @@ export interface ChannelManagerOptions<Identity = unknown> {
     encode?: (frame: OutboundFrame) => string
     /** Sink for a failed cross-process publish (defaults to `console.error`). */
     onPublishError?: (error: unknown) => void
+    /**
+     * The per-instance watched-channel cap (default {@link MAX_WATCHED_CHANNELS}).
+     *
+     * A positive integer. Each watched channel is a broker subscription
+     * re-issued on every reconnect, so raising this raises the cost of a
+     * reconnect storm in direct proportion — see the upgrade note in
+     * `docs/realtime.md`.
+     */
+    maxWatchedChannels?: number
+    /**
+     * The per-connection watched-channel cap (default
+     * {@link MAX_CHANNELS_PER_CONNECTION}).
+     *
+     * A positive integer, and never greater than {@link maxWatchedChannels} —
+     * a per-connection cap above the instance cap lets one connection consume
+     * the whole instance budget, which is refused at construction.
+     */
+    maxChannelsPerConnection?: number
+    /**
+     * The share of {@link maxWatchedChannels} that connections with no identity
+     * may cause to be hosted (default `0.8`; `1` disables the reservation).
+     *
+     * `subscribe` runs no authorizer for a public channel, so without this an
+     * anonymous socket can drive the instance to its cap and deny every other
+     * connection — authenticated ones included — the ability to host a new
+     * channel. An anonymous connection may always JOIN an already-hosted
+     * channel; the reservation bounds only 0 -> 1 transitions.
+     *
+     * A deployment that authenticates nobody sets this to `1` and carries the
+     * original exposure knowingly.
+     */
+    anonymousHostingShare?: number
 }
 
 /**
@@ -252,6 +392,21 @@ export class ChannelManager<Identity = unknown> {
     private readonly authorize?: Authorizer<Identity>
     private readonly encode: (frame: OutboundFrame) => string
     private readonly onPublishError: (error: unknown) => void
+    /** Resolved caps and reservation — read by `#checkChannelCaps` and nowhere else. */
+    readonly #maxWatchedChannels: number
+    readonly #maxChannelsPerConnection: number
+    readonly #anonymousHostingShare: number
+    /** The instance cap an anonymous connection may reach, precomputed once. */
+    readonly #anonymousWatchedCeiling: number
+    /**
+     * Whether that ceiling is actually below the cap.
+     *
+     * `false` when `anonymousHostingShare` is 1 (or rounds up to the cap), and
+     * then an anonymous caller is refused by the INSTANCE cap rather than by a
+     * reservation — which is what the breach must say, or an operator is sent
+     * to tune a dial that is already at its maximum.
+     */
+    readonly #anonymousReservationActive: boolean
     private readonly connections = new Map<string, Connection<Identity>>()
     private readonly subscriptions = new Map<string, Set<string>>()
     /**
@@ -294,6 +449,47 @@ export class ChannelManager<Identity = unknown> {
                     // and its stack — to a log store.
                     `realtime: broadcast publish failed: ${renderError(error)}`,
                 ))
+        // `??`, never `||`: a supplied 0 must reach the assertion below rather
+        // than be silently repaired into the default. A cap that repairs itself
+        // is the shape the plan's decision table forbids.
+        this.#maxWatchedChannels = options.maxWatchedChannels ??
+            MAX_WATCHED_CHANNELS
+        this.#maxChannelsPerConnection = options.maxChannelsPerConnection ??
+            MAX_CHANNELS_PER_CONNECTION
+        this.#anonymousHostingShare = options.anonymousHostingShare ?? 0.8
+        assertCap('maxWatchedChannels', this.#maxWatchedChannels)
+        assertCap('maxChannelsPerConnection', this.#maxChannelsPerConnection)
+        assertShare('anonymousHostingShare', this.#anonymousHostingShare)
+        if (this.#maxChannelsPerConnection > this.#maxWatchedChannels) {
+            throw new Error(
+                `realtime: maxChannelsPerConnection ` +
+                    `(${this.#maxChannelsPerConnection}) exceeds ` +
+                    `maxWatchedChannels (${this.#maxWatchedChannels}), which ` +
+                    'lets a single connection consume the whole instance ' +
+                    'budget. Lower it, or raise the instance cap.',
+            )
+        }
+        this.#anonymousWatchedCeiling = Math.floor(
+            this.#maxWatchedChannels * this.#anonymousHostingShare,
+        )
+        this.#anonymousReservationActive =
+            this.#anonymousWatchedCeiling < this.#maxWatchedChannels
+        // A ceiling of ZERO denies anonymous hosting outright for the life of
+        // the process, and it is reachable from two individually valid values —
+        // `{ maxWatchedChannels: 1 }` with the default share floors 0.8 to 0.
+        // Fail-closed, so nothing leaks; but a deployment that meant to reserve
+        // a fifth of its budget and instead disabled anonymous hosting entirely
+        // deserves to hear about it at construction rather than from a support
+        // ticket. Set the share to 1 to disable it on purpose.
+        if (this.#anonymousWatchedCeiling === 0) {
+            throw new Error(
+                `realtime: maxWatchedChannels (${this.#maxWatchedChannels}) × ` +
+                    `anonymousHostingShare (${this.#anonymousHostingShare}) ` +
+                    'floors to 0, so no connection without an identity could ' +
+                    'ever host a channel. Raise either, or set the share to 1 ' +
+                    'to disable the reservation deliberately.',
+            )
+        }
         this.roster = presenceRoster(this.driver)
         // ONE guard, at construction, for the whole watch pair (#295).
         this.#watcher = channelWatcher(this.driver)
@@ -490,6 +686,11 @@ export class ChannelManager<Identity = unknown> {
      *   charset. That is a caller bug, not an authorization outcome — a denied
      *   subscribe answers `{ ok: false }`, and folding the two together would
      *   put a policy decision and a defect behind the same branch.
+     * @throws {ChannelLimitError} If the join would take this instance or this
+     *   connection past a watched-channel cap, or past the share reserved for
+     *   connections with no identity. Raised only AFTER authorization, so an
+     *   unauthorized caller is denied on its own terms and never learns the
+     *   instance is full.
      */
     async subscribe(
         connection: Connection<Identity>,
@@ -529,7 +730,11 @@ export class ChannelManager<Identity = unknown> {
         // BEFORE any membership mutation, and after authorization: an
         // unauthorized subscribe is denied on its own terms, and a cap breach
         // is not an authorization outcome (#295/FR-017, §5 row 14).
-        this.#checkChannelCaps(channel, connection.id)
+        this.#checkChannelCaps(
+            channel,
+            connection.id,
+            connection.identity !== null,
+        )
         this.connections.set(connection.id, connection)
 
         if (kind === 'presence' && member) {
@@ -566,6 +771,68 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * Refuse a subscribe that would take this instance or this connection past
+     * its watched-channel cap.
+     *
+     * **Only a join that GROWS a set counts.** A second client on a hosted
+     * channel adds no subscription, and a client re-joining a channel it
+     * already holds adds nothing either; charging for those would refuse work
+     * that costs the broker nothing.
+     *
+     * **`isIdentified`, not the `Connection`.** The cap decision needs exactly
+     * one bit about identity — whether this caller may reach into the reserved
+     * share — and handing it the whole connection would let a later change ask
+     * identity a second question here, which is how a decision acquires a
+     * second home.
+     *
+     * Called BEFORE any membership mutation and AFTER authorization, so a
+     * refusal mutates nothing and a cap breach is never mistaken for a denial.
+     *
+     * @param channel - The channel being joined.
+     * @param clientId - The joining connection.
+     * @param isIdentified - Whether the connection carries a verified identity.
+     * @throws {ChannelLimitError} If either cap, or the anonymous reservation,
+     *   would be exceeded.
+     */
+    #checkChannelCaps(
+        channel: string,
+        clientId: string,
+        isIdentified: boolean,
+    ): void {
+        if (!this.subscriptions.has(channel)) {
+            // Growing the hosted set is the only thing the instance cap
+            // charges for, and it is the only thing the anonymous reservation
+            // bounds — an anonymous connection joins an ALREADY-hosted channel
+            // freely, at any size.
+            // The reservation only exists while it is BELOW the cap. With the
+            // share at 1 an anonymous caller is refused by the instance cap
+            // itself, and the breach must say so.
+            const reserved = !isIdentified && this.#anonymousReservationActive
+            const limit = reserved
+                ? this.#anonymousWatchedCeiling
+                : this.#maxWatchedChannels
+            if (this.subscriptions.size >= limit) {
+                throw new ChannelLimitError(
+                    reserved ? 'instance-anonymous' : 'instance',
+                    this.subscriptions.size,
+                    limit,
+                )
+            }
+        }
+        const owned = this.#channelsByClient.get(clientId)
+        if (
+            !owned?.has(channel) &&
+            (owned?.size ?? 0) >= this.#maxChannelsPerConnection
+        ) {
+            throw new ChannelLimitError(
+                'connection',
+                owned?.size ?? 0,
+                this.#maxChannelsPerConnection,
+            )
+        }
+    }
+
+    /**
      * Add a connection to a channel's local set — **the only writer**, with
      * {@link #leaveLocal}, of `subscriptions` (#295).
      *
@@ -581,55 +848,17 @@ export class ChannelManager<Identity = unknown> {
      * permanently, since the reconnect that heals every other deafness is
      * guaranteed not to re-issue a channel that left the re-issue set.
      *
-     * @param channel - The channel being joined.
-     * @param clientId - The joining connection.
-     */
-    /**
-     * Report — and, from the next release, refuse — a subscribe that would take
-     * this instance or this connection past its watched-channel cap.
-     *
-     * **Only a join that GROWS a set counts.** A second client on a hosted
-     * channel adds no subscription, and a client re-joining a channel it
-     * already holds adds nothing either; charging for those would refuse work
-     * that costs the broker nothing.
-     *
-     * This release WARNs and admits the subscribe (FR-017b). The next one
-     * replaces each `console.warn` below with `throw new ChannelLimitError(…)`
-     * and deletes this comment — the WARN is a shim with a filed removal, not a
-     * permanent state.
+     * **`set.size > 0` and `subscriptions.has(channel)` are ONE answer**, and
+     * that is what lets `#checkChannelCaps` ask the second while this asks the
+     * first. They agree only because {@link #leaveLocal} deletes the empty
+     * `Set` rather than keeping it for reuse. Keep an emptied `Set` here as an
+     * allocation tidy-up and the cap starts counting channels with no
+     * subscribers — refusing a subscribe on an instance nowhere near its limit,
+     * with an error naming a count nobody can reproduce.
      *
      * @param channel - The channel being joined.
      * @param clientId - The joining connection.
      */
-    #checkChannelCaps(channel: string, clientId: string): void {
-        if (
-            !this.subscriptions.has(channel) &&
-            this.subscriptions.size >= MAX_WATCHED_CHANNELS
-        ) {
-            console.warn(
-                `realtime: this instance holds ${this.subscriptions.size} ` +
-                    `watched channels, at the limit of ` +
-                    `${MAX_WATCHED_CHANNELS} (#295). The next release REFUSES ` +
-                    'this subscribe with a ChannelLimitError; this one admits ' +
-                    'it so you can see the number first.',
-            )
-        }
-        const owned = this.#channelsByClient.get(clientId)
-        if (
-            !owned?.has(channel) &&
-            (owned?.size ?? 0) >= MAX_CHANNELS_PER_CONNECTION
-        ) {
-            console.warn(
-                `realtime: connection ${safeForLog(clientId)} holds ${
-                    owned?.size ?? 0
-                } watched channels, at the limit of ` +
-                    `${MAX_CHANNELS_PER_CONNECTION} (#295). The next release ` +
-                    'REFUSES this subscribe with a ChannelLimitError; this one ' +
-                    'admits it so you can see the number first.',
-            )
-        }
-    }
-
     async #joinLocal(channel: string, clientId: string): Promise<void> {
         let set = this.subscriptions.get(channel)
         if (!set) this.subscriptions.set(channel, set = new Set())

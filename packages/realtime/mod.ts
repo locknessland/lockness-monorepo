@@ -55,6 +55,7 @@ export {
     type RedisSubscriber,
 } from './drivers/redis.ts'
 export {
+    CHANNEL_LIMIT_SCOPES,
     // Both id errors are exported because a NAMED error type an application
     // cannot name is just an `Error`. #304 made `ConnectionIdError` named
     // precisely so a caller could tell "a bug in my own code that no retry
@@ -62,6 +63,7 @@ export {
     // `instanceof`, which needs this line. #306 adds the presence-member
     // sibling and closes the same gap for it.
     ChannelLimitError,
+    type ChannelLimitScope,
     ChannelManager,
     type ChannelManagerOptions,
     ChannelNameError,
