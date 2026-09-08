@@ -1,5 +1,6 @@
 {
     "name": "@lockness/testing",
+    "version": "0.3.0",
     "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
@@ -17,5 +18,5 @@
         "hono": "jsr:@lockness/hono@^0.3.0",
         "@lockness/auth": "jsr:@lockness/auth@^0.3.0"
     },
-    "description": "Internal, unpublished test-support harness — HTTP test client, actingAs, fakes and DB assertions. Test-only; never imported at runtime."
+    "description": "Test-support harness for Lockness applications \u2014 HTTP test client, actingAs, fakes and DB assertions. Import it from your tests only; nothing here is meant to run in production."
 }
