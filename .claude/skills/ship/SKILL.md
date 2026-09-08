@@ -119,16 +119,24 @@ Revoke it afterwards.
 <https://jsr.io/account/tokens/create> asks one question — *"What do you plan to
 do with your personal access token?"* — with two answers:
 
-| The option | What it yields | Use it for |
-| :--- | :--- | :--- |
-| Publish packages | a `jsrp_` token | publishing from a terminal — **not what this repo does**, the CI publishes by OIDC |
-| **Interact with the JSR API** | a `jsrt_` token | **this**: writing `githubRepository` on a package |
+| Step | Answer |
+| :--- | :--- |
+| *"What do you plan to do with your personal access token?"* | **Interact with the JSR API** — not *Publish packages*; this repo never publishes from a terminal, the CI does it by OIDC |
+| **Permissions** | **Full access.** The two publish scopes above it — *"…this package"*, *"…any packages in this scope"* — both fail on a settings write, and the first is the one the page recommends |
 
-Observed at v0.3.0: a `jsrp_` token produced `HTTP 403 missingPermission` on all
-ten links while leaving the 27 correct ones untouched — `Changed: 0 · failed:
-10`, nothing half-written. The v0.2.0 token that worked began `jsrt_`. So check
-the prefix before spending a round trip; if it is not `jsrt_`, the wrong radio
-button was picked.
+**The prefix tells you nothing — do not try to read it.** Both the token that
+failed and the token that worked at v0.3.0 began `jsrp_` and were 40 characters
+long. The first was created with a *Publish packages* permission and returned
+`HTTP 403 missingPermission` on all ten links; the second was created with
+**Full access** and returned `Changed: 10 · failed: 0`. Same shape, opposite
+outcome. There is no way to tell a usable token from an unusable one by looking
+at it, so the only check that means anything is `--dry-run`.
+
+**Two questions, and only the second one decides.** The page asks what you plan
+to do, then asks for Permissions. The first answer routes the form; the second
+grants the access. Choosing *Interact with the JSR API* and then leaving
+Permissions on a publish scope produces a token that fails exactly like the
+publish-scoped one.
 
 Give it a **short expiry**. It is used once, for this one operation, and never
 again once the packages are linked.
