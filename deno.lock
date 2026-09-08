@@ -4546,10 +4546,10 @@
   "workspace": {
     "dependencies": [
       "jsr:@david/jsonc-morph@0.3",
-      "jsr:@lockness/contract@0.2",
-      "jsr:@lockness/core@0.2",
-      "jsr:@lockness/drizzle@0.2",
-      "jsr:@lockness/ui@0.2",
+      "jsr:@lockness/contract@0.3",
+      "jsr:@lockness/core@0.3",
+      "jsr:@lockness/drizzle@0.3",
+      "jsr:@lockness/ui@0.3",
       "jsr:@std/assert@1",
       "jsr:@std/cli@1",
       "jsr:@std/fs@1",
@@ -4568,32 +4568,32 @@
     "members": {
       "packages/auth": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/crypto@0.2",
-          "jsr:@lockness/events@0.2",
-          "jsr:@lockness/hono@0.2",
-          "jsr:@lockness/session@0.2",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/crypto@0.3",
+          "jsr:@lockness/events@0.3",
+          "jsr:@lockness/hono@0.3",
+          "jsr:@lockness/session@0.3",
           "jsr:@std/assert@1"
         ]
       },
       "packages/auth-provider": {
         "dependencies": [
-          "jsr:@lockness/auth@0.2",
+          "jsr:@lockness/auth@0.3",
           "npm:drizzle-orm@~0.36.3"
         ]
       },
       "packages/cache": {
         "dependencies": [
-          "jsr:@lockness/container@0.2",
-          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/container@0.3",
+          "jsr:@lockness/contract@0.3",
           "jsr:@std/assert@1"
         ]
       },
       "packages/cli": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/events@0.2",
-          "jsr:@lockness/queue@0.2",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/events@0.3",
+          "jsr:@lockness/queue@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/jsonc@1",
@@ -4602,13 +4602,13 @@
       },
       "packages/container": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/contract@0.3",
           "jsr:@std/assert@1"
         ]
       },
       "packages/contract": {
         "dependencies": [
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
@@ -4616,13 +4616,13 @@
       },
       "packages/core": {
         "dependencies": [
-          "jsr:@lockness/container@0.2",
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/crypto@0.2",
-          "jsr:@lockness/deprecation-contracts@0.2",
-          "jsr:@lockness/events@0.2",
-          "jsr:@lockness/hono@0.2",
-          "jsr:@lockness/scheduler@0.2",
+          "jsr:@lockness/container@0.3",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/crypto@0.3",
+          "jsr:@lockness/deprecation-contracts@0.3",
+          "jsr:@lockness/events@0.3",
+          "jsr:@lockness/hono@0.3",
+          "jsr:@lockness/scheduler@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/expect@1",
           "jsr:@std/path@1",
@@ -4631,7 +4631,7 @@
       },
       "packages/crypto": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/contract@0.3",
           "jsr:@std/assert@1"
         ]
       },
@@ -4642,19 +4642,19 @@
       },
       "packages/devtools": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/events@0.2",
-          "jsr:@lockness/hono@0.2",
-          "jsr:@lockness/session@0.2",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/events@0.3",
+          "jsr:@lockness/hono@0.3",
+          "jsr:@lockness/session@0.3",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
         ]
       },
       "packages/drizzle": {
         "dependencies": [
-          "jsr:@lockness/cli@0.2",
-          "jsr:@lockness/container@0.2",
-          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/cli@0.3",
+          "jsr:@lockness/container@0.3",
+          "jsr:@lockness/contract@0.3",
           "jsr:@std/path@1",
           "npm:@libsql/client@0.18",
           "npm:drizzle-orm@~0.36.3",
@@ -4664,8 +4664,8 @@
       },
       "packages/events": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/fs@1",
           "jsr:@std/path@1"
@@ -4686,20 +4686,20 @@
       },
       "packages/i18n": {
         "dependencies": [
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
         ]
       },
       "packages/inertia": {
         "dependencies": [
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1"
         ]
       },
       "packages/init": {
         "dependencies": [
-          "jsr:@lockness/cli@0.2",
+          "jsr:@lockness/cli@0.3",
           "jsr:@std/cli@1",
           "jsr:@std/expect@1",
           "jsr:@std/fs@1",
@@ -4709,7 +4709,7 @@
       },
       "packages/logger": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/contract@0.3",
           "jsr:@std/assert@1"
         ]
       },
@@ -4722,55 +4722,55 @@
       "packages/markdown": {
         "dependencies": [
           "jsr:@libs/markdown@^2.1.0",
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1"
         ]
       },
       "packages/notification": {
         "dependencies": [
-          "jsr:@lockness/container@0.2",
-          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/container@0.3",
+          "jsr:@lockness/contract@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
         ]
       },
       "packages/openapi": {
         "dependencies": [
-          "jsr:@lockness/cli@0.2",
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/cli@0.3",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/path@1"
         ]
       },
       "packages/queue": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/redis@0.2",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/redis@0.3",
           "jsr:@std/assert@1"
         ]
       },
       "packages/realtime": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/hono@0.2",
-          "jsr:@lockness/notification@0.2",
-          "jsr:@lockness/redis@0.2",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/hono@0.3",
+          "jsr:@lockness/notification@0.3",
+          "jsr:@lockness/redis@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/testing@1"
         ]
       },
       "packages/redis": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/contract@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/crypto@1"
         ]
       },
       "packages/scheduler": {
         "dependencies": [
-          "jsr:@lockness/container@0.2",
-          "jsr:@lockness/contract@0.2",
+          "jsr:@lockness/container@0.3",
+          "jsr:@lockness/contract@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/testing@1"
         ]
@@ -4783,18 +4783,18 @@
       },
       "packages/session": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/crypto@0.2",
-          "jsr:@lockness/hono@0.2",
-          "jsr:@lockness/redis@0.2",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/crypto@0.3",
+          "jsr:@lockness/hono@0.3",
+          "jsr:@lockness/redis@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/crypto@1"
         ]
       },
       "packages/socialite": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/crypto@1",
           "jsr:@std/encoding@1",
@@ -4804,7 +4804,7 @@
       },
       "packages/sse": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2"
+          "jsr:@lockness/contract@0.3"
         ]
       },
       "packages/storage": {
@@ -4818,23 +4818,23 @@
       },
       "packages/telemetry": {
         "dependencies": [
-          "jsr:@lockness/contract@0.2",
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1",
           "npm:@opentelemetry/api@^1.9.1"
         ]
       },
       "packages/testing": {
         "dependencies": [
-          "jsr:@lockness/auth@0.2",
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/auth@0.3",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1"
         ]
       },
       "packages/ui": {
         "dependencies": [
-          "jsr:@lockness/hono@0.2",
-          "jsr:@lockness/markdown@0.2",
+          "jsr:@lockness/hono@0.3",
+          "jsr:@lockness/markdown@0.3",
           "jsr:@std/assert@1",
           "jsr:@std/cli@1",
           "jsr:@std/fs@1",
@@ -4855,7 +4855,7 @@
       },
       "packages/validator": {
         "dependencies": [
-          "jsr:@lockness/hono@0.2",
+          "jsr:@lockness/hono@0.3",
           "jsr:@std/assert@1",
           "npm:zod@^3.22.0"
         ]
