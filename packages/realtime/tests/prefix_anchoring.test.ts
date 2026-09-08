@@ -30,7 +30,7 @@
  * | Mutation | Caught by |
  * | :--- | :--- |
  * | `isAnchored` weakened to `startsWith` | `FR-003` |
- * | Each of the nine members un-anchored, in turn (9) | `SC-001` |
+ * | Each of the seven members un-anchored, in turn (7) | `SC-001` |
  * | The inline subscribe pattern un-anchored | `SC-001`, `FR-001` |
  * | A `psubscribe` site dropped from the recorder | `FR-001` |
  * | A member removed from the pinned roster | `SC-004` |
@@ -137,13 +137,13 @@
  * @module @lockness/realtime/tests/prefix_anchoring
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assert, assertEquals, assertRejects } from '@std/assert'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import { isAnchored, recordingPorts } from './recording_ports.ts'
 
 /**
- * The nine members of `RedisBroadcastDriver` whose body interpolates
- * `this.prefix`, plus the inline pattern.
+ * The members of `RedisBroadcastDriver` whose body interpolates `this.prefix`,
+ * plus the inline pattern.
  *
  * **Names, not a count.** A count moves when a harmless refactor reads the
  * prefix into a local, and fails to move when a new getter does the same — the
@@ -163,8 +163,6 @@ const PREFIX_MEMBERS: readonly string[] = [
     'aliveKey',
     'instancesKey',
     'revocationIndexKey',
-    'legacyRevokedIndexKey',
-    'legacyRevokedKey',
 ]
 
 /**
@@ -176,8 +174,9 @@ const PREFIX_MEMBERS: readonly string[] = [
  * `onMessage`'s pattern, both of which are already pinned. Listing it here
  * rather than in {@link PREFIX_MEMBERS} keeps `FR-006`'s exact-string matching
  * honest — a fragment has no exact string to look for, and giving it one would
- * mean matching by substring, which is the discipline that file's own comment
- * at the `alpha:revoked` case exists to forbid.
+ * mean matching by substring, which is the discipline `FR-006`'s own comment
+ * exists to forbid — `alpha__owned:` is contained in `alpha__owned:<id>`, so a
+ * member that was never driven would still "be found" inside another name.
  *
  * **It is a declared list, not an exclusion rule.** A getter added later that
  * is quietly a fragment fails `SC-004` by name until someone decides which of
@@ -200,22 +199,15 @@ const PREFIX_FRAGMENTS: readonly string[] = ['eventTopicPrefix']
 const FRAGMENT_DERIVED: readonly string[] = ['topic', 'eventPattern']
 
 /**
- * Canned replies that reach the read-only legacy paths without a store.
+ * Canned replies that let `exercise` reach every read path without a store.
  *
  * They are `RespReply`-shaped, not raw JS values — the driver narrows every
  * reply through `asArray`/`asBulk`/`asInteger`, and a plain array is rejected by
- * all three. A first draft returned raw arrays and `legacyRevokedKey` was simply
- * never reached; `FR-006` is the test that said so, which is the whole reason it
- * asserts reach separately from anchoring.
+ * all three. A first draft returned raw arrays, and a name the exercise was
+ * supposed to derive was simply never reached; `FR-006` is the test that said
+ * so, which is the whole reason it asserts reach separately from anchoring.
  */
 const CANNED = {
-    // `legacyRevokedIndexKey` is read by SMEMBERS, and only a NON-EMPTY reply
-    // makes the driver go on to derive `legacyRevokedKey(id)`.
-    SMEMBERS: {
-        type: 'array',
-        value: [{ type: 'bulk', value: 'conn-legacy' }],
-    },
-    EXISTS: { type: 'integer', value: 1 },
     HGETALL: { type: 'array', value: [] },
     ZRANGEBYSCORE: { type: 'array', value: [] },
     EVAL: { type: 'array', value: [] },
@@ -261,7 +253,6 @@ async function exercise(prefix: string) {
         await driver.listMembers('presence-room')
         await driver.removeMember('presence-room', 'u1')
         await driver.markRevoked('conn-1')
-        // listRevoked is what reaches BOTH read-only legacy names.
         await driver.listRevoked()
     } finally {
         await driver.close()
@@ -357,15 +348,12 @@ Deno.test('SC-001: every prefix-derived name is anchored', async () => {
     assertEquals(
         distinct.sort(),
         [
-            // Eight anchored behind `__`, and TWO deliberately not: the
-            // legacy revocation names read what a pre-#276 instance wrote at
-            // those exact strings, so anchoring them would address a key
-            // nothing has ever written. #278 removes them. They are still
-            // `isAnchored` under `alpha` — `:` is a separator too — which is
-            // why the loop below passes for them; what they are not is
-            // collision-proof against another accepted prefix.
-            'alpha:revoked',
-            'alpha:revoked:conn-legacy',
+            // ALL of them behind `__`, with no exception left. #288 anchored
+            // five; #295 split the event pattern out; #278 removed the last
+            // two — `alpha:revoked` and `alpha:revoked:<id>`, which were
+            // unanchored because they read what a pre-#276 instance wrote at
+            // those exact strings. Deleting the reader deleted the exception,
+            // which is why `FR-004 source` below has no escape hatch any more.
             'alpha__alive:<id>',
             'alpha__control',
             // `alpha__event:*` USED TO BE HERE and is gone (#295): the events
@@ -382,7 +370,7 @@ Deno.test('SC-001: every prefix-derived name is anchored', async () => {
             'alpha__revocations',
         ],
         'the differential captured a different set of derived names than the ' +
-            'nine members plus the inline pattern. A name missing here is a ' +
+            'pinned members plus the inline pattern. A name missing here is a ' +
             'name this test says nothing about; a name added here is one the ' +
             'roster does not know about.',
     )
@@ -427,10 +415,10 @@ Deno.test('FR-006: every pinned member is actually driven by the exercise', asyn
     // claim covers a smaller set than it appears to.
     const recording = await exercise('alpha')
     // EXACT strings, not a joined blob. A substring search over the join looks
-    // right and is not: `alpha:revoked` is contained in
-    // `alpha:revoked:conn-legacy`, so a legacyRevokedIndexKey that was never
-    // driven would still "be found" inside the other name. This guard is the
-    // one that caught the first recorder bug; it would not have caught a second.
+    // right and is not: `alpha__owned:` is contained in `alpha__owned:<id>`,
+    // and `alpha__alive:` in `alpha__alive:<id>`, so a member that was never
+    // driven would still "be found" inside another name. This guard is the one
+    // that caught the first recorder bug; it would not have caught a second.
     const seen = new Set(recording.strings())
     const seenList = [...seen]
 
@@ -442,8 +430,6 @@ Deno.test('FR-006: every pinned member is actually driven by the exercise', asyn
         aliveKey: 'alpha__alive:',
         instancesKey: 'alpha__instances',
         revocationIndexKey: 'alpha__revocations',
-        legacyRevokedIndexKey: 'alpha:revoked',
-        legacyRevokedKey: 'alpha:revoked:',
     }
     // `eventPattern` is checked SEPARATELY, and the reason is the point of
     // splitting it from `topic` at all: the two produce the same bytes today,
@@ -529,22 +515,34 @@ Deno.test('globMatches models the broker well enough to be trusted', () => {
 /**
  * The prefix pairs SC-002 quantifies over.
  *
- * **Both directions of each pair, and the trailing-underscore pair.** The claim
- * is "for every pair of prefixes the driver accepts", and it was tested with
- * exactly one pair — `('app','app:eu')` — which is the pair the leak was
- * reported with, not the pair that can still break the fix.
+ * **Both directions of each pair.** The claim is "for every pair of prefixes
+ * the driver accepts", and it was once tested with exactly one pair —
+ * `('app','app:eu')` — the pair the leak was reported with rather than the pair
+ * that could still break the fix.
  *
- * `('app','app_')` is that pair. It is the ONLY near-miss in the isolation
+ * **`('app','app_')` USED to be here, and it is gone because the pair can no
+ * longer be constructed** (#278). It was the only near-miss in the isolation
  * proof: the two event patterns are `app__event:*` and `app___event:*`, which
- * agree for the first `|p|+2` characters and diverge at one offset. Every other
- * pair fails the `__` guard outright and so cannot even be constructed. A test
- * table without it exercises the easy half of the proof.
+ * agree for the first `|p|+2` characters and diverge at one offset, and SC-002
+ * proved they do not reach each other.
+ *
+ * That proof was about the driver's own PATTERNS and it was correct. What it
+ * did not cover is the ACL: the grant this project documents for `app` is
+ * `~app__*`, and `app_`'s names begin `app___`, which that glob matches. So the
+ * two never collided and never cross-subscribed, and the `app` credential could
+ * still read every key the `app_` deployment wrote. `assertUsablePrefix` now
+ * refuses a trailing `_`, which closes it structurally.
+ *
+ * **Record the loss, not just the fix.** This table is now the easy half of the
+ * proof — every remaining pair differs by more than a separator run. The hard
+ * half moved to `SC-005`, where the refusal is asserted directly: an
+ * unconstructible configuration is a stronger guarantee than a constructible
+ * one shown not to reach, but it is proven somewhere else, by a different kind
+ * of test, and a reader of this table should be told where.
  */
 const ISOLATION_PAIRS: readonly (readonly [string, string])[] = [
     ['app', 'app:eu'],
     ['app:eu', 'app'],
-    ['app', 'app_'],
-    ['app_', 'app'],
 ]
 
 /**
@@ -821,17 +819,13 @@ Deno.test('FR-002: a channel containing the reserved separator round-trips whole
 })
 
 /**
- * The two names that are deliberately NOT anchored, and why.
+ * The literal source text every anchored getter interpolates.
  *
- * They read what a pre-#276 instance wrote at those exact strings; anchoring
- * them would address a key nothing has ever written. #278 removes the path.
- * Listed here so `FR-004 source` can be an exhaustive check rather than a
- * check with a hole in it — a hole nobody would notice widening.
+ * `FR-004 source` reads the driver as TEXT, so what a tail begins with is this
+ * identifier's spelling, not the two underscores it evaluates to. The length is
+ * how the check reaches the character AFTER the separator.
  */
-const UNANCHORED_BY_DESIGN: readonly string[] = [
-    'legacyRevokedIndexKey',
-    'legacyRevokedKey',
-]
+const RESERVED_LEAD_LITERAL = '${RESERVED_SEPARATOR_LEAD}'
 
 Deno.test('FR-004 source: EVERY derived name carries the reserved lead-in', async () => {
     // The review gate's finding, and it was right: the isolation invariant was
@@ -861,22 +855,39 @@ Deno.test('FR-004 source: EVERY derived name carries the reserved lead-in', asyn
             'driver any more',
     )
     for (const { member, tail } of sites) {
-        if (UNANCHORED_BY_DESIGN.includes(member)) {
-            assert(
-                tail.startsWith(':'),
-                `${member} is listed as unanchored-by-design but no longer ` +
-                    'uses the legacy `:` shape. Either it was anchored (remove ' +
-                    'it from the list) or it is now a third shape.',
-            )
-            continue
-        }
+        // NO exemption branch, and that is the point. #278 removed the last two
+        // unanchored names, so this check is unconditional — there is no list
+        // to add a name to in order to make it pass.
         assert(
             tail.startsWith('${RESERVED_SEPARATOR_LEAD}'),
             `${member} derives "\${prefix}${tail}", which does NOT begin with ` +
                 'the reserved lead-in. The isolation proof holds only because ' +
                 'every separator starts with the sequence assertUsablePrefix ' +
-                'refuses — see RESERVED_SEPARATOR_LEAD. Anchor it, or add it ' +
-                'to UNANCHORED_BY_DESIGN with the reason.',
+                'refuses — see RESERVED_SEPARATOR_LEAD. Anchor it.',
+        )
+        // The proof rests on a SECOND property nothing used to assert: no tail
+        // may begin with a third `_`. `assertUsablePrefix` refuses only the
+        // two-character sequence, and `_` is inside PREFIX_RE, so a member
+        // spelled `${prefix}___queue:` passes the check above and lets the
+        // accepted prefixes `app` and `app_` derive the same key. That is the
+        // collision the anchoring exists to close, reopened past the test
+        // written to prevent it.
+        // POSITIVE CONTROL for the line below: if the regex ever stops
+        // capturing tails, `tail[26]` is `undefined` for every site and the
+        // assertion passes for every input — an emptiness claim with nothing
+        // behind it. A tail must exist and must be non-empty to be checkable.
+        assert(
+            tail.length > RESERVED_LEAD_LITERAL.length,
+            `${member}'s captured tail is "${tail}", which is too short to ` +
+                'carry a separator — the source regex has drifted and the ' +
+                'underscore check below cannot fail for any input',
+        )
+        assert(
+            tail[RESERVED_LEAD_LITERAL.length] !== '_',
+            `${member} derives "\${prefix}${tail}", whose separator begins ` +
+                'with a THIRD underscore. Two accepted prefixes differing by ' +
+                'one trailing `_` then derive the same name — see the ' +
+                'containment proof in the plan for #278. Use exactly two.',
         )
     }
 })
@@ -1015,6 +1026,45 @@ Deno.test('FR-012: two accepted prefixes cannot derive the same KEY', async () =
     assert(a !== b, `both prefixes derive "${a}"`)
 })
 
+Deno.test('#278/SC-003: the last two colliding prefix pairs are closed', async () => {
+    // #288 anchored five names and left TWO out — the legacy revocation keys,
+    // which existed only to read what a pre-#276 instance wrote at those exact
+    // strings. Anchoring them would have addressed a key nothing ever wrote,
+    // so the collision stayed open by design and was documented as such.
+    //
+    // #278 deleted the reader, which closes it the only way available: the
+    // names stop existing. `app` and `app:revoked` are both accepted by
+    // PREFIX_RE — the `:` is in the charset — so before this they could derive
+    // the same key.
+    const pairs: readonly (readonly [string, string, string])[] = [
+        // The pair the legacy names made reachable.
+        ['app', 'revoked', 'app:revoked'],
+    ]
+    for (const [left, channel, right] of pairs) {
+        const a = await presenceKeyOf(left, channel)
+        const b = await presenceKeyOf(right, channel)
+        assert(
+            a !== b,
+            `prefixes "${left}" and "${right}" both derive "${a}"`,
+        )
+    }
+
+    // The OTHER half, and this test is how it was found. `SC-005` pins the
+    // guard and its message; this asserts the consequence. `app` and `app_` do
+    // not collide — they derive different keys — but the ACL grant this guide
+    // recommends for `app`, `~app__*`, MATCHES `app_`'s names, because `app_`
+    // plus the two-character separator is `app___`. Different keys, shared
+    // credential boundary. `__` was already refused; a single trailing `_` was
+    // not, and now is, which is what makes the containment argument exact.
+    await assertRejects(
+        async () => {
+            await presenceKeyOf('app_', 'room')
+        },
+        Error,
+        'must not end with',
+    )
+})
+
 Deno.test('SC-005: an unusable prefix is refused, by the RIGHT guard', () => {
     // Not hygiene. Such a prefix is trivially "anchored" under ANY definition —
     // every name it derives begins with it — so SC-001 passes while the driver
@@ -1046,6 +1096,16 @@ Deno.test('SC-005: an unusable prefix is refused, by the RIGHT guard', () => {
         ['app__x', 'reserved separator'],
         ['__app', 'reserved separator'],
         ['app__', 'reserved separator'],
+        // #278, and it is the half #288 left open. `app_` collides with
+        // nothing and cross-subscribes to nothing — SC-002 proved that with
+        // this exact pair. What it shares with `app` is a CREDENTIAL boundary:
+        // the ACL grant this project documents for `app` is `~app__*`, and
+        // `app_`'s own names begin `app___`, which that glob matches. Refused
+        // by this guard and by nothing else — `_` is inside the allowlist, one
+        // trailing occurrence is not the reserved sequence, and it is not a
+        // glob character.
+        ['app_', 'must not end with'],
+        ['a_', 'must not end with'],
         // The allowlist's own half: characters no other guard mentions.
         ['app rt', 'must match'],
         ['app\nrt', 'must match'],

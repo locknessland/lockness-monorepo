@@ -155,11 +155,16 @@ Deno.test('#304 evict() refuses an out-of-charset id rather than no-opping', asy
 })
 
 Deno.test('#304 reconcile drops a broker-injected id outside the charset', async () => {
-    // The second, independent control. Both return paths of `listRevoked` are
-    // broker-sourced — a writer with bus access can put anything in the index —
-    // and reconcile hands what it finds straight to `revokeLocal`. The
-    // control-plane path has always filtered `wire.target`; this one did not,
-    // and that asymmetry was the finding.
+    // The second, independent control. `listRevoked` is broker-sourced — a
+    // writer with bus access can put anything in the index — and reconcile
+    // hands what it finds straight to `revokeLocal`. The control-plane path has
+    // always filtered `wire.target`; this one did not, and that asymmetry was
+    // the finding.
+    //
+    // #278 removed the second return path, so this filter is now the ONLY thing
+    // between the index and `revokeLocal` rather than one of two. The test did
+    // not change shape; what changed is that there is no longer a second leg to
+    // cover for it.
     const { RedisBroadcastDriver } = await import('../drivers/redis.ts')
     const { recordingPorts } = await import('./recording_ports.ts')
 
@@ -179,9 +184,6 @@ Deno.test('#304 reconcile drops a broker-injected id outside the charset', async
             bulk('svc:worker-3'),
             bulk('x\nGET /admin 200'),
         ]),
-        // The legacy set, still read until #278's release gate is met.
-        SMEMBERS: array([bulk('legit-legacy-1'), bulk('legacy@bad')]),
-        EXISTS: { type: 'integer', value: 1 },
     })
 
     const driver = new RedisBroadcastDriver(command, subscriber, {
@@ -193,7 +195,6 @@ Deno.test('#304 reconcile drops a broker-injected id outside the charset', async
         revoked.sort(),
         [
             '7c9e6679-7425-40de-944b-e07fc1f90ae7',
-            'legit-legacy-1',
             'svc:worker-3',
         ],
         'the filter kept or dropped the wrong ids',
@@ -264,41 +265,4 @@ Deno.test('#304 a rejected id closes the socket instead of leaving it open', () 
         "the app's onOpen ran on an untracked connection",
     )
     assertEquals(m.connectionCount, 0)
-})
-
-Deno.test('#304 the legacy path filters before it builds a Redis key', async () => {
-    // The filter used to run in the caller, after #legacyRevoked had already
-    // issued one EXISTS round-trip per member — including for members it was
-    // about to discard. RESP framing makes that no injection risk, but a guard
-    // placed after the sink is not the boundary it is described as.
-    const { RedisBroadcastDriver } = await import('../drivers/redis.ts')
-    const { recordingPorts } = await import('./recording_ports.ts')
-
-    const bulk = (value: string) => ({ type: 'bulk', value })
-    const { command, subscriber, recording } = recordingPorts({
-        EVAL: { type: 'array', value: [] },
-        SMEMBERS: {
-            type: 'array',
-            value: [
-                bulk('legit-legacy-1'),
-                bulk('legacy@bad'),
-                bulk('also bad'),
-            ],
-        },
-        EXISTS: { type: 'integer', value: 1 },
-    })
-
-    const driver = new RedisBroadcastDriver(command, subscriber, {
-        prefix: 'app',
-    })
-    assertEquals(await driver.listRevoked?.(), ['legit-legacy-1'])
-
-    const existsCalls = recording.commands.filter((argv) =>
-        argv[0] === 'EXISTS'
-    )
-    assertEquals(
-        existsCalls.length,
-        1,
-        'a key was built for a member the filter discards',
-    )
 })

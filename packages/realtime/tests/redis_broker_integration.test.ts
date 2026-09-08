@@ -491,11 +491,18 @@ integrationTest(
                 'the sorted-set index is the key that WAS written: ' +
                     created.join(', '),
             )
+            // #278 deleted the READ as well, so the claim is stronger and the
+            // filter is weaker: `:revoked` cannot appear because no member
+            // derives it, which means this assertion can no longer fail for the
+            // reason it was written — it used to guard "read but never
+            // written". What is worth pinning now is that nothing under the run
+            // sits outside the anchored namespace at all.
             assertEquals(
-                created.filter((key) => key.endsWith(':revoked')),
+                created.filter((key) => !key.startsWith(`${namespace}__`)),
                 [],
-                'the legacy SET is read during rollout but never written — ' +
-                    `keys under the run: ${created.join(', ')}`,
+                'a key was created outside the anchored namespace — after ' +
+                    '#278 every derived name is behind the reserved lead-in, ' +
+                    `with no exception: ${created.join(', ')}`,
             )
         })
     },

@@ -162,71 +162,6 @@ Deno.test('#276 FR-003: the reap releases storage, not merely the returned list'
     }
 })
 
-Deno.test('#276 FR-009: a revocation written by a not-yet-upgraded instance is still enumerated', async () => {
-    const redis = new FakeRedis()
-    redis.setTime(6_000)
-    const a = driverOn(redis)
-    try {
-        // Seed the LEGACY shape directly, as an old instance would have: an
-        // index SET entry plus a per-target marker with its own TTL.
-        await redis.command('SADD', `${PREFIX}:revoked`, 'old-conn')
-        await redis.command(
-            'SET',
-            `${PREFIX}:revoked:old-conn`,
-            '1',
-            'EX',
-            '300',
-        )
-        // And a new-shape one alongside it.
-        await a.markRevoked('new-conn')
-
-        const live = (await a.listRevoked()).sort()
-        assertEquals(
-            live,
-            ['new-conn', 'old-conn'],
-            'both shapes are enumerated during rollout',
-        )
-    } finally {
-        await a.close()
-    }
-})
-
-Deno.test('#276 FR-009: the legacy index is never written, so no key changes type', async () => {
-    const redis = new FakeRedis()
-    redis.setTime(7_000)
-    const a = driverOn(redis)
-    try {
-        await a.markRevoked('c')
-        // Read from the double's OWN log, not a wrapper around `command`: the
-        // driver issues one EVAL, and every write the script performs reaches
-        // the store through the evaluator, bypassing any outer wrapper. An
-        // assertion built on that wrapper cannot see the writes it is about
-        // (#276 review cycle 2).
-        const writes = redis.commandLog().filter(([c]) =>
-            ['SADD', 'SET', 'ZADD', 'DEL', 'SREM', 'EXPIRE'].includes(c)
-        )
-        assert(writes.length > 0, "the log observed the script's own writes")
-        const legacyWrites = writes.filter(([, key]) =>
-            key === `${PREFIX}:revoked` ||
-            (key ?? '').startsWith(`${PREFIX}:revoked:`)
-        )
-        assertEquals(
-            legacyWrites,
-            [],
-            `nothing may write the legacy keys; saw ${
-                JSON.stringify(legacyWrites)
-            }`,
-        )
-        // An old instance still SADDs to {prefix}:revoked. If this driver had
-        // put a sorted set under that name, that SADD would raise WRONGTYPE and
-        // the old instance would lose the record entirely.
-        const reply = await redis.command('SADD', `${PREFIX}:revoked`, 'legacy')
-        assertEquals((reply as { type: string }).type, 'integer')
-    } finally {
-        await a.close()
-    }
-})
-
 Deno.test('#276 HIGH-1: a shorter-TTL instance cannot shrink the whole index key under live members', async () => {
     const redis = new FakeRedis()
     redis.setTime(8_000)
@@ -368,5 +303,53 @@ Deno.test('#276 FR-004: concurrent reapers are idempotent and lose nothing', asy
         await a.close()
         await b.close()
         await c.close()
+    }
+})
+
+Deno.test('#278/SC-001: listRevoked costs ONE command, whatever the count', async () => {
+    // The dual read (#276's rollout shim) issued the EVAL, then an SMEMBERS on
+    // the legacy index, then one EXISTS PER MEMBER. On a fleet with fifty
+    // revoked connections that was fifty-two round trips on every reconcile
+    // tick — and the reconcile runs unconditionally, on a dedicated timer, for
+    // every deployment class.
+    //
+    // #278 deleted it. The point of this test is not that the answer is right
+    // (other tests cover that) but that the COST is flat: a reader who adds a
+    // second read path later fails here rather than in a latency graph.
+    for (const revocations of [0, 1, 50]) {
+        const redis = new FakeRedis()
+        redis.setTime(1_000)
+        const issued: string[][] = []
+        const driver = new RedisBroadcastDriver(
+            {
+                command: (...args: string[]) => {
+                    issued.push(args)
+                    return redis.command(...args)
+                },
+            },
+            redis.subscriberFor(),
+            { prefix: PREFIX, revocationTtlSeconds: 300 },
+        )
+        try {
+            for (let i = 0; i < revocations; i++) {
+                await driver.markRevoked?.(`conn-${i}`)
+            }
+            issued.length = 0
+            const live = await driver.listRevoked?.() ?? []
+            assertEquals(
+                live.length,
+                revocations,
+                'the positive control: the read must actually return the set, ' +
+                    'or a one-command count is one command that does nothing',
+            )
+            assertEquals(
+                issued.map((argv) => argv[0]),
+                ['EVAL'],
+                `listRevoked issued ${issued.length} commands for ` +
+                    `${revocations} revocation(s): ${JSON.stringify(issued)}`,
+            )
+        } finally {
+            await driver.close()
+        }
     }
 })

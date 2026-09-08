@@ -101,12 +101,19 @@ const MUTATIONS: Mutation[] = [
         killedBy: 'a rejected id closes the socket',
     },
     {
-        label: 'the legacy filter moved back behind the key build',
-        file: DRIVER,
-        edits: [['if (!id || !isValidName(id)) continue', 'if (!id) continue']],
-        killedBy: 'the legacy path filters before it builds a Redis key',
-    },
-    {
+        // THREE rows stood here and two are gone (#278). One anchored on
+        // `#legacyRevoked`'s own filter; the other was a recorded
+        // `expectSurvival` whose whole justification was that the real guard
+        // had moved INSIDE that method, making this outer one belt-and-braces
+        // over a set already clean. #278 deleted the method, so both anchors
+        // address code that no longer exists — and, more importantly, the
+        // redundancy the survivor recorded is gone with it.
+        //
+        // So this row's meaning CHANGED without its text changing: it is now
+        // the only thing standing between a broker-sourced member and
+        // `revokeLocal`. Removing the filter is a kill, not an equivalence.
+        // The reason is transcribed into `listRevoked`'s docstring, where a
+        // reader of the code finds it rather than a reader of this battery.
         label: 'the reconcile filter dropped on the sorted-set path',
         file: DRIVER,
         edits: [[
@@ -114,24 +121,6 @@ const MUTATIONS: Mutation[] = [
             'if (id) live.add(id)',
         ]],
         killedBy: 'reconcile drops a broker-injected id',
-    },
-    {
-        label: 'the reconcile filter dropped on the legacy path',
-        file: DRIVER,
-        edits: [[
-            'for (const id of await this.#legacyRevoked()) {\n            if (isValidName(id)) live.add(id)\n        }',
-            'for (const id of await this.#legacyRevoked()) live.add(id)',
-        ]],
-        killedBy: 'reconcile drops a broker-injected id',
-        expectSurvival:
-            'EQUIVALENT, and deliberately so as of this branch. The security ' +
-            'seat showed the filter was one line too late — `#legacyRevoked` ' +
-            'built a Redis key from an unfiltered member before the caller ' +
-            'ever saw it — so the real guard moved INSIDE that method. This ' +
-            'outer one is now belt-and-braces over a set that is already ' +
-            'clean, which is what the comment beside it claims, and an ' +
-            'equivalent mutant is the honest way to record a redundancy ' +
-            'rather than pretend to a kill.',
     },
 ]
 

@@ -68,7 +68,6 @@ export function keys(prefix: string): {
     presence: (channel: string) => string
     instances: string
     revocations: string
-    legacyRevoked: string
     ownedPattern: string
     alivePattern: string
     controlTopic: string
@@ -79,7 +78,6 @@ export function keys(prefix: string): {
         presence: (channel: string) => `${prefix}__presence:${channel}`,
         instances: `${prefix}__instances`,
         revocations: `${prefix}__revocations`,
-        legacyRevoked: `${prefix}:revoked`,
         // The owning instance id is `crypto.randomUUID()` inside the driver and
         // is not reachable from here, so these two are patterns, not names.
         ownedPattern: `${prefix}__owned:*`,
