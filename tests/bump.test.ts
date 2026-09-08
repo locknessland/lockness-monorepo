@@ -315,3 +315,51 @@ Deno.test('the root version is bumped in lockstep with its members', async () =>
             'alone, which lockstep versioning does not permit.',
     )
 })
+
+Deno.test('no workspace member pins a @lockness/* specifier off-version', async () => {
+    // The second half of the same defect, and the more dangerous half.
+    // `deno bump-version --workspace` skips a member with no `version` -- it
+    // has nothing to bump -- and skips that member's IMPORTS with it. Those are
+    // version-pinned, so after a bump they name the PREVIOUS version, Deno
+    // refuses to satisfy them from the workspace, and resolves them from JSR
+    // instead:
+    //
+    //   Workspace member '@lockness/auth@0.3.0' was not used because it did
+    //   not match '@lockness/auth@^0.2.0'
+    //
+    // That is a WARNING, not an error. `@lockness/testing` is imported by a
+    // real test in another package, so the suite compiled that path against
+    // the last PUBLISHED release rather than the tree under test -- and went
+    // green. A gate that reports 2168 passing while resolving off-tree is
+    // worse than a red one.
+    const rootText = await Deno.readTextFile('deno.jsonc')
+    const root = parseJsonc(rootText) as {
+        version: string
+        workspace: string[]
+    }
+    const pattern = /jsr:@lockness\/[^@"]+@[~^]?(\d+\.\d+\.\d+)/g
+
+    const drifted: string[] = []
+    for (const member of root.workspace) {
+        const manifest = `${member.replace(/^\.\//, '')}/deno.json`
+        let text: string
+        try {
+            text = await Deno.readTextFile(manifest)
+        } catch {
+            continue
+        }
+        for (const [spec, version] of text.matchAll(pattern)) {
+            if (version !== root.version) {
+                drifted.push(`${manifest}: ${spec}`)
+            }
+        }
+    }
+
+    assertEquals(
+        drifted,
+        [],
+        `these specifiers name a version other than the root's ` +
+            `${root.version}, so Deno resolves them from JSR instead of the ` +
+            'workspace and the tree under test is not the tree being compiled',
+    )
+})

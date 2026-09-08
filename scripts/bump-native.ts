@@ -32,7 +32,7 @@
 import { parse as parseJsonc } from '@std/jsonc'
 import { parseArgs } from '@std/cli/parse-args'
 import * as semver from '@std/semver'
-import { updateRootJsonc } from './bump.ts'
+import { updateImportVersion, updateRootJsonc } from './bump.ts'
 
 /** Path to the root workspace configuration. */
 const ROOT_CONFIG_PATH = './deno.jsonc' as const
@@ -113,6 +113,54 @@ function resolveIncrement(
     }
 
     return null
+}
+
+/**
+ * Rewrite `@lockness/*` specifiers in workspace members the native bump skipped.
+ *
+ * `deno bump-version --workspace` deliberately leaves a member with no
+ * `version` alone — it has nothing to bump. It leaves that member's IMPORTS
+ * alone too, and those are version-pinned, so after a bump they name the
+ * PREVIOUS version. Deno then refuses to satisfy them from the workspace
+ * ("Workspace member '@lockness/auth@0.3.0' was not used because it did not
+ * match '@lockness/auth@^0.2.0'") and resolves them from JSR instead. A
+ * test-support harness silently compiled against the last PUBLISHED release
+ * rather than the tree under test, and the whole suite still went green.
+ *
+ * Idempotent: a member already at the new version is left byte-identical.
+ *
+ * @param rootText - The root config text, read before it was rewritten.
+ * @param newVersion - The version every specifier should name.
+ * @returns The manifest paths that changed.
+ */
+async function sweepUnversionedMembers(
+    rootText: string,
+    newVersion: string,
+): Promise<string[]> {
+    const root = parseJsonc(rootText) as { workspace?: string[] }
+    const changed: string[] = []
+    for (const member of root.workspace ?? []) {
+        const manifest = `${member.replace(/^\.\//, '')}/deno.json`
+        let text: string
+        try {
+            text = await Deno.readTextFile(manifest)
+        } catch {
+            continue
+        }
+        // Only the members the native command skipped. One that carries a
+        // version has already had both its version and its specifiers written,
+        // and re-writing it here would be a second home for the same decision.
+        if (/"version"\s*:/.test(text)) continue
+        const rewritten = text.replace(
+            /"(jsr:@lockness\/[^"]+)"/g,
+            (_whole, spec: string) =>
+                `"${updateImportVersion(spec, newVersion) ?? spec}"`,
+        )
+        if (rewritten === text) continue
+        await Deno.writeTextFile(manifest, rewritten)
+        changed.push(manifest)
+    }
+    return changed
 }
 
 /**
@@ -216,6 +264,11 @@ async function main(): Promise<void> {
         const after = updateRootJsonc(before, bumped)
         if (after !== before) await Deno.writeTextFile(ROOT_CONFIG_PATH, after)
         console.log(`   root ${ROOT_CONFIG_PATH} version -> ${bumped}`)
+
+        const swept = await sweepUnversionedMembers(before, bumped)
+        for (const path of swept) {
+            console.log(`   ${path} specifiers -> ${bumped}`)
+        }
     }
     Deno.exit(code)
 }
