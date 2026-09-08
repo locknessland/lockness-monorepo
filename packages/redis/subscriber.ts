@@ -174,6 +174,133 @@ export interface RedisSubscribeConnectionConfig
  * await sub.close()
  * ```
  */
+/**
+ * Everything released together when a socket is dropped.
+ *
+ * **This type IS the list** (plan §5). A resource whose lifetime ends with the
+ * socket goes in here; one that does not stays a field of
+ * {@link RedisSubscribeConnection}. That is what one ownership check buys over
+ * one guard per field, and the file's own history is the argument for it: the
+ * keepalive learned the guard after an unconditional clear disarmed a LIVE
+ * socket's timer and brought the #274 idle churn silently back, and #286 then
+ * hit the identical shape one field over for the write chain. A third field
+ * learning it the same way is what #298 exists to stop.
+ *
+ * **The criterion is "released together", not "lives as long as"** — read off a
+ * field's INSTALL MOMENT, not its name. Four per-socket fields are deliberately
+ * not members:
+ *
+ * - `loopConn` — installed at a different moment (after the awaited writes and
+ *   after the ownership re-check), and it answers "is a read loop draining this
+ *   socket", not "which socket owns this". A phase flag, not an identity shadow.
+ *   Folding it in makes the read-loop start unreachable and the connection deaf
+ *   with a clean log.
+ * - `loopDone` — never released; `close()` awaits it AFTER the discard, which is
+ *   its whole purpose.
+ * - `#loopStartedAt` — never released; read after a discard by `#reportRecovery`.
+ * - `#handlerFaults` — released UNCONDITIONALLY, and reachable from a deferred
+ *   `.catch` that can run once the generation is already gone. Owning it would
+ *   make it either a `TypeError` thrown inside a `.catch` or an un-throttled
+ *   peer-driven flood.
+ *
+ * **Release is a CALL, not a reference drop.** `keepaliveTimer` is a
+ * `setInterval` id: dropping the object frees the field and leaves the interval
+ * running forever — the member this issue was filed about is the one a plain
+ * drop leaks. So the interval is owned here and cleared here, and nothing
+ * outside this type calls `clearInterval`.
+ */
+class SocketGeneration {
+    /**
+     * The socket this generation IS. Never re-pointed: a new socket is a new
+     * generation. Rebasing it in place would leave one object claiming to be the
+     * new socket while its timer pings the old one, after which the single
+     * ownership check answers about the wrong resources.
+     */
+    readonly conn: Deno.Conn
+    /**
+     * The write queue for this generation. Every frame reaching the socket is
+     * appended here, so `PSUBSCRIBE`, the keepalive `PING` and a retry's
+     * re-issue can never interleave at a short-write boundary — and a new
+     * socket's first frame never queues behind a dead socket's backlog, which
+     * would make the recovery wait for the thing it is recovering from.
+     *
+     * The interleaving that matters is not the noisy one: a corrupted frame
+     * Redis rejects self-heals through the read loop's fault path. A corrupted
+     * frame that is still VALID — a `PSUBSCRIBE` on a truncated pattern — raises
+     * nothing, and `#dispatch` then routes by the pmessage's own pattern value,
+     * so every frame is silently dropped forever.
+     */
+    #writeChain: Promise<void> = Promise.resolve()
+    /** The keepalive interval's id, or `undefined` when none is armed. */
+    #keepaliveTimer: ReturnType<typeof setInterval> | undefined
+
+    /** @param conn - The socket this generation owns. */
+    constructor(conn: Deno.Conn) {
+        this.conn = conn
+    }
+
+    /**
+     * Append a write to this generation's queue and hand back its promise.
+     *
+     * The queue is private and appended only through here, so a caller cannot
+     * reset it — `conn` is `readonly` for the same reason, and a mutable public
+     * chain beside an immutable identity was the asymmetry two review seats
+     * picked up independently. The chain is kept alive across a rejection, so
+     * one failed write cannot wedge the queue for the recovery that follows it.
+     *
+     * @param write - The write to run once the queue drains.
+     * @returns The write's own promise — rejections belong to the caller.
+     */
+    enqueue(write: () => Promise<void>): Promise<void> {
+        const next = this.#writeChain.then(write)
+        this.#writeChain = next.then(
+            () => {},
+            () => {},
+        )
+        return next
+    }
+
+    /**
+     * Arm the keepalive, clearing any interval this generation already holds.
+     *
+     * Clear-then-store rather than store: an interval orphaned by an overwritten
+     * id is unreachable forever, and being unref'd it would not even keep the
+     * process alive to be noticed.
+     *
+     * @param id - The interval to adopt.
+     */
+    armKeepalive(id: ReturnType<typeof setInterval>): void {
+        this.clearKeepalive()
+        this.#keepaliveTimer = id
+    }
+
+    /** Stop this generation's keepalive interval, if one is armed. */
+    clearKeepalive(): void {
+        if (this.#keepaliveTimer !== undefined) {
+            clearInterval(this.#keepaliveTimer)
+            this.#keepaliveTimer = undefined
+        }
+    }
+
+    /**
+     * Release everything this generation owns — the single "this socket's
+     * resources are finished".
+     */
+    release(): void {
+        this.clearKeepalive()
+        this.#writeChain = Promise.resolve()
+    }
+}
+
+/**
+ * Why a queued frame was dropped. One constant, because the entry refusal and
+ * the in-closure refusal are the same fact told at two moments, and a caller
+ * matching on the text must not have to know which one fired.
+ */
+const ABANDONED_WRITE =
+    'Redis write abandoned: the socket generation changed while this frame ' +
+    'was queued. Nothing was written.'
+
 export class RedisSubscribeConnection {
     private readonly conn: AuthenticatedConnection
     /**
@@ -202,17 +329,18 @@ export class RedisSubscribeConnection {
     readonly #livenessMs: number
     readonly #retryBaseMs: number
     readonly #retryMaxMs: number
-    /** The keepalive interval's id, or `undefined` when no socket is live. */
-    #keepaliveTimer: ReturnType<typeof setInterval> | undefined
     /**
-     * The socket the armed keepalive belongs to.
+     * The live socket generation, or `null` when no socket is live.
      *
-     * `#discardSocket` used to clear the keepalive unconditionally, so
-     * discarding a STALE socket while a newer one was live disarmed the live
-     * one's keepalive — and the idle churn this feature removes came silently
-     * back. The timer belongs to a socket, so the clear has to know which.
+     * Replaces four parallel fields — the keepalive's timer and its socket, the
+     * write chain and its socket — and the two ownership guards that came with
+     * them. The history those guards were written from is in
+     * {@link SocketGeneration}: each was added after the unconditional version
+     * had already been a live defect, one field at a time. One check now answers
+     * for all of it, and a new resource released with the socket joins the type
+     * rather than growing a fifth field beside it.
      */
-    #keepaliveConn: Deno.Conn | null = null
+    #generation: SocketGeneration | null = null
     /** The pending retry's id. At most one exists at a time (FR-006). */
     #retryTimer: ReturnType<typeof setTimeout> | undefined
     /**
@@ -261,33 +389,6 @@ export class RedisSubscribeConnection {
      * activation that follows.
      */
     #reconnectIntent = false
-    /**
-     * The write queue. Every frame reaching the socket is appended here, so
-     * `PSUBSCRIBE`, the keepalive `PING` and a retry's re-issue can never
-     * interleave at a short-write boundary. Mirrors {@link RedisClient}'s own
-     * serialization rather than inventing a second shape.
-     *
-     * The interleaving that matters is not the noisy one: a corrupted frame that
-     * Redis rejects self-heals through the read loop's fault path. A corrupted
-     * frame that is still VALID — a `PSUBSCRIBE` on a truncated pattern — raises
-     * nothing, and `#dispatch` then routes by the pmessage's own pattern value,
-     * so every frame is silently dropped forever.
-     */
-    #writeChain: Promise<void> = Promise.resolve()
-    /**
-     * The socket {@link #writeChain} belongs to — the pairing that makes the
-     * queue per **generation** rather than per connection object (#286).
-     *
-     * Mirrors {@link #keepaliveTimer} / {@link #keepaliveConn} deliberately,
-     * including the conditional clear in {@link #discardSocket}. An
-     * unconditional reset is the shape that was a live defect one field over:
-     * discarding a STALE socket while a newer one was live disarmed the live
-     * one's keepalive. Here it would delete the live socket's write
-     * serialization — the thing that stops two writes splicing at a short-write
-     * boundary into a still-valid truncated frame, which raises nothing and
-     * drops every message forever.
-     */
-    #writeChainConn: Deno.Conn | null = null
     /**
      * Handler faults per pattern, for the current socket generation (#296).
      *
@@ -484,40 +585,40 @@ export class RedisSubscribeConnection {
     /**
      * Append a frame to the socket's single write queue.
      *
-     * Every writer goes through here — see {@link #writeChain} for why. The chain
+     * Every writer goes through here — see {@link SocketGeneration.enqueue}
+     * for why. The chain
      * is kept alive across a rejection so one failed write cannot wedge the queue
      * for the recovery that follows it.
      */
     #write(conn: Deno.Conn, frame: Uint8Array): Promise<void> {
-        // MECHANISM 1 — rebase on a generation change, so a new socket's first
-        // write does not queue behind a dead socket's backlog. The recovery
-        // would otherwise wait for the thing it is recovering from.
-        if (this.#writeChainConn !== conn) {
-            this.#writeChain = Promise.resolve()
-            this.#writeChainConn = conn
+        // The two mechanisms #286 needed are now one predicate, asked twice.
+        //
+        // AT ENTRY this REFUSES where the old MECHANISM 1 rebased: the chain is
+        // per generation and generations are created at one site in `#activate`,
+        // so a frame for a socket that is not the live generation's has no queue
+        // to join. That is the one non-neutrality of #298, and it is recorded
+        // rather than glossed: rebasing here adopted whatever socket arrived. No
+        // reachable sequence distinguishes them, because every path discards a
+        // socket before replacing it — a property of the CALLERS, which is
+        // exactly why the battery keeps a row for it.
+        const generation = this.#generation
+        if (generation?.conn !== conn) {
+            return Promise.reject(new Error(ABANDONED_WRITE))
         }
-        const next = this.#writeChain.then(() => {
-            // MECHANISM 2 — re-check INSIDE the queued closure. Rebasing the
-            // field does not cancel a write already chained behind an in-flight
-            // one, so without this a queued frame still reaches a dead socket.
+        return generation.enqueue(() => {
+            // AND INSIDE THE QUEUED CLOSURE, because refusing at entry does not
+            // cancel a write already chained behind an in-flight one — without
+            // this, a queued frame still reaches a dead socket.
             //
             // It REJECTS rather than resolving quietly: a silently-dropped
             // write would leave `#activate`'s await unsettled, which is #286's
             // own defect — an activation that neither completes nor fails —
             // relocated into the queue reset.
-            if (this.#writeChainConn !== conn) {
-                throw new Error(
-                    'Redis write abandoned: the socket generation changed ' +
-                        'while this frame was queued. Nothing was written.',
-                )
+            if (this.#generation?.conn !== conn) {
+                throw new Error(ABANDONED_WRITE)
             }
             return writeFrame(conn, frame, this.#writeDeadlineMs)
         })
-        this.#writeChain = next.then(
-            () => {},
-            () => {},
-        )
-        return next
     }
 
     /**
@@ -534,32 +635,34 @@ export class RedisSubscribeConnection {
         // Resetting it for a generation that is already gone costs one extra
         // log line; failing to reset it silences a real fault.
         this.#handlerFaults.clear()
-        // Conditional, like every other clear in this method. See
-        // `#writeChainConn` for what an unconditional one costs.
-        if (this.#writeChainConn === conn) {
-            this.#writeChain = Promise.resolve()
-            this.#writeChainConn = null
-        }
-        // Only if the timer belongs to THIS socket. See `#keepaliveConn`.
+        // ONE ownership check, where there was one per field. It gates the
+        // RELEASE and nothing else.
         //
-        // Also defensive and also untested: for a STALE socket to be discarded
-        // while a newer one is live, an activation holding the old socket would
-        // have to outlive a reconnect, and every current path discards before it
-        // schedules. The guard is kept because the ownership it encodes is what
-        // a future path would otherwise get wrong silently — the failure mode is
-        // the #274 idle churn coming back with nothing in the log.
-        if (this.#keepaliveConn === conn) this.#clearKeepalive()
-        this.conn.discard(conn)
-        if (this.loopConn === conn) this.loopConn = null
-    }
-
-    /** Stop the keepalive interval, if one is armed. */
-    #clearKeepalive(): void {
-        if (this.#keepaliveTimer !== undefined) {
-            clearInterval(this.#keepaliveTimer)
-            this.#keepaliveTimer = undefined
+        // Only if this socket is the live generation's. Discarding a STALE
+        // socket while a newer one is live must leave the newer one alone: the
+        // unconditional version was a live defect twice, one field at a time —
+        // it disarmed the live socket's keepalive and the #274 idle churn came
+        // back with nothing in the log, and #286 hit the same shape for the
+        // write chain, where it deletes the serialization that stops two frames
+        // splicing into a still-valid truncated one. `SC-001` is the witness,
+        // and it is the first this branch has ever had.
+        if (this.#generation?.conn === conn) {
+            this.#generation.release()
+            this.#generation = null
         }
-        this.#keepaliveConn = null
+        // UNCONDITIONAL, and deliberately — it sits between the release above
+        // and the loop clear below exactly as it did. This is the only path that
+        // closes the socket, clears the cached socket and clears the
+        // single-flight `pending` entry. Gating it behind the ownership check
+        // leaks an established, AUTH'd socket and a file descriptor per stale
+        // discard, and leaves `pending` pointing at a dead dial — #287, which
+        // this package has already paid for once. `SC-002` is the witness.
+        this.conn.discard(conn)
+        // NOT a member of the generation, and not an oversight: `loopConn` is
+        // installed at a different moment — after the awaited writes and after
+        // the ownership re-check — and it means "a read loop is draining this
+        // socket", not "which socket owns this". See {@link SocketGeneration}.
+        if (this.loopConn === conn) this.loopConn = null
     }
 
     /** Cancel the pending retry, if one is scheduled. */
@@ -577,7 +680,14 @@ export class RedisSubscribeConnection {
      * refuses to exit.
      */
     #armKeepalive(conn: Deno.Conn): void {
-        this.#clearKeepalive()
+        // The keepalive belongs to a generation, so an activation still holding
+        // a socket that is no longer the live one arms nothing: the interval it
+        // would create has no owner to release it, and an unref'd orphan is
+        // unreachable forever. Unreachable from `#activate`, which re-checks
+        // ownership two lines above the call — kept because the alternative is a
+        // leak that nothing in the process can see.
+        const generation = this.#generation
+        if (generation?.conn !== conn) return
         const id = setInterval(() => {
             // The socket check moved into `#write`, which is the single funnel
             // both writers pass through — keeping it here too would be two
@@ -602,7 +712,7 @@ export class RedisSubscribeConnection {
                 // and merely slow. The partial PING then sits mid-frame and the
                 // next PSUBSCRIBE is consumed as its continuation: a spliced
                 // but still-VALID frame, which raises nothing and drops every
-                // message forever (see `#writeChain`).
+                // message forever (see `SocketGeneration.enqueue`).
                 //
                 // And it SCHEDULES, which the plan for #286 first said it must
                 // not. A test found why that was wrong: `#discardSocket` alone
@@ -628,8 +738,7 @@ export class RedisSubscribeConnection {
             })
         }, this.#keepaliveMs)
         Deno.unrefTimer(id)
-        this.#keepaliveTimer = id
-        this.#keepaliveConn = conn
+        generation.armKeepalive(id)
     }
 
     /**
@@ -658,6 +767,20 @@ export class RedisSubscribeConnection {
                 dispose: () => this.close(),
                 priority: this.disposablePriority,
             })
+            // THE SINGLE CONSTRUCTION SITE (plan FR-002), after the `closed`
+            // re-check and before the first write. Installed only when this
+            // socket is not already the live generation's: `psubscribe()` on an
+            // established connection reaches here and `connect()` hands back the
+            // CACHED socket, so a per-activation generation would drop the live
+            // write chain and orphan the live keepalive — on the second
+            // `psubscribe` call, not through a race.
+            //
+            // And it replaces by RELEASING first, never by assignment, so a
+            // generation being displaced cannot leave its interval running.
+            if (this.#generation?.conn !== conn) {
+                this.#generation?.release()
+                this.#generation = new SocketGeneration(conn)
+            }
             for (const pattern of toIssue) {
                 await this.#write(conn, encodeCommand(['PSUBSCRIBE', pattern]))
             }
@@ -1068,7 +1191,11 @@ export class RedisSubscribeConnection {
      */
     async close(): Promise<void> {
         this.closed = true
-        this.#clearKeepalive()
+        // Unconditional, where `#discardSocket`'s release is conditional. The
+        // asymmetry is load-bearing: `close()` is ending the connection, not
+        // arbitrating between two generations, so it silences whatever timer is
+        // armed without asking whose it is.
+        this.#generation?.clearKeepalive()
         this.#clearRetry()
         if (this.#handle) {
             deregisterDisposable(this.#handle)
