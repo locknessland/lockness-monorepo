@@ -1013,44 +1013,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * The revocation index: a sorted set, member = connection id, **score = the
      * epoch second the revocation expires** (#276).
      *
-     * A NEW key name, deliberately. The legacy `{prefix}:revoked` is a SET, and
-     * reusing that name for a sorted set would make an old instance's `SADD`
-     * raise `WRONGTYPE` inside `evict()` — whose first await is untried, so the
-     * error would propagate to the caller and the local revoke would never run.
+     * **A new key name, and the reason is now historical.** #276 could not
+     * reuse the pre-existing `{prefix}:revoked`, which was a SET: an old
+     * instance's `SADD` against a sorted set raises `WRONGTYPE` inside
+     * `evict()`, whose first await is untried, so the error would reach the
+     * caller and the local revoke would never run. #278 removed the last read
+     * of that SET, so nothing here addresses it any more — the name stays
+     * because renaming a live key buys nothing.
      */
     private get revocationIndexKey(): string {
         return `${this.prefix}${RESERVED_SEPARATOR_LEAD}revocations`
-    }
-
-    /**
-     * The legacy index SET, read during rollout only (#276 FR-009).
-     *
-     * **Deliberately NOT anchored, unlike every other name here.** #288
-     * anchored the five live keys behind {@link RESERVED_SEPARATOR_LEAD}; these
-     * two are the documented exception, because they exist for one purpose — to
-     * read what a pre-#276 instance wrote at these exact names. Renaming them
-     * would not harden them, it would delete their only function: they would
-     * address a key nothing has ever written.
-     *
-     * So the cross-prefix collision the anchoring closes remains open for these
-     * two names. Closing it is
-     * [#278](https://github.com/locknessland/lockness-monorepo/issues/278),
-     * which removes the dual-read path outright — the right fix, since an
-     * unanchored legacy name should stop existing rather than be renamed into
-     * something that reads nothing.
-     */
-    private get legacyRevokedIndexKey(): string {
-        return `${this.prefix}:revoked`
-    }
-
-    /**
-     * The legacy per-target marker key, read during rollout only.
-     *
-     * Unanchored for the same reason as {@link legacyRevokedIndexKey}, and
-     * removed by the same issue.
-     */
-    private legacyRevokedKey(target: string): string {
-        return `${this.prefix}:revoked:${target}`
     }
 
     /**
@@ -1457,54 +1429,17 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             // hands what it finds straight to `revokeLocal`. The asymmetry
             // between the two paths was the finding, not the reach.
             //
-            // This drops nothing legitimate written by a version that
-            // ENFORCES the boundary — and that qualifier is load-bearing. A
-            // durable revocation recorded by a PRE-upgrade instance for an
-            // out-of-charset id is discarded here, so during a rolling upgrade
-            // such a connection reconnects un-revoked: the very silent failure
-            // this change removes, reintroduced for exactly the population the
-            // upgrade note addresses. `docs/realtime.md` says to re-issue those
-            // revocations against in-charset ids before deploying.
+            // ONE filter, and it is the boundary rather than belt-and-braces.
+            // #304's battery recorded an equivalent mutant here on the grounds
+            // that the real guard had moved inside `#legacyRevoked`, which
+            // built a Redis key from an unfiltered member before the caller
+            // ever saw it. That method is gone (#278) and with it the second
+            // path, so this line is the only thing standing between a
+            // broker-sourced member and `revokeLocal` — the mutation that
+            // removes it is a kill, not an equivalence.
             if (id && isValidName(id)) live.add(id)
         }
-        for (const id of await this.#legacyRevoked()) {
-            if (isValidName(id)) live.add(id)
-        }
         return [...live]
-    }
-
-    /**
-     * The legacy two-structure revocations still live, read during rollout only.
-     *
-     * Read, never reaped and never written: a not-yet-upgraded instance is still
-     * maintaining these, and reaping them from here would reintroduce exactly
-     * the cross-round-trip removal #276 removes. They expire on their own `EX`,
-     * and the legacy index set is left as one abandoned key.
-     */
-    async #legacyRevoked(): Promise<string[]> {
-        const reply = await this.command.command(
-            'SMEMBERS',
-            this.legacyRevokedIndexKey,
-        )
-        const live: string[] = []
-        for (const raw of asArray(reply) ?? []) {
-            const id = asBulk(raw)
-            // Filtered HERE, not by the caller. The outer filter ran after this
-            // method returned, so an out-of-charset member still reached
-            // `legacyRevokedKey` and bought a round-trip per member on every
-            // reconcile tick. RESP framing makes that no injection risk, but a
-            // guard placed after the sink is not the boundary it is described
-            // as. The caller's filter stays as belt-and-braces.
-            if (!id || !isValidName(id)) continue
-            const exists = asInteger(
-                await this.command.command(
-                    'EXISTS',
-                    this.legacyRevokedKey(id),
-                ),
-            )
-            if (exists === 1) live.push(id)
-        }
-        return live
     }
 
     /**
