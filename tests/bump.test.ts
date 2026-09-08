@@ -8,6 +8,7 @@
  */
 
 import { assertEquals } from '@std/assert'
+import { parse as parseJsonc } from '@std/jsonc'
 import {
     getErrorMessage,
     isLocknessImport,
@@ -263,3 +264,54 @@ Deno.test(
         )
     },
 )
+
+Deno.test('the root version is bumped in lockstep with its members', async () => {
+    // The rail's break, and the reason it survived to a release attempt: `deno
+    // task bump` routes to `scripts/bump-native.ts`, which delegates to `deno
+    // bump-version --workspace`. That command rewrites every workspace MEMBER
+    // and every cross-package specifier -- and not the root's own `version`,
+    // because the workspace root is not one of its members.
+    //
+    // `.specnaut/scripts/release/tag.sh` reads exactly that field to name the
+    // tag. Left stale, the next release computes the PREVIOUS version and is
+    // stopped only by that script's refusal to clobber an existing tag. v0.2.0
+    // shipped on the legacy script, which did bump the root, so nothing had
+    // ever exercised this path.
+    //
+    // Asserted as an INVARIANT over the checked-in tree rather than by running
+    // the bump: it holds after every correct bump and fails after a bump that
+    // moved the members without the root, which is the whole defect.
+    const rootText = await Deno.readTextFile('deno.jsonc')
+    const root = parseJsonc(rootText) as {
+        version: string
+        workspace: string[]
+    }
+
+    const drifted: string[] = []
+    for (const member of root.workspace) {
+        const manifest = `${member.replace(/^\.\//, '')}/deno.json`
+        let raw: string
+        try {
+            raw = await Deno.readTextFile(manifest)
+        } catch {
+            continue
+        }
+        const pkg = JSON.parse(raw) as { name?: string; version?: string }
+        // A member with no `version` is deliberately unpublished (the
+        // test-support harness). Silence is the right answer for it here; what
+        // this test is about is a member that HAS a version and disagrees.
+        if (pkg.version === undefined) continue
+        if (pkg.version !== root.version) {
+            drifted.push(`${pkg.name ?? manifest} = ${pkg.version}`)
+        }
+    }
+
+    assertEquals(
+        drifted,
+        [],
+        `deno.jsonc says ${root.version}, but these members disagree. Either ` +
+            'a bump moved the members and left the root behind -- which makes ' +
+            'tag.sh compute the previous tag -- or one member was bumped ' +
+            'alone, which lockstep versioning does not permit.',
+    )
+})
