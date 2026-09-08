@@ -313,7 +313,7 @@ first:
   | Cost | Draft claimed | Actual |
   | :--- | :--- | :--- |
   | field on `SocketGeneration` | 1 | 1 — `readonly issued = new Set<string>()` |
-  | initialiser at the construction site | 1 | 1 |
+  | initialiser at the construction site | 1 | **0** — a field initialiser needs no line in `#activate`; measured against the shipped type in `tasks.md` T029, which supersedes this row |
   | release line | 1 | **0** — a `Set` is released by the drop, so SC-010 asked for one line too many |
   | new branch in `#dispatch` | — | **1** |
   | signature changes | — | **2** — `#readLoop(conn)` → also carries `gen`; `#dispatch(reply)` → `#dispatch(reply, gen)` |

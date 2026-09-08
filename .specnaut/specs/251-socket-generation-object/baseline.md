@@ -106,10 +106,23 @@ this step is a task rather than an assumption:
 | :--- | :--- | :--- |
 | Unit suite | 2128 passed / 0 failed | **2135 / 0** (+7 witnesses) |
 | Live-broker suite | 370 / 0 | **377 / 0** (+7) |
-| 248 battery | 20 rows · 16 killed · **4** recorded survivors | **23 rows · 21 killed · 2** recorded survivors |
+| 248 battery | 20 rows · 16 killed · **4** recorded survivors | **25 rows · 2** recorded survivors — see the caveat below |
 | 290 battery | 0 unexpected survivors | unchanged |
 | `subscriber.test.ts` diff | — | **+632 insertions, 0 deletions** — FR-007 holds, no expectation edited |
 | `connection.ts` / `connection.test.ts` | — | **absent from the diff** — SC-011 holds |
+
+> **⚠️ The 25-row figure is a COUNT, not a completed run.** The last battery run
+> that finished end-to-end measured **21 killed / 2 recorded survivors over 23
+> rows**, before the review fixes. Two further rows were added afterwards
+> (`#298 onReconnect fires on a first connect`, `#298 a generation reaches a log
+> line through an alias`) and one anchor was repaired for `enqueue()`. Two
+> attempts at a full re-run were killed by machine memory at 11 and 15 rows; the
+> tree was restored correctly both times and #320 reclaimed the four stale locks
+> unprompted. **Each of the five rows changed since the last complete run was
+> verified individually** — mutation applied, named witness goes red, reverted —
+> and a script confirmed every anchor matches exactly once. A projected
+> "23 killed" would be arithmetic, not a measurement, so it is not written here.
+> The nightly `mutations` CI job is what will produce the full number.
 
 **The branch's return, measured.** Two of the 248 battery's four recorded
 survivors were the per-field ownership guards, and both are now killed rows

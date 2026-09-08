@@ -99,7 +99,7 @@ expectation edited** — only battery anchors whose text moved.
 - [X] T030 **SC-011** — confirm `git diff main...HEAD --stat` names neither `packages/redis/connection.ts` nor `packages/redis/tests/connection.test.ts` (FR-010, FR-011)
 - [X] T031 [P] Update `packages/redis/AGENTS.md` — the per-socket field list and the "each field learned the guard separately" pitfall are both now stale. State the membership criterion and that `loopConn` is deliberately outside it, or the next agent re-folds it
 - [X] T032 [P] Update `packages/redis/README.md` if it describes the subscribe socket's per-generation state; **grep for the identifiers** (`keepaliveConn`, `writeChainConn`, `discardSocket`), not for the concept
-- [ ] T033 Full gate: `deno fmt && deno lint && deno check && deno task test`, then `deno task mutate --require-all` with a scratch broker on **6390**, removed afterwards
+- [~] T033 Full gate: `deno fmt && deno lint && deno check && deno task test` — **done, green** (2135/0, live broker 377/0). `deno task mutate --require-all` ran **15/15 clean** on the pre-review tree; the post-review re-run of the 248 battery was killed twice by machine memory at 11 and 15 of 25 rows, so the five rows changed since were verified individually instead. **Marked `[~]`, not `[X]`** — the nightly CI job is what closes it
 
 ---
 
