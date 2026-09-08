@@ -115,13 +115,23 @@ access**, not the package-scoped variant — writing package settings is refused
 with `missingPermission` otherwise. It is needed only for this one operation.
 Revoke it afterwards.
 
-**Check the prefix before spending a round trip.** Observed at v0.3.0: a token
-beginning `jsrp_` produced `HTTP 403 missingPermission` on all ten links while
-leaving the 27 correct ones untouched — `Changed: 0 · failed: 10`, nothing
-half-written. The working v0.2.0 token began `jsrt_`. One data point each, so
-treat the prefix as a **signal, not a rule**: if it is not `jsrt_`, expect the
-403 and go get the right token first. New tokens: <https://jsr.io/account/tokens>
-— pick full API access, not "publish packages".
+**Create it as the right kind, and the prefix tells you which you got.**
+<https://jsr.io/account/tokens/create> asks one question — *"What do you plan to
+do with your personal access token?"* — with two answers:
+
+| The option | What it yields | Use it for |
+| :--- | :--- | :--- |
+| Publish packages | a `jsrp_` token | publishing from a terminal — **not what this repo does**, the CI publishes by OIDC |
+| **Interact with the JSR API** | a `jsrt_` token | **this**: writing `githubRepository` on a package |
+
+Observed at v0.3.0: a `jsrp_` token produced `HTTP 403 missingPermission` on all
+ten links while leaving the 27 correct ones untouched — `Changed: 0 · failed:
+10`, nothing half-written. The v0.2.0 token that worked began `jsrt_`. So check
+the prefix before spending a round trip; if it is not `jsrt_`, the wrong radio
+button was picked.
+
+Give it a **short expiry**. It is used once, for this one operation, and never
+again once the packages are linked.
 
 The failure is safe either way. `jsr_link_repos.ts` PATCHes one package at a
 time and reports per package, so a wrong token costs a wasted run and nothing
