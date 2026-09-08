@@ -109,14 +109,14 @@ Each run owns its own key namespace and cleans up after itself, including after
 a failure. See [docs/testing.md](../../docs/testing.md) for the full env-var
 contract and what the suite refuses to do.
 
-**Mutation batteries.** This package carries 11 of the repo's 15 — executables
+**Mutation batteries.** This package carries 11 of the repo's 16 — executables
 that break a source file on purpose and check that the suites notice.
 `deno
 test` does not run them; `deno task mutate` does, one at a time:
 
 ```bash
 deno task mutate realtime   # this package's 11
-deno task mutate            # all 15, as nightly CI runs them
+deno task mutate            # all 16, as nightly CI runs them
 ```
 
 A single battery still runs directly while you are writing one:

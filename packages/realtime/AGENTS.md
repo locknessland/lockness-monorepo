@@ -53,11 +53,11 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                |
 | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                                                                      |
+| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                                                 |
 | function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                           |
 | interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `Connection`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
 | typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ClientMessage`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                |
-| variable  | `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`                                                                                                                                                                                                                                                                                                                                                                                   |
+| variable  | `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                                            |
 
 Anything not listed is internal and free to change.
 
@@ -206,14 +206,43 @@ Anything not listed is internal and free to change.
 - `@lockness/notification` is a **dev/test dependency only** (the SC-005
   `BroadcasterLike` conformance test); never import it from source.
 
+- **An instance subscribes per CHANNEL, not per prefix (#295).** `onMessage`
+  registers the decoder and subscribes nothing when the driver's subscriber can
+  do it per channel; the subscriptions come from `watchChannel`, called by
+  `ChannelManager` on a 0→1 transition and `unwatchChannel` on 1→0. Two
+  consequences that bite:
+  - **`#joinLocal` / `#leaveLocal` are the ONLY writers of `subscriptions`.** A
+    membership mutation written anywhere else leaves a channel
+    hosted-but-unwatched: every message dropped while `subscribe` answers
+    `{ ok: true }`, and nothing logged. The 0→1 test is computed in the same
+    synchronous turn as the mutation; only the wire op is awaited.
+  - **The empty `Set` is deleted**, so `subscriptions.has(channel)` is the one
+    spelling of "this instance hosts it".
+- **The watch pair is detected as a SET, by `channelWatcher`.** A driver with
+  `watchChannel` and no `unwatchChannel` keeps the old prefix-wide behaviour: a
+  subscription set that grows and never shrinks is worse than the glob it
+  replaces, and invisible, because delivery stays correct.
+- **`eventPattern` is a separate builder from `topic`, same bytes today.**
+  `PUBLISH` is a literal context and `PSUBSCRIBE`/`SUBSCRIBE` a subscription
+  one. Calling `topic()` from `watchChannel` returns the right string now, which
+  is exactly what makes the first escaping ever added to `topic()` corrupt the
+  subscription silently.
+- **A test that drives the driver WITHOUT a manager must watch its channels
+  itself.** `onMessage` subscribes nothing, so a fixture that only registers
+  seams receives nothing — and its isolation assertions then pass for the
+  emptiest possible reason. `prefix_anchoring.test.ts` and
+  `redis_broker_integration.test.ts`'s nested-deployment scenario both do this
+  explicitly.
+
 ## Tests
 
 <!-- generated:tests -->
 
-40 test files for 16 source files:
+41 test files for 16 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channel_name_boundary.test.ts`
+- `packages/realtime/tests/channel_watch_295.test.ts`
 - `packages/realtime/tests/channels.test.ts`
 - `packages/realtime/tests/client.test.ts`
 - `packages/realtime/tests/connection_id_charset.test.ts`
@@ -285,7 +314,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 40 test files directly —
+Then, specific to this package: run its 41 test files directly —
 
 ```bash
 deno test -A packages/realtime/

@@ -37,19 +37,32 @@ way everywhere.
   `psubscribe(pattern, handler)` calls `handler(topic, payload)` per pushed
   message using the bounded RESP reader; on a wire fault it reconnects and
   re-issues **every** active pattern, logged at WARN, never silently.
-  `onReconnect(handler)` registers a nullary callback fired once that re-issue
-  succeeds — the routine moment a pub/sub frame is lost, so a consumer can
-  reconcile whatever the lost frames would have carried. It never fires on the
-  first connect or on a failed re-dial, and a handler that throws is contained
-  and warned without disarming the seam. **Delivery resumes before the handler
-  completes**, deliberately: the read loop is started first, so a message can be
-  dispatched while the handler is still running. Firing before delivery would
-  let a consumer's handler gate every message for as long as it runs, which
-  trades a bounded window for an unbounded one — a consumer that needs frames
-  held back must hold them back itself, with a timeout. Note too that a fire is
-  not proof frames are flowing: an activation waits only for its `PSUBSCRIBE` to
-  reach the socket, never for the broker to acknowledge it. Both methods
-  structurally satisfy `@lockness/realtime`'s `RedisSubscriber` port.
+  `subscribeOne(channel, handler)` / `unsubscribeOne(name)` are the awaitable
+  per-name pair (#295): they resolve once the frame has reached the socket, and
+  `subscribeOne` **rejects** when it has not, while still scheduling the retry —
+  `psubscribe` keeps its never-throw contract because it has no caller to reject
+  to. **The verb follows the name's kind**, and it is an ACL fact rather than a
+  style choice: Redis matches a `&` channel rule **literally** for `PSUBSCRIBE`
+  and by **glob** for `SUBSCRIBE`, so a name recorded through `psubscribe` is
+  issued as a pattern and one recorded through `subscribeOne` as an exact
+  channel. Issuing an exact topic as a pattern makes every operator's
+  `&prefix:*` rule refuse it. A re-issue sends **only what this socket does not
+  already carry**, so N joins cost N frames rather than N(N+1)/2, and it puts
+  any name declared `{ priority: true }` on the wire first — the reconnect seam
+  fires once that one lands, not after the whole set. `onReconnect(handler)`
+  registers a nullary callback fired once that re-issue succeeds — the routine
+  moment a pub/sub frame is lost, so a consumer can reconcile whatever the lost
+  frames would have carried. It never fires on the first connect or on a failed
+  re-dial, and a handler that throws is contained and warned without disarming
+  the seam. **Delivery resumes before the handler completes**, deliberately: the
+  read loop is started first, so a message can be dispatched while the handler
+  is still running. Firing before delivery would let a consumer's handler gate
+  every message for as long as it runs, which trades a bounded window for an
+  unbounded one — a consumer that needs frames held back must hold them back
+  itself, with a timeout. Note too that a fire is not proof frames are flowing:
+  an activation waits only for its `PSUBSCRIBE` to reach the socket, never for
+  the broker to acknowledge it. Both methods structurally satisfy
+  `@lockness/realtime`'s `RedisSubscriber` port.
 - **TLS** — set `tls: true` (or use a `rediss` endpoint) to wrap the socket with
   `Deno.connectTls`; certificate validation is **on** by default (no trust-all).
 - **Memo key** — `redisMemoKey` / `credentialFingerprint` / `hmacSha256Hex` /
@@ -79,8 +92,12 @@ sub.onReconnect(() => {
     // the socket was deaf for a moment — reconcile what the lost frames carried
 })
 sub.psubscribe('lockness:realtime:*', (topic, payload) => {
-    // deliver `payload` for `topic`
+    // deliver `payload` for `topic` — a GLOB, issued with PSUBSCRIBE
 })
+// One exact channel, awaitable, and issued with SUBSCRIBE so an operator's
+// `&lockness:realtime:*` ACL rule still authorizes it.
+await sub.subscribeOne('lockness:realtime:orders', (topic, payload) => {})
+await sub.unsubscribeOne('lockness:realtime:orders')
 // …later
 await sub.close()
 ```

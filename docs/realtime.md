@@ -437,6 +437,61 @@ With the Redis driver, presence and eviction are **authoritative across every
 instance** behind a load balancer — the gap that kept earlier releases
 single-instance.
 
+### An instance receives only the channels it hosts
+
+Until [#295](https://github.com/locknessland/lockness-monorepo/issues/295) every
+instance subscribed **one prefix-wide pattern** and discarded what it did not
+host. A deployment with 3 000 channels delivered all 3 000 channels' traffic to
+every instance, which parsed each payload before looking up a set that was
+usually empty. The cost scaled with the deployment rather than with the
+instance.
+
+The driver now subscribes **one exact topic per hosted channel**, created when a
+channel's local subscriber count goes 0→1 and removed when it goes 1→0. Measured
+on a live broker with the broker's own receiver count:
+
+| Publish to                       | Receivers, before | Receivers, now |
+| :------------------------------- | ----------------: | -------------: |
+| a channel this instance hosts    |                 1 |              1 |
+| a channel another instance hosts |                 1 |          **0** |
+| a channel nobody hosts           |    1 per instance |          **0** |
+
+Nothing to configure. A driver whose subscriber cannot unsubscribe per channel
+keeps the old behaviour rather than half the new one — a subscription set that
+grows and never shrinks is worse than the glob it would replace, and invisible,
+because delivery stays correct.
+
+**Two guarantees changed, and both are worth knowing before you rely on them.**
+
+- **A join now has a window.** `subscribe` resolves once the subscribe frame is
+  on the wire — never that delivery has started, which no driver can promise
+  without waiting on the broker's own acknowledgement. A client joining a
+  channel this instance does not yet host can miss a message published in that
+  window; the prefix-wide subscription had no such gap. Nothing the framework
+  itself sends travels this path — `evict` and every presence frame go over the
+  MAC-signed control plane, which is subscribed unconditionally.
+- **A watch the broker refuses keeps the membership.** The driver records the
+  channel and re-issues it on its next successful activation, so delivery
+  resumes; the refusal is logged at WARN rather than failing the join. Dropping
+  the membership would turn a transient write failure into permanent local
+  deafness.
+
+#### Watched-channel limits
+
+An instance may host **1 000** channels and one connection may hold **100**.
+Each hosted channel is a broker subscription re-issued on every reconnect, so
+the set is bounded deliberately rather than left to whatever clients ask for —
+`subscribe` runs no authorizer for a public channel, so without a bound the set
+is driven by unauthenticated sockets.
+
+**This release only WARNs.** A breach logs the scope and its **actual count**
+and admits the subscribe; `ChannelLimitError` is exported and never raised. The
+refusal lands in the next release
+([#322](https://github.com/locknessland/lockness-monorepo/issues/322)). The
+warning release exists because nothing measured channels-per-instance before
+now, so nobody could say whether 1 000 is generous or tight — if your logs show
+you near it, say so on that issue before it starts refusing.
+
 ### The authoritative presence roster
 
 The `here` set for a presence channel is owned by the driver in Redis (a
@@ -670,12 +725,31 @@ wrong and the ACL undoes the isolation it was added for:
   `~app*` lets the `app` credential `GET app:eu__presence:<channel>` and read
   the other deployment's roster. That is the disclosure this section exists to
   describe, handed back by the ACL.
-- **Channel patterns must be spelled EXACTLY as the driver subscribes them.**
-  Redis matches a `PSUBSCRIBE` pattern against `&` patterns **literally**, not
-  by containment, so `&app__*` does **not** authorize `PSUBSCRIBE app__event:*`
-  — it returns `NOPERM`, and the usual reaction to that is `allchannels`, which
-  grants everything. `&app__event:*` and `&app__control` are the two the driver
-  actually issues.
+- **Channel patterns must be spelled EXACTLY as the driver subscribes them — and
+  which verb it uses decides how they are matched.** Redis matches a `&` rule
+  **literally** for `PSUBSCRIBE` and by **glob** for `SUBSCRIBE`. So `&app__*`
+  does **not** authorize `PSUBSCRIBE app__event:*` — it returns `NOPERM`, and
+  the usual reaction to that is `allchannels`, which grants everything.
+
+  **The ACL above is unchanged by per-channel subscribe, and that is not luck.**
+  Since [#295](https://github.com/locknessland/lockness-monorepo/issues/295) the
+  driver subscribes one **exact topic per hosted channel** rather than one
+  prefix-wide glob, and it issues them with `SUBSCRIBE` precisely so the rule
+  you already have keeps working. Verified with `ACL DRYRUN` against Redis 7,
+  for a user holding `&app__event:*` and `&app__control`:
+
+  ```
+  PSUBSCRIBE app__event:*         -> OK      (the pre-#295 subscription)
+  PSUBSCRIBE app__event:alpha     -> NOPERM  (literal match: no rule equals it)
+  SUBSCRIBE  app__event:alpha     -> OK      (glob match against &app__event:*)
+  SUBSCRIBE  app__event:eu:orders -> OK
+  SUBSCRIBE  app__control         -> OK
+  ```
+
+  Had the driver issued exact topics as **patterns**, every deployment holding
+  this ACL would have gone deaf on events while its control plane kept working —
+  a partial failure, and the hardest kind to read from a log. **Nothing to
+  migrate: keep `&app__event:*` and `&app__control`.**
 
 The two `~app:revoked` grants cover the legacy revocation names described below;
 drop them once

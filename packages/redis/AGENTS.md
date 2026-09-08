@@ -172,6 +172,32 @@ Anything not listed is internal and free to change.
   the OS SYN budget (~75s macOS, ~130s Linux). Loopback tests cannot see this —
   `ECONNREFUSED` on 127.0.0.1 is instant — which is how it survived until #245.
 
+- **The subscribe verb follows the name's kind, and it is an ACL fact (#295).**
+  A name recorded through `psubscribe` is a glob and is issued with
+  `PSUBSCRIBE`; one recorded through `subscribeOne` is an exact channel and is
+  issued with `SUBSCRIBE`. Redis matches an ACL `&` rule **literally** for
+  `PSUBSCRIBE` and by **glob** for `SUBSCRIBE` — verified with `ACL DRYRUN`
+  against Redis 7 — so issuing an exact topic as a pattern makes every
+  operator's `&prefix:*` rule return `NOPERM`. The failure is partial: events go
+  deaf while the control plane keeps working.
+- **`SocketGeneration` owns the subscription record, behind four verbs.**
+  `claim` / `confirm` / `retire` / `has` over two private sets, and every
+  mutation is **co-turn with its frame's enqueue** — `#write` reaches the queue
+  synchronously, so an `await` between a claim and its frame lets an unwatch
+  reach the chain first and leaves the broker subscribed with nothing recorded.
+  `retire` erases **both** halves at the unsubscribe ENQUEUE; `confirm` **drops
+  an acknowledgement whose claim is gone**, because Redis answers in order and
+  the ack for a subscribe that was unwatched meanwhile lands after the erasure.
+- **A re-issue sends the DIFFERENCE, and that is one rule rather than two.** A
+  reconnect dials a new socket, so its generation's record is empty and the
+  difference is the full set; an ordinary subscribe on a live socket issues one
+  frame. Nothing branches on "am I a reconnect".
+- **`{ priority: true }` names the subscription the reconnect seam waits on.**
+  The seam fires on the first landed write, not after the whole re-issue —
+  otherwise a revocation fast path sits behind every hosted channel's frame.
+  Order used to come from Map insertion, which inverted the moment a consumer
+  stopped subscribing at registration time.
+
 ## Tests
 
 <!-- generated:tests -->
@@ -187,12 +213,13 @@ Anything not listed is internal and free to change.
 - `packages/redis/tests/resp.test.ts`
 - `packages/redis/tests/subscriber.test.ts`
 
-2 mutation batteries — **`deno test` does not run these.** Each is an executable
+3 mutation batteries — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
 with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
 [testing.md](../../docs/testing.md#mutation-batteries).
 
+- `packages/redis/tests/mutations/per_channel_record_295.ts`
 - `packages/redis/tests/mutations/reconnect_intent_290.ts`
 - `packages/redis/tests/mutations/subscribe_hardening_248.ts`
 
