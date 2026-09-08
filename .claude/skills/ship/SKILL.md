@@ -33,6 +33,15 @@ by "ship it" from a previous release, not implied by an approved plan, not
 implied by the user having asked for this skill to exist. If consent for *this*
 release has not been given in words, stop at the tag and ask.
 
+**Ask it as a selection, not as prose.** Where the harness has a native
+single-select mechanism, the consent question uses it — a paragraph ending in a
+question mark is not a decision point, it is something to skim past. The
+`response-style-contract` skill already says this for every question; it is
+restated here only because this is the one question in the repo whose wrong
+answer cannot be undone. Every other release decision — how to recover a failed
+run, what to do with an unpublishable member, whether to create mirrors — gets
+the same treatment.
+
 `--dry-run` runs everything up to and including the tag, and stops before the
 release. Prefer it when unsure.
 
