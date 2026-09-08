@@ -35,9 +35,87 @@
  */
 
 import { dirname, join } from '@std/path'
+import { parse as parseJsonc } from '@std/jsonc'
 
 const ROOT = Deno.cwd()
 const PACKAGES_DIR = join(ROOT, 'packages')
+const ROOT_MANIFEST = join(ROOT, 'deno.jsonc')
+
+/**
+ * The shape a workspace member needs before `deno publish` will accept it.
+ *
+ * **A member with no `name` is not a package**, and this is the distinction the
+ * check turns on rather than an edge case to tolerate. `./packages/vite/demo`
+ * is a workspace member carrying no `name`, no `version` and no `exports`, and
+ * v0.3.0 published successfully with it present — `deno publish` does not
+ * consider it a package at all. `@lockness/testing` had a `name` and `exports`
+ * and no `version`, and it aborted the entire release.
+ *
+ * So the rule is conditional: **declare a `name` and you owe a `version` and
+ * `exports`.** A check that simply required a version everywhere would fail on
+ * the demo and be deleted by whoever hit it first.
+ *
+ * @param manifestPath - Project-relative path, for the message.
+ * @param manifest - The member's parsed manifest.
+ * @returns A fault description, or `null` when the member is publishable or is
+ *   not a package.
+ *
+ * @example
+ * ```ts
+ * publishabilityFault('packages/testing/deno.json', { name: '@x/y', exports: './mod.ts' })
+ * // -> "packages/testing/deno.json declares \"name\" but no \"version\" …"
+ * ```
+ */
+export function publishabilityFault(
+    manifestPath: string,
+    manifest: Record<string, unknown>,
+): string | null {
+    if (typeof manifest.name !== 'string') return null
+    const missing = (['version', 'exports'] as const).filter((field) =>
+        manifest[field] === undefined
+    )
+    if (missing.length === 0) return null
+    const fields = missing.map((f) => `"${f}"`).join(' and ')
+    return `${manifestPath} declares "name" (${manifest.name}) but no ` +
+        `${fields}. \`deno publish\` is ATOMIC across the workspace, so this ` +
+        `one member aborts the release for all of them -- that is how v0.3.0 ` +
+        `failed with nothing published (#325).\n` +
+        `      Add the missing field. Neither of the two obvious escapes ` +
+        `works: \`"private": true\` does not exclude a member, and removing ` +
+        `it from the workspace array breaks every bare import of it.`
+}
+
+/**
+ * Every workspace member that declares a name but cannot be published.
+ *
+ * Reads the `workspace` array rather than scanning `packages/` — that array is
+ * what `deno publish` acts on, and the two are not the same set: the workspace
+ * carries 38 entries against 37 directories, because one member is nested.
+ *
+ * @returns One fault description per offending member, empty when clean.
+ * @throws {Error} If the root manifest cannot be read or parsed.
+ */
+async function unpublishableMembers(): Promise<string[]> {
+    const root = parseJsonc(
+        await Deno.readTextFile(ROOT_MANIFEST),
+    ) as { workspace?: string[] }
+    const faults: string[] = []
+    for (const member of root.workspace ?? []) {
+        const rel = `${member.replace(/^\.\//, '')}/deno.json`
+        let manifest: Record<string, unknown>
+        try {
+            manifest = JSON.parse(
+                await Deno.readTextFile(join(ROOT, rel)),
+            ) as Record<string, unknown>
+        } catch {
+            faults.push(`${rel} is listed in the workspace but unreadable`)
+            continue
+        }
+        const fault = publishabilityFault(rel, manifest)
+        if (fault) faults.push(fault)
+    }
+    return faults
+}
 
 /** Outcome for one package. */
 interface Result {
@@ -285,6 +363,18 @@ async function existsOnJsr(name: string): Promise<boolean | null> {
  * Run the check for every package.
  */
 async function main(): Promise<void> {
+    // FIRST, and in the default mode, so it gates every local run, the pre-push
+    // hook and CI -- not only `--registry` runs. It also has to precede the
+    // registry section: an unpublishable member used to be reported there as
+    // "does not exist on JSR", which reads as an instruction to create it, and
+    // that is how an empty package got created on the registry (#325).
+    const unpublishable = await unpublishableMembers()
+    if (unpublishable.length > 0) {
+        console.log('❌ A workspace member cannot be published:\n')
+        for (const fault of unpublishable) console.log(`   ${fault}\n`)
+        Deno.exit(1)
+    }
+
     const scratch = await Deno.makeTempDir({ prefix: 'lockness-publish-' })
     const names: string[] = []
     for await (const entry of Deno.readDir(PACKAGES_DIR)) {
