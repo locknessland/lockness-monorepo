@@ -79,7 +79,17 @@ app.get(
   `listRevoked()`, plus `onRevocationReconcile(handler)` to say when the
   re-check runs; all three are optional, and a driver that omits them gets
   fire-and-forget eviction. See [realtime.md](../../docs/realtime.md).
-- **Refusal reporting** — the fourth optional seam. `onControlRefused(handler)`
+- **Per-channel subscription** — `watchChannel(channel)` and
+  `unwatchChannel(channel)`, the fourth and fifth optional seams and the only
+  pair detected **together**. A driver that implements both receives one exact
+  topic per channel this instance hosts instead of every channel under its
+  prefix; one that implements neither — or only one of them — keeps the
+  prefix-wide subscription, because a subscribed set that grows and never
+  shrinks is worse than the glob it would replace and invisible, since delivery
+  stays correct. Both return `void | Promise<void>`, and an awaited
+  `watchChannel` resolves when the subscribe frame is on the wire — never that
+  delivery has started. See [realtime.md](../../docs/realtime.md).
+- **Refusal reporting** — the sixth optional seam. `onControlRefused(handler)`
   hands you a `ControlRefusal` (`reason`, `kind`, `channel`, `bytes`, `limit`)
   whenever the driver declines to publish a control frame, so an oversized
   presence member is something you can alert on rather than a WARN on one

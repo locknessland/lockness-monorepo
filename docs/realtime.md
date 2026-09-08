@@ -447,8 +447,10 @@ usually empty. The cost scaled with the deployment rather than with the
 instance.
 
 The driver now subscribes **one exact topic per hosted channel**, created when a
-channel's local subscriber count goes 0→1 and removed when it goes 1→0. Measured
-on a live broker with the broker's own receiver count:
+channel's local subscriber count goes 0→1 and removed when it goes 1→0. A custom
+`BroadcastDriver` opts in by implementing **`watchChannel(channel)` and
+`unwatchChannel(channel)`** — detected as a pair, never one at a time, for the
+reason below. Measured on a live broker with the broker's own receiver count:
 
 | Publish to                       | Receivers, before | Receivers, now |
 | :------------------------------- | ----------------: | -------------: |
@@ -478,7 +480,9 @@ because delivery stays correct.
 
 #### Watched-channel limits
 
-An instance may host **1 000** channels and one connection may hold **100**.
+An instance may host **1 000** channels and one connection may hold **100** —
+`MAX_WATCHED_CHANNELS` and `MAX_CHANNELS_PER_CONNECTION`, both exported from
+`@lockness/realtime` so a deployment can read them rather than hard-code them.
 Each hosted channel is a broker subscription re-issued on every reconnect, so
 the set is bounded deliberately rather than left to whatever clients ask for —
 `subscribe` runs no authorizer for a public channel, so without a bound the set
