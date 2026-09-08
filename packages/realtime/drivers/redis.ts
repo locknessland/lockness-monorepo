@@ -360,14 +360,16 @@ const PREFIX_RE = /^[A-Za-z0-9:._-]{1,64}$/
 /**
  * Refuse a prefix that would widen a subscription or break the isolation proof.
  *
- * Three checks, in order of what they protect: the allowlist bounds the whole
- * value, the glob scan names the specific character when one gets through, and
- * the separator check protects {@link RESERVED_SEPARATOR_LEAD}'s guarantee.
+ * Five checks, in order of what they protect: the emptiness check, the glob
+ * scan that names the specific character when one gets through, the separator
+ * check that protects {@link RESERVED_SEPARATOR_LEAD}'s guarantee, the
+ * trailing-underscore check that protects the ACL boundary that separator
+ * implies, and the allowlist that bounds everything else.
  *
  * @param prefix - The configured prefix.
- * @throws {Error} If it is empty, outside {@link PREFIX_RE} (charset or the
- *   64-character cap), contains a Redis glob metacharacter, or contains the
- *   reserved separator lead-in `__`.
+ * @throws {Error} If it is empty, contains a Redis glob metacharacter, contains
+ *   the reserved separator lead-in `__`, ends with `_`, or is outside
+ *   {@link PREFIX_RE} (charset or the 64-character cap).
  */
 function assertUsablePrefix(prefix: string): void {
     if (prefix.length === 0) {
@@ -400,7 +402,27 @@ function assertUsablePrefix(prefix: string): void {
                 "reach another deployment's topics and keys (#288)",
         )
     }
-    // Last: the catch-all. The three checks above each name a specific,
+    // A TRAILING underscore, which #288 left open and #278 closes.
+    //
+    // `app` and `app_` are both accepted, and they derive different keys — no
+    // collision. What they do NOT get is ACL isolation: the recommended grant
+    // for `app` is `~app__*`, and `app_`'s own names begin `app___`, which that
+    // glob matches. So the `app` credential reaches every key of the `app_`
+    // deployment while its own traffic looks perfectly ordinary.
+    //
+    // `__` is already refused above, so the only shape that can do this is a
+    // prefix ending in exactly one `_`. Refusing it makes the containment
+    // argument exact rather than conditional: for any two accepted prefixes,
+    // neither `${a}__` nor `${b}__` is a prefix of the other's derived names.
+    if (prefix.endsWith('_')) {
+        throw new Error(
+            'RedisBroadcastDriver: prefix must not end with "_" — the ' +
+                `recommended ACL grant "~${prefix.slice(0, -1)}__*" would ` +
+                `match this deployment's own keys, so the two would share a ` +
+                'credential boundary without sharing a prefix (#278)',
+        )
+    }
+    // Last: the catch-all. The four checks above each name a specific,
     // actionable fault; this one bounds everything else — spaces, control
     // characters, bidi marks, an unbounded length.
     if (!PREFIX_RE.test(prefix)) {
