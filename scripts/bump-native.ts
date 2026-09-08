@@ -32,6 +32,7 @@
 import { parse as parseJsonc } from '@std/jsonc'
 import { parseArgs } from '@std/cli/parse-args'
 import * as semver from '@std/semver'
+import { updateRootJsonc } from './bump.ts'
 
 /** Path to the root workspace configuration. */
 const ROOT_CONFIG_PATH = './deno.jsonc' as const
@@ -195,6 +196,26 @@ async function main(): Promise<void> {
                 'If this is an experimental-command regression, fall back to: ' +
                 'deno task bump:legacy',
         )
+        Deno.exit(code)
+    }
+
+    // `deno bump-version --workspace` rewrites every workspace MEMBER and the
+    // cross-package specifiers. It does not touch the root's own `version`,
+    // because the workspace root is not one of its members -- and that field is
+    // what `.specnaut/scripts/release/tag.sh` reads to name the tag. Left
+    // behind, the next release computes the PREVIOUS tag and is stopped only by
+    // that script's refusal to clobber an existing one. v0.2.0 shipped on the
+    // legacy script, which did bump the root; this path had never been released
+    // through when the gap was found.
+    if (args['dry-run'] !== true) {
+        const bumped = semver.format(semver.increment(
+            semver.parse(current),
+            increment,
+        ))
+        const before = await Deno.readTextFile(ROOT_CONFIG_PATH)
+        const after = updateRootJsonc(before, bumped)
+        if (after !== before) await Deno.writeTextFile(ROOT_CONFIG_PATH, after)
+        console.log(`   root ${ROOT_CONFIG_PATH} version -> ${bumped}`)
     }
     Deno.exit(code)
 }
