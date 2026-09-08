@@ -66,28 +66,57 @@ It prints `https://jsr.io/new?scope=lockness&package=<name>` for anything
 missing. Creating the package is a manual step in the JSR UI — nothing here can
 do it for you.
 
-### 2. Every package must LINK to this repository
+### 2. Every package must LINK to this repository — BEFORE it can be published
 
-JSR authorises GitHub Actions publishing through OIDC by matching the package's
-`githubRepository` against the repo running the workflow. Mismatched or unset,
-publishing fails with:
+**Do not re-litigate this against "but publishing uses OIDC".** Both are true and
+they are different operations:
+
+| Operation | Auth |
+| :--- | :--- |
+| **Publishing** a version | OIDC. No secret, ever. `publish.yml` declares only `id-token: write`. |
+| **Linking** a package to a GitHub repo | A package-settings write. OIDC cannot cover it, because the link is *what JSR checks in order to authorise* the publish — it cannot authorise itself. |
+
+JSR matches the package's `githubRepository` against the repo running the
+workflow. Unset, publishing fails with:
 
 ```
 Failed to publish @lockness/hono@0.2.0: The actor that this request was
 authenticated for is not authorized to access this resource. (actorNotAuthorized)
 ```
 
-This is what a **newly created package** looks like: JSR creates it unlinked.
+**Measured, not assumed** — from this scope's own registry timestamps:
+
+| | |
+| :--- | :--- |
+| `hono` linked at | `2026-08-31T16:40:50Z` |
+| `hono@0.2.0` published at | `2026-08-31T16:43:48Z` — three minutes later |
+
+The publish had failed with `actorNotAuthorized` before that link existed. JSR
+does **not** auto-link on first publish.
+
+#### Link at CREATION and there is no token step
+
+A newly created package is unlinked. The cheapest moment to fix that is while
+you are already in the JSR UI creating it — set the GitHub repository there,
+per package, and no token is ever needed.
+
+**So when relaying `publish:check --registry`'s output, say "create AND link".**
+Handing over ten bare `jsr.io/new` URLs is what turns one manual pass into two.
+
+#### The token path is the bulk fallback, nothing more
 
 ```bash
 deno task jsr:link --dry-run                 # read-only, no token
 JSR_TOKEN=jsrt_xxx deno task jsr:link        # writes the link
 ```
 
-The token needs **full API access**, not the package-scoped variant — writing
-package settings is refused with `missingPermission` otherwise. It is needed
-only for this one operation: publishing itself uses OIDC and no secret. Revoke
-it afterwards.
+Worth it for ten packages; pointless for one. The token needs **full API
+access**, not the package-scoped variant — writing package settings is refused
+with `missingPermission` otherwise. It is needed only for this one operation.
+Revoke it afterwards.
+
+`--dry-run` is the check to run before every release: `failed: 0` and
+`would change: 0` is the only state that publishes.
 
 ### 3 and 4. Manifests and resolution — already guarded
 
