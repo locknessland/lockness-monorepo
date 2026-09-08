@@ -376,11 +376,41 @@ not count toward the exit code. Deleting it instead would erase the evidence
 that the case was examined, and the next person re-derives it. A guard that is
 unreachable from every valid input is the desired state, not a redundancy.
 
-**Write the reason as a claim someone could falsify.** Two rows in this repo
-were recorded as equivalent and later shown to be killable once a fixture
-existed that could tell the difference — see the self-skip row in
+**Write the reason as a claim someone could falsify.** **Four** rows in this
+repo were recorded as equivalent and later shown to be killable once a fixture
+existed that could tell the difference — the self-skip row in
 `packages/realtime/tests/redis_broker_integration.test.ts`, which kept all three
-of its readings rather than overwriting them.
+of its readings rather than overwriting them, and the two socket-ownership rows
+in `packages/redis/tests/mutations/subscribe_hardening_248.ts`. The second pair
+is the sharper example: one of them had named itself _"the highest-value
+uncovered guard in the branch"_, and #298 built the fixture that killed it. A
+reason written as a falsifiable claim is what tells the next person which
+fixture is worth building.
+
+### A third disposition: **subsumption**
+
+A refactor can delete a row's **anchor** without the row's question going away.
+When several per-field guards become one, their rows have nothing left to mutate
+— and deleting them would drop the recorded reasons that `expectSurvival` exists
+to preserve, which is the same loss the rule above forbids.
+
+So there are three dispositions, not two:
+
+| What happened to the row               | What to do                                                                                                                                   |
+| :------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------- |
+| The mutant is equivalent               | `expectSurvival` with a falsifiable reason. Never delete.                                                                                    |
+| The source moved, the guard remains    | **Repair the anchor.** The row lives.                                                                                                        |
+| The guard itself was consolidated away | **Subsume it.** Delete the row, and carry its `expectSurvival` text forward _verbatim_ as a comment on the successor row that now covers it. |
+
+Subsumption is the only case in which a row may disappear, and it is not a
+deletion — the reason survives, attached to the mutation that replaced it. A
+dead anchor is reported loudly by the harness (`DEAD MUTANT`), but a row deleted
+with its reason leaves no trace at all, which is why this is spelled out rather
+than left to judgement. The worked example is the 248 battery under
+[#298](https://github.com/locknessland/lockness-monorepo/issues/298): two `#286`
+rows mutating per-field ownership guards were subsumed into
+`#298 the single ownership check is removed`, which is **KILLED** where both
+predecessors were recorded survivors.
 
 ### Batteries that need a live broker
 
@@ -403,9 +433,9 @@ inverts the result instead of withholding it.
 `packages/redis/tests/mutations/subscribe_hardening_248.ts` is the fourth, and
 it enforces the requirement **per row** rather than for the whole file. Its four
 `#296` rows need a real broker — the defect they mutate is a process exit, which
-no in-process double reproduces — while sixteen of its twenty rows do not, and
-refusing to start would throw those sixteen away offline for nothing. So it runs
-them, **names the four it withheld**, and exits `2`.
+no in-process double reproduces — while twenty-one of its twenty-five rows do
+not, and refusing to start would throw those twenty-one away offline for
+nothing. So it runs them, **names the four it withheld**, and exits `2`.
 
 Either shape is honest; what neither may do is stay quiet. Pass the gate to run
 everything:

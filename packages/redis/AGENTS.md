@@ -135,6 +135,28 @@ Anything not listed is internal and free to change.
   was pinging. And `#activate`'s catch must discard **before** scheduling a
   retry: `connect()` returns the cached socket, so a retry that skips it feeds
   every later attempt the same dead socket while logging "retrying" forever.
+- **Per-socket state goes in `SocketGeneration`, not beside it**
+  ([#298](https://github.com/locknessland/lockness-monorepo/issues/298)). Three
+  fields learned the same ownership guard one incident at a time — the keepalive
+  after an unconditional clear disarmed a _live_ socket's timer and brought
+  #274's idle churn back silently, then the write chain, one field over, in
+  #286. `subscriber.ts` now has **one** generation object and `#discardSocket`
+  asks **one** ownership question. A new resource whose lifetime ends with the
+  socket joins the type; it does not become a fifth parallel field.
+
+  **The membership test is the INSTALL MOMENT, not the field's name** —
+  "released together when the socket is dropped", not "lives as long as it".
+  Four per-socket fields are deliberately outside, and `loopConn` is the one
+  that looks like it belongs and does not: it installs _after_ the awaited
+  writes and _after_ the `this.conn.socket !== conn` re-check, and it means "a
+  read loop is draining this socket". Folding it in makes the read-loop start
+  statically unreachable — the connection subscribes, delivers nothing, and logs
+  nothing. `loopDone`, `#loopStartedAt` and `#handlerFaults` are out for their
+  own reasons, each named in the type's docblock.
+
+  **Release is a call, not a reference drop.** A `setInterval` id survives
+  losing its object, so `clearInterval` lives inside `SocketGeneration` and
+  nothing outside it calls one.
 - **A bound on peer-controlled input is a SIZE check, never a timeout.** Three
   reply bounds exist for this reason — `MAX_BULK_BYTES` (one body),
   `MAX_LINE_BYTES` (one line), `MAX_REPLY_BYTES` (the total). The first two
