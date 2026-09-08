@@ -1,6 +1,6 @@
 {
     "name": "@lockness/container",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
@@ -14,7 +14,7 @@
     },
     "imports": {
         "@std/assert": "jsr:@std/assert@1",
-        "@lockness/contract": "jsr:@lockness/contract@^0.2.0"
+        "@lockness/contract": "jsr:@lockness/contract@^0.3.0"
     },
     "description": "Lightweight dependency injection container with singleton management and property injection decorators"
 }

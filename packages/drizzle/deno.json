@@ -1,6 +1,6 @@
 {
     "name": "@lockness/drizzle",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "license": "MIT",
     "exports": {
         ".": "./mod.ts",
@@ -14,9 +14,9 @@
     },
     "//": "hard-rule-2 exception: the mysql2 and @libsql/client npm: specifiers below are the MySQL and SQLite/libSQL client drivers that Drizzle's mysql2 and libsql adapters run on. Neither publishes a JSR build, so npm: is the only registry that ships them, and each is loaded on demand only when its dialect is selected (see drivers.ts).",
     "imports": {
-        "@lockness/cli": "jsr:@lockness/cli@^0.2.0",
-        "@lockness/container": "jsr:@lockness/container@^0.2.0",
-        "@lockness/contract": "jsr:@lockness/contract@^0.2.0",
+        "@lockness/cli": "jsr:@lockness/cli@^0.3.0",
+        "@lockness/container": "jsr:@lockness/container@^0.3.0",
+        "@lockness/contract": "jsr:@lockness/contract@^0.3.0",
         "@std/path": "jsr:@std/path@^1.0.0",
         "drizzle-orm": "npm:drizzle-orm@^0.36.3",
         "postgres": "npm:postgres@^3.4.4",

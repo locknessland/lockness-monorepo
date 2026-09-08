@@ -1,6 +1,6 @@
 {
     "name": "@lockness/auth-provider",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "license": "MIT",
     "description": "Agnostic user providers for @lockness/auth. Support for Drizzle, Kysely, and more.",
     "exports": {
@@ -20,7 +20,7 @@
         }
     },
     "imports": {
-        "@lockness/auth": "jsr:@lockness/auth@^0.2.0",
+        "@lockness/auth": "jsr:@lockness/auth@^0.3.0",
         "drizzle-orm/postgres-js": "npm:drizzle-orm@^0.36.3/postgres-js",
         "drizzle-orm/mysql2": "npm:drizzle-orm@^0.36.3/mysql2",
         "drizzle-orm/libsql": "npm:drizzle-orm@^0.36.3/libsql"

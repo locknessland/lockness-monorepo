@@ -1,6 +1,6 @@
 {
     "name": "@lockness/init",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "license": "MIT",
     "exports": {
         ".": "./mod.ts"
@@ -15,7 +15,7 @@
         ]
     },
     "imports": {
-        "@lockness/cli": "jsr:@lockness/cli@^0.2.0",
+        "@lockness/cli": "jsr:@lockness/cli@^0.3.0",
         "@std/cli": "jsr:@std/cli@^1.0.0",
         "@std/expect": "jsr:@std/expect@^1.0.0",
         "@std/fs": "jsr:@std/fs@^1.0.0",

@@ -1,6 +1,6 @@
 {
     "name": "@lockness/devtools",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "license": "MIT",
     "exports": "./mod.ts",
     "tasks": {
@@ -19,11 +19,11 @@
         "jsxImportSource": "hono"
     },
     "imports": {
-        "hono": "jsr:@lockness/hono@^0.2.0",
-        "@lockness/hono": "jsr:@lockness/hono@^0.2.0",
-        "@lockness/contract": "jsr:@lockness/contract@^0.2.0",
-        "@lockness/events": "jsr:@lockness/events@^0.2.0",
-        "@lockness/session": "jsr:@lockness/session@^0.2.0",
+        "hono": "jsr:@lockness/hono@^0.3.0",
+        "@lockness/hono": "jsr:@lockness/hono@^0.3.0",
+        "@lockness/contract": "jsr:@lockness/contract@^0.3.0",
+        "@lockness/events": "jsr:@lockness/events@^0.3.0",
+        "@lockness/session": "jsr:@lockness/session@^0.3.0",
         "@std/fs": "jsr:@std/fs@1",
         "@std/path": "jsr:@std/path@1"
     },
