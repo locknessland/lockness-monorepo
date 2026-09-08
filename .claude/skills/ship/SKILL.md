@@ -23,8 +23,10 @@ decisions so they are not re-litigated every release.
 
 ## ⛔ Before anything: publishing is irreversible and public
 
-A GitHub Release triggers `publish.yml`, which runs `deno publish` for **all 27
-packages**. JSR versions cannot be unpublished.
+A GitHub Release triggers `publish.yml`, which runs `deno publish` for **every
+publishable workspace member** — 36 of the 37 at v0.3.0; `@lockness/testing` is
+deliberately unpublished and carries no `version`. JSR versions cannot be
+unpublished.
 
 **Require the user's explicit consent in this session, every time.** Not implied
 by "ship it" from a previous release, not implied by an approved plan, not
@@ -37,7 +39,8 @@ release. Prefer it when unsure.
 ## The state of the rail
 
 **The pipeline works.** `v0.2.0` shipped on 2026-08-31 — the repository's first
-tag and first release — and all 27 packages are on JSR with Sigstore provenance.
+tag and first release — and all 27 packages of that cycle are on JSR with
+Sigstore provenance. **Ten more were added before v0.3.0**, so read blocker 1.
 [#122] and [#134] are closed.
 
 Getting there hit four blockers. Three are now guarded by checks; **the fourth
@@ -47,8 +50,13 @@ introduces one.
 ### 1. Every package must EXIST on JSR before it can be published
 
 `deno publish` is **atomic across the workspace**: one package the registry has
-never heard of aborts all 27. `@lockness/scheduler` was new and stopped the
-first attempt dead.
+never heard of aborts every one of them. `@lockness/scheduler` was new and
+stopped the first attempt dead; ten more were missing at v0.3.0.
+
+**Read the list before relaying it.** `publish:check --registry` names
+`@lockness/testing`, which has no `version` field and is never published —
+creating it on JSR is harmless but pointless. Check each name against its
+`deno.json` rather than forwarding the output wholesale.
 
 ```bash
 deno task publish:check --registry
@@ -113,14 +121,20 @@ the worst possible moment to guess whether an uncommitted file belongs.
 ```
 
 The Lockness override is already documented in that phase: in bump-driven mode
-it runs `deno task bump --<bump>`, which rewrites the root `deno.jsonc`, all 27
+it runs `deno task bump --<bump>`, which rewrites the root `deno.jsonc`, every
 `packages/*/deno.json`, every `jsr:@lockness/*` inter-package specifier, and
 every stub file, atomically.
 
 **Do not pass `--no-verify` here on the reasoning that the push already ran the
-suite.** The bump *rewrites 27 manifests and every inter-package specifier*
+suite.** The bump *rewrites every manifest and every inter-package specifier*
 between the push and the tag, so the tree at tag time is not the tree that was
 tested. Run the gate again.
+
+**And check the root moved.** `deno bump-version --workspace` does not touch the
+root's own `version`; `bump-native.ts` writes it afterwards, and `tag.sh` reads
+exactly that field to name the tag. If they ever disagree the tag is computed
+one version behind, and the only thing standing in the way is `tag.sh`'s refusal
+to clobber an existing one (#324). `tests/bump.test.ts` asserts the invariant.
 
 ### 3. Release — delegate to `/specnaut release-version`
 
@@ -179,7 +193,10 @@ If a package was added this cycle, `--create` makes its mirror first.
 ## Why versioning is lockstep — and when to revisit
 
 Every package moves to the same version on every release, even the ones with no
-changes. `scripts/bump.ts` implements it. This is deliberate:
+changes. `scripts/bump-native.ts` implements it, behind `deno task bump` — it
+delegates the members to `deno bump-version --workspace` and writes the root's
+own `version` itself, which the native command does not (#324). `scripts/bump.ts`
+is the legacy path, reachable as `deno task bump:legacy`. This is deliberate:
 
 1. **The graph is dense** — 252 measured cross-package references. Independent
    versioning means resolving a compatibility matrix on every change, and JSR

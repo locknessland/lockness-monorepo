@@ -54,10 +54,12 @@ publish.
 /specnaut tag-version [--bump major|minor|patch]
    └─ .specnaut/scripts/release/tag.sh
          ├─ refuses dirty working tree
-         ├─ deno task bump --<bump>            ← scripts/bump.ts
-         │     ├─ rewrites deno.jsonc (version + @lockness/* imports)
-         │     ├─ rewrites every packages/*/deno.json
-         │     └─ rewrites packages/*/stubs/*.stub
+         ├─ deno task bump --<bump>            ← scripts/bump-native.ts
+         │     ├─ deno bump-version --workspace <inc>
+         │     │     ├─ rewrites every packages/*/deno.json
+         │     │     ├─ rewrites @lockness/* cross-package specifiers
+         │     │     └─ does NOT touch the root's own version (#324)
+         │     └─ writes deno.jsonc's version itself, after
          ├─ git add -A && git commit -m "chore(release): vX.Y.Z"
          ├─ git tag -a vX.Y.Z -m "Release vX.Y.Z ..."
          └─ git push origin <branch> && git push origin vX.Y.Z
@@ -75,9 +77,16 @@ publish.
                          └─ deno publish                ← JSR
 ```
 
-Default `--bump patch`. `bump.ts` reads the current version from `deno.jsonc`
-and increments — the latest git tag is informative but not authoritative; the
-deno.jsonc field is the source of truth for "what version is next."
+Default `--bump patch`. `bump-native.ts` reads the current version from
+`deno.jsonc` and increments — the latest git tag is informative but not
+authoritative; the deno.jsonc field is the source of truth for "what version is
+next."
+
+**`scripts/bump.ts` is NOT the release path any more** (#162). It is
+`deno task bump:legacy`, kept for arbitrary version jumps the native command
+cannot express as one increment; `bump-native.ts` still imports its
+`updateRootJsonc` to write the root. Anything describing `bump.ts` as the
+release mechanism predates the migration.
 
 ## File map
 
@@ -85,7 +94,8 @@ deno.jsonc field is the source of truth for "what version is next."
 | --------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `.specnaut/scripts/release/tag.sh`                  | bump → commit → tag → push orchestration (Lockness-customized SemVer mode)    |
 | `.specnaut/scripts/release/release-github.sh`       | categorized release notes + `gh release create`                               |
-| `scripts/bump.ts`                                   | atomic monorepo version rewrite (`deno.jsonc`, `packages/*/deno.json`, stubs) |
+| `scripts/bump-native.ts`                            | **the** version rewrite — `deno bump-version --workspace`, plus the root's own `version` (#324) |
+| `scripts/bump.ts`                                   | `deno task bump:legacy` — arbitrary version jumps; exports `updateRootJsonc`   |
 | `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
 | `.github/workflows/test.yml`                        | PR gate: fmt/lint/check/test                                                  |
 | `.claude/skills/specnaut/phases/tag-version.md`     | `/specnaut tag-version` skill contract                                        |
@@ -112,8 +122,8 @@ deno.jsonc field is the source of truth for "what version is next."
 | --------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | JSR publishes the previous version                        | Tag points before the bump commit                                          | `git show <tag>:deno.jsonc` — confirm `version` matches the tag                     |
 | `tag.sh` exits "working tree has uncommitted changes"     | Dirty tree (often deno-fmt hook output)                                    | `git status --short`; commit or `git stash`                                         |
-| `tag.sh` exits "tag already exists — refusing to clobber" | Same version tagged before; bump didn't move the version                   | `cat deno.jsonc \| grep '"version"'` vs `git tag --list 'v*' \| sort -V \| tail`    |
-| `tag.sh` exits "deno task bump produced no file changes"  | bump.ts ran but couldn't find the version field, or already at target      | Re-run `deno task bump --patch` manually and inspect                                |
+| `tag.sh` exits "tag already exists — refusing to clobber" | Same version tagged before, **or** the bump moved the members and left the root behind — the #324 shape, which this guard is the only thing that catches | `cat deno.jsonc \| grep '"version"'` vs `git tag --list 'v*' \| sort -V \| tail`, then compare against any `packages/*/deno.json` — if they disagree, the root was not written |
+| `tag.sh` exits "deno task bump produced no file changes"  | the bump ran but couldn't find the version field, or is already at target  | Re-run `deno task bump --patch` manually and inspect                                |
 | `publish.yml` doesn't trigger                             | Release not in "published" state (still draft), or workflow file edited    | GitHub UI → Releases → confirm not draft; check `on: release: types: [published]`   |
 | `publish.yml` runs but `deno publish` fails on auth       | Trusted publishing not configured, or `id-token: write` permission missing | `.github/workflows/publish.yml` permissions block; JSR package "Trusted publishers" |
 | `publish.yml` fails on `deno fmt --check`                 | Drift slipped past local hook                                              | Run `deno fmt` locally on the bump commit, force-push not possible — open a new tag |
@@ -166,6 +176,7 @@ Multi-stage Dockerfile, runs as non-root, includes health check.
 
 - `.github/workflows/test.yml`
 - `.github/workflows/publish.yml`
+- `scripts/bump-native.ts`
 - `scripts/bump.ts`
 - `docs/deployment.md`
 - `docs/compilation.md`
