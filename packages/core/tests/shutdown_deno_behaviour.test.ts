@@ -69,6 +69,18 @@ Deno.test('deno - setTimeout clamps out-of-range delays to 1ms', async () => {
     // Why resolveDeadlineMs rejects instead of passing values through.
     // `deadlineMs: Infinity` written to mean "never time out" would otherwise
     // become the SHORTEST possible deadline, silently.
+    // WARM THE TIMER SUBSYSTEM FIRST. The very first `setTimeout` in a fresh
+    // process pays its initialisation — measured at 52.6ms on Deno 2.9.6 where
+    // every later call is 1-3ms — and the threshold below is 50ms, so this test
+    // was failing on the FIRST iteration for a reason that has nothing to do
+    // with clamping. All three values are still clamped; what changed is how
+    // long the runtime takes to get going.
+    //
+    // A wider threshold would have hidden the thing being measured: the gap
+    // between "clamped to ~1ms" and "waited 24 days" is enormous, and the point
+    // of the number is to sit far below the second, not to tolerate startup.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+
     for (const bad of [NaN, Infinity, 2 ** 31]) {
         const started = performance.now()
         await new Promise<void>((resolve) => setTimeout(resolve, bad))
