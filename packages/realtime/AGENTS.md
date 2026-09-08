@@ -56,8 +56,8 @@ application installs it, or the feature stays off.
 | class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                                                 |
 | function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                           |
 | interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `Connection`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
-| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ClientMessage`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                |
-| variable  | `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                                            |
+| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                           |
+| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                    |
 
 Anything not listed is internal and free to change.
 
@@ -108,6 +108,26 @@ Anything not listed is internal and free to change.
   redundancy to delete — but unreachability is no longer the reason for leaving
   it untested.
 
+- **The watched-channel caps REFUSE, and the reservation is not the cap.**
+  `#checkChannelCaps` throws `ChannelLimitError` before any membership mutation
+  ([#322](https://github.com/locknessland/lockness-monorepo/issues/322)). Three
+  things a test gets wrong here. First, `conn()` in
+  `tests/channel_watch_295.test.ts` is **anonymous** (`identity: null`), so a
+  loop of them hits `anonymousHostingShare × maxWatchedChannels` — 800, not 1
+  000 — and a test that means to reach the full cap must use `identified()` or
+  it measures the reservation and reports it as the cap. Second, the scope is
+  decided by whether the reservation is **in effect**, not by who called: at
+  `share: 1` the ceiling equals the cap and an anonymous breach must report
+  `'instance'`, or an operator is sent to tune a dial already at maximum. Third,
+  a small custom `maxWatchedChannels` needs a smaller `maxChannelsPerConnection`
+  — the 100 default above an instance cap of 10 is refused at construction, and
+  that refusal is the point, not an obstacle.
+- **A `console.warn`-absence assertion is a tautology once the warn is gone.**
+  `#295/FR-017`'s guard was
+  `warnings.filter(w => w.includes('watched
+  channels')) === []`. It passed for
+  every input the moment #322 removed both warns — reading as a guard while
+  proving nothing. Assert the refusal directly.
 - **Assert on `commandLog()`, never on a wrapped `command`.** A test that wraps
   the driver's `command` function sees only what the driver issues _directly_ —
   a script's own writes reach the store through the Lua evaluator, so they never

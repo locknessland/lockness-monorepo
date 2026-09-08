@@ -79,6 +79,22 @@ app.get(
   `listRevoked()`, plus `onRevocationReconcile(handler)` to say when the
   re-check runs; all three are optional, and a driver that omits them gets
   fire-and-forget eviction. See [realtime.md](../../docs/realtime.md).
+- **Watched-channel limits** — `ChannelLimitError` is raised when a subscribe
+  would take the instance past `maxWatchedChannels` (default `1_000`) or the
+  connection past `maxChannelsPerConnection` (default `100`). Both are options
+  on `ChannelManagerOptions`, validated at construction, and a per-connection
+  cap above the instance cap is refused there — one connection would otherwise
+  consume the whole instance. A breach **mutates nothing**: no registration, no
+  presence member, no broker subscription. Only a join that GROWS a set is
+  charged, so a second client on a hosted channel is always admitted.
+- **Anonymous hosting reservation** — `subscribe` runs no authorizer for a
+  public channel, so a connection with no identity may cause a 0 → 1 hosted
+  channel transition only below `anonymousHostingShare` (default `0.8`) of the
+  instance cap. Without it about ten anonymous sockets deny new channel hosting
+  to every connection on the instance. Set it to `1` if you authenticate nobody.
+  A breach of the reserved share carries `scope: 'instance-anonymous'`; treat
+  `scope` as an open set (`CHANNEL_LIMIT_SCOPES` names the current values) and
+  never forward the error's message to a client — the numbers are properties.
 - **Per-channel subscription** — `watchChannel(channel)` and
   `unwatchChannel(channel)`, the fourth and fifth optional seams and the only
   pair detected **together**. A driver that implements both receives one exact

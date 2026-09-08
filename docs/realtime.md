@@ -424,13 +424,6 @@ if (error instanceof PresenceMemberIdError) {
 }
 ```
 
-**One thing to do before a rolling upgrade.** A durable revocation already
-recorded against an out-of-charset id is dropped by the reconcile on an upgraded
-instance, so such a connection would come back un-revoked while both versions
-are running — the same silent failure, for exactly the deployments this note is
-addressed to. Re-issue those revocations against in-charset ids first, or drain
-them by waiting out `revocationTtlSeconds` before you deploy.
-
 ## Running on more than one instance
 
 With the Redis driver, presence and eviction are **authoritative across every
@@ -480,21 +473,98 @@ because delivery stays correct.
 
 #### Watched-channel limits
 
-An instance may host **1 000** channels and one connection may hold **100** —
-`MAX_WATCHED_CHANNELS` and `MAX_CHANNELS_PER_CONNECTION`, both exported from
-`@lockness/realtime` so a deployment can read them rather than hard-code them.
-Each hosted channel is a broker subscription re-issued on every reconnect, so
-the set is bounded deliberately rather than left to whatever clients ask for —
-`subscribe` runs no authorizer for a public channel, so without a bound the set
-is driven by unauthenticated sockets.
+An instance hosts at most **1 000** channels by default and one connection at
+most **100** — `MAX_WATCHED_CHANNELS` and `MAX_CHANNELS_PER_CONNECTION`,
+exported from `@lockness/realtime`. **A breach raises `ChannelLimitError` and
+mutates nothing**: the connection is not registered, no presence member is
+added, and no broker subscription is issued. It throws rather than answering
+`{ ok: false }` because `{ ok: false }` is what an authorization denial returns,
+and an application cannot act on resource exhaustion it cannot tell apart from a
+refusal.
 
-**This release only WARNs.** A breach logs the scope and its **actual count**
-and admits the subscribe; `ChannelLimitError` is exported and never raised. The
-refusal lands in the next release
-([#322](https://github.com/locknessland/lockness-monorepo/issues/322)). The
-warning release exists because nothing measured channels-per-instance before
-now, so nobody could say whether 1 000 is generous or tight — if your logs show
-you near it, say so on that issue before it starts refusing.
+Each hosted channel is a broker subscription re-issued on every reconnect, so
+the set is bounded deliberately rather than left to whatever clients ask for.
+
+**Only a join that GROWS a set is charged.** A second client on an
+already-hosted channel adds no subscription, and a connection re-joining a
+channel it already holds adds nothing either; both are admitted at and above
+every cap.
+
+#### Moving the limits
+
+All three are options on `ChannelManagerOptions`, validated at **construction**
+— a cap discovered when it first bites is a misconfiguration discovered in
+production.
+
+```ts
+const manager = new ChannelManager({
+    driver,
+    maxWatchedChannels: 5_000,
+    maxChannelsPerConnection: 200,
+    anonymousHostingShare: 0.8,
+})
+```
+
+| Option                     | Default | Refused at construction                                          |
+| :------------------------- | :------ | :--------------------------------------------------------------- |
+| `maxWatchedChannels`       | `1_000` | not a positive integer                                           |
+| `maxChannelsPerConnection` | `100`   | not a positive integer, **or greater than `maxWatchedChannels`** |
+| `anonymousHostingShare`    | `0.8`   | not a number in `(0, 1]`                                         |
+
+The cross-check is not pedantry: a per-connection cap above the instance cap
+lets **one** connection consume the whole instance budget. It also means a small
+custom `maxWatchedChannels` must be paired with a smaller
+`maxChannelsPerConnection` — the default 100 above an instance cap of 10 is
+refused, deliberately.
+
+**Raising `maxWatchedChannels` is not free, and the cost is a reconnect.** The
+default is also the N at which #295 proved a full reconnect re-issue, and the
+bound #276 put on the post-outage revocation window. At 5 000, a reconnect storm
+re-issues 5 000 `SUBSCRIBE`s per instance and the revocation window widens with
+the set. That is a legitimate trade; it is not an unmeasured one.
+
+#### The anonymous reservation
+
+`subscribe` runs **no authorizer for a public channel** — the identity and
+authorize block is skipped entirely — so an anonymous socket can drive the
+hosted set on its own. With the caps merely warning that was unbounded growth;
+with them refusing it would be a **denial of all new channel hosting** for every
+connection on the instance, authenticated ones included, reachable from about
+ten sockets.
+
+`anonymousHostingShare` bounds it. A connection with no identity may cause a 0 →
+1 hosted-channel transition only while the instance holds fewer than
+`floor(maxWatchedChannels × anonymousHostingShare)` channels; the remainder
+stays reachable by identified connections. **An anonymous connection may always
+JOIN an already-hosted channel**, at any size — the reservation bounds only the
+transitions that cost the broker a new subscription.
+
+A breach of the reserved share carries `scope: 'instance-anonymous'`, distinct
+from `'instance'`, because the two call for different responses. Set the share
+to `1` to disable the reservation — a deployment that authenticates nobody
+should, and then an anonymous breach reports `'instance'`, since the cap is
+genuinely what refused it.
+
+```ts
+try {
+    await manager.subscribe(connection, 'public-feed')
+} catch (error) {
+    if (error instanceof ChannelLimitError) {
+        // `count` and `limit` are properties, deliberately NOT in the message.
+        log.warn('cap breach', { scope: error.scope, count: error.count })
+    }
+}
+```
+
+**Do not forward `ChannelLimitError.message` to a client.** The numbers are on
+the error for your logs; the message omits them because the caller that triggers
+an instance-scope breach on a public channel ran no authorizer, and the
+instance-wide count is a live load signal for the whole deployment.
+
+**Treat `scope` as an open set.** It is typed `string`, not a union of the three
+values `CHANNEL_LIMIT_SCOPES` names, so an exhaustive `switch` cannot be written
+against it — it gained `'instance-anonymous'` once already, and the next
+addition must not break every catch site.
 
 ### The authoritative presence roster
 
@@ -580,13 +650,16 @@ no instance's wall clock takes part in the decision.
 > it down. `GT` alone cannot arm a TTL — Redis reads a key with none as having
 > an infinite one.
 
-> **Rolling upgrade.** For one release the driver also _reads_ the previous
-> layout (`{prefix}:revoked` plus per-target markers) so a revocation written by
-> a not-yet-upgraded instance is still honoured. It never writes it, and no key
-> changes Redis type under a name an old instance still uses. Removal is tracked
-> in [#278](https://github.com/locknessland/lockness-monorepo/issues/278); after
-> it lands, the abandoned `{prefix}:revoked` key can be deleted by hand — it has
-> no TTL of its own.
+> **The compatibility read is gone**
+> ([#278](https://github.com/locknessland/lockness-monorepo/issues/278)). For
+> one unreleased cycle the driver also _read_ the previous layout
+> (`{prefix}:revoked` plus per-target markers) so a revocation written by a
+> not-yet-upgraded instance was still honoured. Nothing ever wrote that layout
+> in a published version, so `listRevoked` is now a single `EVAL` again — one
+> round trip whatever the number of revocations, rather than one plus one per
+> legacy member. If a real Redis still holds `{prefix}:revoked` or any
+> `{prefix}:revoked:*` marker, **delete them by hand**: the index SET has no TTL
+> and nothing reads it.
 
 **Two triggers re-check the marker**, and every deployment gets both:
 
@@ -716,7 +789,7 @@ suggestion.** Without one, "isolated" means only that the _drivers_ do not cross
 
 ```
 ACL SETUSER app-realtime on '>...' \
-  ~app__*  ~app:revoked  ~app:revoked:* \
+  ~app__* \
   &app__event:*  &app__control \
   +@all
 ```
@@ -755,20 +828,39 @@ wrong and the ACL undoes the isolation it was added for:
   a partial failure, and the hardest kind to read from a log. **Nothing to
   migrate: keep `&app__event:*` and `&app__control`.**
 
-The two `~app:revoked` grants cover the legacy revocation names described below;
-drop them once
-[#278](https://github.com/locknessland/lockness-monorepo/issues/278) removes the
-dual-read path. Hold the bus to the same TLS + AUTH posture as any other
-credentialed connection.
+**One glob, and that is the whole keyspace.** Every name the driver derives sits
+behind `__`, which no accepted prefix may contain, so `~app__*` covers all of
+them with nothing left over. An ACL that still grants `~app:revoked` and
+`~app:revoked:*` — the shape this document recommended before #278 — should
+**drop both**: the keys are gone, but the globs are not narrow, and
+`~app:revoked:*` matches every key of a second deployment using the accepted
+prefix `app:revoked:eu`. Deleting the key while keeping the grant keeps the
+reach.
 
-**A prefix must match `[A-Za-z0-9:._-]` and be 1–64 characters, and must not
-contain `__`.** Four checks, each with its own message. The glob metacharacters
-`*` `?` `[` `]` and `\` are named individually because they reach `PSUBSCRIBE`
-as a pattern and would widen the subscription — `app\` worst of all, since Redis
-reads `app\:*` as the literal `app:*`, so that deployment reads another's whole
-stream while its own traffic stays invisible to the deployment it is reading.
-`__` is refused because it is the lead-in every reserved separator begins with;
-a prefix carrying it can reach another deployment's names.
+Hold the bus to the same TLS + AUTH posture as any other credentialed
+connection.
+
+**A prefix must match `[A-Za-z0-9:._-]`, be 1–64 characters, and must neither
+contain `__` nor end with `_`.** Five checks, each with its own message. The
+glob metacharacters `*` `?` `[` `]` and `\` are named individually because they
+reach `PSUBSCRIBE` as a pattern and would widen the subscription — `app\` worst
+of all, since Redis reads `app\:*` as the literal `app:*`, so that deployment
+reads another's whole stream while its own traffic stays invisible to the
+deployment it is reading. `__` is refused because it is the lead-in every
+reserved separator begins with; a prefix carrying it can reach another
+deployment's names.
+
+**A trailing `_` is refused for a different reason, and it is about the ACL
+rather than the driver**
+([#278](https://github.com/locknessland/lockness-monorepo/issues/278)). `app`
+and `app_` collide on nothing and cross-subscribe to nothing — their event
+patterns are `app__event:*` and `app___event:*`, which do not match each other.
+What they share is a **credential boundary**: the grant recommended above for
+`app` is `~app__*`, and every name `app_` derives begins `app___`, which that
+glob matches. So the `app` credential could read the whole `app_` deployment
+while both looked perfectly isolated at the protocol level. Since `__` is
+already refused, a single trailing `_` is the only shape that can do this, and
+refusing it makes the containment argument exact instead of conditional.
 
 #### Upgrading a running fleet
 
@@ -785,18 +877,61 @@ been published when this landed, so no deployment could exist to need one, and
 this change is required to land in or before the first release that publishes
 the package.
 
-Two revocation key names — `<prefix>:revoked` and `<prefix>:revoked:<id>` — keep
-their old shape on purpose. They exist only to read what a pre-#276 instance
-wrote at those exact names, so anchoring them would address a key nothing has
-ever written.
-[#278](https://github.com/locknessland/lockness-monorepo/issues/278) removes
-them.
+**There is no exception left.** Two revocation key names — `<prefix>:revoked`
+and `<prefix>:revoked:<id>` — used to keep their old shape, because they existed
+only to read what a pre-#276 instance wrote at those exact names.
+[#278](https://github.com/locknessland/lockness-monorepo/issues/278) deleted the
+reader, and with it the exemption: every name the driver derives now sits behind
+the reserved lead-in, and the test that proves it has no list to add a name to
+in order to make it pass.
 
 The channel-event path keeps its existing defence in depth on top of all this:
 every message off the bus is re-validated on ingest (channel/event names via
 `isValidName`, bounded payload size), and the **receiving** instance re-applies
 its own local authorization before delivering to a subscriber — a peer cannot
 inject an out-of-charset name or reach an unauthorized local connection.
+
+## Upgrading to v0.3.0
+
+Two behaviour changes in `@lockness/realtime`. Neither needs a data migration;
+both can be met before you deploy.
+
+### 1. The watched-channel caps now refuse
+
+They warned and admitted before. A subscribe past a cap now raises
+`ChannelLimitError` — see [Watched-channel limits](#watched-channel-limits) for
+the options that move them.
+
+**Before deploying**, decide three things:
+
+1. **Are you near 1 000 hosted channels per instance?** If you were running the
+   previous version, `#checkChannelCaps` logged the actual count on every
+   breach. Raise `maxWatchedChannels` if so — and read what a raised cap costs a
+   reconnect first.
+2. **Do you accept anonymous sockets?** `subscribe` runs no authorizer for a
+   public channel, so anonymous connections are bounded to
+   `anonymousHostingShare` (default `0.8`) of the instance budget for **new**
+   channel hosting. A deployment that authenticates nobody sets it to `1`.
+3. **Does anything forward the error text to a client?** It no longer carries
+   the count or the limit; read `error.count` and `error.limit` instead. Do not
+   put either on the wire.
+
+`ChannelLimitError.scope` is typed `string`, not a union — an exhaustive
+`switch` will not compile against it, by design. Compare against
+`CHANNEL_LIMIT_SCOPES` and handle an unrecognised value generically.
+
+### 2. The legacy revocation read is gone
+
+`RedisBroadcastDriver.listRevoked` no longer reads `{prefix}:revoked` and its
+per-target markers. Nothing in a published version ever wrote them, so there is
+nothing to migrate — but two housekeeping items follow:
+
+- **Delete `{prefix}:revoked` and any `{prefix}:revoked:*` keys** from a real
+  Redis. The index SET has no TTL and nothing reads it, so it lingers forever.
+- **Narrow your Redis ACL.** If it grants `~app:revoked` and `~app:revoked:*` —
+  the shape this guide recommended — drop both. `~app__*` alone covers every
+  name the driver derives, and `~app:revoked:*` is wide enough to reach a second
+  deployment whose prefix begins `app:revoked:`.
 
 ## As a notifications broadcaster
 

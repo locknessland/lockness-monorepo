@@ -376,7 +376,7 @@ not count toward the exit code. Deleting it instead would erase the evidence
 that the case was examined, and the next person re-derives it. A guard that is
 unreachable from every valid input is the desired state, not a redundancy.
 
-**Write the reason as a claim someone could falsify.** **Four** rows in this
+**Write the reason as a claim someone could falsify.** **Three** rows in this
 repo were recorded as equivalent and later shown to be killable once a fixture
 existed that could tell the difference — the self-skip row in
 `packages/realtime/tests/redis_broker_integration.test.ts`, which kept all three
