@@ -454,17 +454,28 @@ export interface RedisBroadcastDriverOptions {
      * contain, so no pattern one deployment subscribes can match any topic or
      * key another derives — nested prefixes included. Until #288 the event
      * topic used a plain `:` separator and a deployment at `app` received the
-     * events of one at `app:eu`; the two legacy revocation key names are the
-     * one documented exception and are removed by #278.
+     * events of one at `app:eu`. Two legacy revocation key names were the one
+     * documented exception; **#278 removed them, so there is no exception
+     * left** — the anchoring check has no exemption list to add a name to.
      *
      * It said "multi-tenant isolation" until #282, which was wrong in both
      * directions and is the wording that led operators to nest prefixes in the
      * first place. The sentence above is deliberately narrower than that:
      * outbound only, and named as such.
      *
-     * Must contain no Redis glob metacharacter. It is interpolated into
-     * `PSUBSCRIBE` patterns, where `*`, `?` or `[` would widen the subscription
-     * to traffic the deployment does not own, so one is refused at construction.
+     * **Five refusals at construction, and this is the full statement** — the
+     * one every other mention points at:
+     *
+     * | Refused | Why |
+     * | :--- | :--- |
+     * | empty | every key and topic is derived from it |
+     * | a Redis glob metacharacter (`*` `?` `[` `]` `\`) | it is interpolated into `PSUBSCRIBE` patterns, where it widens the subscription to traffic the deployment does not own. `app\` is the worst: Redis reads `app\:*` as the literal `app:*`, so that deployment reads another's whole stream while its own traffic stays invisible to the deployment it is reading |
+     * | containing `__` | it is the lead-in every reserved separator begins with, so a prefix carrying it reaches another deployment's names (#288) |
+     * | ending in `_` | the ACL grant documented for `app` is `~app__*`, and every name `app_` derives begins `app___`, which that glob matches. The two collide on nothing and cross-subscribe to nothing, and one credential still reads the other's whole keyspace (#278) |
+     * | outside `[A-Za-z0-9:._-]{1,64}` | the catch-all: spaces, control characters, bidi marks, unbounded length |
+     *
+     * The last three each protect a different property, and only the middle one
+     * is about what this driver itself subscribes.
      *
      * @default "lockness:realtime"
      */

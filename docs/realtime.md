@@ -561,10 +561,13 @@ the error for your logs; the message omits them because the caller that triggers
 an instance-scope breach on a public channel ran no authorizer, and the
 instance-wide count is a live load signal for the whole deployment.
 
-**Treat `scope` as an open set.** It is typed `string`, not a union of the three
-values `CHANNEL_LIMIT_SCOPES` names, so an exhaustive `switch` cannot be written
-against it — it gained `'instance-anonymous'` once already, and the next
-addition must not break every catch site.
+**Treat `scope` as an open set.** Its type is `ChannelLimitScope`, exported from
+`@lockness/realtime` and deliberately an alias for `string` rather than a union
+of the three values `CHANNEL_LIMIT_SCOPES` names. An exhaustive `switch`
+therefore cannot be written against it — it gained `'instance-anonymous'` once
+already, and the next addition must not break every catch site. Annotate with
+`ChannelLimitScope` where you need the type; read `CHANNEL_LIMIT_SCOPES` where
+you need the values.
 
 ### The authoritative presence roster
 

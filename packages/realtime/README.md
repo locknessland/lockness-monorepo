@@ -52,9 +52,11 @@ app.get(
   ([#288](https://github.com/locknessland/lockness-monorepo/issues/288)) — and
   is **not** an inbound boundary: anything on the broker can publish into, and
   read from, these topics and keys, so use Redis ACLs for that. A prefix must
-  match `[A-Za-z0-9:._-]{1,64}` and must not contain `__`, the lead-in every
-  reserved separator begins with; the `RedisBroadcastDriverOptions.prefix`
-  docstring is the single home for the full statement. **The Redis driver
+  match `[A-Za-z0-9:._-]{1,64}`, must not contain `__` — the lead-in every
+  reserved separator begins with — and must not **end** with `_`, which would
+  put it inside the `~<prefix>__*` ACL grant of the deployment one character
+  shorter; the `RedisBroadcastDriverOptions.prefix` docstring is the single home
+  for the full statement, and it lists all five refusals. **The Redis driver
   requires Redis 7.0+**; the memory driver has no such floor. Note the control
   wire format changed: during a rolling upgrade, control frames do not cross
   between old and new instances — see
@@ -93,8 +95,11 @@ app.get(
   instance cap. Without it about ten anonymous sockets deny new channel hosting
   to every connection on the instance. Set it to `1` if you authenticate nobody.
   A breach of the reserved share carries `scope: 'instance-anonymous'`; treat
-  `scope` as an open set (`CHANNEL_LIMIT_SCOPES` names the current values) and
-  never forward the error's message to a client — the numbers are properties.
+  `scope` as an open set — it is typed `ChannelLimitScope`, an alias for
+  `string` rather than a union, so an exhaustive `switch` cannot be written
+  against it, and `CHANNEL_LIMIT_SCOPES` names the values this version raises —
+  and never forward the error's message to a client — the numbers are
+  properties.
 - **Per-channel subscription** — `watchChannel(channel)` and
   `unwatchChannel(channel)`, the fourth and fifth optional seams and the only
   pair detected **together**. A driver that implements both receives one exact
