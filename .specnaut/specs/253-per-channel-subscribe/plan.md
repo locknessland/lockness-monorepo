@@ -246,8 +246,18 @@ None. The change removes a glob rather than adding a layer.
   #298 exists to consolidate (`conn`, `keepaliveTimer`, `writeChain`) — each of
   which learned the same ownership guard one incident at a time. Adding a fourth
   inside this feature is the fifth repetition of the shape #298 was filed to
-  stop. #298 is currently deferred pending a plan re-entry, so this is a real
-  dependency and not a preference.
+  stop. **Satisfied 2026-09-08**: #298 shipped on branch
+  `251-socket-generation-object`. `SocketGeneration` exists with exactly those
+  three members, and its FR-013 designs this feature's fourth member rather than
+  leaving it to be discovered here — the diff is written out in that feature's
+  `tasks.md`, and it costs one field, zero initialisers, zero release lines, one
+  new `#dispatch` branch and two signature changes. **Zero new identity
+  predicates, and only on one route**: thread the generation down
+  (`#readLoop` → `#dispatch` → `gen.issued.add(p)`). Reaching it through
+  `this.#generation` instead needs `if (this.#generation?.conn === conn)` and a
+  `conn` parameter — the seventh predicate — because a discard landing inside
+  `readReply` would otherwise record a pattern on a generation that never
+  confirmed it, which is #245 again.
 
 ## 10. Architecture audit
 
