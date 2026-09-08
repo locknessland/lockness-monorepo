@@ -115,6 +115,18 @@ access**, not the package-scoped variant — writing package settings is refused
 with `missingPermission` otherwise. It is needed only for this one operation.
 Revoke it afterwards.
 
+**Check the prefix before spending a round trip.** Observed at v0.3.0: a token
+beginning `jsrp_` produced `HTTP 403 missingPermission` on all ten links while
+leaving the 27 correct ones untouched — `Changed: 0 · failed: 10`, nothing
+half-written. The working v0.2.0 token began `jsrt_`. One data point each, so
+treat the prefix as a **signal, not a rule**: if it is not `jsrt_`, expect the
+403 and go get the right token first. New tokens: <https://jsr.io/account/tokens>
+— pick full API access, not "publish packages".
+
+The failure is safe either way. `jsr_link_repos.ts` PATCHes one package at a
+time and reports per package, so a wrong token costs a wasted run and nothing
+else.
+
 `--dry-run` is the check to run before every release: `failed: 0` and
 `would change: 0` is the only state that publishes.
 
