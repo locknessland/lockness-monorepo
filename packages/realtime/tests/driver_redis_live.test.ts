@@ -40,7 +40,15 @@ interface User {
 }
 
 const PREFIX = 'app:rt'
-const PATTERN = `${PREFIX}__event:*`
+/**
+ * The subscription an instance hosting `private-room` holds.
+ *
+ * An EXACT topic, not `${PREFIX}__event:*` (#295). The driver no longer
+ * subscribes a prefix-wide glob at `onMessage`; `ChannelManager` declares each
+ * hosted channel through `watchChannel`, so this is the pattern the fake
+ * server's push seam must name for a frame to reach the instance at all.
+ */
+const PATTERN = `${PREFIX}__event:private-room`
 
 /** Poll `cond` until it holds or the deadline passes (a fake-socket race gate). */
 async function waitFor(
@@ -57,10 +65,19 @@ async function waitFor(
     }
 }
 
-/** How many PSUBSCRIBE commands the server has seen for `pattern`. */
-function psubscribeCount(server: FakeServer, pattern: string): number {
+/**
+ * How many EXACT subscriptions the server has seen for `channel` (#295).
+ *
+ * `SUBSCRIBE`, not `PSUBSCRIBE`, and the verb is the point rather than an
+ * implementation detail: Redis matches an ACL channel rule literally for
+ * `PSUBSCRIBE` and by glob for `SUBSCRIBE`, so a driver issuing an exact topic
+ * as a pattern is refused by every operator's `&prefix__event:*` rule. A
+ * counter that accepted either verb would stay green through exactly that
+ * regression.
+ */
+function psubscribeCount(server: FakeServer, channel: string): number {
     return server.commandLog.filter(
-        (c) => c[0]?.toUpperCase() === 'PSUBSCRIBE' && c[1] === pattern,
+        (c) => c[0]?.toUpperCase() === 'SUBSCRIBE' && c[1] === channel,
     ).length
 }
 
@@ -128,9 +145,8 @@ Deno.test("SC-001: a broadcast reaches an authorized subscriber on a second inst
         // Instance A broadcasts: on a live Redis a PUBLISH fans the frame to
         // every pattern subscriber's socket. The fake server's push seam performs
         // that fan-out with the exact payload shape the driver publishes.
-        server.publish(
+        server.publishExact(
             PATTERN,
-            `${PREFIX}__event:private-room`,
             JSON.stringify({ event: 'msg', data: { text: 'hello' } }),
         )
 
@@ -177,7 +193,10 @@ Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded
             // rejects it at the length header — before `readExact`, before
             // `JSON.parse`, before any fan-out — desyncing the socket.
             const oversized = 'x'.repeat(10 * 1024 * 1024 + 1)
-            server.publish(PATTERN, `${PREFIX}__event:private-room`, oversized)
+            server.publishExact(
+                PATTERN,
+                oversized,
+            )
 
             // The framing fault self-heals: reconnect + re-PSUBSCRIBE (WARN).
             await waitFor(
@@ -191,9 +210,8 @@ Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded
 
             // A valid message on the healed socket IS delivered — proving the
             // earlier oversized frame was dropped, not merely delayed.
-            server.publish(
+            server.publishExact(
                 PATTERN,
-                `${PREFIX}__event:private-room`,
                 JSON.stringify({ event: 'ok', data: 1 }),
             )
             await waitFor(

@@ -40,6 +40,21 @@ function psubscribeCount(server: FakeServer, pattern: string): number {
 }
 
 /**
+ * How many times `name` was subscribed EXACTLY, with `SUBSCRIBE` (#295).
+ *
+ * A separate counter from {@link psubscribeCount} on purpose: the verb is the
+ * thing under test. Redis matches an ACL channel rule literally for
+ * `PSUBSCRIBE` and by glob for `SUBSCRIBE`, so a counter that accepted either
+ * would go green against the change that makes every operator's
+ * `&prefix__event:*` rule refuse the subscription.
+ */
+function subscribeCount(server: FakeServer, name: string): number {
+    return server.commandLog.filter(
+        (c) => c[0]?.toUpperCase() === 'SUBSCRIBE' && c[1] === name,
+    ).length
+}
+
+/**
  * Run `body` with `console.warn` captured; restores it even if `body` throws.
  */
 async function captureWarnings(
@@ -2919,9 +2934,20 @@ Deno.test('#298/SC-013: no log line can carry a generation member', async () => 
     const source = await Deno.readTextFile(
         new URL('../subscriber.ts', import.meta.url),
     )
-    // A count or a boolean derived from a member stays legal, which is what the
-    // requirement permits — `${gen.issued.size}` is fine, `${gen.issued}` and
-    // `${[...gen.issued]}` are not. Only the interpolation forms are refused.
+    // A count or a boolean derived from a member stays legal — that is what
+    // FR-009 permits — but it must be READ INTO A LOCAL FIRST. This check is a
+    // substring grep over the whole file, so it refuses the interpolation
+    // OPENING on a generation regardless of what follows the dot, and it
+    // refuses it in comments and prose too.
+    //
+    // **Stricter than the requirement, deliberately, and this comment used to
+    // say the opposite.** It claimed a `.size` read was fine while the pattern
+    // below rejected it — #295 hit exactly that on its first log-line change.
+    // The choice was to loosen the pattern or to correct the rule; loosening
+    // means the grep must tell `.size` from `.issued`, then a local alias from
+    // a member, and a grep that has to parse is a grep that can be fooled.
+    // A one-line local at the call site costs nothing and keeps this
+    // unmissable.
     for (const forbidden of ['${this.#generation', '${generation', '${gen.']) {
         assert(
             !source.includes(forbidden),
@@ -3024,5 +3050,780 @@ Deno.test('#298/SC-013: no log line can carry a generation member', async () => 
             writable: true,
         })
         await sub.close()
+    }
+})
+
+/**
+ * Cadences for the #295 record witnesses: long enough that nothing here is
+ * ended by a liveness deadline or a retry.
+ *
+ * Every one of these tests holds the broker MUTE across several frames. `FAST`
+ * would let the liveness window expire mid-witness, discard the socket and
+ * bring up a fresh generation — whose record is empty by design, so the
+ * assertion would pass having measured a reconnect instead of the thing it
+ * names. That is the shape three #298 witnesses were dead in.
+ */
+const PATIENT = {
+    keepaliveMs: 30_000,
+    livenessMs: 60_000,
+    retryBaseMs: 60_000,
+    retryMaxMs: 60_000,
+} as const
+
+Deno.test('#295/SC-010: watch, unwatch, re-watch on ONE generation delivers again', async () => {
+    // The commonest lifecycle a chat deployment has, and the one an
+    // append-only record turns into permanent silence: the re-watch computes
+    // its delta, finds the pattern still recorded, issues nothing, and the
+    // socket is deaf on that channel for its whole life while `subscribe`
+    // answers `{ ok: true }`.
+    //
+    // ONE generation throughout — asserted, not assumed. If the socket were
+    // replaced the record would be empty for the wrong reason and this witness
+    // would pass against the very defect it exists to catch.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        ...PATIENT,
+    })
+    const got: string[] = []
+    try {
+        await sub.subscribeOne('alpha', (_t, p) => got.push(p))
+        await waitFor(
+            () => subscribeCount(server, 'alpha') === 1,
+            'the first PSUBSCRIBE landed',
+        )
+        await sub.unsubscribeOne('alpha')
+        await waitFor(
+            () => countOp(server, 'UNSUBSCRIBE') === 1,
+            'the UNSUBSCRIBE landed',
+        )
+        await sub.subscribeOne('alpha', (_t, p) => got.push(p))
+        await waitFor(
+            () => subscribeCount(server, 'alpha') === 2,
+            'the RE-watch put a second PSUBSCRIBE on the wire',
+        )
+        assertEquals(
+            server.accepts(),
+            1,
+            'one socket throughout — a reconnect would empty the record for a ' +
+                'reason this witness is not testing',
+        )
+        server.publishExact('alpha', 'after-rewatch')
+        await waitFor(
+            () => got.length === 1,
+            'delivery resumed on the re-watch',
+        )
+        assertEquals(got, ['after-rewatch'])
+    } finally {
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('#295/SC-015: a re-watch BEFORE the +punsubscribe acknowledgement still issues', async () => {
+    // SC-010 lets the unwatch settle. This is the window it cannot reach: the
+    // erasure is written when the PUNSUBSCRIBE is ENQUEUED, so a re-watch
+    // arriving before the broker has answered must still see an empty record.
+    //
+    // Erasing at the acknowledgement instead would leave the re-watch's own
+    // record to be deleted by the ack that arrives after it — subscribed on the
+    // broker, nothing recorded, every frame discarded, nothing logged.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        ...PATIENT,
+    })
+    try {
+        // Warm the connection while replies still flow: `mute()` withholds
+        // every reply, and a muted handshake would never complete.
+        await sub.subscribeOne('warm', () => {})
+        await waitFor(
+            () => subscribeCount(server, 'warm') === 1,
+            'the connection is up',
+        )
+        await sub.subscribeOne('alpha', () => {})
+        await waitFor(
+            () => subscribeCount(server, 'alpha') === 1,
+            'the first PSUBSCRIBE landed and was acknowledged',
+        )
+        server.mute()
+        await sub.unsubscribeOne('alpha')
+        await sub.subscribeOne('alpha', () => {})
+        await waitFor(
+            () => subscribeCount(server, 'alpha') === 2,
+            'the re-watch issued while the +punsubscribe was still withheld',
+        )
+        server.unmute()
+        assertEquals(server.accepts(), 1, 'one socket throughout')
+    } finally {
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('#295/SC-016: a STALE +psubscribe, landing after its retire, records nothing', async () => {
+    // Redis answers in order, so the acknowledgement for a subscribe that was
+    // unwatched meanwhile lands AFTER the erasure. Recording it there re-asserts
+    // a pattern the broker no longer holds, and the next watch is then skipped
+    // against a subscription that does not exist.
+    //
+    // The witness is the SECOND frame: without `confirm`'s stale-claim drop the
+    // record says the pattern is live, the delta skips it, and only one
+    // PSUBSCRIBE is ever written.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        ...PATIENT,
+    })
+    try {
+        await sub.subscribeOne('warm', () => {})
+        await waitFor(
+            () => subscribeCount(server, 'warm') === 1,
+            'the connection is up',
+        )
+        // MUTE FIRST, so the pattern is only ever CLAIMED, never acknowledged,
+        // before it is retired. That is what makes the flushed ack stale.
+        server.mute()
+        await sub.subscribeOne('alpha', () => {})
+        await waitFor(
+            () => subscribeCount(server, 'alpha') === 1,
+            'the PSUBSCRIBE reached the wire with its reply withheld',
+        )
+        await sub.unsubscribeOne('alpha')
+        // The withheld `+psubscribe` now arrives, after the retire.
+        server.unmute()
+        await waitFor(
+            () => countOp(server, 'UNSUBSCRIBE') === 1,
+            'the unwatch completed and the stale acknowledgement flushed',
+        )
+        // Give the flushed frame a turn to be dispatched before asking.
+        await new Promise((r) => setTimeout(r, 50))
+        await sub.subscribeOne('alpha', () => {})
+        await waitFor(
+            () => subscribeCount(server, 'alpha') === 2,
+            'the stale acknowledgement did NOT resurrect the record',
+        )
+        assertEquals(server.accepts(), 1, 'one socket throughout')
+    } finally {
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('#295/SC-009: a NEW generation records nothing from the old one', async () => {
+    // The half of SC-009 that is reachable, and the plan is amended to say so.
+    //
+    // "An acknowledgement arriving after its generation was DISCARDED" cannot be
+    // constructed against a real socket: the discard closes it, the in-flight
+    // read rejects, and there is no await between `readReply` resolving and
+    // `#dispatch` running — so the field cannot move underneath a frame already
+    // in hand. Threading the generation (FR-021) is therefore defence against a
+    // future await being introduced there, not a fix for a live race, and it is
+    // recorded as a surviving row in the battery rather than pretended to be
+    // covered here.
+    //
+    // What IS reachable, and load-bearing: the new generation's record starts
+    // empty, so the re-issue after a fault issues EVERYTHING rather than
+    // computing a delta against the dead socket's confirmations. Get that wrong
+    // and a reconnect restores nothing while logging that it restored the lot.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        ...FAST,
+    })
+    try {
+        await sub.subscribeOne('alpha', () => {})
+        await sub.subscribeOne('beta', () => {})
+        await waitFor(
+            () =>
+                subscribeCount(server, 'alpha') === 1 &&
+                subscribeCount(server, 'beta') === 1,
+            'both patterns are live on generation 1',
+        )
+        server.dropConnections()
+        await waitFor(
+            () =>
+                subscribeCount(server, 'alpha') === 2 &&
+                subscribeCount(server, 'beta') === 2,
+            'generation 2 re-issued BOTH, not a delta against the dead socket',
+        )
+        assert(server.accepts() >= 2, 'a second socket was dialled')
+    } finally {
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('#295/FR-010: the recovery line counts what the socket CARRIES, not what is wanted', async () => {
+    // The delta split one number into two, and reporting the wrong one makes an
+    // outage that ended look larger than it was. The desired set counts what the
+    // caller WANTS; on a live socket an activation may have issued none of it.
+    // What an operator needs is what this socket is carrying.
+    //
+    // A first draft asserted this after a plain `dropConnections()` and was
+    // DEAD: `#reportRecovery` returns early while `#attempts === 0`, and an
+    // immediately-successful re-dial has none. The broker is made genuinely
+    // unreachable so attempts accumulate, which is the only state in which this
+    // line fires at all.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        ...FAST,
+    })
+    using warn = liveWarnings()
+    try {
+        await sub.subscribeOne('alpha', () => {})
+        await sub.subscribeOne('beta', () => {})
+        await sub.subscribeOne('gamma', () => {})
+        await waitFor(
+            () => subscribeCount(server, 'gamma') === 1,
+            'three patterns are live',
+        )
+        server.unreachable()
+        await waitFor(
+            () => warn.messages.some((m) => m.includes('attempt 2')),
+            'a second attempt was scheduled, so attempts accumulate',
+            5000,
+        )
+        server.reachable()
+        await waitFor(
+            () => warn.messages.some((m) => m.includes('re-issued')),
+            'the recovery was reported',
+            5000,
+        )
+        const line = warn.messages.find((m) => m.includes('re-issued'))!
+        assertStringIncludes(
+            line,
+            '3 subscription(s) re-issued',
+            'the count is what this socket carries',
+        )
+    } finally {
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('#295/SC-005: a BURST of N watches puts N frames on the wire, not N(N+1)/2', async () => {
+    // The defect the whole record exists for, and the one the measured baseline
+    // pins at 36 / 528 / 8256 for N = 8 / 32 / 128 (`baseline.md`): `psubscribe`
+    // re-issues the WHOLE recorded set, so watch #k writes k frames.
+    //
+    // **The construction IS the criterion.** Written as `for (…) await
+    // subscribeOne(…)` this passes on the unfixed code: each call serialises,
+    // the previous one is already recorded, and the count comes out at N while
+    // never forming a burst. The calls are therefore started WITHOUT awaiting
+    // and settled together — which is what a WebSocket layer handling frames
+    // concurrently actually does.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        ...PATIENT,
+    })
+    const N = 32
+    try {
+        // Warm first: the burst must race each other, not the dial.
+        await sub.subscribeOne('warm:*', () => {})
+        // `psubscribe`, NOT `subscribeOne`, and this is the whole witness.
+        //
+        // The first draft used the awaitable seam and passed against a mutant
+        // with the delta guard REMOVED — because `subscribeOne` hands
+        // `#activate` a single pattern, so it is linear by construction and the
+        // guard does nothing for it. The quadratic lives on the other path:
+        // `psubscribe` records and then re-issues the WHOLE set, which is where
+        // watch #k writes k frames. A burst witness that cannot see the guard it
+        // names is the shape this repo's mutation convention exists to catch.
+        for (let i = 0; i < N; i++) {
+            sub.psubscribe(`burst:${i}`, () => {})
+        }
+        // The seam resolves when the frame reaches the SOCKET; the server has
+        // still to read and parse it. Wait for the count to arrive and then to
+        // stop moving — a quadratic overshoots this floor rather than missing
+        // it, so the equality below is what decides, not the wait.
+        await waitFor(
+            () => countOp(server, 'PSUBSCRIBE') >= N,
+            'the burst reached the server',
+        )
+        let last = -1
+        while (last !== countOp(server, 'PSUBSCRIBE')) {
+            last = countOp(server, 'PSUBSCRIBE')
+            await new Promise((r) => setTimeout(r, 60))
+        }
+        const frames = countOp(server, 'PSUBSCRIBE')
+        // N, not N + 1: the warm-up is an EXACT subscription and issues
+        // `SUBSCRIBE`, which this counter deliberately does not accept (#295).
+        // The quadratic would be N(N+1)/2 = 528, the figure `baseline.md`
+        // measured on the unfixed code.
+        assertEquals(
+            frames,
+            N,
+            `a burst of ${N} watches issued ${frames} PSUBSCRIBE frames; ` +
+                `${N} is one per watch, ${(N * (N + 1)) / 2} is the ` +
+                `re-issue-everything quadratic this record removes`,
+        )
+        assertEquals(server.accepts(), 1, 'one socket throughout')
+    } finally {
+        await sub.close()
+        server.stop()
+    }
+})
+
+/**
+ * A socket whose every write takes `writeMs`, recording each decoded frame.
+ *
+ * `scriptedConn` counts writes; this one keeps their CONTENTS, which is what a
+ * witness about *which* pattern reached the wire needs. Kept separate rather
+ * than folded in, so #298's witnesses keep the helper they were verified
+ * against.
+ */
+function recordingSlowConn(writeMs: number): {
+    conn: Deno.Conn
+    frames: () => string[]
+    faultRead: (error: Error) => void
+} {
+    const frames: string[] = []
+    const decoder = new TextDecoder()
+    let rejectRead: ((error: Error) => void) | undefined
+    const conn = {
+        write: (bytes: Uint8Array) => {
+            frames.push(decoder.decode(bytes))
+            return new Promise<number>((resolve) =>
+                setTimeout(() => resolve(bytes.byteLength), writeMs)
+            )
+        },
+        read: () =>
+            new Promise<number | null>((_, reject) => {
+                rejectRead = reject
+            }),
+        close: () => {},
+        localAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+        remoteAddr: { transport: 'tcp', hostname: '127.0.0.1', port: 0 },
+    } as unknown as Deno.Conn
+    return {
+        conn,
+        frames: () => [...frames],
+        faultRead: (error) => rejectRead?.(error),
+    }
+}
+
+Deno.test('#295/FR-013: a pattern unwatched MID-activation is not issued by it', async () => {
+    // `#activate` snapshots the desired set before its first await, and each
+    // write is awaited. A `punsubscribe` landing while it is suspended must be
+    // honoured by the REMAINING iterations — otherwise the activation creates a
+    // live broker subscription whose handler has already been removed, and every
+    // frame for it arrives and is discarded. That is the exact cost this feature
+    // exists to remove, re-created by the feature.
+    //
+    // **The construction has to force ONE activation over three patterns**, and
+    // the obvious way does not. Three `psubscribe` calls fire three concurrent
+    // activations; `connect()` is single-flight so they share a socket, and each
+    // claims whatever the previous one has not — so all three patterns are on
+    // the wire before a test can interleave anything. A first draft did that and
+    // read as a defect in the code. A RECONNECT is the shape that works: the
+    // retry runs a single activation over the whole recorded set, and its writes
+    // are slowed so the unwatch lands between two of them.
+    const gen1 = recordingSlowConn(0)
+    const gen2 = recordingSlowConn(150)
+    let dials = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            dials++
+            return Promise.resolve(dials === 1 ? gen1.conn : gen2.conn)
+        },
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 30_000,
+        livenessMs: 60_000,
+        retryBaseMs: 5,
+        retryMaxMs: 20,
+    })
+    using _warn = liveWarnings()
+    try {
+        sub.psubscribe('a:*', () => {})
+        sub.psubscribe('b:*', () => {})
+        sub.psubscribe('c:*', () => {})
+        await waitFor(
+            () =>
+                gen1.frames().filter((f) => f.includes('PSUBSCRIBE')).length ===
+                    3,
+            'all three patterns are live on generation 1',
+        )
+        // The fault brings up generation 2, whose record is empty, so its single
+        // activation issues all three — slowly.
+        gen1.faultRead(new Error('socket fault'))
+        await waitFor(
+            () => gen2.frames().length >= 1,
+            'generation 2 started re-issuing',
+            5000,
+        )
+        // Mid-loop: `b:*` is dropped while the activation is suspended on a
+        // write it has already issued.
+        await sub.unsubscribeOne('b:*')
+        await waitFor(
+            () => gen2.frames().some((f) => f.includes('c:*')),
+            'the re-issue reached the last pattern',
+            5000,
+        )
+        // EITHER SUBSCRIBE VERB, and the anchoring matters (#295).
+        //
+        // `unsubscribeOne` removes the name from the connection's glob set, so
+        // a re-issue of it after that point is written as `SUBSCRIBE`, not
+        // `PSUBSCRIBE`. A filter on `includes('PSUBSCRIBE')` therefore misses
+        // the very frame this witness exists to forbid — verified: with the
+        // in-loop re-read removed, that filter reported the test GREEN.
+        //
+        // The `\r\n` on both sides is what keeps `PUNSUBSCRIBE` out: it ends
+        // in `SUBSCRIBE`, and an unanchored match would count the unsubscribe
+        // frame as a subscription.
+        const isSubscribe = (f: string) => /\r\nP?SUBSCRIBE\r\n/.test(f)
+        const subscribed = gen2.frames().filter(isSubscribe)
+        assert(
+            subscribed.some((f) => f.includes('a:*')),
+            'a:* was re-issued',
+        )
+        assert(
+            subscribed.some((f) => f.includes('c:*')),
+            'c:* was re-issued',
+        )
+        assert(
+            !subscribed.some((f) => f.includes('b:*')),
+            'b:* was unwatched mid-activation and must NOT have been issued; ' +
+                `frames were ${JSON.stringify(subscribed)}`,
+        )
+    } finally {
+        await sub.close()
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+    }
+})
+
+Deno.test('#295/SC-011: the reconnect seam fires after ONE write, not after N', async () => {
+    // R-8's mitigation, measured. `#fireReconnect` used to run after the whole
+    // re-issue loop, so the framework's only revocation fast path sat behind
+    // every hosted channel's frame — at a thousand channels, a thousand
+    // serialized writes between a socket recovering and an evicted connection
+    // stopping. What the seam feeds needs the control subscription and nothing
+    // else.
+    //
+    // The witness reads the frame count AT THE MOMENT the seam fires, which is
+    // the only moment that answers the question. Asserting afterwards would
+    // pass however late it fired.
+    const gen1 = recordingSlowConn(0)
+    const gen2 = recordingSlowConn(120)
+    let dials = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            dials++
+            return Promise.resolve(dials === 1 ? gen1.conn : gen2.conn)
+        },
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 30_000,
+        livenessMs: 60_000,
+        retryBaseMs: 5,
+        retryMaxMs: 20,
+    })
+    using _warn = liveWarnings()
+    let framesAtSeam = -1
+    try {
+        sub.onReconnect(() => {
+            framesAtSeam = gen2.frames().length
+        })
+        // The control-plane subscription, declared priority, plus three
+        // channels. Recorded AFTER the others on purpose: if this witness
+        // passed on insertion order it would prove nothing about the
+        // declaration, which is the thing FR-023 added.
+        sub.psubscribe('a:*', () => {})
+        sub.psubscribe('b:*', () => {})
+        sub.psubscribe('c:*', () => {})
+        await sub.subscribeOne('ctl', () => {}, { priority: true })
+        await waitFor(
+            () => gen1.frames().length >= 4,
+            'all four patterns are live on generation 1',
+        )
+        gen1.faultRead(new Error('socket fault'))
+        await waitFor(() => framesAtSeam >= 0, 'the seam fired', 5000)
+        assertEquals(
+            framesAtSeam,
+            1,
+            'the seam fired after N writes rather than after the first; the ' +
+                'revocation fast path is behind the whole re-issue again',
+        )
+        assertStringIncludes(
+            gen2.frames()[0],
+            'ctl',
+            'the PRIORITY pattern was not first on the wire, so "the first ' +
+                'write" and "the control topic" are no longer the same thing',
+        )
+    } finally {
+        await sub.close()
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+    }
+})
+
+Deno.test('#295/SC-012: a re-issue that fails part way still leaves the control topic subscribed', async () => {
+    // A throw at write k skips k..N. Which subscription survives used to be
+    // decided by the order a consumer happened to register its seams in —
+    // unstated, unpinned, and it INVERTS the moment `onMessage` stops
+    // subscribing. The priority declaration is what makes the answer a fact.
+    const gen1 = recordingSlowConn(0)
+    const gen2 = recordingSlowConn(0)
+    let failFrom = 999
+    const wrapped = {
+        ...gen2.conn,
+        write: (bytes: Uint8Array) => {
+            const n = gen2.frames().length + 1
+            if (n >= failFrom) return Promise.reject(new Error('write failed'))
+            return (gen2.conn as unknown as {
+                write: (b: Uint8Array) => Promise<number>
+            }).write(bytes)
+        },
+    } as unknown as Deno.Conn
+    let dials = 0
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => {
+            dials++
+            return Promise.resolve(dials === 1 ? gen1.conn : wrapped)
+        },
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 30_000,
+        livenessMs: 60_000,
+        // FAST retries: the fault below has to bring up generation 2 inside
+        // this test. A long base with full jitter leaves the re-dial anywhere
+        // in a minute, which reads as "the control topic was never written".
+        retryBaseMs: 5,
+        retryMaxMs: 20,
+    })
+    using _warn = liveWarnings()
+    try {
+        sub.psubscribe('a:*', () => {})
+        sub.psubscribe('b:*', () => {})
+        await sub.subscribeOne('ctl', () => {}, { priority: true })
+        await waitFor(
+            () => gen1.frames().length >= 3,
+            'three patterns are live on generation 1',
+        )
+        // Generation 2 writes the control topic and then fails.
+        failFrom = 2
+        gen1.faultRead(new Error('socket fault'))
+        await waitFor(
+            () => gen2.frames().length >= 1,
+            'generation 2 wrote its first frame',
+            5000,
+        )
+        // A beat, so a second frame would have landed if one were coming.
+        await new Promise((r) => setTimeout(r, 80))
+        // THE FAILURE MUST BE OBSERVED, not merely injected.
+        //
+        // This assertion used to be `frames()[0] includes 'ctl'` and nothing
+        // else — satisfied by write #1, which succeeds by construction. Verified
+        // by raising `failFrom` to 999: with no failure at all, it still passed.
+        // SC-011's assertion wearing SC-012's name. A review seat flagged it as
+        // NOT VERIFIED; it verified.
+        assertEquals(
+            gen2.frames().length,
+            1,
+            'the re-issue was supposed to fail at write 2, so exactly one ' +
+                `frame should be on this socket; got ${
+                    JSON.stringify(gen2.frames())
+                }`,
+        )
+        assertStringIncludes(
+            gen2.frames()[0],
+            'ctl',
+            'the control topic is what a partial re-issue must leave behind, ' +
+                'and it must be first for that to be true',
+        )
+        // …AND THE REST CONVERGE. "Unsubscribed until the retry converges" is
+        // half the criterion; without this the test would pass against a
+        // connection that simply gave up.
+        failFrom = 999
+        await waitFor(
+            () =>
+                gen2.frames().some((f) => f.includes('a:*')) &&
+                gen2.frames().some((f) => f.includes('b:*')),
+            'the retry re-issued the patterns the failure skipped',
+            10_000,
+        )
+    } finally {
+        // Fault the reads before closing: `recordingSlowConn`'s read never
+        // settles on its own, so `close()` would await a `loopDone` that never
+        // resolves and the test would sit at the runner's 60s timeout — and
+        // report a PASS while doing it.
+        gen2.faultRead(new Error('test teardown'))
+        gen1.faultRead(new Error('test teardown'))
+        await sub.close()
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
+    }
+})
+
+Deno.test('#295/FR-014: one broken handler on many channels is ONE report, and the tally names them all', async () => {
+    // The throttle used to be per pattern, which was one ERROR per generation
+    // while a deployment held one prefix-wide subscription. Under per-channel
+    // subscribe a single broken handler is registered against every hosted
+    // channel, so it became one stack trace per channel — and a blocked stderr
+    // back-pressures the read loop past its own liveness window. The
+    // containment turns into the outage.
+    //
+    // Collapsing to one key would bound the volume by deleting the answer, so
+    // the second half of this witness is the part that matters: the discard
+    // must still say WHICH handlers failed, and how often.
+    const server = await startFakeServer()
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        ...PATIENT,
+    })
+    using warn = liveWarnings()
+    const errors: string[] = []
+    const realError = console.error
+    console.error = (...args: unknown[]) => {
+        errors.push(args.map(String).join(' '))
+    }
+    try {
+        const boom = () => {
+            throw new Error('handler is broken')
+        }
+        await sub.subscribeOne('alpha', boom)
+        await sub.subscribeOne('beta', boom)
+        await sub.subscribeOne('gamma', boom)
+        // WAIT FOR THE SERVER TO HAVE RECORDED THEM. `subscribeOne` resolves
+        // when the frame reaches the socket; the server has still to read and
+        // parse it, and a publish that lands first matches no subscription and
+        // delivers nothing. In isolation the gap never opened; under the full
+        // suite it did, which is the only load that was ever going to show it.
+        await waitFor(
+            () =>
+                subscribeCount(server, 'alpha') === 1 &&
+                subscribeCount(server, 'beta') === 1 &&
+                subscribeCount(server, 'gamma') === 1,
+            'all three subscriptions are recorded server-side',
+        )
+        server.publishExact('alpha', '{}')
+        server.publishExact('beta', '{}')
+        server.publishExact('gamma', '{}')
+        server.publishExact('alpha', '{}')
+        await waitFor(() => errors.length >= 1, 'the first fault was reported')
+        // A beat for the other three frames to be dispatched.
+        await new Promise((r) => setTimeout(r, 60))
+        assertEquals(
+            errors.length,
+            1,
+            `four faults across three channels produced ${errors.length} full ` +
+                'reports; one per channel is what floods stderr at scale',
+        )
+        // The discard is what accounts for the suppressed ones.
+        server.dropConnections()
+        await waitFor(
+            () => warn.messages.some((m) => m.includes('by pattern')),
+            'the tally was emitted on the discard',
+            5000,
+        )
+        const tally = warn.messages.find((m) => m.includes('by pattern'))!
+        for (const pattern of ['alpha', 'beta', 'gamma']) {
+            assertStringIncludes(
+                tally,
+                pattern,
+                `the tally lost ${pattern}; suppression bounded the volume by ` +
+                    'deleting the answer',
+            )
+        }
+        assertStringIncludes(
+            tally,
+            'alpha=2',
+            'the per-pattern COUNT is carried',
+        )
+    } finally {
+        console.error = realError
+        await sub.close()
+        server.stop()
+    }
+})
+
+Deno.test('#295/FR-015: a watch does not reset the keepalive clock', async () => {
+    // `#activate` runs on every `psubscribe`, and re-arming clears the interval
+    // and starts a fresh one. That was harmless while activations were rare;
+    // under per-channel subscribe a JOIN is an activation, so an instance
+    // joining channels more often than `keepaliveMs` would never emit a PING at
+    // all — and the liveness signal stops being independent of application
+    // traffic, which is the one thing it exists to be.
+    const gen = scriptedConn({})
+    const real = Deno.connect
+    Object.defineProperty(Deno, 'connect', {
+        value: () => Promise.resolve(gen.conn),
+        configurable: true,
+        writable: true,
+    })
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: 1,
+        keepaliveMs: 120,
+        livenessMs: 60_000,
+        retryBaseMs: 60_000,
+        retryMaxMs: 60_000,
+    })
+    try {
+        sub.psubscribe('a:*', () => {})
+        await waitFor(
+            () => gen.writes() >= 1,
+            'the first pattern is on the wire',
+        )
+        // Join faster than the keepalive interval, for longer than one period.
+        const deadline = Date.now() + 400
+        let i = 0
+        while (Date.now() < deadline) {
+            sub.psubscribe(`ch${i++}:*`, () => {})
+            await new Promise((r) => setTimeout(r, 40))
+        }
+        assert(
+            gen.pings() >= 1,
+            `${i} joins in 400ms at a 120ms keepalive produced ${gen.pings()} ` +
+                'PINGs — each join re-armed the interval, so the liveness ' +
+                'signal is now a function of application traffic',
+        )
+    } finally {
+        // FAULT THE READ BEFORE CLOSING. `scriptedConn.close()` only counts;
+        // it does not settle the pending `read`, so `close()` would await a
+        // `loopDone` that never resolves and the test would sit at the runner's
+        // own timeout — sixty seconds of nothing, reported as a pass.
+        gen.faultRead(new Error('test teardown'))
+        await sub.close()
+        Object.defineProperty(Deno, 'connect', {
+            value: real,
+            configurable: true,
+            writable: true,
+        })
     }
 })

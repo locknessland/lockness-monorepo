@@ -104,6 +104,22 @@ export function recordingPorts(canned: CannedReplies = {}): RecordingPorts {
             psubscribe: (pattern, handler) => {
                 subscriptions.push({ pattern, handler })
             },
+            // The per-pattern pair (#295), recorded into the SAME list. Every
+            // anchoring assertion in `prefix_anchoring.test.ts` reads
+            // `subscriptions`, so a second list would put the per-channel
+            // topics — the ones this feature actually puts on the wire —
+            // outside the suite that exists to prove they are anchored.
+            //
+            // Both members present, deliberately: the driver detects them as a
+            // set, so offering one would silently keep the prefix-wide glob and
+            // every test here would exercise the path this feature replaces.
+            subscribeOne: (pattern, handler) => {
+                subscriptions.push({ pattern, handler })
+            },
+            unsubscribeOne: (pattern) => {
+                const i = subscriptions.findIndex((s) => s.pattern === pattern)
+                if (i >= 0) subscriptions.splice(i, 1)
+            },
         },
         recording,
     }

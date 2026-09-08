@@ -54,7 +54,15 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'evict-teardown stops encoding the client id',
         file: MANAGER,
-        edits: [['${safeForLog(clientId)}', '${clientId}']],
+        // DISAMBIGUATED (#295). `${safeForLog(clientId)}` now appears twice in
+        // the manager — the watched-channel cap WARN uses it too — and a bare
+        // substring anchor matched both, which the harness refuses rather than
+        // guessing. Carrying the surrounding words is what keeps this row
+        // pointed at the evict-teardown line specifically.
+        edits: [[
+            'evict teardown for ${safeForLog(clientId)} failed',
+            'evict teardown for ${clientId} failed',
+        ]],
         killedBy:
             'evict-teardown WARN renders the error and encodes the client id',
         expectSurvival:

@@ -203,6 +203,12 @@ export interface RedisSubscribeConnectionConfig
  *   make it either a `TypeError` thrown inside a `.catch` or an un-throttled
  *   peer-driven flood.
  *
+ * **The subscription record is a member, and it has to be** (#295). "Which
+ * patterns are on THIS socket" is released with the socket by definition: a
+ * fresh socket has confirmed nothing. Keeping it on the connection instead
+ * would let it survive a socket change and claim patterns are live on a socket
+ * that never received them — #245 exactly.
+ *
  * **Release is a CALL, not a reference drop.** `keepaliveTimer` is a
  * `setInterval` id: dropping the object frees the field and leaves the interval
  * running forever — the member this issue was filed about is the one a plain
@@ -233,6 +239,25 @@ class SocketGeneration {
     #writeChain: Promise<void> = Promise.resolve()
     /** The keepalive interval's id, or `undefined` when none is armed. */
     #keepaliveTimer: ReturnType<typeof setInterval> | undefined
+    /**
+     * Patterns whose `PSUBSCRIBE` is on this generation's write chain but which
+     * the broker has not answered yet (#295).
+     *
+     * A `Set` suffices although a pattern can be watched and unwatched many
+     * times over one socket: {@link claim} is reachable only where {@link has}
+     * is false, so **at most one claim per pattern is ever outstanding**. The
+     * guard enforces the cardinality, not the container.
+     */
+    #pending = new Set<string>()
+    /**
+     * Patterns the broker has ACKNOWLEDGED on this socket (#295) — `+psubscribe`
+     * arrived and was routed here.
+     *
+     * Acknowledged, never merely written. An activation awaits only that its
+     * frame reached the socket; #245 is what happens when "recorded" is allowed
+     * to mean "written".
+     */
+    #issued = new Set<string>()
 
     /** @param conn - The socket this generation owns. */
     constructor(conn: Deno.Conn) {
@@ -274,6 +299,11 @@ class SocketGeneration {
         this.#keepaliveTimer = id
     }
 
+    /** Whether this generation already holds a keepalive interval. */
+    get hasKeepalive(): boolean {
+        return this.#keepaliveTimer !== undefined
+    }
+
     /** Stop this generation's keepalive interval, if one is armed. */
     clearKeepalive(): void {
         if (this.#keepaliveTimer !== undefined) {
@@ -283,12 +313,104 @@ class SocketGeneration {
     }
 
     /**
+     * Record that a `PSUBSCRIBE` for `pattern` is going on this socket's wire.
+     *
+     * **Call this in the SAME SYNCHRONOUS TURN as the enqueue** — the
+     * `patterns.has` re-read that precedes it, this call, and that pattern's
+     * `enqueue` are one turn, and nothing awaits between them. The record and
+     * the write chain agree only if every mutation is co-turn with its frame,
+     * and that is the whole correctness argument for these two sets. An `await`
+     * slipped in here lets an unwatch put `PUNSUBSCRIBE` on the chain FIRST:
+     * the broker ends subscribed, {@link has} answers false and the desired-set
+     * entry is gone — a live subscription with no handler, for the life of the
+     * socket, with nothing logged.
+     *
+     * @param pattern - The pattern whose frame is being enqueued.
+     */
+    claim(pattern: string): void {
+        this.#pending.add(pattern)
+    }
+
+    /**
+     * Promote a claimed pattern to acknowledged, on the broker's `+psubscribe`.
+     *
+     * **A retired claim makes the acknowledgement stale, and it is dropped.**
+     * Redis answers in order, so the `+psubscribe` for a subscribe that was
+     * unwatched meanwhile lands *after* {@link retire} — recording it
+     * unconditionally would re-assert a pattern the broker no longer holds, and
+     * the next watch would then be skipped against a subscription that does not
+     * exist. That is the whole reason these sets are private: a bare
+     * `issued.add` at the call site is how the rule goes missing.
+     *
+     * With a re-watch outstanding the acknowledgement legitimately consumes the
+     * NEW claim. That is safe rather than merely tolerable: this method can only
+     * move a pattern from pending to issued, so it never changes what
+     * {@link has} answers, and nothing reads the distinction between the two
+     * sets.
+     *
+     * @param pattern - The pattern the broker acknowledged.
+     */
+    confirm(pattern: string): void {
+        if (!this.#pending.delete(pattern)) return
+        this.#issued.add(pattern)
+    }
+
+    /**
+     * Erase every trace of `pattern` from this generation — the claim AND the
+     * acknowledged fact.
+     *
+     * **Both halves, and at the `PUNSUBSCRIBE` ENQUEUE rather than at its
+     * acknowledgement.** Clearing only the acknowledged half leaves a channel
+     * unwatched inside one broker round trip still claimed, so the re-watch is
+     * skipped and the socket is deaf for its lifetime — and the burst path the
+     * claim exists for is precisely the path that fills it. Erasing at the
+     * acknowledgement instead would let a re-watch inside the round trip lose
+     * its handler under a live subscription.
+     *
+     * The asymmetry to remember is not between the two sets: **a write to this
+     * record is acknowledged, an erasure is enqueued.**
+     *
+     * @param pattern - The pattern being unsubscribed.
+     */
+    retire(pattern: string): void {
+        this.#pending.delete(pattern)
+        this.#issued.delete(pattern)
+    }
+
+    /**
+     * Whether `pattern` is already on this socket — claimed or acknowledged.
+     *
+     * The only reader of either set, and what makes an activation issue a
+     * difference rather than the whole recorded set.
+     *
+     * @param pattern - The pattern to test.
+     * @returns `true` when a frame for it is in flight or confirmed.
+     */
+    has(pattern: string): boolean {
+        return this.#pending.has(pattern) || this.#issued.has(pattern)
+    }
+
+    /**
+     * How many patterns this socket carries — claimed plus acknowledged.
+     *
+     * For reporting only. It is the honest figure for "subscriptions re-issued"
+     * after a recovery, where the desired-set size is not: that counts what the
+     * caller WANTS, which on a live socket an activation may have issued none
+     * of.
+     */
+    get size(): number {
+        return this.#pending.size + this.#issued.size
+    }
+
+    /**
      * Release everything this generation owns — the single "this socket's
      * resources are finished".
      */
     release(): void {
         this.clearKeepalive()
         this.#writeChain = Promise.resolve()
+        this.#pending.clear()
+        this.#issued.clear()
     }
 }
 
@@ -398,6 +520,40 @@ export class RedisSubscribeConnection {
      */
     readonly #handlerFaults = new Map<string, number>()
     /**
+     * Patterns a re-issue must put on the wire FIRST, and on which the
+     * reconnect seam waits (#295/FR-023).
+     *
+     * **Declared by the caller, never inferred.** Before this the order came
+     * from `patterns` Map insertion, which came from the order a consumer
+     * happened to register its seams in — an ordering no requirement stated and
+     * no test pinned, and one that silently INVERTS when a consumer stops
+     * subscribing at registration time. What it decided was which subscription
+     * survives a re-issue that throws half way, and for `@lockness/realtime`
+     * that is the control plane: eviction and presence. A latency cost for
+     * events; a security one for enforcement.
+     */
+    readonly #priority = new Set<string>()
+    /**
+     * Recorded names that are GLOB PATTERNS rather than exact channels.
+     *
+     * The verb is decided when the name is recorded, and it is not cosmetic:
+     * Redis matches an ACL channel rule **literally** for `PSUBSCRIBE` and by
+     * **glob** for `SUBSCRIBE`. Measured with `ACL DRYRUN` against Redis 7 —
+     * under `&app__event:*`, `PSUBSCRIBE app__event:alpha` is REFUSED and
+     * `SUBSCRIBE app__event:alpha` is allowed. Issuing an exact topic as a
+     * pattern would leave every operator who follows the framework's own
+     * documented ACL deaf on events while their control plane kept working.
+     */
+    readonly #globs = new Set<string>()
+    /**
+     * How many frames the most recent activation actually put on the wire.
+     *
+     * For the recovery report only (FR-010). A plain count, not a set: the
+     * recovery line answers "how much did the activation that ended this outage
+     * re-issue", which is neither the desired-set size nor the socket's total.
+     */
+    #lastIssued = 0
+    /**
      * How long one frame may take to reach the socket — the write leg's bound
      * (#286), `Math.min(livenessMs, WRITE_STALL_CEILING_MS)`.
      *
@@ -499,7 +655,105 @@ export class RedisSubscribeConnection {
             throw new Error('RedisSubscribeConnection is closed')
         }
         this.patterns.set(pattern, handler)
+        this.#globs.add(pattern)
         void this.#connectAndSubscribe()
+    }
+
+    /**
+     * Subscribe to ONE topic pattern and resolve once its frame is on the wire.
+     *
+     * The awaitable counterpart to {@link psubscribe} (#295). Same recording,
+     * same retry, one difference that is the whole point: **the returned
+     * promise settles on what actually happened.**
+     *
+     * The guarantee is *"the `PSUBSCRIBE` frame reached the socket, or you were
+     * told it did not"* — **never** "delivery has started". This connection
+     * awaits that a frame reached the socket and nothing more; the broker's
+     * `+psubscribe` is recorded separately, and a caller that needs delivery
+     * must observe delivery.
+     *
+     * **The residual is not one round trip.** Every frame crosses this
+     * generation's serialized write chain, so the k-th of k concurrent calls
+     * resolves after k writes, and on a reconnect it queues behind the whole
+     * re-issue. The wait is one RTT *plus the queue depth ahead of the frame*.
+     *
+     * **On failure it rejects AND schedules the retry** — the two are not
+     * alternatives. {@link psubscribe} and the retry timer keep the never-throw
+     * contract because neither has a caller to reject to; this one does, and a
+     * seam that resolved regardless would make the await decorative.
+     *
+     * The single exemption is {@link close}: an activation still in flight when
+     * the connection closes resolves rather than rejecting. The frame did not
+     * land, but the shutdown is deliberate, there is nothing to recover, and
+     * nobody is waiting to be told.
+     *
+     * @param pattern - The topic glob or exact topic.
+     * @param handler - Called with `(topic, payload)` for each message.
+     * @returns Resolves once the frame has reached the socket.
+     * @throws {Error} If called after {@link close}, or if the frame could not
+     *   be written — a retry is scheduled either way.
+     * @example
+     * ```typescript
+     * await sub.psubscribeOne('app__event:orders', (topic, payload) => {})
+     * ```
+     */
+    subscribeOne(
+        channel: string,
+        handler: MessageHandler,
+        options: { priority?: boolean } = {},
+    ): Promise<void> {
+        if (this.closed) {
+            throw new Error('RedisSubscribeConnection is closed')
+        }
+        this.patterns.set(channel, handler)
+        this.#globs.delete(channel)
+        if (options.priority) this.#priority.add(channel)
+        return this.#activate([channel], true)
+    }
+
+    /**
+     * Stop receiving messages for one pattern, on the wire and on reconnect.
+     *
+     * Removes the pattern from the desired set — so no later activation
+     * re-issues it — and enqueues `PUNSUBSCRIBE` on the live socket.
+     *
+     * **Both erasures happen HERE, at the enqueue, not at the broker's
+     * acknowledgement**, and they are co-turn with the frame. Deferring either
+     * to the `+punsubscribe` lets a pattern re-watched inside the round trip
+     * lose the record the re-watch just made: subscribed on the broker, nothing
+     * recorded, every frame discarded, and nothing logged. The asymmetry worth
+     * remembering is not between the two records — it is that **a write is
+     * acknowledged and an erasure is enqueued.**
+     *
+     * With no live socket there is nothing to unsubscribe: the desired-set
+     * removal alone is sufficient, because the next activation issues from that
+     * set.
+     *
+     * @param pattern - The pattern to stop receiving.
+     * @returns Resolves once the frame has reached the socket, or at once when
+     *   no socket is live.
+     * @throws {Error} If called after {@link close}, or if the frame could not
+     *   be written.
+     * @example
+     * ```typescript
+     * await sub.punsubscribe('app__event:orders')
+     * ```
+     */
+    unsubscribeOne(name: string): Promise<void> {
+        if (this.closed) {
+            throw new Error('RedisSubscribeConnection is closed')
+        }
+        const verb = this.#globs.has(name) ? 'PUNSUBSCRIBE' : 'UNSUBSCRIBE'
+        this.patterns.delete(name)
+        this.#globs.delete(name)
+        this.#priority.delete(name)
+        const generation = this.#generation
+        if (!generation) return Promise.resolve()
+        // CO-TURN: retire, then enqueue, with nothing awaited between them.
+        // `#write` reaches the queue synchronously, so the erasure and its frame
+        // are ordered together on the chain.
+        generation.retire(name)
+        return this.#write(generation.conn, encodeCommand([verb, name]))
     }
 
     /**
@@ -634,6 +888,21 @@ export class RedisSubscribeConnection {
         // per-generation REPORTING counter, not a resource owned by a socket.
         // Resetting it for a generation that is already gone costs one extra
         // log line; failing to reset it silences a real fault.
+        // THE TALLY, before the clear (#295/FR-014). The per-generation
+        // throttle above logs one fault in full and counts the rest; this is
+        // where the rest are accounted for, so a socket that dropped messages
+        // on twenty channels says so on its way out rather than leaving one
+        // arbitrary pattern named and nineteen silent.
+        if (this.#handlerFaults.size > 0) {
+            const tally = [...this.#handlerFaults]
+                .map(([p, n]) => `${safeForLog(p)}=${n}`)
+                .join(' ')
+            console.warn(
+                `[redis-subscribe] handler faults on the socket being ` +
+                    `discarded at ${safeForLog(this.hostname)}, by pattern: ` +
+                    tally,
+            )
+        }
         this.#handlerFaults.clear()
         // ONE ownership check, where there was one per field. It gates the
         // RELEASE and nothing else.
@@ -679,15 +948,34 @@ export class RedisSubscribeConnection {
      * Unref'd: a socket waiting for traffic must never be the reason a process
      * refuses to exit.
      */
-    #armKeepalive(conn: Deno.Conn): void {
-        // The keepalive belongs to a generation, so an activation still holding
-        // a socket that is no longer the live one arms nothing: the interval it
-        // would create has no owner to release it, and an unref'd orphan is
-        // unreachable forever. Unreachable from `#activate`, which re-checks
-        // ownership two lines above the call — kept because the alternative is a
-        // leak that nothing in the process can see.
-        const generation = this.#generation
-        if (generation?.conn !== conn) return
+    #armKeepalive(generation: SocketGeneration): void {
+        // TAKES THE GENERATION, does not re-read the field (#321).
+        //
+        // This method used to read `this.#generation` and re-check
+        // `generation?.conn !== conn`. That check was the LAST re-read of the
+        // field after an await inside `#activate`, and #298's FR-002 named the
+        // absence of exactly that re-read as "the single condition under which
+        // zero new identity predicates is true rather than aspirational" — a
+        // requirement whose second half did not ship. It ships here.
+        //
+        // The predicate is not merely redundant now, it is provably DEAD: the
+        // caller holds the generation it constructed for this socket, so
+        // `generation.conn` IS `conn` by construction. A guard that can only
+        // evaluate one way is worse than no guard, because it reads as a check.
+        // ONCE PER GENERATION, not once per activation (#295/FR-015).
+        //
+        // `#activate` runs on every `psubscribe`, and re-arming clears the
+        // interval and starts a fresh one — so an instance joining channels more
+        // often than `keepaliveMs` never emits a `PING` at all, and the liveness
+        // signal quietly stops being independent of application traffic. That
+        // was harmless while activations were rare; under per-channel subscribe
+        // a join IS an activation, so it is the normal case.
+        //
+        // A new socket is a new generation with no interval, so a reconnect
+        // still arms one. `armKeepalive` keeps its clear-then-store as the
+        // safety net; this is what stops the interval being created at all.
+        if (generation.hasKeepalive) return
+        const conn = generation.conn
         const id = setInterval(() => {
             // The socket check moved into `#write`, which is the single funnel
             // both writers pass through — keeping it here too would be two
@@ -750,9 +1038,15 @@ export class RedisSubscribeConnection {
      * timer. Abandoning is not an outcome: this method returning without a
      * scheduled retry is exactly the permanent deafness the feature removes.
      */
-    async #activate(toIssue: readonly string[]): Promise<void> {
+    async #activate(
+        toIssue: readonly string[],
+        rethrow = false,
+    ): Promise<void> {
         if (this.closed) return
         let conn: Deno.Conn | undefined
+        // Hoisted so the catch can read it: an activation that fired the seam
+        // and then threw owes the retry a seam of its own.
+        let firedEarly = false
         try {
             conn = await this.conn.connect()
             // Re-checked AFTER the await: a dial that resolves once `close()` has
@@ -781,8 +1075,100 @@ export class RedisSubscribeConnection {
                 this.#generation?.release()
                 this.#generation = new SocketGeneration(conn)
             }
-            for (const pattern of toIssue) {
-                await this.#write(conn, encodeCommand(['PSUBSCRIBE', pattern]))
+            // THE LOCAL #298's FR-002 required and did not ship (#321). Every
+            // later use in this method reaches the generation through `gen`,
+            // never through the field, so nothing here re-establishes identity
+            // after an await.
+            //
+            // Its staleness is excluded by the `this.conn.socket !== conn`
+            // guard below, and that guard is sufficient ONLY BECAUSE
+            // `AuthenticatedConnection.discard` closes the socket and nulls
+            // `connection` in ONE synchronous step (`connection.ts`, `discard`).
+            // Anything that splits those two makes this local unsound — which
+            // is why that is recorded at `discard` as well as here.
+            const gen = this.#generation
+            // PRIORITY FIRST, by declaration (#295/FR-023). A stable partition,
+            // not a sort: everything else keeps its recorded order, so this
+            // changes nothing for a caller that declares nothing.
+            const ordered = this.#priority.size > 0
+                ? [
+                    ...toIssue.filter((p) => this.#priority.has(p)),
+                    ...toIssue.filter((p) => !this.#priority.has(p)),
+                ]
+                : toIssue
+            let landed = 0
+            this.#lastIssued = 0
+            for (const pattern of ordered) {
+                // RE-READ INSIDE THE LOOP, never the snapshot taken before the
+                // awaits (#295/FR-013). Both reads race the same awaits: a
+                // `punsubscribe` can delete from `patterns` while this loop is
+                // suspended, and `#dispatch` can confirm into the generation.
+                // Issuing a pattern the caller has since dropped leaves a live
+                // subscription whose handler is gone — frames arrive and are
+                // discarded, which is the cost this feature exists to remove.
+                if (!this.patterns.has(pattern)) continue
+                // THE DELTA. One rule, and it collapses what looked like two
+                // decisions: a reconnect dials a NEW socket, so its generation's
+                // record is empty and the difference IS the full set; an
+                // ordinary `psubscribe` on a live socket finds everything else
+                // already recorded and issues one frame. Nothing branches on
+                // "am I a reconnect", which is why there is no way to get that
+                // branch wrong.
+                if (gen.has(pattern)) continue
+                // CO-TURN with the enqueue, and that is load-bearing: `#write`
+                // reaches `enqueue` synchronously, so the claim and its frame
+                // hit the chain in the same turn. An `await` between them lets
+                // an unwatch enqueue `PUNSUBSCRIBE` first and leaves the broker
+                // subscribed with nothing recorded. See `SocketGeneration.claim`.
+                gen.claim(pattern)
+                // THE VERB FOLLOWS THE NAME'S KIND, and it is an ACL fact, not
+                // a style one — see `#globs`.
+                const verb = this.#globs.has(pattern)
+                    ? 'PSUBSCRIBE'
+                    : 'SUBSCRIBE'
+                await this.#write(conn, encodeCommand([verb, pattern]))
+                landed++
+                this.#lastIssued = landed
+                // THE SEAM FIRES ON THE FIRST LANDED WRITE, not after all N
+                // (#295/FR-023, and #295's R-8).
+                //
+                // Its consumer is a revocation re-check that needs the control
+                // subscription and nothing else. Waiting for the whole loop put
+                // the framework's only revocation fast path behind every hosted
+                // channel's frame — at a thousand channels, a thousand
+                // serialized writes between a socket recovering and an evicted
+                // connection stopping. The priority partition above is what
+                // makes "the first write" and "the control topic" the same
+                // thing.
+                //
+                // ONE HONEST COST, recorded rather than glossed: a re-issue
+                // that lands write 1 and then fails leaves the seam fired while
+                // later channels are still deaf, and the retry that fixes them
+                // will not fire it again — the intent is consumed here. That is
+                // the right trade only because what the seam feeds is
+                // enforcement, which the first write restored, and because a
+                // partial re-issue already schedules its own retry.
+                // THE SEAM WAITS FOR THE SUBSCRIPTION IT FEEDS, not merely for
+                // the first write to land.
+                //
+                // "First write" and "the control topic" are the same thing only
+                // when this activation is re-issuing a set that contains it.
+                // They are not the same for a single-pattern `subscribeOne`
+                // after a fault, nor for any activation running before
+                // `onControl` has declared its priority — and in both cases the
+                // seam used to fire with the control topic unsubscribed, after
+                // which the retry read a consumed latch and never fired again.
+                // Revocation then falls back to the periodic reconcile, which is
+                // the pre-#271 exposure the seam exists to remove. Two review
+                // seats reached this from opposite ends of the guard.
+                const feedsTheSeam = this.#priority.size === 0
+                    ? landed === 1
+                    : this.#priority.has(pattern)
+                if (feedsTheSeam && this.#reconnectIntent) {
+                    this.#reconnectIntent = false
+                    firedEarly = true
+                    await this.#fireReconnect()
+                }
             }
             // Re-checked AGAIN, after the awaited writes. `close()` clears the
             // keepalive once; an activation whose write resolves during that
@@ -838,9 +1224,9 @@ export class RedisSubscribeConnection {
             if (this.loopConn !== conn) {
                 this.loopConn = conn
                 this.#loopStartedAt = Date.now()
-                this.loopDone = this.#readLoop(conn)
+                this.loopDone = this.#readLoop(conn, gen)
             }
-            this.#armKeepalive(conn)
+            this.#armKeepalive(gen)
             // The seam fires INSIDE the try and AFTER the re-issue loop, so a
             // reconnect whose PSUBSCRIBE never landed is not reported as one.
             //
@@ -854,6 +1240,10 @@ export class RedisSubscribeConnection {
             // succeeds during the handler from firing a second time: `connect()`
             // is single-flight, so two activations racing one outage share a
             // socket and would otherwise both report it.
+            // The latch is normally consumed by the first landed write above.
+            // This covers the activation that issues NOTHING — every desired
+            // pattern already on this socket — which is still the activation
+            // that ended the outage and still owes the seam.
             const asReconnect = this.#reconnectIntent
             this.#reconnectIntent = false
             if (asReconnect) await this.#fireReconnect()
@@ -873,6 +1263,7 @@ export class RedisSubscribeConnection {
                         `send to ${safeForLog(this.hostname)} and retrying ` +
                         `cannot help: ${renderError(error)}`,
                 )
+                if (rethrow) throw error
                 return
             }
             // Whether delivery was established is READ, not assumed. A first
@@ -891,9 +1282,20 @@ export class RedisSubscribeConnection {
             // every later attempt the same corpse and loops forever while
             // logging "retrying".
             if (conn) this.#discardSocket(conn)
-            // It demotes nothing either: `#scheduleRetry` latches monotonically
-            // and a failed activation never consumed the latch.
-            this.#scheduleRetry(wasDelivering, error)
+            // AND RE-ARM WHAT THE EARLY FIRE CONSUMED. An activation that fired
+            // the seam and then threw has lost frames the retry will recover,
+            // so the retry owes a seam of its own; without this the latch was
+            // consumed by an activation that did not finish, and the recovery
+            // that actually restores delivery reports nothing.
+            //
+            // `#scheduleRetry` latches monotonically, so this can only raise.
+            this.#scheduleRetry(wasDelivering || firedEarly, error)
+            // AFTER the retry is scheduled, never instead of it (#295/FR-001).
+            // An awaiting caller is told its frame did not land; the connection
+            // still heals itself. Only `psubscribeOne` passes `rethrow` —
+            // `psubscribe` and the retry timer have no caller to reject to,
+            // which is why the never-throw contract holds for them unchanged.
+            if (rethrow) throw error
         }
     }
 
@@ -909,12 +1311,21 @@ export class RedisSubscribeConnection {
         // Survival, not arrival. See `#loopStartedAt`.
         if (Date.now() - this.#loopStartedAt < this.#keepaliveMs) return
         const elapsed = Date.now() - this.#failingSince
+        // WHAT THIS ACTIVATION WROTE, not what the socket carries.
+        //
+        // `generation.size` was wrong and FR-010 says which quantity is meant:
+        // the delta. The two agree on a fresh socket and diverge the moment a
+        // retry lands on a CACHED one — a hundred patterns already confirmed
+        // plus a three-pattern retry reported "100 re-issued" having written
+        // three, or none. An outage report that overstates itself is worse than
+        // none, because it is believed.
+        const reissued = this.#lastIssued
         console.warn(
             `[redis-subscribe] recovered at ${
                 safeForLog(this.hostname)
             } after ` +
                 `${this.#attempts} failed attempt(s) over ${elapsed}ms; ` +
-                `${this.patterns.size} subscription(s) re-issued`,
+                `${reissued} subscription(s) re-issued`,
         )
         this.#attempts = 0
         this.#failingSince = 0
@@ -1038,7 +1449,10 @@ export class RedisSubscribeConnection {
      * wire fault the socket is discarded and, unless closing, a reconnect
      * re-issues every active pattern — logged at WARN.
      */
-    async #readLoop(conn: Deno.Conn): Promise<void> {
+    async #readLoop(
+        conn: Deno.Conn,
+        generation: SocketGeneration,
+    ): Promise<void> {
         while (!this.closed && this.conn.socket === conn) {
             let reply: RespReply
             try {
@@ -1070,13 +1484,61 @@ export class RedisSubscribeConnection {
             // connect-fault-connect-fault loop would zero its own backoff on
             // every pass and never grow.
             this.#reportRecovery()
-            this.#dispatch(reply)
+            this.#dispatch(reply, generation)
         }
     }
 
-    /** Route a `pmessage` push frame to the pattern's handler; ignore the rest. */
-    #dispatch(reply: RespReply): void {
-        if (reply.type !== 'array' || reply.value.length !== 4) return
+    /**
+     * Route a `pmessage` push frame to the pattern's handler, and record a
+     * `+psubscribe` acknowledgement against the generation it arrived on.
+     *
+     * **The generation is a PARAMETER, threaded down from `#readLoop`, never
+     * `this.#generation`** (#295). The object in hand IS the generation the
+     * frame arrived on, so the route costs no identity predicate. Reaching
+     * through the field instead lets a discard landing inside `readReply`
+     * record a pattern against a generation that never confirmed it — #245
+     * again — and correctness would then need `this.#generation?.conn === conn`
+     * plus a `conn` parameter here.
+     */
+    #dispatch(reply: RespReply, generation: SocketGeneration): void {
+        if (reply.type !== 'array') return
+        // THE SUBSCRIBE ACKNOWLEDGEMENT. Three elements, not four, which is why
+        // the guard below used to discard it: `[ "psubscribe", <pattern>,
+        // <count> ]`, and the count is an INTEGER — writing `reply.type ===
+        // 'simple'` here produces a branch that never fires, because
+        // `+psubscribe` is an array push frame and not a RESP simple string.
+        //
+        // This is the ONLY write of "the broker acknowledged it". An activation
+        // awaits that its frame reached the socket and nothing more, so
+        // recording at the write instead is #245: a pattern recorded but never
+        // subscribed, and an instance permanently deaf on it.
+        if (reply.value.length === 3) {
+            const [kind, name, tail] = reply.value
+            if (kind.type !== 'bulk' || name.type !== 'bulk') return
+            // A `message` PUSH FRAME is also three elements — `[ "message",
+            // <channel>, <payload> ]` — and it is a DELIVERY, not an
+            // acknowledgement. An exact subscription delivers this shape where
+            // a pattern subscription delivers `pmessage`; telling them apart by
+            // length alone would route every exact-topic message into the
+            // acknowledgement branch and drop it.
+            if (kind.value === 'message' && tail.type === 'bulk') {
+                this.#deliver(name.value, name.value, tail.value)
+                return
+            }
+            // An acknowledgement's third element is an INTEGER, the subscription
+            // count. Both verbs are recorded, because an exact topic is issued
+            // with `SUBSCRIBE` and only a glob with `PSUBSCRIBE`.
+            if (kind.value === 'subscribe' || kind.value === 'psubscribe') {
+                generation.confirm(name.value)
+            }
+            // An `unsubscribe` / `punsubscribe` acknowledgement is recognised
+            // and DELIBERATELY ignored. The erasure was written when the frame
+            // was enqueued, not here: acting on it would let a channel
+            // re-watched inside the round trip lose the record the re-watch had
+            // just made.
+            return
+        }
+        if (reply.value.length !== 4) return
         const [kind, pattern, topic, payload] = reply.value
         if (
             kind.type !== 'bulk' || kind.value !== 'pmessage' ||
@@ -1086,10 +1548,23 @@ export class RedisSubscribeConnection {
             // A subscribe confirmation or any non-pmessage frame — not delivered.
             return
         }
-        const handler = this.patterns.get(pattern.value)
+        this.#deliver(pattern.value, topic.value, payload.value)
+    }
+
+    /**
+     * Hand one delivery to its recorded handler, containing whatever it throws.
+     *
+     * The `key` is what the handler was recorded under — a glob for a
+     * `pmessage`, the channel itself for a `message` — and the `topic` is
+     * always the concrete one the broker delivered. Keeping them apart is what
+     * lets a consumer derive the channel from the topic rather than from
+     * whatever it happened to subscribe.
+     */
+    #deliver(key: string, topic: string, payload: string): void {
+        const handler = this.patterns.get(key)
         if (!handler) return
         try {
-            const result: unknown = handler(topic.value, payload.value)
+            const result: unknown = handler(topic, payload)
             // ASYNC HANDLERS TOO. `catch` sees a synchronous throw and nothing
             // else, so an `async` handler — or any handler returning a promise
             // — hands back a REJECTED promise that nothing awaits, which is the
@@ -1104,11 +1579,11 @@ export class RedisSubscribeConnection {
                     ?.then === 'function'
             ) {
                 Promise.resolve(result).catch((error: unknown) =>
-                    this.#reportHandlerFault(pattern.value, error)
+                    this.#reportHandlerFault(key, error)
                 )
             }
         } catch (error) {
-            this.#reportHandlerFault(pattern.value, error)
+            this.#reportHandlerFault(key, error)
         }
     }
 
@@ -1156,10 +1631,22 @@ export class RedisSubscribeConnection {
     #reportHandlerFault(pattern: string, error: unknown): void {
         const seen = this.#handlerFaults.get(pattern) ?? 0
         this.#handlerFaults.set(pattern, seen + 1)
-        if (seen > 0) {
-            // Already reported for this pattern on this socket generation. The
-            // count is emitted with the first fault of the NEXT generation, so
-            // suppression can never hide the failure indefinitely.
+        // ONE full report per SOCKET GENERATION, not one per pattern
+        // (#295/FR-014).
+        //
+        // The throttle used to be per pattern, which was one ERROR per
+        // generation while a deployment held one prefix-wide subscription.
+        // Under per-channel subscribe a single broken handler is registered
+        // against every hosted channel, so it becomes one stack trace per
+        // channel — three thousand of them — and a blocked stderr
+        // back-pressures the read loop past its own liveness window. The
+        // containment turns into the outage.
+        //
+        // ATTRIBUTION IS NOT LOST: `#discardSocket` emits the per-pattern tally
+        // before clearing, so suppression bounds the VOLUME without hiding
+        // which handlers failed. Collapsing to one key would have bounded the
+        // volume by deleting the answer.
+        if (this.#handlerFaults.size > 1 || seen > 0) {
             return
         }
         console.error(

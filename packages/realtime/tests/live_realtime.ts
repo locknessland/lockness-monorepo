@@ -61,6 +61,9 @@ export interface TestUser {
  * @param prefix - The run's namespace, used as the driver's `prefix`.
  * @returns The key names and patterns the suite reads.
  */
+/** The channel every live instance watches so the readiness gate has a target. */
+const PROBE_CHANNEL = 'probe-ready'
+
 export function keys(prefix: string): {
     presence: (channel: string) => string
     instances: string
@@ -70,6 +73,7 @@ export function keys(prefix: string): {
     alivePattern: string
     controlTopic: string
     probeTopic: string
+    probeChannel: string
 } {
     return {
         presence: (channel: string) => `${prefix}__presence:${channel}`,
@@ -97,7 +101,17 @@ export function keys(prefix: string): {
         // pre-#288 `${prefix}:probe-ready` it matches no subscription, every
         // count stays 0, and the whole live suite fails on a 10s timeout with
         // nothing to say why.
-        probeTopic: `${prefix}__event:probe-ready`,
+        //
+        // Since #295 it must also be a channel each instance actually WATCHES —
+        // `withInstances` does that — because a prefix-wide glob no longer
+        // covers it. The failure mode is identical, which is why the warning
+        // above is left standing rather than reworded.
+        probeTopic: `${prefix}__event:${PROBE_CHANNEL}`,
+        // The CHANNEL, not the topic — what `withInstances` watches so the
+        // topic above has a subscriber at all. One home for the name: a second
+        // spelling here and in the watch call is how the gate goes silently
+        // dead again.
+        probeChannel: PROBE_CHANNEL,
     }
 }
 
@@ -269,10 +283,27 @@ export async function withInstances<T>(
                 revocationTtlSeconds: options.revocationTtlSeconds ?? 300,
             })
             const authorize = options.authorize?.(index) ?? defaultAuthorize
-            instances.push({
-                driver,
-                manager: new ChannelManager<TestUser>({ driver, authorize }),
-            })
+            // The manager's constructor registers the delivery handler, which
+            // `watchChannel` requires — so the order below is a contract, not a
+            // convenience.
+            const manager = new ChannelManager<TestUser>({ driver, authorize })
+            // THE READINESS PROBE IS A WATCHED CHANNEL NOW (#295/FR-024).
+            //
+            // `awaitSubscribers` publishes to `probeTopic` and waits for the
+            // receiver count to reach N. That worked while every instance held
+            // one prefix-wide glob; under per-channel subscribe no instance
+            // hosts `probe-ready` until a client asks for it, so the count
+            // would stay 0 and every live test in this package would time out
+            // at ten seconds — the symptom `keys()`'s own docstring predicts.
+            //
+            // Watched on the DRIVER rather than through `manager.subscribe`:
+            // the gate needs a subscription on the wire, not a membership, and
+            // a fake connection in `subscriptions` would leak into every
+            // roster and fan-out assertion the scenarios make. A driver whose
+            // subscriber cannot do per-pattern returns early here and keeps its
+            // glob, so both paths reach the same gate.
+            await driver.watchChannel(keys(namespace).probeChannel)
+            instances.push({ driver, manager })
         }
         return await body(instances)
     } finally {

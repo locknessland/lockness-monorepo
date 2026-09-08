@@ -55,16 +55,19 @@ export {
     type RedisSubscriber,
 } from './drivers/redis.ts'
 export {
-    ChannelManager,
-    type ChannelManagerOptions,
     // Both id errors are exported because a NAMED error type an application
     // cannot name is just an `Error`. #304 made `ConnectionIdError` named
     // precisely so a caller could tell "a bug in my own code that no retry
     // fixes" from "a dead socket" on the shared `onError` hook — which needs
     // `instanceof`, which needs this line. #306 adds the presence-member
     // sibling and closes the same gap for it.
+    ChannelLimitError,
+    ChannelManager,
+    type ChannelManagerOptions,
     ChannelNameError,
     ConnectionIdError,
+    MAX_CHANNELS_PER_CONNECTION,
+    MAX_WATCHED_CHANNELS,
     type OutboundFrame,
     PresenceMemberIdError,
     type SubscribeResult,

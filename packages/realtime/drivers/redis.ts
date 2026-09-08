@@ -175,6 +175,83 @@ export interface RedisSubscriber {
      * @param handler - Called with no arguments after each successful reconnect.
      */
     onReconnect?(handler: () => void | Promise<void>): void
+    /**
+     * OPTIONAL (#295). Subscribe to ONE pattern and resolve once its frame has
+     * reached the socket.
+     *
+     * The awaitable counterpart to {@link psubscribe}, and what lets
+     * {@link RedisBroadcastDriver.watchChannel} promise anything at all:
+     * `psubscribe` is `void` by contract and returns in the same turn, so an
+     * `async watchChannel` wrapping it would resolve having awaited nothing.
+     *
+     * The guarantee is the **write leg** — the frame reached the socket — never
+     * that the broker answered, and never that delivery has started. A
+     * rejection means the frame did not land; the connection is expected to
+     * schedule its own retry regardless, so the caller keeps its membership.
+     *
+     * @param pattern - The topic glob or exact topic.
+     * @param handler - Called with `(topic, payload)` for each message.
+     * @returns Resolves once the frame is on the wire.
+     */
+    subscribeOne?(
+        pattern: string,
+        handler: (topic: string, payload: string) => void,
+        options?: {
+            /**
+             * Put this pattern on the wire BEFORE any other on a re-issue, and
+             * fire the reconnect seam once its write has landed.
+             *
+             * For the one subscription whose absence is a security fact rather
+             * than a latency one — here, the control plane.
+             */
+            priority?: boolean
+        },
+    ): void | Promise<void>
+    /**
+     * OPTIONAL (#295). Stop receiving one pattern, on the wire **and** in
+     * whatever set the connection re-issues after a reconnect.
+     *
+     * Both halves, or the fan-out win decays silently: a pattern unsubscribed
+     * on the wire and left in the re-issue set comes back on the next fault,
+     * and a fault is the worst moment to discover it.
+     *
+     * @param pattern - The pattern to stop receiving.
+     * @returns Resolves once the frame is on the wire.
+     */
+    unsubscribeOne?(pattern: string): void | Promise<void>
+}
+
+/**
+ * A {@link RedisSubscriber} narrowed to one that can subscribe and unsubscribe
+ * per pattern — obtained by testing both members together, never one at a time.
+ */
+export interface PerChannelSubscriber extends RedisSubscriber {
+    /** Subscribe to one pattern, resolving once its frame is on the wire. */
+    subscribeOne(
+        pattern: string,
+        handler: (topic: string, payload: string) => void,
+        options?: { priority?: boolean },
+    ): void | Promise<void>
+    /** Stop receiving one pattern, on the wire and on reconnect. */
+    unsubscribeOne(pattern: string): void | Promise<void>
+}
+
+/**
+ * Narrow a subscriber to one that subscribes and unsubscribes per pattern.
+ *
+ * Exported so a test double can assert which path it will take rather than
+ * inferring it from behaviour.
+ *
+ * @param subscriber - The subscriber to probe.
+ * @returns The narrowed subscriber, or `undefined` when either member is absent.
+ */
+export function perChannelSubscriber(
+    subscriber: RedisSubscriber,
+): PerChannelSubscriber | undefined {
+    return typeof subscriber.subscribeOne === 'function' &&
+            typeof subscriber.unsubscribeOne === 'function'
+        ? subscriber as PerChannelSubscriber
+        : undefined
 }
 
 /**
@@ -594,6 +671,20 @@ export type RedisBroadcastConnectionConfig =
  */
 export class RedisBroadcastDriver implements BroadcastDriver {
     private readonly prefix: string
+    /**
+     * The per-pattern seams when the injected subscriber offers BOTH, else
+     * `undefined` — the single guard (#295).
+     */
+    readonly #perChannel: PerChannelSubscriber | undefined
+    /**
+     * The delivery decoder built by {@link onMessage}, installed per hosted
+     * channel by {@link watchChannel}.
+     *
+     * One closure for every subscription, deliberately: a per-channel closure
+     * could capture the channel and pass it to the handler, which would make
+     * the topic-derived attribution below dead code.
+     */
+    #deliver: ((topic: string, payload: string) => void) | undefined
     /** The per-deployment MAC secret bytes, or `undefined` when unconfigured. */
     private readonly secret: Uint8Array<ArrayBuffer> | undefined
     /** This instance's identity — tags roster entries and control-message origin. */
@@ -665,6 +756,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     ) {
         this.prefix = options.prefix ?? 'lockness:realtime'
         assertUsablePrefix(this.prefix)
+        // ONE feature-detect, at construction, for the PAIR (#295). Detecting
+        // the two members at their call sites is how a subscriber that can
+        // subscribe per pattern but not unsubscribe ends up accumulating one
+        // permanent subscription per channel ever hosted — monotonic over the
+        // process lifetime, strictly worse than the single glob it replaces,
+        // and invisible, because delivery stays correct.
+        this.#perChannel = typeof this.subscriber.subscribeOne === 'function' &&
+                typeof this.subscriber.unsubscribeOne === 'function'
+            ? this.subscriber as PerChannelSubscriber
+            : undefined
         if (options.control?.secret !== undefined) {
             const bytes = new TextEncoder().encode(options.control.secret)
             if (bytes.length < MIN_CONTROL_SECRET_BYTES) {
@@ -847,8 +948,28 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         return `${this.prefix}${RESERVED_SEPARATOR_LEAD}event:`
     }
 
-    /** The reserved topic for a channel's events. */
+    /** The reserved topic for a channel's events — a PUBLISH argument. */
     private topic(channel: string): string {
+        return `${this.eventTopicPrefix}${channel}`
+    }
+
+    /**
+     * The reserved topic for a channel's events, as a **PSUBSCRIBE pattern**.
+     *
+     * The same bytes as {@link topic} today, and a separate method on purpose.
+     * `PUBLISH` is a literal context and `PSUBSCRIBE` a pattern one — the
+     * distinction {@link eventTopicPrefix}'s docstring records — so one builder
+     * serving both means the first escaping ever added to `topic()` silently
+     * corrupts the subscription instead of failing loudly. Calling `topic()`
+     * here is the shortcut to refuse: it returns the right string today, which
+     * is precisely what makes it invisible later.
+     *
+     * It is glob-safe because a channel reaching this point has passed
+     * `ChannelManager`'s `#assertUsableChannel` (#314), and `NAME_RE` excludes
+     * every Redis glob metacharacter. That guarantee lives in another package
+     * and nothing here re-checks it — see the `watchChannel` docstring.
+     */
+    private eventPattern(channel: string): string {
         return `${this.eventTopicPrefix}${channel}`
     }
 
@@ -954,8 +1075,14 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      */
     onMessage(handler: (message: BroadcastMessage) => void): void {
         const marker = this.eventTopicPrefix
-        const pattern = `${marker}*`
-        this.subscriber.psubscribe(pattern, (topic, payload) => {
+        // THE DECODER IS BUILT ONCE and stored, because under per-channel
+        // subscribe (#295) it is installed by `watchChannel` rather than here,
+        // once per hosted channel. Building it per channel is what would let a
+        // `watchChannel` closure capture `channel` and hand it to the handler —
+        // and that implementation looks correct, right up to the point where
+        // the `startsWith` check below becomes dead code and a later tidy-up
+        // removes it. §5 row 11: the delivered TOPIC decides, always.
+        this.#deliver = (topic: string, payload: string) => {
             // DENY BY DEFAULT. This used to fall back to `channel = topic` on a
             // shape mismatch, which turns a routing fault into a plausible,
             // charset-valid channel name that passes every check below and
@@ -1002,7 +1129,51 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 return
             }
             handler({ channel, event: parsed.event, data: parsed.data })
-        })
+        }
+        // NOTHING IS SUBSCRIBED HERE when the subscriber can do it per pattern
+        // (FR-004). The manager's `watchChannel` calls create the
+        // subscriptions, one per hosted channel; a driver whose subscriber
+        // cannot unsubscribe keeps the prefix-wide glob, because watch-without-
+        // unwatch is strictly worse than the glob it would replace.
+        if (this.#perChannel) return
+        this.subscriber.psubscribe(`${marker}*`, this.#deliver)
+    }
+
+    /**
+     * Begin receiving `channel`'s events (#295) — one exact-topic subscription.
+     *
+     * @param channel - The channel this instance has begun hosting.
+     * @returns Resolves once the subscribe frame is on the wire.
+     * @throws {Error} If no delivery handler has been registered yet.
+     */
+    watchChannel(channel: string): void | Promise<void> {
+        const sub = this.#perChannel
+        if (!sub) return
+        // FR-004 made "subscribed with no handler" REACHABLE, where it is
+        // structurally impossible while `onMessage` does the subscribing. The
+        // manager happens to call `onMessage` in its constructor and
+        // `watchChannel` later, which is an ordering, not a contract — and a
+        // subscription whose frames have nowhere to go is exactly the wasted
+        // fan-out this feature exists to remove.
+        const deliver = this.#deliver
+        if (!deliver) {
+            throw new Error(
+                'realtime: watchChannel was called before onMessage, so this ' +
+                    'subscription would have no handler. Register the delivery ' +
+                    'handler first.',
+            )
+        }
+        return sub.subscribeOne(this.eventPattern(channel), deliver)
+    }
+
+    /**
+     * Stop receiving `channel`'s events (#295).
+     *
+     * @param channel - The channel this instance has stopped hosting.
+     * @returns Resolves once the unsubscribe frame is on the wire.
+     */
+    unwatchChannel(channel: string): void | Promise<void> {
+        return this.#perChannel?.unsubscribeOne(this.eventPattern(channel))
     }
 
     /**
@@ -1015,10 +1186,36 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * @param handler - Called with each **authenticated** control message.
      */
     onControl(handler: (control: ControlMessage) => void): void {
-        this.subscriber.psubscribe(this.controlTopic, (_topic, payload) => {
+        const deliver = (_topic: string, payload: string) => {
             const control = this.#verifyAndDecode(payload)
             if (control) handler(control)
-        })
+        }
+        // DECLARED PRIORITY (#295/FR-023), where the subscriber supports it.
+        //
+        // A re-issue that throws half way subscribes a prefix of its set, and
+        // which subscription lands first used to be decided by the order this
+        // class happened to register its seams in — nothing stated it and no
+        // test pinned it. This is the one that must survive: an evict frame
+        // reaches this deployment only here, and #271/#308's revocation fast
+        // path waits on this subscription and no other. Event delivery
+        // resuming late is a latency cost; enforcement resuming late is not.
+        const sub = this.#perChannel
+        if (sub) {
+            void Promise.resolve(
+                sub.subscribeOne(this.controlTopic, deliver, {
+                    priority: true,
+                }),
+            ).catch((error) =>
+                console.warn(
+                    'realtime: the control subscription could not be issued ' +
+                        `— the driver's own retry is what restores it: ${
+                            renderError(error)
+                        }`,
+                )
+            )
+            return
+        }
+        this.subscriber.psubscribe(this.controlTopic, deliver)
     }
 
     /**

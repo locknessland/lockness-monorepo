@@ -50,9 +50,13 @@ const MUTATIONS: Mutation[] = [
             'the event subscription is opened on the control topic — glob-free, ' +
             'still anchored',
         file: DRIVER,
+        // #295 moved where an event subscription is created: `onMessage` no
+        // longer builds a glob, `watchChannel` builds one exact topic per
+        // hosted channel. The equivalent mis-derivation is therefore in
+        // `eventPattern`, which is the builder the watch calls.
         edits: [[
-            '        const pattern = `${marker}*`',
-            '        const pattern = this.controlTopic',
+            '        return `${this.eventTopicPrefix}${channel}`\n    }\n\n    /**\n     * The reserved control topic',
+            '        return this.controlTopic\n    }\n\n    /**\n     * The reserved control topic',
         ]],
         killedBy: 'SC-002: no accepted prefix can reach another',
     },
@@ -60,10 +64,18 @@ const MUTATIONS: Mutation[] = [
         label:
             'a THIRD subscription, anchored under the prefix but in neither family',
         file: DRIVER,
+        // Anchored in `watchChannel`, which the exercise DRIVES (#295).
+        //
+        // The first repair pointed at `onMessage`'s fallback `psubscribe` — the
+        // one line there that still opens a subscription — and the row reported
+        // SURVIVED, correctly: under per-channel subscribe `onMessage` returns
+        // before that line, so the stray subscription was never created and the
+        // mutation was inert. A row anchored on an unreachable branch is a row
+        // that proves nothing, which is the failure this whole battery is about.
         edits: [[
-            '        this.subscriber.psubscribe(pattern, (topic, payload) => {',
+            '        return sub.subscribeOne(this.eventPattern(channel), deliver)',
             '        this.subscriber.psubscribe(`${this.controlTopic}:legacy`, () => {})\n' +
-            '        this.subscriber.psubscribe(pattern, (topic, payload) => {',
+            '        return sub.subscribeOne(this.eventPattern(channel), deliver)',
         ]],
         killedBy: 'SC-002: no accepted prefix can reach another',
     },

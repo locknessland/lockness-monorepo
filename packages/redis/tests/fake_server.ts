@@ -44,6 +44,20 @@ export interface FakeServer {
      */
     publish(pattern: string, topic: string, payload: string): void
     /**
+     * Push an unbidden `message` frame — the shape an EXACT-channel
+     * subscription receives, as opposed to {@link FakeServer.publish}'s
+     * `pmessage` (#295).
+     *
+     * Two methods rather than one with a flag: which frame a broker sends is
+     * decided by which verb the client used, and a test that can pick the
+     * frame independently of the verb can prove a routing that no broker
+     * performs.
+     *
+     * @param channel - The exact channel the payload was published to.
+     * @param payload - The published payload.
+     */
+    publishExact(channel: string, payload: string): void
+    /**
      * Close every live connection while keeping the listener open, forcing an
      * in-flight client read to fault so its self-heal (reconnect +
      * re-`PSUBSCRIBE`) can be observed. Newly dialled connections are accepted.
@@ -182,6 +196,17 @@ function replyFor(
             return respFrame(['psubscribe', args[1] ?? '', 1])
         case 'PUNSUBSCRIBE':
             return respFrame(['punsubscribe', args[1] ?? '', 0])
+        // EXACT-CHANNEL SUBSCRIBE (#295). Not a synonym for the pattern verbs:
+        // Redis matches an ACL channel rule literally for `PSUBSCRIBE` and by
+        // glob for `SUBSCRIBE`, so a driver issuing an exact topic must use
+        // this one or every operator's `&prefix__event:*` rule refuses it. The
+        // reply shape differs too — `subscribe`, and deliveries arrive as
+        // `message` rather than `pmessage`.
+        case 'SUBSCRIBE':
+            state.subscribed = true
+            return respFrame(['subscribe', args[1] ?? '', 1])
+        case 'UNSUBSCRIBE':
+            return respFrame(['unsubscribe', args[1] ?? '', 0])
         case 'PING':
             // Redis answers PING differently once the connection has entered
             // subscribe mode: a multi-bulk ["pong", ""] rather than the `+PONG`
@@ -364,6 +389,12 @@ export function startFakeServer(): Promise<FakeServer> {
             const frame = respFrame(['pmessage', pattern, topic, payload])
             for (const conn of conns) {
                 // Fire-and-forget: a dropped connection just misses the push.
+                conn.write(frame).catch(() => {})
+            }
+        },
+        publishExact: (channel: string, payload: string) => {
+            const frame = respFrame(['message', channel, payload])
+            for (const conn of conns) {
                 conn.write(frame).catch(() => {})
             }
         },

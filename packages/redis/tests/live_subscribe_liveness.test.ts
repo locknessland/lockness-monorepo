@@ -164,7 +164,18 @@ Deno.test({
         const config = brokerConfig()
         await preflight(config)
         const ns = runNamespace()
-        const pattern = `${ns}:*`
+        // THE FIRST PATTERN CARRIES THE HOSTILE BYTES, and the order is the
+        // assertion (#295/FR-014). The full handler-fault ERROR is emitted once
+        // per SOCKET GENERATION now, so only the FIRST faulting pattern reaches
+        // that line — a hostile name introduced second is suppressed, and the
+        // encoding check would then pass against a log line it never saw.
+        // Measured: with the hostile pattern second, mutating `safeForLog` out
+        // of `#reportHandlerFault` left this test GREEN.
+        //
+        // CR and ESC only. `\x1b[31m`'s `[31m` is a Redis glob CHARACTER CLASS,
+        // so a pattern built with it matches `\x1b3PAT…` and never the literal
+        // topic published below.
+        const pattern = `${ns}:\r\x1bPAT*`
 
         const sub = new RedisSubscribeConnection(config)
         const publisher = new RedisClient(config)
@@ -186,7 +197,11 @@ Deno.test({
             })
             await waitFor(
                 async () => {
-                    await publisher.command('PUBLISH', `${ns}:a`, 'first')
+                    await publisher.command(
+                        'PUBLISH',
+                        `${ns}:\r\x1bPATa`,
+                        'first',
+                    )
                     return seen.includes('first')
                 },
                 'the subscription is live',
@@ -197,17 +212,35 @@ Deno.test({
             // marker that must never appear because the payload must not be
             // logged at all.
             const hostile = 'boom\r\x1b[31mINJECTED\x1b[0m SECRET-MARKER-8891'
-            await publisher.command('PUBLISH', `${ns}:a`, hostile)
+            await publisher.command('PUBLISH', `${ns}:\r\x1bPATa`, hostile)
             await waitFor(
                 () => errors.some((e) => /exploded/.test(e)),
                 'the throw was contained and logged, not propagated',
+            )
+            // THE PATTERN IS THE ONE PEER-ADJACENT VALUE THIS LINE PRINTS, so
+            // it is the one that has to be encoded — an application is free to
+            // build a pattern from a tenant name it did not choose.
+            const faultLine = errors.find((e) => /exploded/.test(e))!
+            assert(
+                !faultLine.includes('\r') && !faultLine.includes('\x1b'),
+                'the pattern reached the log line unencoded, so a peer-shaped ' +
+                    `name can forge log entries: ${JSON.stringify(faultLine)}`,
+            )
+            assert(
+                /PAT/.test(faultLine),
+                'the pattern must still be identifiable after encoding: ' +
+                    faultLine,
             )
 
             // THE POINT: delivery continues. Reaching this line at all also
             // proves the process survived — the pre-fix code never got here.
             await waitFor(
                 async () => {
-                    await publisher.command('PUBLISH', `${ns}:a`, 'after')
+                    await publisher.command(
+                        'PUBLISH',
+                        `${ns}:\r\x1bPATa`,
+                        'after',
+                    )
                     return seen.includes('after')
                 },
                 'delivery continued after the handler threw',
@@ -221,22 +254,57 @@ Deno.test({
             // `[31m` is a Redis glob CHARACTER CLASS — so the pattern matched
             // `\x1b3PAT…` and never the literal topic published below, and the
             // test timed out proving nothing about encoding.
-            const hostilePattern = `${ns}:\r\x1bPAT*`
+            // An ORDINARY second pattern now: the hostile one is already the
+            // first, which is where the full report fires. This one's fault is
+            // suppressed by the per-generation throttle, and the tally at the
+            // discard is where it must still be accounted for.
+            const hostilePattern = `${ns}:second:*`
+            // WHERE THE SECOND FAULT IS ACCOUNTED FOR MOVED (#295/FR-014).
+            //
+            // The full ERROR is now emitted once per SOCKET GENERATION rather
+            // than once per pattern: under per-channel subscribe a single
+            // broken handler is registered against every hosted channel, and
+            // one stack trace per channel blocks stderr hard enough to
+            // back-pressure the read loop past its own liveness window — the
+            // containment becomes the outage. Suppression bounds the volume;
+            // the per-pattern TALLY at the discard keeps the attribution, and
+            // that tally is where a second pattern's name now appears.
+            //
+            // What this test is about is unchanged: the name is peer-adjacent,
+            // an application may build it from a tenant it did not choose, and
+            // it must reach the log encoded. Only the line it reaches moved.
+            let secondFired = 0
+            const warnings: string[] = []
+            const realWarn = console.warn
+            console.warn = (...args: unknown[]) => {
+                warnings.push(args.map((a) => String(a)).join(' '))
+            }
             sub.psubscribe(hostilePattern, () => {
+                secondFired++
                 throw new Error('the second handler exploded')
             })
             await waitFor(
                 async () => {
                     await publisher.command(
                         'PUBLISH',
-                        `${ns}:\r\x1bPATX`,
+                        `${ns}:second:x`,
                         'x',
                     )
-                    return errors.some((e) => /second handler/.test(e))
+                    return secondFired > 0
                 },
                 'the second handler threw and was contained too',
             )
-            const patternLine = errors.find((e) => /second handler/.test(e))!
+            // The discard is what emits the tally. `close()` again in the
+            // `finally` is a no-op.
+            await sub.close()
+            console.warn = realWarn
+            const patternLine = warnings.find((w) => w.includes('by pattern'))!
+            assert(
+                patternLine !== undefined,
+                'no tally was emitted on the discard, so the suppressed fault ' +
+                    'is unaccounted for — suppression that loses the answer is ' +
+                    'worse than the flood it prevents',
+            )
             assert(
                 !patternLine.includes('\r') && !patternLine.includes('\x1b'),
                 'the pattern reached the log line unencoded, so a peer-shaped ' +
@@ -251,8 +319,16 @@ Deno.test({
             )
 
             const line = errors.find((e) => /exploded/.test(e))!
+            // NAMED, but named ENCODED. This used to assert the raw pattern
+            // appears verbatim, which held only because the first pattern was
+            // an ordinary one. It is the hostile one now — see the comment at
+            // its declaration — so the raw bytes are precisely what must NOT
+            // appear, and the two assertions would contradict each other. What
+            // an operator needs is that the line identifies the handler, which
+            // the encoded form does: `safeForLog` escapes the control bytes and
+            // leaves everything else legible.
             assert(
-                line.includes(pattern),
+                line.includes(ns) && /PAT/.test(line),
                 `the line must name the pattern so an operator can find the ` +
                     `handler: ${line}`,
             )

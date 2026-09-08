@@ -60,21 +60,54 @@ const MUTATIONS: Mutation[] = [
         label: 'the activation stops reading the latch and never reports a ' +
             'reconnect at all',
         file: SUBSCRIBER,
-        edits: [[
-            'const asReconnect = this.#reconnectIntent\n            this.#reconnectIntent = false',
-            'const asReconnect = false\n            this.#reconnectIntent = false',
-        ]],
-        killedBy: 'the activation that ENDS an outage',
+        // TWO SITES SINCE #295/FR-023. The latch is normally consumed at
+        // the FIRST landed write, so that the revocation fast path does not
+        // wait on every hosted channel's frame; the tail only covers an
+        // activation that issued nothing. Mutating the tail alone leaves the
+        // early site to fire the seam anyway, and the row reported SURVIVED
+        // on a guarantee that is still enforced — a false negative, which is
+        // worse here than a false positive.
+        edits: [
+            [
+                'if (feedsTheSeam && this.#reconnectIntent) {',
+                'if (!feedsTheSeam && this.#reconnectIntent) {',
+            ],
+            [
+                'const asReconnect = this.#reconnectIntent\n            this.#reconnectIntent = false',
+                'const asReconnect = false\n            this.#reconnectIntent = false',
+            ],
+        ],
+        // RE-ATTRIBUTED, and the reason is worth keeping. The declared killer
+        // was FR-022's "the activation that ENDS an outage", which no longer
+        // fails: negating `feedsTheSeam` makes the seam fire LATER — at write 2
+        // of a multi-pattern re-issue — rather than never, and FR-022 only
+        // requires that it fire. What the mutation actually breaks is the seam
+        // firing at all on a single-pattern activation, which is what the
+        // on-point `onReconnect` control observes.
+        killedBy: 'onReconnect fires once after a reconnect re-issues its',
     },
     {
         // The clear half — the row the first two cannot reach.
         label: 'the intent is never consumed, so every later subscribe on a ' +
             'healthy socket reports a reconnect that is not happening',
         file: SUBSCRIBER,
-        edits: [[
-            'const asReconnect = this.#reconnectIntent\n            this.#reconnectIntent = false',
-            'const asReconnect = this.#reconnectIntent',
-        ]],
+        // TWO SITES SINCE #295/FR-023. The latch is normally consumed at
+        // the FIRST landed write, so that the revocation fast path does not
+        // wait on every hosted channel's frame; the tail only covers an
+        // activation that issued nothing. Mutating the tail alone leaves the
+        // early site to fire the seam anyway, and the row reported SURVIVED
+        // on a guarantee that is still enforced — a false negative, which is
+        // worse here than a false positive.
+        edits: [
+            [
+                '                    this.#reconnectIntent = false\n                    firedEarly = true',
+                '                    firedEarly = true',
+            ],
+            [
+                'const asReconnect = this.#reconnectIntent\n            this.#reconnectIntent = false',
+                'const asReconnect = this.#reconnectIntent',
+            ],
+        ],
         killedBy: 'consumed ONCE',
     },
     {
@@ -94,7 +127,7 @@ const MUTATIONS: Mutation[] = [
             'connect reconciles a connection that never had state to lose',
         file: SUBSCRIBER,
         edits: [[
-            'this.#scheduleRetry(wasDelivering, error)',
+            'this.#scheduleRetry(wasDelivering || firedEarly, error)',
             'this.#scheduleRetry(true, error)',
         ]],
         killedBy: 'a retried FIRST connect fires nothing',
@@ -106,10 +139,20 @@ const MUTATIONS: Mutation[] = [
         label: 'the intent is cleared AFTER the handler is awaited, so two ' +
             'activations racing one outage each report the recovery',
         file: SUBSCRIBER,
-        edits: [[
-            'const asReconnect = this.#reconnectIntent\n            this.#reconnectIntent = false\n            if (asReconnect) await this.#fireReconnect()',
-            'const asReconnect = this.#reconnectIntent\n            if (asReconnect) await this.#fireReconnect()\n            this.#reconnectIntent = false',
-        ]],
+        // TWO SITES SINCE #295/FR-023 — see the rows above. Racing
+        // activations now consume the latch at the first landed write, so
+        // moving only the tail's clear leaves the early one ordering it
+        // correctly and the row proves nothing.
+        edits: [
+            [
+                '                    this.#reconnectIntent = false\n                    firedEarly = true\n                    await this.#fireReconnect()',
+                '                    firedEarly = true\n                    await this.#fireReconnect()\n                    this.#reconnectIntent = false',
+            ],
+            [
+                'const asReconnect = this.#reconnectIntent\n            this.#reconnectIntent = false\n            if (asReconnect) await this.#fireReconnect()',
+                'const asReconnect = this.#reconnectIntent\n            if (asReconnect) await this.#fireReconnect()\n            this.#reconnectIntent = false',
+            ],
+        ],
         killedBy: 'fire the seam once, not twice',
     },
     {
@@ -155,7 +198,7 @@ const MUTATIONS: Mutation[] = [
             'reading wasDelivering',
         file: SUBSCRIBER,
         edits: [[
-            'this.#scheduleRetry(wasDelivering, error)',
+            'this.#scheduleRetry(wasDelivering || firedEarly, error)',
             'this.#scheduleRetry(false, error)',
         ]],
         killedBy: 'the activation that ENDS an outage',

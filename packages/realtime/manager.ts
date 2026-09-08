@@ -22,6 +22,59 @@ import { isValidName, MAX_NAME_LENGTH } from './protocol.ts'
  * and those want different handling: a dead socket is operational, an unusable
  * id is a bug in the caller's own code that no retry will fix.
  */
+/**
+ * The per-instance watched-channel cap (#295/FR-017).
+ *
+ * Not a free choice: it is also the N that SC-007 proves a full reconnect
+ * re-issue at, and the bound R-8 puts on the post-outage revocation window. A
+ * cap and a criterion at two different numbers is two answers to one question.
+ */
+export const MAX_WATCHED_CHANNELS = 1_000
+
+/** The per-connection watched-channel cap (#295/FR-017). */
+export const MAX_CHANNELS_PER_CONNECTION = 100
+
+/**
+ * Raised when a subscribe would take this instance or this connection past its
+ * watched-channel cap (#295/FR-017).
+ *
+ * **Exported from the first release and raised from the second.** FR-017b lands
+ * the caps over two releases — one that WARNs with the breached scope and its
+ * actual count, one that refuses — because nothing in the framework measures
+ * channels-per-instance today, so nobody, this plan included, can say whether
+ * 1 000 is generous or tight. One release of WARNs answers that from real
+ * deployments before the refusal costs anyone anything. The type ships now so
+ * an application can catch it before it can be thrown.
+ *
+ * **A throw, not `{ ok: false }`.** `subscribe`'s contract is that a denied
+ * subscribe answers `{ ok: false }` and a caller bug throws; a cap breach is
+ * neither — it is resource exhaustion driven by a legitimate client. Answering
+ * `{ ok: false }` would make it indistinguishable from an authorization denial
+ * in every application's client code.
+ */
+export class ChannelLimitError extends Error {
+    override readonly name = 'ChannelLimitError'
+
+    /**
+     * @param scope - Which cap was breached.
+     * @param count - The count at the moment of the breach.
+     * @param limit - The cap that was reached.
+     */
+    constructor(
+        readonly scope: 'instance' | 'connection',
+        readonly count: number,
+        readonly limit: number,
+    ) {
+        super(
+            `realtime: this ${scope} already holds ${count} watched ` +
+                `channel(s), at the limit of ${limit} (#295). Each one is a ` +
+                'broker subscription re-issued on every reconnect, so the set ' +
+                'is bounded deliberately — raise the limit knowing that, or ' +
+                'shard the deployment.',
+        )
+    }
+}
+
 export class ChannelNameError extends Error {
     override readonly name = 'ChannelNameError'
 
@@ -79,6 +132,7 @@ import type { Connection, WebSocketHooks } from './types.ts'
 import type {
     BroadcastDriver,
     BroadcastMessage,
+    ChannelWatchCapableDriver,
     ControlMessage,
     PresenceCapableDriver,
 } from './driver.ts'
@@ -116,6 +170,39 @@ export function presenceRoster(
             typeof driver.removeMember === 'function' &&
             typeof driver.listMembers === 'function'
         ? driver as PresenceCapableDriver
+        : undefined
+}
+
+/**
+ * Narrow a driver to one that subscribes per channel, or `undefined`.
+ *
+ * **The single feature-detect guard for the watch pair**, on `presenceRoster`'s
+ * precedent and for the same reason: repeating `if (driver.watchChannel)` at
+ * each call site is how one site gets it and another does not.
+ *
+ * **Detected as a SET, never member by member.** A driver offering
+ * `watchChannel` without `unwatchChannel` would accumulate one permanent
+ * subscription per channel it ever hosted — monotonic over the process
+ * lifetime, strictly worse than the prefix-wide subscription it replaces, and
+ * invisible because delivery stays correct throughout. Such a driver keeps
+ * today's behaviour instead.
+ *
+ * @param driver - The broadcast driver to probe.
+ * @returns The driver narrowed to {@link ChannelWatchCapableDriver} when it
+ *   exposes both ops, otherwise `undefined`.
+ *
+ * @example
+ * ```ts
+ * const watcher = channelWatcher(driver)
+ * if (watcher) await watcher.watchChannel(channel)
+ * ```
+ */
+export function channelWatcher(
+    driver: BroadcastDriver,
+): ChannelWatchCapableDriver | undefined {
+    return typeof driver.watchChannel === 'function' &&
+            typeof driver.unwatchChannel === 'function'
+        ? driver as ChannelWatchCapableDriver
         : undefined
 }
 
@@ -168,6 +255,16 @@ export class ChannelManager<Identity = unknown> {
     private readonly connections = new Map<string, Connection<Identity>>()
     private readonly subscriptions = new Map<string, Set<string>>()
     /**
+     * Reverse index: which channels each connection holds.
+     *
+     * A different question from `subscriptions`, not a second answer to the same
+     * one — hosting is read from `subscriptions` and nowhere else. Written only
+     * inside {@link #joinLocal} / {@link #leaveLocal}, so it cannot drift.
+     */
+    readonly #channelsByClient = new Map<string, Set<string>>()
+    /** The driver's per-channel watch ops, or `undefined` — one guard (#295). */
+    #watcher: ChannelWatchCapableDriver | undefined
+    /**
      * The **local** presence members this instance's sockets own, per channel
      * (`clientId → member`). NOT the authoritative roster (that is the driver,
      * possibly remote — decision-table §5): this map only records what THIS
@@ -198,6 +295,8 @@ export class ChannelManager<Identity = unknown> {
                     `realtime: broadcast publish failed: ${renderError(error)}`,
                 ))
         this.roster = presenceRoster(this.driver)
+        // ONE guard, at construction, for the whole watch pair (#295).
+        this.#watcher = channelWatcher(this.driver)
         // Local + cross-process delivery share this one path.
         this.driver.onMessage((message) => this.deliverLocal(message))
         // A cross-process driver's control plane is a DISTINCT seam (A2/FR-016):
@@ -427,9 +526,11 @@ export class ChannelManager<Identity = unknown> {
             }
         }
 
+        // BEFORE any membership mutation, and after authorization: an
+        // unauthorized subscribe is denied on its own terms, and a cap breach
+        // is not an authorization outcome (#295/FR-017, §5 row 14).
+        this.#checkChannelCaps(channel, connection.id)
         this.connections.set(connection.id, connection)
-        let set = this.subscriptions.get(channel)
-        if (!set) this.subscriptions.set(channel, set = new Set())
 
         if (kind === 'presence' && member) {
             // Notify existing LOCAL subscribers of the join BEFORE adding the
@@ -441,7 +542,7 @@ export class ChannelManager<Identity = unknown> {
                 action: 'joined',
                 member,
             })
-            set.add(connection.id)
+            await this.#joinLocal(channel, connection.id)
             // Track it as a local member so a later leave knows what to remove.
             let members = this.presence.get(channel)
             if (!members) this.presence.set(channel, members = new Map())
@@ -460,8 +561,147 @@ export class ChannelManager<Identity = unknown> {
             return { ok: true, members: await this.rosterSnapshot(channel) }
         }
 
-        set.add(connection.id)
+        await this.#joinLocal(channel, connection.id)
         return { ok: true }
+    }
+
+    /**
+     * Add a connection to a channel's local set — **the only writer**, with
+     * {@link #leaveLocal}, of `subscriptions` (#295).
+     *
+     * Two add sites and no funnel is how a `watchChannel` gets written at one
+     * and forgotten at the other, leaving a channel hosted-but-unwatched: every
+     * message dropped while `subscribe` answers `{ ok: true }`, and nothing
+     * logged.
+     *
+     * **The 0→1 test is computed in the SAME SYNCHRONOUS TURN as the add.** The
+     * only `await` is the wire op that follows the decision. Reading the
+     * transition after an await is what let a join during a leave's roster
+     * round-trip unwatch a channel with a live authorized subscriber —
+     * permanently, since the reconnect that heals every other deafness is
+     * guaranteed not to re-issue a channel that left the re-issue set.
+     *
+     * @param channel - The channel being joined.
+     * @param clientId - The joining connection.
+     */
+    /**
+     * Report — and, from the next release, refuse — a subscribe that would take
+     * this instance or this connection past its watched-channel cap.
+     *
+     * **Only a join that GROWS a set counts.** A second client on a hosted
+     * channel adds no subscription, and a client re-joining a channel it
+     * already holds adds nothing either; charging for those would refuse work
+     * that costs the broker nothing.
+     *
+     * This release WARNs and admits the subscribe (FR-017b). The next one
+     * replaces each `console.warn` below with `throw new ChannelLimitError(…)`
+     * and deletes this comment — the WARN is a shim with a filed removal, not a
+     * permanent state.
+     *
+     * @param channel - The channel being joined.
+     * @param clientId - The joining connection.
+     */
+    #checkChannelCaps(channel: string, clientId: string): void {
+        if (
+            !this.subscriptions.has(channel) &&
+            this.subscriptions.size >= MAX_WATCHED_CHANNELS
+        ) {
+            console.warn(
+                `realtime: this instance holds ${this.subscriptions.size} ` +
+                    `watched channels, at the limit of ` +
+                    `${MAX_WATCHED_CHANNELS} (#295). The next release REFUSES ` +
+                    'this subscribe with a ChannelLimitError; this one admits ' +
+                    'it so you can see the number first.',
+            )
+        }
+        const owned = this.#channelsByClient.get(clientId)
+        if (
+            !owned?.has(channel) &&
+            (owned?.size ?? 0) >= MAX_CHANNELS_PER_CONNECTION
+        ) {
+            console.warn(
+                `realtime: connection ${safeForLog(clientId)} holds ${
+                    owned?.size ?? 0
+                } watched channels, at the limit of ` +
+                    `${MAX_CHANNELS_PER_CONNECTION} (#295). The next release ` +
+                    'REFUSES this subscribe with a ChannelLimitError; this one ' +
+                    'admits it so you can see the number first.',
+            )
+        }
+    }
+
+    async #joinLocal(channel: string, clientId: string): Promise<void> {
+        let set = this.subscriptions.get(channel)
+        if (!set) this.subscriptions.set(channel, set = new Set())
+        const wasHosted = set.size > 0
+        set.add(clientId)
+        // The reverse index. NOT a second counter — hosting is still read from
+        // `subscriptions` and only from there. This answers a different
+        // question, "which channels does THIS connection hold", which
+        // `Map<channel, Set<clientId>>` can only answer by scanning every
+        // channel. `disconnect` and the per-connection cap both need it.
+        let owned = this.#channelsByClient.get(clientId)
+        if (!owned) this.#channelsByClient.set(clientId, owned = new Set())
+        owned.add(channel)
+        if (wasHosted) return
+        await this.#watch(channel)
+    }
+
+    /**
+     * Remove a connection from a channel's local set, and stop hosting the
+     * channel when it was the last one.
+     *
+     * Returns without a wire op when the connection was not a member — which is
+     * what keeps `disconnect` from firing an unwatch for every channel this
+     * instance has ever hosted.
+     *
+     * **The empty `Set` is DELETED**, so `subscriptions.has(channel)` is the one
+     * spelling of "this instance hosts it". Leaving an empty set behind gives
+     * "not hosted" two spellings and grows the map without bound.
+     *
+     * @param channel - The channel being left.
+     * @param clientId - The leaving connection.
+     */
+    async #leaveLocal(channel: string, clientId: string): Promise<void> {
+        const set = this.subscriptions.get(channel)
+        if (!set?.delete(clientId)) return
+        this.#channelsByClient.get(clientId)?.delete(channel)
+        if (set.size > 0) return
+        this.subscriptions.delete(channel)
+        await this.#watcher?.unwatchChannel(channel)
+    }
+
+    /**
+     * Ask the driver to subscribe to `channel`, and survive its refusal.
+     *
+     * **A rejection keeps the membership.** The driver records the channel in
+     * whatever set it re-issues, so a self-healing driver restores delivery on
+     * its next successful activation; dropping the membership here would turn a
+     * transient write failure into permanent local deafness. The join window is
+     * then the driver's retry backoff, which is a documented guarantee change
+     * rather than a silent one.
+     *
+     * `{ ok: true }` still, deliberately: the join succeeded and delivery
+     * resumes. `{ ok: false }` would make resource-level trouble
+     * indistinguishable from an authorization denial in every application's
+     * client code — the same argument `ChannelLimitError` makes from the other
+     * side.
+     *
+     * @param channel - The channel to begin receiving.
+     */
+    async #watch(channel: string): Promise<void> {
+        const watcher = this.#watcher
+        if (!watcher) return
+        try {
+            await watcher.watchChannel(channel)
+        } catch (error) {
+            console.warn(
+                `realtime: the driver could not subscribe to ${
+                    safeForLog(channel)
+                } — the membership is kept and the driver's own retry is what ` +
+                    `restores delivery: ${renderError(error)}`,
+            )
+        }
     }
 
     /**
@@ -504,7 +744,7 @@ export class ChannelManager<Identity = unknown> {
     // after it. Accepting a name we would no longer create is the correct
     // asymmetry: creation is guarded, cleanup is total.
     async unsubscribe(clientId: string, channel: string): Promise<void> {
-        this.subscriptions.get(channel)?.delete(clientId)
+        await this.#leaveLocal(channel, clientId)
         const members = this.presence.get(channel)
         const member = members?.get(clientId)
         if (members && member) {
@@ -539,10 +779,62 @@ export class ChannelManager<Identity = unknown> {
      * @returns Resolves once every channel leave has been applied.
      */
     async disconnect(clientId: string): Promise<void> {
-        for (const channel of [...this.subscriptions.keys()]) {
-            await this.unsubscribe(clientId, channel)
+        // THIS CONNECTION'S channels, not every channel this instance has ever
+        // hosted. The old loop walked `subscriptions.keys()` and called
+        // `unsubscribe` for all of them, which was harmless only because a
+        // non-member delete is a no-op — and stopped being harmless the moment
+        // a 1→0 transition acquired a wire op. It was also O(channels under the
+        // prefix) per disconnect.
+        let failure: unknown
+        try {
+            for (
+                const channel of [...this.#channelsByClient.get(clientId) ?? []]
+            ) {
+                // ONE CHANNEL'S TEARDOWN CANNOT ABORT THE REST.
+                //
+                // `unsubscribe` awaits three rejectable calls — the driver's
+                // unwatch, the roster removal and the control publish — and a
+                // single transient fault used to throw straight out of this
+                // loop, leaving every later channel unwatched AND the two
+                // deletes below unreached. The connection then sat in
+                // `connections`, in the reverse index and in `subscriptions`
+                // for the life of the process, permanently charged against its
+                // own cap.
+                //
+                // The JOIN path already contains driver faults deliberately
+                // (`#watch`); the leave path did not, and a leave is exactly
+                // where giving up is least affordable.
+                try {
+                    await this.unsubscribe(clientId, channel)
+                } catch (error) {
+                    // COLLECTED, NOT SWALLOWED. The first failure is re-thrown
+                    // below so `disconnect`'s contract is unchanged — the evict
+                    // path's own WARN is what reports it, and swallowing here
+                    // made that line unreachable. Only the SUBSEQUENT ones are
+                    // logged here, because they are the ones no caller will
+                    // ever see.
+                    if (failure === undefined) failure = error
+                    else {
+                        console.warn(
+                            `realtime: tearing ${
+                                safeForLog(clientId)
+                            } out of ` +
+                                `${safeForLog(channel)} also failed: ` +
+                                renderError(error),
+                        )
+                    }
+                }
+            }
+        } finally {
+            // IN A `finally`: forgetting the connection is the one part of a
+            // disconnect that must happen whatever else did not.
+            this.#channelsByClient.delete(clientId)
+            this.connections.delete(clientId)
         }
-        this.connections.delete(clientId)
+        // AFTER the teardown completed and the connection was forgotten. The
+        // caller still learns the disconnect was not clean; what it no longer
+        // does is decide how much of the teardown ran.
+        if (failure !== undefined) throw failure
     }
 
     /**

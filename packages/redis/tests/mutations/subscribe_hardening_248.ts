@@ -17,6 +17,25 @@
  * `expectSurvival` are guards with no witness, recorded rather than hidden —
  * see the notes on each.
  *
+ * **The four `#296` rows were verified ROW BY ROW on 2026-09-08, not by a full
+ * run.** Three attempts at the whole battery with a broker attached were killed
+ * by memory pressure on the development machine. Each row was instead applied
+ * on its own and checked against the ONE file that kills it, which is a
+ * fraction of the memory and says more than a green summary would:
+ *
+ * | Row | Killed by |
+ * | :--- | :--- |
+ * | the handler call is unguarded again | `live_subscribe_liveness.test.ts` |
+ * | the pattern is logged unencoded | `live_subscribe_liveness.test.ts` |
+ * | an ASYNC handler rejection escapes containment | `subscriber.test.ts` — 20 failures |
+ * | the per-generation fault counter never resets | recorded survivor |
+ *
+ * Two of those rows' anchors had to be repaired first: #295 split delivery into
+ * `#deliver`, so `pattern.value` became `key` at both containment sites. The
+ * hermetic run could not have told us — it SKIPS these rows rather than
+ * attempting them, so the dead anchors would have surfaced on the next nightly
+ * run with a broker attached instead of here.
+ *
  * @module @lockness/redis/tests/mutations/subscribe_hardening_248
  */
 
@@ -352,7 +371,10 @@ const MUTATIONS: Mutation[] = [
         label: '#296 the handler call is unguarded again',
         file: SUB,
         edits: [[
-            '} catch (error) {\n            this.#reportHandlerFault(pattern.value, error)\n        }',
+            // `key`, not `pattern.value`: #295 split delivery into `#deliver`,
+            // whose parameter is the name the handler was RECORDED under — a
+            // glob for a `pmessage`, the channel itself for a `message`.
+            '} catch (error) {\n            this.#reportHandlerFault(key, error)\n        }',
             '} catch (error) {\n            throw error\n        }',
         ]],
         killedBy: '(uncaught error)',
@@ -370,7 +392,7 @@ const MUTATIONS: Mutation[] = [
         label: '#296 an ASYNC handler rejection escapes containment',
         file: SUB,
         edits: [[
-            'Promise.resolve(result).catch((error: unknown) =>\n                    this.#reportHandlerFault(pattern.value, error)\n                )',
+            'Promise.resolve(result).catch((error: unknown) =>\n                    this.#reportHandlerFault(key, error)\n                )',
             'void result',
         ]],
         killedBy: '(uncaught error)',

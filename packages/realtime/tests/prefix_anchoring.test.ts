@@ -152,6 +152,11 @@ import { isAnchored, recordingPorts } from './recording_ports.ts'
  */
 const PREFIX_MEMBERS: readonly string[] = [
     'topic',
+    // The PATTERN-context sibling of `topic` (#295). Two members, same bytes
+    // today, because `PUBLISH` is a literal context and `PSUBSCRIBE` a pattern
+    // one — and it is driven by `exercise`'s `watchChannel` call, not merely
+    // listed here.
+    'eventPattern',
     'controlTopic',
     'presenceKey',
     'ownedKey',
@@ -179,6 +184,20 @@ const PREFIX_MEMBERS: readonly string[] = [
  * the two lists it belongs in — which is the whole point of pinning either.
  */
 const PREFIX_FRAGMENTS: readonly string[] = ['eventTopicPrefix']
+
+/**
+ * Pinned members that build on a {@link PREFIX_FRAGMENTS} entry rather than
+ * interpolating `prefix` themselves.
+ *
+ * `FR-004 source` counts DIRECT interpolation sites, so a member that reaches
+ * the prefix through a fragment contributes no site of its own. Declared rather
+ * than inferred: the alternative is a count that quietly stops matching, which
+ * is how that assertion would go from a check to a formality.
+ *
+ * `topic` and `eventPattern` are the pair — a `PUBLISH` argument and a
+ * `PSUBSCRIBE` pattern, same bytes today, deliberately two builders (#295).
+ */
+const FRAGMENT_DERIVED: readonly string[] = ['topic', 'eventPattern']
 
 /**
  * Canned replies that reach the read-only legacy paths without a store.
@@ -226,6 +245,12 @@ async function exercise(prefix: string) {
     })
     try {
         driver.onMessage(() => {})
+        // DRIVES `eventPattern` (#295). Under per-channel subscribe `onMessage`
+        // registers the decoder and subscribes nothing; the event topic reaches
+        // the wire through `watchChannel`, so an exercise that stopped at
+        // `onMessage` would leave the suite asserting anchoring on a pattern
+        // the driver no longer issues.
+        await driver.watchChannel('room')
         driver.onControl(() => {})
         driver.onRevocationReconcile(() => {})
         await driver.publish({ channel: 'room', event: 'e', data: {} })
@@ -252,11 +277,16 @@ Deno.test('FR-001: BOTH psubscribe sites are captured, by count', async () => {
     assertEquals(
         recording.subscriptions.length,
         2,
-        'the driver subscribes twice — events (drivers/redis.ts:635) and ' +
-            'control (:671). Capturing one and asserting on it proves half.',
+        'the driver subscribes twice — one WATCHED CHANNEL and control. ' +
+            'Capturing one and asserting on it proves half.',
     )
     const patterns = recording.subscriptions.map((s) => s.pattern).sort()
-    assertEquals(patterns, ['app__control', 'app__event:*'])
+    // `app__event:room`, not `app__event:*`. Under #295 the events side is one
+    // exact topic per hosted channel rather than one glob for the whole prefix,
+    // which makes this suite stronger rather than weaker: it now anchors the
+    // string the broker actually matches against, and the channel name is the
+    // half a nested prefix could once reach into.
+    assertEquals(patterns, ['app__control', 'app__event:room'])
 })
 
 Deno.test('FR-003: anchoring is prefix PLUS a separator, not startsWith', () => {
@@ -338,7 +368,13 @@ Deno.test('SC-001: every prefix-derived name is anchored', async () => {
             'alpha:revoked:conn-legacy',
             'alpha__alive:<id>',
             'alpha__control',
-            'alpha__event:*',
+            // `alpha__event:*` USED TO BE HERE and is gone (#295): the events
+            // side is now one exact topic per hosted channel, so the only
+            // event name the driver derives is the channel's own. Removing it
+            // narrows what this set covers by exactly one glob and widens what
+            // the suite proves — an exact topic is the string the broker
+            // matches against, and the channel half is the part a nested prefix
+            // could once reach into.
             'alpha__event:room',
             'alpha__instances',
             'alpha__owned:<id>',
@@ -409,8 +445,20 @@ Deno.test('FR-006: every pinned member is actually driven by the exercise', asyn
         legacyRevokedIndexKey: 'alpha:revoked',
         legacyRevokedKey: 'alpha:revoked:',
     }
+    // `eventPattern` is checked SEPARATELY, and the reason is the point of
+    // splitting it from `topic` at all: the two produce the same bytes today,
+    // so a string-blob search cannot tell which builder made the hit and would
+    // report `eventPattern` as driven even if `watchChannel` never ran. The
+    // SUBSCRIPTION list can tell — that string reaches it only through a watch.
+    assert(
+        recording.subscriptions.some((sub) =>
+            sub.pattern === 'alpha__event:room'
+        ),
+        'eventPattern was not driven: no subscription carries the channel ' +
+            'topic, so the exercise never reached watchChannel',
+    )
     assertEquals(
-        Object.keys(shapes).sort(),
+        [...Object.keys(shapes), 'eventPattern'].sort(),
         [...PREFIX_MEMBERS].sort(),
         'every pinned member has a shape to look for',
     )
@@ -690,6 +738,12 @@ async function deliver(prefix: string, topic: string, payload: string) {
     const driver = new RedisBroadcastDriver(command, subscriber, { prefix })
     const got: { channel: string; event: string }[] = []
     driver.onMessage((m) => got.push({ channel: m.channel, event: m.event }))
+    // The event subscription now comes from a WATCH, not from `onMessage`
+    // (#295). Which channel is watched is irrelevant here — the decoder derives
+    // the channel from the DELIVERED topic, which is the property these two
+    // tests exist to pin, and a helper that watched the topic under test would
+    // hide exactly that.
+    await driver.watchChannel('room')
     // Events only: this helper never registers `onControl`, and that seam is
     // what opens the control subscription (drivers/redis.ts, `onControl`).
     const events = eventSubscriptions(prefix, recording.subscriptions)
@@ -797,9 +851,12 @@ Deno.test('FR-004 source: EVERY derived name carries the reserved lead-in', asyn
         ),
     ].map((m) => ({ member: m[1], tail: m[2] }))
 
+    const expectedSites = PREFIX_MEMBERS.length - FRAGMENT_DERIVED.length +
+        PREFIX_FRAGMENTS.length
     assert(
-        sites.length >= PREFIX_MEMBERS.length,
-        `only ${sites.length} direct interpolation sites found; the regex has ` +
+        sites.length >= expectedSites,
+        `only ${sites.length} direct interpolation sites found, expected at ` +
+            `least ${expectedSites}; the regex has ` +
             'drifted from the source and this check is not looking at the ' +
             'driver any more',
     )
@@ -853,12 +910,19 @@ Deno.test('FR-004: a subscription reaches ONLY its own family, within one prefix
         // The control topic is glob-free and reaches only itself, which is not
         // in `names` — so nothing.
         [control.pattern, []],
-        // An event subscription reaches event topics and nothing else. The
-        // exercise publishes on exactly one channel.
-        ...events.map((s): [string, string[]] => [
-            s.pattern,
-            ['alpha__event:room'],
-        ]),
+        // An event subscription now reaches NOTHING outside itself, and that
+        // is a stronger result than the one this line used to assert (#295).
+        //
+        // Under the prefix-wide glob it reached a SET — every event topic under
+        // the prefix — and the hazard this test guards was a family nested
+        // under it: `__event:sub:` yields `alpha__event:sub:x`, which
+        // `alpha__event:*` matches. An exact-topic subscription has no such
+        // reach: it matches one string, its own, which the `names` filter
+        // excludes because it is also a recorded pattern.
+        //
+        // The guard is kept rather than deleted. It still covers the control
+        // subscription, and it is what would fire the day any glob comes back.
+        ...events.map((s): [string, string[]] => [s.pattern, []]),
     ]
 
     for (const [pattern, expected] of expectations) {

@@ -218,6 +218,59 @@ export interface BroadcastDriver {
      * @param handler - Called with no arguments on each reconcile tick.
      */
     onRevocationReconcile?(handler: () => void | Promise<void>): void
+    /**
+     * OPTIONAL (#295). Declare that this instance now hosts `channel`, so the
+     * driver subscribes to its traffic and nothing else's.
+     *
+     * A driver that omits this — or that omits {@link unwatchChannel} — keeps
+     * today's behaviour: one prefix-wide subscription, every channel's traffic
+     * on every instance. The two are detected **as a set**, never
+     * independently: watching without unwatching makes the subscribed set
+     * monotonic over the process lifetime, which is strictly worse than the
+     * behaviour it replaces and invisible, because delivery stays correct.
+     *
+     * **The awaited guarantee is the write leg only.** It resolves once the
+     * subscribe frame has reached the broker socket — never that delivery has
+     * started, which no driver can promise without waiting on the broker's own
+     * acknowledgement. The residual is one round trip **plus the queue depth
+     * ahead of the frame**, since a driver may serialize its writes.
+     *
+     * A rejection means the frame did not reach the socket. It does not mean
+     * the channel is unhosted: the caller keeps the membership, because a
+     * driver that self-heals will re-issue the subscription and delivery
+     * resumes.
+     *
+     * @param channel - The channel this instance has begun hosting.
+     * @returns Resolves once the subscribe frame is on the wire.
+     * @throws If the frame could not be written.
+     */
+    watchChannel?(channel: string): void | Promise<void>
+    /**
+     * OPTIONAL (#295). Declare that this instance no longer hosts `channel`.
+     *
+     * Removes the subscription **and** the channel from whatever set the driver
+     * re-issues after a reconnect. A driver that unsubscribes on the wire and
+     * leaves the channel in its re-issue set resurrects it on the next fault —
+     * a leak that only appears under fault, and one that decays the fan-out win
+     * silently back toward the behaviour this replaces.
+     *
+     * @param channel - The channel this instance has stopped hosting.
+     * @returns Resolves once the unsubscribe frame is on the wire.
+     * @throws If the frame could not be written.
+     */
+    unwatchChannel?(channel: string): void | Promise<void>
+}
+
+/**
+ * A {@link BroadcastDriver} narrowed to one that subscribes per channel — both
+ * watch ops are guaranteed present. Obtain it from `channelWatcher`, never by
+ * testing the members at a call site.
+ */
+export interface ChannelWatchCapableDriver extends BroadcastDriver {
+    /** Declare that this instance hosts `channel`. */
+    watchChannel(channel: string): void | Promise<void>
+    /** Declare that this instance no longer hosts `channel`. */
+    unwatchChannel(channel: string): void | Promise<void>
 }
 
 /**

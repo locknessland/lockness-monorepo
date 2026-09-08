@@ -1013,6 +1013,24 @@ integrationTest(
             const innerControl: string[] = []
             outer.onControl((c) => outerControl.push(`${c.kind}/${c.target}`))
             inner.onControl((c) => innerControl.push(`${c.kind}/${c.target}`))
+            // EVERY CHANNEL THIS SCENARIO USES IS WATCHED EXPLICITLY (#295).
+            //
+            // These two drivers are built directly rather than through
+            // `withInstances`, so nothing watches on their behalf. Under
+            // per-channel subscribe `onMessage` subscribes nothing at all, and
+            // an unwatched channel would make the isolation assertions below
+            // pass for the emptiest possible reason — nobody receiving
+            // anything, which the positive controls exist to rule out.
+            //
+            // `orders` on BOTH: the scenario publishes it from each deployment
+            // in turn, and the point is that each receives only its own.
+            for (const channel of [keys(outerPrefix).probeChannel, 'orders']) {
+                await outer.watchChannel(channel)
+            }
+            for (const channel of [keys(innerPrefix).probeChannel, 'orders']) {
+                await inner.watchChannel(channel)
+            }
+            await outer.watchChannel('own')
             await awaitSubscribers(reader, outerPrefix, 1)
             await awaitSubscribers(reader, innerPrefix, 1)
             // The readiness gate PUBLISHes a real event on each deployment's
@@ -1100,5 +1118,185 @@ integrationTest(
             await outer.close()
             await inner.close()
         }
+    },
+)
+
+// ---------------------------------------------------------------------------
+// #295 — per-channel subscribe: the fan-out claim, measured on a real broker
+// ---------------------------------------------------------------------------
+
+integrationTest(
+    '#295/SC-001: an instance receives NO frame for a channel it does not host',
+    async (namespace, reader) => {
+        // The whole point of the feature, and the measurement is the broker's
+        // own: `PUBLISH` returns how many subscribers it delivered to. That is
+        // exact, needs no client instrumentation, and — unlike counting frames
+        // at a socket — cannot be satisfied by timing or by sampling at the
+        // wrong moment. The pre-change figure is recorded in `baseline.md`:
+        // an instance hosting `alpha` only still counted as a receiver for a
+        // publish to `beta`.
+        await withInstances(2, namespace, async ([a, b]) => {
+            await awaitSubscribers(reader, namespace, 2)
+            const topic = (channel: string) => `${namespace}__event:${channel}`
+            const receivers = async (channel: string): Promise<number> => {
+                const reply = await reader.command(
+                    'PUBLISH',
+                    topic(channel),
+                    JSON.stringify({ event: 'e', data: null }),
+                )
+                return reply.type === 'integer' ? reply.value : -1
+            }
+
+            await a.manager.subscribe(
+                connection('a1', { id: 1, name: 'a1' }),
+                'alpha',
+            )
+            await b.manager.subscribe(
+                connection('b1', { id: 2, name: 'b1' }),
+                'beta',
+            )
+            // Both watches have to have LANDED before a count means anything.
+            // The probe channel every instance holds is already proof the
+            // sockets are up; this waits for these two specific subscriptions.
+            await waitFor(
+                async () =>
+                    await receivers('alpha') === 1 &&
+                    await receivers('beta') === 1,
+                'each channel is hosted by exactly ONE instance',
+            )
+
+            assertEquals(
+                await receivers('alpha'),
+                1,
+                'a publish to `alpha` must reach exactly the instance hosting ' +
+                    'it — 2 would mean the prefix-wide glob is still live, 0 ' +
+                    'that the watch never landed',
+            )
+            assertEquals(
+                await receivers('beta'),
+                1,
+                'and `beta` likewise, on the other instance',
+            )
+            assertEquals(
+                await receivers('gamma-nobody-hosts-this'),
+                0,
+                'a channel NO instance hosts must reach nobody at all. Before ' +
+                    'this feature every instance under the prefix counted as a ' +
+                    'receiver for it (see baseline.md).',
+            )
+        })
+    },
+)
+
+integrationTest(
+    '#295/SC-006: after the last leaver, the channel reaches nobody',
+    async (namespace, reader) => {
+        // Measured at the BROKER, not at delivery. A subscription with no
+        // handler delivers nothing and still costs bandwidth on every publish,
+        // so "the handler stopped firing" is the wrong instrument — it is green
+        // for a channel whose subscription is still live.
+        await withInstances(1, namespace, async ([a]) => {
+            await awaitSubscribers(reader, namespace, 1)
+            const receivers = async (): Promise<number> => {
+                const reply = await reader.command(
+                    'PUBLISH',
+                    `${namespace}__event:alpha`,
+                    JSON.stringify({ event: 'e', data: null }),
+                )
+                return reply.type === 'integer' ? reply.value : -1
+            }
+
+            await a.manager.subscribe(
+                connection('a1', { id: 1, name: 'a1' }),
+                'alpha',
+            )
+            await a.manager.subscribe(
+                connection('a2', { id: 3, name: 'a2' }),
+                'alpha',
+            )
+            await waitFor(
+                async () => await receivers() === 1,
+                'alpha is hosted',
+            )
+
+            await a.manager.unsubscribe('a1', 'alpha')
+            assertEquals(
+                await receivers(),
+                1,
+                'a NON-last leaver must not unsubscribe — a2 still holds it',
+            )
+            await a.manager.unsubscribe('a2', 'alpha')
+            await waitFor(
+                async () => await receivers() === 0,
+                'the LAST leaver stopped the traffic at the broker',
+            )
+        })
+    },
+)
+
+integrationTest(
+    '#295/US4: a channel dropped BEFORE a fault is not resurrected by the reconnect',
+    async (namespace, reader) => {
+        // A subscription a reconnect brings back is a leak that only appears
+        // under fault — the worst moment to discover anything — and it decays
+        // the fan-out win silently, because delivery stays correct throughout.
+        //
+        // Measured with the broker's receiver count, not with delivery: a
+        // resurrected subscription with no local subscriber delivers nothing
+        // and still costs bandwidth on every publish, so "the handler stopped
+        // firing" is green for exactly the defect this forbids.
+        await withInstances(1, namespace, async ([a]) => {
+            await awaitSubscribers(reader, namespace, 1)
+            const receivers = async (channel: string): Promise<number> => {
+                const reply = await reader.command(
+                    'PUBLISH',
+                    `${namespace}__event:${channel}`,
+                    JSON.stringify({ event: 'e', data: null }),
+                )
+                return reply.type === 'integer' ? reply.value : -1
+            }
+
+            await a.manager.subscribe(
+                connection('keep', { id: 1, name: 'keep' }),
+                'kept',
+            )
+            await a.manager.subscribe(
+                connection('drop', { id: 2, name: 'drop' }),
+                'dropped',
+            )
+            await waitFor(
+                async () =>
+                    await receivers('kept') === 1 &&
+                    await receivers('dropped') === 1,
+                'both channels are hosted',
+            )
+
+            // The last leaver of `dropped` goes; `kept` keeps its subscriber.
+            await a.manager.unsubscribe('drop', 'dropped')
+            await waitFor(
+                async () => await receivers('dropped') === 0,
+                'the unwatch landed before the fault',
+            )
+
+            // Force the subscribe socket to fault. `CLIENT KILL TYPE pubsub`
+            // reaches only subscribe-mode connections, so the reader issuing it
+            // is not killing itself.
+            await reader.command('CLIENT', 'KILL', 'TYPE', 'pubsub')
+
+            // The reconnect re-issues what is still hosted…
+            await waitFor(
+                async () => await receivers('kept') === 1,
+                'the reconnect restored the channel that is still hosted',
+                15_000,
+            )
+            // …and only that.
+            assertEquals(
+                await receivers('dropped'),
+                0,
+                'the reconnect resurrected a channel whose last subscriber had ' +
+                    'left — the re-issue set and the hosted set have diverged, ' +
+                    'and nothing would have shown it until the next fault',
+            )
+        })
     },
 )
