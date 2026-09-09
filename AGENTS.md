@@ -92,6 +92,27 @@ blockers, not preferences.
    spanning multiple categories, split into multiple commits — never bundle
    "feat + chore + docs" into one. Linear history only (no merge commits when
    fast-forward is possible).
+10. **This repository is public — versioned files carry no secrets and no detail
+    about the maintainer's environment.** Never write into anything that gets
+    committed (source, docs, `.specnaut/` plans and tasks, agent briefs, skills,
+    commit messages, PR bodies) any of: where a credential is stored, which
+    credentials exist, their scope or lifetime, host / port / container layout
+    of the developer's machine, or a private exchange about it. Use placeholders
+    — `JSR_TOKEN=<token>`, not a real prefix and not a file path.
+
+    `.gitignore` protects a secret's **value**; it does not protect a sentence
+    naming where to find that value, and in a public repo such a sentence is
+    free reconnaissance for anyone reading. The test is not "is the secret
+    exposed?" but **"who reads this file?"**
+
+    **Security findings about Lockness are the explicit exception, and they are
+    wanted.** A vulnerability in framework code belongs in a tracked backlog
+    issue — that is how it gets traced and fixed, and it describes the
+    framework, not the person maintaining it. The line: **the framework's
+    weaknesses are public engineering; the developer's environment is not.**
+
+    A fact that belongs nowhere versioned goes to the session's private project
+    memory instead — outside the repo, never published.
 
 ---
 
