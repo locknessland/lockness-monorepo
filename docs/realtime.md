@@ -58,6 +58,29 @@ approves; an unauthorized connection never receives that channel's events. A
 presence channel returns the current member roster and emits join/leave to
 members only.
 
+### What a `joined` frame promises — and what it does not
+
+**A `joined` frame emitted by the instance the member joined on follows a
+successful authoritative roster write.** The join writes the roster first and
+announces second, so no subscriber is ever told about a member the roster
+refused. If that write fails the subscribe rejects, nothing was announced, and
+the attempt leaves no trace — the same connection can retry the same channel and
+produces exactly one member.
+
+**A `joined` frame on any OTHER instance reflects an announcement, not a roster
+read.** Cross-instance presence travels the control plane, and a receiving
+instance re-emits the frame it was handed without consulting the roster. A lost
+or refused control frame therefore costs the announcement on those instances,
+never the roster — a member missing from someone's view is still `here` to
+anyone who reads the roster.
+
+**Presence is an announcement channel, not an authorization source.** Do not
+grant an action because a presence frame or a `here` snapshot says a member is
+in a room; re-authorize the action itself. Presence tells you who is _believed_
+present, promptly and usually correctly. Authorization is a different question,
+and the two diverge exactly when it matters — during a partition, an eviction,
+or a control frame that did not arrive.
+
 **Revocation** — authorization is point-in-time at subscribe. Fan-out is not
 re-authorized per message; it delivers to the subscription set the authorizer
 approved at subscribe time. **Eviction is therefore the one revocation path.**
@@ -575,18 +598,64 @@ The `here` set for a presence channel is owned by the driver in Redis (a
 per-channel member store), not by any one instance's memory. When a client joins
 `presence-lobby` on instance A and another joins on instance B, `subscribe`
 returns the **cross-instance** roster (both members) and a `joined` frame
-reaches presence subscribers on **both** instances. A leave — `unsubscribe`,
-`disconnect`, or a socket close — removes the member from the authoritative
-roster and fans a `left` to every instance.
+reaches presence subscribers on **both** instances.
+
+**When that read fails, the snapshot narrows — and says so.** If the driver
+cannot answer the closing roster read, `subscribe` still returns `{ ok: true }`
+— the join committed, on the roster and on every instance, so reporting a
+failure would be a lie — but `members` then holds **only this instance's own
+members**, and a `WARN` is emitted naming the channel.
+
+**`result.rosterSource` says which you got**: `'authoritative'` for every
+instance's roster, `'local'` for this instance's members alone. Check it before
+treating `members` as a count of everybody present — a fragment and a whole
+roster are otherwise indistinguishable to the caller that has to act on them. A
+driver with no roster capability is single-process, so its local view _is_ the
+authority and reports `'authoritative'`.
+
+```ts
+const { members, rosterSource } = await manager.subscribe(
+    conn,
+    'presence-lobby',
+)
+if (rosterSource === 'local') {
+    // A partial view: render it, but do not assert on its size. The join/leave
+    // frames that follow are what bring it current.
+}
+```
+
+A leave — `unsubscribe`, `disconnect`, or a socket close — removes the member
+from the authoritative roster and fans a `left` to every instance.
 
 Fan-out itself stays pure pub/sub: the roster is consulted on
 subscribe/unsubscribe/evict only, never on the per-event delivery path.
 
-**Ghost sweep.** Each instance carries an owner id on the roster entries it adds
-and refreshes an instance-liveness key on a heartbeat. If an instance crashes
-without cleanup, a surviving instance's periodic reconcile pass sweeps the dead
-instance's members, so a crash leaves no permanent ghosts. Tune it with the
-`presence` option:
+**Ghost sweep.** Each instance records the roster entries it adds in an
+instance-scoped _owned set_, and refreshes an instance-liveness key on a
+heartbeat. If an instance crashes without cleanup, a surviving instance's
+periodic reconcile pass sweeps what that dead instance's owned set names, so a
+crash leaves no permanent ghosts.
+
+**Know what it reaches.** The sweep enumerates the owned set and nothing else,
+and it only ever runs against an instance whose liveness key has expired — a
+live instance never reclaims its own entries. Two consequences worth holding on
+to:
+
+- A roster entry that is in **no** owned set is invisible to the sweep, by every
+  instance, forever. Adding a member is therefore one atomic operation: the
+  roster field and the owned-set entry are written together or not at all, so
+  the pair cannot be created half-formed.
+- The sweep `HDEL`s whatever a dead instance's owned set names **without
+  checking the entry's owner**. So a stale owned entry — one naming a member
+  this instance no longer holds — makes the sweep delete a member that is
+  genuinely present and owned by somebody else. Removing a member is one atomic
+  operation for that reason, and it is the sharper of the two: an orphaned field
+  is invisible, a stale owned entry is actively destructive.
+- The sweep is a **crash** recovery mechanism. It is not a repair for a
+  divergence on a running instance, and nothing should be designed to lean on it
+  as one.
+
+Tune it with the `presence` option:
 
 ```ts
 RedisBroadcastDriver.fromConfig(config, {

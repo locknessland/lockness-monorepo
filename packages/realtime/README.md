@@ -34,12 +34,15 @@ app.get(
 - **A CSWSH origin guard** — fail-closed, exact origin triple, same-origin by
   default from `APP_URL`.
 - **Channels** — public / private / presence, with an app authorizer, backed by
-  a memory or Redis driver. The Redis driver runs across instances: broadcasts
-  fan out over pub/sub, the presence `here` roster is authoritative in Redis,
-  and `manager.evict(id)` revokes a connection wherever its socket lives. Build
-  it with `RedisBroadcastDriver.fromConfig(config, { control: { secret } })`,
-  where `config` is a `RedisBroadcastConnectionConfig` — a Redis client config
-  plus the subscribe socket's liveness and retry cadences (`keepaliveMs`,
+  a memory or Redis driver. What a `joined` frame promises — and what it does
+  not — is in
+  [docs/realtime.md](../../docs/realtime.md#what-a-joined-frame-promises--and-what-it-does-not).
+  The Redis driver runs across instances: broadcasts fan out over pub/sub, the
+  presence `here` roster is authoritative in Redis, and `manager.evict(id)`
+  revokes a connection wherever its socket lives. Build it with
+  `RedisBroadcastDriver.fromConfig(config, { control: { secret } })`, where
+  `config` is a `RedisBroadcastConnectionConfig` — a Redis client config plus
+  the subscribe socket's liveness and retry cadences (`keepaliveMs`,
   `livenessMs`, `retryBaseMs`, `retryMaxMs`; see
   [`@lockness/redis`'s README](../redis/README.md) for the defaults and the
   constraints between them). The subscribe socket keeps itself alive on an idle
@@ -140,7 +143,7 @@ Each run owns its own key namespace and cleans up after itself, including after
 a failure. See [docs/testing.md](../../docs/testing.md) for the full env-var
 contract and what the suite refuses to do.
 
-**Mutation batteries.** This package carries 11 of the repo's 16 — executables
+**Mutation batteries.** This package carries 12 of the repo's 17 — executables
 that break a source file on purpose and check that the suites notice.
 `deno
 test` does not run them; `deno task mutate` does, one at a time:

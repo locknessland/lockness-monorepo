@@ -77,6 +77,27 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
+- **A presence join announces LAST, and the bookkeeping stays first.** The
+  roster write sits between them, and neither side of that sandwich is
+  arbitrary. `emitPresence` is the only locally _visible_ effect, so it must not
+  claim a membership the authoritative roster has not accepted. But `#joinLocal`
+  must NOT move below the roster write, because its set/index adds run in the
+  same synchronous turn as `#checkChannelCaps` and that pairing is the whole of
+  what keeps the channel cap exact — an awaited round-trip between them lets K
+  pipelined subscribes read one count and all act on it (`onMessage` is
+  dispatched unserialized). **The intuitive fix is the wrong one**: hoisting the
+  roster write to the front looks like it breaks the cap and does not (every
+  racer suspends before the read); only an await _between_ the check and the
+  adds does — measured at 5 joins admitted against 1 free slot
+  ([#323](https://github.com/locknessland/lockness-monorepo/issues/323)).
+- **A roster member is a PAIR, written by one operation.** The presence hash
+  field and the owning instance's owned-set entry are two structures encoding
+  one fact. The ghost sweep enumerates owned sets and nothing else, so a field
+  in no owned set is unreclaimable by every instance forever; and a stale owned
+  entry makes the sweep `HDEL` a live member another instance owns, because it
+  never checks the entry's `owner`. Both `addMember` and `removeMember` are a
+  single `EVAL` for that reason — the sweep trusts the owned set completely, so
+  the owned set must never be able to lie (#323).
 - **`heartbeatIntervalMs` and `livenessTtlSeconds` are ONE setting with two
   numbers.** The heartbeat is what keeps this instance's `{prefix}:alive:<id>`
   key alive, and that key's TTL is `livenessTtlSeconds`. Beat slower than the
@@ -210,16 +231,20 @@ Anything not listed is internal and free to change.
   host delete revocations that are live for the whole fleet (#276). 2026-09-05.
 - **Presence membership is CROSS-PROCESS authoritative** since #268 (shipped
   2026-09-05, `6ed138f4`). The roster lives in the driver — `rosterSnapshot`
-  reads `roster.listMembers()` off it, never local state (`manager.ts`) — and
-  every instance shares it. This line previously said "single-process
-  authoritative for the MVP, the `here` set is per-instance", which was true
-  before #268 and is the premise #312 had to disprove: a reader of the stale
-  version reasons that a member "landed in the roster on one instance", and
-  reopens a question that is settled. A refused `presence-join` control frame
-  loses the live PUSH to peers already in the channel; it does not lose roster
-  state, and the divergence is bounded by the connection's lifetime because
-  `disconnect` removes the member on the ordinary path
-  ([#312](https://github.com/locknessland/lockness-monorepo/issues/312)).
+  reads `roster.listMembers()` off it, never local state (`manager.ts`). **One
+  documented exception since #323**: when that read THROWS, `subscribe` returns
+  this instance's own members rather than failing a join that has already
+  committed everywhere. The fallback is in `subscribe`, not in `rosterSnapshot`,
+  and it warns — but a reader who takes "never local state" as unconditional
+  will be wrong on that path. And every instance shares it. This line previously
+  said "single-process authoritative for the MVP, the `here` set is
+  per-instance", which was true before #268 and is the premise #312 had to
+  disprove: a reader of the stale version reasons that a member "landed in the
+  roster on one instance", and reopens a question that is settled. A refused
+  `presence-join` control frame loses the live PUSH to peers already in the
+  channel; it does not lose roster state, and the divergence is bounded by the
+  connection's lifetime because `disconnect` removes the member on the ordinary
+  path ([#312](https://github.com/locknessland/lockness-monorepo/issues/312)).
   2026-09-07.
 - Nothing imports `realtime` (pure sink), and `@lockness/core` is untouched
   (app-wired) — keep it that way.
@@ -258,7 +283,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-41 test files for 16 source files:
+45 test files for 16 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channel_name_boundary.test.ts`
@@ -277,6 +302,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/driver_contract.test.ts`
 - `packages/realtime/tests/driver_redis.test.ts`
 - `packages/realtime/tests/driver_redis_live.test.ts`
+- `packages/realtime/tests/emit_isolation_323.test.ts`
 - `packages/realtime/tests/events_bridge.test.ts`
 - `packages/realtime/tests/eviction_control.test.ts`
 - `packages/realtime/tests/eviction_durable.test.ts`
@@ -292,6 +318,8 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/prefix_anchoring.test.ts`
 - `packages/realtime/tests/presence.test.ts`
 - `packages/realtime/tests/presence_authoritative.test.ts`
+- `packages/realtime/tests/presence_cap_concurrency_323.test.ts`
+- `packages/realtime/tests/presence_join_compensation_323.test.ts`
 - `packages/realtime/tests/presence_member_id.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
 - `packages/realtime/tests/presence_sweep.test.ts`
@@ -299,10 +327,11 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/redis_broker_integration.test.ts`
 - `packages/realtime/tests/revocation_atomicity.test.ts`
 - `packages/realtime/tests/revocation_retry.test.ts`
+- `packages/realtime/tests/roster_atomicity_323.test.ts`
 - `packages/realtime/tests/roster_control_atomicity.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-11 mutation batteries — **`deno test` does not run these.** Each is an
+12 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -314,6 +343,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/live_conformance_285.ts`
 - `packages/realtime/tests/mutations/log_encoding_291.ts`
 - `packages/realtime/tests/mutations/prefix_288.ts`
+- `packages/realtime/tests/mutations/presence_join_323.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
 - `packages/realtime/tests/mutations/self_skip_310.ts`
@@ -334,7 +364,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 41 test files directly —
+Then, specific to this package: run its 45 test files directly —
 
 ```bash
 deno test -A packages/realtime/

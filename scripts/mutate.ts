@@ -2,7 +2,7 @@
  * @fileoverview `deno task mutate` — run every mutation battery, serially.
  *
  * Batteries are `.ts`, not `.test.ts`, so `deno test` never discovered them and
- * for twelve batteries' lifetime nothing ran them together. The first full
+ * for the batteries' whole lifetime nothing ran them together. The first full
  * sweep, done by hand while documenting the convention (#317), found four
  * rotted rows in the two batteries it happened to expose — three of them broken
  * by later, unrelated merges. This script is what makes that sweep repeatable

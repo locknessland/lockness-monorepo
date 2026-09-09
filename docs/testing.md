@@ -267,7 +267,7 @@ noticed had the code been wrong — and those are different claims. A **mutation
 battery** checks the second one: it breaks a source file on purpose, re-runs the
 suites that should catch it, and reports whether they did.
 
-There are 16 in the repo — 11 in `@lockness/realtime`, 3 in `@lockness/redis`, 2
+There are 17 in the repo — 12 in `@lockness/realtime`, 3 in `@lockness/redis`, 2
 in `@lockness/contract` — all on one harness at `tests/mutations/harness.ts`,
 imported through the `@mutations/` alias declared in `deno.jsonc`.
 
@@ -288,9 +288,9 @@ rather than interleaving.
 
 It exits non-zero on any unresolved row, and **`DEAD MUTANT` and `MISATTRIBUTED`
 count as unresolved**. That is the point of it: both still print as rows, and
-treating them as diagnostics is how four rotted rows went unnoticed across
-twelve batteries' lifetime. A partial run says so, and names the batteries that
-did not execute.
+treating them as diagnostics is how four rotted rows went unnoticed across the
+batteries' lifetime. A partial run says so, and names the batteries that did not
+execute.
 
 Nightly CI runs `deno task mutate --require-all` with a Redis service, so decay
 in a battery nobody has touched is noticed without anyone deciding to look —
