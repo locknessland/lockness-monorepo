@@ -77,8 +77,11 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
-- **A presence join announces LAST, and the bookkeeping stays first.** The
-  roster write sits between them, and neither side of that sandwich is
+- **A presence join announces LAST, and the bookkeeping stays first.** It all
+  lives in `#joinPresence` since
+  [#328](https://github.com/locknessland/lockness-monorepo/issues/328); the cap
+  check that pairs with it stays in `subscribe`. The roster write sits between
+  the bookkeeping and the announcement, and neither side of that sandwich is
   arbitrary. `emitPresence` is the only locally _visible_ effect, so it must not
   claim a membership the authoritative roster has not accepted. But `#joinLocal`
   must NOT move below the roster write, because its set/index adds run in the
@@ -90,15 +93,22 @@ Anything not listed is internal and free to change.
   racer suspends before the read); only an await _between_ the check and the
   adds does — measured at 5 joins admitted against 1 free slot
   ([#323](https://github.com/locknessland/lockness-monorepo/issues/323)).
-- **There are TWO check-then-act pairs in `subscribe`, and both must stay in one
-  synchronous turn.** The cap pair above is the famous one. The second is
-  [#327](https://github.com/locknessland/lockness-monorepo/issues/327)'s re-join
-  guard: `members.has(...)` decides, `members.set(...)` claims, and `#joinLocal`
-  spends — all before the method's first `await`. Moving the claim below
-  `#joinLocal` is the tidy-looking edit, and **every sequential test still
-  passes**; only the pipelined witness dies, because `#joinLocal` awaits
-  `#watch` and K frames dispatched by `void guard(...)` all read "not a member"
-  and all join. Measured both ways before the row was written.
+- **Two check-then-act pairs share ONE synchronous turn, and since
+  [#328](https://github.com/locknessland/lockness-monorepo/issues/328) they sit
+  in two different methods.** `#checkChannelCaps` reads in `subscribe`; the
+  re-join guard's `members.has(...)` decides and `members.set(...)` claims in
+  `#joinPresence`; `#joinLocal`'s adds spend. All of it still lands before
+  anything yields, because **an `async` body runs synchronously until its first
+  `await`** — so `await this.#joinPresence(...)` does not break the turn, and
+  the extraction was safe for exactly that reason. **Anything you add above
+  `#joinPresence`'s first `await` must keep it true**, and a call boundary makes
+  that easier to get wrong, not harder: the two halves no longer sit in one
+  screen. Moving the claim below `#joinLocal` is the tidy-looking edit, and
+  **every sequential test still passes**; only the pipelined witness dies,
+  because `#joinLocal` awaits `#watch` and K frames dispatched by
+  `void guard(...)` all read "not a member" and all join
+  ([#327](https://github.com/locknessland/lockness-monorepo/issues/327)).
+  Measured both ways before the row was written.
 - **`PresenceMember` is bounded at ADMISSION, and the bound cannot move to the
   publish**
   ([#326](https://github.com/locknessland/lockness-monorepo/issues/326)). The
