@@ -74,6 +74,15 @@ or refused control frame therefore costs the announcement on those instances,
 never the roster — a member missing from someone's view is still `here` to
 anyone who reads the roster.
 
+**A join and a leave racing on one socket cannot corrupt the roster.** Nothing
+serializes the verbs a client sends, so a `subscribe` and an `unsubscribe` for
+the same channel can be in flight together. Every authoritative roster write is
+issued as a projection of what this instance holds locally, one slot at a time,
+so the later verb wins and the earlier one becomes a no-op rather than a write
+arriving out of order. A join that loses that race also announces nothing — it
+has no membership to announce. See
+[ADR 003](adr/003-realtime-roster-write-ownership.md).
+
 **A re-subscribe to a channel the connection already holds produces NO `joined`
 frame at all** — not locally, not on any other instance. A `joined` records a
 transition, and a connection already in the room transitions nothing. It is

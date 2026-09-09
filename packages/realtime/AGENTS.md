@@ -109,6 +109,19 @@ Anything not listed is internal and free to change.
   `void guard(...)` all read "not a member" and all join
   ([#327](https://github.com/locknessland/lockness-monorepo/issues/327)).
   Measured both ways before the row was written.
+- **Every authoritative roster write goes through `#syncRosterMember`, and none
+  of them carries its desired state from its caller**
+  ([#330](https://github.com/locknessland/lockness-monorepo/issues/330), and
+  [ADR 003](../../docs/adr/003-realtime-roster-write-ownership.md) is the
+  standing constraint). The caller names a `(channel, member.id)` slot; the
+  desired state is read from the local `presence` map **inside** the serial
+  tail, at issue time. A direct `roster.addMember` / `roster.removeMember` is
+  the defect, not a shortcut: `#joinPresence` claims, suspends at `#watch`, and
+  its write would otherwise be issued from a state that no longer holds the
+  membership — leaving a member in the authoritative roster with no local
+  membership and its `left` already announced, which only a sweep of a DEAD
+  instance reclaims. The three remedies the ADR rejects are each intuitive
+  enough to be proposed again; read it before proposing one.
 - **`PresenceMember` is bounded at ADMISSION, and the bound cannot move to the
   publish**
   ([#326](https://github.com/locknessland/lockness-monorepo/issues/326)). The
@@ -328,7 +341,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-48 test files for 16 source files:
+49 test files for 16 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
@@ -377,9 +390,10 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/revocation_retry.test.ts`
 - `packages/realtime/tests/roster_atomicity_323.test.ts`
 - `packages/realtime/tests/roster_control_atomicity.test.ts`
+- `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-12 mutation batteries — **`deno test` does not run these.** Each is an
+13 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -394,6 +408,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_join_323.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
+- `packages/realtime/tests/mutations/roster_sync_330.ts`
 - `packages/realtime/tests/mutations/self_skip_310.ts`
 - `packages/realtime/tests/mutations/subscription_identity_315.ts`
 - `packages/realtime/tests/mutations/sweep_parse_316.ts`
@@ -412,7 +427,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 48 test files directly —
+Then, specific to this package: run its 49 test files directly —
 
 ```bash
 deno test -A packages/realtime/

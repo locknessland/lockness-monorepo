@@ -165,7 +165,7 @@ Each run owns its own key namespace and cleans up after itself, including after
 a failure. See [docs/testing.md](../../docs/testing.md) for the full env-var
 contract and what the suite refuses to do.
 
-**Mutation batteries.** This package carries 12 of the repo's 17 — executables
+**Mutation batteries.** This package carries 13 of the repo's 18 — executables
 that break a source file on purpose and check that the suites notice.
 `deno
 test` does not run them; `deno task mutate` does, one at a time:
