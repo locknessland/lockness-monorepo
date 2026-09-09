@@ -336,7 +336,7 @@ integrationTest(
     'US4: markRevoked ARMS a TTL on the index — the inert EXPIRE GT would not',
     async (namespace, reader) => {
         await withInstances(1, namespace, async ([a]) => {
-            await a.driver.markRevoked('victim-1')
+            await a.driver.markRevocation({ target: 'victim-1' })
 
             const ttl = await reader.ttlOf(keys(namespace).revocations)
             assert(
@@ -355,12 +355,12 @@ integrationTest(
     async (namespace, reader) => {
         const key = keys(namespace).revocations
         await withInstances(1, namespace, async ([short]) => {
-            await short.driver.markRevoked('victim-2')
+            await short.driver.markRevocation({ target: 'victim-2' })
             const armed = await reader.ttlOf(key)
             assert(armed > 0, `armed on first write, got ${armed}`)
 
             await withInstances(1, namespace, async ([long]) => {
-                await long.driver.markRevoked('victim-3')
+                await long.driver.markRevocation({ target: 'victim-3' })
                 const extended = await reader.ttlOf(key)
                 // A numeric FLOOR, not `>=`. Reviewed and confirmed by
                 // mutation: with `extended >= armed`, deleting the driver's
@@ -376,7 +376,7 @@ integrationTest(
 
             const afterLong = await reader.ttlOf(key)
             await withInstances(1, namespace, async ([shorter]) => {
-                await shorter.driver.markRevoked('victim-4')
+                await shorter.driver.markRevocation({ target: 'victim-4' })
                 const afterShort = await reader.ttlOf(key)
                 assert(
                     afterShort >= afterLong - 5,
@@ -389,28 +389,28 @@ integrationTest(
 )
 
 integrationTest(
-    'US4: listRevoked returns live entries, read back raw',
+    'US4: listRevocations returns live entries, read back raw',
     async (namespace, reader) => {
         await withInstances(1, namespace, async ([a]) => {
-            await a.driver.markRevoked('victim-5')
-            await a.driver.markRevoked('victim-6')
+            await a.driver.markRevocation({ target: 'victim-5' })
+            await a.driver.markRevocation({ target: 'victim-6' })
 
             const live = await reader.revoked(namespace)
             assertEquals(
                 live.sort(),
                 ['victim-5', 'victim-6'],
                 'both revocations are in the index, read via a raw ' +
-                    'ZRANGEBYSCORE rather than through driver.listRevoked()',
+                    'ZRANGEBYSCORE rather than through driver.listRevocations()',
             )
         })
     },
 )
 
 integrationTest(
-    'US4: listRevoked REAPS expired entries and keeps live ones',
+    'US4: listRevocations REAPS expired entries and keeps live ones',
     async (namespace, reader) => {
         // The only test that makes LIST_REVOKED_SCRIPT actually execute against
-        // a real Redis. `listRevoked()` is the ACTION here, not the assertion —
+        // a real Redis. `listRevocations()` is the ACTION here, not the assertion —
         // every claim below is read back raw (FR-008).
         await withInstances(1, namespace, async ([a]) => {
             const index = keys(namespace).revocations
@@ -419,7 +419,7 @@ integrationTest(
             // One entry already expired, planted directly at a past score.
             await reader.command('ZADD', index, String(now - 60), 'stale-one')
             // One live entry, written by the driver itself.
-            await a.driver.markRevoked('live-one')
+            await a.driver.markRevocation({ target: 'live-one' })
 
             assertEquals(
                 (await reader.revokedAtAnyScore(namespace)).sort(),
@@ -427,7 +427,7 @@ integrationTest(
                 'both are present before the reaper runs',
             )
 
-            await a.driver.listRevoked?.()
+            await a.driver.listRevocations?.()
 
             assertEquals(
                 (await reader.revokedAtAnyScore(namespace)).sort(),
@@ -450,9 +450,9 @@ integrationTest(
     'US4: the index is bounded — re-revoking the same target adds no member',
     async (namespace, reader) => {
         await withInstances(1, namespace, async ([a]) => {
-            await a.driver.markRevoked('victim-7')
-            await a.driver.markRevoked('victim-7')
-            await a.driver.markRevoked('victim-7')
+            await a.driver.markRevocation({ target: 'victim-7' })
+            await a.driver.markRevocation({ target: 'victim-7' })
+            await a.driver.markRevocation({ target: 'victim-7' })
 
             assertEquals(
                 await reader.zcard(keys(namespace).revocations),
@@ -467,7 +467,7 @@ integrationTest(
     'US4: the legacy revoked SET is never written (dual-read only)',
     async (namespace, reader) => {
         await withInstances(1, namespace, async ([a]) => {
-            await a.driver.markRevoked('victim-8')
+            await a.driver.markRevocation({ target: 'victim-8' })
 
             // Enumerate what the driver ACTUALLY created, rather than probing a
             // key name this file supplies. A seed-and-re-read probe on the same

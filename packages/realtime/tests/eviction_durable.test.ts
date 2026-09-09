@@ -91,7 +91,7 @@ Deno.test('SC-007: an evict lost while the owning socket was disconnected still 
 
         // An evict is issued elsewhere and durably recorded, but its control
         // frame never reached B (B's subscribe socket was between reconnects).
-        await b.driver.markRevoked('x')
+        await b.driver.markRevocation({ target: 'x' })
         assertEquals(
             closedOf(x),
             0,
@@ -136,7 +136,7 @@ Deno.test('SC-007: a presence-free instance still reconciles a durable revocatio
 
         // An evict is issued and durably recorded elsewhere, but its control
         // frame never reached B (B's subscribe socket was between reconnects).
-        await b.driver.markRevoked('y')
+        await b.driver.markRevocation({ target: 'y' })
         assertEquals(
             closedOf(y),
             0,

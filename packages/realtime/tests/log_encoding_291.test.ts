@@ -168,10 +168,17 @@ Deno.test('#291 evict-teardown WARN renders the error and encodes the client id'
 })
 
 Deno.test('#291 durable-revocation WARN renders the error and stays a WARN', async () => {
+    // ALL THREE revocation members, not just the failing one. They are
+    // feature-detected as a SET (#332), so a double presenting `markRevocation`
+    // alone is narrowed to "no revocation store at all" — the write is never
+    // attempted, the WARN never fires, and this test would pass its own
+    // assertion vacuously if it did not assert the line actually appeared.
     const driver: BroadcastDriver = {
         publish: () => Promise.resolve(),
         onMessage: () => {},
-        markRevoked: () => Promise.reject(DSN_FAILURE()),
+        markRevocation: () => Promise.reject(DSN_FAILURE()),
+        listRevocations: () => Promise.resolve([]),
+        clearRevocation: () => Promise.resolve(),
     }
     const m = new ChannelManager<User>({ driver })
 

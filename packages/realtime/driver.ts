@@ -34,19 +34,6 @@ export interface BroadcastMessage {
 }
 
 /**
- * A control frame carried on the same bus as channel events but on a **distinct**
- * seam (A2/FR-016) — it is not a {@link BroadcastMessage} and never reaches
- * `deliverLocal`. It instructs the owning instance to act on a connection
- * (revoke a socket, apply a presence join/leave), never to deliver an event.
- *
- * The `mac` is the FR-015 authenticity tag (an HMAC over the payload, keyed by
- * a per-deployment shared secret). It is **optional on the type** because an
- * unauthenticated frame is representable on the wire — the US3 ingest check is
- * what drops a control message whose `mac` is absent or fails to verify, before
- * the message is ever obeyed. The HMAC computation/verification itself is not
- * implemented here (US3 / T026); only the field is declared.
- */
-/**
  * Why a control frame was not published, and which frame it was (#318).
  *
  * Delivered to {@link BroadcastDriver.onControlRefused}. Carries the channel
@@ -63,7 +50,13 @@ export interface ControlRefusal {
      * peer's FR-015 check.
      */
     readonly reason: 'oversize' | 'no-secret'
-    /** The kind of frame that was refused. */
+    /**
+     * The kind of frame that was refused.
+     *
+     * This widens with {@link ControlMessage}'s union — a new control kind is a
+     * new value here too, on a type this package exports. A consumer switching
+     * exhaustively over it sees the new member.
+     */
     readonly kind: ControlMessage['kind']
     /** The presence channel, when the refused frame named one. */
     readonly channel?: string
@@ -73,12 +66,73 @@ export interface ControlRefusal {
     readonly limit?: number
 }
 
+/**
+ * What a revocation revokes — the domain fact the driver seam carries.
+ *
+ * Two scopes, and they differ in whether the socket survives:
+ *
+ * - **connection** (`channel` absent) — the whole connection is revoked; the
+ *   owning instance hard-closes the socket. This is `ChannelManager.evict`.
+ * - **channel** (`channel` present) — the connection leaves ONE channel and
+ *   keeps every other it holds, socket open. This is
+ *   `ChannelManager.revokeChannel`.
+ *
+ * **The record is the pair, and a decoder may never guess the missing half.** A
+ * channel-scoped record returned without its channel reads as a connection
+ * revocation and kills a session that should have lost one room — an escalation
+ * with no error, no warning and no type failure. `listRevocations` drops what it
+ * cannot fully decode for exactly this reason.
+ *
+ * @example
+ * ```ts
+ * const wholeConnection: Revocation = { target: connectionId }
+ * const oneRoom: Revocation = { target: connectionId, channel: 'private-orders' }
+ * ```
+ */
+export interface Revocation {
+    /** The revoked connection id. */
+    readonly target: string
+    /**
+     * The channel the revocation is scoped to. **Absent means the whole
+     * connection**, which hard-closes the socket — so an implementation that
+     * cannot recover this field must drop the record rather than omit it.
+     */
+    readonly channel?: string
+}
+
+/**
+ * A control frame carried on the same bus as channel events but on a **distinct**
+ * seam (A2/FR-016) — it is not a {@link BroadcastMessage} and never reaches
+ * `deliverLocal`. It instructs the owning instance to act on a connection
+ * (revoke a socket, apply a presence join/leave), never to deliver an event.
+ *
+ * The `mac` is the FR-015 authenticity tag (an HMAC over the payload, keyed by
+ * a per-deployment shared secret). It is **optional on the type** because an
+ * unauthenticated frame is representable on the wire — the ingest check is what
+ * drops a control message whose `mac` is absent or fails to verify, before the
+ * message is ever obeyed.
+ */
 export interface ControlMessage {
     /**
-     * The control kind. `evict` revokes a connection; `presence-join` /
+     * The control kind. `evict` revokes a whole connection; `revoke-channel`
+     * revokes it from ONE channel and leaves the socket open; `presence-join` /
      * `presence-leave` announce a roster change across instances.
+     *
+     * **A new KIND is safe here; a new FIELD is not** — and the asymmetry is
+     * load-bearing rather than stylistic. The Redis driver's MAC covers a fixed
+     * field list, so a kind added to this union changes no canonical bytes and
+     * a peer running an older release verifies the frame, admits it, and falls
+     * off the end of a `switch` that has no `default`. A **field** added to the
+     * wire but not to that list would ship unauthenticated; added to both on
+     * one side only, every older peer would drop the frame as an invalid MAC.
+     * Decision-table home for that rule: `#canonical`'s field list in
+     * `drivers/redis.ts`.
      */
-    readonly kind: 'evict' | 'presence-join' | 'presence-leave'
+    readonly kind:
+        | 'evict'
+        | 'presence-join'
+        | 'presence-leave'
+        | 'revoke-channel'
     /** The target connection id the control acts on. */
     readonly target: string
     /**
@@ -171,23 +225,53 @@ export interface BroadcastDriver {
      */
     publishControl?(control: ControlMessage): void | Promise<void>
     /**
-     * OPTIONAL (S1/FR-014). Durably record that a connection is revoked, so an
-     * evict survives a lost control frame. The marker lives in the driver
-     * (decision-table home: "whether a revoked connection stays revoked across a
-     * reconnect") and is re-checked by the owning instance on each
-     * {@link onRevocationReconcile} pass.
+     * OPTIONAL (S1/FR-014). Durably record a revocation, so it survives a lost
+     * control frame. The record lives in the driver (decision-table home:
+     * "whether a revoked connection stays revoked across a reconnect") and is
+     * re-checked by the owning instance on each {@link onRevocationReconcile}
+     * pass.
      *
-     * @param target - The revoked connection id.
+     * **The seam carries the domain fact; the driver chooses the bytes.** How a
+     * {@link Revocation} is encoded is the implementation's business and is
+     * never normative on this interface — the same split this package makes
+     * between the client-visible `PresenceMember` and the driver-internal sweep
+     * metadata.
+     *
+     * @param revocation - What is revoked: a whole connection, or a connection
+     *   in one channel.
      */
-    markRevoked?(target: string): void | Promise<void>
+    markRevocation?(revocation: Revocation): void | Promise<void>
     /**
-     * OPTIONAL (S1/FR-014). The connection ids the durable marker currently
-     * names, with expired entries reaped. The owning instance re-checks this on
-     * each {@link onRevocationReconcile} tick to recover a missed evict.
+     * OPTIONAL (S1/FR-014). The revocations that are live now, with expired
+     * entries reaped. The owning instance re-checks this on each
+     * {@link onRevocationReconcile} tick to recover a missed revoke.
      *
-     * @returns The currently-revoked connection ids.
+     * **An implementation MUST fail closed.** A record it cannot fully decode
+     * is dropped, never returned with a missing or partial scope: a record
+     * returned without its channel is applied as a whole-connection revocation,
+     * which hard-closes a socket that should only have left one room. This
+     * index is the one cross-instance write channel with no authenticity tag,
+     * so what a decoder refuses is the boundary.
+     *
+     * @returns The currently-live revocations.
      */
-    listRevoked?(): string[] | Promise<string[]>
+    listRevocations?(): Revocation[] | Promise<Revocation[]>
+    /**
+     * OPTIONAL (S1/FR-014). Forget a revocation the owning instance has now
+     * applied.
+     *
+     * **Only a channel-scoped record needs this, and that is why it exists.** A
+     * connection-scoped record becomes moot the instant the socket dies, so it
+     * is left to expire. A channel-scoped one has a live socket to act on for
+     * the whole TTL, so an uncleared record would re-apply the leave at every
+     * reconcile tick — kicking a client that has legitimately re-subscribed,
+     * once per tick, until the record expires. Clearing on apply makes a record
+     * mean exactly one thing: *a revocation the owning instance has not applied
+     * yet.*
+     *
+     * @param revocation - The revocation that has been applied.
+     */
+    clearRevocation?(revocation: Revocation): void | Promise<void>
     /**
      * OPTIONAL (#318). Register the handler the driver invokes when it declines
      * to publish a control frame.
@@ -211,9 +295,10 @@ export interface BroadcastDriver {
     /**
      * OPTIONAL (S1/FR-014). Register the handler the driver invokes on its
      * periodic reconcile pass, so the owning instance re-checks
-     * {@link listRevoked} and revokes any local member it names — recovering an
-     * evict whose control frame was lost while the owning socket was between
-     * reconnects. Bounds exposure to a lost evict at ~one reconcile interval.
+     * {@link listRevocations} and applies any that name a local socket —
+     * recovering a revoke whose control frame was lost while the owning socket
+     * was between reconnects. Bounds exposure to a lost revoke at ~one
+     * reconcile interval.
      *
      * @param handler - Called with no arguments on each reconcile tick.
      */
@@ -271,6 +356,20 @@ export interface ChannelWatchCapableDriver extends BroadcastDriver {
     watchChannel(channel: string): void | Promise<void>
     /** Declare that this instance no longer hosts `channel`. */
     unwatchChannel(channel: string): void | Promise<void>
+}
+
+/**
+ * A {@link BroadcastDriver} narrowed to one that can durably record revocations
+ * — all three revocation ops are guaranteed present. Obtain it from
+ * `revocationStore`, never by testing the members at a call site.
+ */
+export interface RevocationStoreDriver extends BroadcastDriver {
+    /** Durably record a revocation. */
+    markRevocation(revocation: Revocation): void | Promise<void>
+    /** The revocations that are live now. */
+    listRevocations(): Revocation[] | Promise<Revocation[]>
+    /** Forget a revocation that has been applied. */
+    clearRevocation(revocation: Revocation): void | Promise<void>
 }
 
 /**

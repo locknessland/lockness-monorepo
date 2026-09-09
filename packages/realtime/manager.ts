@@ -286,6 +286,41 @@ export class ConnectionIdError extends Error {
         )
     }
 }
+
+/**
+ * A scoped revocation was asked for on a driver that can route it but cannot
+ * record it durably.
+ *
+ * `ConnectionIdError`-shaped, and named for the same reason: a caller acting on
+ * a failed revocation needs `instanceof`, not string matching on a message.
+ *
+ * **Why this refuses rather than degrades.** A driver with a control plane and
+ * no revocation store could still publish the frame — and that is precisely the
+ * undurable path this package rejected: a lost or MAC-refused frame would mean
+ * a revocation that reported success and did nothing, which is the defect
+ * {@link ChannelManager.revokeChannel} exists to remove. A single-process driver
+ * (no control plane, no store) is a different case and is allowed: there is no
+ * bus on which to lose a frame, so no durability is owed.
+ */
+export class RevocationScopeError extends Error {
+    override readonly name = 'RevocationScopeError'
+
+    /**
+     * @param channel - The channel the revocation was scoped to, encoded before
+     *   it reaches the message.
+     */
+    constructor(channel: string) {
+        super(
+            `realtime: cannot revoke ${safeForLog(channel)} durably — this ` +
+                'driver has a control plane but no revocation store, so the ' +
+                'revoke would depend on a single control frame arriving. A ' +
+                'lost frame would leave a revocation that reported success ' +
+                'and did nothing. Implement markRevocation / listRevocations ' +
+                '/ clearRevocation on the driver, or use evict, which every ' +
+                'driver obeys.',
+        )
+    }
+}
 import type { Connection, WebSocketHooks } from './types.ts'
 import type {
     BroadcastDriver,
@@ -293,6 +328,8 @@ import type {
     ChannelWatchCapableDriver,
     ControlMessage,
     PresenceCapableDriver,
+    Revocation,
+    RevocationStoreDriver,
 } from './driver.ts'
 import { MemoryBroadcastDriver } from './drivers/memory.ts'
 import {
@@ -365,13 +402,148 @@ export function channelWatcher(
 }
 
 /**
- * A frame the manager sends to a connection — the `event`/`presence` subset of
- * the wire protocol's {@link ServerMessage} (one shape, not a second copy).
+ * Narrow a driver to one that can durably record revocations, or `undefined`.
+ *
+ * **The single feature-detect guard for the revocation trio**, on
+ * {@link presenceRoster} and {@link channelWatcher}'s precedent and for the same
+ * reason: repeating `if (driver.markRevocation)` at each call site is how one
+ * site gets it and another does not.
+ *
+ * **Detected as a SET.** A driver that can mark but not clear would re-apply a
+ * channel-scoped revocation at every reconcile tick for the whole record TTL —
+ * kicking a client that has legitimately re-subscribed, repeatedly, with the
+ * roster correct throughout and nothing logged. That is the same shape of
+ * defect the watch pair is detected as a set to avoid.
+ *
+ * **Total and non-throwing, exactly like both siblings.** A driver that
+ * implements none of the trio is a single-process driver and gets `undefined`.
+ * Refusing a driver of an older generation is a DIFFERENT question with a
+ * different answer, and it lives in {@link assertNotLegacyRevocationDriver} —
+ * fusing the two would give this function two reasons to change, and a later
+ * pass restoring consistency with its two non-throwing siblings would delete
+ * the refusal without noticing what it was for.
+ *
+ * @param driver - The broadcast driver to probe.
+ * @returns The driver narrowed to `RevocationStoreDriver` when it exposes all
+ *   three ops, otherwise `undefined`.
+ *
+ * @example
+ * ```ts
+ * const store = revocationStore(driver)
+ * if (store) await store.markRevocation({ target, channel })
+ * ```
+ */
+export function revocationStore(
+    driver: BroadcastDriver,
+): RevocationStoreDriver | undefined {
+    return typeof driver.markRevocation === 'function' &&
+            typeof driver.listRevocations === 'function' &&
+            typeof driver.clearRevocation === 'function'
+        ? driver as RevocationStoreDriver
+        : undefined
+}
+
+/**
+ * Refuse a driver written against the revocation seam this package published
+ * before `0.4.0`.
+ *
+ * **It throws rather than warning, and that is the whole point.** The old pair
+ * was `markRevoked(target)` / `listRevoked()`; a driver that still presents them
+ * and not the new trio would be silently treated as having no revocation store
+ * at all — so `evict` would lose its durability on a driver that plainly
+ * implements revocation, and a lost control frame would never be recovered.
+ * Nothing would be logged, and every same-version test would pass.
+ *
+ * **It tests for the OLD members' presence, never the new ones' absence.** A
+ * driver that never implemented revocation — `MemoryBroadcastDriver` implements
+ * none of them — is not this function's business and constructs unaffected.
+ *
+ * At `0.x` the built-in drivers are the contract: third-party realtime drivers
+ * are not a supported extension point before `1.0`, so this is a hard refusal
+ * with no deprecation window.
+ *
+ * @param driver - The broadcast driver being wired into a manager.
+ * @throws {Error} If the driver presents the pre-`0.4.0` revocation pair.
+ */
+function assertNotLegacyRevocationDriver(driver: BroadcastDriver): void {
+    const legacy = driver as {
+        markRevoked?: unknown
+        listRevoked?: unknown
+    }
+    if (
+        typeof legacy.markRevoked !== 'function' &&
+        typeof legacy.listRevoked !== 'function'
+    ) {
+        return
+    }
+    throw new Error(
+        'realtime: this driver implements the pre-0.4.0 revocation seam ' +
+            '(markRevoked / listRevoked), which no longer exists. Replace it ' +
+            'with markRevocation(revocation) / listRevocations() / ' +
+            'clearRevocation(revocation) over a Revocation record ' +
+            '({ target, channel? }). Keeping the old pair would silently ' +
+            'disable durable revocation on a driver that plainly implements ' +
+            'it: evict would still close the socket locally, and a lost ' +
+            'control frame would never be recovered.',
+    )
+}
+
+/**
+ * A frame the manager sends to a connection — the `event` / `presence` /
+ * `unsubscribed` subset of the wire protocol's {@link ServerMessage} (one
+ * shape, not a second copy).
+ *
+ * `unsubscribed` joined this union with {@link ChannelManager.revokeChannel}
+ * (#332), and it had to: the frame goes through the application's own `encode`
+ * hook like every other, and a frame the framework sent around that hook would
+ * reach a custom codec's peer in a format the codec never produced. An encoder
+ * annotated with the older union stops compiling — deliberately, because the
+ * alternative is discovering the new shape from a client that cannot parse it.
  */
 export type OutboundFrame = Extract<
     ServerMessage,
-    { type: 'event' } | { type: 'presence' }
+    { type: 'event' } | { type: 'presence' } | { type: 'unsubscribed' }
 >
+
+/**
+ * What a leave verb did, on the instance it was called on.
+ *
+ * Three outcomes that used to share one representation — `undefined`:
+ *
+ * - `'left'` — a membership was removed here.
+ * - `'not-subscribed'` — this instance owns the socket, and it was not in that
+ *   channel. Idempotent and correct; nothing to do.
+ * - `'not-owned'` — the socket lives on **another instance**, so nothing local
+ *   could have been removed and nothing was announced anywhere. Use
+ *   {@link ChannelManager.revokeChannel}, which reaches the owner.
+ *
+ * **This is a SERVER-side value.** It is never relayed to a client, and the
+ * `clientId` it is derived from is never taken from a client frame — the three
+ * states together would otherwise tell a caller whether an arbitrary connection
+ * id is live in the fleet, whether this instance owns it, and whether it is in
+ * a given room.
+ */
+export type LeaveOutcome = 'left' | 'not-subscribed' | 'not-owned'
+
+/**
+ * What {@link ChannelManager.disconnect} did.
+ *
+ * `'not-owned'` carries the same meaning, the same warning and the same remedy
+ * as it does on {@link LeaveOutcome}.
+ */
+export type DisconnectOutcome = 'disconnected' | 'not-owned'
+
+/**
+ * What {@link ChannelManager.revokeChannel} did on the instance that owns the
+ * socket.
+ *
+ * `'not-owned'` here means something different from the local verbs': the
+ * revocation **was** recorded durably and routed to the owner, and this
+ * instance simply is not it. It is reported rather than hidden so a caller on a
+ * single-process driver — where there is no owner to route to — cannot mistake
+ * "published nothing, applied nothing" for success.
+ */
+export type RevokeChannelOutcome = 'revoked' | 'not-subscribed' | 'not-owned'
 
 /** The outcome of a subscribe attempt. */
 export interface SubscribeResult {
@@ -508,6 +680,13 @@ export class ChannelManager<Identity = unknown> {
     /** The driver's per-channel watch ops, or `undefined` — one guard (#295). */
     #watcher: ChannelWatchCapableDriver | undefined
     /**
+     * The driver's durable revocation store, narrowed ONCE at construction —
+     * never member-by-member at a call site. `undefined` means a single-process
+     * driver, which owes no durability because it has no bus to lose a frame
+     * on.
+     */
+    #revocations: RevocationStoreDriver | undefined
+    /**
      * The **local** presence members this instance's sockets own, per channel
      * (`clientId → member`). NOT the authoritative roster (that is the driver,
      * possibly remote — decision-table §5): this map only records what THIS
@@ -581,9 +760,15 @@ export class ChannelManager<Identity = unknown> {
                     'to disable the reservation deliberately.',
             )
         }
+        // BEFORE the probe, not after: a driver of the previous generation
+        // must fail loudly here rather than be narrowed to `undefined` and
+        // silently treated as having no revocation store at all.
+        assertNotLegacyRevocationDriver(this.driver)
         this.roster = presenceRoster(this.driver)
         // ONE guard, at construction, for the whole watch pair (#295).
         this.#watcher = channelWatcher(this.driver)
+        // ONE guard, at construction, for the whole revocation trio (#332).
+        this.#revocations = revocationStore(this.driver)
         // Local + cross-process delivery share this one path.
         this.driver.onMessage((message) => this.deliverLocal(message))
         // A cross-process driver's control plane is a DISTINCT seam (A2/FR-016):
@@ -1376,14 +1561,26 @@ export class ChannelManager<Identity = unknown> {
      *
      * @param channel - The channel being left.
      * @param clientId - The leaving connection.
+     * @returns Whether a membership was actually removed — the fact
+     *   {@link unsubscribe}'s outcome is built from.
      */
-    async #leaveLocal(channel: string, clientId: string): Promise<void> {
+    async #leaveLocal(channel: string, clientId: string): Promise<boolean> {
         const set = this.subscriptions.get(channel)
-        if (!set?.delete(clientId)) return
+        // THE ONE MEMBERSHIP PREDICATE, and the one the report is taken from.
+        //
+        // There are three exits below and only this one decides whether a
+        // membership existed; the other two decide whether the channel is
+        // still hosted. Reporting from the END of this method instead would
+        // answer `false` for every leave from a channel that still holds
+        // another subscriber — the common case — because the tail is reached
+        // only on the 1→0 transition. Every fixture in this package is
+        // single-member, so that mistake passes the whole suite.
+        if (!set?.delete(clientId)) return false
         this.#channelsByClient.get(clientId)?.delete(channel)
-        if (set.size > 0) return
+        if (set.size > 0) return true
         this.subscriptions.delete(channel)
         await this.#watcher?.unwatchChannel(channel)
+        return true
     }
 
     /**
@@ -1512,19 +1709,53 @@ export class ChannelManager<Identity = unknown> {
      * the same leave is announced cross-instance over the control plane (US4) so
      * presence subscribers on every OTHER instance emit their own local `left`.
      *
+     * **This is a LOCAL verb, and its `clientId` argument makes it look like an
+     * addressed one.** It acts only on sockets this instance owns. Called with
+     * an id owned by another instance it removes nothing, announces nothing and
+     * reports `'not-owned'` — it does not reach across. {@link revokeChannel}
+     * is the addressed verb for one channel; {@link evict} is the addressed
+     * verb for a whole connection.
+     *
+     * **The outcome is a SERVER-side value.** Never relay it to a client, and
+     * never take `clientId` from a client frame — pass `connection.id` from a
+     * socket you own. The three states together would otherwise tell whoever
+     * receives them whether an arbitrary id is live in the fleet, whether this
+     * instance owns it, and whether it is in a given room.
+     *
      * @param clientId - The connection id.
      * @param channel - The channel to leave.
-     * @returns Resolves once the roster removal and `left` announcement have run.
+     * @returns `'left'` when a membership was removed, `'not-subscribed'` when
+     *   this instance owns the socket and it was not in that channel, and
+     *   `'not-owned'` when the socket lives elsewhere.
+     * @example
+     * ```ts
+     * if (await manager.unsubscribe(connection.id, channel) === 'not-owned') {
+     *     // Another instance holds this socket — reach it with revokeChannel.
+     *     await manager.revokeChannel(connection.id, channel)
+     * }
+     * ```
      */
     // DELIBERATELY NOT CHANNEL-ASSERTED (#314). This is a REMOVAL path, and
     // refusing a removal strands the state it would have removed. It is also
-    // reached from `disconnect`, which iterates `subscriptions.keys()` — so on
-    // a process that predates the boundary guard, throwing here would make
-    // every disconnect fail on the first legacy name and leak every channel
-    // after it. Accepting a name we would no longer create is the correct
-    // asymmetry: creation is guarded, cleanup is total.
-    async unsubscribe(clientId: string, channel: string): Promise<void> {
-        await this.#leaveLocal(channel, clientId)
+    // reached from `disconnect`, which iterates `#channelsByClient` — so on a
+    // process that predates the boundary guard, throwing here would make every
+    // disconnect fail on the first legacy name and leak every channel after
+    // it. Accepting a name we would no longer create is the correct asymmetry:
+    // creation is guarded, cleanup is total.
+    //
+    // `revokeChannel` asserts BOTH its arguments and the two verbs disagree on
+    // purpose: that one mints a name onto the control plane and into a durable
+    // record, this one cleans up a name the framework already admitted.
+    async unsubscribe(
+        clientId: string,
+        channel: string,
+    ): Promise<LeaveOutcome> {
+        // READ BEFORE THE FIRST AWAIT. `connections` is the sole spelling of
+        // ownership in this class, and `disconnect`'s `finally` deletes from
+        // it — so a value sampled after the leave could report `'not-owned'`
+        // for a connection this instance had just finished tearing down.
+        const owned = this.connections.has(clientId)
+        const left = await this.#leaveLocal(channel, clientId)
         const members = this.presence.get(channel)
         const member = members?.get(clientId)
         if (members && member) {
@@ -1551,6 +1782,9 @@ export class ChannelManager<Identity = unknown> {
                 member,
             })
         }
+        // `left` first: something WAS removed, whatever `connections` says
+        // about a socket that may already have been pruned around it.
+        return left ? 'left' : owned ? 'not-subscribed' : 'not-owned'
     }
 
     /**
@@ -1560,10 +1794,28 @@ export class ChannelManager<Identity = unknown> {
      * `async` (FR-017): it awaits each channel's roster removal so a caller — the
      * handler's `onClose` — can await teardown before the socket is gone.
      *
+     * **Local, like {@link unsubscribe}, and misaddressable the same way.**
+     * Called with an id this instance does not own it iterates an empty channel
+     * set and deletes two absent map entries — so it reports `'not-owned'`
+     * rather than resolving as if it had torn something down. {@link evict} is
+     * the addressed verb.
+     *
+     * The outcome is a **server**-side value; the warning on
+     * {@link LeaveOutcome} applies here unchanged.
+     *
      * @param clientId - The connection id.
-     * @returns Resolves once every channel leave has been applied.
+     * @returns `'disconnected'` when this instance owned the socket and tore it
+     *   down, `'not-owned'` when the socket lives elsewhere and nothing local
+     *   was touched.
+     * @throws Whatever the first channel teardown threw — unchanged; the
+     *   connection is still forgotten, and the outcome is not reported in that
+     *   case because the throw is the report.
      */
-    async disconnect(clientId: string): Promise<void> {
+    async disconnect(clientId: string): Promise<DisconnectOutcome> {
+        // Sampled before the loop, from the one spelling of ownership this
+        // class has. It cannot change underneath: only this method's own
+        // `finally` deletes from `connections`.
+        const owned = this.connections.has(clientId)
         // THIS CONNECTION'S channels, not every channel this instance has ever
         // hosted. The old loop walked `subscriptions.keys()` and called
         // `unsubscribe` for all of them, which was harmless only because a
@@ -1620,6 +1872,7 @@ export class ChannelManager<Identity = unknown> {
         // caller still learns the disconnect was not clean; what it no longer
         // does is decide how much of the teardown ran.
         if (failure !== undefined) throw failure
+        return owned ? 'disconnected' : 'not-owned'
     }
 
     /**
@@ -1668,7 +1921,7 @@ export class ChannelManager<Identity = unknown> {
         // reconcile (#276 review HIGH-2).
         let durabilityError: unknown
         try {
-            await this.driver.markRevoked?.(clientId)
+            await this.#revocations?.markRevocation({ target: clientId })
         } catch (error) {
             durabilityError = error
             // Rendered, not passed as a separate console argument. The old
@@ -1722,15 +1975,271 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * Whether this driver has a control plane — the ONE spelling, so
+     * {@link revokeChannel}'s two questions ("may I proceed without a durable
+     * store?" and "is there anyone to route to?") ask the same thing.
+     */
+    get #hasControlPlane(): boolean {
+        return typeof this.driver.publishControl === 'function'
+    }
+
+    /**
+     * Revoke a connection from **one channel**, wherever its socket lives
+     * (#332) — the channel-scoped sibling of {@link evict}.
+     *
+     * The connection leaves that channel and keeps every other it holds; **the
+     * socket stays open.** That is the difference from `evict`, which
+     * hard-closes with 4403 and takes every still-authorized channel with it —
+     * and, for a client with no reconnect logic, ends the realtime session.
+     *
+     * Same durable path as `evict`, not a second weaker one: the record is
+     * written first, then either applied here or published to the owner, and
+     * the reconcile pass recovers a frame the bus lost. It is cleared once
+     * applied, so a record means exactly *a revocation the owner has not
+     * applied yet* — an uncleared one would re-kick a client that legitimately
+     * re-subscribed, once per reconcile tick, for the whole record TTL.
+     *
+     * **A revocation is not a ban.** The connection may re-subscribe
+     * immediately if the application's `authorize` admits it; this framework
+     * owns no deny list, and `subscribe` does not consult the revocation index.
+     *
+     * Not reachable from a client frame — `decodeClientMessage`'s allowlist is
+     * unchanged. Server code calls this.
+     *
+     * @param clientId - The connection id to revoke.
+     * @param channel - The channel to revoke it from.
+     * @returns `'revoked'` when the membership was removed here,
+     *   `'not-subscribed'` when this instance owns the socket and it was not in
+     *   that channel, `'not-owned'` when the socket lives elsewhere (the record
+     *   is written and the frame published) or when there is no owner to route
+     *   to at all.
+     * @throws {ConnectionIdError} If `clientId` is outside the supported
+     *   charset.
+     * @throws {ChannelNameError} If `channel` is outside it. **Both** are
+     *   asserted, unlike {@link unsubscribe}: these two values are minted onto
+     *   the control plane and into a durable record, where an unusable name
+     *   means a frame every peer drops and a revocation that reported success
+     *   having revoked nothing.
+     * @throws {RevocationScopeError} If the driver can route the frame but
+     *   cannot record it durably.
+     * @example
+     * ```ts
+     * // Remove one member from one room, everywhere. Their other rooms and
+     * // their socket are untouched.
+     * await manager.revokeChannel(connectionId, 'private-orders')
+     * ```
+     */
+    async revokeChannel(
+        clientId: string,
+        channel: string,
+    ): Promise<RevokeChannelOutcome> {
+        this.#assertUsableId(clientId)
+        this.#assertUsableChannel(channel)
+        const store = this.#revocations
+        // A driver that can ROUTE but cannot RECORD is the undurable path: the
+        // revoke would rest on one control frame arriving, and a lost or
+        // MAC-refused frame is a revocation that reported success and did
+        // nothing. Refuse before anything is published. A single-process driver
+        // (no control plane, no store) is a different case and is allowed —
+        // there is no bus on which to lose a frame.
+        if (!store && this.#hasControlPlane) {
+            throw new RevocationScopeError(channel)
+        }
+        const revocation: Revocation = { target: clientId, channel }
+        // Durable first, and a failure NEVER cancels the revocation — the same
+        // sequencing `evict` records at length: the local apply needs no broker
+        // at all, so letting a durability write reject out of this method would
+        // skip the one revocation still possible. Re-thrown after the apply, so
+        // the caller learns durability was lost.
+        let durabilityError: unknown
+        try {
+            await store?.markRevocation(revocation)
+        } catch (error) {
+            durabilityError = error
+            console.warn(
+                `realtime: the durable revocation write for ${
+                    safeForLog(channel)
+                } failed — revoking anyway, but a lost control frame will NOT ` +
+                    `be recovered by reconcile: ${renderError(error)}`,
+            )
+        }
+        let outcome: RevokeChannelOutcome = 'not-owned'
+        if (this.connections.has(clientId)) {
+            const applied = await this.#revokeChannelLocal(revocation)
+            outcome = applied.outcome
+            // Only HERE is a clear failure re-thrown: this is the one apply
+            // path with a caller to receive it. The control-frame and reconcile
+            // paths have none, so re-throwing there would be an unhandled
+            // rejection rather than a signal (FR-019).
+            if (durabilityError === undefined) {
+                durabilityError = applied.clearError
+            }
+        } else if (this.#hasControlPlane) {
+            await this.publishControl({
+                kind: 'revoke-channel',
+                target: clientId,
+                channel,
+            })
+        }
+        if (durabilityError !== undefined) throw durabilityError
+        return outcome
+    }
+
+    /**
+     * Apply a channel-scoped revocation to a socket this instance owns.
+     *
+     * **Reuses the whole existing leave path** — roster removal, the local
+     * `left`, and the cross-instance `presence-leave` — rather than growing a
+     * second announcement mechanism beside it.
+     *
+     * @param revocation - The channel-scoped revocation to apply.
+     * @returns The outcome, and any error from clearing the durable record —
+     *   returned rather than thrown so each caller decides, since only one of
+     *   the two has anyone to tell.
+     */
+    async #revokeChannelLocal(
+        revocation: Revocation,
+    ): Promise<{ outcome: RevokeChannelOutcome; clearError: unknown }> {
+        const { target, channel } = revocation
+        // A channel-scoped record always carries its channel; a decoder that
+        // could not recover one drops the record rather than widening it.
+        if (channel === undefined) {
+            return { outcome: 'not-owned', clearError: undefined }
+        }
+        const left = await this.unsubscribe(target, channel)
+        if (left === 'left') {
+            // WITHOUT THIS THE TARGET NEVER LEARNS. `emitPresence` fans the
+            // `left` to the channel's remaining subscribers, and the leaver was
+            // removed from that set before it ran — so it does not even receive
+            // its own departure. `evict`'s target at least gets close code
+            // 4403; this one would get silence.
+            //
+            // A CLIENT-initiated unsubscribe still sends nothing: the
+            // application owns that reply, and this is gated on a leave the
+            // server asked for.
+            this.#tell(target, { type: 'unsubscribed', channel })
+        }
+        // CLEARED ONLY WHEN SOMETHING WAS ACTUALLY REMOVED.
+        //
+        // `subscribe` suspends at the application authorizer before
+        // `#joinLocal` runs, so there is a real window in which this instance
+        // owns the socket and the membership has not landed. A revoke inside
+        // it marks the record, gets `'not-subscribed'` here, and — clearing
+        // unconditionally — would delete the record it wrote moments earlier.
+        // The authorizer then resolves, the membership lands, and the
+        // reconcile has nothing left to find: the connection stays in the room
+        // permanently, and the caller was told the revoke was a no-op.
+        //
+        // A record that found nothing therefore survives to its TTL, which is
+        // exactly what `evict` has always done. Re-applying it costs one
+        // no-op leave per reconcile tick and sends the client nothing, because
+        // the frame below is gated on the same predicate.
+        const clearError = left === 'left'
+            ? await this.#clearRevocation(revocation)
+            : undefined
+        return {
+            outcome: left === 'left'
+                ? 'revoked'
+                : left === 'not-subscribed'
+                ? 'not-subscribed'
+                : 'not-owned',
+            clearError,
+        }
+    }
+
+    /**
+     * Forget a revocation this instance has applied.
+     *
+     * @param revocation - The applied revocation.
+     * @returns The failure, if it failed — never thrown from here, because one
+     *   of the two callers is a fire-and-forget control-frame dispatch where a
+     *   rejection has nowhere to go.
+     */
+    async #clearRevocation(revocation: Revocation): Promise<unknown> {
+        try {
+            await this.#revocations?.clearRevocation(revocation)
+            return undefined
+        } catch (error) {
+            console.warn(
+                `realtime: the revocation record for ${
+                    safeForLog(revocation.channel ?? revocation.target)
+                } was applied but could not be cleared — reconcile will ` +
+                    `re-apply it until it expires: ${renderError(error)}`,
+            )
+            return error
+        }
+    }
+
+    /**
+     * Send one frame to one connection, through the application's own encoder.
+     *
+     * @param clientId - The connection to tell.
+     * @param frame - The frame to encode and send.
+     */
+    #tell(clientId: string, frame: OutboundFrame): void {
+        const connection = this.connections.get(clientId)
+        if (!connection) return
+        try {
+            connection.send(this.encode(frame))
+        } catch (error) {
+            console.warn(
+                `realtime: could not tell ${safeForLog(clientId)} it was ` +
+                    `revoked — the socket is skipped: ${renderError(error)}`,
+            )
+        }
+    }
+
+    /**
+     * **What a revocation's scope does to the socket** — the one place that
+     * mapping is made.
+     *
+     * No channel means the whole connection: hard-close 4403 and tear it out of
+     * every room. A channel means one room, socket open. The two entry points
+     * that have no caller — the `revoke-channel` control frame and the
+     * reconcile pass — both **call** this rather than each testing the scope
+     * themselves. Two spellings of it, reached by different routes, is how a
+     * third scope later gets added to one and not the other.
+     *
+     * Contained, never re-thrown: a control frame is dispatched fire-and-forget
+     * and the reconcile is invoked by the driver's timer, so neither has anyone
+     * to receive a rejection (FR-019).
+     *
+     * @param revocation - The revocation to apply to a socket this instance
+     *   owns.
+     */
+    async #applyRevocation(revocation: Revocation): Promise<void> {
+        try {
+            if (revocation.channel === undefined) {
+                // Connection scope. The record is NOT cleared: it becomes moot
+                // the instant the socket dies, so it is left to its TTL — which
+                // is what `evict` has always done.
+                await this.revokeLocal(revocation.target)
+                return
+            }
+            await this.#revokeChannelLocal(revocation)
+        } catch (error) {
+            console.warn(
+                `realtime: applying a revocation for ${
+                    safeForLog(revocation.target)
+                } failed: ${renderError(error)}`,
+            )
+        }
+    }
+
+    /**
      * The durable revocation re-check (S1/FR-014), invoked by the driver on each
-     * periodic reconcile pass. Any revoked id whose socket this instance owns is
-     * revoked here — recovering an evict whose one-shot control frame was lost
-     * while the owning socket was between reconnects.
+     * periodic reconcile pass. Any live revocation whose socket this instance
+     * owns is applied here — recovering a revoke whose one-shot control frame
+     * was lost while the owning socket was between reconnects.
+     *
+     * **Scope is dispatched, not decided**: see {@link #applyRevocation}.
      */
     private async reconcileRevocations(): Promise<void> {
-        const revoked = await this.driver.listRevoked?.() ?? []
-        for (const clientId of revoked) {
-            if (this.connections.has(clientId)) await this.revokeLocal(clientId)
+        const revocations = await this.#revocations?.listRevocations() ?? []
+        for (const revocation of revocations) {
+            if (this.connections.has(revocation.target)) {
+                await this.#applyRevocation(revocation)
+            }
         }
     }
 
@@ -1856,6 +2365,15 @@ export class ChannelManager<Identity = unknown> {
      *   roster/`left`, Q2); an instance that does not own it is a no-op here —
      *   the owning instance's teardown fans the `left` to it via `presence-leave`
      *   (FR-009). The durable marker (FR-014) is the backstop for a lost frame.
+     * - `revoke-channel`: the owning instance removes the target from ONE
+     *   channel and leaves the socket open (#332). Same ownership rule as
+     *   `evict`; the durable record is the same backstop.
+     *
+     * **The switch has no `default`, and that is load-bearing.** An instance
+     * running an older release meets `revoke-channel` here, matches nothing,
+     * and returns — inert rather than wrong. Adding a `default` that threw or
+     * warned would turn a forward-compatible frame into noise on every peer
+     * during a rolling deploy.
      */
     private handleControl(control: ControlMessage): void {
         switch (control.kind) {
@@ -1885,7 +2403,22 @@ export class ChannelManager<Identity = unknown> {
                 // a `presence-leave`). The revoke is async; its awaits settle in
                 // microtasks, and it logs on failure — never a silent catch.
                 if (this.connections.has(control.target)) {
-                    void this.revokeLocal(control.target)
+                    void this.#applyRevocation({ target: control.target })
+                }
+                return
+            case 'revoke-channel':
+                // Same rule as `evict`: only the owner acts. Every other
+                // instance hears the resulting `left` as a `presence-leave`.
+                // A frame with no channel is not a channel revocation and is
+                // dropped rather than widened into a socket kill.
+                if (
+                    control.channel !== undefined &&
+                    this.connections.has(control.target)
+                ) {
+                    void this.#applyRevocation({
+                        target: control.target,
+                        channel: control.channel,
+                    })
                 }
                 return
         }

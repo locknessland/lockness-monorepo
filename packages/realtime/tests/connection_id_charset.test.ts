@@ -155,7 +155,7 @@ Deno.test('#304 evict() refuses an out-of-charset id rather than no-opping', asy
 })
 
 Deno.test('#304 reconcile drops a broker-injected id outside the charset', async () => {
-    // The second, independent control. `listRevoked` is broker-sourced — a
+    // The second, independent control. `listRevocations` is broker-sourced — a
     // writer with bus access can put anything in the index — and reconcile
     // hands what it finds straight to `revokeLocal`. The control-plane path has
     // always filtered `wire.target`; this one did not, and that asymmetry was
@@ -189,7 +189,13 @@ Deno.test('#304 reconcile drops a broker-injected id outside the charset', async
     const driver = new RedisBroadcastDriver(command, subscriber, {
         prefix: 'app',
     })
-    const revoked = await driver.listRevoked?.() ?? []
+    // Mapped to ids because THIS test is about the charset filter, not about
+    // scope: every record it plants is connection-scoped, and a record that
+    // came back carrying a channel would be a different failure with its own
+    // witness (`revocation_encoding_332`).
+    const revoked = (await driver.listRevocations?.() ?? []).map((r) =>
+        r.target
+    )
 
     assertEquals(
         revoked.sort(),

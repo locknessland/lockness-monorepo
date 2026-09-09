@@ -12,7 +12,7 @@
  * layout the suite reads back, what counts as an authoritative read-back, where
  * the control secret comes from, and how an instance is created and disposed.
  *
- * **On read-backs.** `RedisBroadcastDriver.listMembers()` and `listRevoked()`
+ * **On read-backs.** `RedisBroadcastDriver.listMembers()` and `listRevocations()`
  * both read from Redis, so asserting through them would satisfy a naive reading
  * of "assert cross-process state" while routing every assertion straight back
  * through the parsing and semantics layer this suite exists to backstop. A suite

@@ -50,6 +50,7 @@ import type {
     BroadcastMessage,
     ControlMessage,
     ControlRefusal,
+    Revocation,
 } from '../driver.ts'
 import { isValidName } from '../protocol.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
@@ -122,6 +123,25 @@ const LIST_REVOKED_SCRIPT: string = [
     "redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', t)",
     "return redis.call('ZRANGEBYSCORE', KEYS[1], t, '+inf')",
 ].join('\n')
+
+/**
+ * The delimiter between a revocation's target and its channel inside one index
+ * member.
+ *
+ * **A space, and it must stay outside `NAME_RE`** (`/^[A-Za-z0-9:._-]+$/`).
+ * That is what makes the composite decidable in both directions, and what makes
+ * an instance running an older release *inert* rather than confused when it
+ * meets one: a connection id that passed the manager's charset assertion can
+ * never contain a space, so `connections.has('c1 private-orders')` is
+ * structurally false and the record is skipped rather than acted on.
+ *
+ * Change it to a `:` or a `.` "for readability" and a composite can collide
+ * with a real connection id — at which point an older reader applies a
+ * room-scoped revocation as a **whole-socket** kill. Every same-version test
+ * still passes; only the mixed-fleet witness fails, which is why the mutation
+ * battery carries a row for exactly this substitution.
+ */
+const REVOCATION_SCOPE_SEPARATOR = ' '
 
 /**
  * Add a member to the authoritative roster — ONE operation, both structures.
@@ -1465,7 +1485,79 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * OPTIONAL (S1/FR-014). Durably record that a connection is revoked.
+     * Encode a {@link Revocation} as one index member.
+     *
+     * **The seam carries the domain fact; this method owns the bytes.** Nothing
+     * outside this file may parse or construct one — the manager receives
+     * `Revocation` records and never sees a member string, which is what keeps
+     * the encoding from becoming normative on the public driver interface.
+     *
+     * Both halves are re-asserted here even though the manager already asserted
+     * them, because this is the last point at which an undecodable member can
+     * be prevented rather than merely detected. A composite whose channel
+     * carried a space would decode to a different channel — or to nothing.
+     *
+     * @param revocation - The revocation to encode.
+     * @returns The sorted-set member.
+     * @throws {Error} If either half is outside the supported charset.
+     */
+    #encodeRevocation(revocation: Revocation): string {
+        const { target, channel } = revocation
+        if (!isValidName(target)) {
+            throw new Error(
+                `realtime: refusing to record a revocation for ${
+                    safeForLog(target)
+                } — the id is outside the supported charset, so the record ` +
+                    'could never be matched to a live socket.',
+            )
+        }
+        if (channel === undefined) return target
+        if (!isValidName(channel)) {
+            throw new Error(
+                `realtime: refusing to record a revocation on ${
+                    safeForLog(channel)
+                } — the channel is outside the supported charset, so the ` +
+                    'composite record would not decode back to this channel.',
+            )
+        }
+        return `${target}${REVOCATION_SCOPE_SEPARATOR}${channel}`
+    }
+
+    /**
+     * Decode one index member back to a {@link Revocation}, or drop it.
+     *
+     * **This fails CLOSED, and it is the boundary rather than belt-and-braces.**
+     * The revocation index is the only cross-instance write channel in this
+     * package with no authenticity tag — control frames carry a MAC, this does
+     * not — so a writer with bus access can put anything in it, and what comes
+     * back here is handed almost directly to a revocation.
+     *
+     * The failure that matters is not "an unknown member is applied"; it is
+     * **a channel-scoped member returned without its channel**, which the
+     * manager then applies as a whole-connection revocation: hard-close 4403,
+     * every other room gone. So a member that does not fully decode is
+     * discarded, never returned with a partial scope, and never widened.
+     *
+     * @param member - The raw sorted-set member.
+     * @returns The revocation, or `undefined` when the member does not fully
+     *   decode.
+     */
+    #decodeRevocation(member: string): Revocation | undefined {
+        const at = member.indexOf(REVOCATION_SCOPE_SEPARATOR)
+        if (at === -1) {
+            return isValidName(member) ? { target: member } : undefined
+        }
+        const target = member.slice(0, at)
+        const channel = member.slice(at + REVOCATION_SCOPE_SEPARATOR.length)
+        // BOTH halves. A member carrying a second separator leaves a channel
+        // that fails the charset, so it is dropped here rather than silently
+        // truncated into a different channel.
+        if (!isValidName(target) || !isValidName(channel)) return undefined
+        return { target, channel }
+    }
+
+    /**
+     * OPTIONAL (S1/FR-014). Durably record a revocation.
      *
      * The record is **one** sorted-set member whose score is the second it
      * expires (#276) — not a marker key plus a separate index entry, which were
@@ -1475,42 +1567,52 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * Decision-table home: "whether a revoked connection stays revoked across a
      * reconnect".
      *
-     * @param target - The revoked connection id.
-     * @throws {Error} If the write fails — `ChannelManager.evict` revokes the
-     *   socket anyway and re-throws, so the caller learns durability was lost.
+     * A **channel**-scoped record is the same member string with its channel
+     * appended after a space (#332) — the same index, the same script, the same
+     * extend-only discipline. No new key, no migration, no dual-write.
+     *
+     * @param revocation - What is revoked: a whole connection, or a connection
+     *   in one channel.
+     * @throws {Error} If the write fails, or if either half of the record is
+     *   outside the supported charset. `ChannelManager` applies the revocation
+     *   anyway and re-throws, so the caller learns durability was lost.
      */
-    async markRevoked(target: string): Promise<void> {
+    async markRevocation(revocation: Revocation): Promise<void> {
         await this.command.command(
             'EVAL',
             MARK_REVOKED_SCRIPT,
             '1',
             this.revocationIndexKey,
             String(this.revocationTtlSeconds),
-            target,
+            this.#encodeRevocation(revocation),
             String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),
         )
     }
 
     /**
-     * OPTIONAL (S1/FR-014). The connection ids whose revocation is live now,
-     * reaping expired entries so the index stays bounded (#276 FR-002/FR-003).
+     * OPTIONAL (S1/FR-014). The revocations that are live now, reaping expired
+     * entries so the index stays bounded (#276 FR-002/FR-003).
      *
      * Reap and enumeration happen inside ONE script, against ONE `now` read from
      * Redis — so every surviving member's score is strictly greater than the
      * bound the reap just used, and a live revocation is unremovable. There is
      * no earlier round-trip whose result could go stale before it is acted on.
      *
-     * During rollout it also reads the legacy structure (FR-009) so a revocation
-     * written by a not-yet-upgraded instance is still enumerated. Only the new
-     * index is reaped; legacy markers expire on their own TTL.
+     * **The reap is by SCORE ONLY, and the decode filter below is deliberately
+     * non-destructive.** An instance running an older release meets a
+     * channel-scoped member, cannot decode it, and skips it — but it also
+     * cannot delete it, so the record survives for the instance that owns the
+     * socket and can act on it. Making the reap drop members it fails to parse
+     * would silently delete live revocations during a rolling deploy.
      *
-     * @returns The currently-revoked connection ids.
+     * @returns The currently-live revocations, with anything undecodable
+     *   dropped.
      * @example
      * ```ts
-     * for (const id of await driver.listRevoked()) { /* revoke if local *\/ }
+     * for (const r of await driver.listRevocations()) { /* apply if local *\/ }
      * ```
      */
-    async listRevoked(): Promise<string[]> {
+    async listRevocations(): Promise<Revocation[]> {
         const reply = await this.command.command(
             'EVAL',
             LIST_REVOKED_SCRIPT,
@@ -1528,13 +1630,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     'recovered on this pass',
             )
         }
-        const live = new Set<string>()
+        const live = new Map<string, Revocation>()
         for (const raw of members ?? []) {
-            const id = asBulk(raw)
+            const member = asBulk(raw)
             // Filtered, matching what the control-plane ingest has always done
             // to `wire.target`. Both return paths are broker-sourced: a writer
             // with bus access could put anything in the index, and reconcile
-            // hands what it finds straight to `revokeLocal`. The asymmetry
+            // hands what it finds straight to a revocation. The asymmetry
             // between the two paths was the finding, not the reach.
             //
             // ONE filter, and it is the boundary rather than belt-and-braces.
@@ -1542,12 +1644,42 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             // that the real guard had moved inside `#legacyRevoked`, which
             // built a Redis key from an unfiltered member before the caller
             // ever saw it. That method is gone (#278) and with it the second
-            // path, so this line is the only thing standing between a
-            // broker-sourced member and `revokeLocal` — the mutation that
+            // path, so this is the only thing standing between a
+            // broker-sourced member and a revocation — the mutation that
             // removes it is a kill, not an equivalence.
-            if (id && isValidName(id)) live.add(id)
+            //
+            // #332 made it strictly more load-bearing rather than less: the
+            // filter now also decides SCOPE, and a decode that degraded to
+            // `{ target }` on a malformed member would turn a room revocation
+            // into a socket kill. Failing closed is that decision.
+            if (member === undefined) continue
+            const revocation = this.#decodeRevocation(member)
+            if (revocation) live.set(member, revocation)
         }
-        return [...live]
+        return [...live.values()]
+    }
+
+    /**
+     * OPTIONAL (S1/FR-014). Forget a revocation the owning instance has applied.
+     *
+     * **Only a channel-scoped record is ever cleared.** A connection-scoped one
+     * becomes moot the instant the socket dies, so `evict` leaves it to the TTL;
+     * a channel-scoped one has a live socket to act on for the whole TTL, so an
+     * uncleared record would re-apply the leave at every reconcile tick and kick
+     * a client that has legitimately re-subscribed. Clearing on apply makes a
+     * record mean exactly one thing: *a revocation the owning instance has not
+     * applied yet.*
+     *
+     * @param revocation - The revocation that has been applied.
+     * @throws {Error} If the write fails. `ChannelManager` reports it to a
+     *   caller where one exists and warns where none does.
+     */
+    async clearRevocation(revocation: Revocation): Promise<void> {
+        await this.command.command(
+            'ZREM',
+            this.revocationIndexKey,
+            this.#encodeRevocation(revocation),
+        )
     }
 
     /**

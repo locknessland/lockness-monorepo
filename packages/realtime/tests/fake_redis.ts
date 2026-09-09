@@ -266,7 +266,7 @@ export class FakeRedis {
      * How many members a sorted set holds, expired ones included.
      *
      * Test-only, and load-bearing: a reap that does nothing is invisible to any
-     * assertion that reads `listRevoked()`'s return value, because the caller
+     * assertion that reads `listRevocations()`'s return value, because the caller
      * filters by score anyway. Only stored cardinality can see it (#276).
      *
      * @param key - The sorted-set key.
@@ -395,6 +395,29 @@ export class FakeRedis {
                     }
                 }
                 return { type: 'integer', value: added }
+            }
+            case 'ZREM': {
+                // ZREM key member [member ...] — every member IS read, so
+                // there is no unmodelled argument to refuse (#280). The reply
+                // is the number actually removed, which is what lets a caller
+                // tell "cleared" from "it was already gone".
+                const [key, ...members] = rest
+                if (members.length === 0) {
+                    throw new Error('FakeRedis: ZREM needs at least one member')
+                }
+                const zset = this.#liveZset(key)
+                if (!zset) return { type: 'integer', value: 0 }
+                let removed = 0
+                for (const member of members) {
+                    if (zset.delete(member)) removed++
+                }
+                // Redis drops a key when its last element goes. The revocation
+                // index is driven to empty by design — by the reap, and now by
+                // clear-on-apply — so a fake that kept an empty zset here would
+                // make `EXISTS` disagree with the real broker on exactly the
+                // key this feature clears most often.
+                this.#dropIfEmpty(key)
+                return { type: 'integer', value: removed }
             }
             case 'ZREMRANGEBYSCORE': {
                 const [key, rawMin, rawMax] = rest

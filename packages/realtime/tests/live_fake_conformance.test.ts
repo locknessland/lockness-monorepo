@@ -21,7 +21,7 @@
  * @module @lockness/realtime/tests/live_fake_conformance
  */
 
-import { assertEquals } from '@std/assert'
+import { assert, assertEquals } from '@std/assert'
 import type { RespReply } from '../../redis/resp.ts'
 import { RedisClient } from '../../redis/mod.ts'
 import {
@@ -152,6 +152,29 @@ const SEQUENCES: Sequence[] = [
             { argv: ['ZREMRANGEBYSCORE', K('rev'), '-inf', '+inf'] },
             { argv: ['EXISTS', K('rev')] },
             { argv: ['DEL', K('rev')] },
+        ],
+    },
+    {
+        name: 'ZREM — the arm clear-on-apply added (#332)',
+        steps: [
+            { argv: ['ZADD', K('zrem'), '100', 'c1'] },
+            { argv: ['ZADD', K('zrem'), '100', 'c1 presence-room'] },
+            { argv: ['ZADD', K('zrem'), '100', 'c1 private-orders'] },
+            // Removing the CHANNEL record must leave the connection record and
+            // the other channel's standing — three members, one removed.
+            { argv: ['ZREM', K('zrem'), 'c1 presence-room'] },
+            { argv: ['ZRANGEBYSCORE', K('zrem'), '-inf', '+inf'] },
+            // Removing what is already gone answers 0 rather than erroring:
+            // both the local apply and the reconcile can reach a clear, and the
+            // second must be a no-op rather than a fault somebody logs.
+            { argv: ['ZREM', K('zrem'), 'c1 presence-room'] },
+            { argv: ['ZREM', K('zrem'), 'never-existed'] },
+            // Multi-member form, and then the key must DISAPPEAR when its last
+            // element goes — the property the fake did not have for its other
+            // zset arms until it was found the hard way.
+            { argv: ['ZREM', K('zrem'), 'c1', 'c1 private-orders'] },
+            { argv: ['EXISTS', K('zrem')] },
+            { argv: ['DEL', K('zrem')] },
         ],
     },
     {
@@ -416,7 +439,7 @@ Deno.test({
         // The scripts are module-private and copying them here would be the
         // verbatim-second-copy this package's own brief warns against. So this
         // drives the real production path instead — `markRevoked` and
-        // `listRevoked` on two drivers, one on each backend — which exercises
+        // `listRevocations` on two drivers, one on each backend — which exercises
         // EVAL through its actual caller and needs no export.
         const config = brokerConfig()
         await preflight(config)
@@ -440,24 +463,29 @@ Deno.test({
 
             // Empty on both, before anything is written.
             assertEquals(
-                (await onLive.listRevoked?.() ?? []).sort(),
-                (await onFake.listRevoked?.() ?? []).sort(),
+                (await onLive.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                (await onFake.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
                 'an empty revocation index disagreed',
             )
 
             for (const id of ['c1', 'c2', 'c3']) {
-                await onLive.markRevoked?.(id)
-                await onFake.markRevoked?.(id)
+                await onLive.markRevocation?.({ target: id })
+                await onFake.markRevocation?.({ target: id })
             }
 
             assertEquals(
-                (await onLive.listRevoked?.() ?? []).sort(),
+                (await onLive.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
                 ['c1', 'c2', 'c3'],
                 'the live broker did not record the revocations',
             )
             assertEquals(
-                (await onFake.listRevoked?.() ?? []).sort(),
-                (await onLive.listRevoked?.() ?? []).sort(),
+                (await onFake.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                (await onLive.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
                 'the fake and the broker disagreed on the live revocation set',
             )
 
@@ -499,17 +527,60 @@ Deno.test({
                     `${label}: revocation scores are not ~now+ttl — a wrong ` +
                         'clock source would keep the membership identical',
                 )
-                assertEquals(typeof driver.listRevoked, 'function')
+                assertEquals(typeof driver.listRevocations, 'function')
             }
 
             // Re-marking is idempotent on both — GT keeps the later expiry and
             // the member count does not grow.
-            await onLive.markRevoked?.('c1')
-            await onFake.markRevoked?.('c1')
+            await onLive.markRevocation?.({ target: 'c1' })
+            await onFake.markRevocation?.({ target: 'c1' })
             assertEquals(
-                (await onFake.listRevoked?.() ?? []).sort(),
-                (await onLive.listRevoked?.() ?? []).sort(),
+                (await onFake.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
+                (await onLive.listRevocations?.() ?? []).map((r) => r.target)
+                    .sort(),
                 'a re-mark diverged',
+            )
+
+            // #332: the CHANNEL scope and the clear, on both backends. The
+            // composite is a plain member string, so the fake's ZSET arms carry
+            // it unchanged — but `clearRevocation` needs ZREM, which the fake
+            // did not model at all until this feature, and an unmodelled
+            // command is exactly the divergence this file exists to catch.
+            for (const driver of [onLive, onFake]) {
+                await driver.markRevocation?.({
+                    target: 'c1',
+                    channel: 'presence-room',
+                })
+            }
+            const scoped = (rs: { target: string; channel?: string }[]) =>
+                rs.map((r) => `${r.target}/${r.channel ?? '-'}`).sort()
+            assertEquals(
+                scoped(await onFake.listRevocations?.() ?? []),
+                scoped(await onLive.listRevocations?.() ?? []),
+                'the channel-scoped record round-tripped differently — the ' +
+                    'SCOPE is asserted here, not merely the target, because a ' +
+                    'record that lost its channel is applied as a socket kill',
+            )
+
+            for (const driver of [onLive, onFake]) {
+                await driver.clearRevocation?.({
+                    target: 'c1',
+                    channel: 'presence-room',
+                })
+            }
+            assertEquals(
+                scoped(await onFake.listRevocations?.() ?? []),
+                scoped(await onLive.listRevocations?.() ?? []),
+                'clearing one record diverged — and clearing the CHANNEL ' +
+                    "record must leave c1's connection-scoped one standing on " +
+                    'both backends',
+            )
+            assert(
+                (await onLive.listRevocations?.() ?? []).some((r) =>
+                    r.target === 'c1' && r.channel === undefined
+                ),
+                'the connection-scoped record for the same target survives',
             )
         } finally {
             await teardown(live, NS)

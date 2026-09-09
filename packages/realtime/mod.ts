@@ -45,6 +45,8 @@ export type {
     ControlMessage,
     ControlRefusal,
     PresenceCapableDriver,
+    Revocation,
+    RevocationStoreDriver,
 } from './driver.ts'
 export { MemoryBroadcastDriver } from './drivers/memory.ts'
 export {
@@ -68,12 +70,16 @@ export {
     type ChannelManagerOptions,
     ChannelNameError,
     ConnectionIdError,
+    type DisconnectOutcome,
+    type LeaveOutcome,
     MAX_CHANNELS_PER_CONNECTION,
     MAX_PRESENCE_MEMBER_BYTES,
     MAX_WATCHED_CHANNELS,
     type OutboundFrame,
     PresenceMemberIdError,
     PresenceMemberSizeError,
+    RevocationScopeError,
+    type RevokeChannelOutcome,
     type SubscribeResult,
 } from './manager.ts'
 export {

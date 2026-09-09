@@ -252,8 +252,8 @@ async function exercise(prefix: string) {
         await driver.addMember('presence-room', { id: 'u1', info: {} })
         await driver.listMembers('presence-room')
         await driver.removeMember('presence-room', 'u1')
-        await driver.markRevoked('conn-1')
-        await driver.listRevoked()
+        await driver.markRevocation({ target: 'conn-1' })
+        await driver.listRevocations()
     } finally {
         await driver.close()
     }

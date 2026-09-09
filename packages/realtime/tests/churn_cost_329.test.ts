@@ -47,6 +47,15 @@
  * capability has no `EVAL` and no `HGETALL`; a driver with no control plane has
  * no publishes. The published table states those collapse axes.
  *
+ * ## The leave path has non-frame callers, and they are not in this table
+ *
+ * #332 added three: `revokeChannel`'s local apply, `handleControl`'s
+ * `revoke-channel` case, and the reconcile pass. **None of them is a client
+ * frame**, so none belongs in a per-frame cost table — but each costs what the
+ * `unsubscribe` row below costs, per call. A burst of server-side revocations
+ * is therefore priced by that row and by nothing here, which is the honest
+ * answer rather than an omission.
+ *
  * @module @lockness/realtime/tests/churn_cost_329
  */
 
