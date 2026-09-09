@@ -599,6 +599,46 @@ export class ChannelManager<Identity = unknown> {
      * disconnect it on close — the framework-owned teardown seam, so a forgotten
      * app wire cannot leave ghost presence members or dead-socket references.
      *
+     * **VERB RATE IS THE APPLICATION'S** (#329). `onOpen` and `onClose` below
+     * are composed; `onMessage` is passed through untouched. That is a
+     * decision, not an omission, and this is the one place it is recorded — so
+     * read it before wrapping that line.
+     *
+     * **The framework has no charge target a reconnect does not rotate.**
+     * `Connection.id` is minted per socket and by contract never reused, so a
+     * returning attacker and a reconnecting client are indistinguishable. Any
+     * budget large enough to let a legitimate client re-issue its whole channel
+     * set as one burst — up to {@link maxChannelsPerConnection} — is a budget a
+     * reconnect hands back for free. The only key that does not rotate is
+     * `Connection.identity`, which is the application's own type: hence the
+     * seam is here, and the meter belongs in your `onMessage`, keyed on a
+     * **stable string** derived from that identity (an object identity keys a
+     * `Map` by reference and the meter silently accumulates nothing).
+     *
+     * **But the decisive reason is revocation, not that arithmetic.** A budget
+     * that covers the whole churn cycle has to sit on
+     * {@link ChannelManager.unsubscribe} — and six paths reach that method, of
+     * which exactly ONE comes from a client: `disconnect` on socket close,
+     * `revokeLocal` from a local `evict`, `handleControl`'s evict arm from
+     * ANOTHER instance, the durable revocation reconcile, and a direct
+     * programmatic call. A refusal there charges six and means one: a client
+     * that spent its budget makes its own eviction leave permanent roster
+     * ghosts, because `disconnect` re-throws, `revokeLocal` catches and warns,
+     * the socket is already closed, and only a ghost sweep of a **dead**
+     * instance would reclaim the entries. An unreliable revoke is a worse
+     * outcome than the amplification it was meant to bound.
+     *
+     * A subscribe-ONLY budget escapes that objection — `subscribe` has no
+     * non-client callers — and is on the record as considered and declined: it
+     * is still not a bound, and it would still add statements to the #323
+     * co-turn.
+     *
+     * **`authorize` is not the seam.** It gates ADMISSION. It never runs for a
+     * public channel or for `unsubscribe` at all, and per #331 a denial on a
+     * held channel changes nothing — so a budget placed there meters the cheap
+     * path and cannot refuse the expensive one. `docs/realtime.md` carries the
+     * per-frame cost table and a worked example.
+     *
      * @param userHooks - The app's own hooks (run alongside the teardown).
      * @returns Hooks to pass to `createWebSocketHandler`.
      *
@@ -615,8 +655,10 @@ export class ChannelManager<Identity = unknown> {
                 // CLOSE FIRST, then rethrow. `guard()` in websocket.ts catches
                 // whatever this throws and merely logs it, so a bare throw left
                 // the socket OPEN and untracked: the app's own onOpen — where a
-                // per-socket rate limit or an explicit unauthorized-close lives
-                // — was skipped, onMessage went on firing, and `evict` could
+                // per-SOCKET rate limit or an explicit unauthorized-close
+                // lives, which is a different budget from the per-VERB one the
+                // docstring above routes to `onMessage` — was skipped,
+                // onMessage went on firing, and `evict` could
                 // not reclaim it because it rejects the same id. Fail-open on
                 // the seam this breaking change was supposed to make loud.
                 try {
@@ -812,6 +854,34 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * The **effective** per-connection watched-channel cap this instance was
+     * constructed with (#329).
+     *
+     * {@link MAX_CHANNELS_PER_CONNECTION} is only its DEFAULT, and reading the
+     * default where the effective value was meant is how a correct rule
+     * produces a wrong number: a deployment passing `maxChannelsPerConnection`
+     * gets a different cap, and `docs/realtime.md` shows exactly that.
+     *
+     * It is exposed because an application's own verb budget — which is where
+     * verb-rate policy lives, see {@link ChannelManager.handlerHooks} — has to
+     * clear this value as its burst, or it refuses the reconnect of a client
+     * re-issuing a channel set the framework itself permitted. A budget sized
+     * against the default is wrong for every configured deployment, and wrong
+     * in the direction that refuses legitimate traffic.
+     *
+     * @returns The cap, as a positive integer.
+     *
+     * @example
+     * ```ts
+     * // A token bucket whose burst can never refuse a legitimate reconnect.
+     * const burst = manager.maxChannelsPerConnection
+     * ```
+     */
+    get maxChannelsPerConnection(): number {
+        return this.#maxChannelsPerConnection
+    }
+
+    /**
      * Subscribe a connection to a channel, enforcing authorization for
      * private/presence channels.
      *
@@ -845,7 +915,10 @@ export class ChannelManager<Identity = unknown> {
      * roster READ.** It writes nothing, emits no `joined` to anyone, publishes
      * nothing to other instances, and never throws — and it returns the same
      * `SubscribeResult` a first join returns, so a client re-subscribing after
-     * a network blip cannot tell the difference and is never refused. `joined`
+     * a network blip cannot tell the difference and is never refused.
+     * **Zero writes is not zero cost** (#329): the read is one authoritative
+     * roster fetch per inbound frame and its reply is every member in the room,
+     * cluster-wide. `docs/realtime.md` carries the per-frame table. `joined`
      * records a transition and membership is a set, so a connection already in
      * the room transitions nothing (#327).
      *
@@ -981,7 +1054,9 @@ export class ChannelManager<Identity = unknown> {
         // A RE-JOIN IS NOT A JOIN (#327). `joined` is a domain event and
         // must record a transition; membership is a set, so a subscribe to
         // a channel this connection already holds transitions nothing. It
-        // announces nothing, writes nothing, publishes nothing — and
+        // announces nothing, writes nothing, publishes nothing — though
+        // NOT nothing at all: the closing read below is one authoritative
+        // roster fetch per frame whose reply is the whole room (#329) — and
         // returns the same authoritative snapshot a first join returns,
         // because a client re-subscribing after a network blip is
         // legitimate traffic and must not be able to tell the difference.

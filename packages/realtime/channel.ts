@@ -75,10 +75,13 @@ export interface PresenceMember {
  *
  * That is deliberate, and it is what makes `false` safe to return. An
  * authorizer is arbitrary application code — {@link Authorizer} sanctions a DB
- * read, an audit write or a rate-limit increment — so `false` today already
- * carries "not this fast" and "I could not check". Revoking on it would give
- * those the force of an eviction, silently, with no compile error and no way to
- * express the difference.
+ * read, an audit write or a rate-limit increment on **admission**, which is not
+ * a verb budget: it never runs for a public channel or for `unsubscribe` at
+ * all, so it cannot bound how often the channel verbs are invoked. See
+ * `ChannelManager.handlerHooks` for where that belongs (#329). So `false` today
+ * already carries "not this fast" and "I could not check". Revoking on it would
+ * give those the force of an eviction, silently, with no compile error and no
+ * way to express the difference.
  *
  * **Revocation is an explicit server-side verb**, never a side effect of the
  * client asking again: `ChannelManager.unsubscribe` for one channel,

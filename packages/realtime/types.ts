@@ -141,7 +141,32 @@ export interface Connection<Identity = unknown> {
      * only for its type and is not covered here (#306).
      */
     readonly id: string
-    /** The server-verified identity, or `null` for an unauthenticated socket. */
+    /**
+     * The server-verified identity, or `null` for an unauthenticated socket.
+     *
+     * **This is the only charge target a rate meter can use** (#329), and the
+     * rule has one home — here. Two properties decide whether a key bounds
+     * anything, and clearing one is not enough:
+     *
+     * - **Rotation.** {@link Connection.id} is minted per socket and by
+     *   contract never reused, so a counter keyed on it is reset by every
+     *   reconnect. This value survives one.
+     * - **Minting.** It survives a reconnect; it is not unforgeable. Under open
+     *   self-registration an attacker mints identities at signup cost, so a
+     *   per-identity bucket scales with account count and needs a second key
+     *   above it.
+     *
+     * Two consequences for anyone metering on it. `null` here is **not** a
+     * fallback key: every unauthenticated socket shares it, so one bucket keyed
+     * on the null identity lets one attacker deny service to every other
+     * anonymous client. And `Identity` is `unknown`, so an object identity keys
+     * a `Map` **by reference** and a meter built on it misses every time and
+     * fails **open**, silently. Key on a stable string you derive.
+     *
+     * The framework itself meters no verb rate — see
+     * {@link ChannelManager.handlerHooks} for why, and `docs/realtime.md` for
+     * the per-frame costs and a worked example.
+     */
     readonly identity: Identity | null
     /** Free-form connection metadata; never an identity source. */
     readonly metadata: Readonly<Record<string, unknown>>
