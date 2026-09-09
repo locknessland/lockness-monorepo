@@ -498,13 +498,28 @@ import {
     ChannelNameError,
     ConnectionIdError,
     PresenceMemberIdError,
+    RevocationScopeError,
 } from '@lockness/realtime'
 
 if (error instanceof PresenceMemberIdError) {
     // The authorizer returned an id the roster cannot carry — fix the
     // authorizer, do not retry.
 }
+
+if (error instanceof RevocationScopeError) {
+    // `revokeChannel` on a driver that can ROUTE the frame but cannot RECORD
+    // it durably. Not retryable and not a transient fault: the driver is
+    // missing the revocation trio. Use `evict`, which every driver obeys, or
+    // implement markRevocation / listRevocations / clearRevocation.
+}
 ```
+
+`RevocationScopeError` refuses rather than degrades on purpose. A driver with a
+control plane and no revocation store _could_ publish the frame — and that is
+exactly the undurable path: a lost or MAC-refused frame would be a revocation
+that reported success and did nothing. A **single-process** driver (no control
+plane, no store) is a different case and is allowed, because there is no bus on
+which to lose a frame.
 
 ## Running on more than one instance
 
@@ -1488,6 +1503,20 @@ listRevoked(): string[] {            listRevocations(): Revocation[] {
                                      }
 ```
 
+**Three driver states, and they fail differently on purpose:**
+
+| The driver has                                 | `evict`                                          | `revokeChannel`                               |
+| ---------------------------------------------- | ------------------------------------------------ | --------------------------------------------- |
+| the new trio                                   | durable                                          | durable                                       |
+| the old pair                                   | **throws at construction**, naming the migration | —                                             |
+| neither, **and** a control plane               | fire-and-forget                                  | **throws `RevocationScopeError`** at the call |
+| neither, and no control plane (single-process) | local                                            | local; no durability is owed                  |
+
+Row three is the one most easily missed: it is not a construction failure and
+not a silent degradation. A driver that never implemented revocation keeps
+working for `evict` exactly as before, and only the new verb refuses — because
+only the new verb has something to lose.
+
 A driver still presenting the old pair **throws at construction**, naming the
 migration. That is deliberate rather than strict: the alternative is being
 narrowed to "no revocation store", which loses `evict`'s durability silently on
@@ -1524,12 +1553,12 @@ the upgraded owner.
 
 ### 4. `unsubscribe` and `disconnect` return values
 
-`Promise<void>` became `Promise<LeaveOutcome>` and `Promise<DisconnectOutcome>`.
-**Not a compile error** for callers that ignore the value. It **is** one for a
-subclass that overrides either method with `Promise<void>`, and for an `encode`
-hook annotated with the old `OutboundFrame` union — which gained
-`{ type: 'unsubscribed' }`, because that frame goes through your encoder like
-every other. See
+`Promise<void>` became `Promise<LeaveOutcome>` and `Promise<DisconnectOutcome>`,
+and `revokeChannel` reports `RevokeChannelOutcome`. **Not a compile error** for
+callers that ignore the value. It **is** one for a subclass that overrides
+either method with `Promise<void>`, and for an `encode` hook annotated with the
+old `OutboundFrame` union — which gained `{ type: 'unsubscribed' }`, because
+that frame goes through your encoder like every other. See
 [The local tier reports what it did](#the-local-tier-reports-what-it-did).
 
 `'not-owned'` means _use `revokeChannel`_.

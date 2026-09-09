@@ -106,8 +106,12 @@ app.get(
   `BroadcastDriver` opts in by implementing `markRevocation(revocation)`,
   `listRevocations()` and `clearRevocation(revocation)` — detected as a **set**,
   all three or none — plus `onRevocationReconcile(handler)` to say when the
-  re-check runs; all three are optional, and a driver that omits them gets
-  fire-and-forget eviction. See [realtime.md](../../docs/realtime.md).
+  re-check runs. All three are optional — but "optional" means different things
+  to the two verbs: a driver that omits them leaves `evict` fire-and-forget, and
+  makes `revokeChannel` **refuse** with `RevocationScopeError` whenever the
+  driver has a control plane, rather than degrade into an undurable revoke. A
+  single-process driver (no control plane) owes no durability and is unaffected.
+  See [realtime.md](../../docs/realtime.md).
 - **Watched-channel limits** — `ChannelLimitError` is raised when a subscribe
   would take the instance past `maxWatchedChannels` (default `1_000`) or the
   connection past `maxChannelsPerConnection` (default `100`). Both are options
