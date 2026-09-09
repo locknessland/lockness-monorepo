@@ -306,8 +306,9 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-46 test files for 16 source files:
+47 test files for 16 source files:
 
+- `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channel_name_boundary.test.ts`
 - `packages/realtime/tests/channel_watch_295.test.ts`
@@ -388,7 +389,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 46 test files directly —
+Then, specific to this package: run its 47 test files directly —
 
 ```bash
 deno test -A packages/realtime/
