@@ -45,18 +45,18 @@ const MUTATIONS: Mutation[] = [
                 // with the capture-and-restore preamble. The claim line plus
                 // the roster comment is the new unique pair — `#joinLocal`
                 // alone appears twice in the method.
-                '            members.set(connection.id, member)\n' +
-                '            await this.#joinLocal(channel, connection.id)\n' +
-                "            // The authoritative roster is the driver's",
-                '            this.emitPresence(channel, {\n' +
-                "                type: 'presence',\n" +
-                '                channel,\n' +
-                "                action: 'joined',\n" +
-                '                member,\n' +
-                '            })\n' +
-                '            members.set(connection.id, member)\n' +
-                '            await this.#joinLocal(channel, connection.id)\n' +
-                "            // The authoritative roster is the driver's",
+                '        members.set(connection.id, member)\n' +
+                '        await this.#joinLocal(channel, connection.id)\n' +
+                "        // The authoritative roster is the driver's",
+                '        this.emitPresence(channel, {\n' +
+                "            type: 'presence',\n" +
+                '            channel,\n' +
+                "            action: 'joined',\n" +
+                '            member,\n' +
+                '        })\n' +
+                '        members.set(connection.id, member)\n' +
+                '        await this.#joinLocal(channel, connection.id)\n' +
+                "        // The authoritative roster is the driver's",
             ],
         ],
         // Restores the shipped defect exactly: subscribers hold a `joined` for
@@ -69,8 +69,8 @@ const MUTATIONS: Mutation[] = [
         label: '#323 the newcomer is no longer excluded from its own join',
         file: MANAGER,
         edits: [[
-            '            }, { except: connection.id })',
-            '            })',
+            '        }, { except: connection.id })',
+            '        })',
         ]],
         // The exclusion used to be a consequence of WHERE the call sat. This
         // row is why it is now an argument: with the call below `#joinLocal`,
@@ -91,7 +91,7 @@ const MUTATIONS: Mutation[] = [
             // re-join guard removed the conditional, so the deeper form no
             // longer exists and one line is now both unique and unambiguous.
             // Verified: exactly one occurrence, at no other indent.
-            '                    await this.#leaveLocal(channel, connection.id)\n',
+            '                await this.#leaveLocal(channel, connection.id)\n',
             '',
         ]],
         // The channel stays hosted with no members — a broker subscription
@@ -106,7 +106,7 @@ const MUTATIONS: Mutation[] = [
             // unconditional delete once a re-join could no longer reach this
             // write. The mutation is the same one — drop the local undo — and
             // it is now one line.
-            '                    members.delete(connection.id)\n',
+            '                members.delete(connection.id)\n',
             '',
         ]],
         // The residue a retry trips over: the local view believes a member the
@@ -124,11 +124,11 @@ const MUTATIONS: Mutation[] = [
             // PRECEDES the throw has broken, twice, because the compensation
             // above it is exactly the part this branch kept changing. What
             // follows a rethrow is the stable side.
-            '                    throw error\n' +
-            '                }\n' +
-            '            }\n',
-            '                }\n' +
-            '            }\n',
+            '                throw error\n' +
+            '            }\n' +
+            '        }\n',
+            '            }\n' +
+            '        }\n',
         ]],
         // Fail-open on the seam the whole branch exists to make loud: the
         // caller is told the join succeeded, and the announcement then goes out
@@ -145,11 +145,11 @@ const MUTATIONS: Mutation[] = [
             // RE-ANCHORED by #327. The injected await must land between
             // `#checkChannelCaps` and the adds it spends; since #327 the CLAIM
             // sits in that same run, so the await goes above both.
-            '            members.set(connection.id, member)\n' +
-            '            await this.#joinLocal(channel, connection.id)\n',
-            '            if (this.roster) await this.roster.addMember(channel, member)\n' +
-            '            members.set(connection.id, member)\n' +
-            '            await this.#joinLocal(channel, connection.id)\n',
+            '        members.set(connection.id, member)\n' +
+            '        await this.#joinLocal(channel, connection.id)\n',
+            '        if (this.roster) await this.roster.addMember(channel, member)\n' +
+            '        members.set(connection.id, member)\n' +
+            '        await this.#joinLocal(channel, connection.id)\n',
         ]],
         // This is the "obvious fix" — authoritative write first, so nothing is
         // visible before the roster accepts — and it is why #323 moved the
@@ -235,9 +235,9 @@ const MUTATIONS: Mutation[] = [
         label: '#327 the re-join guard is removed (a re-join joins again)',
         file: MANAGER,
         edits: [[
-            '            if (members.has(connection.id)) {\n' +
-            '                return await this.#closingRead(channel)\n' +
-            '            }\n',
+            '        if (members.has(connection.id)) {\n' +
+            '            return await this.#closingRead(channel)\n' +
+            '        }\n',
             '',
         ]],
         // The whole defect, restored: a subscribe to a held channel announces
@@ -251,10 +251,10 @@ const MUTATIONS: Mutation[] = [
         label: '#327 the membership claim moves back BELOW `#joinLocal`',
         file: MANAGER,
         edits: [[
-            '            members.set(connection.id, member)\n' +
-            '            await this.#joinLocal(channel, connection.id)\n',
-            '            await this.#joinLocal(channel, connection.id)\n' +
-            '            members.set(connection.id, member)\n',
+            '        members.set(connection.id, member)\n' +
+            '        await this.#joinLocal(channel, connection.id)\n',
+            '        await this.#joinLocal(channel, connection.id)\n' +
+            '        members.set(connection.id, member)\n',
         ]],
         // MOVED, not deleted — the ordering IS the invariant, and a mutation
         // that removes the claim entirely would break the sequential case too

@@ -78,8 +78,14 @@ const MUTATIONS: Mutation[] = [
                 '',
             ],
             [
-                '                    await this.roster.addMember(channel, member)',
-                '                    await this.roster.addMember(channel, member)\n                    this.#assertUsableMemberId(member.id)',
+                // RE-ANCHORED by #328: the roster write moved out of
+                // `subscribe` into `#joinPresence` and lost one level of
+                // indentation. The FIRST edit above did not move — the id
+                // assertion is in the authorization block, which stayed — so
+                // only this half changes, and a blanket re-indent of the row
+                // would have broken the half that was still correct.
+                '                await this.roster.addMember(channel, member)',
+                '                await this.roster.addMember(channel, member)\n                this.#assertUsableMemberId(member.id)',
             ],
         ],
         // RED since #312, and the path is worth keeping. It survived here for
