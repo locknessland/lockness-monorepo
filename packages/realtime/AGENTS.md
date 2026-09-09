@@ -141,11 +141,12 @@ Anything not listed is internal and free to change.
   changes nothing. It looks like a bug and is a decision: `false` already means
   "refuse this attempt", which in a real deployment includes "not this fast" and
   "the DB blipped" — the `Authorizer` docstring sanctions authorizers that are
-  rate-limit increments and DB reads — so revoking on it would turn a transient
-  failure into an eviction with no compile error and no way to express the
-  difference while `AuthorizeResult` stays `boolean | PresenceMember`. It would
-  also be a **second, weaker revocation path** beside `evict`, which writes
-  `markRevoked` first and is recovered by `onRevocationReconcile`; a
+  rate-limit increments and DB reads, **on admission; that is not a verb budget
+  and cannot be made into one** (#329) — so revoking on it would turn a
+  transient failure into an eviction with no compile error and no way to express
+  the difference while `AuthorizeResult` stays `boolean | PresenceMember`. It
+  would also be a **second, weaker revocation path** beside `evict`, which
+  writes `markRevoked` first and is recovered by `onRevocationReconcile`; a
   denial-driven removal survives nothing. `authorize_denial_331.test.ts` is the
   witness, and it fails the moment a revoke is added here.
 - **A roster member is a PAIR, written by one operation.** The presence hash
@@ -337,17 +338,37 @@ Anything not listed is internal and free to change.
   `redis_broker_integration.test.ts`'s nested-deployment scenario both do this
   explicitly.
 
+- **`handlerHooks` passes `onMessage` through untouched, and that is a
+  DECISION**
+  ([#329](https://github.com/locknessland/lockness-monorepo/issues/329)).
+  `onOpen` and `onClose` are composed; `onMessage` is not. Do not wrap it to add
+  a rate limit, and do not add a churn budget to `ChannelManager` — the
+  docstring carries the marker `VERB RATE IS THE APPLICATION'S` and
+  `churn_cost_329.test.ts` fails if it is removed. Two reasons, and the second
+  is the one that bites. The framework has no charge target a reconnect does not
+  rotate: `Connection.id` is minted per socket, so any burst large enough for a
+  legitimate re-issue is handed back free on reconnect. And a budget covering
+  the whole cycle has to sit on `unsubscribe`, which **six paths reach and only
+  one of them is a client** — socket close, a local `evict`, an evict arriving
+  from another instance, the durable reconcile, and direct calls. A refusal
+  there charges six and means one: a client that spends its budget makes its own
+  eviction leave permanent roster ghosts, because `disconnect` re-throws,
+  `revokeLocal` catches and warns, and only a ghost sweep of a **dead** instance
+  reclaims them. Verb-rate policy is the application's `onMessage`, keyed on a
+  stable string derived from `connection.identity`.
+
 ## Tests
 
 <!-- generated:tests -->
 
-49 test files for 16 source files:
+50 test files for 16 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channel_name_boundary.test.ts`
 - `packages/realtime/tests/channel_watch_295.test.ts`
 - `packages/realtime/tests/channels.test.ts`
+- `packages/realtime/tests/churn_cost_329.test.ts`
 - `packages/realtime/tests/client.test.ts`
 - `packages/realtime/tests/connection_id_charset.test.ts`
 - `packages/realtime/tests/control_auth.test.ts`
@@ -427,7 +448,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 49 test files directly —
+Then, specific to this package: run its 50 test files directly —
 
 ```bash
 deno test -A packages/realtime/

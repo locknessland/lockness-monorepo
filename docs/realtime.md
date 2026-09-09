@@ -580,6 +580,12 @@ publishes nothing to the other instances — and it returns the same authoritati
 `members` snapshot a first join returns, so a client re-subscribing after a
 network blip cannot tell the difference and is never refused.
 
+**A roster read is not free, and the word "nothing" above is exhaustive only
+about writes.** The read is one `HGETALL` on the Redis driver and its reply is
+**every member in the room, cluster-wide, with their `info`** — so a re-join's
+cost in bytes scales with the room's population, once per inbound frame, metered
+by nothing. Zero writes; not zero cost. The numbers are in the table below.
+
 That is a correctness rule before it is a cost one. `joined` records a
 _transition_, and membership is a set: a connection already in the room
 transitions nothing. Announcing it told every subscriber in that room, on every
@@ -594,13 +600,319 @@ payloads would mean deep-equality over unbounded application data on every
 inbound frame. If you need to publish a change of `info`, unsubscribe and
 subscribe again.
 
-**The framework applies no rate limit to the WebSocket message path.** The
-throttling in `@lockness/core` guards the HTTP _upgrade_; once a socket is open,
-nothing in `@lockness/realtime` bounds how often a client may send `subscribe`,
-`unsubscribe`, or anything else. The channel caps bound how many channels are
-held, never how often they are asked for. Your `authorize` callback runs on
-every presence subscribe and is the supported place to put a per-call budget of
-your own.
+#### The framework does not meter the verb rate — and that is a decision
+
+**The channel caps bound how many channels are held, never how often they are
+asked for.** A `subscribe -> unsubscribe -> subscribe` loop returns the owned
+set to exactly where it started, so every cap charges it nothing — by
+construction, not by oversight.
+
+Nothing in `@lockness/realtime` bounds that. The decision is recorded in
+`ChannelManager.handlerHooks`' docstring, beside the line that implements it,
+and the short version is: **the framework has no charge target a reconnect does
+not rotate.** `Connection.id` is minted per socket and never reused, so a budget
+large enough to let a legitimate client re-issue its whole channel set as one
+burst is a budget the next reconnect hands back for free. The only key that
+survives a reconnect is `Connection.identity` — your type, not ours.
+
+The decisive reason is not that arithmetic, though. A budget covering the whole
+cycle must sit on `unsubscribe`, and **six paths reach that method, of which one
+comes from a client**: socket close, a local `evict`, an evict arriving from
+another instance, the durable revocation reconcile, and your own direct calls.
+Refusing there charges six and means one — a client that spends its budget makes
+its own eviction leave permanent roster ghosts. An unreliable revoke is worse
+than the amplification it was meant to bound.
+
+##### ⚠️ `authorize` is NOT where a verb budget goes
+
+Earlier versions of this page said it was. **That advice was wrong**, and it is
+worth knowing why, because the reasons are structural rather than incidental:
+
+| Why the hook cannot carry it                                                                                                                                 | Where to see it                              |
+| :----------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------- |
+| A **public** channel runs no authorizer at all — `subscribe` skips the whole block for it                                                                    | `manager.ts`, the `kind !== 'public'` branch |
+| **`unsubscribe` runs no authorizer**, so half the cycle is invisible even on presence channels                                                               | `ChannelManager.unsubscribe`                 |
+| A **denial never revokes** a standing membership, so an authorizer-as-limiter can refuse a first join and a re-join and can never refuse the expensive leave | `AuthorizeResult`                            |
+| It runs **ahead of every cap**, so it is not merely blind to the churn — it is the largest per-frame charge in the package                                   | see below                                    |
+
+That last row is the one to act on. `authorize` runs before the channel caps, so
+a **denied** subscribe naming any invented `private-*` channel still buys one
+full authorizer invocation — a database read, an audit write — for one ~30-byte
+frame, charged by nothing. Since the channel need not exist, it also answers
+"does this channel exist" for anyone who watches the timing or the audit trail.
+An authorizer is still the right place for a rate-limit increment on
+**admission**; it is not a verb budget, and it cannot be made into one.
+
+##### What a frame costs
+
+Worst case per inbound frame, on the Redis driver, in a fleet of `N` instances.
+**Derived from `packages/realtime/tests/churn_cost_329.test.ts`**, which is
+where these numbers live and which fails if they change; the per-operation atoms
+are owned by `channel_watch_295.test.ts`, `roster_atomicity_323.test.ts` and
+`presence_rejoin_327.test.ts`.
+
+| Frame                                   | Driver commands | Control publishes | Fleet verifications | Authorizer calls |
+| :-------------------------------------- | --------------: | ----------------: | ------------------: | ---------------: |
+| `subscribe` public                      |             0–1 |                 0 |                   0 |                0 |
+| `subscribe` private                     |             0–1 |                 0 |                   0 |                1 |
+| `subscribe` private, **denied**         |               0 |                 0 |                   0 |                1 |
+| `subscribe` presence, first join        |             2–3 |                 1 |                 N−1 |                1 |
+| `subscribe` presence, **re-join**       |               1 |                 0 |                   0 |                1 |
+| `unsubscribe` public / private          |             0–1 |                 0 |                   0 |                0 |
+| `unsubscribe` presence, member          |             1–2 |                 1 |                 N−1 |                0 |
+| `unsubscribe`, not a member / not owned |               0 |                 0 |                   0 |                0 |
+
+**A churn pair on a presence channel, sole holder: 5 driver commands, 2 control
+publishes, 2(N−1) fleet verifications, 1 authorizer call — for 2 inbound
+frames.**
+
+Reading the table:
+
+- **The ranges are not a hedge, and you must size against the top of them.** The
+  low end is "the channel was already hosted"; the high end includes the 0→1
+  `SUBSCRIBE` or the 1→0 `UNSUBSCRIBE`. A budget running in your `onMessage`
+  sees the verb and the channel name and **cannot tell which case it is in** —
+  the hosting state lives in the manager's private maps. Size on the worst.
+- **Driver commands** map one-to-one onto wire commands: `SUBSCRIBE` /
+  `UNSUBSCRIBE` on the subscribe connection, `EVAL` for a roster write and
+  `HGETALL` for the roster read on the command connection. A **control publish
+  is a `PUBLISH`** on the command connection too — it has its own column here
+  rather than being folded into this one, because its cost is paid by the whole
+  fleet rather than by the publisher.
+- **The table is the SUCCESSFUL path, and two things sit outside it.** A
+  presence first join whose roster write **fails** pays more than the ceiling
+  above: the compensation issues the local leave — which may `UNSUBSCRIBE` — and
+  a second roster `EVAL` to reclaim a possibly-committed entry. And the Redis
+  driver starts its ghost sweep on the first roster write of a process, a
+  once-per-process cost that no per-frame row can carry. Neither is a path a
+  client chooses, but a budget sized on the table alone is sized on the happy
+  path.
+- **Fleet verifications** are the term nobody counts. A control frame goes to
+  one shared topic every instance subscribes to, and the publisher's own
+  loopback is dropped **before** the MAC — so every _other_ instance pays a
+  length gate, a `JSON.parse`, field validation, a synchronous HMAC, a
+  timing-safe compare and a replay-window admit, whether or not it hosts the
+  channel. It scales with **fleet** size, not with the room. It is CPU, not
+  memory: the replay window is bounded at 10 000 entries with a per-origin fair
+  share.
+- **The re-join's single command is an `HGETALL` whose reply is the whole
+  room.** A frame-rate budget bounds how many such replies arrive; it never
+  bounds how large one is.
+- **Collapse axes.** A driver with no roster capability has no `EVAL` and no
+  `HGETALL`. A driver with no control plane has no publishes and no
+  verifications. `MemoryBroadcastDriver` is single-process: both columns go to
+  zero.
+
+No throughput figure appears in this table on purpose. Counts are a property of
+the framework; a rate is a property of somebody's hardware.
+
+##### Where a verb budget belongs
+
+In your own `onMessage`, which `handlerHooks` passes through untouched.
+
+**Read the four notes under the example before you copy it.** Three of them are
+about state that has to live somewhere other than where it looks like it should,
+and one is a type error you will hit on the first line.
+
+```ts
+// `spend` is YOURS — this page does not ship a rate limiter, and the clock and
+// refill arithmetic are deliberately left where you can see them.
+interface Bucket {
+    tokens: number
+    updated: number
+}
+
+function spend(
+    buckets: Map<string, Bucket>,
+    key: string,
+    cost: number,
+    burst: number,
+    perSecond: number,
+): boolean {
+    const now = Date.now()
+    const bucket = buckets.get(key) ?? { tokens: burst, updated: now }
+    // Refill, CLAMPED at the burst — an idle client must not bank tokens.
+    const refilled = Math.min(
+        burst,
+        bucket.tokens + ((now - bucket.updated) / 1000) * perSecond,
+    )
+    if (refilled < cost) {
+        // Still record the refill, or a client held at zero never recovers.
+        buckets.set(key, { tokens: refilled, updated: now })
+        return false
+    }
+    buckets.set(key, { tokens: refilled - cost, updated: now })
+    return true
+}
+
+const buckets = new Map<string, Bucket>()
+
+// The burst must clear the largest re-issue the framework itself permits, or
+// you refuse your own reconnecting clients. Read the EFFECTIVE cap — the
+// default constant is wrong for any deployment that configured one.
+const BURST = manager.maxChannelsPerConnection
+const REFILL_PER_SECOND = 5
+
+function keyFor(conn: Connection<User>): string | null {
+    // `null` is NOT a bucket key. Every anonymous socket would share it, so one
+    // attacker drains it and denies service to every other anonymous client.
+    // Refuse, or fall back to a per-connection bucket knowing a reconnect
+    // resets it — but never pool them.
+    if (conn.identity === null) return null
+    // A STABLE STRING, never the identity object. `Identity` is `unknown`, so
+    // an object keys a Map by reference: the meter would miss every time and
+    // fail OPEN, silently, with no type error and no failing test.
+    const id = conn.identity.id
+    // And CHECK it. `user:${undefined}` is a perfectly good Map key, and it
+    // pools every authenticated user into one bucket — the anonymous failure
+    // above, arriving through a typo in your identity shape.
+    if (id === undefined || id === null || id === '') return null
+    return `user:${id}`
+}
+
+const hooks = manager.handlerHooks({
+    onMessage: async (conn, data) => {
+        // `WSMessageReceive` includes `Blob`, which `decodeClientMessage` does
+        // not take — reading a Blob is asynchronous, so it cannot. Normalise
+        // first; passing `data` straight through does not type-check.
+        const raw = data instanceof Blob ? await data.arrayBuffer() : data
+        let frame: ClientMessage
+        try {
+            frame = decodeClientMessage(raw)
+        } catch (error) {
+            // Do NOT discard this. A malformed-frame flood is one of the
+            // unmetered paths listed below, and an error you dropped is one
+            // you cannot alert on.
+            log.warn('ws: rejected frame', { id: conn.id, error })
+            conn.send(
+                encodeServerMessage({ type: 'error', message: 'bad frame' }),
+            )
+            return
+        }
+        if (frame.type === 'subscribe' || frame.type === 'unsubscribe') {
+            const key = keyFor(conn)
+            if (key === null) {
+                conn.send(encodeServerMessage({
+                    type: 'error',
+                    message: 'authenticate before subscribing',
+                }))
+                return
+            }
+            // Weight by kind — `channelKind` is the only cost axis visible from
+            // here. See the note on the ratio below; 3 is not the whole story.
+            const weight = channelKind(frame.channel) === 'presence' ? 3 : 1
+            if (!spend(buckets, key, weight, BURST, REFILL_PER_SECOND)) {
+                conn.send(
+                    encodeServerMessage({
+                        type: 'error',
+                        message: 'slow down',
+                    }),
+                )
+                return
+            }
+        }
+        await dispatch(conn, frame)
+    },
+    // Install this. Without it every malformed frame prints one line through
+    // the framework's default sink, at whatever rate the client chooses.
+    onError: (conn, error) => log.warn('ws', { id: conn.id, error }),
+})
+```
+
+**1. That `Map` is per-process, and you are reading the multi-instance
+chapter.** One identity spread across `N` instances gets `N` full buckets, so
+the effective budget is `N × BURST`. Worse, it compounds with the table above:
+each token buys `N−1` HMAC verifications, so at `N` instances one identity's
+spend costs the fleet `N × (N−1)` verifications per burst. If that matters to
+you, the bucket belongs in shared storage — and then read note 2, because moving
+it there is what creates the next problem.
+
+**2. Shared storage makes the check-then-act a race.** `onMessage` is dispatched
+un-awaited, so nothing serializes the frames one socket sends. With a local
+`Map` the read and the write are in one synchronous turn and the race cannot
+open. The moment `spend` awaits a round-trip, `K` pipelined frames all read the
+same token count and all pass. Use an atomic decrement — a Redis Lua script or
+`INCRBY` on a windowed key — rather than a read followed by a write. **Fix notes
+1 and 2 together; the natural remedy for the first is what opens the second.**
+
+**3. Evict the buckets on a timer, NOT on disconnect.** The `Map` grows with
+distinct identities and nothing here removes an entry. It is tempting to clear a
+bucket in `onClose` — do not: the whole point of keying on identity rather than
+on `connection.id` is that the counter must **outlive the socket**, or a
+reconnect resets it and you are back to a meter with a documented bypass. Drop
+entries whose `updated` is older than the time it takes to refill a full burst.
+
+**4. The weight of 3 is a single-instance figure.** A presence frame costs three
+driver commands against a public frame's one — but it also costs a control
+publish and `N−1` fleet verifications, which the public frame does not. At a
+fleet of ten the real ratio is closer to 13:1. Pick the weight from the table's
+columns that your deployment actually pays for.
+
+Three more things that are easy to get wrong, and each fails quietly:
+
+- **Throttle the upgrade route as well.** The budget above bounds a socket's
+  verbs; nothing bounds how many sockets one client opens. `@Throttle` is
+  **opt-in** — see the accepted residue below for what it does and does not give
+  you.
+- **If your signup is unauthenticated, the identity meter is not your last
+  line.** An attacker mints accounts at signup cost, and the bucket scales with
+  account count. Put a second key above it.
+- **Naming is the access control.** A channel's kind is derived from its name
+  and the default is **public**: `orders-private` matches neither `private-` nor
+  `presence-`, so it runs no authorizer and is readable by any anonymous socket.
+  One transposed word is the whole difference.
+
+##### What is not metered, exhaustively
+
+Every non-zero cell in the table above that no cap charges — which is all of
+them, plus what the table does not have a row for:
+
+- **The verb rate itself**, on every channel kind.
+- **`ping` and your own application frames.** Neither is bounded here.
+- **A churn loop on unique PUBLIC channel names.** It flips `SUBSCRIBE` /
+  `UNSUBSCRIBE` on the shared subscribe connection once per pair, forever, with
+  no authorizer anywhere in the path and no identity required. Every frame on
+  that one connection is serialized, so this delays event delivery, presence
+  fan-out **and inbound eviction frames** for every other connection on the
+  instance.
+- **One authorizer invocation per private/presence subscribe frame, denials
+  included**, ahead of every cap.
+- **The decode-rejection path.** An oversized frame is measured by encoding the
+  whole received text _before_ the size check, so the cost is proportional to
+  what was sent rather than to the cap. Install `onError`, or each rejected
+  frame also prints a log line.
+- **An empty per-channel presence entry.** A presence channel this instance
+  hosted retains an empty map after the last member leaves, so a churn loop on
+  unique presence names is not quite cost-neutral at rest. Tracked; it is
+  bounded by the verb budget above and by nothing else.
+- **The reconnect**, which resets any per-connection counter you keep.
+
+##### Accepted, not solved
+
+Two things this page names rather than fixes, because a stated gap is worth more
+than an implied guarantee.
+
+**A `null` identity has no non-rotatable charge target inside this package, and
+nothing bounds the reconnect by default.** The bound people reach for is
+`@lockness/core`'s HTTP-upgrade throttle, and all three of its legs are
+conditional:
+
+- **Nothing applies it for you.** `@Throttle` is opt-in, and neither the
+  WebSocket handler nor this page installs one on your upgrade route.
+- **`by: 'ip'` trusts forwarded headers.** It reads `cf-connecting-ip`,
+  `x-real-ip` and `x-forwarded-for` as given; behind a proxy that does not strip
+  inbound copies, a client sets its own.
+- **With no proxy at all it degrades to one global bucket.** The address
+  resolves to the literal `unknown` for every request, so the throttle you
+  installed rate-limits the entire internet as one client — and then it refuses
+  whoever arrives next rather than whoever is abusing it.
+
+An anonymous deployment carries this knowingly. Authenticating the socket in
+`resolveIdentity` is what actually closes it.
+
+**`unsubscribe` and public-channel `subscribe` have no authorization seam at
+all.** If you need an audit trail of leaves, it goes in your `onMessage` beside
+the budget; there is no framework hook for it, and adding one is not planned.
 
 #### Moving the limits
 
@@ -1056,6 +1368,20 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 Two behaviour changes in `@lockness/realtime`. Neither needs a data migration;
 both can be met before you deploy.
+
+### 0. Read this even if you change nothing
+
+**The guidance about where a per-call budget belongs was wrong and has been
+corrected.** If you followed it and put a rate limit in your `authorize`
+callback, that limiter cannot see a public channel, cannot see `unsubscribe` at
+all, and cannot refuse a member already in the room. It is not doing what you
+think it is doing. Nothing breaks and no consumer action is required, but the
+budget you believe you have is smaller than you believe — see
+[The framework does not meter the verb rate](#the-framework-does-not-meter-the-verb-rate--and-that-is-a-decision).
+
+`ChannelManager` also gained one read-only getter, `maxChannelsPerConnection`,
+which reports the **effective** cap rather than the default constant. Additive
+only.
 
 ### 1. The watched-channel caps now refuse
 

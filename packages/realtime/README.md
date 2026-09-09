@@ -109,10 +109,19 @@ app.get(
   instances, and returns the same authoritative roster a first join returns, so
   a client re-subscribing after a network blip is never refused and cannot tell
   the difference. Its `member` payload is **discarded**: there is no "member
-  updated" event, and `joined` is not one. Note that the framework applies **no
-  rate limit to the WebSocket message path** — the caps bound how many channels
-  are held, never how often they are asked for; `authorize` runs on every
-  presence subscribe and is where a per-call budget belongs. See
+  updated" event, and `joined` is not one. **Zero writes is not zero cost**: it
+  still performs one authoritative roster read whose reply is every member in
+  the room, cluster-wide, once per inbound frame. See
+  [realtime.md](../../docs/realtime.md).
+- **The framework does not meter the verb rate, and `authorize` is not where a
+  budget goes** — the caps bound how many channels are held, never how often
+  they are asked for, and the authorizer never runs for a public channel or for
+  `unsubscribe` at all. A verb budget belongs in your own `onMessage`, keyed on
+  a stable string derived from `connection.identity` (never on `connection.id`,
+  which a reconnect rotates, and never on the `null` identity, which every
+  anonymous socket shares), with a burst clearing
+  `manager.maxChannelsPerConnection` so a reconnecting client is never refused.
+  The per-frame cost table and the reasoning are in
   [realtime.md](../../docs/realtime.md).
 - **Anonymous hosting reservation** — `subscribe` runs no authorizer for a
   public channel, so a connection with no identity may cause a 0 → 1 hosted
