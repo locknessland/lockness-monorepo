@@ -513,6 +513,36 @@ already-hosted channel adds no subscription, and a connection re-joining a
 channel it already holds adds nothing either; both are admitted at and above
 every cap.
 
+#### What a re-join does — and what the framework does not meter
+
+**A re-subscribe to a presence channel the connection already holds is a roster
+read, not a join.** It writes nothing, announces nothing to anyone, and
+publishes nothing to the other instances — and it returns the same authoritative
+`members` snapshot a first join returns, so a client re-subscribing after a
+network blip cannot tell the difference and is never refused.
+
+That is a correctness rule before it is a cost one. `joined` records a
+_transition_, and membership is a set: a connection already in the room
+transitions nothing. Announcing it told every subscriber in that room, on every
+instance, that a member already present had arrived — for as many times as the
+client sent the frame.
+
+**One consequence to know about:** a re-join's `member` payload is
+**discarded**. If your authorizer returns different `info` on the second call,
+the entry the first join wrote still stands and nothing is broadcast. There is
+no "member updated" event in this protocol, and `joined` is not one — comparing
+payloads would mean deep-equality over unbounded application data on every
+inbound frame. If you need to publish a change of `info`, unsubscribe and
+subscribe again.
+
+**The framework applies no rate limit to the WebSocket message path.** The
+throttling in `@lockness/core` guards the HTTP _upgrade_; once a socket is open,
+nothing in `@lockness/realtime` bounds how often a client may send `subscribe`,
+`unsubscribe`, or anything else. The channel caps bound how many channels are
+held, never how often they are asked for. Your `authorize` callback runs on
+every presence subscribe and is the supported place to put a per-call budget of
+your own.
+
 #### Moving the limits
 
 All three are options on `ChannelManagerOptions`, validated at **construction**

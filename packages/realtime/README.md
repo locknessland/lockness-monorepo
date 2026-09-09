@@ -92,6 +92,16 @@ app.get(
   consume the whole instance. A breach **mutates nothing**: no registration, no
   presence member, no broker subscription. Only a join that GROWS a set is
   charged, so a second client on a hosted channel is always admitted.
+- **A re-join is a read, not a join** — a re-subscribe to a presence channel the
+  connection already holds writes nothing, announces nothing locally or to other
+  instances, and returns the same authoritative roster a first join returns, so
+  a client re-subscribing after a network blip is never refused and cannot tell
+  the difference. Its `member` payload is **discarded**: there is no "member
+  updated" event, and `joined` is not one. Note that the framework applies **no
+  rate limit to the WebSocket message path** — the caps bound how many channels
+  are held, never how often they are asked for; `authorize` runs on every
+  presence subscribe and is where a per-call budget belongs. See
+  [realtime.md](../../docs/realtime.md).
 - **Anonymous hosting reservation** — `subscribe` runs no authorizer for a
   public channel, so a connection with no identity may cause a 0 → 1 hosted
   channel transition only below `anonymousHostingShare` (default `0.8`) of the
