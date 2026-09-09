@@ -90,6 +90,15 @@ Anything not listed is internal and free to change.
   racer suspends before the read); only an await _between_ the check and the
   adds does — measured at 5 joins admitted against 1 free slot
   ([#323](https://github.com/locknessland/lockness-monorepo/issues/323)).
+- **There are TWO check-then-act pairs in `subscribe`, and both must stay in one
+  synchronous turn.** The cap pair above is the famous one. The second is
+  [#327](https://github.com/locknessland/lockness-monorepo/issues/327)'s re-join
+  guard: `members.has(...)` decides, `members.set(...)` claims, and `#joinLocal`
+  spends — all before the method's first `await`. Moving the claim below
+  `#joinLocal` is the tidy-looking edit, and **every sequential test still
+  passes**; only the pipelined witness dies, because `#joinLocal` awaits
+  `#watch` and K frames dispatched by `void guard(...)` all read "not a member"
+  and all join. Measured both ways before the row was written.
 - **A roster member is a PAIR, written by one operation.** The presence hash
   field and the owning instance's owned-set entry are two structures encoding
   one fact. The ghost sweep enumerates owned sets and nothing else, so a field

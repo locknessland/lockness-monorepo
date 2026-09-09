@@ -316,7 +316,7 @@ Deno.test('#323/FR-006 a failed roster read degrades to the local view', async (
 // What replaced them, so this is a move and not a loss: the two mutation rows
 // that killed them were RE-ANCHORED (they still guard the first-join
 // compensation, which is untouched), and `presence_rejoin_327.test.ts` now
-// holds four witnesses for the guard itself — including the one that dies when
+// holds six witnesses for the guard itself — including the one that dies when
 // the membership claim moves below `#joinLocal`.
 
 Deno.test('#323 a failed FIRST join best-effort removes a write that may have landed', async () => {

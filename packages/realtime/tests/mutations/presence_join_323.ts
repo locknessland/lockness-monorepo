@@ -244,7 +244,7 @@ const MUTATIONS: Mutation[] = [
         // `joined` locally, publishes `presence-join` — which every other
         // instance re-emits — and rewrites a roster entry identical to the one
         // already there. Verified live before this row was written: with the
-        // guard gone, three of the four #327 witnesses fail.
+        // guard gone, three of the six #327 witnesses fail.
         killedBy: 'a re-join announces NOTHING and writes NOTHING',
     },
     {

@@ -718,6 +718,21 @@ export class ChannelManager<Identity = unknown> {
      *   another instance comes from the control plane without a roster read
      *   ({@link handleControl}), and an application must re-authorize an action
      *   rather than infer permission from a presence frame or a snapshot.
+     *
+     * **A RE-SUBSCRIBE to a presence channel this connection already holds is a
+     * roster READ.** It writes nothing, emits no `joined` to anyone, publishes
+     * nothing to other instances, and never throws — and it returns the same
+     * `SubscribeResult` a first join returns, so a client re-subscribing after
+     * a network blip cannot tell the difference and is never refused. `joined`
+     * records a transition and membership is a set, so a connection already in
+     * the room transitions nothing (#327).
+     *
+     * Its `member` payload is **discarded**: an authorizer returning different
+     * `info` on the second call leaves the original entry standing and
+     * broadcasts nothing. There is no "member updated" event in this protocol
+     * and `joined` must not be pressed into service as one; detecting a change
+     * would mean deep-equality over unbounded application `info` on every
+     * inbound frame.
      */
     async subscribe(
         connection: Connection<Identity>,

@@ -74,6 +74,13 @@ or refused control frame therefore costs the announcement on those instances,
 never the roster — a member missing from someone's view is still `here` to
 anyone who reads the roster.
 
+**A re-subscribe to a channel the connection already holds produces NO `joined`
+frame at all** — not locally, not on any other instance. A `joined` records a
+transition, and a connection already in the room transitions nothing. It is
+answered with the roster, exactly as a first join is. See
+[What a re-join does](#what-a-re-join-does--and-what-the-framework-does-not-meter)
+for the payload it discards and for what the framework does not rate-limit.
+
 **Presence is an announcement channel, not an authorization source.** Do not
 grant an action because a presence frame or a `here` snapshot says a member is
 in a room; re-authorize the action itself. Presence tells you who is _believed_
