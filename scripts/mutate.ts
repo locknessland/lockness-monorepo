@@ -165,23 +165,61 @@ async function unlock(): Promise<void> {
     await Deno.remove(LOCK).catch(() => {})
 }
 
+/**
+ * Choose which batteries to run from the CLI filters.
+ *
+ * **EVERY argument is a filter, not just the first.** This logic read `args[0]`
+ * and silently discarded the rest, so `mutate a b` ran only `a`, printed
+ * "1 battery: 1 clean" and exited 0 — a command that does less than it was
+ * asked and reports success. The caller who names two batteries because one
+ * change touches both is exactly the caller that failure is invisible to.
+ *
+ * Pure, and separated from `import.meta.main` for that reason: the selection is
+ * the part that can be silently wrong, and a bug in it is invisible from the
+ * run's own output.
+ *
+ * @param all - Every discovered battery path.
+ * @param filters - The CLI arguments; empty selects everything.
+ * @returns The selected batteries, and any filter that matched nothing —
+ *   reported even when its siblings matched, because a total that counts only
+ *   the matches lets a typo in one argument pass as a successful run of the
+ *   others.
+ *
+ * @example
+ * ```ts
+ * selectBatteries(all, ['presence_join_323', 'roster_sync_330'])
+ * ```
+ */
+export function selectBatteries(
+    all: string[],
+    filters: string[],
+): { selected: string[]; unmatched: string[] } {
+    const matches = (path: string, filter: string) =>
+        relative(ROOT, path).includes(filter)
+    if (filters.length === 0) return { selected: all, unmatched: [] }
+    return {
+        selected: all.filter((p) => filters.some((f) => matches(p, f))),
+        unmatched: filters.filter((f) => !all.some((p) => matches(p, f))),
+    }
+}
+
 if (import.meta.main) {
     const args = Deno.args.filter((a) => a !== '--require-all')
     const requireAll = Deno.args.includes('--require-all')
-    const filter = args[0]
 
     const all = await discover()
-    const batteries = filter
-        ? all.filter((p) => relative(ROOT, p).includes(filter))
-        : all
+    const { selected: batteries, unmatched } = selectBatteries(all, args)
 
-    if (batteries.length === 0) {
+    if (unmatched.length > 0) {
         console.error(
-            filter
-                ? `No battery matches ${JSON.stringify(filter)}. ` +
-                    `${all.length} exist; try a package name or a filename part.`
-                : 'No batteries found.',
+            `No battery matches ${
+                unmatched.map((f) => JSON.stringify(f)).join(', ')
+            }. ${all.length} exist; try a package name or a filename part.`,
         )
+        Deno.exit(1)
+    }
+    if (batteries.length === 0) {
+        console.error('No batteries found.')
         Deno.exit(1)
     }
 
