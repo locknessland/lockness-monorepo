@@ -113,6 +113,28 @@ blockers, not preferences.
 
     A fact that belongs nowhere versioned goes to the session's private project
     memory instead — outside the repo, never published.
+11. **A design decision goes to `architect-expert`; a product decision goes to
+    the user.** Before putting any choice to the user, apply the test: does the
+    answer change what the software **does** for whoever uses it, or only
+    **how** it is built? "Which shape is cleaner?", "meter it or make it a
+    no-op?", "extract this or leave it inline?" are engineering calls. Dispatch
+    the `architect-expert` seat and let it decide, on the standing principle
+    that the **cleanest architecture wins** — not the smallest diff, not the
+    fastest thing to land.
+
+    **Never hand the seat a closed binary.** Options written into an issue are
+    the filer's guesses at the moment of filing; say so, and say a third shape
+    is a valid answer. Require it to name **what it rejected and that option's
+    real cost**, and **what its answer does not solve** — a disposition whose
+    residue is unnamed is half a decision.
+
+    Its answer is then **recorded and implemented**, not relayed back as a fresh
+    question. Re-asking the user what the seat was dispatched to settle wastes
+    both the dispatch and their time.
+
+    The user keeps the veto, and an explicit instruction always wins. This rule
+    routes the **default**, which is what a question with no owner falls back to
+    today.
 
 ---
 

@@ -162,6 +162,13 @@ Log one instead of fixing it only when it needs a **product decision**, crosses 
 **larger than the task itself** — and then say, in one sentence, why. Anything
 that clears that bar is significant enough to be opened at **P0 or P1**.
 
+**"Needs a product decision" is not "needs a design decision."** If what is
+missing is a choice between two ways to *build* it, that is `architect-expert`'s
+call — not the user's, and not the backlog's. Dispatch the seat on the standing
+principle that the cleanest architecture wins, implement what it returns, and
+record the disposition where the work is tracked. Only a question about what the
+software should **do** stops here. Hard rule #11 in `AGENTS.md`.
+
 A run that lands one task and leaves four behind has made the backlog longer than
 it found it. Do that a few times and the backlog is the work, and the work never
 happens.

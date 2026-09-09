@@ -33,6 +33,13 @@ review.
    into multiple commits. Linear history only (fast-forward, no merge commits
    when avoidable). Atomicity beats brevity: 4 small focused commits beat 1
    sprawling one.
+10. **Public repository.** No versioned file names where a credential is stored,
+    which credentials exist, their scope or lifetime, or the developer's host /
+    port / container layout. Security findings about the framework itself are
+    the explicit exception and belong in tracked backlog issues.
+11. **A design decision goes to `architect-expert`; a product decision goes to
+    the user.** "Which shape is cleaner?" is never a user question. Dispatch the
+    seat, on the standing principle that the cleanest architecture wins.
 
 ## Engineering methodology
 
@@ -50,6 +57,14 @@ review.
 - **SOLID / DRY / KISS / YAGNI** — apply universally. DRY only for _semantic_
   duplication.
 - **No silent catches.** Every `catch` logs at ERROR/WARN or re-throws.
+- **Design questions are dispatched, not asked.** The test is whether the answer
+  changes what the software _does_ (product — the user's call) or only _how_ it
+  is built (design — `architect-expert`'s call). The seat is never handed a
+  closed binary: options written into an issue are the filer's guesses at the
+  moment of filing, and a third shape is a valid answer. It must name what it
+  rejected, that option's real cost, and what its own answer does **not** solve.
+  Its decision is recorded where the work is tracked and then implemented —
+  never relayed back to the user as a fresh question.
 
 ## Architecture layers (Lockness MVC)
 
