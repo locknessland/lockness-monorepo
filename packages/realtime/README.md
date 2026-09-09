@@ -79,6 +79,18 @@ app.get(
   the left half of the roster's `<channel> <member>` entries, which are parsed
   on the first space. All three error types are exported so an `onError` handler
   can separate a caller bug from a dead socket.
+- **`PresenceMember` is bounded by SIZE too** — the whole serialized member,
+  `info` included, must fit `maxPresenceMemberBytes` (default `4096`), or
+  `subscribe` throws `PresenceMemberSizeError` at admission, before any local
+  join, roster write or announcement exists. `info` is the field an end user
+  typically controls through a profile edit, and without the bound an oversized
+  one was written to the authoritative roster while the frame announcing it was
+  dropped with a warning and `subscribe` still answered `{ ok: true }` — a
+  member present in the room and invisible to every peer instance, arranged by
+  pasting a long enough bio. The default is half the driver's control-payload
+  ceiling so an admitted member can always be announced; **raise the two
+  together or not at all**. Measured in bytes, not characters. See
+  [realtime.md](../../docs/realtime.md).
 - **Durable revocation** — an evict outlives a lost pub/sub frame. A custom
   `BroadcastDriver` opts in by implementing `markRevoked(id)` and
   `listRevoked()`, plus `onRevocationReconcile(handler)` to say when the

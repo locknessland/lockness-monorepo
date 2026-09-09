@@ -358,35 +358,61 @@ cannot contain one — so a member id containing spaces is unambiguous. That las
 clause was a convention until #314 and is now a refusal: `subscribe` throws
 `ChannelNameError` on a channel outside the same charset.
 
-### `PresenceMember.info` has a ceiling, and it is the whole control frame
+### `PresenceMember.info` is bounded, and the bound is checked at admission
 
-`info` is the one presence field nothing bounds, and it is the field the docs
-send you to for avatars and profile blobs. The limit is not on `info` itself: a
-presence join is announced to other instances as a **signed control frame**
-carrying the whole member, and the driver refuses to publish a frame over
-`control.maxPayloadBytes` — **8192 bytes by default** — because every peer would
-drop it on ingest anyway.
+`info` is the presence field the docs send you to for display names and avatars,
+and it is the one an end user typically controls through an ordinary profile
+edit. **`subscribe` throws `PresenceMemberSizeError` when the whole serialized
+member exceeds `maxPresenceMemberBytes` — 4096 bytes by default** — before any
+local join, roster write or announcement exists. A refusal therefore leaves
+nothing behind: no roster entry, no `joined` frame, no control publish.
 
-What a refusal costs is narrow and worth stating exactly, because it is easy to
-over- or under-read:
+**Why the bound is not simply the control ceiling.** A join is announced to
+other instances as a signed control frame carrying the whole member, and the
+driver refuses to publish a frame over `control.maxPayloadBytes` — 8192 bytes by
+default — because every peer would drop it on ingest. The member bound is half
+that, and the gap is deliberate: the frame also carries the kind, the target,
+the channel, the origin instance id, a timestamp, a nonce and a MAC, so the
+member's own share must leave room for all of it. **A member admitted at
+subscribe can always be announced.** That is the invariant, and the numbers
+exist to hold it.
 
-- The join **succeeds**. `subscribe` returns `{ ok: true }`.
-- The **authoritative roster is written and correct**. Anyone who reads it —
-  including the snapshot handed back to the joiner — sees the member.
-- What is lost is the live `joined` push to peers **already in the channel**.
-  Their clients hold a stale roster until they resubscribe.
-- `disconnect` removes the member on the ordinary path, so the staleness lasts
-  the connection's lifetime and no longer.
+Both are options, and they move together or not at all:
 
-That behaviour is deliberate (#312): rolling the roster write back would trade a
-lost notification for a real state divergence — the member locally subscribed
-and absent from the authoritative store.
+```ts
+new ChannelManager({ driver, maxPresenceMemberBytes: 16 * 1024 })
+// …and on EVERY instance's driver:
+new RedisBroadcastDriver(conn, sub, {
+    control: { secret, maxPayloadBytes: 32 * 1024 },
+})
+```
 
-**Budget `info` against the frame, not against 8192.** The frame also carries
-the kind, the target, the channel, the origin instance id, a timestamp, a nonce
-and a MAC, so the member's own share is a few hundred bytes less than the
-ceiling. Keep `info` to identity-shaped values — a display name, an avatar
-**URL** — and put the blob behind that URL.
+Raise one without the other and you admit members you cannot announce, which is
+the exact state the bound exists to prevent.
+
+**It is measured in bytes, not characters.** A single emoji is four bytes where
+`String.length` counts two, so a member of "200 characters" can be 800 bytes.
+The number it has to fit under is a payload limit, and payload limits are in
+bytes.
+
+**This used to be a warning, and it was a presence cloak.** Before the bound, an
+oversized member was written to the authoritative roster, announced locally, and
+then the control frame was dropped with a `console.warn` while `subscribe`
+answered `{ ok: true }`. The member was present in the room and invisible to
+every peer instance — including a moderator connected to another one — and any
+member could arrange it for themselves by pasting a long enough bio. The roster
+write happens before the control publish, so a check on the publish is always
+too late; only the admission bound removes the state. See
+[#326](https://github.com/locknessland/lockness-monorepo/issues/326).
+
+The driver's publish-side check remains as defence in depth for a member that
+predates the bound, and it now **rejects** rather than returning: a publish
+reported as successful when the frame was never sent is a lie to `unsubscribe`
+and `evict` as much as to a join.
+
+**Keep `info` to identity-shaped values** — a display name, an avatar **URL** —
+and put the blob behind that URL. The bound is a backstop, not a budget to
+spend.
 
 #### Seeing it happen
 
@@ -1045,6 +1071,31 @@ the options that move them.
 `ChannelLimitError.scope` is typed `string`, not a union — an exhaustive
 `switch` will not compile against it, by design. Compare against
 `CHANNEL_LIMIT_SCOPES` and handle an unrecognised value generically.
+
+### 3. `PresenceMember` is bounded, and an oversized one now throws
+
+`PresenceMember.info` was bounded by nothing. `subscribe` now throws
+`PresenceMemberSizeError` when the whole serialized member exceeds
+`maxPresenceMemberBytes` (**4096 bytes** by default) — see
+[`PresenceMember.info` is bounded](#presencememberinfo-is-bounded-and-the-bound-is-checked-at-admission).
+
+**Before deploying**, ask what your `authorize()` puts in `info`. A deployment
+that returns a display name and an avatar URL is nowhere near the bound. One
+that returns a whole profile document, a base64 avatar, or anything an end user
+can grow without limit, has joins that will now throw where they previously
+succeeded — and, before this release, succeeded while being invisible to every
+other instance, which is the defect the bound closes.
+
+Two smaller changes ride with it:
+
+1. **The driver's oversize control publish now rejects** instead of warning and
+   returning. `unsubscribe` and `evict` await `publishControl` and previously
+   could not learn their frame was never sent. The presence-join path still
+   catches and warns, deliberately: with the admission bound in place, the only
+   failures left there are transient ones the roster survives.
+2. **`maxPresenceMemberBytes` and `control.maxPayloadBytes` move together.**
+   Raising the member bound without raising the control ceiling on every
+   instance admits members that cannot be announced.
 
 ### 2. The legacy revocation read is gone
 

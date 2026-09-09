@@ -53,11 +53,11 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                |
 | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                                                 |
+| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `WSContext`                                                                                                                                                                                                      |
 | function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                           |
 | interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `Connection`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
 | typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                           |
-| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                    |
+| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_PRESENCE_MEMBER_BYTES`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                       |
 
 Anything not listed is internal and free to change.
 
@@ -99,6 +99,18 @@ Anything not listed is internal and free to change.
   passes**; only the pipelined witness dies, because `#joinLocal` awaits
   `#watch` and K frames dispatched by `void guard(...)` all read "not a member"
   and all join. Measured both ways before the row was written.
+- **`PresenceMember` is bounded at ADMISSION, and the bound cannot move to the
+  publish**
+  ([#326](https://github.com/locknessland/lockness-monorepo/issues/326)). The
+  roster write happens BEFORE the control publish, so a size check on the
+  publish is always too late: the member is already authoritative when the frame
+  announcing it is refused, which is a member present in the room and invisible
+  to every peer — a cloak an end user buys with a long enough `info`. The
+  driver's publish-side check stays as defence in depth and now throws rather
+  than returning, but it is not the fix and must not be treated as one.
+  `maxPresenceMemberBytes` defaults to half `control.maxPayloadBytes`; the gap
+  is the frame envelope, and **the two move together or the invariant "an
+  admitted member can always be announced" breaks**.
 - **A denial never revokes, and making it revoke was tried and rejected**
   ([#331](https://github.com/locknessland/lockness-monorepo/issues/331)).
   `authorize` runs on every subscribe including a re-subscribe, and when one
@@ -306,7 +318,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-47 test files for 16 source files:
+48 test files for 16 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
@@ -337,6 +349,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/live_fake_conformance.test.ts`
 - `packages/realtime/tests/log_encoding_291.test.ts`
 - `packages/realtime/tests/manager.test.ts`
+- `packages/realtime/tests/member_info_bound_326.test.ts`
 - `packages/realtime/tests/memory_driver.test.ts`
 - `packages/realtime/tests/origin.test.ts`
 - `packages/realtime/tests/prefix_anchoring.test.ts`
@@ -389,7 +402,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 47 test files directly —
+Then, specific to this package: run its 48 test files directly —
 
 ```bash
 deno test -A packages/realtime/
