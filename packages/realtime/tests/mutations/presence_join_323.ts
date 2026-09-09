@@ -31,6 +31,7 @@ const SUITES = [
     new URL('../roster_control_atomicity.test.ts', import.meta.url).pathname,
     new URL('../presence_cap_concurrency_323.test.ts', import.meta.url)
         .pathname,
+    new URL('../presence_rejoin_327.test.ts', import.meta.url).pathname,
 ]
 
 const MUTATIONS: Mutation[] = [
@@ -40,16 +41,22 @@ const MUTATIONS: Mutation[] = [
         file: MANAGER,
         edits: [
             [
+                // RE-ANCHORED by #327: `// Track it as a local member …` went
+                // with the capture-and-restore preamble. The claim line plus
+                // the roster comment is the new unique pair — `#joinLocal`
+                // alone appears twice in the method.
+                '            members.set(connection.id, member)\n' +
                 '            await this.#joinLocal(channel, connection.id)\n' +
-                '            // Track it as a local member so a later leave knows what to remove.',
+                "            // The authoritative roster is the driver's",
                 '            this.emitPresence(channel, {\n' +
                 "                type: 'presence',\n" +
                 '                channel,\n' +
                 "                action: 'joined',\n" +
                 '                member,\n' +
                 '            })\n' +
+                '            members.set(connection.id, member)\n' +
                 '            await this.#joinLocal(channel, connection.id)\n' +
-                '            // Track it as a local member so a later leave knows what to remove.',
+                "            // The authoritative roster is the driver's",
             ],
         ],
         // Restores the shipped defect exactly: subscribers hold a `joined` for
@@ -76,14 +83,15 @@ const MUTATIONS: Mutation[] = [
         label: '#323 the failed join keeps its local membership',
         file: MANAGER,
         edits: [[
-            // MULTI-LINE, and that is not cosmetic: the 20-space form of this
-            // call is a SUBSTRING of the 24-space form inside the guard, so a
-            // single-line anchor matches once, passes the harness's
-            // exactly-once check, and amputates the tail of a deeper line. A
-            // kill obtained that way proves nothing.
-            '                    if (!wasSubscribed) {\n' +
-            '                        await this.#leaveLocal(channel, connection.id)\n' +
-            '                    }\n',
+            // RE-ANCHORED by #327. This used to wrap the call in
+            // `if (!wasSubscribed) {`, and the anchor had to be multi-line
+            // because the 20-space form was a SUBSTRING of the 24-space form
+            // inside that guard — a single-line anchor matched once, passed the
+            // harness's exactly-once check, and amputated a deeper line. The
+            // re-join guard removed the conditional, so the deeper form no
+            // longer exists and one line is now both unique and unambiguous.
+            // Verified: exactly one occurrence, at no other indent.
+            '                    await this.#leaveLocal(channel, connection.id)\n',
             '',
         ]],
         // The channel stays hosted with no members — a broker subscription
@@ -94,11 +102,11 @@ const MUTATIONS: Mutation[] = [
         label: '#323 the failed join keeps its presence-map entry',
         file: MANAGER,
         edits: [[
-            '                    if (priorMember === undefined) {\n' +
-            '                        members.delete(connection.id)\n' +
-            '                    } else {\n' +
-            '                        members.set(connection.id, priorMember)\n' +
-            '                    }\n',
+            // RE-ANCHORED by #327: the restore-or-delete branch collapsed to an
+            // unconditional delete once a re-join could no longer reach this
+            // write. The mutation is the same one — drop the local undo — and
+            // it is now one line.
+            '                    members.delete(connection.id)\n',
             '',
         ]],
         // The residue a retry trips over: the local view believes a member the
@@ -134,11 +142,14 @@ const MUTATIONS: Mutation[] = [
             '#323 an await lands BETWEEN the cap check and the counter it spends',
         file: MANAGER,
         edits: [[
-            '            await this.#joinLocal(channel, connection.id)\n' +
-            '            // Track it as a local member',
+            // RE-ANCHORED by #327. The injected await must land between
+            // `#checkChannelCaps` and the adds it spends; since #327 the CLAIM
+            // sits in that same run, so the await goes above both.
+            '            members.set(connection.id, member)\n' +
+            '            await this.#joinLocal(channel, connection.id)\n',
             '            if (this.roster) await this.roster.addMember(channel, member)\n' +
-            '            await this.#joinLocal(channel, connection.id)\n' +
-            '            // Track it as a local member',
+            '            members.set(connection.id, member)\n' +
+            '            await this.#joinLocal(channel, connection.id)\n',
         ]],
         // This is the "obvious fix" — authoritative write first, so nothing is
         // visible before the roster accepts — and it is why #323 moved the
@@ -149,31 +160,27 @@ const MUTATIONS: Mutation[] = [
         // Measured at 5 admitted against 1 free slot.
         killedBy: 'K concurrent joins against ONE free slot admit exactly one',
     },
-    {
-        label:
-            '#323 the compensation deletes unconditionally instead of restoring',
-        file: MANAGER,
-        edits: [[
-            '                    if (priorMember === undefined) {\n' +
-            '                        members.delete(connection.id)\n' +
-            '                    } else {\n' +
-            '                        members.set(connection.id, priorMember)\n' +
-            '                    }\n' +
-            '                    if (!wasSubscribed) {\n' +
-            '                        await this.#leaveLocal(channel, connection.id)\n' +
-            '                    }\n',
-            '                    members.delete(connection.id)\n' +
-            '                    await this.#leaveLocal(channel, connection.id)\n',
-        ]],
-        // The exact code that reached the review gate, restored. A failed
-        // RE-join then evicts a membership this call never created, and
-        // `#leaveLocal` taking the set to zero releases the broker
-        // subscription — the instance goes deaf on a channel that still has a
-        // live authorized subscriber. Every first-join test stays green, which
-        // is why this is a row and not a comment.
-        killedBy:
-            'a failed RE-join does not evict the membership it already had',
-    },
+    // ── RETIRED by #327, with the reason, rather than deleted ──────────────
+    //
+    // `#323 the compensation deletes unconditionally instead of restoring`
+    // stood here. It restored the code that reached #323's review gate — a
+    // failed RE-join evicting a membership the call never created — and it was
+    // killed by `a failed RE-join does not evict the membership it already
+    // had`.
+    //
+    // Both the mutation and its witness are unreachable now, and for the same
+    // reason: #327's guard returns before `#joinLocal`, so a re-join never
+    // reaches the roster write and cannot fail there. The compensation IS
+    // unconditional today — this row's "mutation" is the shipped code, so it
+    // could only ever report a survivor, and a row that cannot die is a row
+    // that measures nothing.
+    //
+    // This is not a coverage loss. The asymmetry it guarded was deleted with
+    // it, and what replaced it is `#327 the re-join guard is removed` below:
+    // where this row asked "does the compensation know a re-join from a first
+    // join?", that one asks "can a re-join get here at all?" — the stronger
+    // question, because the answer is no by construction.
+
     {
         label:
             '#323 the roster script receives its two KEYS in the wrong order',
@@ -216,6 +223,51 @@ const MUTATIONS: Mutation[] = [
         // about the suite. Guarding the throw behind `if (error)` also keeps
         // the warn reachable, so no unreachable-code rule fires on the mutant.
         killedBy: 'a throwing socket does not silence the subscribers after it',
+    },
+    // ── #327: a re-join is not a join ──────────────────────────────────────
+    {
+        // SUCCESSOR to the row retired above — `#323 the compensation deletes
+        // unconditionally instead of restoring` — carried forward here per
+        // docs/testing.md's rule that a retired row's reason travels to the row
+        // that now covers it. That row asked whether the compensation could
+        // tell a re-join from a first join; this one asks whether a re-join can
+        // reach the compensation at all, and the answer is no by construction.
+        label: '#327 the re-join guard is removed (a re-join joins again)',
+        file: MANAGER,
+        edits: [[
+            '            if (members.has(connection.id)) {\n' +
+            '                return await this.#closingRead(channel)\n' +
+            '            }\n',
+            '',
+        ]],
+        // The whole defect, restored: a subscribe to a held channel announces
+        // `joined` locally, publishes `presence-join` — which every other
+        // instance re-emits — and rewrites a roster entry identical to the one
+        // already there. Verified live before this row was written: with the
+        // guard gone, three of the four #327 witnesses fail.
+        killedBy: 'a re-join announces NOTHING and writes NOTHING',
+    },
+    {
+        label: '#327 the membership claim moves back BELOW `#joinLocal`',
+        file: MANAGER,
+        edits: [[
+            '            members.set(connection.id, member)\n' +
+            '            await this.#joinLocal(channel, connection.id)\n',
+            '            await this.#joinLocal(channel, connection.id)\n' +
+            '            members.set(connection.id, member)\n',
+        ]],
+        // MOVED, not deleted — the ordering IS the invariant, and a mutation
+        // that removes the claim entirely would break the sequential case too
+        // and prove nothing about the race. `#joinLocal` awaits `#watch`, so
+        // with the claim below it K pipelined frames all read "not a member"
+        // and all perform a full join. This is #323's cap discipline applied to
+        // the second check-then-act pair in the method: the check and the thing
+        // it spends stay in one synchronous turn.
+        //
+        // Verified live before this row was written, and it is the row that
+        // matters most: the guard passes the SEQUENTIAL re-join test with this
+        // mutation applied. Only the pipelined witness dies.
+        killedBy: 'K pipelined subscribe frames produce exactly ONE join',
     },
 ]
 

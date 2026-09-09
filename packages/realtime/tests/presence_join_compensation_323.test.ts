@@ -291,40 +291,33 @@ Deno.test('#323/FR-006 a failed roster read degrades to the local view', async (
     )
 })
 
-Deno.test('#323 a failed RE-join does not evict the membership it already had', async () => {
-    // The compensation must restore, not delete. A connection re-subscribing to
-    // a channel it already holds passes the caps (a re-join grows no set), and
-    // `#joinLocal` adds nothing — so an unconditional undo removes a membership
-    // this call never created.
-    const { driver, watched, state } = faultyRoster()
-    const m = new ChannelManager<User>({ driver, authorize })
-    const holder = conn('c1', 1)
-    assertEquals((await m.subscribe(holder, CHANNEL)).ok, true)
-    assertEquals([...watched], [CHANNEL], 'precondition: the channel is hosted')
-
-    state.rejectAdds = true
-    assert(await failingJoin(m, holder) !== null, 're-join must reject')
-
-    // If the undo ran unconditionally, `#leaveLocal` took the set to zero and
-    // released the broker subscription — leaving the instance deaf on a channel
-    // with a live, authorized subscriber.
-    assertEquals(
-        [...watched],
-        [CHANNEL],
-        'a failed re-join must not unwatch a channel that still has a member',
-    )
-
-    // And the member itself must survive, so a later leave still announces it.
-    state.rejectAdds = false
-    const observer = conn('c2', 2)
-    await m.subscribe(observer, CHANNEL)
-    await m.unsubscribe(holder.id, CHANNEL)
-    assertEquals(
-        observer.received.filter((f) => f.action === 'left').length,
-        1,
-        'the pre-existing presence entry survived the failed re-join',
-    )
-})
+// ── RETIRED by #327, with the reason, rather than deleted ────────────────────
+//
+// Two tests stood here: `a failed RE-join does not evict the membership it
+// already had` and `a failed RE-join does NOT remove the roster entry it did
+// not create`. Both drove a re-join whose roster write fails, and both asserted
+// that the compensation restores rather than deletes.
+//
+// **They are unreachable by construction now, not merely redundant.** #327 put
+// a guard at the top of the presence branch: a subscribe to a channel the
+// connection already holds returns before `#joinLocal`, so a re-join never
+// reaches the roster write and has nothing to fail at. `failingJoin` on a
+// re-join now returns `{ ok: true }` instead of throwing, and both tests failed
+// loudly on `re-join must reject` — which is the right way for a test to become
+// obsolete. A test that quietly keeps passing against a path that no longer
+// exists is the one to be afraid of.
+//
+// The asymmetry they guarded is GONE from the code, not merely untested: the
+// `wasSubscribed` / `priorMember` capture, the restore-don't-delete branch, the
+// conditional `#leaveLocal` and the conditional roster reclaim were all deleted
+// with them, and the compensation is unconditional again because the only case
+// that needed it cannot occur. A compensation you deleted cannot be got wrong.
+//
+// What replaced them, so this is a move and not a loss: the two mutation rows
+// that killed them were RE-ANCHORED (they still guard the first-join
+// compensation, which is untouched), and `presence_rejoin_327.test.ts` now
+// holds four witnesses for the guard itself — including the one that dies when
+// the membership claim moves below `#joinLocal`.
 
 Deno.test('#323 a failed FIRST join best-effort removes a write that may have landed', async () => {
     // The EVAL is atomic, but its REPLY can still be lost — a dropped
@@ -349,27 +342,6 @@ Deno.test('#323 a failed FIRST join best-effort removes a write that may have la
         [],
         'the orphan is reclaimed rather than left for the ghost sweep, which ' +
             'only reaches it once this instance is declared dead',
-    )
-})
-
-Deno.test('#323 a failed RE-join does NOT remove the roster entry it did not create', async () => {
-    // The same asymmetry as the local compensation, one layer out. A re-join
-    // whose write fails must not delete a roster entry an earlier, successful
-    // join put there — that would turn a transient broker error into an
-    // eviction nobody asked for.
-    const { driver, roster, state } = faultyRoster()
-    const m = new ChannelManager<User>({ driver, authorize })
-    const holder = conn('c1', 1)
-    await m.subscribe(holder, CHANNEL)
-    assertEquals([...(roster.get(CHANNEL)?.keys() ?? [])], ['1'])
-
-    state.rejectAdds = true
-    assert(await failingJoin(m, holder) !== null, 're-join must reject')
-
-    assertEquals(
-        [...(roster.get(CHANNEL)?.keys() ?? [])],
-        ['1'],
-        'the pre-existing authoritative entry survives a failed re-join',
     )
 })
 

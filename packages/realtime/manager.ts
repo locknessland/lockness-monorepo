@@ -775,22 +775,46 @@ export class ChannelManager<Identity = unknown> {
             // `#checkChannelCaps` above, and that pairing is what keeps the cap
             // exact — an awaited round-trip between them lets concurrent joins
             // read one count and all act on it. `#joinLocal` says so itself.
-            // CAPTURED BEFORE ANYTHING MUTATES, because the compensation
-            // below must restore what this call changed and nothing else. A
-            // re-subscribe to a channel the connection already holds passes the
-            // caps (a re-join grows no set) and `#joinLocal` adds nothing — so
-            // an unconditional undo would remove a membership this call never
-            // created, and `#leaveLocal` taking the set to zero would release
-            // the broker subscription, leaving the instance deaf on a channel
-            // with a live authorized subscriber.
-            const wasSubscribed =
-                this.subscriptions.get(channel)?.has(connection.id) === true
-            const priorMember = this.presence.get(channel)?.get(connection.id)
-            await this.#joinLocal(channel, connection.id)
-            // Track it as a local member so a later leave knows what to remove.
             let members = this.presence.get(channel)
             if (!members) this.presence.set(channel, members = new Map())
+            // A RE-JOIN IS NOT A JOIN (#327). `joined` is a domain event and
+            // must record a transition; membership is a set, so a subscribe to
+            // a channel this connection already holds transitions nothing. It
+            // announces nothing, writes nothing, publishes nothing — and
+            // returns the same authoritative snapshot a first join returns,
+            // because a client re-subscribing after a network blip is
+            // legitimate traffic and must not be able to tell the difference.
+            //
+            // Announcing it told every local subscriber AND — through
+            // `publishControl`, which `handleControl` re-emits — every
+            // subscriber on every OTHER instance that a member already in the
+            // room had joined it. The cost was the room's cluster-wide
+            // population per inbound frame, charged by neither cap, because a
+            // cap that meters set growth cannot meter an operation that grows
+            // no set. The defect was never only the missing meter: the event
+            // itself was false, and a budget bounds how often a wrong event is
+            // produced without making it right.
+            //
+            // THE PAYLOAD IS DISCARDED, deliberately. Detecting a changed
+            // `info` means deep-equality over unbounded application data
+            // (#326) — per-frame cost proportional to what an attacker
+            // controls. The domain has no "member updated" event, `joined` is
+            // not one, and pressing it into service as one abuses the
+            // vocabulary. That is `presence:update`, if a caller ever needs it.
+            if (members.has(connection.id)) {
+                return await this.#closingRead(channel)
+            }
+            // CLAIMED IN THE SAME SYNCHRONOUS TURN as the check above, and
+            // before `#joinLocal`'s first `await`. The guard is otherwise a
+            // check-then-act across a suspension: `#joinLocal` awaits `#watch`,
+            // and `onMessage` is dispatched as `void guard(...)`, so K
+            // pipelined subscribe frames would all read "not a member" and all
+            // perform a full join. This is the #323 cap invariant applied to
+            // the second check-then-act pair in this method, not a competing
+            // rule — `#checkChannelCaps` reads, this claims, `#joinLocal`
+            // spends, and all three land before the method's first await.
             members.set(connection.id, member)
+            await this.#joinLocal(channel, connection.id)
             // The authoritative roster is the driver's (FR-005/FR-006).
             if (this.roster) {
                 try {
@@ -800,21 +824,19 @@ export class ChannelManager<Identity = unknown> {
                     // compensation is internal only, and no `left` goes out for
                     // a member no subscriber was ever told about. That is the
                     // whole reason this beats rolling back a visible join.
-                    // RESTORE, do not delete. Mirrors `unsubscribe` for a
-                    // first join — the member entry goes and the (possibly
+                    // UNCONDITIONAL, and only because the guard above makes
+                    // it so (#327). This used to capture `wasSubscribed` and
+                    // `priorMember` and restore rather than delete, because a
+                    // re-join could reach this write and an undo would evict a
+                    // membership the call never created. A re-join can no
+                    // longer get here at all — it returns before `#joinLocal`
+                    // — so this call is provably the one that created both the
+                    // subscription and the member entry, and undoing exactly
+                    // what it did is the whole compensation. Mirrors
+                    // `unsubscribe`: the member entry goes and the (possibly
                     // empty) channel map stays, because nothing reads its size.
-                    // For a re-join it puts back what was there, and skips
-                    // `#leaveLocal` entirely: undoing a membership this call
-                    // did not create is how a failed re-join silently unwatches
-                    // a live channel.
-                    if (priorMember === undefined) {
-                        members.delete(connection.id)
-                    } else {
-                        members.set(connection.id, priorMember)
-                    }
-                    if (!wasSubscribed) {
-                        await this.#leaveLocal(channel, connection.id)
-                    }
+                    members.delete(connection.id)
+                    await this.#leaveLocal(channel, connection.id)
                     // The write is atomic, but its REPLY can still be lost: a
                     // connection dropped after the script commits looks exactly
                     // like one that never ran. Ask for the removal rather than
@@ -823,24 +845,17 @@ export class ChannelManager<Identity = unknown> {
                     // instance has been declared dead, which for a healthy
                     // process is never.
                     //
-                    // ONLY for a first join. A re-join whose write failed must
-                    // not delete an entry an earlier successful join created:
-                    // that turns a transient broker error into an eviction
-                    // nobody asked for, which is the same asymmetry the local
-                    // compensation above exists to avoid.
-                    if (priorMember === undefined) {
-                        try {
-                            await this.roster.removeMember(channel, member.id)
-                        } catch (cleanupError) {
-                            console.warn(
-                                `realtime: could not reclaim a possibly-written ` +
-                                    `roster entry on ${safeForLog(channel)} ` +
-                                    `after a failed join; the ghost sweep is ` +
-                                    `the remaining backstop: ${
-                                        renderError(cleanupError)
-                                    }`,
-                            )
-                        }
+                    try {
+                        await this.roster.removeMember(channel, member.id)
+                    } catch (cleanupError) {
+                        console.warn(
+                            `realtime: could not reclaim a possibly-written ` +
+                                `roster entry on ${safeForLog(channel)} ` +
+                                `after a failed join; the ghost sweep is ` +
+                                `the remaining backstop: ${
+                                    renderError(cleanupError)
+                                }`,
+                        )
                     }
                     throw error
                 }
@@ -881,35 +896,54 @@ export class ChannelManager<Identity = unknown> {
                         `the frame is lost: ${renderError(error)}`,
                 )
             }
-            // FR-006: the closing read is a READ. The join has fully committed
-            // — roster, local view, both announcements — so a failure here has
-            // no residue to compensate and nothing wrong to report. Throwing
-            // would leave the caller believing a completed join was rejected.
-            // Degrade to what this instance knows, and say so.
-            // `here` is the domain's own word for it, and `members` is taken
-            // in this scope by the LOCAL map — two different rosters, and
-            // naming them alike is how a fallback quietly becomes the source.
-            let here: PresenceMember[]
-            let rosterSource: 'authoritative' | 'local' = 'authoritative'
-            try {
-                here = await this.rosterSnapshot(channel)
-            } catch (error) {
-                here = [...(this.presence.get(channel)?.values() ?? [])]
-                rosterSource = 'local'
-                console.warn(
-                    `realtime: the here-roster for ${
-                        safeForLog(channel)
-                    } could not be read; the join is committed and the ` +
-                        `snapshot falls back to this instance's own members: ${
-                            renderError(error)
-                        }`,
-                )
-            }
-            return { ok: true, members: here, rosterSource }
+            return await this.#closingRead(channel)
         }
 
         await this.#joinLocal(channel, connection.id)
         return { ok: true }
+    }
+
+    /**
+     * The authoritative roster snapshot a presence subscribe returns, with its
+     * local fallback — the closing READ both exits of the presence branch
+     * share (FR-006, #327).
+     *
+     * Extracted so the re-join guard and a committed first join answer with one
+     * implementation rather than two that drift. A re-join must be
+     * indistinguishable from a first join to the caller; two copies of this
+     * block is how "indistinguishable" quietly stops being true.
+     *
+     * **It never throws.** By the time either caller reaches it the join has
+     * fully committed — roster, local view, both announcements — so a failure
+     * here has no residue to compensate and nothing wrong to report. Throwing
+     * would leave the caller believing a completed join was rejected. It
+     * degrades to what this instance knows and says which it gave, so a caller
+     * that cares can tell an authoritative answer from a local one.
+     *
+     * @param channel - The presence channel to read the roster of.
+     * @returns `{ ok: true }` with the members and the source of that list.
+     */
+    async #closingRead(channel: string): Promise<SubscribeResult> {
+        // `here` is the domain's own word for it, and `members` is taken by the
+        // LOCAL map at both call sites — two different rosters, and naming them
+        // alike is how a fallback quietly becomes the source.
+        let here: PresenceMember[]
+        let rosterSource: 'authoritative' | 'local' = 'authoritative'
+        try {
+            here = await this.rosterSnapshot(channel)
+        } catch (error) {
+            here = [...(this.presence.get(channel)?.values() ?? [])]
+            rosterSource = 'local'
+            console.warn(
+                `realtime: the here-roster for ${
+                    safeForLog(channel)
+                } could not be read; the join is committed and the ` +
+                    `snapshot falls back to this instance's own members: ${
+                        renderError(error)
+                    }`,
+            )
+        }
+        return { ok: true, members: here, rosterSource }
     }
 
     /**
