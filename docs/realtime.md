@@ -886,6 +886,13 @@ them, plus what the table does not have a row for:
   unique presence names is not quite cost-neutral at rest. Tracked; it is
   bounded by the verb budget above and by nothing else.
 - **The reconnect**, which resets any per-connection counter you keep.
+- **Server-side revocation** — `evict`, `revokeChannel`, and a reconcile pass
+  applying a durable record. These are not client frames, so nothing above
+  charges them and nothing should: they are yours to call, and their rate is
+  whatever your moderation code does. They matter to this section only because
+  they reach the **same leave path** a client `unsubscribe` does, so a burst of
+  them costs what the table's `unsubscribe` row costs, per call, on top of
+  whatever the clients are doing.
 
 ##### Accepted, not solved
 
@@ -1087,7 +1094,7 @@ Tightening `livenessTtlSeconds` therefore means revisiting `heartbeatIntervalMs`
 in the same edit: dropping the TTL to `5` while leaving the heartbeat at `5000`
 now throws at construction rather than degrading silently in production.
 
-### Cross-process eviction
+### Cross-process revocation
 
 `manager.evict(clientId)` revokes a connection wherever its socket lives. It
 first records a **durable revocation marker** in Redis, then either revokes the
@@ -1102,12 +1109,83 @@ the connection revoked and the owning instance recovers the missed evict. It
 self-expires after `revocationTtlSeconds` (default `300`) so the revocation set
 never grows without bound.
 
-The two methods behind it are `markRevoked(id)` and `listRevoked()` — optional
-members of the `BroadcastDriver` port, alongside
-`onRevocationReconcile(handler)` which says _when_ the re-check runs. A custom
-driver that implements all three gets the same durability guarantees as the
-Redis one; a driver that omits them falls back to fire-and-forget eviction, with
-no recovery from a lost frame.
+The methods behind it are `markRevocation(revocation)`, `listRevocations()` and
+`clearRevocation(revocation)` — optional members of the `BroadcastDriver` port,
+alongside `onRevocationReconcile(handler)` which says _when_ the re-check runs.
+They are detected **as a set**: a driver either has all three or has none, and
+one with two of them is treated as having none. A driver that omits them falls
+back to fire-and-forget revocation, with no recovery from a lost frame.
+
+> **A driver written against `markRevoked` / `listRevoked` now throws at
+> construction.** That pair no longer exists. See
+> [Upgrading to v0.4.0](#upgrading-to-v040).
+
+### Revocation scopes — pick by the consequence, not by the name
+
+Two verbs, and the difference that matters is **what happens to the socket**:
+
+| You want                                                 | Verb                               | The socket          | Everything else the connection holds |
+| -------------------------------------------------------- | ---------------------------------- | ------------------- | ------------------------------------ |
+| This connection is gone — revoked token, ban, admin kick | `evict(clientId)`                  | **closed** (`4403`) | dropped, and re-joined on reconnect  |
+| This connection is out of **one room**                   | `revokeChannel(clientId, channel)` | **stays open**      | untouched — no churn, no re-join     |
+
+Reach for `evict` when the _identity_ is no longer welcome, and `revokeChannel`
+when one _room_ is. Using `evict` for a per-room moderation action is not a
+narrower revoke; it is a louder one — it drops every other room the connection
+holds, and the bundled browser client implements no reconnect at all, so for
+that client it ends the realtime session outright. At fleet scale, one kick per
+user per room is a socket storm.
+
+```ts
+// Remove one member from one room, on whichever instance holds the socket.
+const outcome = await manager.revokeChannel(connectionId, 'presence-orders')
+// 'revoked'        — the membership was removed here
+// 'not-subscribed' — this instance owns the socket; it was not in that room
+// 'not-owned'      — the socket lives elsewhere; the record is written and the
+//                    frame published, and the owner applies it
+```
+
+The revoked client receives `{ "type": "unsubscribed", "channel": "..." }` — it
+would otherwise learn nothing, since it is removed from the channel's subscriber
+set before the `left` fans out and so does not even receive its own departure. A
+**client-initiated** `unsubscribe` sends no such frame; your application owns
+that reply.
+
+**A revocation is not a ban.** The connection may re-subscribe immediately if
+your `authorize` admits it: this framework owns no deny list, and `subscribe`
+never consults the revocation index. That is deliberate — a stale entry would
+otherwise refuse a join your application has re-authorized, and the framework
+would own a policy it cannot explain. If you need the room closed to that
+identity, say so in `authorize`.
+
+**Channel-scoped records are cleared when applied**; connection-scoped ones are
+left to expire. The asymmetry is not an inconsistency: after an `evict` the
+socket is gone, so its record is moot the instant it is applied, whereas a
+channel-scoped record has a live socket to act on for the whole TTL — and an
+uncleared one would re-apply the leave at every reconcile tick, kicking a client
+that has legitimately re-subscribed, once per tick, until it expires.
+
+### The local tier reports what it did
+
+`unsubscribe` and `disconnect` take a **connection id**, which makes them look
+like they reach across the fleet. They do not: they act only on sockets _this_
+instance owns. They now say so rather than resolving silently.
+
+```ts
+await manager.unsubscribe(clientId, channel)
+// 'left'           — a membership was removed here
+// 'not-subscribed' — this instance owns the socket; it was not in that channel
+// 'not-owned'      — the socket lives on another instance. Nothing was removed
+//                    and nothing was announced; use revokeChannel
+
+await manager.disconnect(clientId) // 'disconnected' | 'not-owned'
+```
+
+> **These are server-side values.** Do not relay them to a client, and do not
+> take `clientId` from a client frame — pass `connection.id` from a socket you
+> own. The three states together would otherwise tell whoever receives them
+> whether an arbitrary connection id is live somewhere in the fleet, whether
+> this instance owns it, and whether it is in a given room.
 
 The Redis driver stores it as a **single sorted set** at `{prefix}:revocations`,
 whose score is the second the revocation expires. One structure rather than two
@@ -1202,10 +1280,10 @@ it too, and one that omits it keeps working.
 
 ### Security posture: the bus is trusted, the `prefix` is not a boundary
 
-Control messages (`evict`) **and** presence-identity announcements
-(`presence-join` / `presence-leave`) are **HMAC-authenticated** with a
-per-deployment shared secret (`RealtimeControlConfig`). The secret is set once,
-identically on every instance, via the `control` option:
+Control messages (`evict`, `revoke-channel`) **and** presence-identity
+announcements (`presence-join` / `presence-leave`) are **HMAC-authenticated**
+with a per-deployment shared secret (`RealtimeControlConfig`). The secret is set
+once, identically on every instance, via the `control` option:
 
 ```ts
 RedisBroadcastDriver.fromConfig(config, {
@@ -1363,6 +1441,103 @@ every message off the bus is re-validated on ingest (channel/event names via
 `isValidName`, bounded payload size), and the **receiving** instance re-applies
 its own local authorization before delivering to a subscriber — a peer cannot
 inject an out-of-charset name or reach an unauthorized local connection.
+
+## Upgrading to v0.4.0
+
+One breaking seam change, two widened return types, one new control kind. **No
+Redis migration**, and nothing to do before you deploy except read item 1.
+
+### 1. Upgrade every instance before you rely on `revokeChannel`
+
+An instance running `0.3.0` **ignores** the new `revoke-channel` control frame —
+it verifies it, admits it, and does nothing, which is what makes a rolling
+deploy safe in the first place. The consequence is that a revoke aimed at a
+socket a `0.3.0` instance owns **does not land**, and the durable record does
+not rescue it: a record is only ever applied by the instance that owns the
+socket, and that instance is precisely the one that cannot read it.
+
+This is bounded by the deploy. When the old instance drains, its sockets close
+and the reconnecting client is re-admitted through your `authorize` on an
+upgraded instance.
+
+> **If you need certainty mid-deploy, use `evict`.** Every version obeys it.
+
+### 2. The driver revocation seam is replaced, and the old one throws
+
+| Before (`0.3.0`)  | After (`0.4.0`)                         |
+| ----------------- | --------------------------------------- |
+| `markRevoked(id)` | `markRevocation({ target, channel? })`  |
+| `listRevoked()`   | `listRevocations(): Revocation[]`       |
+| —                 | `clearRevocation({ target, channel? })` |
+
+**Only if you wrote your own `BroadcastDriver`.** The bundled Redis and memory
+drivers are already migrated, and nothing in your application code changes.
+
+```ts
+// Before                            // After
+markRevoked(target: string) {        markRevocation(r: Revocation) {
+    this.index.add(target)               this.index.add(this.encode(r))
+}                                    }
+listRevoked(): string[] {            listRevocations(): Revocation[] {
+    return [...this.index]               return [...this.index]
+}                                            .map((m) => this.decode(m))
+                                             .filter((r) => r !== undefined)
+                                     }
+                                     clearRevocation(r: Revocation) {
+                                         this.index.delete(this.encode(r))
+                                     }
+```
+
+A driver still presenting the old pair **throws at construction**, naming the
+migration. That is deliberate rather than strict: the alternative is being
+narrowed to "no revocation store", which loses `evict`'s durability silently on
+a driver that plainly implements revocation — nothing logged, every same-version
+test green.
+
+**Your `listRevocations` must fail closed.** Drop any record you cannot fully
+decode; never return one with a missing `channel`. A channel-scoped record that
+comes back without its channel is applied as a **whole-connection** revocation
+and hard-closes a socket that should only have left one room. The revocation
+index is the one cross-instance channel with no authenticity tag, so what your
+decoder refuses is the boundary.
+
+> **Third-party realtime drivers are not a supported extension point before
+> `1.0`.** At `0.x` the bundled drivers are the contract, and a seam like this
+> one changes without a deprecation window. If you maintain a driver, track
+> `main` — you will get a construction-time error naming the change, never a
+> silent behaviour loss.
+
+### 3. No Redis migration
+
+The revocation index is read-compatible in both directions and there is no new
+key, no dual-write and nothing to backfill. A channel-scoped record is a
+composite member; the delimiter is a **space**, which is outside the connection
+id charset, so a `0.3.0` reader finds no such connection and skips it — inert
+rather than wrong, and it does not delete it either, so the record survives for
+the upgraded owner.
+
+> **Do not "tidy" that delimiter to a `:` or a `.`.** Both are inside the
+> charset, and a composite would then collide with a real connection id — at
+> which point a `0.3.0` instance applies a room revocation as a `4403` kill of
+> the whole session. Every same-version test passes either way; only the
+> mixed-fleet witness fails.
+
+### 4. `unsubscribe` and `disconnect` return values
+
+`Promise<void>` became `Promise<LeaveOutcome>` and `Promise<DisconnectOutcome>`.
+**Not a compile error** for callers that ignore the value. It **is** one for a
+subclass that overrides either method with `Promise<void>`, and for an `encode`
+hook annotated with the old `OutboundFrame` union — which gained
+`{ type: 'unsubscribed' }`, because that frame goes through your encoder like
+every other. See
+[The local tier reports what it did](#the-local-tier-reports-what-it-did).
+
+`'not-owned'` means _use `revokeChannel`_.
+
+### 5. The new control kind needs no coordination
+
+`revoke-channel` adds no wire field, so the MAC covers exactly the same bytes in
+both directions. No shared-secret rotation, no coordinated restart.
 
 ## Upgrading to v0.3.0
 

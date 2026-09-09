@@ -91,9 +91,21 @@ app.get(
   ceiling so an admitted member can always be announced; **raise the two
   together or not at all**. Measured in bytes, not characters. See
   [realtime.md](../../docs/realtime.md).
-- **Durable revocation** — an evict outlives a lost pub/sub frame. A custom
-  `BroadcastDriver` opts in by implementing `markRevoked(id)` and
-  `listRevoked()`, plus `onRevocationReconcile(handler)` to say when the
+- **Two revocation scopes, and the difference is the socket.**
+  `manager.evict(id)` hard-closes it and drops every room;
+  `revokeChannel(id,
+  channel)` removes one room and leaves the socket open.
+  Reach for the first when the identity is unwelcome, the second when a room is
+  — using `evict` for a per-room action drops every other room the connection
+  holds, and the bundled client implements no reconnect at all.
+- **The local verbs report.** `unsubscribe` and `disconnect` take a connection
+  id but act only on sockets this instance owns, and they now say which:
+  `'left'` / `'not-subscribed'` / `'not-owned'`. Server-side values — never
+  relay them to a client.
+- **Durable revocation** — a revoke outlives a lost pub/sub frame. A custom
+  `BroadcastDriver` opts in by implementing `markRevocation(revocation)`,
+  `listRevocations()` and `clearRevocation(revocation)` — detected as a **set**,
+  all three or none — plus `onRevocationReconcile(handler)` to say when the
   re-check runs; all three are optional, and a driver that omits them gets
   fire-and-forget eviction. See [realtime.md](../../docs/realtime.md).
 - **Watched-channel limits** — `ChannelLimitError` is raised when a subscribe
