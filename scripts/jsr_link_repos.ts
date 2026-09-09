@@ -25,8 +25,8 @@
  *
  * @example
  * ```bash
- * JSR_TOKEN=jsrt_xxx deno run -A scripts/jsr_link_repos.ts --dry-run
- * JSR_TOKEN=jsrt_xxx deno run -A scripts/jsr_link_repos.ts
+ * JSR_TOKEN=<token> deno run -A scripts/jsr_link_repos.ts --dry-run
+ * JSR_TOKEN=<token> deno run -A scripts/jsr_link_repos.ts
  * ```
  *
  * @module
@@ -111,7 +111,7 @@ async function main(): Promise<void> {
         console.error('❌ JSR_TOKEN is not set.')
         console.error('   Create one at https://jsr.io/account/tokens, then:')
         console.error(
-            '   JSR_TOKEN=jsrt_xxx deno run -A scripts/jsr_link_repos.ts',
+            '   JSR_TOKEN=<token> deno run -A scripts/jsr_link_repos.ts',
         )
         Deno.exit(2)
     }

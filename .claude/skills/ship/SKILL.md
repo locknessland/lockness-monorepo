@@ -116,15 +116,14 @@ Handing over ten bare `jsr.io/new` URLs is what turns one manual pass into two.
 
 ```bash
 deno task jsr:link --dry-run                 # read-only, no token
-JSR_TOKEN=jsrt_xxx deno task jsr:link        # writes the link
+JSR_TOKEN=<token> deno task jsr:link         # writes the link
 ```
 
 Worth it for ten packages; pointless for one. The token needs **full API
 access**, not the package-scoped variant — writing package settings is refused
-with `missingPermission` otherwise. It is needed only for this one operation.
-Revoke it afterwards.
+with `missingPermission` otherwise.
 
-**Create it as the right kind, and the prefix tells you which you got.**
+**Create it as the right kind — but you cannot tell which you got by looking.**
 <https://jsr.io/account/tokens/create> asks one question — *"What do you plan to
 do with your personal access token?"* — with two answers:
 
@@ -133,13 +132,14 @@ do with your personal access token?"* — with two answers:
 | *"What do you plan to do with your personal access token?"* | **Interact with the JSR API** — not *Publish packages*; this repo never publishes from a terminal, the CI does it by OIDC |
 | **Permissions** | **Full access.** The two publish scopes above it — *"…this package"*, *"…any packages in this scope"* — both fail on a settings write, and the first is the one the page recommends |
 
-**The prefix tells you nothing — do not try to read it.** Both the token that
-failed and the token that worked at v0.3.0 began `jsrp_` and were 40 characters
-long. The first was created with a *Publish packages* permission and returned
-`HTTP 403 missingPermission` on all ten links; the second was created with
-**Full access** and returned `Changed: 10 · failed: 0`. Same shape, opposite
-outcome. There is no way to tell a usable token from an unusable one by looking
-at it, so the only check that means anything is `--dry-run`.
+**The prefix tells you nothing — do not try to read it.** A token created with
+a *Publish packages* permission and one created with **Full access** are
+indistinguishable: same prefix, same length. The first returns
+`HTTP 403 missingPermission` on every link; the second returns
+`Changed: N · failed: 0`. Same shape, opposite outcome — measured, not assumed,
+after this file once claimed the prefix was a signal. There is no way to tell a
+usable token from an unusable one by looking at it, so the only check that
+means anything is `--dry-run`.
 
 **Two questions, and only the second one decides.** The page asks what you plan
 to do, then asks for Permissions. The first answer routes the form; the second

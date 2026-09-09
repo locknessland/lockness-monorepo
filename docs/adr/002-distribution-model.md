@@ -319,8 +319,8 @@ delivers strictly more.
    `scripts/jsr_link_repos.ts:36-37`. It needs `JSR_TOKEN` and nothing else.
 
 ```bash
-JSR_TOKEN=jsrt_xxx deno task jsr:link --dry-run   # enumerate first
-JSR_TOKEN=jsrt_xxx deno task jsr:link
+JSR_TOKEN=<token> deno task jsr:link --dry-run   # enumerate first
+JSR_TOKEN=<token> deno task jsr:link
 ```
 
 Run `--dry-run` first for a reason beyond caution: the script reports
