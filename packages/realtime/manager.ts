@@ -476,6 +476,14 @@ export class ChannelManager<Identity = unknown> {
     readonly #maxChannelsPerConnection: number
     readonly #anonymousHostingShare: number
     readonly #maxPresenceMemberBytes: number
+    /**
+     * One serial tail per authoritative roster slot, keyed
+     * `<channel>\0<member.id>` (#330). Entries live only while a write for
+     * that slot is queued or in flight — {@link #syncRosterMember} deletes its
+     * own once it settles, so this cannot grow with a cardinality a client
+     * chooses.
+     */
+    readonly #rosterTails = new Map<string, Promise<unknown>>()
     /** The instance cap an anonymous connection may reach, precomputed once. */
     readonly #anonymousWatchedCeiling: number
     /**
@@ -1008,10 +1016,24 @@ export class ChannelManager<Identity = unknown> {
         // spends, and all three land before the method's first await.
         members.set(connection.id, member)
         await this.#joinLocal(channel, connection.id)
-        // The authoritative roster is the driver's (FR-005/FR-006).
-        if (this.roster) {
+        // The authoritative roster is the driver's (FR-005/FR-006), and the
+        // write goes through the per-slot projection (#330) rather than
+        // straight at the driver: by the time this resolves, an `unsubscribe`
+        // that overtook this join may already have removed the membership, and
+        // the projection then issues that removal instead of re-adding a
+        // member nothing local holds.
+        {
             try {
-                await this.roster.addMember(channel, member)
+                const applied = await this.#syncRosterMember(channel, member.id)
+                if (applied === undefined) {
+                    // SUPERSEDED. The slot was written to match a local map
+                    // that no longer has this member, so the roster does not
+                    // hold it — and #323's rule says an announcement must
+                    // never claim a membership the roster did not accept.
+                    // Nothing was announced yet, so nothing is retracted; the
+                    // leave that overtook this join already told the room.
+                    return await this.#closingRead(channel)
+                }
             } catch (error) {
                 // NOTHING WAS ANNOUNCED, so nothing is retracted — the
                 // compensation is internal only, and no `left` goes out for
@@ -1038,8 +1060,13 @@ export class ChannelManager<Identity = unknown> {
                 // instance has been declared dead, which for a healthy
                 // process is never.
                 //
+                // THROUGH THE SAME SERIALIZED PATH (#330), not a third
+                // unordered write. The local delete above already ran, so the
+                // projection computes "absent" and issues the removal on its
+                // own — the reclaim falls out of the design rather than being
+                // a separate call that could race the very write it undoes.
                 try {
-                    await this.roster.removeMember(channel, member.id)
+                    await this.#syncRosterMember(channel, member.id)
                 } catch (cleanupError) {
                     console.warn(
                         `realtime: could not reclaim a possibly-written ` +
@@ -1318,6 +1345,71 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * Write one authoritative roster slot to match this instance's local
+     * `presence` map, with at most one write in flight for that slot (#330).
+     *
+     * **The desired state is DERIVED, not passed.** The caller names a slot;
+     * this reads what the local map says about it **at issue time**, inside the
+     * serial tail, and writes that. So a join whose membership was removed
+     * while its write was queued issues a removal, not the add it set out to
+     * make — and there is no version, epoch or tombstone to keep in step with
+     * anything, because nothing is remembered.
+     *
+     * **Why the ad-hoc calls it replaces were wrong.** `#joinLocal` and
+     * `#leaveLocal` compute their transition and issue their wire op in the
+     * SAME synchronous turn, so racing verbs issue `watchChannel` /
+     * `unwatchChannel` in decision order. The roster write was the one place
+     * that did not: `#joinPresence` claims, suspends at `#watch`, and only then
+     * issues `addMember` — from a state that no longer holds the membership.
+     * With `RedisClient.command` chaining onto its tail synchronously at call
+     * time, commit order is enqueue order, so a removal enqueued first and an
+     * add enqueued second left the member in the authoritative roster with no
+     * local membership and its `left` already announced. Only the ghost sweep
+     * reclaims that, and a live instance never sweeps its own owned set.
+     *
+     * The slot is keyed by `member.id`, not by connection id, because that is
+     * what the roster hash is keyed by — two connections sharing one member id
+     * are one slot, and the projection sees whichever of them the local map
+     * still holds.
+     *
+     * @param channel - The presence channel owning the slot.
+     * @param memberId - The member id naming the slot.
+     * @returns The member written, or `undefined` when the slot was removed —
+     *   which tells a join its write was superseded and it has nothing to
+     *   announce.
+     * @throws Whatever the driver throws; the tail still advances.
+     */
+    #syncRosterMember(
+        channel: string,
+        memberId: string | number,
+    ): Promise<PresenceMember | undefined> {
+        const roster = this.roster
+        if (!roster) return Promise.resolve(undefined)
+        const field = String(memberId)
+        const key = `${channel}\0${field}`
+        const prior = this.#rosterTails.get(key) ?? Promise.resolve()
+        const run = prior.then(async () => {
+            const desired = [...(this.presence.get(channel)?.values() ?? [])]
+                .find((candidate) => String(candidate.id) === field)
+            if (desired) await roster.addMember(channel, desired)
+            else await roster.removeMember(channel, field)
+            return desired
+        })
+        // The tail must always settle so the next write for this slot runs;
+        // `run` still rejects to this caller, so nothing is swallowed.
+        const tail = run.catch(() => {})
+        this.#rosterTails.set(key, tail)
+        void tail.then(() => {
+            // ONLY if nothing queued behind it, or the next write would lose
+            // its predecessor and the two could overlap again.
+            if (this.#rosterTails.get(key) === tail) {
+                this.#rosterTails.delete(key)
+            }
+        })
+        return run
+    }
+
+    /**
      * The authoritative "here" roster for a presence channel — the driver's when
      * it owns one (every instance's members, FR-006), otherwise this instance's
      * local members (a driver with no roster capability is single-process).
@@ -1362,8 +1454,13 @@ export class ChannelManager<Identity = unknown> {
         const member = members?.get(clientId)
         if (members && member) {
             members.delete(clientId)
-            // Remove from the authoritative roster before announcing the leave.
-            if (this.roster) await this.roster.removeMember(channel, member.id)
+            // Remove from the authoritative roster before announcing the
+            // leave, through the per-slot projection (#330). The local delete
+            // above is what the projection reads, so this issues a removal —
+            // and a join racing it can no longer re-add the member behind it,
+            // because its own write is chained after this one and computes the
+            // same absent state.
+            await this.#syncRosterMember(channel, member.id)
             this.emitPresence(channel, {
                 type: 'presence',
                 channel,
