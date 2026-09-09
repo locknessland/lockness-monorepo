@@ -517,3 +517,101 @@ Deno.test({
         }
     },
 })
+
+Deno.test({
+    name: '#323 the roster scripts agree, fake against broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // The same argument as the revocation arm, for the two scripts #323
+        // added. `addMember` and `removeMember` each became one `EVAL`, and the
+        // whole atomicity guarantee now rests on the fake's Lua subset agreeing
+        // with a real interpreter about two multi-key scripts — the file's
+        // first. Nothing else checks that.
+        //
+        // **What this arm can and cannot see.** It compares the OBSERVABLE
+        // roster through the production path on both backends, which is what
+        // the fake could get wrong. It cannot see cross-slot behaviour: a
+        // single-node broker accepts a two-key `EVAL` that Redis Cluster would
+        // refuse, and that limitation is stated on ADD_MEMBER_SCRIPT rather
+        // than pretended away here.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        const nothing = { psubscribe: () => {} }
+
+        try {
+            const onLive = new RedisBroadcastDriver(live, nothing, {
+                prefix: `${NS}-live-roster`,
+            })
+            const onFake = new RedisBroadcastDriver(
+                { command: fake.command },
+                nothing,
+                { prefix: `${NS}-fake-roster` },
+            )
+            const ids = (m: { id: string | number }[]) =>
+                m.map((x) => String(x.id)).sort()
+            const both = async (
+                run: (d: RedisBroadcastDriver) => Promise<void>,
+            ) => {
+                await run(onLive)
+                await run(onFake)
+            }
+
+            try {
+                await both((d) =>
+                    d.addMember!('presence-room', {
+                        id: 'u1',
+                        info: { name: 'Ada' },
+                    }) as Promise<void>
+                )
+                await both((d) =>
+                    d.addMember!('presence-room', { id: 'u2' }) as Promise<void>
+                )
+
+                assertEquals(
+                    ids(await onLive.listMembers!('presence-room')),
+                    ['u1', 'u2'],
+                    'the live broker did not record the roster',
+                )
+                assertEquals(
+                    ids(await onFake.listMembers!('presence-room')),
+                    ids(await onLive.listMembers!('presence-room')),
+                    'the fake and the broker disagreed on the roster after adds',
+                )
+
+                await both((d) =>
+                    d.removeMember!('presence-room', 'u1') as Promise<void>
+                )
+                assertEquals(
+                    ids(await onLive.listMembers!('presence-room')),
+                    ['u2'],
+                    'the live broker did not remove the member',
+                )
+                assertEquals(
+                    ids(await onFake.listMembers!('presence-room')),
+                    ids(await onLive.listMembers!('presence-room')),
+                    'the fake and the broker disagreed after removals',
+                )
+
+                // Idempotence, on both. The manager's best-effort reclaim after
+                // a failed join issues a removal for a member that may never
+                // have been written, so a second remove must be a no-op rather
+                // than an error on either backend.
+                await both((d) =>
+                    d.removeMember!('presence-room', 'u1') as Promise<void>
+                )
+                assertEquals(
+                    ids(await onFake.listMembers!('presence-room')),
+                    ids(await onLive.listMembers!('presence-room')),
+                    'a repeated removal diverged',
+                )
+            } finally {
+                await onLive.close()
+                await onFake.close()
+            }
+        } finally {
+            await teardown(live, NS)
+        }
+    },
+})

@@ -989,9 +989,29 @@ async function presenceKeyOf(prefix: string, channel: string): Promise<string> {
     const driver = new RedisBroadcastDriver(command, subscriber, { prefix })
     await driver.addMember(channel, { id: 'u1', info: {} })
     await driver.close()
-    const hset = recording.commands.find((argv) => argv[0] === 'HSET')
-    assert(hset !== undefined, 'addMember did not HSET')
-    return hset[1]
+    // Read the key off the EVAL, not off an HSET. `addMember` became ONE
+    // operation in #323 — the presence-hash write and the owned-set write are
+    // two structures encoding one fact, and two round-trips could write them
+    // into disagreement. `EVAL <script> <numkeys> KEYS…` puts the presence key
+    // first, so argv[3] is what this helper has always been asking for: the key
+    // the driver DERIVES. Matching on the command name was matching the shape.
+    const evaluated = recording.commands.find((argv) => argv[0] === 'EVAL')
+    assert(evaluated !== undefined, 'addMember did not EVAL its roster write')
+    assert(
+        evaluated[2] === '2',
+        `the roster script must declare 2 keys, got ${evaluated[2]}`,
+    )
+    const key = evaluated[3]
+    // WHICH key, not just the first one. Swap KEYS[1] and KEYS[2] in the driver
+    // and this helper would return the OWNED key, which embeds a per-instance
+    // UUID — so every collision assertion below would compare strings that can
+    // never collide, and the whole file would pass while guarding nothing. The
+    // presence key is the one that carries the channel.
+    assert(
+        key.includes(channel),
+        `KEYS[1] must be the presence key for ${channel}, got ${key}`,
+    )
+    return key
 }
 
 Deno.test('FR-012: two accepted prefixes cannot derive the same KEY', async () => {

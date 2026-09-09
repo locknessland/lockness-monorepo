@@ -123,6 +123,58 @@ const LIST_REVOKED_SCRIPT: string = [
     "return redis.call('ZRANGEBYSCORE', KEYS[1], t, '+inf')",
 ].join('\n')
 
+/**
+ * Add a member to the authoritative roster — ONE operation, both structures.
+ *
+ * A roster member IS the pair: a field in the channel's presence hash, and an
+ * entry in its owning instance's owned set. Two round-trips could write one and
+ * not the other, and the two halves fail in different, both-bad ways. A field
+ * with no owned entry is invisible to {@link RedisBroadcastDriver} ghost
+ * sweeping, which enumerates owned sets and nothing else — so it is
+ * unreclaimable by any instance, forever, outliving the process that wrote it.
+ *
+ * Same reasoning, same shape, as {@link MARK_REVOKED_SCRIPT}: two structures
+ * encoding one fact must not be writable into disagreement (#276, #323).
+ *
+ * **Two keys, and they hash to different slots.** This is the file's first
+ * multi-key script, and on Redis Cluster a cross-slot `EVAL` is refused where
+ * the previous independent `HSET` + `SADD` would each have succeeded. Nothing
+ * in this package claims Cluster as a target and the driver has never been
+ * exercised against one; a deployment that wants it needs the two keys hash-
+ * tagged onto one slot, which is a key-layout change and therefore breaking.
+ * Recorded here rather than left to be discovered at runtime.
+ *
+ * `KEYS[1]` presence hash · `KEYS[2]` owned set ·
+ * `ARGV[1]` field · `ARGV[2]` entry JSON · `ARGV[3]` owned entry.
+ */
+const ADD_MEMBER_SCRIPT: string = [
+    "redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])",
+    "redis.call('SADD', KEYS[2], ARGV[3])",
+].join('\n')
+
+/**
+ * Remove a member from the authoritative roster — ONE operation, both halves.
+ *
+ * This is the direction that can delete somebody else's live member. The sweep
+ * HDELs whatever a dead instance's owned set names **without checking the
+ * entry's `owner`** ({@link RedisBroadcastDriver} `#sweepInstance`). So an
+ * owned entry left behind by a half-completed removal names a field this
+ * instance no longer owns; once that member re-joins elsewhere and this
+ * instance dies, the sweep deletes a member somebody else owns and that is
+ * genuinely present.
+ *
+ * The sweep trusts the owned set completely. That is exactly why the owned set
+ * must never be able to lie, and why atomicity here is correctness rather than
+ * tidiness.
+ *
+ * `KEYS[1]` presence hash · `KEYS[2]` owned set ·
+ * `ARGV[1]` field · `ARGV[2]` owned entry.
+ */
+const REMOVE_MEMBER_SCRIPT: string = [
+    "redis.call('HDEL', KEYS[1], ARGV[1])",
+    "redis.call('SREM', KEYS[2], ARGV[2])",
+].join('\n')
+
 /** A resource the driver owns and must release on {@link RedisBroadcastDriver.close}. */
 interface Closeable {
     /** Release the resource (idempotent). */
@@ -1321,15 +1373,17 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         await this.#ensureSweepStarted()
         const entry: RosterEntry = { member, owner: this.instanceId }
         const field = String(member.id)
+        // ONE operation (#323). Decision-table home: "the authoritative roster
+        // write is ONE fact". The sweep start above is deliberately outside it —
+        // it is this instance's liveness, not this member's membership.
         await this.command.command(
-            'HSET',
+            'EVAL',
+            ADD_MEMBER_SCRIPT,
+            '2',
             this.presenceKey(channel),
+            this.ownedKey(this.instanceId),
             field,
             JSON.stringify(entry),
-        )
-        await this.command.command(
-            'SADD',
-            this.ownedKey(this.instanceId),
             `${channel}${OWNED_SEP}${field}`,
         )
     }
@@ -1345,10 +1399,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         memberId: string | number,
     ): Promise<void> {
         const field = String(memberId)
-        await this.command.command('HDEL', this.presenceKey(channel), field)
+        // ONE operation (#323), for a sharper reason than the add: a stale
+        // owned entry makes the sweep delete a LIVE member owned by another
+        // instance. See {@link REMOVE_MEMBER_SCRIPT}.
         await this.command.command(
-            'SREM',
+            'EVAL',
+            REMOVE_MEMBER_SCRIPT,
+            '2',
+            this.presenceKey(channel),
             this.ownedKey(this.instanceId),
+            field,
             `${channel}${OWNED_SEP}${field}`,
         )
     }

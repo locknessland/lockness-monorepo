@@ -78,8 +78,8 @@ const MUTATIONS: Mutation[] = [
                 '',
             ],
             [
-                '            if (this.roster) await this.roster.addMember(channel, member)',
-                '            if (this.roster) await this.roster.addMember(channel, member)\n            this.#assertUsableMemberId(member.id)',
+                '                    await this.roster.addMember(channel, member)',
+                '                    await this.roster.addMember(channel, member)\n                    this.#assertUsableMemberId(member.id)',
             ],
         ],
         // RED since #312, and the path is worth keeping. It survived here for
@@ -91,6 +91,13 @@ const MUTATIONS: Mutation[] = [
         //
         // `roster_control_atomicity.test.ts` records every roster op, and an
         // EMPTY log is the assertion the first suite had no way to make.
+        //
+        // RE-ANCHORED for #323: the roster write moved inside a `try` that
+        // compensates the local join, so the line gained eight spaces of
+        // indentation and lost its `if (this.roster)` prefix. A stale anchor
+        // here reports DEAD MUTANT rather than a miss, and the nightly sweep is
+        // the only thing that runs this file — the pre-completion gate does
+        // not.
         killedBy: 'the member-id assertion runs BEFORE the roster write',
     },
     {

@@ -329,6 +329,20 @@ export interface SubscribeResult {
     ok: boolean
     /** For an authorized presence channel: the current member list ("here"). */
     members?: PresenceMember[]
+    /**
+     * Where {@link members} came from — present only when `members` is.
+     *
+     * `'authoritative'` is every instance's roster, read from the driver.
+     * `'local'` is a **fragment**: this instance's own members, returned when
+     * the authoritative read failed on a join that had already committed
+     * everywhere. Refusing the join would have been a lie, and returning the
+     * fragment silently would have been a different one — a consumer counting
+     * `members.length` cannot otherwise tell a whole roster from a piece of it.
+     *
+     * A driver with no roster capability is single-process, so its local view
+     * IS the authority and it reports `'authoritative'`.
+     */
+    rosterSource?: 'authoritative' | 'local'
 }
 
 /** Options for a {@link ChannelManager}. */
@@ -681,7 +695,9 @@ export class ChannelManager<Identity = unknown> {
      *
      * @param connection - The subscribing connection.
      * @param channel - The channel name.
-     * @returns Whether it was authorized, plus the presence roster when relevant.
+     * @returns Whether it was authorized, plus the presence roster when
+     *   relevant and a `rosterSource` saying whether that roster is every
+     *   instance's or only this one's — see {@link SubscribeResult}.
      * @throws {ConnectionIdError} If `connection.id` is outside the supported
      *   charset. That is a caller bug, not an authorization outcome — a denied
      *   subscribe answers `{ ok: false }`, and folding the two together would
@@ -691,6 +707,17 @@ export class ChannelManager<Identity = unknown> {
      *   connections with no identity. Raised only AFTER authorization, so an
      *   unauthorized caller is denied on its own terms and never learns the
      *   instance is full.
+     * @throws If the authoritative roster refuses a presence join. The
+     *   rejection is propagated, and the instance is left as it was: no
+     *   subscriber received a `joined`, no local membership survives, and a
+     *   0→1 channel subscription taken by the attempt is released. The same
+     *   pair can be retried and yields one member (#323/FR-003).
+     *
+     *   **A `joined` frame from THIS instance follows a successful roster
+     *   write.** It is not an authorization token: a frame re-emitted on
+     *   another instance comes from the control plane without a roster read
+     *   ({@link handleControl}), and an application must re-authorize an action
+     *   rather than infer permission from a presence frame or a snapshot.
      */
     async subscribe(
         connection: Connection<Identity>,
@@ -738,32 +765,147 @@ export class ChannelManager<Identity = unknown> {
         this.connections.set(connection.id, connection)
 
         if (kind === 'presence' && member) {
-            // Notify existing LOCAL subscribers of the join BEFORE adding the
-            // newcomer to the set, so the newcomer gets the roster (below) but
-            // not a `joined` for itself (A5 — emitPresence fans to the local set).
-            this.emitPresence(channel, {
-                type: 'presence',
-                channel,
-                action: 'joined',
-                member,
-            })
+            // BOOKKEEPING FIRST, ANNOUNCEMENT LAST (#323). `#joinLocal` and the
+            // `presence` write are state no subscriber can observe; the frame is
+            // the only visible effect, and it must not claim a membership the
+            // authoritative roster has not accepted.
+            //
+            // The authoritative write does NOT move above this. `#joinLocal`'s
+            // set/index adds run in the same synchronous turn as
+            // `#checkChannelCaps` above, and that pairing is what keeps the cap
+            // exact — an awaited round-trip between them lets concurrent joins
+            // read one count and all act on it. `#joinLocal` says so itself.
+            // CAPTURED BEFORE ANYTHING MUTATES, because the compensation
+            // below must restore what this call changed and nothing else. A
+            // re-subscribe to a channel the connection already holds passes the
+            // caps (a re-join grows no set) and `#joinLocal` adds nothing — so
+            // an unconditional undo would remove a membership this call never
+            // created, and `#leaveLocal` taking the set to zero would release
+            // the broker subscription, leaving the instance deaf on a channel
+            // with a live authorized subscriber.
+            const wasSubscribed =
+                this.subscriptions.get(channel)?.has(connection.id) === true
+            const priorMember = this.presence.get(channel)?.get(connection.id)
             await this.#joinLocal(channel, connection.id)
             // Track it as a local member so a later leave knows what to remove.
             let members = this.presence.get(channel)
             if (!members) this.presence.set(channel, members = new Map())
             members.set(connection.id, member)
-            // The authoritative roster is the driver's (FR-005/FR-006): store the
-            // member there and announce the join to presence subscribers on every
-            // OTHER instance via the control plane (this instance already emitted
-            // locally above; the driver drops its own control loopback).
-            if (this.roster) await this.roster.addMember(channel, member)
-            await this.publishControl({
-                kind: 'presence-join',
-                target: connection.id,
+            // The authoritative roster is the driver's (FR-005/FR-006).
+            if (this.roster) {
+                try {
+                    await this.roster.addMember(channel, member)
+                } catch (error) {
+                    // NOTHING WAS ANNOUNCED, so nothing is retracted — the
+                    // compensation is internal only, and no `left` goes out for
+                    // a member no subscriber was ever told about. That is the
+                    // whole reason this beats rolling back a visible join.
+                    // RESTORE, do not delete. Mirrors `unsubscribe` for a
+                    // first join — the member entry goes and the (possibly
+                    // empty) channel map stays, because nothing reads its size.
+                    // For a re-join it puts back what was there, and skips
+                    // `#leaveLocal` entirely: undoing a membership this call
+                    // did not create is how a failed re-join silently unwatches
+                    // a live channel.
+                    if (priorMember === undefined) {
+                        members.delete(connection.id)
+                    } else {
+                        members.set(connection.id, priorMember)
+                    }
+                    if (!wasSubscribed) {
+                        await this.#leaveLocal(channel, connection.id)
+                    }
+                    // The write is atomic, but its REPLY can still be lost: a
+                    // connection dropped after the script commits looks exactly
+                    // like one that never ran. Ask for the removal rather than
+                    // leave an orphan carrying the member's `info` until the
+                    // ghost sweep reaches it — and it only reaches it once this
+                    // instance has been declared dead, which for a healthy
+                    // process is never.
+                    //
+                    // ONLY for a first join. A re-join whose write failed must
+                    // not delete an entry an earlier successful join created:
+                    // that turns a transient broker error into an eviction
+                    // nobody asked for, which is the same asymmetry the local
+                    // compensation above exists to avoid.
+                    if (priorMember === undefined) {
+                        try {
+                            await this.roster.removeMember(channel, member.id)
+                        } catch (cleanupError) {
+                            console.warn(
+                                `realtime: could not reclaim a possibly-written ` +
+                                    `roster entry on ${safeForLog(channel)} ` +
+                                    `after a failed join; the ghost sweep is ` +
+                                    `the remaining backstop: ${
+                                        renderError(cleanupError)
+                                    }`,
+                            )
+                        }
+                    }
+                    throw error
+                }
+            }
+            // FIRST visible effect. `except` keeps the newcomer out of its own
+            // announcement — the rule that used to be a consequence of emitting
+            // before the set contained it (A5).
+            this.emitPresence(channel, {
+                type: 'presence',
                 channel,
+                action: 'joined',
                 member,
-            })
-            return { ok: true, members: await this.rosterSnapshot(channel) }
+            }, { except: connection.id })
+            // Announce the join on every OTHER instance via the control plane;
+            // the driver drops its own control loopback.
+            //
+            // FR-005: a failure here loses the ANNOUNCEMENT, never the roster.
+            // Everything above has committed, so propagating would tell the
+            // caller a join failed that every other instance can see succeeded
+            // — the defect this branch closed, arrived at from the other side.
+            // Caught HERE and not inside `publishControl`, which `unsubscribe`
+            // and `evict` also call: a lost eviction frame is a different
+            // question with its own durable backstop, and one blanket policy
+            // for three callers is one decision in the wrong home.
+            try {
+                await this.publishControl({
+                    kind: 'presence-join',
+                    target: connection.id,
+                    channel,
+                    member,
+                })
+            } catch (error) {
+                console.warn(
+                    `realtime: the presence join on ${
+                        safeForLog(channel)
+                    } was not announced to other instances — the roster holds ` +
+                        `the member and a roster read there is correct; only ` +
+                        `the frame is lost: ${renderError(error)}`,
+                )
+            }
+            // FR-006: the closing read is a READ. The join has fully committed
+            // — roster, local view, both announcements — so a failure here has
+            // no residue to compensate and nothing wrong to report. Throwing
+            // would leave the caller believing a completed join was rejected.
+            // Degrade to what this instance knows, and say so.
+            // `here` is the domain's own word for it, and `members` is taken
+            // in this scope by the LOCAL map — two different rosters, and
+            // naming them alike is how a fallback quietly becomes the source.
+            let here: PresenceMember[]
+            let rosterSource: 'authoritative' | 'local' = 'authoritative'
+            try {
+                here = await this.rosterSnapshot(channel)
+            } catch (error) {
+                here = [...(this.presence.get(channel)?.values() ?? [])]
+                rosterSource = 'local'
+                console.warn(
+                    `realtime: the here-roster for ${
+                        safeForLog(channel)
+                    } could not be read; the join is committed and the ` +
+                        `snapshot falls back to this instance's own members: ${
+                            renderError(error)
+                        }`,
+                )
+            }
+            return { ok: true, members: here, rosterSource }
         }
 
         await this.#joinLocal(channel, connection.id)
@@ -847,6 +989,14 @@ export class ChannelManager<Identity = unknown> {
      * round-trip unwatch a channel with a live authorized subscriber —
      * permanently, since the reconnect that heals every other deafness is
      * guaranteed not to re-issue a channel that left the re-issue set.
+     *
+     * **That rule now also holds the channel cap** (#323). `#checkChannelCaps`
+     * reads `subscriptions.size` and this method spends it, with no `await`
+     * between them — which is why #323 moved the presence ANNOUNCEMENT behind
+     * the authoritative roster write and left the write itself below this call.
+     * Hoisting a broker round-trip above these adds lets concurrent subscribes
+     * read one count and all act on it, and the cap it overshoots is what
+     * bounds the post-outage revocation window, not merely memory.
      *
      * **`set.size > 0` and `subscriptions.has(channel)` are ONE answer**, and
      * that is what lets `#checkChannelCaps` ask the second while this asks the
@@ -1240,13 +1390,51 @@ export class ChannelManager<Identity = unknown> {
      * — never to the driver roster, which now holds remote members this instance
      * cannot reach. Cross-instance presence is carried by the control plane
      * ({@link handleControl}), not by iterating a roster of unreachable sockets.
+     *
+     * **`except` is how a joiner is kept out of its own announcement** (#323).
+     * Decision-table home: "who is excluded from a join's own announcement".
+     * That exclusion used to be a consequence of WHERE the call sat — emitted
+     * before the joiner was added, so the set could not contain it — which no
+     * test could observe and which silently inverts the moment the call moves.
+     * It is now an argument, and moving the call is safe because the rule
+     * travels with it.
+     *
+     * **One unusable socket is skipped, never fatal** (FR-009). `send` returns
+     * `void` and a closing `WebSocket.send` raises, so an uncaught throw here
+     * aborted the fan-out mid-iteration: every subscriber the loop had not
+     * reached was silently skipped, in an order nothing defines, and the throw
+     * escaped over a join that had already committed. Not a silent catch — it
+     * warns, and it deliberately carries **nothing derived from the member**:
+     * `info` is arbitrary application PII, and log stores are read more widely
+     * than the data they describe.
+     *
+     * @param channel - The channel whose local subscribers receive the frame.
+     * @param frame - The frame to encode and send.
+     * @param options - `except` omits one connection id from the fan-out.
      */
-    private emitPresence(channel: string, frame: OutboundFrame): void {
+    private emitPresence(
+        channel: string,
+        frame: OutboundFrame,
+        options: { except?: string } = {},
+    ): void {
         const set = this.subscriptions.get(channel)
         if (!set) return
         const encoded = this.encode(frame)
         for (const clientId of set) {
-            this.connections.get(clientId)?.send(encoded)
+            if (clientId === options.except) continue
+            const connection = this.connections.get(clientId)
+            if (!connection) continue
+            try {
+                connection.send(encoded)
+            } catch (error) {
+                console.warn(
+                    `realtime: a presence frame could not be delivered on ${
+                        safeForLog(channel)
+                    } — the socket is skipped and the fan-out continues: ${
+                        renderError(error)
+                    }`,
+                )
+            }
         }
     }
 

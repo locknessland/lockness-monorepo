@@ -25,11 +25,25 @@ interface User {
     id: number
 }
 
-const conn = (id: string): Connection<User> => ({
+/**
+ * A connection whose frames land in the SAME ordered log as the driver ops.
+ *
+ * `send: () => {}` was the gap that made this file's log unable to witness the
+ * one ordering #323 turns on. It recorded driver ops only, so `addMember` vs
+ * `publishControl` was observable and `emitPresence` vs `addMember` was not —
+ * a clean-join assertion passed identically before and after the announcement
+ * moved. A home whose witness cannot see it is a comment.
+ */
+const connLogging = (log: string[], id: string): Connection<User> => ({
     id,
     identity: { id: 1 },
     metadata: {},
-    send: () => {},
+    send: (data) => {
+        const frame = JSON.parse(data as string)
+        log.push(
+            `frame ${frame.action ?? frame.type} ${frame.channel} -> ${id}`,
+        )
+    },
     close: () => {},
 })
 
@@ -82,7 +96,7 @@ Deno.test('#312 the member-id assertion runs BEFORE the roster write', async () 
         driver,
         authorize: () => ({ id: oversized }),
     })
-    const c = conn(crypto.randomUUID())
+    const c = connLogging(log, crypto.randomUUID())
     m.register(c)
     let threw: unknown
     try {
@@ -112,7 +126,7 @@ Deno.test('#312 a clean join writes the roster, THEN publishes the join frame', 
         driver,
         authorize: () => ({ id: 'ada' }),
     })
-    const c = conn(crypto.randomUUID())
+    const c = connLogging(log, crypto.randomUUID())
     m.register(c)
     const result = await m.subscribe(c, 'presence-room')
     assertEquals(result.ok, true)
@@ -142,7 +156,7 @@ Deno.test('#312 a REFUSED control frame loses the ANNOUNCEMENT, not the roster',
         driver,
         authorize: () => ({ id: 'ada' }),
     })
-    const c = conn(crypto.randomUUID())
+    const c = connLogging(log, crypto.randomUUID())
     m.register(c)
     const result = await m.subscribe(c, 'presence-room')
 
@@ -171,12 +185,12 @@ Deno.test('#312 cleanup after a refused join is total — the leave still remove
     // longer. This is what makes the lost frame a NOTIFICATION gap rather than
     // a leak — and it is asserted here because the argument for leaving the
     // roster write in place depends on it.
-    const { driver, roster } = recordingDriver({ refuseControl: true })
+    const { driver, log, roster } = recordingDriver({ refuseControl: true })
     const m = new ChannelManager<User>({
         driver,
         authorize: () => ({ id: 'ada' }),
     })
-    const c = conn(crypto.randomUUID())
+    const c = connLogging(log, crypto.randomUUID())
     m.register(c)
     await m.subscribe(c, 'presence-room')
     await m.disconnect(c.id)
@@ -184,5 +198,35 @@ Deno.test('#312 cleanup after a refused join is total — the leave still remove
         [...(roster.get('presence-room')?.keys() ?? [])],
         [],
         'the member is gone from the authoritative roster after disconnect',
+    )
+})
+
+Deno.test('#323 the ONE log shows write, then frame, then announcement', async () => {
+    // This is the assertion the file could not make before its connection
+    // double learned to log. It is the whole of FR-001: the frame that tells a
+    // subscriber somebody joined comes AFTER the write that makes it true.
+    const { driver, log } = recordingDriver()
+    const m = new ChannelManager<User>({
+        driver,
+        authorize: () => ({ id: 'ada' }),
+    })
+    const watcher = connLogging(log, 'watcher')
+    m.register(watcher)
+    await m.subscribe(watcher, 'presence-room')
+
+    log.length = 0
+    const newcomer = connLogging(log, 'newcomer')
+    m.register(newcomer)
+    await m.subscribe(newcomer, 'presence-room')
+
+    assertEquals(
+        log,
+        [
+            'addMember presence-room ada',
+            'frame joined presence-room -> watcher',
+            'publishControl presence-join',
+        ],
+        'the authoritative write leads; the frame follows it; and the ' +
+            'newcomer is absent from its own announcement',
     )
 })

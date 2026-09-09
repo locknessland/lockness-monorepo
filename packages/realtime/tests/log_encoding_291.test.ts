@@ -414,3 +414,89 @@ Deno.test('#291 captureConsole restores both sinks on dispose', () => {
     assertEquals(console.warn, realWarn, 'console.warn was left patched')
     assertEquals(console.error, realError, 'console.error was left patched')
 })
+
+Deno.test('#323 the presence WARNs name the channel and NOTHING from the member', async () => {
+    // `manager.ts` states in a comment that these paths deliberately carry
+    // nothing derived from the member — `info` is arbitrary application PII and
+    // log stores are read more widely than the data they describe. A comment is
+    // a claim; this is what checks it. Related: #326, which bounds `info`.
+    const SECRET = 'st-tropez-holiday-photo'
+    const member = { id: 'u1', info: { bio: SECRET } }
+
+    // Path 1 — the fan-out warn: a socket that cannot receive.
+    {
+        const driver: BroadcastDriver = {
+            publish: () => {},
+            onMessage: () => {},
+            addMember: () => Promise.resolve(),
+            removeMember: () => Promise.resolve(),
+            listMembers: () => Promise.resolve([member]),
+        }
+        const m = new ChannelManager<User>({
+            driver,
+            authorize: () => member,
+        })
+        const deaf = fakeConn('deaf')
+        deaf.send = () => {
+            throw new TypeError('socket is closing')
+        }
+        await m.subscribe(deaf, 'presence-room')
+
+        using captured = captureConsole()
+        await m.subscribe(fakeConn('newcomer'), 'presence-room')
+        const line = captured.lines.map((l) => l.text).join('\n')
+        assertStringIncludes(line, 'presence-room')
+        assert(
+            !line.includes(SECRET),
+            `the fan-out WARN leaked member.info: ${line}`,
+        )
+    }
+
+    // Path 2 — the control-publish warn: the announcement is lost, not the join.
+    {
+        const driver: BroadcastDriver = {
+            publish: () => {},
+            onMessage: () => {},
+            addMember: () => Promise.resolve(),
+            removeMember: () => Promise.resolve(),
+            listMembers: () => Promise.resolve([member]),
+            onControl: () => {},
+            publishControl: () => Promise.reject(DSN_FAILURE()),
+        }
+        const m = new ChannelManager<User>({
+            driver,
+            authorize: () => member,
+        })
+        using captured = captureConsole()
+        const result = await m.subscribe(fakeConn('c1'), 'presence-room')
+        assertEquals(result.ok, true, 'the join still commits')
+        const line = captured.lines.map((l) => l.text).join('\n')
+        assertStringIncludes(line, 'presence-room')
+        assert(!line.includes(SECRET), `the control WARN leaked info: ${line}`)
+        assert(
+            !line.includes('hunter2'),
+            'and renderError redacted the DSN credential',
+        )
+    }
+
+    // Path 3 — the snapshot warn: the here-roster could not be read.
+    {
+        const driver: BroadcastDriver = {
+            publish: () => {},
+            onMessage: () => {},
+            addMember: () => Promise.resolve(),
+            removeMember: () => Promise.resolve(),
+            listMembers: () => Promise.reject(DSN_FAILURE()),
+        }
+        const m = new ChannelManager<User>({
+            driver,
+            authorize: () => member,
+        })
+        using captured = captureConsole()
+        const result = await m.subscribe(fakeConn('c1'), 'presence-room')
+        assertEquals(result.rosterSource, 'local')
+        const line = captured.lines.map((l) => l.text).join('\n')
+        assertStringIncludes(line, 'presence-room')
+        assert(!line.includes(SECRET), `the snapshot WARN leaked info: ${line}`)
+    }
+})
