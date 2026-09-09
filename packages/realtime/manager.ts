@@ -39,6 +39,32 @@ export const MAX_WATCHED_CHANNELS = 1_000
 export const MAX_CHANNELS_PER_CONNECTION = 100
 
 /**
+ * The DEFAULT ceiling on a serialized {@link PresenceMember}, in bytes (#326).
+ *
+ * **It is half the default control-payload ceiling, and that is the whole
+ * relationship.** A member is announced inside a control frame that also
+ * carries `kind`, `target` and `channel`; `target` and `channel` are each
+ * bounded at {@link MAX_NAME_LENGTH} characters and `kind` is a short literal,
+ * so the envelope around the member cannot exceed roughly 1 KiB even when every
+ * character escapes. Against the driver's 8 KiB default that leaves the
+ * envelope four times the room it can ever need, so **a member admitted here
+ * can always be announced**.
+ *
+ * That invariant is the point, not the number. `member.id` is bounded because
+ * the roster write happens BEFORE the control publish, so an unbounded value
+ * lands in the authoritative hash while the frame announcing it is dropped —
+ * a member present in the room and invisible to every peer. `info` is the
+ * larger of the two fields and the one an end user typically controls, through
+ * an ordinary profile edit, so without this it is a self-service cloak.
+ *
+ * **Raising `control.maxPayloadBytes` does not raise this.** They are separate
+ * numbers on separate objects — the ceiling is a driver option, this is a
+ * manager option — and a deployment that raises one must raise the other, or
+ * admit members it cannot announce.
+ */
+export const MAX_PRESENCE_MEMBER_BYTES = 4 * 1024
+
+/**
  * Refuse a cap that is not a positive integer, at construction.
  *
  * @param option - The option's name, so the message names what to fix.
@@ -196,6 +222,30 @@ export class ChannelNameError extends Error {
                 'characters). The control plane drops frames naming a channel ' +
                 'outside it, so a presence join would succeed on this instance ' +
                 'and be silently dropped by every other one.',
+        )
+    }
+}
+
+export class PresenceMemberSizeError extends Error {
+    override readonly name = 'PresenceMemberSizeError'
+
+    /**
+     * @param bytes - The serialized size that was refused.
+     * @param limit - The ceiling it exceeded.
+     */
+    constructor(bytes: number, limit: number) {
+        super(
+            `realtime: this presence member serializes to ${bytes} bytes, ` +
+                `over the ${limit}-byte ceiling (#326). Its content is NOT ` +
+                'echoed here — it is application data and this message reaches ' +
+                'logs. The member is refused at admission, before any local ' +
+                'join, roster write or announcement exists, because the roster ' +
+                'write happens before the control publish: admitted, it would ' +
+                'sit in the authoritative roster while the frame announcing it ' +
+                'is dropped for being oversized, leaving a member present in ' +
+                'the room and invisible to every other instance. Shrink ' +
+                '`member.info`, or raise maxPresenceMemberBytes AND the ' +
+                "driver's control.maxPayloadBytes together.",
         )
     }
 }
@@ -387,6 +437,21 @@ export interface ChannelManagerOptions<Identity = unknown> {
      * original exposure knowingly.
      */
     anonymousHostingShare?: number
+    /**
+     * The ceiling on a serialized {@link PresenceMember}, in bytes. Defaults to
+     * {@link MAX_PRESENCE_MEMBER_BYTES}.
+     *
+     * A positive integer, validated at construction. Enforced at the admission
+     * boundary — an oversized member is refused with
+     * {@link PresenceMemberSizeError} before any local join, roster write or
+     * announcement exists, so a refusal leaves nothing behind.
+     *
+     * **Reconcile it with the driver's `control.maxPayloadBytes`** whenever you
+     * change either: a member larger than the control ceiling can be written to
+     * the roster and never announced. {@link MAX_PRESENCE_MEMBER_BYTES}
+     * documents the headroom the default leaves.
+     */
+    maxPresenceMemberBytes?: number
 }
 
 /**
@@ -410,6 +475,7 @@ export class ChannelManager<Identity = unknown> {
     readonly #maxWatchedChannels: number
     readonly #maxChannelsPerConnection: number
     readonly #anonymousHostingShare: number
+    readonly #maxPresenceMemberBytes: number
     /** The instance cap an anonymous connection may reach, precomputed once. */
     readonly #anonymousWatchedCeiling: number
     /**
@@ -471,9 +537,12 @@ export class ChannelManager<Identity = unknown> {
         this.#maxChannelsPerConnection = options.maxChannelsPerConnection ??
             MAX_CHANNELS_PER_CONNECTION
         this.#anonymousHostingShare = options.anonymousHostingShare ?? 0.8
+        this.#maxPresenceMemberBytes = options.maxPresenceMemberBytes ??
+            MAX_PRESENCE_MEMBER_BYTES
         assertCap('maxWatchedChannels', this.#maxWatchedChannels)
         assertCap('maxChannelsPerConnection', this.#maxChannelsPerConnection)
         assertShare('anonymousHostingShare', this.#anonymousHostingShare)
+        assertCap('maxPresenceMemberBytes', this.#maxPresenceMemberBytes)
         if (this.#maxChannelsPerConnection > this.#maxWatchedChannels) {
             throw new Error(
                 `realtime: maxChannelsPerConnection ` +
@@ -674,6 +743,51 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * Refuse a presence member whose serialized form exceeds the ceiling,
+     * at the admission boundary (#326).
+     *
+     * Sibling of {@link #assertUsableMemberId}, and it exists for the same
+     * reason that one does: the roster write happens BEFORE the control
+     * publish, and the driver's oversize check is on the publish. A member the
+     * publish would refuse is therefore already in the authoritative roster —
+     * present in the room, invisible to every peer instance, with `subscribe`
+     * having answered `{ ok: true }`. Refusing here is what keeps that from
+     * being a partial write.
+     *
+     * **The WHOLE member is measured, not just `info`.** The control frame
+     * carries the member as one value, so that is the size that has to fit; and
+     * measuring the part rather than the whole is how a bound is passed by a
+     * value that then fails downstream anyway.
+     *
+     * Measured in BYTES via {@link TextEncoder}, not in string length — `info`
+     * is application data and a single emoji or CJK character is three to four
+     * bytes where `.length` counts one or two. A ceiling compared against a
+     * payload limit must be in the payload's own unit.
+     *
+     * @param member - The member the authorizer returned.
+     * @throws {PresenceMemberSizeError} If the serialized member is over the
+     *   ceiling, or if it cannot be serialized at all.
+     */
+    #assertUsableMemberSize(member: PresenceMember): void {
+        let bytes: number
+        try {
+            bytes = new TextEncoder().encode(JSON.stringify(member)).length
+        } catch {
+            // A cycle or a throwing `toJSON` in application-supplied `info`.
+            // It is refused HERE rather than allowed to throw out of the roster
+            // write, where the same value would take down a join that had
+            // already committed local state. `Infinity` names it as unbounded
+            // rather than inventing a byte count nobody measured.
+            throw new PresenceMemberSizeError(
+                Infinity,
+                this.#maxPresenceMemberBytes,
+            )
+        }
+        if (bytes <= this.#maxPresenceMemberBytes) return
+        throw new PresenceMemberSizeError(bytes, this.#maxPresenceMemberBytes)
+    }
+
+    /**
      * Register a live connection (call from the handler's `onOpen`).
      *
      * @param connection - The connection to track.
@@ -781,6 +895,10 @@ export class ChannelManager<Identity = unknown> {
                 // (#306). Asserting after either one is what makes an
                 // oversized id a partial write rather than a refusal.
                 this.#assertUsableMemberId(member.id)
+                // AT THE SAME BOUNDARY, and for the same reason (#326): the
+                // roster write precedes the control publish, so a member the
+                // publish would refuse is already authoritative by then.
+                this.#assertUsableMemberSize(member)
             }
         }
 
@@ -918,6 +1036,17 @@ export class ChannelManager<Identity = unknown> {
                     member,
                 })
             } catch (error) {
+                // STILL SWALLOWED, and #326 is what makes that safe rather
+                // than accidental. The catch was written for a broker that is
+                // gone or slow — a failure that loses the announcement and
+                // nothing else. It used to also swallow an OVERSIZE refusal,
+                // which is a different thing: a frame the driver will never
+                // send, for a member already in the roster, i.e. the cloak.
+                // That case cannot reach here any more, because the admission
+                // bound above refuses the member before anything commits. The
+                // decision is therefore recorded rather than inherited: this
+                // stays a warn, and the reason it may is that the only
+                // failures left are transient ones the roster survives.
                 console.warn(
                     `realtime: the presence join on ${
                         safeForLog(channel)

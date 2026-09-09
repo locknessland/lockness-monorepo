@@ -1356,7 +1356,22 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     'visible. Shrink the presence member, or raise ' +
                     'control.maxPayloadBytes on EVERY instance.',
             )
-            return
+            // THROWS, where it used to `return` (#326). Refusing and then
+            // reporting success is a lie to every caller: `unsubscribe` and
+            // `evict` await this and had no way to learn their frame was never
+            // sent. The refusal is recorded first — `#refuseControl` logs and
+            // runs the `onControlRefused` handler — so the drop is still
+            // observable to an operator whichever way the caller handles this.
+            //
+            // The presence-join caller catches it and warns on purpose; see
+            // the note at that catch. It is reachable there only for a member
+            // admitted before this bound existed, because `ChannelManager`
+            // now refuses an oversized member at admission (#326).
+            throw new Error(
+                `realtime: control message of ${payload.length} bytes ` +
+                    `exceeds control.maxPayloadBytes ` +
+                    `(${this.maxControlPayloadBytes}); it was not published.`,
+            )
         }
         await this.command.command('PUBLISH', this.controlTopic, payload)
     }

@@ -69,9 +69,11 @@ export {
     ChannelNameError,
     ConnectionIdError,
     MAX_CHANNELS_PER_CONNECTION,
+    MAX_PRESENCE_MEMBER_BYTES,
     MAX_WATCHED_CHANNELS,
     type OutboundFrame,
     PresenceMemberIdError,
+    PresenceMemberSizeError,
     type SubscribeResult,
 } from './manager.ts'
 export {
