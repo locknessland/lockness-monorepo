@@ -283,7 +283,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-45 test files for 16 source files:
+46 test files for 16 source files:
 
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channel_name_boundary.test.ts`
@@ -321,6 +321,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_cap_concurrency_323.test.ts`
 - `packages/realtime/tests/presence_join_compensation_323.test.ts`
 - `packages/realtime/tests/presence_member_id.test.ts`
+- `packages/realtime/tests/presence_rejoin_327.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
 - `packages/realtime/tests/presence_sweep.test.ts`
 - `packages/realtime/tests/protocol.test.ts`
@@ -364,7 +365,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 45 test files directly —
+Then, specific to this package: run its 46 test files directly —
 
 ```bash
 deno test -A packages/realtime/
