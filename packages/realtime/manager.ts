@@ -733,6 +733,21 @@ export class ChannelManager<Identity = unknown> {
      * and `joined` must not be pressed into service as one; detecting a change
      * would mean deep-equality over unbounded application `info` on every
      * inbound frame.
+     *
+     * **A DENIAL NEVER REVOKES** (#331). The authorizer runs on every
+     * private/presence subscribe, re-subscribes included — and when one that
+     * previously approved now denies, this answers `{ ok: false }` and changes
+     * nothing: the connection keeps its subscription, its roster entry and its
+     * delivery. `authorize` gates admission; this method adds or does nothing,
+     * and never removes. To act on a revoked entitlement call
+     * {@link ChannelManager.unsubscribe} for one channel or
+     * {@link ChannelManager.evict} for the connection — the latter is durable
+     * and crosses processes, which a denial-driven removal would not be.
+     *
+     * The authorizer runs BEFORE the re-join guard above, and that order is
+     * load-bearing: an unauthorized caller is denied on its own terms and never
+     * learns whether the channel exists or who is in it. Its consequence is
+     * that a denied re-subscribe returns `{ ok: false }` and **not** the roster.
      */
     async subscribe(
         connection: Connection<Identity>,

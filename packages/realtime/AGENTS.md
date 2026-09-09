@@ -99,6 +99,20 @@ Anything not listed is internal and free to change.
   passes**; only the pipelined witness dies, because `#joinLocal` awaits
   `#watch` and K frames dispatched by `void guard(...)` all read "not a member"
   and all join. Measured both ways before the row was written.
+- **A denial never revokes, and making it revoke was tried and rejected**
+  ([#331](https://github.com/locknessland/lockness-monorepo/issues/331)).
+  `authorize` runs on every subscribe including a re-subscribe, and when one
+  that previously approved now denies, `subscribe` answers `{ ok: false }` and
+  changes nothing. It looks like a bug and is a decision: `false` already means
+  "refuse this attempt", which in a real deployment includes "not this fast" and
+  "the DB blipped" — the `Authorizer` docstring sanctions authorizers that are
+  rate-limit increments and DB reads — so revoking on it would turn a transient
+  failure into an eviction with no compile error and no way to express the
+  difference while `AuthorizeResult` stays `boolean | PresenceMember`. It would
+  also be a **second, weaker revocation path** beside `evict`, which writes
+  `markRevoked` first and is recovered by `onRevocationReconcile`; a
+  denial-driven removal survives nothing. `authorize_denial_331.test.ts` is the
+  witness, and it fails the moment a revoke is added here.
 - **A roster member is a PAIR, written by one operation.** The presence hash
   field and the owning instance's owned-set entry are two structures encoding
   one fact. The ghost sweep enumerates owned sets and nothing else, so a field

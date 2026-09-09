@@ -65,7 +65,26 @@ export interface PresenceMember {
     info?: Record<string, unknown>
 }
 
-/** The result of authorizing a connection for a channel. */
+/**
+ * The result of authorizing a connection for a channel.
+ *
+ * **`false` refuses THIS ATTEMPT. It never removes a standing membership**
+ * (#331). A denial on a channel the connection already holds answers that
+ * subscribe frame `{ ok: false }` and leaves the subscription, the roster entry
+ * and delivery exactly as they were.
+ *
+ * That is deliberate, and it is what makes `false` safe to return. An
+ * authorizer is arbitrary application code — {@link Authorizer} sanctions a DB
+ * read, an audit write or a rate-limit increment — so `false` today already
+ * carries "not this fast" and "I could not check". Revoking on it would give
+ * those the force of an eviction, silently, with no compile error and no way to
+ * express the difference.
+ *
+ * **Revocation is an explicit server-side verb**, never a side effect of the
+ * client asking again: `ChannelManager.unsubscribe` for one channel,
+ * `ChannelManager.evict` for a real revoke — which is durable and crosses
+ * processes, where a denial-driven removal would survive nothing.
+ */
 export type AuthorizeResult = boolean | PresenceMember
 
 /**

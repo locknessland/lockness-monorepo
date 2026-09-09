@@ -91,7 +91,24 @@ or a control frame that did not arrive.
 **Revocation** — authorization is point-in-time at subscribe. Fan-out is not
 re-authorized per message; it delivers to the subscription set the authorizer
 approved at subscribe time. **Eviction is therefore the one revocation path.**
-To act on a logout / kick / account-disable mid-connection:
+
+**A denial does not revoke, and this is the case most likely to surprise you.**
+Your authorizer runs on every subscribe, re-subscribes included. When one that
+previously approved now returns `false` — revoked role, expired entitlement, ban
+— that frame is refused and **nothing else happens**: the connection keeps its
+subscription, keeps its roster entry, and keeps receiving every broadcast on
+that channel. It is told no and carries on listening.
+
+So an application that revokes access and waits for the next subscribe frame to
+enforce it will wait forever. Revocation is something the server does, with the
+calls below.
+
+The alternative was considered and rejected: `false` already means "refuse this
+attempt", and in a deployment that includes "not this fast" and "the database
+blipped and I could not confirm". Giving it the force of an eviction would turn
+a transient failure into a removal, silently. See
+[#331](https://github.com/locknessland/lockness-monorepo/issues/331). To act on
+a logout / kick / account-disable mid-connection:
 
 ```ts
 // Leave one channel (a plain channel leave — the socket stays open).
