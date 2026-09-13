@@ -174,17 +174,17 @@ The bump task is done when ALL of the following pass:
 
 ## 9. Files devops-sre will likely touch
 
-- `/Users/kevin/Sites/lockness/scripts/bump.ts` — replace `updateRootConfig`'s
+- `scripts/bump.ts` — replace `updateRootConfig`'s
   rewrite path; add pure helper; update `@fileoverview`.
-- `/Users/kevin/Sites/lockness/tests/bump.test.ts` — add fixture-based tests for
+- `tests/bump.test.ts` — add fixture-based tests for
   the new helper.
-- `/Users/kevin/Sites/lockness/tests/fixtures/bump/deno.jsonc.input` — new.
-- `/Users/kevin/Sites/lockness/tests/fixtures/bump/deno.jsonc.expected` — new.
-- `/Users/kevin/Sites/lockness/tests/fixtures/bump/deno.jsonc.no-imports.input`
+- `tests/fixtures/bump/deno.jsonc.input` — new.
+- `tests/fixtures/bump/deno.jsonc.expected` — new.
+- `tests/fixtures/bump/deno.jsonc.no-imports.input`
   — new (second test case).
-- `/Users/kevin/Sites/lockness/tests/fixtures/bump/deno.jsonc.no-imports.expected`
+- `tests/fixtures/bump/deno.jsonc.no-imports.expected`
   — new.
-- `/Users/kevin/Sites/lockness/deno.jsonc` — add `@david/jsonc-morph` to
+- `deno.jsonc` — add `@david/jsonc-morph` to
   `imports`; add `tests/fixtures/bump/` to `fmt.exclude` and `lint.exclude`.
-- `/Users/kevin/Sites/lockness/deno.lock` — regenerated automatically by
+- `deno.lock` — regenerated automatically by
   `deno cache`; do NOT hand-edit.

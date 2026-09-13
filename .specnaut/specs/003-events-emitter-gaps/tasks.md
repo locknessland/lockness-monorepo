@@ -13,7 +13,7 @@ minimal code to pass, then refactor. Every implementation task below has its tes
 
 ## Path Conventions
 
-Repository root is `/Users/kevin/Sites/lockness`. Paths below are project-relative.
+Paths below are repository-relative, resolved against the repository root.
 
 - Emitter and public surface: `packages/events/`
 - Framework re-export and bootstrap: `packages/core/`
