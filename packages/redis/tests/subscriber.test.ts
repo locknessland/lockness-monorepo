@@ -17,7 +17,30 @@ import { RedisSubscribeConnection } from '../subscriber.ts'
 import { RespFramingError } from '../resp.ts'
 import { type FakeServer, startFakeServer } from './fake_server.ts'
 
-/** Poll `cond` until it holds or the deadline passes (a fake-socket race gate). */
+/**
+ * Poll `cond` until it holds or the deadline passes (a fake-socket race gate).
+ *
+ * **Which helper a new gate should use** — audited across all 121 call sites in
+ * this file for #336, and the line is not "how long do I think it takes":
+ *
+ * | The gate waits for… | Helper |
+ * | :--- | :--- |
+ * | an EVENT — a reconnect, a handshake, a warning, a pushed frame, a count | `waitFor` |
+ * | a TRANSFER to complete, whose duration scales with the payload | {@link waitWhileAdvancing} |
+ *
+ * A deadline is right for an event, because an event either happens promptly
+ * or something is broken, and the deadline is a liveness bound. It is wrong for
+ * a transfer, because "long enough" then depends on the machine and on
+ * everything else running on it, and the gate goes red for reasons unrelated to
+ * what it is testing.
+ *
+ * **Exactly one site in this file was on the wrong side**, and it is the
+ * oversized-frame test. Two other sites push large payloads and are correctly
+ * on this side: the `closeAfter('AUTH')` retry test writes a megabyte only so
+ * the write cannot finish before the RST, and waits for the retry WARNING; the
+ * close-during-write test never waits for arrival at all. Both gate events. Do
+ * not convert them.
+ */
 async function waitFor(
     cond: () => boolean,
     message: string,
@@ -29,6 +52,50 @@ async function waitFor(
             throw new Error(`waitFor timed out: ${message}`)
         }
         await new Promise((r) => setTimeout(r, 5))
+    }
+}
+
+/**
+ * Poll `cond` until it holds, failing only once `progress` has been STATIC for
+ * `stallMs`.
+ *
+ * **A deadline is the wrong instrument for a write that takes as long as the
+ * machine says it does** (#336). `waitFor` above asks "has it finished by now",
+ * which a contended CPU falsifies for reasons that have nothing to do with the
+ * property under test — and the gate then goes red on whatever change happened
+ * to be under review. This asks "is it still advancing". Contention makes it
+ * slower; only a genuinely stuck writer makes it fail.
+ *
+ * `stallMs` is therefore NOT a completion budget and must never be tuned like
+ * one. It is the answer to "how long may a live transfer show no progress at
+ * all", and it does not scale with the size of the transfer, the speed of the
+ * machine, or the load on it.
+ *
+ * @param cond - The property being waited for.
+ * @param progress - A monotonic counter that advances while work is happening.
+ * @param message - What was being waited for, for the failure text.
+ * @param stallMs - How long `progress` may stand still before this gives up.
+ */
+async function waitWhileAdvancing(
+    cond: () => boolean,
+    progress: () => number,
+    message: string,
+    stallMs: number,
+): Promise<void> {
+    let last = progress()
+    let movedAt = Date.now()
+    while (!cond()) {
+        await new Promise((r) => setTimeout(r, 5))
+        const now = progress()
+        if (now !== last) {
+            last = now
+            movedAt = Date.now()
+        } else if (Date.now() - movedAt > stallMs) {
+            throw new Error(
+                `stalled waiting for ${message}: no progress for ${stallMs}ms, ` +
+                    `stuck at ${last}`,
+            )
+        }
     }
 }
 
@@ -702,11 +769,46 @@ Deno.test('FR-013: concurrent writers never interleave on the socket', async () 
     // bytes never short-writes and so never interleaves. It proved nothing,
     // which is precisely the defect class this whole feature exists to remove.
     //
-    // The rewrite forces the condition instead of hoping for it: a pattern large
-    // enough that `conn.write` returns short (resp.ts:212-216 records a measured
-    // 320 KB short write on an 8 MiB frame), with the keepalive firing every few
-    // milliseconds throughout. Without the queue, PING bytes land in the middle
-    // of the PSUBSCRIBE frame and the pattern arrives corrupted.
+    // The rewrite forces the condition instead of hoping for it: `conn.write`
+    // must return short, with the keepalive firing throughout. Without the
+    // queue, PING bytes land in the middle of the PSUBSCRIBE frame and the
+    // pattern arrives corrupted.
+    //
+    // ── #336: WHY THE FRAME IS STILL FOUR MEGABYTES ──
+    //
+    // It was reported as a wall-clock flake and read as "the deadline is too
+    // short". Measured on 2026-09-14, that is not the mechanism.
+    //
+    //   * `#writeDeadlineMs` is `min(livenessMs, WRITE_STALL_CEILING_MS)` =
+    //     5000ms — a PRODUCTION ceiling this test cannot raise. Past it the
+    //     socket is discarded and EVERY subscription re-issued, so the retry is
+    //     LARGER than the write that failed. An 8 MiB frame took 223 seconds
+    //     over 23 attempts. The gate's 20s deadline was downstream of that
+    //     cliff, never the cause of it.
+    //   * The cliff was close. The same 4 MiB frame measured ~1s alone and
+    //     4.2s once other work shared the process — under 25% clear of 5000ms.
+    //
+    // Shrinking the frame was tried and REJECTED on measurement, not taste.
+    // Interleaving opportunities are short writes, and short writes are bought
+    // with size and nothing else: 512 KiB yields 1, 4 MiB yields 4. With the
+    // queue bypassed, 1 MiB caught the defect on 1 run in 3 and 2 MiB on 4 in
+    // 5. Two ways of forcing backpressure from the fake server — one long read
+    // stall, then a per-chunk read throttle — were implemented and each
+    // measured 0 detections in 5, because neither adds a short write: the
+    // kernel's loopback buffer accepts about a megabyte per call regardless of
+    // how slowly the far end drains. A smaller frame is a test that proves
+    // nothing, which is exactly what this file's first paragraph is about.
+    //
+    // What was actually wrong was the FAKE SERVER, and it was quadratic: it
+    // accumulated into a `number[]` one byte at a time and re-copied and
+    // re-parsed the whole prefix on every 4 KB read. Fixing that took this test
+    // from ~1000ms to ~32ms with the frame unchanged — roughly 150x clear of
+    // the ceiling instead of 5x — and the bypassed-queue run now fails in
+    // milliseconds, on its own assertion, 5 times in 5 rather than 4 in 5.
+    //
+    // The gate below is a PROGRESS watchdog for the same reason: after this,
+    // no fixed completion budget is defensible, because the right budget is
+    // "as long as the machine needs, while bytes keep arriving".
     const server = await startFakeServer()
     const sub = new RedisSubscribeConnection({
         hostname: '127.0.0.1',
@@ -735,12 +837,17 @@ Deno.test('FR-013: concurrent writers never interleave on the socket', async () 
         // first one there is no second writer and nothing to interleave — an
         // earlier draft of this test missed that and could not have failed.
         sub.psubscribe('small:*', () => {})
-        await waitFor(
+        await waitWhileAdvancing(
             () => countOp(server, 'PING') >= 2,
-            'the keepalive is firing, so a second writer is live',
+            // The keepalive fires every millisecond, so the PING count IS the
+            // progress signal here — byte counts would advance too, but a stall
+            // in the thing being waited for is what this gate is about.
+            () => countOp(server, 'PING'),
+            'the keepalive to fire, so a second writer is live',
+            2_000,
         )
         for (const pattern of patterns) sub.psubscribe(pattern, () => {})
-        await waitFor(
+        await waitWhileAdvancing(
             () =>
                 patterns.every((p) =>
                     server.commandLog.some(
@@ -748,8 +855,12 @@ Deno.test('FR-013: concurrent writers never interleave on the socket', async () 
                             c[0]?.toUpperCase() === 'PSUBSCRIBE' && c[1] === p,
                     )
                 ),
-            'every oversized PSUBSCRIBE reached the wire intact',
-            20_000,
+            server.bytesRead,
+            'every oversized PSUBSCRIBE to reach the wire intact',
+            // Longer than the deliberate 100ms stall above by 30x, and it
+            // bounds NOTHING else — the transfer may take as long as the
+            // machine needs, provided bytes keep arriving.
+            3_000,
         )
         const issued = server.commandLog.filter(
             (c) =>
