@@ -1308,9 +1308,12 @@ export class ChannelManager<Identity = unknown> {
                 // — so this call is provably the one that created both the
                 // subscription and the member entry, and undoing exactly
                 // what it did is the whole compensation. Mirrors
-                // `unsubscribe`: the member entry goes and the (possibly
-                // empty) channel map stays, because nothing reads its size.
-                members.delete(connection.id)
+                // `unsubscribe` THROUGH THE ONE HELPER both leave paths share,
+                // so the 1→0 delete cannot hold for one of them and not the
+                // other — this rollback is the only other way a presence
+                // membership is taken out, and it creates the entry it is
+                // undoing.
+                this.#forgetPresenceMember(channel, connection.id)
                 await this.#leaveLocal(channel, connection.id)
                 // The write is atomic, but its REPLY can still be lost: a
                 // connection dropped after the script commits looks exactly
@@ -1584,6 +1587,56 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
+     * Remove one member from a presence channel's local map, and forget the map
+     * itself when it was the last one.
+     *
+     * **The empty `Map` is DELETED**, for both of the reasons
+     * {@link #leaveLocal} gives for its `Set`, and for a third this map has on
+     * its own.
+     *
+     * *Unbounded growth.* Every unique presence name this instance had ever
+     * hosted used to retain an empty inner `Map` for the life of the process,
+     * so a `subscribe` / `unsubscribe` cycle over fresh names was not
+     * cost-neutral at rest — which is the premise #329's cost accounting rests
+     * on when it calls the net set delta zero.
+     *
+     * *One spelling.* `presence.has(channel)` is now the single answer to "does
+     * this instance hold members here", exactly as `subscriptions.has(channel)`
+     * is the single answer to "does it host the channel". Keeping an emptied
+     * map gives "no members" two spellings and lets a later reader pick the
+     * one that is only accidentally right.
+     *
+     * *And it is READ on every leave, not merely retained.*
+     * {@link #syncRosterMember} derives its desired state by scanning
+     * `presence.get(channel)` inside its serial tail, so a stranded entry is a
+     * scan the projection pays for on each slot write — the cost is no longer
+     * purely memory. An absent entry and an empty one compute the same absent
+     * state there, which is what makes deleting behaviour-preserving rather
+     * than merely tidy.
+     *
+     * @param channel - The presence channel being left.
+     * @param clientId - The leaving connection.
+     * @returns The member that was removed, or `undefined` when this connection
+     *   held no membership here — the fact {@link unsubscribe} gates its
+     *   announcements on.
+     */
+    #forgetPresenceMember(
+        channel: string,
+        clientId: string,
+    ): PresenceMember | undefined {
+        const members = this.presence.get(channel)
+        const member = members?.get(clientId)
+        // THE MEMBERSHIP PREDICATE, and the 1→0 delete below may not be reached
+        // without it. A call that removed nothing must not drop a map that
+        // still holds somebody else's membership — `members.size === 0` is only
+        // the right question once this call has actually taken one out.
+        if (!members || !member) return undefined
+        members.delete(clientId)
+        if (members.size === 0) this.presence.delete(channel)
+        return member
+    }
+
+    /**
      * Ask the driver to subscribe to `channel`, and survive its refusal.
      *
      * **A rejection keeps the membership.** The driver records the channel in
@@ -1756,10 +1809,8 @@ export class ChannelManager<Identity = unknown> {
         // for a connection this instance had just finished tearing down.
         const owned = this.connections.has(clientId)
         const left = await this.#leaveLocal(channel, clientId)
-        const members = this.presence.get(channel)
-        const member = members?.get(clientId)
-        if (members && member) {
-            members.delete(clientId)
+        const member = this.#forgetPresenceMember(channel, clientId)
+        if (member) {
             // Remove from the authoritative roster before announcing the
             // leave, through the per-slot projection (#330). The local delete
             // above is what the projection reads, so this issues a removal —
