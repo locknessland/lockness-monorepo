@@ -34,6 +34,16 @@ export interface FakeServer {
     /** How many client connections have been accepted so far. */
     accepts(): number
     /**
+     * Total bytes drained off every connection so far, monotonically.
+     *
+     * A **progress** signal, and the reason it exists is that a wall-clock
+     * deadline is the wrong gate for a multi-megabyte write (#336). A deadline
+     * asks "has it finished by now", which fails under CPU contention for
+     * reasons unrelated to the property under test; this lets a test ask "is it
+     * still advancing", which contention slows but does not falsify.
+     */
+    bytesRead(): number
+    /**
      * Push an unbidden `pmessage` frame to every live connection, as Redis does
      * for a pattern subscriber. The client dispatches it only if it holds a
      * handler for `pattern`.
@@ -265,6 +275,7 @@ export function startFakeServer(): Promise<FakeServer> {
     let muted = false
     let closeAfterOp: string | null = null
     let replyDelayMs = 0
+    let bytesRead = 0
 
     // The port is captured once from the ephemeral bind and reused by every
     // later `reachable()`, so a client dialling a fixed address can be made to
@@ -273,7 +284,29 @@ export function startFakeServer(): Promise<FakeServer> {
     const port = (listener.addr as Deno.NetAddr).port
 
     const serve = (conn: Deno.Conn): void => {
-        const chunks: number[] = []
+        // A GROWABLE Uint8Array, not a `number[]`. The old accumulator pushed
+        // one JS number per byte — eight bytes of heap per wire byte — and then
+        // handed `new Uint8Array(chunks)` to the parser on EVERY read, so a
+        // multi-megabyte frame re-copied and re-parsed its whole prefix once
+        // per 4 KB chunk. That is quadratic in frame size, and it is what put
+        // the oversized-frame test within reach of the subject's own 5-second
+        // write-stall ceiling under CPU contention (#336). The parser now reads
+        // a subarray VIEW: still re-parsed per read, but with no copy and no
+        // boxing.
+        let chunks = new Uint8Array(16 * 1024)
+        let chunkLen = 0
+        const received = (): Uint8Array => chunks.subarray(0, chunkLen)
+        const append = (source: Uint8Array, n: number): void => {
+            if (chunkLen + n > chunks.length) {
+                let grown = chunks.length * 2
+                while (grown < chunkLen + n) grown *= 2
+                const next = new Uint8Array(grown)
+                next.set(chunks.subarray(0, chunkLen))
+                chunks = next
+            }
+            chunks.set(source.subarray(0, n), chunkLen)
+            chunkLen += n
+        }
         const state = { subscribed: false }
         let repliedThrough = 0
         let commandLogged = 0
@@ -297,7 +330,7 @@ export function startFakeServer(): Promise<FakeServer> {
             }
         }
         const flushOnce = async (): Promise<void> => {
-            const { commands } = parseCommands(new Uint8Array(chunks))
+            const { commands } = parseCommands(received())
             for (let i = repliedThrough; i < commands.length; i++) {
                 if (replyDelayMs > 0) {
                     await new Promise((r) => setTimeout(r, replyDelayMs))
@@ -325,8 +358,9 @@ export function startFakeServer(): Promise<FakeServer> {
                 while (true) {
                     const n = await conn.read(buf)
                     if (n === null) break
-                    for (let i = 0; i < n; i++) chunks.push(buf[i])
-                    const { commands } = parseCommands(new Uint8Array(chunks))
+                    append(buf, n)
+                    bytesRead += n
+                    const { commands } = parseCommands(received())
                     // Commands are LOGGED even while muted — a muted broker
                     // still receives; it just does not answer. Tests assert on
                     // arrival separately from the reply.
@@ -385,6 +419,7 @@ export function startFakeServer(): Promise<FakeServer> {
         store,
         commandLog,
         accepts: () => accepts,
+        bytesRead: () => bytesRead,
         publish: (pattern: string, topic: string, payload: string) => {
             const frame = respFrame(['pmessage', pattern, topic, payload])
             for (const conn of conns) {
