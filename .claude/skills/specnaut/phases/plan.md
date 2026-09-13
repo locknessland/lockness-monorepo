@@ -53,10 +53,20 @@ re-entrant: run against an existing feature it switches to the existing branch. 
 `.specnaut/specs/<prefix>-<short-name>/`, the prefix following `branch_numbering` in
 `.specnaut/init-options.json`.
 
-Persist `{ "feature_directory": "<resolved dir>", "linked_issue": <N or null> }` to
-`.specnaut/feature.json` — the resolved path, not the literal string, since downstream phases locate
-the feature from it. `linked_issue` is the backlog item id when `--issue <N>` was passed (or a hook
-returned one); `merge` reads it to close the item, and its absence is a no-op downstream.
+Persist `{ "feature_directory": "<dir>", "linked_issue": <N or null> }` to
+`.specnaut/feature.json` — **repo-relative**, as `.specnaut/specs/<prefix>-<short-name>`, never an
+absolute filesystem path. Both readers (`scripts/bash/common.sh`, `scripts/powershell/common.ps1`)
+already join a non-rooted value onto the repo root, so a relative value resolves identically and no
+downstream phase needs to change.
+
+**Why relative, and it is not a style preference.** `feature.json` is versioned. An absolute path
+resolved on whoever ran the phase publishes that person's username and home-directory layout into
+the repository's permanent history — and in a public repo the test is not "is a secret exposed" but
+"who reads this file". This is Lockness hard rule #10; the equivalent obligation exists wherever this
+skill is installed, because the maintainer's machine is not part of anybody's specification.
+
+`linked_issue` is the backlog item id when `--issue <N>` was passed (or a hook returned one);
+`merge` reads it to close the item, and its absence is a no-op downstream.
 
 **The card moves itself.** With `--issue <N>`, `create-new-feature.sh` moves that item to
 `In progress` as part of creating the branch, and reports the outcome — including when nothing
