@@ -102,11 +102,14 @@ const MUTATIONS: Mutation[] = [
         label: '#323 the failed join keeps its presence-map entry',
         file: MANAGER,
         edits: [[
-            // RE-ANCHORED by #327: the restore-or-delete branch collapsed to an
-            // unconditional delete once a re-join could no longer reach this
-            // write. The mutation is the same one — drop the local undo — and
-            // it is now one line.
-            '                members.delete(connection.id)\n',
+            // RE-ANCHORED TWICE. #327 collapsed the restore-or-delete branch to
+            // an unconditional delete once a re-join could no longer reach this
+            // write; #334 then routed that delete through the one helper both
+            // presence leave paths share, so the undo also gives the channel
+            // map back on the 1→0 transition. The MUTATION is unchanged through
+            // both — drop the local undo — which is why this row survived two
+            // rewrites of the line it names.
+            '                this.#forgetPresenceMember(channel, connection.id)\n',
             '',
         ]],
         // The residue a retry trips over: the local view believes a member the
