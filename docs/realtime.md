@@ -896,10 +896,6 @@ them, plus what the table does not have a row for:
   whole received text _before_ the size check, so the cost is proportional to
   what was sent rather than to the cap. Install `onError`, or each rejected
   frame also prints a log line.
-- **An empty per-channel presence entry.** A presence channel this instance
-  hosted retains an empty map after the last member leaves, so a churn loop on
-  unique presence names is not quite cost-neutral at rest. Tracked; it is
-  bounded by the verb budget above and by nothing else.
 - **The reconnect**, which resets any per-connection counter you keep.
 - **Server-side revocation** — `evict`, `revokeChannel`, and a reconcile pass
   applying a durable record. These are not client frames, so nothing above
