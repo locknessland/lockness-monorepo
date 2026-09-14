@@ -697,11 +697,12 @@ export class ChannelManager<Identity = unknown> {
     readonly #maxPresenceMemberBytes: number
     readonly #maxPresenceSnapshotMembers: number
     /**
-     * One serial tail per authoritative roster slot, keyed
-     * `<channel>\0<member.id>` (#330). Entries live only while a write for
-     * that slot is queued or in flight — {@link #syncRosterMember} deletes its
-     * own once it settles, so this cannot grow with a cardinality a client
-     * chooses.
+     * One serial tail per roster slot, keyed `<channel>\0<member.id>` (#330).
+     * Entries live only while a reconciliation for that slot is queued or in
+     * flight — {@link #syncRosterMember} deletes its own once it settles, so
+     * this cannot grow with a cardinality a client chooses. A roster-less
+     * driver has tails too: the reconciliation reads the local map and writes
+     * nothing (#342).
      */
     readonly #rosterTails = new Map<string, Promise<unknown>>()
     /** The instance cap an anonymous connection may reach, precomputed once. */
@@ -1801,9 +1802,11 @@ export class ChannelManager<Identity = unknown> {
      *
      * @param channel - The presence channel owning the slot.
      * @param memberId - The member id naming the slot.
-     * @returns The member written, or `undefined` when the slot was removed —
-     *   which tells a join its write was superseded and it has nothing to
-     *   announce.
+     * @returns The member the local map holds for the slot at issue time, or
+     *   `undefined` when it holds none — which tells a join it was superseded
+     *   and has nothing to announce. That meaning is the same on every driver:
+     *   a roster-less one still runs the projection through the tail and
+     *   only skips the write (#342).
      * @throws Whatever the driver throws; the tail still advances.
      */
     #syncRosterMember(
@@ -1811,13 +1814,16 @@ export class ChannelManager<Identity = unknown> {
         memberId: string | number,
     ): Promise<PresenceMember | undefined> {
         const roster = this.roster
-        if (!roster) return Promise.resolve(undefined)
         const field = String(memberId)
         const key = `${channel}\0${field}`
         const prior = this.#rosterTails.get(key) ?? Promise.resolve()
         const run = prior.then(async () => {
             const desired = [...(this.presence.get(channel)?.values() ?? [])]
                 .find((candidate) => sameMemberId(candidate.id, field))
+            // A roster-less driver still gets the projection, just no write
+            // (#342). Returning early before the tail would hand the join an
+            // `undefined` that means "no roster" where it reads "superseded".
+            if (!roster) return desired
             if (desired) await roster.addMember(channel, desired)
             else await roster.removeMember(channel, field)
             return desired
