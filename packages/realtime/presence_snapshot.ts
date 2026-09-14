@@ -1,6 +1,13 @@
 /**
  * @fileoverview How a presence roster is cut to the snapshot one `subscribe`
- * returns (#339) — internal, and the single home of that rule.
+ * returns (#339), and how this instance's local members are made one entry per
+ * member first (#343) — internal, and the single home of both rules.
+ *
+ * The two rules stay separate on purpose. `uniqueMembers` runs only on the
+ * LOCAL view, which is keyed by connection and can repeat a member;
+ * `boundPresenceSnapshot` runs on every roster and never deduplicates — the
+ * authoritative roster is already one entry per member, and a pass there would
+ * cost O(room) on every read and hide a driver that returned duplicates.
  *
  * Kept out of `manager.ts` so the rule is a pure function a unit test can pin
  * and a mutation battery can break, and kept out of `mod.ts` because nothing
@@ -25,6 +32,46 @@ import type { PresenceMember, PresenceSnapshot } from './channel.ts'
  */
 export function sameMemberId(a: string | number, b: string | number): boolean {
     return String(a) === String(b)
+}
+
+/**
+ * One entry per member, from a list that may hold a member more than once.
+ *
+ * The local `presence` map is keyed by CONNECTION id, so one member holding two
+ * tabs on this instance is two values in it; the authoritative roster is keyed
+ * by `String(member.id)`, so it is one slot. Every read of the map's values
+ * goes through this rule (via the manager's `#localRoster`), so the local view
+ * and the roster count the same thing (#343).
+ *
+ * - **Keyed by `String(id)`**, the key {@link sameMemberId} and the roster hash
+ *   use: `1` and `'1'` are one member.
+ * - **First occurrence wins, order kept.** The map never re-inserts on a
+ *   re-join (#327), so first is the earliest-joined connection still
+ *   subscribed — the one whose `info` the roster slot holds (#330).
+ * - **One `Map` pass, no sort, no logging, input not mutated.**
+ *
+ * @param members - Members in insertion order, possibly repeating an id.
+ * @returns A new array with one member per `String(id)`.
+ *
+ * @example
+ * ```ts
+ * uniqueMembers([
+ *     { id: 7, info: { tab: 'a' } },
+ *     { id: 8 },
+ *     { id: '7', info: { tab: 'b' } },
+ * ])
+ * // [{ id: 7, info: { tab: 'a' } }, { id: 8 }]
+ * ```
+ */
+export function uniqueMembers(
+    members: Iterable<PresenceMember>,
+): PresenceMember[] {
+    const byId = new Map<string, PresenceMember>()
+    for (const member of members) {
+        const key = String(member.id)
+        if (!byId.has(key)) byId.set(key, member)
+    }
+    return [...byId.values()]
 }
 
 /**

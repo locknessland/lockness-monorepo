@@ -358,7 +358,11 @@ import {
 } from './channel.ts'
 import type { ServerMessage } from './protocol.ts'
 import { RosterReadBarrier } from './roster_read_barrier.ts'
-import { boundPresenceSnapshot, sameMemberId } from './presence_snapshot.ts'
+import {
+    boundPresenceSnapshot,
+    sameMemberId,
+    uniqueMembers,
+} from './presence_snapshot.ts'
 
 /**
  * Every revocation of ONE connection from ONE channel that an apply answers
@@ -741,6 +745,13 @@ export class ChannelManager<Identity = unknown> {
      * possibly remote — decision-table §5): this map only records what THIS
      * instance added, so `unsubscribe`/`disconnect` know which member to remove
      * from the driver roster and to announce as `left`.
+     *
+     * **Keyed by connection, read by member (#343).** One member with two tabs
+     * is two values here and one slot in the roster. Never read `.values()`
+     * directly: {@link #localRoster} is the only reader, and it deduplicates by
+     * `String(id)`, earliest-joined connection first. Do not re-key this map by
+     * member either — the #327 claim, the #334 last-member delete and the self
+     * lookup in {@link #closingRead} all key on the connection.
      */
     private readonly presence = new Map<
         string,
@@ -1520,7 +1531,7 @@ export class ChannelManager<Identity = unknown> {
         try {
             roster = await this.rosterSnapshot(channel)
         } catch (error) {
-            roster = [...(this.presence.get(channel)?.values() ?? [])]
+            roster = this.#localRoster(channel)
             source = 'local'
             console.warn(
                 `realtime: the here-roster for ${
@@ -1797,8 +1808,9 @@ export class ChannelManager<Identity = unknown> {
      *
      * The slot is keyed by `member.id`, not by connection id, because that is
      * what the roster hash is keyed by — two connections sharing one member id
-     * are one slot, and the projection sees whichever of them the local map
-     * still holds.
+     * are one slot, and the projection writes the one {@link #localRoster}
+     * keeps: the earliest-joined connection still subscribed (#343), the same
+     * entry the local view shows.
      *
      * @param channel - The presence channel owning the slot.
      * @param memberId - The member id naming the slot.
@@ -1818,7 +1830,7 @@ export class ChannelManager<Identity = unknown> {
         const key = `${channel}\0${field}`
         const prior = this.#rosterTails.get(key) ?? Promise.resolve()
         const run = prior.then(async () => {
-            const desired = [...(this.presence.get(channel)?.values() ?? [])]
+            const desired = this.#localRoster(channel)
                 .find((candidate) => sameMemberId(candidate.id, field))
             // A roster-less driver still gets the projection, just no write
             // (#342). Returning early before the tail would hand the join an
@@ -1845,7 +1857,8 @@ export class ChannelManager<Identity = unknown> {
     /**
      * The authoritative "here" roster for a presence channel — the driver's when
      * it owns one (every instance's members, FR-006), otherwise this instance's
-     * local members (a driver with no roster capability is single-process).
+     * local members, one entry per member (#343) — a driver with no roster
+     * capability is single-process.
      *
      * **Every authoritative read in this class goes through here**, and #333 is
      * why that mattered: this was the only caller of `roster.listMembers`, so
@@ -1866,7 +1879,31 @@ export class ChannelManager<Identity = unknown> {
         // spelling of "this driver owns a roster" to fall out of step.
         const reads = this.rosterReads
         if (reads) return [...await reads.snapshot(channel)]
-        return [...(this.presence.get(channel)?.values() ?? [])]
+        return this.#localRoster(channel)
+    }
+
+    /**
+     * This instance's own members of a presence channel, ONE entry per member
+     * — the only way this class reads the `presence` map's values (#343).
+     *
+     * The map is keyed by connection id; the roster by member id. Reading the
+     * values raw counted a member with two tabs twice on the local fallback
+     * and on a roster-less driver, and let the slot projection pick a
+     * different connection than the local view showed. Routing every read
+     * through {@link uniqueMembers} keeps one rule for all three.
+     *
+     * Deduplicating HERE, not in `boundPresenceSnapshot`: the authoritative
+     * roster is already one entry per member, and a dedupe on the cut would
+     * add an O(room) pass to every authoritative read while hiding a driver
+     * that returned duplicates. The map is not re-keyed either — the #327
+     * claim, the #334 last-member delete and the self lookup all key on the
+     * connection.
+     *
+     * @param channel - The presence channel.
+     * @returns A fresh array, earliest-joined connection's member first.
+     */
+    #localRoster(channel: string): PresenceMember[] {
+        return uniqueMembers(this.presence.get(channel)?.values() ?? [])
     }
 
     /**

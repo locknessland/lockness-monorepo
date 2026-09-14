@@ -91,9 +91,9 @@ export interface PresenceSnapshot {
     /**
      * How many entries the roster held when this snapshot was cut — taken from
      * the read already made, never an extra driver command. A snapshot-time
-     * number: `joined`/`left` frames do not carry or update it. On a `'local'`
-     * snapshot it counts this instance's connections, so one member with two
-     * tabs counts twice (#343).
+     * number: `joined`/`left` frames do not carry or update it. It counts
+     * MEMBERS on every source — one member with two tabs counts once, on the
+     * `'local'` fallback and on a roster-less driver too (#343).
      */
     total: number
     /**
