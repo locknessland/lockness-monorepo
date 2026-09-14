@@ -104,6 +104,123 @@ Deno.test('lua_eval - THROWS on an unbound variable rather than resolving it to 
     )
 })
 
+Deno.test('lua_eval - expands unpack(ARGV, n) into the trailing arguments of a call', () => {
+    const r = recorder()
+    evalLua(
+        "redis.call('HMGET', KEYS[1], unpack(ARGV, 2))",
+        ['h'],
+        ['10', '', 'a', 'b'],
+        r.call,
+    )
+    assertEquals(r.calls, [['HMGET', ['h', '', 'a', 'b']]])
+})
+
+Deno.test('lua_eval - unpack past the end of ARGV expands to no argument', () => {
+    const r = recorder()
+    evalLua(
+        "redis.call('HMGET', KEYS[1], unpack(ARGV, 3))",
+        ['h'],
+        ['1'],
+        r.call,
+    )
+    assertEquals(r.calls, [['HMGET', ['h']]])
+})
+
+Deno.test('lua_eval - THROWS on unpack anywhere but the last argument', () => {
+    // Lua truncates a non-final multi-value expression to its first value; a
+    // silent full expansion here would pass a script that sends different
+    // arguments on a real broker.
+    const r = recorder()
+    assertThrows(
+        () =>
+            evalLua(
+                "redis.call('HMGET', unpack(ARGV, 2), KEYS[1])",
+                ['h'],
+                ['1', 'a'],
+                r.call,
+            ),
+        LuaEvalUnsupportedError,
+    )
+    assertEquals(r.calls.length, 0, 'nothing ran')
+})
+
+Deno.test('lua_eval - THROWS on unpack of anything but ARGV', () => {
+    assertThrows(
+        () =>
+            evalLua(
+                "redis.call('HMGET', KEYS[1], unpack(KEYS, 1))",
+                ['h'],
+                [],
+                recorder().call,
+            ),
+        LuaEvalUnsupportedError,
+    )
+})
+
+Deno.test('lua_eval - returns a table constructor of nested tables, numbers and false', () => {
+    const calls: Array<[string, string[]]> = []
+    const out = evalLua(
+        "local n = redis.call('HLEN', KEYS[1])\n" +
+            "local sample = redis.call('HRANDFIELD', KEYS[1], ARGV[1], 'WITHVALUES')\n" +
+            "local selves = redis.call('HMGET', KEYS[1], unpack(ARGV, 2))\n" +
+            'return {n, sample, selves}',
+        ['h'],
+        ['1', '', 'a'],
+        (command, args) => {
+            calls.push([command, args])
+            if (command === 'HLEN') return 3
+            if (command === 'HRANDFIELD') return ['a', '{"v":1}']
+            return [false, '{"v":1}']
+        },
+    )
+    assertEquals(out, [3, ['a', '{"v":1}'], [false, '{"v":1}']])
+    assertEquals(calls.map((c) => c[0]), ['HLEN', 'HRANDFIELD', 'HMGET'])
+    assertEquals(calls[1][1], ['h', '1', 'WITHVALUES'])
+    assertEquals(calls[2][1], ['h', '', 'a'])
+})
+
+Deno.test('lua_eval - a number from a call is usable as an argument', () => {
+    const r = recorder()
+    evalLua(
+        "local n = redis.call('HLEN', KEYS[1])\nredis.call('SET', KEYS[1], n)",
+        ['k'],
+        [],
+        (command, args) => command === 'HLEN' ? 4 : r.call(command, args),
+    )
+    assertEquals(r.calls, [['SET', ['k', '4']]])
+})
+
+Deno.test('lua_eval - a table constructor stops at the first nil, as a Redis reply does', () => {
+    const out = evalLua(
+        'return {ARGV[1], ARGV[9], ARGV[2]}',
+        [],
+        ['a', 'b'],
+        recorder().call,
+    )
+    assertEquals(out, ['a'])
+})
+
+Deno.test('lua_eval - THROWS on a table constructor outside the modelled form', () => {
+    assertThrows(
+        () => evalLua("return {x = 'a'}", [], [], recorder().call),
+        LuaEvalUnsupportedError,
+    )
+})
+
+Deno.test('lua_eval - THROWS when false is used where a scalar argument is required', () => {
+    assertThrows(
+        () =>
+            evalLua(
+                "local v = redis.call('HMGET', KEYS[1], 'f')[1]\n" +
+                    "redis.call('SET', KEYS[1], v)",
+                ['k'],
+                [],
+                () => [false],
+            ),
+        LuaEvalUnsupportedError,
+    )
+})
+
 Deno.test('lua_eval - THROWS when indexing a non-array reply', () => {
     const r = recorder({ GET: 'scalar' })
     assertThrows(

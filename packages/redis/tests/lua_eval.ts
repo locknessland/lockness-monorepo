@@ -22,15 +22,38 @@
  *   script appears to run, does less than it says, and the suite stays green.
  *
  * Supported: `local x = <expr>`, `redis.call('CMD', …)`, `[n]` indexing on a
- * call result, integer `+`/`-` between resolved operands, `return <expr>`, and
+ * call result, integer `+`/`-` between resolved operands, `return <expr>`,
  * `KEYS[n]` / `ARGV[n]` / `'literal'` / numeric-literal / bound-variable
- * operands. Anything else raises.
+ * operands, `unpack(ARGV, n)` as the LAST argument of a call (expanding to
+ * `ARGV[n]`…`ARGV[#ARGV]`, possibly nothing), and a positional table
+ * constructor `return {a, b, …}` whose elements are any of the above (#341).
+ *
+ * A table constructor stops at its first `nil` element, which is what Redis's
+ * reply conversion does with a Lua table — so a script that builds one around
+ * a missing value is modelled as sending the truncated reply it really sends.
+ * Anything else raises: `unpack` of anything but `ARGV` or in a non-final
+ * position (Lua truncates it to one value there), a keyed or nested
+ * constructor, and `false` or a table where a scalar argument is required.
  *
  * @module @lockness/redis/tests/lua_eval
  */
 
-/** A value a script can hold: a scalar, or the array a call like `TIME` returns. */
-export type LuaValue = string | readonly string[] | undefined
+/**
+ * A value a script can hold, shaped as Redis converts a reply into Lua.
+ *
+ * - `string` — a bulk or status reply.
+ * - `number` — an integer reply (`HLEN`), returned to the client as an integer.
+ * - `false` — a nil ELEMENT of a multi-bulk reply (`HMGET` of an absent field);
+ *   Redis hands Lua `false`, never `nil`, so the table keeps its length.
+ * - an array — a multi-bulk reply, or a table the script returns; nested.
+ * - `undefined` — a nil top-level reply, or an unbound `KEYS`/`ARGV` slot.
+ */
+export type LuaValue =
+    | string
+    | number
+    | false
+    | readonly LuaValue[]
+    | undefined
 
 /**
  * Executes one Redis command against the caller's own store.
@@ -102,8 +125,39 @@ export function evalLua(
                 `${token} (array where a scalar is required)`,
             )
         }
-        if (value === undefined) throw new LuaEvalUnsupportedError(token)
-        return value as string
+        if (value === undefined || value === false) {
+            throw new LuaEvalUnsupportedError(token)
+        }
+        return String(value)
+    }
+
+    /**
+     * Resolve a call's argument list, expanding a final `unpack(ARGV, n)`.
+     *
+     * Only the LAST position expands: Lua truncates a multi-value expression
+     * anywhere else to its first value, and modelling it as a full expansion
+     * would pass a script that sends different arguments on a real broker.
+     */
+    const callArgs = (rawArgs: string): string[] => {
+        const parts = splitArgs(rawArgs)
+        const out: string[] = []
+        parts.forEach((part, index) => {
+            const unpack = part.trim().match(
+                /^unpack\(\s*(\w+)\s*,\s*(\d+)\s*\)$/,
+            )
+            if (!unpack) {
+                if (/^unpack\s*\(/.test(part.trim())) {
+                    throw new LuaEvalUnsupportedError(part.trim())
+                }
+                out.push(scalar(part))
+                return
+            }
+            if (unpack[1] !== 'ARGV' || index !== parts.length - 1) {
+                throw new LuaEvalUnsupportedError(part.trim())
+            }
+            out.push(...argv.slice(Number(unpack[2]) - 1))
+        })
+        return out
     }
 
     /** Resolve an expression: a call, an index, arithmetic, or an operand. */
@@ -118,7 +172,7 @@ export function evalLua(
             const [, command, rawArgs, index] = callMatch
             const args = rawArgs === undefined || rawArgs.trim() === ''
                 ? []
-                : splitArgs(rawArgs).map(scalar)
+                : callArgs(rawArgs)
             const result = call(command.toUpperCase(), args)
             if (index === undefined) return result
             if (!Array.isArray(result)) {
@@ -127,6 +181,23 @@ export function evalLua(
                 )
             }
             return result[Number(index) - 1]
+        }
+
+        // A positional table constructor: `{a, b, …}`. Truncated at the first
+        // nil element, as Redis's Lua-to-reply conversion does.
+        const table = expr.match(/^\{(.*)\}$/s)
+        if (table) {
+            const out: LuaValue[] = []
+            const body = table[1].trim()
+            for (const element of body === '' ? [] : splitArgs(body)) {
+                if (/[{}=]/.test(element.replace(/'[^']*'/g, ''))) {
+                    throw new LuaEvalUnsupportedError(element.trim())
+                }
+                const value = resolve(element)
+                if (value === undefined) break
+                out.push(value)
+            }
+            return out
         }
 
         // Single operands FIRST — a quoted literal may itself contain a sign
