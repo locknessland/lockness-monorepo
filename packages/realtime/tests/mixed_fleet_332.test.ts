@@ -44,6 +44,11 @@ import type { PresenceMember } from '../channel.ts'
 import type { BroadcastDriver, ControlMessage } from '../driver.ts'
 import type { Connection } from '../types.ts'
 import { FakeRedis } from './fake_redis.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -297,8 +302,14 @@ Deno.test('#332 a previous-release peer receiving the new kind does NOTHING', as
         removeMember(channel, memberId) {
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         watchChannel: () => {},
         unwatchChannel: () => {},
@@ -309,7 +320,9 @@ Deno.test('#332 a previous-release peer receiving the new kind does NOTHING', as
             identity ? { id: identity.id } : false,
     })
     const holder = conn('c1', 1)
+    const rosterReadsBefore = rosterReadCount()
     await m.subscribe(holder, ROOM)
+    assertRosterRead(rosterReadsBefore)
 
     // NARROWED, not optional-chained. `deliver?.(...)` on a seam that was
     // never registered is a silent no-op, and every assertion below would then

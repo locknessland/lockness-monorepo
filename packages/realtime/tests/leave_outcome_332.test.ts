@@ -38,6 +38,11 @@ import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -74,8 +79,14 @@ function recordingDriver() {
             commands.push(`removeMember ${channel} ${memberId}`)
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         onControl: () => {},
         publishControl(control) {
@@ -97,7 +108,9 @@ Deno.test("#332 a leave from a room that still holds SOMEONE ELSE reports 'left'
     // answers 'not-subscribed' here and passes every single-member test.
     const { driver, roster } = recordingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
+    const rosterReadsBefore = rosterReadCount()
     await m.subscribe(conn('c1', 1), ROOM)
+    assertRosterRead(rosterReadsBefore)
     await m.subscribe(conn('c2', 2), ROOM)
 
     assertEquals(

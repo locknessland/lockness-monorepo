@@ -38,6 +38,7 @@ import { encodeServerMessage } from '../protocol.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember, PresenceSnapshot } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import { asWindow } from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -252,7 +253,12 @@ Deno.test('#339 the local fallback is bounded by the same rule', async () => {
         onMessage: () => {},
         addMember: () => Promise.resolve(),
         removeMember: () => Promise.resolve(),
-        listMembers: () => Promise.reject(new Error('broker unreachable')),
+        readRoster: (_channel, limit, selfIds) =>
+            asWindow(
+                Promise.reject(new Error('broker unreachable')),
+                limit,
+                selfIds,
+            ),
     }
     const m = new ChannelManager<User>({
         driver,
@@ -293,13 +299,19 @@ function gatedRosterDriver() {
         removeMember(_channel, memberId) {
             store.delete(String(memberId))
         },
-        listMembers() {
-            reads++
-            const snapshot = [...store.values()]
-            if (open) return snapshot
-            return new Promise<PresenceMember[]>((resolve) => {
-                releases.push(() => resolve(snapshot))
-            })
+        readRoster(_channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    reads++
+                    const snapshot = [...store.values()]
+                    if (open) return snapshot
+                    return new Promise<PresenceMember[]>((resolve) => {
+                        releases.push(() => resolve(snapshot))
+                    })
+                })(),
+                limit,
+                selfIds,
+            )
         },
         onControl: () => {},
         publishControl: () => Promise.resolve(),

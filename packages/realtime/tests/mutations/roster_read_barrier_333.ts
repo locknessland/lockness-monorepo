@@ -38,11 +38,11 @@ const MUTATIONS: Mutation[] = [
         label: '#333 the barrier becomes a LEADING-edge single-flight',
         file: BARRIER,
         edits: [[
-            '        const next = slot.running.then(\n' +
-            '            () => this.#issue(channel),\n' +
-            '            () => this.#issue(channel),\n' +
+            '        const promise = ahead.then(\n' +
+            '            () => this.#issue(channel, [...ids]),\n' +
+            '            () => this.#issue(channel, [...ids]),\n' +
             '        )\n',
-            '        const next = slot.running\n',
+            '        const promise = ahead\n',
         ]],
         // THE DESIGN DECISION, as one expression: a caller arriving during a
         // read is answered by the read already running — so it is handed an
@@ -50,8 +50,11 @@ const MUTATIONS: Mutation[] = [
         // committed in the meantime receives a roster it is not in. It renders
         // it. Nothing throws, nothing is logged, no type changes.
         //
-        // Anchored on the CHAIN and not on the `slot.next` early return:
-        // replacing that return leaves the block below unreachable, the
+        // Anchored on the CHAIN in `#open` — re-anchored for #341, where the
+        // `slot.next` continuation became one continuation per queued batch.
+        // `ahead` is the read already running for the first batch, so the
+        // mutant hands every queued caller that read: the same leading edge.
+        // Not on an early return: replacing one leaves code unreachable, the
         // type-checker refuses it, and a mutant that will not compile is not a
         // mutant — it is a green row reporting coverage it never measured.
         killedBy: 'a joiner sees ITSELF in its own reply',
@@ -60,13 +63,14 @@ const MUTATIONS: Mutation[] = [
         label: '#333 the queued continuation skips the rejection path',
         file: BARRIER,
         edits: [[
-            '        const next = slot.running.then(\n' +
-            '            () => this.#issue(channel),\n' +
-            '            () => this.#issue(channel),\n' +
+            '        const promise = ahead.then(\n' +
+            '            () => this.#issue(channel, [...ids]),\n' +
+            '            () => this.#issue(channel, [...ids]),\n' +
             '        )\n',
-            '        const next = slot.running.then(() => this.#issue(channel))\n',
+            '        const promise = ahead.then(() => this.#issue(channel, [...ids]))\n',
         ]],
-        // The trap in this shape. One driver rejection and every caller queued
+        // The trap in this shape, now on every batch's continuation (#341).
+        // One driver rejection and every caller queued
         // behind it waits on a promise nothing will ever settle — socket
         // healthy, nothing logged, the room unreadable for the life of the
         // process.
@@ -76,12 +80,14 @@ const MUTATIONS: Mutation[] = [
         label: '#333 the settled slot is retained instead of given back',
         file: BARRIER,
         edits: [[
-            '            if (!slot.next) {\n' +
+            '            if (!head) {\n' +
             '                this.#slots.delete(channel)\n' +
             '                return\n' +
             '            }\n',
-            '            if (!slot.next) return\n',
+            '            if (!head) return\n',
         ]],
+        // Re-anchored for #341: the release now happens when no batch is left
+        // to promote (`head`), not when `slot.next` is empty — same property.
         // Then the map is keyed by names ever seen rather than reads in
         // flight, and clients choose the names — which is #334's defect
         // relocated into the remedy for #333.

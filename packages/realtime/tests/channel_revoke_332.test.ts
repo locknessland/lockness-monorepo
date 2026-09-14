@@ -40,6 +40,11 @@ import type {
 } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 /**
  * How a stub store keys a record: by its exact id when it has one (#337).
@@ -144,8 +149,14 @@ function twoInstances(options: { dropControl?: boolean } = {}) {
         removeMember(channel, memberId) {
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         markRevocation(revocation) {
             index.set(key(revocation), revocation)
@@ -256,7 +267,9 @@ Deno.test('#332 a revocation is NOT a ban — the client may re-subscribe', asyn
     await b.subscribe(victim, ROOM)
     await b.revokeChannel('c1', ROOM)
 
+    const rosterReadsBefore = rosterReadCount()
     const again = await b.subscribe(victim, ROOM)
+    assertRosterRead(rosterReadsBefore)
     assertEquals(again.ok, true, 'the application authorizes; it is admitted')
     assertEquals(again.here?.members.map((m) => m.id), [1])
 })

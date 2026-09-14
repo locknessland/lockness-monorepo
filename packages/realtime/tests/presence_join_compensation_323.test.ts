@@ -30,6 +30,7 @@ import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import { asWindow } from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -86,9 +87,19 @@ function faultyRoster() {
         removeMember(channel, memberId) {
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            if (state.rejectList) return Promise.reject(new Error('LOADING'))
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    if (state.rejectList) {
+                        return Promise.reject(
+                            new Error('LOADING'),
+                        )
+                    }
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         onControl: () => {},
         publishControl() {

@@ -85,7 +85,9 @@ Deno.test('#323 addMember is ONE operation — there is no between', async () =>
         // one command did anything. An EVAL that writes nothing satisfies the
         // count. State, then:
         assertEquals(
-            (await driver.listMembers(CHANNEL)).map((m) => m.id).sort(),
+            (await driver.readRoster!(CHANNEL, 1_000, [])).members.map((m) =>
+                m.id
+            ).sort(),
             ['u1', 'u2'],
         )
     } finally {
@@ -116,7 +118,7 @@ Deno.test('#323 removeMember is ONE operation — the owned set cannot lie', asy
         )
         assertEquals(rosterWrites[0][0], 'EVAL')
         assertEquals(
-            await driver.listMembers(CHANNEL),
+            (await driver.readRoster!(CHANNEL, 1_000, [])).members,
             [],
             'and the one command actually removed the member',
         )
@@ -151,7 +153,7 @@ Deno.test('#323 a rejected add leaves NEITHER structure', async () => {
         )
 
         assertEquals(
-            await driver.listMembers(CHANNEL),
+            (await driver.readRoster!(CHANNEL, 1_000, [])).members,
             [],
             'a half-written member is unreclaimable — the sweep enumerates ' +
                 'owned sets, and this field would be in none',
@@ -183,7 +185,9 @@ Deno.test('#323 a rejected remove leaves the member wholly present', async () =>
         // Half-removed is the dangerous direction: an owned entry naming a
         // field it no longer owns makes the sweep delete a live member.
         assertEquals(
-            (await driver.listMembers(CHANNEL)).map((m) => m.id),
+            (await driver.readRoster!(CHANNEL, 1_000, [])).members.map((m) =>
+                m.id
+            ),
             ['u1'],
             'a failed removal leaves the member present, not half-gone',
         )
@@ -238,7 +242,9 @@ Deno.test(
             // The same member joins on B. It is B's now, and it is genuinely here.
             await b.addMember(CHANNEL, { id: 'u1' })
             assertEquals(
-                (await b.listMembers(CHANNEL)).map((m) => m.id),
+                (await b.readRoster!(CHANNEL, 1_000, [])).members.map((m) =>
+                    m.id
+                ),
                 ['u1'],
                 'precondition: the member is present and owned by B',
             )
@@ -249,7 +255,9 @@ Deno.test(
             await flushMicrotasks()
 
             assertEquals(
-                (await b.listMembers(CHANNEL)).map((m) => m.id),
+                (await b.readRoster!(CHANNEL, 1_000, [])).members.map((m) =>
+                    m.id
+                ),
                 ['u1'],
                 'the sweep must not reclaim a member it does not own — a ' +
                     'removal that dropped only its owned-set half turns the ' +

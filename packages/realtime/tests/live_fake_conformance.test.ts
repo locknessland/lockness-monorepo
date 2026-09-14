@@ -15,13 +15,13 @@
  * suite:
  *
  * ```bash
- * LOCKNESS_REDIS_PORT=6385 deno task test:redis
+ * LOCKNESS_REDIS_PORT=<port> deno task test:redis
  * ```
  *
  * @module @lockness/realtime/tests/live_fake_conformance
  */
 
-import { assertEquals } from '@std/assert'
+import { assert, assertEquals, assertRejects } from '@std/assert'
 import type { RespReply } from '../../redis/resp.ts'
 import { RedisClient } from '../../redis/mod.ts'
 import {
@@ -33,7 +33,7 @@ import {
 } from '../../redis/tests/live_broker.ts'
 import { FakeRedis } from './fake_redis.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
-import type { Revocation } from '../driver.ts'
+import { MAX_ROSTER_READ_SELF_IDS, type Revocation } from '../driver.ts'
 
 /** One command, and whether the fake is expected to refuse it. */
 interface Step {
@@ -671,13 +671,22 @@ Deno.test({
                 )
 
                 assertEquals(
-                    ids(await onLive.listMembers!('presence-room')),
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
                     ['u1', 'u2'],
                     'the live broker did not record the roster',
                 )
                 assertEquals(
-                    ids(await onFake.listMembers!('presence-room')),
-                    ids(await onLive.listMembers!('presence-room')),
+                    ids(
+                        (await onFake.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
                     'the fake and the broker disagreed on the roster after adds',
                 )
 
@@ -685,13 +694,22 @@ Deno.test({
                     d.removeMember!('presence-room', 'u1') as Promise<void>
                 )
                 assertEquals(
-                    ids(await onLive.listMembers!('presence-room')),
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
                     ['u2'],
                     'the live broker did not remove the member',
                 )
                 assertEquals(
-                    ids(await onFake.listMembers!('presence-room')),
-                    ids(await onLive.listMembers!('presence-room')),
+                    ids(
+                        (await onFake.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
                     'the fake and the broker disagreed after removals',
                 )
 
@@ -703,8 +721,14 @@ Deno.test({
                     d.removeMember!('presence-room', 'u1') as Promise<void>
                 )
                 assertEquals(
-                    ids(await onFake.listMembers!('presence-room')),
-                    ids(await onLive.listMembers!('presence-room')),
+                    ids(
+                        (await onFake.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
+                    ids(
+                        (await onLive.readRoster!('presence-room', 1_000, []))
+                            .members,
+                    ),
                     'a repeated removal diverged',
                 )
             } finally {
@@ -713,6 +737,201 @@ Deno.test({
             }
         } finally {
             await teardown(live, NS)
+        }
+    },
+})
+
+Deno.test({
+    name: '#341 the bounded roster read holds its contract on a real broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // `READ_ROSTER_SCRIPT` is the one read a presence subscribe issues, and
+        // three of its properties rest on broker behaviour the fake only
+        // imitates: `HRANDFIELD`'s count semantics, `HMGET`'s refusal of zero
+        // fields, and the order a whole small hash comes back in. Each row
+        // below runs the production script on a real interpreter.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const nothing = { psubscribe: () => {} }
+        let commands = 0
+        const counting = {
+            command: (...argv: string[]) => {
+                commands++
+                return live.command(...argv)
+            },
+        }
+        const prefix = `${NS}-live-bounded`
+        const ROOM = 'presence-room'
+        const key = `${prefix}__presence:${ROOM}`
+        const driver = new RedisBroadcastDriver(counting, nothing, { prefix })
+        const ids = (members: { id: string | number }[]) =>
+            members.map((m) => String(m.id))
+
+        try {
+            // Seven members, each carrying its own id in `info`, so a self
+            // matched to the wrong entry is visible (S3).
+            const seeded = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7']
+            for (const id of seeded) {
+                await driver.addMember(ROOM, { id, info: { of: id } })
+            }
+            const hlen = await live.command('HLEN', key) as RespReply
+            assertEquals(hlen, { type: 'integer', value: 7 }, 'the fixture')
+
+            // min(K, N) DISTINCT members, and `total === HLEN`.
+            const sampled = await driver.readRoster(ROOM, 3, [])
+            assertEquals(sampled.members.length, 3, 'min(limit, total)')
+            assertEquals(
+                new Set(ids(sampled.members)).size,
+                3,
+                'a positive count never repeats a member',
+            )
+            for (const member of sampled.members) {
+                assert(seeded.includes(String(member.id)), 'a stored member')
+            }
+            assertEquals(
+                sampled.total,
+                7,
+                '`total` is HLEN, read in the script',
+            )
+
+            // A room at or below the limit is the WHOLE hash in HGETALL order
+            // (SC-002). If this row fails, the script owes an `HGETALL` branch
+            // when `HLEN <= limit` — inside the same EVAL (S5).
+            const hash = await live.command('HGETALL', key) as RespReply
+            const hashOrder = hash.type === 'array'
+                ? hash.value.filter((_, i) => i % 2 === 0).map((field) =>
+                    field.type === 'bulk' ? field.value : ''
+                )
+                : []
+            const whole = await driver.readRoster(ROOM, 10, [])
+            assertEquals(hashOrder.length, 7)
+            assertEquals(
+                ids(whole.members),
+                hashOrder,
+                'a room that fits comes back whole, in the hash order',
+            )
+            assertEquals(whole.total, 7)
+
+            // Zero self ids is a valid read on a real `HMGET` (A1): the script
+            // pads with `''`, which no member id can be.
+            assertEquals((await driver.readRoster(ROOM, 1, [])).selves, [])
+
+            // An ABSENT id between two present ones yields only the present
+            // entries, each matched to its own id (S3).
+            const window = await driver.readRoster(ROOM, 1, [
+                'u2',
+                'nobody',
+                'u6',
+            ])
+            assertEquals(
+                window.selves.map((m) => [String(m.id), m.info]).sort(),
+                [['u2', { of: 'u2' }], ['u6', { of: 'u6' }]],
+                'a nil element must not shift a later self onto another entry',
+            )
+            for (const self of window.selves) {
+                assertEquals(
+                    'owner' in self,
+                    false,
+                    'the stored owner never leaves the driver (S4)',
+                )
+            }
+
+            // Invalid inputs throw BEFORE any command reaches the broker (S2).
+            const tooMany = Array.from(
+                { length: MAX_ROSTER_READ_SELF_IDS + 1 },
+                (_, i) => `id${i}`,
+            )
+            for (
+                const [label, limit, selves] of [
+                    ['limit -1', -1, []],
+                    ['limit 0', 0, []],
+                    ['limit 1.5', 1.5, []],
+                    ['MAX + 1 self ids', 3, tooMany],
+                ] as const
+            ) {
+                const before = commands
+                await assertRejects(
+                    () => driver.readRoster(ROOM, limit, selves),
+                    Error,
+                    'readRoster',
+                    `${label} was not refused`,
+                )
+                assertEquals(commands, before, `${label} reached the broker`)
+            }
+        } finally {
+            await driver.close()
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})
+
+Deno.test({
+    name:
+        '#341 a read carrying MAX_ROSTER_READ_SELF_IDS self ids agrees, fake against broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // The cap is the one place the script's `unpack(ARGV, 2)` spreads its
+        // largest argument list: the `''` padding plus 1 000 ids. The fake's
+        // Lua subset and a real interpreter must agree on that call — a stack
+        // limit or an arity quirk would be invisible on a handful of ids.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        const nothing = { psubscribe: () => {} }
+        const onLive = new RedisBroadcastDriver(live, nothing, {
+            prefix: `${NS}-live-selves`,
+        })
+        const onFake = new RedisBroadcastDriver(
+            { command: fake.command },
+            nothing,
+            { prefix: `${NS}-fake-selves` },
+        )
+        const ROOM = 'presence-room'
+        // 600 held, 400 absent: both the hit and the nil path at the cap.
+        const HELD = 600
+        const wanted = Array.from(
+            { length: MAX_ROSTER_READ_SELF_IDS },
+            (_, i) => `u${i}`,
+        )
+        const sorted = (members: readonly { id: string | number }[]) =>
+            members.map((m) => String(m.id)).sort()
+
+        try {
+            for (const driver of [onLive, onFake]) {
+                for (let i = 0; i < HELD; i++) {
+                    await driver.addMember(ROOM, {
+                        id: `u${i}`,
+                        info: { of: i },
+                    })
+                }
+            }
+            const fromLive = await onLive.readRoster(ROOM, 1, wanted)
+            const fromFake = await onFake.readRoster(ROOM, 1, wanted)
+
+            assertEquals(fromLive.total, HELD, 'the broker holds the fixture')
+            assertEquals(fromLive.selves.length, HELD, 'every held id, once')
+            assertEquals(fromFake.total, fromLive.total)
+            assertEquals(
+                sorted(fromFake.selves),
+                sorted(fromLive.selves),
+                'the fake and the broker return the same selves at the cap',
+            )
+            for (const self of fromLive.selves) {
+                assertEquals(
+                    self.info,
+                    { of: Number(String(self.id).slice(1)) },
+                    'each self is its own entry',
+                )
+            }
+            fake.assertNoRejections()
+        } finally {
+            await onLive.close()
+            await onFake.close()
+            await teardown(live, NS)
+            await live.close()
         }
     },
 })

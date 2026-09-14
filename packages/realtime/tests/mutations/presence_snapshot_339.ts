@@ -29,16 +29,15 @@ const MUTATIONS: Mutation[] = [
         label: '#339 self is no longer kept (a bare slice)',
         file: SNAPSHOT,
         edits: [[
-            '    if (\n' +
-            '        selfId !== undefined &&\n',
-            '    if (\n' +
-            '        limit < 0 && selfId !== undefined &&\n',
+            '        selfId === undefined ||\n',
+            '        limit > 0 || selfId === undefined ||\n',
         ]],
-        // A guard that can never hold rather than a deleted block: the block
-        // stays reachable to the type-checker and `selfId` keeps its
-        // narrowing, so the mutant compiles. This is the shape that ships a
-        // joiner a roster it is not in — and on a shared barrier read it is
-        // every joiner but the first K. The witness's shared-read row is the
+        // Re-anchored for #341, where the keep-self block became an early
+        // return: a guard that always holds rather than a deleted block, so
+        // the code below stays reachable to the type-checker and `selfId`
+        // keeps its narrowing, and the mutant compiles. This is the shape that
+        // ships a joiner a roster it is not in — and on a shared barrier read
+        // it is every joiner but the first K. The witness's shared-read row is the
         // one named; the ceiling row dies too.
         killedBy: 'each keep THEMSELVES, never each other',
     },
@@ -46,20 +45,30 @@ const MUTATIONS: Mutation[] = [
         label: '#339 the cut keeps one member too many (limit + 1)',
         file: SNAPSHOT,
         edits: [[
-            '    const members = roster.slice(0, limit)\n',
-            '    const members = roster.slice(0, limit + 1)\n',
+            '        : window.members.slice(0, limit)\n',
+            '        : window.members.slice(0, limit + 1)\n',
         ]],
-        // The off-by-one a byte ceiling exists to catch: 101 members, 413 798
-        // bytes, and a published ceiling that is no longer true.
-        killedBy: 'the default ceiling is pinned',
+        // The off-by-one a byte ceiling exists to catch: 101 members, and a
+        // published ceiling that is no longer true.
+        //
+        // Re-attributed for #341. The ceiling witness reads through the memory
+        // driver, which now bounds the read to K itself, so the cut never
+        // fires there and the mutant survives it — correctly: the driver is
+        // not trusted to honour K (plan §5), and the cut is what a local
+        // fallback or a driver that ignores `limit` meets. The unit row that
+        // hands the cut an oversized window is the one that proves it.
+        killedBy: 'an oversized roster is cut to the first K',
     },
     {
         label: '#339 `total` is computed AFTER the cut',
         file: SNAPSHOT,
         edits: [[
-            '    return { members, total }\n',
-            '    return { members, total: members.length }\n',
+            '    const { total } = window\n',
+            '    const total = Math.min(window.total, limit)\n',
         ]],
+        // Re-anchored for #341: `total` is taken from the window once, and
+        // every return reuses it — so "counted after the cut" is now the
+        // window's population clamped to the bound, on every path.
         // Then `members.length < total` is never true, and a partial snapshot
         // is indistinguishable from a whole room — the one thing removing the
         // flat `members` field was meant to prevent.
@@ -110,16 +119,13 @@ const MUTATIONS: Mutation[] = [
         label: '#339 sort inside boundPresenceSnapshot',
         file: SNAPSHOT,
         edits: [[
-            '    if (total <= limit) return { members: roster, total }\n',
-            '    if (total <= limit) {\n' +
-            '        return {\n' +
-            '            members: roster.sort((a, b) =>\n' +
-            '                String(a.id).localeCompare(String(b.id))\n' +
-            '            ),\n' +
-            '            total,\n' +
-            '        }\n' +
-            '    }\n',
+            '        ? window.members\n',
+            '        ? window.members.sort((a, b) =>\n' +
+            '            String(a.id).localeCompare(String(b.id))\n' +
+            '        )\n',
         ]],
+        // Re-anchored for #341 on the fitting arm of the cut, which replaced
+        // the `total <= limit` early return.
         // Driver order is kept: a sort is O(N log N) per caller on a shared
         // read, and it mutates the array it was handed.
         killedBy: 'a room within the bound is returned whole',
@@ -127,20 +133,15 @@ const MUTATIONS: Mutation[] = [
     {
         label: '#339 self is captured BEFORE the closing read settles',
         file: MANAGER,
-        edits: [
-            [
-                '        let roster: PresenceMember[]\n',
-                '        const selfBefore = this.presence.get(channel)?.get(clientId)\n' +
-                '            ?.id\n' +
-                '        let roster: PresenceMember[]\n',
-            ],
-            [
-                '            this.presence.get(channel)?.get(clientId)?.id,\n' +
-                '            this.#maxPresenceSnapshotMembers,\n',
-                '            selfBefore,\n' +
-                '            this.#maxPresenceSnapshotMembers,\n',
-            ],
-        ],
+        edits: [[
+            '            this.presence.get(channel)?.get(clientId)?.id,\n' +
+            '            this.#maxPresenceSnapshotMembers,\n',
+            '            fetchSelfId,\n' +
+            '            this.#maxPresenceSnapshotMembers,\n',
+        ]],
+        // Re-anchored for #341: the pre-await id now EXISTS (`fetchSelfId`,
+        // what the read fetches), so the mutant no longer has to invent one —
+        // it passes that id to the cut instead of the post-await lookup.
         // FR-006: a leave that overtakes the read leaves no member to keep; a
         // self captured early hands the reply a member the connection dropped.
         killedBy: 'a join overtaken by its own leave',

@@ -2,7 +2,8 @@
  * @fileoverview An in-memory fake Redis for the realtime driver unit tests.
  *
  * It models exactly the command surface the {@link RedisBroadcastDriver} uses —
- * `PUBLISH`, the roster hash (`HSET`/`HDEL`/`HGETALL`), the owned/instances sets
+ * `PUBLISH`, the roster hash (`HSET`/`HDEL`/`HGETALL`, and `HLEN`/`HMGET`/
+ * `HRANDFIELD … WITHVALUES` for the bounded read, #341), the owned/instances sets
  * (`SADD`/`SREM`/`SMEMBERS`/`DEL`) and the liveness string (`SET … EX`/`EXISTS`)
  * — returning `RespReply`-shaped values so the driver's real reply-narrowing
  * runs unchanged. Pub/sub fan-out is synchronous, like the existing
@@ -42,7 +43,7 @@
  * @module @lockness/realtime/tests/fake_redis
  */
 
-import { evalLua } from '../../redis/tests/lua_eval.ts'
+import { evalLua, type LuaValue } from '../../redis/tests/lua_eval.ts'
 
 /** A push-message handler for a subscribed pattern. */
 type Handler = (topic: string, payload: string) => void
@@ -54,6 +55,48 @@ type Reply =
     | { type: 'bulk'; value: string }
     | { type: 'array'; value: Reply[] }
     | { type: 'nil' }
+
+/**
+ * A reply as a script sees it, by Redis's reply-to-Lua conversion (#341).
+ *
+ * An integer stays a number, and a nil ELEMENT of a multi-bulk becomes `false`
+ * — Redis never hands Lua a `nil` inside a table, so its length survives. The
+ * previous bridge turned both into strings (`'3'`, `''`), which let a script's
+ * returned table carry a shape no real broker sends. A top-level nil is the
+ * caller's to map; it never reaches here.
+ */
+function toLua(reply: Reply): LuaValue {
+    switch (reply.type) {
+        case 'array':
+            return reply.value.map((r) => r.type === 'nil' ? false : toLua(r))
+        case 'integer':
+            return reply.value
+        case 'nil':
+            return false
+        default:
+            return reply.value
+    }
+}
+
+/**
+ * What a script returns, as the client receives it: a number is an integer
+ * reply, `false` a nil bulk, a table an array — recursively.
+ */
+function fromLua(value: Exclude<LuaValue, undefined>): Reply {
+    if (Array.isArray(value)) {
+        return {
+            type: 'array',
+            value: (value as readonly Exclude<LuaValue, undefined>[]).map(
+                fromLua,
+            ),
+        }
+    }
+    if (value === false) return { type: 'nil' }
+    if (typeof value === 'number') {
+        return { type: 'integer', value: Math.trunc(value) }
+    }
+    return { type: 'bulk', value: value as string }
+}
 
 /** Convert a Redis glob (`*`, `?`) to an anchored RegExp, escaping the rest. */
 function globToRegExp(glob: string): RegExp {
@@ -319,6 +362,15 @@ export class FakeRedis {
         return this.#zsets.get(key)
     }
 
+    /**
+     * The hash at `key`, or `undefined` — dropping it first if its key-level
+     * TTL has passed, as Redis would.
+     */
+    #liveHash(key: string): Map<string, string> | undefined {
+        if (this.#expired(key)) this.#dropKey(key)
+        return this.#hashes.get(key)
+    }
+
     /** Parse a `ZRANGEBYSCORE` bound, honouring `-inf` / `+inf` and `(` exclusivity. */
     #bound(raw: string): { value: number; exclusive: boolean } {
         const exclusive = raw.startsWith('(')
@@ -523,27 +575,18 @@ export class FakeRedis {
                 const numKeys = Number(rawNumKeys)
                 const keys = operands.slice(0, numKeys)
                 const argv = operands.slice(numKeys)
-                const result = evalLua(script, keys, argv, (command, cargs) => {
-                    const reply = this.#exec([command, ...cargs])
-                    if (reply.type === 'array') {
-                        return reply.value.map((r) =>
-                            r.type === 'bulk' ? r.value : ''
-                        )
-                    }
-                    if (reply.type === 'nil') return undefined
-                    return String(reply.value)
-                })
+                const result = evalLua(
+                    script,
+                    keys,
+                    argv,
+                    (command, cargs) => {
+                        const reply = this.#exec([command, ...cargs])
+                        if (reply.type === 'nil') return undefined
+                        return toLua(reply)
+                    },
+                )
                 if (result === undefined) return { type: 'nil' }
-                if (Array.isArray(result)) {
-                    return {
-                        type: 'array',
-                        value: result.map((v): Reply => ({
-                            type: 'bulk',
-                            value: v,
-                        })),
-                    }
-                }
-                return { type: 'bulk', value: result as string }
+                return fromLua(result)
             }
             case 'PUBLISH': {
                 if (rest.length !== 2) {
@@ -600,6 +643,72 @@ export class FakeRedis {
                 const h = this.#hashes.get(rest[0])
                 const flat: Reply[] = []
                 for (const [field, value] of h ?? []) {
+                    flat.push({ type: 'bulk', value: field })
+                    flat.push({ type: 'bulk', value })
+                }
+                return { type: 'array', value: flat }
+            }
+            case 'HLEN': {
+                // HLEN key -> the number of fields; 0 for an absent key.
+                if (rest.length !== 1) {
+                    this.#reject(
+                        `FakeRedis: HLEN takes one key, got ${rest.length}`,
+                    )
+                }
+                return {
+                    type: 'integer',
+                    value: this.#liveHash(rest[0])?.size ?? 0,
+                }
+            }
+            case 'HMGET': {
+                // HMGET key field [field ...] -> one reply per field, nil for
+                // an absent one. ZERO fields is an arity error on a real
+                // broker; answering `[]` here is exactly what would hide a
+                // script issuing HMGET with no self id (#341 A1).
+                const [key, ...fields] = rest
+                if (key === undefined || fields.length === 0) {
+                    this.#reject('FakeRedis: HMGET needs at least one field')
+                }
+                const h = this.#liveHash(key)
+                return {
+                    type: 'array',
+                    value: fields.map((field): Reply => {
+                        const value = h?.get(field)
+                        return value === undefined
+                            ? { type: 'nil' }
+                            : { type: 'bulk', value }
+                    }),
+                }
+            }
+            case 'HRANDFIELD': {
+                // HRANDFIELD key count WITHVALUES, count a positive integer —
+                // the one form the driver issues, and the only one modelled.
+                // A negative count REPEATS pairs on a real broker and the other
+                // forms change the reply shape, so each is refused.
+                //
+                // count >= size: the whole hash, in HGETALL order — what a
+                // real broker returns. count < size: the FIRST `count` in
+                // insertion order, which is one outcome a real broker's random
+                // pick can produce, and nothing a test may rely on beyond
+                // "count distinct pairs".
+                const [key, rawCount, withValues, ...extra] = rest
+                const count = Number(rawCount)
+                if (
+                    key === undefined || rawCount === undefined ||
+                    !/^\d+$/.test(rawCount) || !Number.isSafeInteger(count) ||
+                    withValues?.toUpperCase() !== 'WITHVALUES' ||
+                    extra.length > 0
+                ) {
+                    this.#reject(
+                        `FakeRedis: HRANDFIELD models only 'key count WITHVALUES' ` +
+                            `with a non-negative integer count, got '${
+                                rest.join(' ')
+                            }'`,
+                    )
+                }
+                const flat: Reply[] = []
+                for (const [field, value] of this.#liveHash(key) ?? []) {
+                    if (flat.length === count * 2) break
                     flat.push({ type: 'bulk', value: field })
                     flat.push({ type: 'bulk', value })
                 }

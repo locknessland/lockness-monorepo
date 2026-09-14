@@ -346,3 +346,108 @@ Deno.test('#280 DEL clears the key TTL, so a re-create does not inherit it', asy
         'the re-created key inherited the deleted TTL',
     )
 })
+
+const bulk = (value: string) => ({ type: 'bulk', value })
+const nil = { type: 'nil' }
+
+Deno.test('#341 HLEN counts a hash, answers 0 for an absent key, and refuses extra arguments', async () => {
+    const r = new FakeRedis()
+    await r.command('HSET', 'h', 'a', '1', 'b', '2')
+    assertEquals(await r.command('HLEN', 'h'), int(2))
+    assertEquals(await r.command('HLEN', 'absent'), int(0))
+    assertThrows(
+        () => run(r, 'HLEN', 'h', 'EXTRA'),
+        Error,
+        'HLEN takes one key',
+    )
+})
+
+Deno.test('#341 HMGET answers in field order with nil for an absent field', async () => {
+    const r = new FakeRedis()
+    await r.command('HSET', 'h', 'a', '1', 'b', '2')
+    assertEquals(await r.command('HMGET', 'h', 'b', 'zz', 'a'), {
+        type: 'array',
+        value: [bulk('2'), nil, bulk('1')],
+    })
+    assertEquals(await r.command('HMGET', 'absent', 'a'), {
+        type: 'array',
+        value: [nil],
+    })
+})
+
+Deno.test('#341 HMGET with no field is an arity error, as on a real broker', () => {
+    // Real Redis answers `ERR wrong number of arguments for 'hmget'`. A fake
+    // that returned an empty array would hide a script issuing HMGET with zero
+    // self ids (#341 A1) until it met a real broker.
+    const r = new FakeRedis()
+    assertThrows(
+        () => run(r, 'HMGET', 'h'),
+        Error,
+        'HMGET needs at least one field',
+    )
+})
+
+Deno.test('#341 HRANDFIELD count WITHVALUES at or above the size returns the whole hash in HGETALL order', async () => {
+    const r = new FakeRedis()
+    await r.command('HSET', 'h', 'b', '2', 'a', '1', 'c', '3')
+    const whole = await r.command('HGETALL', 'h')
+    assertEquals(await r.command('HRANDFIELD', 'h', '3', 'WITHVALUES'), whole)
+    assertEquals(
+        await r.command('HRANDFIELD', 'h', '50', 'withvalues'),
+        whole,
+    )
+})
+
+Deno.test('#341 HRANDFIELD count WITHVALUES below the size returns count distinct pairs', async () => {
+    // Real Redis picks the pairs at random; this fake answers the first
+    // `count` in insertion order, which is one outcome a real broker can
+    // produce — never a property a test may rely on beyond distinctness.
+    const r = new FakeRedis()
+    await r.command('HSET', 'h', 'a', '1', 'b', '2', 'c', '3')
+    assertEquals(await r.command('HRANDFIELD', 'h', '2', 'WITHVALUES'), {
+        type: 'array',
+        value: [bulk('a'), bulk('1'), bulk('b'), bulk('2')],
+    })
+    assertEquals(
+        await r.command('HRANDFIELD', 'absent', '2', 'WITHVALUES'),
+        { type: 'array', value: [] },
+    )
+})
+
+Deno.test('#341 HRANDFIELD refuses the shapes it does not model', () => {
+    // A negative count returns REPEATED pairs on a real broker, no count
+    // returns one bare field, and no WITHVALUES changes the reply shape. Each
+    // is refused rather than answered as if it were the modelled form.
+    const r = new FakeRedis()
+    for (
+        const argv of [
+            ['HRANDFIELD', 'h'],
+            ['HRANDFIELD', 'h', '2'],
+            ['HRANDFIELD', 'h', '-2', 'WITHVALUES'],
+            ['HRANDFIELD', 'h', '1.5', 'WITHVALUES'],
+            ['HRANDFIELD', 'h', '2', 'WITHVALUES', 'EXTRA'],
+        ]
+    ) {
+        assertThrows(
+            () => run(r, ...argv),
+            Error,
+            'FakeRedis: HRANDFIELD',
+            argv.join(' '),
+        )
+    }
+})
+
+Deno.test('#341 EVAL returns an integer as an integer and a nil element as nil, nested', async () => {
+    // Redis converts a Lua number to an integer reply and a `false` table
+    // element to a nil bulk. Stringifying either would let a driver parse a
+    // reply shape no real broker sends.
+    const r = new FakeRedis()
+    await r.command('HSET', 'h', 'a', '1')
+    const script = "local n = redis.call('HLEN', KEYS[1])\n" +
+        "local got = redis.call('HMGET', KEYS[1], unpack(ARGV, 1))\n" +
+        'return {n, got}'
+    assertEquals(await r.command('EVAL', script, '1', 'h', '', 'a'), {
+        type: 'array',
+        value: [int(1), { type: 'array', value: [nil, bulk('1')] }],
+    })
+})

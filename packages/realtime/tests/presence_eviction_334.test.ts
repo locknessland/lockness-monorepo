@@ -43,6 +43,11 @@ import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -94,8 +99,14 @@ function rosterDriver(options: { failAdd?: boolean } = {}) {
             commands.push(`removeMember ${channel} ${memberId}`)
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         onControl: () => {},
         publishControl: () => Promise.resolve(),
@@ -108,7 +119,9 @@ function rosterDriver(options: { failAdd?: boolean } = {}) {
 Deno.test('#334 the channel entry is GONE once the last member leaves', async () => {
     const { driver } = rosterDriver()
     const m = new ChannelManager<User>({ driver, authorize })
+    const rosterReadsBefore = rosterReadCount()
     await m.subscribe(conn('c1', 1), ROOM)
+    assertRosterRead(rosterReadsBefore)
 
     assert(presenceOf(m).has(ROOM), 'the entry exists while the member is in')
 

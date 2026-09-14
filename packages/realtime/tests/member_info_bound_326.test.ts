@@ -38,6 +38,11 @@ import {
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -77,8 +82,14 @@ function recordingDriver() {
         removeMember(channel, memberId) {
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         onControl: () => {},
         publishControl(message) {
@@ -184,7 +195,9 @@ Deno.test('#326 a member within the bound joins and is announced unchanged', asy
     await m.subscribe(observer, CHANNEL)
 
     const joiner = conn('c1', 1)
+    const rosterReadsBefore = rosterReadCount()
     const result = await m.subscribe(joiner, CHANNEL)
+    assertRosterRead(rosterReadsBefore)
 
     assertEquals(result.ok, true)
     assertEquals(

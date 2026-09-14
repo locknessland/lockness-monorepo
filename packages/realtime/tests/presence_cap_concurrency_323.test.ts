@@ -50,6 +50,11 @@ import { ChannelLimitError, ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -79,9 +84,15 @@ function deferredRoster(): BroadcastDriver {
             await later()
             roster.get(channel)?.delete(String(memberId))
         },
-        async listMembers(channel) {
-            await later()
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (async () => {
+                    await later()
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
     }
 }
@@ -154,7 +165,9 @@ Deno.test('#323/SC-007 the cap still admits up to its limit when uncontended', a
         anonymousHostingShare: 1,
     })
     const resident = conn('resident', 1)
+    const rosterReadsBefore = rosterReadCount()
     for (const channel of ['presence-a', 'presence-b', 'presence-c']) {
         assertEquals((await m.subscribe(resident, channel)).ok, true)
     }
+    assertRosterRead(rosterReadsBefore)
 })

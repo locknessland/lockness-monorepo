@@ -27,6 +27,7 @@ import { uniqueMembers } from '../presence_snapshot.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember, PresenceSnapshot } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import { asWindow } from './roster_window_double.ts'
 
 interface User {
     id: number | string
@@ -66,7 +67,12 @@ function unreadableDriver(): BroadcastDriver {
         onMessage: () => {},
         addMember: () => Promise.resolve(),
         removeMember: () => Promise.resolve(),
-        listMembers: () => Promise.reject(new Error('broker unreachable')),
+        readRoster: (_channel, limit, selfIds) =>
+            asWindow(
+                Promise.reject(new Error('broker unreachable')),
+                limit,
+                selfIds,
+            ),
     }
 }
 

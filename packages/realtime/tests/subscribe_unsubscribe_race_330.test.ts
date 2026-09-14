@@ -52,6 +52,11 @@ import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -156,8 +161,14 @@ function rig(
                 leave()
             }
         },
-        listMembers(channel) {
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         watchChannel: () => g.gate('watchChannel'),
         unwatchChannel: () => g.gate('unwatchChannel'),
@@ -283,10 +294,12 @@ Deno.test('#330 two connections sharing one member id are ONE roster slot', asyn
     // projection has to read the whole local map rather than one entry. Two
     // devices on one account is the everyday shape of this.
     const r = rig(() => ({ id: 7 }))
+    const rosterReadsBefore = rosterReadCount()
     const a = r.manager.subscribe(conn('c1', 1), CHANNEL)
     await settle()
     await r.g.drain()
     await a
+    assertRosterRead(rosterReadsBefore)
     const b = r.manager.subscribe(conn('c2', 2), CHANNEL)
     await settle()
     await r.g.drain()

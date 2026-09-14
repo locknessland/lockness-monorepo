@@ -210,7 +210,16 @@ const FRAGMENT_DERIVED: readonly string[] = ['topic', 'eventPattern']
 const CANNED = {
     HGETALL: { type: 'array', value: [] },
     ZRANGEBYSCORE: { type: 'array', value: [] },
-    EVAL: { type: 'array', value: [] },
+    // The roster read's reply shape, `{ HLEN, sample, selves }` (#341). The
+    // revocation list reads the same canned reply and finds no bulk member.
+    EVAL: {
+        type: 'array',
+        value: [
+            { type: 'integer', value: 0 },
+            { type: 'array', value: [] },
+            { type: 'array', value: [] },
+        ],
+    },
     TIME: {
         type: 'array',
         value: [
@@ -250,7 +259,7 @@ async function exercise(prefix: string) {
         // addMember reaches instancesKey and aliveKey too: it awaits
         // #ensureSweepStarted() -> #heartbeat() before any interval exists.
         await driver.addMember('presence-room', { id: 'u1', info: {} })
-        await driver.listMembers('presence-room')
+        await driver.readRoster('presence-room', 1_000, [])
         await driver.removeMember('presence-room', 'u1')
         await driver.markRevocation({ target: 'conn-1' })
         await driver.listRevocations()
@@ -336,7 +345,7 @@ Deno.test('SC-001: every prefix-derived name is anchored', async () => {
     // The exact SET, not `> 0` and not a count.
     //
     // `> 0` let two names vanish. A pinned COUNT then let them vanish in pairs:
-    // dropping `topic` from the exercise while a second `listMembers` call adds
+    // dropping `topic` from the exercise while a second `readRoster` call adds
     // one more `presenceKey` shape keeps the total at ten, and the assertion
     // stays green with `topic` asserted by nothing. Verified — that mutation was
     // GREEN against the count and is RED against this set.
@@ -1024,7 +1033,7 @@ Deno.test('FR-012: two accepted prefixes cannot derive the same KEY', async () =
     //   prefix "app:presence:eu" + channel "room"
     //     -> both "app:presence:eu:presence:room"
     //
-    // One deployment's `listMembers` returned the other's roster, with
+    // One deployment's `readRoster` returned the other's roster, with
     // `member.info`. Both prefixes are accepted and the channel is a valid
     // name, so it was reachable by configuration alone.
     //

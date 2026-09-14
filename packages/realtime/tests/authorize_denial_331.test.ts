@@ -31,6 +31,11 @@ import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver, BroadcastMessage } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -79,8 +84,14 @@ function recordingDriver() {
             commands.push(`removeMember ${channel} ${memberId}`)
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         onControl: () => {},
         publishControl(control) {
@@ -107,7 +118,9 @@ Deno.test('#331 a denied re-subscribe leaves delivery, roster and membership int
     const m = new ChannelManager<User>({ driver, authorize })
     const holder = conn('c1', 1)
     const observer = conn('c2', 2)
+    const rosterReadsBefore = rosterReadCount()
     await m.subscribe(holder, CHANNEL)
+    assertRosterRead(rosterReadsBefore)
     await m.subscribe(observer, CHANNEL)
 
     // Baseline AFTER both joins, so the denial's effect is isolated rather

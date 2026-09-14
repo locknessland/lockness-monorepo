@@ -40,6 +40,7 @@ import { ChannelManager } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import { asWindow } from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -70,7 +71,7 @@ function conn(
  */
 function countingDriver() {
     const roster = new Map<string, Map<string, PresenceMember>>()
-    const calls = { addMember: 0, removeMember: 0, listMembers: 0, control: 0 }
+    const calls = { addMember: 0, removeMember: 0, readRoster: 0, control: 0 }
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
@@ -85,9 +86,15 @@ function countingDriver() {
             calls.removeMember++
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            calls.listMembers++
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    calls.readRoster++
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         onControl: () => {},
         publishControl() {
@@ -144,7 +151,7 @@ Deno.test('#327 a re-join announces NOTHING and writes NOTHING', async () => {
         'a subscriber already in the room is told NOTHING: no member joined',
     )
     assertEquals(
-        calls.listMembers - before.listMembers,
+        calls.readRoster - before.readRoster,
         3,
         'what remains is one authoritative READ per call — the same read a ' +
             "first join performs, on the caller's own socket",
@@ -317,7 +324,8 @@ Deno.test('#327 a re-join degrades like a first join when the roster read fails'
     const { driver } = countingDriver()
     const failing: BroadcastDriver = {
         ...driver,
-        listMembers: () => Promise.reject(new Error('LOADING')),
+        readRoster: (_channel, limit, selfIds) =>
+            asWindow(Promise.reject(new Error('LOADING')), limit, selfIds),
     }
     const m = new ChannelManager<User>({ driver: failing, authorize })
     const holder = conn('c1', 1)

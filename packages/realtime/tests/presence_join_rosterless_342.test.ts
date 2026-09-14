@@ -67,7 +67,7 @@ const presenceFrames = (c: Recording, action: string) =>
 
 Deno.test('#342 a roster-less first join announces joined exactly once', async () => {
     const published: Record<string, unknown>[] = []
-    // NO `addMember` / `removeMember` / `listMembers` — the shape the contract
+    // NO `addMember` / `removeMember` / `readRoster` — the shape the contract
     // allows and neither built-in driver has.
     const driver: BroadcastDriver = {
         publish: () => {},

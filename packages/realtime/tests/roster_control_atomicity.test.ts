@@ -20,6 +20,11 @@ import { MAX_NAME_LENGTH } from '../protocol.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -64,8 +69,14 @@ function recordingDriver(options: { refuseControl?: boolean } = {}) {
             log.push(`removeMember ${channel} ${memberId}`)
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         onControl: () => {},
         publishControl(control) {
@@ -128,7 +139,9 @@ Deno.test('#312 a clean join writes the roster, THEN publishes the join frame', 
     })
     const c = connLogging(log, crypto.randomUUID())
     m.register(c)
+    const rosterReadsBefore = rosterReadCount()
     const result = await m.subscribe(c, 'presence-room')
+    assertRosterRead(rosterReadsBefore)
     assertEquals(result.ok, true)
     assertEquals(log, [
         'addMember presence-room ada',

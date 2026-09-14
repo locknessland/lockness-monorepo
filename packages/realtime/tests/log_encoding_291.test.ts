@@ -24,6 +24,11 @@ import { buildEvents } from '../websocket.ts'
 import { forwardEvent } from '../events_bridge.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { Connection, WSContext } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 /** A DSN-bearing failure — the shape a driver teardown actually produces. */
 const DSN_FAILURE = () =>
@@ -129,7 +134,8 @@ Deno.test('#291 evict-teardown WARN renders the error and encodes the client id'
         publish: () => Promise.resolve(),
         onMessage: () => {},
         addMember: () => Promise.resolve(),
-        listMembers: () => Promise.resolve([]),
+        readRoster: (_channel, limit, selfIds) =>
+            asWindow(Promise.resolve([]), limit, selfIds),
         removeMember: () => Promise.reject(DSN_FAILURE()),
     }
     // #304 made a hostile id UNCONSTRUCTIBLE: `register` refuses anything
@@ -146,7 +152,9 @@ Deno.test('#291 evict-teardown WARN renders the error and encodes the client id'
     const m = new ChannelManager<User>({ driver, authorize: () => true })
     const conn = fakeConn(hostile)
     m.handlerHooks({}).onOpen?.(conn)
+    const rosterReadsBefore = rosterReadCount()
     const sub = await m.subscribe(conn, 'presence-room')
+    assertRosterRead(rosterReadsBefore)
     assertEquals(sub.ok, true, 'the fixture must actually subscribe')
 
     using captured = captureConsole()
@@ -437,7 +445,8 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
             onMessage: () => {},
             addMember: () => Promise.resolve(),
             removeMember: () => Promise.resolve(),
-            listMembers: () => Promise.resolve([member]),
+            readRoster: (_channel, limit, selfIds) =>
+                asWindow(Promise.resolve([member]), limit, selfIds),
         }
         const m = new ChannelManager<User>({
             driver,
@@ -447,7 +456,9 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
         deaf.send = () => {
             throw new TypeError('socket is closing')
         }
+        const rosterReadsBefore = rosterReadCount()
         await m.subscribe(deaf, 'presence-room')
+        assertRosterRead(rosterReadsBefore)
 
         using captured = captureConsole()
         await m.subscribe(fakeConn('newcomer'), 'presence-room')
@@ -466,7 +477,8 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
             onMessage: () => {},
             addMember: () => Promise.resolve(),
             removeMember: () => Promise.resolve(),
-            listMembers: () => Promise.resolve([member]),
+            readRoster: (_channel, limit, selfIds) =>
+                asWindow(Promise.resolve([member]), limit, selfIds),
             onControl: () => {},
             publishControl: () => Promise.reject(DSN_FAILURE()),
         }
@@ -475,7 +487,9 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
             authorize: () => member,
         })
         using captured = captureConsole()
+        const rosterReadsBefore = rosterReadCount()
         const result = await m.subscribe(fakeConn('c1'), 'presence-room')
+        assertRosterRead(rosterReadsBefore)
         assertEquals(result.ok, true, 'the join still commits')
         const line = captured.lines.map((l) => l.text).join('\n')
         assertStringIncludes(line, 'presence-room')
@@ -493,14 +507,18 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
             onMessage: () => {},
             addMember: () => Promise.resolve(),
             removeMember: () => Promise.resolve(),
-            listMembers: () => Promise.reject(DSN_FAILURE()),
+            readRoster: (_channel, limit, selfIds) =>
+                asWindow(Promise.reject(DSN_FAILURE()), limit, selfIds),
         }
         const m = new ChannelManager<User>({
             driver,
             authorize: () => member,
         })
         using captured = captureConsole()
+        const rosterReadsBefore = rosterReadCount()
         const result = await m.subscribe(fakeConn('c1'), 'presence-room')
+        // 'local' below is the FALLBACK, not a roster-less driver: the read ran.
+        assertRosterRead(rosterReadsBefore)
         assertEquals(result.here?.source, 'local')
         const line = captured.lines.map((l) => l.text).join('\n')
         assertStringIncludes(line, 'presence-room')

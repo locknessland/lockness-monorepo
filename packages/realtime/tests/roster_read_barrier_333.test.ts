@@ -22,16 +22,17 @@
 import { assert, assertEquals, assertRejects } from '@std/assert'
 import { RosterReadBarrier } from '../roster_read_barrier.ts'
 import type { PresenceMember } from '../channel.ts'
+import type { RosterWindow } from '../driver.ts'
 
 /** A promise plus the handles to settle it from the test body. */
 function deferred(): {
-    promise: Promise<PresenceMember[]>
-    resolve: (members: PresenceMember[]) => void
+    promise: Promise<RosterWindow>
+    resolve: (window: RosterWindow) => void
     reject: (error: unknown) => void
 } {
-    let resolve!: (members: PresenceMember[]) => void
+    let resolve!: (window: RosterWindow) => void
     let reject!: (error: unknown) => void
-    const promise = new Promise<PresenceMember[]>((res, rej) => {
+    const promise = new Promise<RosterWindow>((res, rej) => {
         resolve = res
         reject = rej
     })
@@ -46,7 +47,7 @@ function deferred(): {
 function gatedRead() {
     const pending: ReturnType<typeof deferred>[] = []
     const channels: string[] = []
-    const read = (channel: string): Promise<PresenceMember[]> => {
+    const read = (channel: string): Promise<RosterWindow> => {
         channels.push(channel)
         const d = deferred()
         pending.push(d)
@@ -60,7 +61,11 @@ function gatedRead() {
         },
         /** Settle the nth outstanding read. */
         settle(index: number, members: PresenceMember[]): void {
-            pending[index].resolve(members)
+            pending[index].resolve({
+                members,
+                total: members.length,
+                selves: [],
+            })
         },
         fail(index: number, error: unknown): void {
             pending[index].reject(error)
@@ -119,12 +124,12 @@ Deno.test('#333 a caller that arrived during a read is answered by the NEXT one'
     gate.settle(1, [{ id: 'before' }, { id: 'after' }])
 
     assertEquals(
-        (await first).map((m) => m.id),
+        (await first).members.map((m) => m.id),
         ['before'],
         'the first caller gets the read it issued',
     )
     assertEquals(
-        (await second).map((m) => m.id),
+        (await second).members.map((m) => m.id),
         ['before', 'after'],
         'the second gets a read issued AFTER it asked — never the one already ' +
             'running when it arrived',
@@ -206,7 +211,7 @@ Deno.test('#333 a rejected read still releases the channel', async () => {
             'take the callers behind it with it',
     )
     gate.settle(1, [{ id: 'recovered' }])
-    assertEquals((await queued).map((m) => m.id), ['recovered'])
+    assertEquals((await queued).members.map((m) => m.id), ['recovered'])
 
     await drain()
     assertEquals(barrier.size, 0, 'and the channel was given back')
@@ -246,11 +251,15 @@ Deno.test('#333 the barrier retains NOTHING once a burst settles', async () => {
 })
 
 Deno.test('#333 a synchronous read is normalised, and a synchronous throw rejects', async () => {
-    // `MemoryBroadcastDriver.listMembers` answers synchronously. It must not
+    // `MemoryBroadcastDriver.readRoster` answers synchronously. It must not
     // get a different rule — a type-level discriminator used as a cost signal
     // changes behaviour silently the day the type changes for another reason.
-    const sync = new RosterReadBarrier(() => [{ id: 7 }])
-    assertEquals((await sync.snapshot('room')).map((m) => m.id), [7])
+    const sync = new RosterReadBarrier(() => ({
+        members: [{ id: 7 }],
+        total: 1,
+        selves: [],
+    }))
+    assertEquals((await sync.snapshot('room')).members.map((m) => m.id), [7])
     await drain()
     assertEquals(sync.size, 0)
 
@@ -283,8 +292,8 @@ Deno.test('#333 channels do not share a barrier slot', async () => {
     assertEquals(barrier.size, 2)
     gate.settle(0, [{ id: 'a' }])
     gate.settle(1, [{ id: 'b' }])
-    assertEquals((await a).map((m) => m.id), ['a'])
-    assertEquals((await b).map((m) => m.id), ['b'])
+    assertEquals((await a).members.map((m) => m.id), ['a'])
+    assertEquals((await b).members.map((m) => m.id), ['b'])
     await drain()
     assertEquals(barrier.size, 0)
 })
@@ -296,7 +305,7 @@ Deno.test('#333 a sustained burst never runs two reads at once', async () => {
     const gate = gatedRead()
     const barrier = new RosterReadBarrier(gate.read)
     let settledThrough = 0
-    const pending: Promise<PresenceMember[]>[] = []
+    const pending: Promise<RosterWindow>[] = []
 
     for (let round = 0; round < 6; round++) {
         for (let i = 0; i < 4; i++) pending.push(barrier.snapshot('room'))

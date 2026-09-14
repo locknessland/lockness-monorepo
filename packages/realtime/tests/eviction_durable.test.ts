@@ -83,9 +83,8 @@ Deno.test('SC-007: an evict lost while the owning socket was disconnected still 
         const x = fakeConn('x', { id: 1, name: 'Xavier' })
         await b.manager.subscribe(x, 'presence-lobby')
         assert(
-            (await b.driver.listMembers('presence-lobby')).some((m) =>
-                m.id === 1
-            ),
+            (await b.driver.readRoster!('presence-lobby', 1_000, [])).members
+                .some((m) => m.id === 1),
             'X should be on the roster before the evict',
         )
 
@@ -109,9 +108,8 @@ Deno.test('SC-007: an evict lost while the owning socket was disconnected still 
             'the missed evict is recovered on reconcile',
         )
         assertEquals(
-            (await b.driver.listMembers('presence-lobby')).some((m) =>
-                m.id === 1
-            ),
+            (await b.driver.readRoster!('presence-lobby', 1_000, [])).members
+                .some((m) => m.id === 1),
             false,
             'X is dropped from the authoritative roster on recovery',
         )

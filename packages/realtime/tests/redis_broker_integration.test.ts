@@ -183,7 +183,7 @@ integrationTest(
             await b.manager.subscribe(onB, 'presence-lobby')
 
             // Read back with a RAW HGETALL on a client the suite owns — never
-            // through driver.listMembers(), which would route the assertion
+            // through driver.readRoster(, 1_000, []).members, which would route the assertion
             // back through the parsing layer under test (FR-008).
             await waitFor(
                 async () =>

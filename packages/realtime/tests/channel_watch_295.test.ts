@@ -28,6 +28,11 @@ import type { BroadcastDriver } from '../driver.ts'
 import type { Connection } from '../types.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import { recordingPorts } from './recording_ports.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 /** A driver that records every watch/unwatch, in order. */
 function watchingDriver(options: { failWatch?: boolean } = {}): {
@@ -661,7 +666,11 @@ Deno.test('#322/SC-004: a presence cap breach leaves the roster untouched', asyn
                 joins.push(channel)
                 return Promise.resolve()
             },
-            listMembers: () => Promise.resolve([]),
+            readRoster: (
+                _channel: string,
+                limit: number,
+                selfIds: readonly (string | number)[],
+            ) => asWindow(Promise.resolve([]), limit, selfIds),
             removeMember: () => Promise.resolve(),
         } as unknown as BroadcastDriver,
         maxWatchedChannels: 2,
@@ -669,9 +678,11 @@ Deno.test('#322/SC-004: a presence cap breach leaves the roster untouched', asyn
         anonymousHostingShare: 1,
         authorize: () => true,
     })
+    const rosterReadsBefore = rosterReadCount()
     for (let i = 0; i < 2; i++) {
         await m.subscribe(identified(`p${i}`), `presence-room${i}`)
     }
+    assertRosterRead(rosterReadsBefore)
     const watchesBefore = ops.length
     const joinsBefore = [...joins]
 

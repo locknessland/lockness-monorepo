@@ -48,9 +48,11 @@ const MUTATIONS: Mutation[] = [
         label: '#343 (a) the here fallback reads the map raw again',
         file: MANAGER,
         edits: [[
-            '            roster = this.#localRoster(channel)\n',
-            '            roster = [...(this.presence.get(channel)?.values() ?? [])]\n',
+            '            window = localWindow(this.#localRoster(channel))\n',
+            '            window = localWindow([...(this.presence.get(channel)?.values() ?? [])])\n',
         ]],
+        // Re-anchored for #341: the fallback now wraps the local roster in a
+        // `localWindow`; the raw read is the same defect inside it.
         // The shipped defect on the fallback: member 7 twice, total 3.
         killedBy: 'the local fallback lists one entry per member',
     },
@@ -58,9 +60,10 @@ const MUTATIONS: Mutation[] = [
         label: '#343 (b) the roster-less branch reads the map raw again',
         file: MANAGER,
         edits: [[
-            '        return this.#localRoster(channel)\n',
-            '        return [...(this.presence.get(channel)?.values() ?? [])]\n',
+            '        return localWindow(this.#localRoster(channel))\n',
+            '        return localWindow([...(this.presence.get(channel)?.values() ?? [])])\n',
         ]],
+        // Re-anchored for #341: `rosterSnapshot` returns a window now.
         // The shipped defect on a driver with no roster ops.
         killedBy: 'a roster-less driver lists one entry per member',
     },

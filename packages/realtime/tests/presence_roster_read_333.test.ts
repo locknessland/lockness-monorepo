@@ -8,7 +8,7 @@
  *
  * ## The instrument
  *
- * The driver double's `listMembers` **increments a counter at call time and
+ * The driver double's `readRoster` **increments a counter at call time and
  * returns a deferred the test resolves by hand**. Both halves matter:
  *
  *   * Counting at call time is the only way to tell a shared read from two
@@ -37,6 +37,7 @@ import { RosterReadBarrier } from '../roster_read_barrier.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import { asWindow } from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -74,7 +75,7 @@ const barrierOf = (m: ChannelManager<User>): RosterReadBarrier => {
 /**
  * A roster driver whose reads are held open until the test releases them.
  *
- * `listMembers` snapshots the store **at issue time** and resolves with that
+ * `readRoster` snapshots the store **at issue time** and resolves with that
  * snapshot later — which is what a real round-trip does, and what makes the
  * joiner-sees-itself row meaningful. Resolving with the store's *current*
  * contents instead would hide the very ordering under test.
@@ -97,13 +98,19 @@ function gatedRosterDriver() {
         removeMember(channel, memberId) {
             store.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            reads++
-            const snapshot = [...(store.get(channel)?.values() ?? [])]
-            if (open) return snapshot
-            return new Promise<PresenceMember[]>((resolve) => {
-                releases.push(() => resolve(snapshot))
-            })
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    reads++
+                    const snapshot = [...(store.get(channel)?.values() ?? [])]
+                    if (open) return snapshot
+                    return new Promise<PresenceMember[]>((resolve) => {
+                        releases.push(() => resolve(snapshot))
+                    })
+                })(),
+                limit,
+                selfIds,
+            )
         },
         onControl: () => {},
         publishControl: () => Promise.resolve(),

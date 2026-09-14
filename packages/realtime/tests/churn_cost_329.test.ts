@@ -42,9 +42,10 @@
  * The rig counts calls on the `BroadcastDriver` interface. For
  * `RedisBroadcastDriver` they map one-to-one onto wire commands — `watchChannel`
  * → `SUBSCRIBE`, `unwatchChannel` → `UNSUBSCRIBE`, `addMember`/`removeMember` →
- * `EVAL`, `listMembers` → `HGETALL` — and the first two ride the subscribe
- * connection while the rest ride the command connection. A driver with no roster
- * capability has no `EVAL` and no `HGETALL`; a driver with no control plane has
+ * `EVAL`, `readRoster` → one read `EVAL` (`HGETALL` before #341) — and the
+ * first two ride the subscribe connection while the rest ride the command
+ * connection. A driver with no roster
+ * capability has no `EVAL` and no read; a driver with no control plane has
  * no publishes. The published table states those collapse axes.
  *
  * ## The leave path has non-frame callers, and they are not in this table
@@ -68,6 +69,11 @@ import { ChannelManager, MAX_CHANNELS_PER_CONNECTION } from '../manager.ts'
 import type { BroadcastDriver, ControlMessage } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
+import {
+    assertRosterRead,
+    asWindow,
+    rosterReadCount,
+} from './roster_window_double.ts'
 
 interface User {
     id: number
@@ -86,7 +92,10 @@ interface Cost {
     watchOps: number
     /** `addMember` + `removeMember` — the roster `EVAL`s. */
     rosterWrites: number
-    /** `listMembers` — the `HGETALL` whose reply is the whole room. */
+    /**
+     * `readRoster` — one read `EVAL`, bounded to K members plus the callers'
+     * own since #341 (an `HGETALL` of the whole room before it).
+     */
     rosterReads: number
     /** Control frames handed to the broker by the instance under test. */
     controlPublishes: number
@@ -162,9 +171,15 @@ function fleet(deny = false, size = 3) {
             if (index === 0) cost.rosterWrites++
             roster.get(channel)?.delete(String(memberId))
         },
-        listMembers(channel) {
-            if (index === 0) cost.rosterReads++
-            return [...(roster.get(channel)?.values() ?? [])]
+        readRoster(channel, limit, selfIds) {
+            return asWindow(
+                (() => {
+                    if (index === 0) cost.rosterReads++
+                    return [...(roster.get(channel)?.values() ?? [])]
+                })(),
+                limit,
+                selfIds,
+            )
         },
         watchChannel: () => {
             if (index === 0) cost.watchOps++
@@ -213,9 +228,10 @@ Deno.test('#329 a presence churn PAIR, sole holder — the worst-case cell', asy
     await f.local.unsubscribe('c1', 'presence-room')
     const leave = take(f.cost)
 
-    // The join: SUBSCRIBE (0->1 hosting), EVAL (roster add), HGETALL (the
-    // closing read) — and the read's reply is the WHOLE ROOM, which is the
-    // term a frame-rate meter cannot bound and why #333 is filed separately.
+    // The join: SUBSCRIBE (0->1 hosting), EVAL (roster add), the closing read
+    // — whose reply was the WHOLE ROOM, the term a frame-rate meter cannot
+    // bound and why #333 and #341 were filed. #341 bounded its size and left
+    // this count unchanged (its SC-004).
     assertEquals(join, {
         watchOps: 1,
         rosterWrites: 1,
@@ -271,18 +287,20 @@ Deno.test('#329 an ALREADY-HOSTED presence channel is the low end of the range',
     const leave = take(f.cost)
 
     assertEquals(join.watchOps, 0, 'no SUBSCRIBE — the channel was hosted')
-    assertEquals(driverCommands(join), 2, 'EVAL + HGETALL only')
+    assertEquals(driverCommands(join), 2, 'roster EVAL + roster read only')
     assertEquals(leave.watchOps, 0, 'and no UNSUBSCRIBE — a member remains')
     assertEquals(driverCommands(leave), 1, 'EVAL only')
 })
 
-Deno.test('#329 a presence re-join is one authoritative READ, and the read is the whole room', async () => {
+Deno.test('#329 a presence re-join is one authoritative READ, bounded since #341', async () => {
     const f = fleet()
     const c = conn('c1', 1)
     await f.local.subscribe(c, 'presence-room')
     take(f.cost)
 
+    const rosterReadsBefore = rosterReadCount()
     const again = await f.local.subscribe(c, 'presence-room')
+    assertRosterRead(rosterReadsBefore)
 
     assertEquals(again.ok, true, 'a re-join is never refused')
     assertEquals(
@@ -296,8 +314,8 @@ Deno.test('#329 a presence re-join is one authoritative READ, and the read is th
             authorizerCalls: 1,
         },
         '#327 made this write nothing, announce nothing and publish nothing — ' +
-            'and it still costs one HGETALL whose reply is every member in the ' +
-            'room, plus one authorizer call. "Free" was never what the code ' +
+            'and it still costs one roster read (bounded to K members plus ' +
+            'its own since #341), plus one authorizer call. "Free" was never what the code ' +
             'supported, and three shipped documents implied it',
     )
 })

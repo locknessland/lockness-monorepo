@@ -112,9 +112,8 @@ Deno.test('SC-001: an evict missed while the socket was deaf is recovered at rec
             'the missed evict is recovered AT the reconnect, not on the next tick',
         )
         assertEquals(
-            (await b.driver.listMembers('presence-lobby')).some((m) =>
-                m.id === 1
-            ),
+            (await b.driver.readRoster!('presence-lobby', 1_000, [])).members
+                .some((m) => m.id === 1),
             false,
             'X is dropped from the authoritative roster on recovery',
         )
