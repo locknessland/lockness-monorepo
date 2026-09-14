@@ -348,6 +348,17 @@ import type {
     PresenceCapableDriver,
     RevocationStoreDriver,
 } from './driver.ts'
+import { MemoryBroadcastDriver } from './drivers/memory.ts'
+import {
+    type Authorizer,
+    type AuthorizeResult,
+    channelKind,
+    type PresenceMember,
+    type PresenceSnapshot,
+} from './channel.ts'
+import type { ServerMessage } from './protocol.ts'
+import { RosterReadBarrier } from './roster_read_barrier.ts'
+import { boundPresenceSnapshot, sameMemberId } from './presence_snapshot.ts'
 
 /**
  * Every revocation of ONE connection from ONE channel that an apply answers
@@ -363,17 +374,6 @@ interface ChannelRevocationGroup {
     readonly channel: string
     readonly ids: readonly string[]
 }
-import { MemoryBroadcastDriver } from './drivers/memory.ts'
-import {
-    type Authorizer,
-    type AuthorizeResult,
-    channelKind,
-    type PresenceMember,
-    type PresenceSnapshot,
-} from './channel.ts'
-import type { ServerMessage } from './protocol.ts'
-import { RosterReadBarrier } from './roster_read_barrier.ts'
-import { boundPresenceSnapshot, sameMemberId } from './presence_snapshot.ts'
 
 /**
  * The single feature-detect guard for a driver's optional presence-state ops
@@ -520,10 +520,9 @@ function assertNotLegacyRevocationDriver(driver: BroadcastDriver): void {
             'clearRevocation(channelRevocation) over a Revocation record ' +
             '({ target } for a whole connection, { target, channel, id } for ' +
             'one channel — clear removes exactly that id). Keeping the old ' +
-            'pair would silently ' +
-            'disable durable revocation on a driver that plainly implements ' +
-            'it: evict would still close the socket locally, and a lost ' +
-            'control frame would never be recovered.',
+            'pair would silently disable durable revocation on a driver that ' +
+            'plainly implements it: evict would still close the socket ' +
+            'locally, and a lost control frame would never be recovered.',
     )
 }
 
@@ -2442,9 +2441,11 @@ export class ChannelManager<Identity = unknown> {
      */
     private async reconcileRevocations(): Promise<void> {
         const revocations = await this.#revocations?.listRevocations() ?? []
+        // Keyed by pair; the ids list is appended to while the index is read,
+        // then handed to the apply as a read-only `ChannelRevocationGroup`.
         const groups = new Map<
             string,
-            { target: string; channel: string; ids: string[] }
+            ChannelRevocationGroup & { ids: string[] }
         >()
         for (const revocation of revocations) {
             if (!this.connections.has(revocation.target)) continue
@@ -2601,9 +2602,9 @@ export class ChannelManager<Identity = unknown> {
      * running an older release meets a kind added after it here, matches
      * nothing, and returns — inert rather than wrong. (`revoke-channel` itself
      * no longer reaches a `0.3.0` peer's switch: its `revocationId` field is
-     * MAC-covered, so that peer drops the frame at ingest with a WARN, #337.) Adding a `default` that threw or
-     * warned would turn a forward-compatible frame into noise on every peer
-     * during a rolling deploy.
+     * MAC-covered, so that peer drops the frame at ingest with a WARN, #337.)
+     * Adding a `default` that threw or warned would turn a forward-compatible
+     * frame into noise on every peer during a rolling deploy.
      */
     private handleControl(control: ControlMessage): void {
         switch (control.kind) {
@@ -2640,21 +2641,37 @@ export class ChannelManager<Identity = unknown> {
                 // Same rule as `evict`: only the owner acts. Every other
                 // instance hears the resulting `left` as a `presence-leave`.
                 // A frame with no channel is not a channel revocation and is
-                // dropped rather than widened into a socket kill. A frame with
-                // no revocation id names no record to clear, so it is dropped
-                // too (#337) — the durable record, if written, is recovered by
-                // the reconcile, which has the id.
+                // dropped rather than widened into a socket kill.
                 if (
-                    control.channel !== undefined &&
-                    control.revocationId !== undefined &&
-                    this.connections.has(control.target)
+                    control.channel === undefined ||
+                    !this.connections.has(control.target)
                 ) {
-                    void this.#applyRevocation({
-                        target: control.target,
-                        channel: control.channel,
-                        ids: [control.revocationId],
-                    })
+                    return
                 }
+                // A frame with no revocation id names no record to clear, so
+                // it is dropped too (#337) — the durable record, if written, is
+                // recovered by the reconcile, which has the id. Never silently
+                // (#340): a driver that strips the field delays every
+                // cross-instance revocation to the next tick, and this line is
+                // the only place that can say so. Owner-only, so one frame is
+                // one WARN rather than one per instance in the fleet.
+                if (control.revocationId === undefined) {
+                    console.warn(
+                        `realtime: a revoke-channel frame for ${
+                            safeForLog(control.channel)
+                        } carries no revocationId and was ignored — ` +
+                            'a stored revocation now waits for the reconcile ' +
+                            'tick, and is not enforced at all by a driver ' +
+                            'without onRevocationReconcile. The driver must ' +
+                            'pass revocationId through unchanged.',
+                    )
+                    return
+                }
+                void this.#applyRevocation({
+                    target: control.target,
+                    channel: control.channel,
+                    ids: [control.revocationId],
+                })
                 return
         }
     }

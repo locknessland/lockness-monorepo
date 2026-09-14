@@ -273,6 +273,8 @@ export interface BroadcastDriver {
      * channel-event union. A driver exposing this seam only ever delivers a
      * frame that already passed the FR-015 authenticity check; an unauthenticated
      * frame is dropped inside the driver and never reaches this handler.
+     * Drivers pass `revocationId` through unchanged and include it in any MAC
+     * they compute over the frame.
      *
      * @param handler - Called with each **authenticated** received control message.
      */
@@ -282,6 +284,8 @@ export interface BroadcastDriver {
      * instance's {@link onControl} seam, attaching the authenticity MAC. The
      * counterpart to {@link onControl}; a driver that omits one omits both. The
      * `mac` field of `control` is ignored — the driver computes and attaches it.
+     * Drivers pass `revocationId` through unchanged and include it in any MAC
+     * they compute over the frame.
      *
      * @param control - The control message to broadcast (its `mac` is set here).
      */
