@@ -51,13 +51,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                     |
-| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                  |
-| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `Connection`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `Revocation`, `RevocationStoreDriver`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
-| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                     |
-| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_PRESENCE_MEMBER_BYTES`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                              |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                    |
+| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                 |
+| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
+| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                      |
+| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_PRESENCE_MEMBER_BYTES`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                                                             |
 
 Anything not listed is internal and free to change.
 
@@ -167,8 +167,9 @@ Anything not listed is internal and free to change.
   rather than adding a weaker one beside it. `authorize_denial_331.test.ts` is
   the witness, and it fails the moment a revoke is added here.
 - **The revocation delimiter is a SPACE, and it must stay outside `NAME_RE`.** A
-  channel-scoped record is the index member `"<target> <channel>"`
-  ([#332](https://github.com/locknessland/lockness-monorepo/issues/332)). A
+  channel-scoped record is the index member `"<target> <channel> <id>"`
+  ([#332](https://github.com/locknessland/lockness-monorepo/issues/332),
+  [#337](https://github.com/locknessland/lockness-monorepo/issues/337)). A
   connection id is asserted against `/^[A-Za-z0-9:._-]+$/` before it is minted,
   so it can never contain a space — which is what makes an instance on the
   published release skip a composite **structurally** rather than by recognising
@@ -194,6 +195,28 @@ Anything not listed is internal and free to change.
   is non-destructive, and both must stay that way: a reader that cannot use a
   record must not be the reader that destroys it, or a rolling deploy deletes
   live revocations.
+- **A clear names an id, never a pair**
+  ([#337](https://github.com/locknessland/lockness-monorepo/issues/337)). Every
+  `revokeChannel` call mints its own `ChannelRevocation.id`, and the id is part
+  of the index member, so `ZREM` of that member is already a compare-and-delete.
+  The correctness argument is one line: a clear can only name an id its caller
+  saw before its leave, and a newer write has an id nobody has seen yet. Keyed
+  on the pair, the clear for an older revocation erased a newer one in flight,
+  and when the newer one's frame was lost nothing enforced it. Three places
+  carry the id, and dropping it from any one passes every test that revokes a
+  pair only once: the member (`#encodeRevocation`), the frame (`revocationId` on
+  the publish), and the MAC (`#canonical`, appended last). The reconcile
+  **groups by pair and leaves once**, clearing every listed id on `'left'`.
+  Applying records one at a time looks equivalent, but the second one finds
+  `'not-subscribed'`, survives, and re-kicks a re-subscribed client on the next
+  tick. The witness is `revocation_clear_race_337.test.ts`, and
+  `mutations/channel_revoke_332.ts` carries all four rows.
+- **`revocationId` is the one control field a `0.3.0` peer cannot verify, and
+  that is acceptable only because of WHICH kind carries it.** A field on a kind
+  a published peer acts on (`evict`, presence) would cost that peer the action.
+  On `revoke-channel`, which `0.3.0` never acted on, it costs a MAC WARN.
+  Omitted when `undefined`, it leaves every other kind byte-identical, and
+  `mixed_fleet_332.test.ts` pins both halves.
 - **Clear-on-apply is asymmetric on purpose.** A connection-scoped record is
   moot once the socket dies, so `evict` leaves it to the TTL; a channel-scoped
   one has a live socket to act on for the whole TTL, so an uncleared record
@@ -424,7 +447,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-58 test files for 17 source files:
+59 test files for 17 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
@@ -476,6 +499,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/protocol.test.ts`
 - `packages/realtime/tests/redis_broker_integration.test.ts`
 - `packages/realtime/tests/revocation_atomicity.test.ts`
+- `packages/realtime/tests/revocation_clear_race_337.test.ts`
 - `packages/realtime/tests/revocation_encoding_332.test.ts`
 - `packages/realtime/tests/revocation_retry.test.ts`
 - `packages/realtime/tests/revocation_seam_332.test.ts`
@@ -522,7 +546,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 58 test files directly —
+Then, specific to this package: run its 59 test files directly —
 
 ```bash
 deno test -A packages/realtime/

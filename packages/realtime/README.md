@@ -104,14 +104,18 @@ app.get(
   relay them to a client.
 - **Durable revocation** — a revoke outlives a lost pub/sub frame. A custom
   `BroadcastDriver` opts in by implementing `markRevocation(revocation)`,
-  `listRevocations()` and `clearRevocation(revocation)` — detected as a **set**,
-  all three or none — plus `onRevocationReconcile(handler)` to say when the
-  re-check runs. All three are optional — but "optional" means different things
-  to the two verbs: a driver that omits them leaves `evict` fire-and-forget, and
-  makes `revokeChannel` **refuse** with `RevocationScopeError` whenever the
-  driver has a control plane, rather than degrade into an undurable revoke. A
-  single-process driver (no control plane) owes no durability and is unaffected.
-  See [realtime.md](../../docs/realtime.md).
+  `listRevocations()` and `clearRevocation(channelRevocation)` — detected as a
+  **set**, all three or none — plus `onRevocationReconcile(handler)` to say when
+  the re-check runs. All three are optional — but "optional" means different
+  things to the two verbs: a driver that omits them leaves `evict`
+  fire-and-forget, and makes `revokeChannel` **refuse** with
+  `RevocationScopeError` whenever the driver has a control plane, rather than
+  degrade into an undurable revoke. A single-process driver (no control plane)
+  owes no durability and is unaffected. **Every `revokeChannel` call is its own
+  record**, identified by a manager-minted `id`, and `clearRevocation` removes
+  exactly that id and never another record for the same connection and channel.
+  The Redis member is `"<target> <channel> <id>"`. See
+  [realtime.md](../../docs/realtime.md).
 - **Watched-channel limits** — `ChannelLimitError` is raised when a subscribe
   would take the instance past `maxWatchedChannels` (default `1_000`) or the
   connection past `maxChannelsPerConnection` (default `100`). Both are options

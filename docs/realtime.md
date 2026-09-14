@@ -1475,16 +1475,20 @@ inject an out-of-charset name or reach an unauthorized local connection.
 ## Upgrading to v0.4.0
 
 One breaking seam change, two widened return types, one new control kind. **No
-Redis migration**, and nothing to do before you deploy except read item 1.
+Redis migration**, and nothing to do before you deploy except read items 1 and
+5.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
-An instance running `0.3.0` **ignores** the new `revoke-channel` control frame —
-it verifies it, admits it, and does nothing, which is what makes a rolling
-deploy safe in the first place. The consequence is that a revoke aimed at a
-socket a `0.3.0` instance owns **does not land**, and the durable record does
-not rescue it: a record is only ever applied by the instance that owns the
-socket, and that instance is precisely the one that cannot read it.
+An instance running `0.3.0` **drops** the new `revoke-channel` control frame.
+The frame carries a `revocationId` field that the `0.3.0` MAC does not cover, so
+that instance computes a different MAC and discards the frame with a WARN before
+acting on anything. It never acted on that kind, so it loses nothing it had, and
+the rolling deploy stays inert rather than wrong. The consequence is that a
+revoke aimed at a socket a `0.3.0` instance owns **does not land**, and the
+durable record does not rescue it: a record is only ever applied by the instance
+that owns the socket, and that instance is precisely the one that cannot read
+it.
 
 This is bounded by the deploy. When the old instance drains, its sockets close
 and the reconnecting client is re-admitted through your `authorize` on an
@@ -1494,11 +1498,21 @@ upgraded instance.
 
 ### 2. The driver revocation seam is replaced, and the old one throws
 
-| Before (`0.3.0`)  | After (`0.4.0`)                         |
-| ----------------- | --------------------------------------- |
-| `markRevoked(id)` | `markRevocation({ target, channel? })`  |
-| `listRevoked()`   | `listRevocations(): Revocation[]`       |
-| —                 | `clearRevocation({ target, channel? })` |
+| Before (`0.3.0`)  | After (`0.4.0`)                                          |
+| ----------------- | -------------------------------------------------------- |
+| `markRevoked(id)` | `markRevocation(r: Revocation)`                          |
+| `listRevoked()`   | `listRevocations(): Revocation[]`                        |
+| —                 | `clearRevocation(r: ChannelRevocation)` — exactly one id |
+
+`Revocation` is `ConnectionRevocation | ChannelRevocation`: `{ target }` for a
+whole connection, `{ target, channel, id }` for one channel. The manager mints
+`id` (`crypto.randomUUID()`) once per `revokeChannel` call, so **two revocations
+of the same pair are two records**. Store the id and return it unchanged.
+`clearRevocation` must remove **only** the record with that id. A record for the
+same pair with another id was written after the one being cleared, and if its
+control frame was lost, nothing else will enforce it
+([#337](https://github.com/locknessland/lockness-monorepo/issues/337)). Only a
+channel revocation is ever cleared, and the type says so.
 
 **Only if you wrote your own `BroadcastDriver`.** The bundled Redis and memory
 drivers are already migrated, and nothing in your application code changes.
@@ -1513,7 +1527,8 @@ listRevoked(): string[] {            listRevocations(): Revocation[] {
 }                                            .map((m) => this.decode(m))
                                              .filter((r) => r !== undefined)
                                      }
-                                     clearRevocation(r: Revocation) {
+                                     clearRevocation(r: ChannelRevocation) {
+                                         // encode() includes r.id: one record
                                          this.index.delete(this.encode(r))
                                      }
 ```
@@ -1539,26 +1554,35 @@ a driver that plainly implements revocation — nothing logged, every same-versi
 test green.
 
 **Your `listRevocations` must fail closed.** Drop any record you cannot fully
-decode; never return one with a missing `channel`. A channel-scoped record that
-comes back without its channel is applied as a **whole-connection** revocation
-and hard-closes a socket that should only have left one room. The revocation
-index is the one cross-instance channel with no authenticity tag, so what your
-decoder refuses is the boundary.
+decode; never return one with a missing `channel` or `id`. A channel-scoped
+record that comes back without its channel is applied as a **whole-connection**
+revocation and hard-closes a socket that should only have left one room. The
+revocation index is the one cross-instance channel with no authenticity tag, so
+what your decoder refuses is the boundary.
 
 > **Third-party realtime drivers are not a supported extension point before
 > `1.0`.** At `0.x` the bundled drivers are the contract, and a seam like this
 > one changes without a deprecation window. If you maintain a driver, track
-> `main` — you will get a construction-time error naming the change, never a
-> silent behaviour loss.
+> `main`. A seam change **between published releases** gives you a
+> construction-time error naming it, never a silent behaviour loss. A change
+> made inside one unreleased window does not: #337 narrowed `clearRevocation`
+> and added `id` to the `#332` methods before either was published, and a driver
+> written against those unreleased signatures is caught by the type checker
+> only.
 
 ### 3. No Redis migration
 
 The revocation index is read-compatible in both directions and there is no new
-key, no dual-write and nothing to backfill. A channel-scoped record is a
-composite member; the delimiter is a **space**, which is outside the connection
-id charset, so a `0.3.0` reader finds no such connection and skips it — inert
-rather than wrong, and it does not delete it either, so the record survives for
-the upgraded owner.
+key, no dual-write and nothing to backfill. A whole-connection record is the
+bare connection id, byte-identical to `0.3.0`. A channel-scoped record is the
+three-part member `"<target> <channel> <id>"`. The delimiter is a **space**,
+which is outside the connection id charset, so a `0.3.0` reader finds no such
+connection and skips it. That reader is inert rather than wrong, and it does not
+delete the record either, so it survives for the upgraded owner.
+
+A two-part `"<target> <channel>"` member was only ever written by unreleased
+builds of `main`. `0.4.0` drops it on read and it expires on its score within
+the revocation TTL.
 
 > **Do not "tidy" that delimiter to a `:` or a `.`.** Both are inside the
 > charset, and a composite would then collide with a real connection id — at
@@ -1578,10 +1602,18 @@ that frame goes through your encoder like every other. See
 
 `'not-owned'` means _use `revokeChannel`_.
 
-### 5. The new control kind needs no coordination
+### 5. Expect a MAC WARN from `0.3.0` instances during the deploy
 
-`revoke-channel` adds no wire field, so the MAC covers exactly the same bytes in
-both directions. No shared-secret rotation, no coordinated restart.
+`revoke-channel` carries one field, `revocationId`, and the MAC covers it. It is
+appended **last** to the canonical form and omitted when absent, so `evict` and
+the presence frames keep the exact bytes of `0.3.0` and verify in both
+directions. No shared-secret rotation and no coordinated restart are needed.
+
+A `0.3.0` instance, however, logs
+`dropped a control message with an absent/invalid MAC — never obeyed (FR-015)`
+for every `revoke-channel` frame it receives until it is upgraded. **This is not
+forgery.** If you alert on that line, expect it for the length of the deploy,
+and only on instances still running `0.3.0`.
 
 ## Upgrading to v0.3.0
 
