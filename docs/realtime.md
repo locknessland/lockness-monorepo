@@ -1078,9 +1078,22 @@ cannot answer the closing roster read, `subscribe` still returns `{ ok: true }`
 — the join committed, on the roster and on every instance, so reporting a
 failure would be a lie — but `here.members` is then cut from **only this
 instance's own members**, by the same rule, and a `WARN` is emitted naming the
-channel. On that local view entries are per connection, so a member with two
-tabs takes two slots and counts twice in `total`
-([#343](https://github.com/locknessland/lockness-monorepo/issues/343)).
+channel.
+
+**Entries are per member on every path**
+([#343](https://github.com/locknessland/lockness-monorepo/issues/343)). A member
+with two tabs on one instance takes one slot and counts once in `total`, whether
+the snapshot is authoritative, the local fallback, or a driver with no roster
+capability — ids compare as `String(id)`, so `1` and `'1'` are one member. Its
+`info` is the **earliest-joined connection still subscribed** on that instance,
+which is the same entry the roster holds; when that connection leaves, the next
+one takes over on both views. That agreement holds for a member connected to one
+instance only; the same member on two instances shares one Redis slot that the
+last write wins
+([#345](https://github.com/locknessland/lockness-monorepo/issues/345)).
+Announcements are still per connection: a second tab sends `joined` for a member
+already present, and closing one of two tabs sends `left` for a member still
+here.
 
 **`here.source` says which you got**: `'authoritative'` for every instance's
 roster, `'local'` for this instance's members alone. A driver with no roster
@@ -1704,6 +1717,13 @@ removes, back under another name.
 A fleet mixing `0.3.0` and `0.4.0` during the deploy answers from whichever
 instance a client lands on: whole room from the old ones, bounded snapshot from
 the new.
+
+**On `source: 'local'` and on a driver with no roster capability, `members` and
+`total` now count members, not connections**
+([#343](https://github.com/locknessland/lockness-monorepo/issues/343)). In
+`0.3.0` a member with two tabs on this instance appeared twice in `members`
+(`total` is new in this release, and counts the same unit as `members` on every
+path). The authoritative path already counted members and is unchanged.
 
 ## Upgrading to v0.3.0
 

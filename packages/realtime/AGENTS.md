@@ -79,6 +79,24 @@ Anything not listed is internal and free to change.
 
 ## Pitfalls
 
+- **The local presence view is deduplicated in ONE place, `#localRoster`, and
+  nowhere else**
+  ([#343](https://github.com/locknessland/lockness-monorepo/issues/343)). The
+  `presence` map is keyed by connection id; the roster by `String(member.id)`.
+  Every read of the map's values — the `here` local fallback, the roster-less
+  branch of `rosterSnapshot`, `#syncRosterMember`'s scan — goes through
+  `#localRoster` → `uniqueMembers` (first occurrence wins, so the
+  earliest-joined connection's `info`, matching the slot). Two tempting
+  "simplifications" are wrong. **Never dedupe in `boundPresenceSnapshot`**: the
+  authoritative roster is already unique, the pass would be O(room) on the hot
+  read #333 made cheap, it would hide a driver returning duplicates, and the cut
+  must return its input unchanged when it fits. **Never re-key the map by
+  member**: the #327 check-and-claim, the #334 last-member delete and the self
+  lookup all key on the connection. A new read of
+  `presence.get(channel)?.values()` that skips `#localRoster` is the defect
+  coming back. Witness: `presence_local_member_343.test.ts`; battery
+  `tests/mutations/presence_local_member_343.ts`.
+
 - **The roster read barrier is TRAILING-edge, and turning it into an ordinary
   single-flight is a correctness regression, not an optimisation.**
   `roster_read_barrier.ts` answers a caller that arrived mid-read with the
@@ -471,7 +489,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-63 test files for 18 source files:
+64 test files for 18 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
@@ -516,6 +534,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_eviction_334.test.ts`
 - `packages/realtime/tests/presence_join_compensation_323.test.ts`
 - `packages/realtime/tests/presence_join_rosterless_342.test.ts`
+- `packages/realtime/tests/presence_local_member_343.test.ts`
 - `packages/realtime/tests/presence_member_id.test.ts`
 - `packages/realtime/tests/presence_rejoin_327.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
@@ -537,7 +556,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-19 mutation batteries — **`deno test` does not run these.** Each is an
+20 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -553,6 +572,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_eviction_334.ts`
 - `packages/realtime/tests/mutations/presence_join_323.ts`
 - `packages/realtime/tests/mutations/presence_join_rosterless_342.ts`
+- `packages/realtime/tests/mutations/presence_local_member_343.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
 - `packages/realtime/tests/mutations/presence_snapshot_339.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
@@ -577,7 +597,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 63 test files directly —
+Then, specific to this package: run its 64 test files directly —
 
 ```bash
 deno test -A packages/realtime/
