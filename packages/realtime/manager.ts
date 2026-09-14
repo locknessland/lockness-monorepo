@@ -339,6 +339,7 @@ import {
     type PresenceMember,
 } from './channel.ts'
 import type { ServerMessage } from './protocol.ts'
+import { RosterReadBarrier } from './roster_read_barrier.ts'
 
 /**
  * The single feature-detect guard for a driver's optional presence-state ops
@@ -699,6 +700,18 @@ export class ChannelManager<Identity = unknown> {
     >()
     /** The driver's roster ops when it owns the authoritative roster (else `undefined`). */
     private readonly roster: PresenceCapableDriver | undefined
+    /**
+     * Collapses concurrent authoritative reads of one channel onto the trailing
+     * edge (#333). Constructed with {@link roster} and `undefined` with it, so
+     * the two never disagree about whether this driver has a roster at all.
+     *
+     * `private`, matching {@link roster} beside it rather than the `#` fields
+     * further up, and for a reason this class has already used: the barrier's
+     * `size` is the only way to observe that sharing a read does not also
+     * RETAIN one, and that property has no behavioural consequence to assert
+     * on — exactly the shape #334 records for the presence map.
+     */
+    private readonly rosterReads: RosterReadBarrier | undefined
 
     /**
      * @param options - The driver, authorizer, and encoder.
@@ -764,7 +777,14 @@ export class ChannelManager<Identity = unknown> {
         // must fail loudly here rather than be narrowed to `undefined` and
         // silently treated as having no revocation store at all.
         assertNotLegacyRevocationDriver(this.driver)
-        this.roster = presenceRoster(this.driver)
+        const roster = presenceRoster(this.driver)
+        this.roster = roster
+        // ONE barrier, at construction, for every authoritative read (#333).
+        // It takes a FUNCTION rather than the driver, so the unit cannot drift
+        // with `BroadcastDriver`'s optional-member surface.
+        this.rosterReads = roster
+            ? new RosterReadBarrier((channel) => roster.listMembers(channel))
+            : undefined
         // ONE guard, at construction, for the whole watch pair (#295).
         this.#watcher = channelWatcher(this.driver)
         // ONE guard, at construction, for the whole revocation trio (#332).
@@ -1738,9 +1758,26 @@ export class ChannelManager<Identity = unknown> {
      * The authoritative "here" roster for a presence channel — the driver's when
      * it owns one (every instance's members, FR-006), otherwise this instance's
      * local members (a driver with no roster capability is single-process).
+     *
+     * **Every authoritative read in this class goes through here**, and #333 is
+     * why that mattered: this was the only caller of `roster.listMembers`, so
+     * one edit bounds the read for every entry point. It is reached once per
+     * presence `subscribe` frame, re-joins included, and the reply is the whole
+     * room cluster-wide — a cost #329's application-side frame meter provably
+     * cannot bound, because a room grows without the frame rate changing.
+     *
+     * **The spread is now load-bearing, not defensive.** The barrier hands ONE
+     * array to every caller sharing a read; without this copy they would share
+     * a mutable list. The members inside it are still shared by reference, and
+     * deliberately so — a per-caller deep copy would restore the per-caller
+     * `O(room)` cost this change exists to remove, in CPU instead of bytes.
      */
     private async rosterSnapshot(channel: string): Promise<PresenceMember[]> {
-        if (this.roster) return [...await this.roster.listMembers(channel)]
+        // Branching on the BARRIER, not on `roster`: they are constructed
+        // together, and reading the thing actually used leaves no second
+        // spelling of "this driver owns a roster" to fall out of step.
+        const reads = this.rosterReads
+        if (reads) return [...await reads.snapshot(channel)]
         return [...(this.presence.get(channel)?.values() ?? [])]
     }
 
