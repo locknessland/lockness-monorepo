@@ -158,8 +158,12 @@ blockers, not preferences.
     - **A product decision** — rule #11's test: it changes what the software
       _does_.
     - **An outward or irreversible action the repo reserves for consent** — a
-      JSR publish (every time, see `/ship`), a merge (unless already asked for),
-      a push to the remote.
+      JSR publish (every time, see `/ship`). **Merging a reviewed branch into
+      `main` and pushing it are standing-authorized** (maintainer instruction,
+      2026-09-14): once the review verdict carries no unresolved CRITICAL or
+      HIGH and the full gate is green, merge and push without asking. This is
+      the "already said to merge" case of the Specnaut chain-stops section,
+      given once for every branch.
     - **Genuinely blocked** — say what blocks in one or two sentences, do
       everything that is not blocked, name the remainder.
 

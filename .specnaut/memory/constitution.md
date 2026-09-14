@@ -45,7 +45,8 @@ review.
     the same turn, never advised or printed as a command to paste. It overrides
     "manual-only" / "offer" / "wait for the user's reply" in skill and phase docs
     for in-repo, reversible steps. Only three things stop: a product decision, a
-    consent-reserved outward action (JSR publish, merge not yet asked for, push),
+    consent-reserved outward action (a JSR publish; merge and push of a reviewed,
+    gate-green branch are standing-authorized since 2026-09-14),
     or a genuine block — and a block stops only the blocked part.
 
 ## Engineering methodology
