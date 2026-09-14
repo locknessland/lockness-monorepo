@@ -135,6 +135,35 @@ blockers, not preferences.
     The user keeps the veto, and an explicit instruction always wins. This rule
     routes the **default**, which is what a question with no owner falls back to
     today.
+12. **Act, don't recommend.** When the next step belongs to someone other than
+    the user — an agent seat, an audit, a grooming pass, a review, a Specnaut or
+    `/board` phase, a Status move inside an established workflow — **run it
+    yourself, in the same turn.** A turn never ends on "next step: run X", "my
+    recommendation: dispatch Y" or "want me to…?" for something you can run.
+    Printing a command for the user to type is the same failure in a different
+    shape.
+
+    This includes steps the user did not name. `/board next` picks the top item
+    **and starts unblocking it** — the `architect-expert` disposition it is
+    waiting on, the audit it needs, the grooming pass that is stale — rather
+    than listing those as advice. An audit whose findings belong in the backlog
+    hands them to the `product-owner` without asking.
+
+    Where a skill or phase doc says "manual-only", "offer", "do NOT
+    auto-execute" or "wait for the user's reply" about a step that is **in-repo
+    and reversible** (an audit report, an agent dispatch, backlog items created
+    from findings, a groom), this rule overrides it.
+
+    Exactly three things still stop:
+    - **A product decision** — rule #11's test: it changes what the software
+      _does_.
+    - **An outward or irreversible action the repo reserves for consent** — a
+      JSR publish (every time, see `/ship`), a merge (unless already asked for),
+      a push to the remote.
+    - **Genuinely blocked** — say what blocks in one or two sentences, do
+      everything that is not blocked, name the remainder.
+
+    "I would like confirmation" is none of these.
 
 ---
 

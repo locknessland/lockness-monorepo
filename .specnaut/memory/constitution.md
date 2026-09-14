@@ -40,6 +40,13 @@ review.
 11. **A design decision goes to `architect-expert`; a product decision goes to
     the user.** "Which shape is cleaner?" is never a user question. Dispatch the
     seat, on the standing principle that the cleanest architecture wins.
+12. **Act, don't recommend.** A next step owned by anyone but the user — agent
+    dispatch, audit, groom, review, a phase, a workflow Status move — is run in
+    the same turn, never advised or printed as a command to paste. It overrides
+    "manual-only" / "offer" / "wait for the user's reply" in skill and phase docs
+    for in-repo, reversible steps. Only three things stop: a product decision, a
+    consent-reserved outward action (JSR publish, merge not yet asked for, push),
+    or a genuine block — and a block stops only the blocked part.
 
 ## Engineering methodology
 
