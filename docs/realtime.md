@@ -591,15 +591,15 @@ every cap.
 
 **A re-subscribe to a presence channel the connection already holds is a roster
 read, not a join.** It writes nothing, announces nothing to anyone, and
-publishes nothing to the other instances — and it returns the same authoritative
-`members` snapshot a first join returns, so a client re-subscribing after a
-network blip cannot tell the difference and is never refused.
+publishes nothing to the other instances — and it returns the same bounded
+`here` snapshot a first join returns, so a client re-subscribing after a network
+blip cannot tell the difference and is never refused.
 
 **A roster read is not free, and the word "nothing" above is exhaustive only
-about writes.** The read is one `HGETALL` on the Redis driver and its reply is
-**every member in the room, cluster-wide, with their `info`** — so a re-join's
-cost in bytes scales with the room's population. Zero writes; not zero cost. The
-numbers are in the table below.
+about writes.** The read is one `HGETALL` on the Redis driver and the `HGETALL`
+reply is **every member in the room, cluster-wide, with their `info`** — so a
+re-join's cost in bytes scales with the room's population. Zero writes; not zero
+cost. The numbers are in the table below.
 
 **Concurrent subscribes to one channel share a read.** At most one authoritative
 read per channel is in flight at a time on an instance; callers that arrive
@@ -616,9 +616,16 @@ handed a roster it is not in. The extra read per burst is what buys that back.
 
 **The figures in the table below are the unconcurrent case** — one subscribe,
 nothing else in flight. They are the worst case per frame, and concurrency only
-ever lowers the total. Note also what this does **not** bound: the size of any
-single reply. One subscriber alone in a room of ten thousand still receives ten
-thousand members.
+ever lowers the total. Sharing bounds how **often** the roster is read, not how
+**large** it is. Since `0.4.0` what a subscribe **returns** has a ceiling — at
+most `maxPresenceSnapshotMembers` members — `MAX_PRESENCE_SNAPSHOT_MEMBERS`
+(100) by default — so at most K·(M+1)+1 bytes of member JSON, 409 701 at the
+defaults — see
+[The authoritative presence roster](#the-authoritative-presence-roster). What
+the instance **reads** does not: it still fetches and parses the whole room
+before cutting it, so a room of ten thousand still costs ten thousand members of
+ingest per read
+([#341](https://github.com/locknessland/lockness-monorepo/issues/341)).
 
 That is a correctness rule before it is a cost one. `joined` records a
 _transition_, and membership is a set: a connection already in the room
@@ -1038,27 +1045,62 @@ per-channel member store), not by any one instance's memory. When a client joins
 returns the **cross-instance** roster (both members) and a `joined` frame
 reaches presence subscribers on **both** instances.
 
+**What a subscribe returns is a bounded snapshot, `here`**
+([#339](https://github.com/locknessland/lockness-monorepo/issues/339)). A room's
+population has no ceiling, so the reply cannot be the room:
+
+- `here.members` holds at most `maxPresenceSnapshotMembers` members (a
+  `ChannelManagerOptions` option, default `MAX_PRESENCE_SNAPSHOT_MEMBERS`, a
+  positive integer validated at construction). A room that fits is returned
+  whole and unchanged.
+- **The joiner is always in its own snapshot** when the roster holds it. If it
+  falls outside the first K in driver order, it takes the last slot.
+- `here.total` is how many entries the roster held when the snapshot was cut.
+  `here.members.length < here.total` means the snapshot is partial. Counting
+  costs no extra driver command: it is the length of the read already made.
+- Cutting is silent — no log, no metric, no error — and changes neither `ok` nor
+  the number of reads.
+
+**`total` is a snapshot-time number.** The `joined` and `left` frames that
+follow never carry it, and they keep flowing for members outside your snapshot:
+a client building its list from those frames can see `left` for a member it was
+never shown. Treat an unknown `left` as a no-op.
+
+**The snapshot is a UI hint, not an access list.** Authorization never reads it.
+Which members fill the window is driver order: **join order** on the memory
+driver, so the first K joiners hold the visible slots for as long as they stay,
+and hash order on Redis. Return a member id **per identity** from your
+authorizer — not a per-socket id, and not `true` — so one account holds one slot
+however many tabs it opens.
+
 **When that read fails, the snapshot narrows — and says so.** If the driver
 cannot answer the closing roster read, `subscribe` still returns `{ ok: true }`
 — the join committed, on the roster and on every instance, so reporting a
-failure would be a lie — but `members` then holds **only this instance's own
-members**, and a `WARN` is emitted naming the channel.
+failure would be a lie — but `here.members` is then cut from **only this
+instance's own members**, by the same rule, and a `WARN` is emitted naming the
+channel. On that local view entries are per connection, so a member with two
+tabs takes two slots and counts twice in `total`
+([#343](https://github.com/locknessland/lockness-monorepo/issues/343)).
 
-**`result.rosterSource` says which you got**: `'authoritative'` for every
-instance's roster, `'local'` for this instance's members alone. Check it before
-treating `members` as a count of everybody present — a fragment and a whole
-roster are otherwise indistinguishable to the caller that has to act on them. A
-driver with no roster capability is single-process, so its local view _is_ the
-authority and reports `'authoritative'`.
+**`here.source` says which you got**: `'authoritative'` for every instance's
+roster, `'local'` for this instance's members alone. A driver with no roster
+capability is single-process, so its local view _is_ the authority and reports
+`'authoritative'`.
 
 ```ts
-const { members, rosterSource } = await manager.subscribe(
-    conn,
-    'presence-lobby',
-)
-if (rosterSource === 'local') {
-    // A partial view: render it, but do not assert on its size. The join/leave
-    // frames that follow are what bring it current.
+const { here } = await manager.subscribe(conn, 'presence-lobby')
+if (here) {
+    conn.send(encodeServerMessage({
+        type: 'subscribed',
+        channel: 'presence-lobby',
+        members: here.members,
+        total: here.total,
+    }))
+    const hidden = here.total - here.members.length // "and 240 others"
+    if (here.source === 'local') {
+        // A partial view: render it, but do not assert on its size. The
+        // join/leave frames that follow are what bring it current.
+    }
 }
 ```
 
@@ -1474,9 +1516,10 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-One breaking seam change, two widened return types, one new control kind. **No
-Redis migration**, and nothing to do before you deploy except read items 1 and
-5.
+Two breaking changes — the driver revocation seam and the presence snapshot a
+subscribe returns — two widened return types, one new control kind, and one
+additive wire field. **No Redis migration**, and nothing to do before you deploy
+except read items 1, 5 and 6.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -1614,6 +1657,44 @@ A `0.3.0` instance, however, logs
 for every `revoke-channel` frame it receives until it is upgraded. **This is not
 forgery.** If you alert on that line, expect it for the length of the deploy,
 and only on instances still running `0.3.0`.
+
+### 6. A presence subscribe returns a bounded `here`, and `members` is gone
+
+`SubscribeResult.members` and `SubscribeResult.rosterSource` are **removed**,
+not deprecated. Every place that read them is a **compile error**, and that is
+the migration signal: `members` used to be the whole room, and code counting
+`members.length` as "everyone present" would otherwise keep compiling while
+silently reading a list of at most `MAX_PRESENCE_SNAPSHOT_MEMBERS` (100).
+
+```ts
+// 0.3.0
+const { members, rosterSource } = await manager.subscribe(conn, channel)
+render(members, { count: members?.length, partial: rosterSource === 'local' })
+
+// 0.4.0
+const { here } = await manager.subscribe(conn, channel)
+render(here?.members, {
+    count: here?.total,
+    partial: here?.source === 'local',
+})
+```
+
+On the wire nothing is renamed or removed: `members` keeps its place on the
+`subscribed` and `here` frames, and an optional `total` is added beside it. A
+client that ignores presence needs no change.
+
+**Browser clients already deployed render K members as everyone** until they
+read `total`. If that matters during the rollout, raise
+`maxPresenceSnapshotMembers` to a **finite** interim value sized to your rooms,
+knowing its cost: one reply is at most **K·(M+1)+1 bytes** of member JSON, where
+M is `maxPresenceMemberBytes` (4 096 by default) — K = 1 000 is 4 097 001 bytes,
+about 3.9 MiB, per subscribe. **Lower it again once your clients read `total`.**
+Do not set it "above the largest room": that is the unbounded reply this change
+removes, back under another name.
+
+A fleet mixing `0.3.0` and `0.4.0` during the deploy answers from whichever
+instance a client lands on: whole room from the old ones, bounded snapshot from
+the new.
 
 ## Upgrading to v0.3.0
 

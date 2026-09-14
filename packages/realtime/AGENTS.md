@@ -51,13 +51,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                    |
-| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                 |
-| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
-| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                      |
-| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_PRESENCE_MEMBER_BYTES`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                                                             |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                                        |
+| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                                     |
+| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `PresenceSnapshot`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
+| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                          |
+| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_PRESENCE_MEMBER_BYTES`, `MAX_PRESENCE_SNAPSHOT_MEMBERS`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                                                |
 
 Anything not listed is internal and free to change.
 
@@ -75,6 +75,7 @@ Anything not listed is internal and free to change.
 | The events→broadcast bridge + marker                             | `events_bridge.ts`, `broadcastable.ts`   |
 | The optional browser client                                      | `client.ts` (leaf, `./client` subpath)   |
 | When the driver is asked for a roster (never what it answers)    | `roster_read_barrier.ts`                 |
+| Which members a subscribe returns (the cut, `total`, self kept)  | `presence_snapshot.ts`                   |
 
 ## Pitfalls
 
@@ -379,18 +380,37 @@ Anything not listed is internal and free to change.
   reads `roster.listMembers()` off it, never local state (`manager.ts`). **One
   documented exception since #323**: when that read THROWS, `subscribe` returns
   this instance's own members rather than failing a join that has already
-  committed everywhere. The fallback is in `subscribe`, not in `rosterSnapshot`,
-  and it warns — but a reader who takes "never local state" as unconditional
-  will be wrong on that path. And every instance shares it. This line previously
-  said "single-process authoritative for the MVP, the `here` set is
-  per-instance", which was true before #268 and is the premise #312 had to
-  disprove: a reader of the stale version reasons that a member "landed in the
-  roster on one instance", and reopens a question that is settled. A refused
-  `presence-join` control frame loses the live PUSH to peers already in the
-  channel; it does not lose roster state, and the divergence is bounded by the
-  connection's lifetime because `disconnect` removes the member on the ordinary
-  path ([#312](https://github.com/locknessland/lockness-monorepo/issues/312)).
+  committed everywhere. The fallback is in `#closingRead` (the one closing read
+  every presence exit of `subscribe` shares), not in `rosterSnapshot`, and it
+  warns — but a reader who takes "never local state" as unconditional will be
+  wrong on that path. And every instance shares it. This line previously said
+  "single-process authoritative for the MVP, the `here` set is per-instance",
+  which was true before #268 and is the premise #312 had to disprove: a reader
+  of the stale version reasons that a member "landed in the roster on one
+  instance", and reopens a question that is settled. A refused `presence-join`
+  control frame loses the live PUSH to peers already in the channel; it does not
+  lose roster state, and the divergence is bounded by the connection's lifetime
+  because `disconnect` removes the member on the ordinary path
+  ([#312](https://github.com/locknessland/lockness-monorepo/issues/312)).
   2026-09-07.
+- **The presence snapshot is cut in ONE place, `#closingRead`, by
+  `boundPresenceSnapshot`**
+  ([#339](https://github.com/locknessland/lockness-monorepo/issues/339)). Five
+  rules travel with it, and each has been, or will be, proposed as a fix:
+  - **Never in the barrier or a driver.** The barrier hands one read to several
+    callers; a cut there keeps one caller's self and drops another's. The cut is
+    per caller, after the read settles, on both the authoritative and the local
+    roster.
+  - **Silent.** Truncation is the designed reply, not a fault: no log, no
+    counter, no error type. `presence_snapshot.ts` reaches no logger.
+  - **`total` costs no command and is snapshot-time only.** It is the length of
+    the read already made. Do not add an `HLEN`, a live counter, or `total` on
+    `joined`/`left` frames — a per-frame count is the state #329 declined.
+  - **No sort.** Driver order is kept; a sort is O(N log N) per caller on a
+    shared read, and nobody asks for an order.
+  - **`rosterSnapshot`'s spread stays.** It is what gives each caller its own
+    array (`presence_roster_read_333.test.ts`); the cut returns its input
+    unchanged when the room fits, so it is not a substitute.
 - Nothing imports `realtime` (pure sink), and `@lockness/core` is untouched
   (app-wired) — keep it that way.
 - `@lockness/notification` is a **dev/test dependency only** (the SC-005
@@ -447,7 +467,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-59 test files for 17 source files:
+61 test files for 18 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
@@ -495,6 +515,8 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_rejoin_327.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
 - `packages/realtime/tests/presence_roster_read_333.test.ts`
+- `packages/realtime/tests/presence_snapshot_bound_339.test.ts`
+- `packages/realtime/tests/presence_snapshot_unit_339.test.ts`
 - `packages/realtime/tests/presence_sweep.test.ts`
 - `packages/realtime/tests/protocol.test.ts`
 - `packages/realtime/tests/redis_broker_integration.test.ts`
@@ -509,7 +531,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-16 mutation batteries — **`deno test` does not run these.** Each is an
+17 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -525,6 +547,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_eviction_334.ts`
 - `packages/realtime/tests/mutations/presence_join_323.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
+- `packages/realtime/tests/mutations/presence_snapshot_339.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
 - `packages/realtime/tests/mutations/roster_read_barrier_333.ts`
 - `packages/realtime/tests/mutations/roster_sync_330.ts`
@@ -546,7 +569,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 59 test files directly —
+Then, specific to this package: run its 61 test files directly —
 
 ```bash
 deno test -A packages/realtime/

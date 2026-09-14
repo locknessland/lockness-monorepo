@@ -267,7 +267,7 @@ noticed had the code been wrong — and those are different claims. A **mutation
 battery** checks the second one: it breaks a source file on purpose, re-runs the
 suites that should catch it, and reports whether they did.
 
-There are 17 in the repo — 12 in `@lockness/realtime`, 3 in `@lockness/redis`, 2
+There are 22 in the repo — 17 in `@lockness/realtime`, 3 in `@lockness/redis`, 2
 in `@lockness/contract` — all on one harness at `tests/mutations/harness.ts`,
 imported through the `@mutations/` alias declared in `deno.jsonc`.
 

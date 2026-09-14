@@ -126,13 +126,22 @@ app.get(
   charged, so a second client on a hosted channel is always admitted.
 - **A re-join is a read, not a join** — a re-subscribe to a presence channel the
   connection already holds writes nothing, announces nothing locally or to other
-  instances, and returns the same authoritative roster a first join returns, so
-  a client re-subscribing after a network blip is never refused and cannot tell
-  the difference. Its `member` payload is **discarded**: there is no "member
-  updated" event, and `joined` is not one. **Zero writes is not zero cost**: it
-  still performs one authoritative roster read whose reply is every member in
-  the room, cluster-wide, once per inbound frame. See
+  instances, and returns the same bounded `here` snapshot a first join returns,
+  so a client re-subscribing after a network blip is never refused and cannot
+  tell the difference. Its `member` payload is **discarded**: there is no
+  "member updated" event, and `joined` is not one. **Zero writes is not zero
+  cost**: it still performs one authoritative roster read of the whole room,
+  cluster-wide, once per inbound frame. See
   [realtime.md](../../docs/realtime.md).
+- **A presence subscribe returns a bounded snapshot** — `here.members` holds at
+  most `maxPresenceSnapshotMembers` members — `MAX_PRESENCE_SNAPSHOT_MEMBERS`
+  (100) by default — the joiner's own always among them, and `here.total` counts
+  the room, so `members.length < total` means partial. `here.source` says
+  whether it came from every instance or only this one. The reply is bounded;
+  the read behind it is not. It is a UI hint, not an access list: return one
+  member id per identity from `authorize`, because join order decides who fills
+  the window on join-ordered drivers and an authorizer returning `true` lets one
+  identity take many slots. `members` and `rosterSource` were removed in 0.4.0.
 - **The framework does not meter the verb rate, and `authorize` is not where a
   budget goes** — the caps bound how many channels are held, never how often
   they are asked for, and the authorizer never runs for a public channel or for
