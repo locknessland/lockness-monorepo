@@ -239,7 +239,7 @@ const MUTATIONS: Mutation[] = [
         file: MANAGER,
         edits: [[
             '        if (members.has(connection.id)) {\n' +
-            '            return await this.#closingRead(channel)\n' +
+            '            return await this.#closingRead(channel, connection.id)\n' +
             '        }\n',
             '',
         ]],
