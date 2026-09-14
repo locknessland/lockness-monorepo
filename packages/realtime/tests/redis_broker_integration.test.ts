@@ -48,6 +48,7 @@ import {
     waitFor,
     withFaultyInstance,
     withInstances,
+    withInterposedInstances,
     withReader,
 } from './live_realtime.ts'
 
@@ -1303,6 +1304,89 @@ integrationTest(
                 'the reconnect resurrected a channel whose last subscriber had ' +
                     'left — the re-issue set and the hosted set have diverged, ' +
                     'and nothing would have shown it until the next fault',
+            )
+        })
+    },
+)
+
+// ---------------------------------------------------------------------------
+// #337 — an older clear never erases a newer revocation, on a REAL broker
+// ---------------------------------------------------------------------------
+
+integrationTest(
+    '#337: an in-flight clear for an older revocation does not erase a newer one',
+    async (namespace, reader) => {
+        // The in-repo witness (`revocation_clear_race_337.test.ts`) drives the
+        // same interleaving over the fake. The fix rests on two index semantics
+        // that are the BROKER's — `ZADD GT` adds a second member for a second
+        // id, and `ZREM` removes one exact member — so the scenario is repeated
+        // here, where the fake cannot be wrong on its behalf.
+        await withInterposedInstances(2, namespace, async ([a, b]) => {
+            await awaitSubscribers(reader, namespace, 2)
+            const index = keys(namespace).revocations
+            const room = 'private-room'
+            const victim = connection('c1', { id: 71, name: 'Vic' })
+            const kicks = () =>
+                victim.frames.filter((f) => f.includes('"unsubscribed"'))
+                    .length
+
+            // 1. B owns c1 in the room.
+            assertEquals((await b.manager.subscribe(victim, room)).ok, true)
+
+            // 2. A revokes it; B applies and its clear is HELD.
+            b.holdNextZrem()
+            await a.manager.revokeChannel('c1', room)
+            await waitFor(() => b.zremHeld(), 'B to issue its clear')
+            await waitFor(
+                () => kicks() === 1,
+                'B to apply the first revocation',
+            )
+
+            // 3. c1 re-subscribes; positive control for step 7.
+            // The probe is re-published on every poll: `subscribe` resolves once
+            // the SUBSCRIBE is written, not once the broker has acknowledged
+            // it, so a single publish can land before the room is live on B
+            // and never be delivered (failed 2 of 4 full runs of test:redis).
+            assertEquals((await b.manager.subscribe(victim, room)).ok, true)
+            await waitFor(
+                () => {
+                    a.manager.broadcast(room, 'probe', {})
+                    return victim.sawEvent('probe')
+                },
+                'a room broadcast to reach the re-subscribed c1',
+            )
+
+            // 4. A revokes again, and this frame is lost.
+            a.dropNextControl()
+            await a.manager.revokeChannel('c1', room)
+            await waitFor(
+                async () => await reader.zcard(index) === 2,
+                'both records to be on the broker — two ids, two members',
+            )
+
+            // 5. The first clear lands.
+            b.release()
+            await waitFor(
+                async () => await reader.zcard(index) === 1,
+                'the held clear to remove exactly one member',
+            )
+
+            // 6. B reconciles.
+            await b.reconcile()
+
+            // 7. The second revocation is enforced and nothing is left.
+            await waitFor(
+                () => kicks() === 2,
+                'the reconcile to enforce the revocation whose frame was lost',
+            )
+            await waitFor(
+                async () => await reader.zcard(index) === 0,
+                'the applied record to be cleared',
+            )
+            assertEquals(
+                await b.manager.unsubscribe('c1', room),
+                'not-subscribed',
+                'c1 is out of the room: the second revocation was enforced',
             )
         })
     },

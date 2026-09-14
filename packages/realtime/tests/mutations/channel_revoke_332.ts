@@ -21,6 +21,11 @@
  * The fourth is ordinary and included because its failure is silent rather than
  * loud: reporting the leave from the wrong place inside `#leaveLocal`.
  *
+ * **#337 adds four rows, one per place the revocation id must travel.** Drop it
+ * from the member, the publish or the MAC, or apply the reconcile one record at
+ * a time, and a clear stops being exact — every one of those still passes a
+ * suite that only ever revokes a pair once.
+ *
  * Every row names the test it dies to, and the harness verifies that
  * attribution: a kill by the wrong test is reported as MISATTRIBUTED.
  *
@@ -37,9 +42,11 @@ const MANAGER = new URL('../../manager.ts', import.meta.url)
 const DRIVER = new URL('../../drivers/redis.ts', import.meta.url)
 const SUITES = [
     new URL('../channel_revoke_332.test.ts', import.meta.url).pathname,
+    new URL('../control_mac_coverage.test.ts', import.meta.url).pathname,
     new URL('../leave_outcome_332.test.ts', import.meta.url).pathname,
     new URL('../mixed_fleet_332.test.ts', import.meta.url).pathname,
     new URL('../revocation_encoding_332.test.ts', import.meta.url).pathname,
+    new URL('../revocation_clear_race_337.test.ts', import.meta.url).pathname,
 ]
 
 const MUTATIONS: Mutation[] = [
@@ -77,8 +84,8 @@ const MUTATIONS: Mutation[] = [
             '#332 the decoder degrades to connection scope instead of dropping',
         file: DRIVER,
         edits: [[
-            '        if (!isValidName(target) || !isValidName(channel)) return undefined\n        return { target, channel }',
-            '        if (!isValidName(target)) return { target }\n        return { target, channel }',
+            '        if (parts.length !== 3) return undefined',
+            '        if (parts.length !== 3) return { target: parts[0] }',
         ]],
         // Escalation-by-omission through the ingest path. A malformed member
         // comes back carrying no channel, and the manager applies it as a
@@ -87,22 +94,18 @@ const MUTATIONS: Mutation[] = [
         killedBy: 'an undecodable member is DROPPED, never widened',
     },
     {
-        // THE OTHER HALF of the decoder guard, and it did not exist before this
-        // feature: a composite carries TWO names and both are broker-sourced.
-        // Validating only the target admits a channel outside the charset —
-        // and, worse, a channel half carrying a second separator, which decodes
-        // to a DIFFERENT channel than the one written.
-        //
-        // `||` to `&&` rather than deleting the guard, because that is the
-        // shape a real edit takes: it still looks like a validation and still
-        // refuses the fully-invalid member, so nothing about it reads as
-        // missing.
+        // THE OTHER PARTS of the decoder guard: a composite carries THREE
+        // names since #337 and all are broker-sourced. Validating only the
+        // target admits a channel or an id outside the charset. Checking the
+        // first part rather than deleting the guard, because that is the shape
+        // a real edit takes: it still looks like a validation and still
+        // refuses a bare invalid member.
         label:
-            '#332 only ONE half of a composite revocation is charset-checked',
+            '#332 only ONE part of a composite revocation is charset-checked',
         file: DRIVER,
         edits: [[
-            'if (!isValidName(target) || !isValidName(channel)) return undefined',
-            'if (!isValidName(target) && !isValidName(channel)) return undefined',
+            'if (!parts.every((part) => isValidName(part))) return undefined',
+            'if (!isValidName(parts[0])) return undefined',
         ]],
         killedBy: 'an undecodable member is DROPPED, never widened',
     },
@@ -115,8 +118,8 @@ const MUTATIONS: Mutation[] = [
         label: '#332 the reconcile applies records it does not own',
         file: MANAGER,
         edits: [[
-            '            if (this.connections.has(revocation.target)) {',
-            '            if (!this.connections.has(revocation.target)) {',
+            '            if (!this.connections.has(revocation.target)) continue',
+            '            if (this.connections.has(revocation.target)) continue',
         ]],
         killedBy: 'the reconcile applies a record ONLY to a socket',
     },
@@ -131,8 +134,8 @@ const MUTATIONS: Mutation[] = [
             '#332 the durable record is cleared even when nothing was removed',
         file: MANAGER,
         edits: [[
-            "        const clearError = left === 'left'\n            ? await this.#clearRevocation(revocation)\n            : undefined",
-            '        const clearError = await this.#clearRevocation(revocation)',
+            "        if (left === 'left') {\n            for (const id of group.ids) {",
+            '        if (left !== undefined) {\n            for (const id of group.ids) {',
         ]],
         killedBy:
             'a revoke that found nothing to remove KEEPS its durable record',
@@ -145,8 +148,11 @@ const MUTATIONS: Mutation[] = [
             '#332 a channel-less revoke-channel frame is widened to the socket',
         file: MANAGER,
         edits: [[
-            '                if (\n                    control.channel !== undefined &&\n                    this.connections.has(control.target)\n                ) {',
-            '                if (this.connections.has(control.target)) {',
+            '                    control.channel !== undefined &&\n',
+            '',
+        ], [
+            '                        channel: control.channel,\n                        ids: [control.revocationId],',
+            '                        channel: control.channel as string,\n                        ids: [control.revocationId],',
         ]],
         killedBy: 'a revoke-channel frame with NO channel is dropped',
     },
@@ -164,11 +170,63 @@ const MUTATIONS: Mutation[] = [
         // and the other four in its file pass.
         killedBy: 'a leave from a room that still holds SOMEONE ELSE',
     },
+    {
+        // #337, the member. Without the id every revocation of a pair is the
+        // same member again, so a clear for the older one deletes the newer —
+        // and the decoder now drops the two-part form, so the reconcile never
+        // sees a channel record at all.
+        label: '#337 the index member drops the revocation id',
+        file: DRIVER,
+        edits: [[
+            '        return [target, channel, id].join(REVOCATION_SCOPE_SEPARATOR)',
+            '        return [target, channel].join(REVOCATION_SCOPE_SEPARATOR)',
+        ]],
+        killedBy: 'two marks for one pair in the SAME second',
+    },
+    {
+        // #337, the reconcile. One record at a time, the first leave returns
+        // 'left' and clears its record; the second finds 'not-subscribed' and
+        // survives to kick a re-subscribed client on the next tick.
+        label: '#337 the reconcile applies each record on its own',
+        file: MANAGER,
+        // The id joins the grouping key, so every record is its own group —
+        // the per-record apply expressed without losing type narrowing (a
+        // rewrite to an unconditional apply leaves the grouping code
+        // unreachable, and the mutant stops type-checking).
+        edits: [[
+            'const key = JSON.stringify([revocation.target, revocation.channel])',
+            'const key = JSON.stringify([\n                revocation.target,\n                revocation.channel,\n                revocation.id,\n            ])',
+        ]],
+        killedBy: 'two records for one pair: ONE kick',
+    },
+    {
+        // #337, the publish. A frame without its id names no record, so the
+        // owner drops it and only the reconcile would ever apply the revoke.
+        label: '#337 the revoke-channel publish omits revocationId',
+        file: MANAGER,
+        edits: [[
+            '                revocationId: revocation.id,\n',
+            '',
+        ]],
+        killedBy: 'A revokes one room on a socket B owns',
+    },
+    {
+        // #337, the MAC. Same-version peers still agree with each other, so
+        // nothing functional fails — the field simply ships unauthenticated,
+        // and anyone with bus access could re-point a frame at another record.
+        label: '#337 #canonical omits revocationId',
+        file: DRIVER,
+        edits: [[
+            '            revocationId: wire.revocationId,\n        }))',
+            '        }))',
+        ]],
+        killedBy: 'a revoke-channel frame is covered, revocationId included',
+    },
 ]
 
 Deno.exit(
     await runBattery(
-        '#332 mutation battery — scope, durability and the mixed fleet',
+        '#332/#337 mutation battery — scope, durability, exact clears and the mixed fleet',
         SUITES,
         MUTATIONS,
     ),

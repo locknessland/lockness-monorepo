@@ -426,6 +426,147 @@ export async function withFaultyInstance<T>(
 }
 
 /**
+ * One live instance whose command port can lose one control frame and delay
+ * one clear, with its revocation reconcile reachable on demand (#337).
+ */
+export interface InterposedInstance extends LiveInstance {
+    /** Drop the next `PUBLISH` to the control topic — the frame is "lost". */
+    dropNextControl(): void
+    /** Hold the next `ZREM` until {@link release}; it reaches the broker then. */
+    holdNextZrem(): void
+    /**
+     * Whether a `ZREM` is being held. A boolean to poll, not a promise to
+     * await: a driver that never issues the clear would leave a promise pending
+     * forever and hang the run instead of failing it.
+     */
+    zremHeld(): boolean
+    /** Send the held `ZREM` to the broker. */
+    release(): void
+    /** Run this instance's revocation reconcile once, as a reconnect would. */
+    reconcile(): Promise<void>
+}
+
+/**
+ * Run `body` with `count` live instances whose command ports are interposed,
+ * for driving the #337 interleaving against a REAL broker.
+ *
+ * Built from injected ports for the same reason as
+ * {@link withFaultyInstance}: the command port has to be wrapped, so this owns
+ * its sockets. The reconcile is captured from the subscriber's reconnect seam
+ * rather than left to the timer, so no tick can fire between two steps and
+ * reorder the scenario — the cadence is left at a minute.
+ *
+ * @param count - How many instances to build.
+ * @param namespace - The run namespace, used as each driver's `prefix`.
+ * @param body - The scenario, receiving the instances in construction order.
+ * @returns Whatever `body` returns.
+ */
+export async function withInterposedInstances<T>(
+    count: number,
+    namespace: string,
+    body: (instances: InterposedInstance[]) => Promise<T>,
+): Promise<T> {
+    const secret = controlSecret()
+    const config = brokerConfig()
+    const controlTopic = keys(namespace).controlTopic
+    const instances: InterposedInstance[] = []
+    const sockets: { close(): Promise<void> }[] = []
+    try {
+        for (let index = 0; index < count; index++) {
+            const client = new RedisClient(config)
+            const subscriber = new RedisSubscribeConnection(config)
+            sockets.push(subscriber, client)
+            let dropNextControl = false
+            let holdNextZrem = false
+            let held: (() => void) | undefined
+            const command: RedisCommandClient = {
+                command: (...args: string[]) => {
+                    if (
+                        dropNextControl && args[0] === 'PUBLISH' &&
+                        args[1] === controlTopic
+                    ) {
+                        dropNextControl = false
+                        return Promise.resolve({ type: 'integer', value: 0 })
+                    }
+                    if (holdNextZrem && args[0] === 'ZREM') {
+                        holdNextZrem = false
+                        return new Promise((resolve, reject) => {
+                            held = () =>
+                                void client.command(...args).then(
+                                    resolve,
+                                    reject,
+                                )
+                        })
+                    }
+                    return client.command(...args)
+                },
+            }
+            let reconcile: (() => void | Promise<void>) | undefined
+            // Every member delegates to the real connection, bound to it so its
+            // private fields resolve; only the reconnect seam is observed.
+            const port = new Proxy(subscriber, {
+                get(target, prop) {
+                    if (prop === 'onReconnect') {
+                        return (handler: () => void | Promise<void>) => {
+                            reconcile = handler
+                            target.onReconnect(handler)
+                        }
+                    }
+                    const value = Reflect.get(target, prop, target)
+                    return typeof value === 'function'
+                        ? value.bind(target)
+                        : value
+                },
+            })
+            const driver = new RedisBroadcastDriver(command, port, {
+                prefix: namespace,
+                control: { secret },
+                presence: { reconcileIntervalMs: 60_000 },
+                revocationTtlSeconds: 300,
+            })
+            const manager = new ChannelManager<TestUser>({
+                driver,
+                authorize: defaultAuthorize,
+            })
+            await driver.watchChannel(keys(namespace).probeChannel)
+            instances.push({
+                driver,
+                manager,
+                dropNextControl: () => void (dropNextControl = true),
+                holdNextZrem: () => void (holdNextZrem = true),
+                zremHeld: () => held !== undefined,
+                release: () => {
+                    if (!held) throw new Error('no ZREM is being held')
+                    held()
+                },
+                reconcile: async () => {
+                    if (!reconcile) {
+                        throw new Error('the reconcile seam was not registered')
+                    }
+                    await reconcile()
+                },
+            })
+        }
+        return await body(instances)
+    } finally {
+        for (const instance of instances) {
+            await instance.driver.close().catch((error) =>
+                console.warn(
+                    `[live-realtime] an interposed driver failed to close: ${error}`,
+                )
+            )
+        }
+        for (const socket of sockets) {
+            await socket.close().catch((error) =>
+                console.warn(
+                    `[live-realtime] an interposed socket failed to close: ${error}`,
+                )
+            )
+        }
+    }
+}
+
+/**
  * Block until `count` instances are actually subscribed to the run's patterns.
  *
  * Redis pub/sub is at-most-once and `psubscribe` is fire-and-forget, so a
