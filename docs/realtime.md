@@ -1557,6 +1557,15 @@ control frame was lost, nothing else will enforce it
 ([#337](https://github.com/locknessland/lockness-monorepo/issues/337)). Only a
 channel revocation is ever cleared, and the type says so.
 
+The same id rides the `revoke-channel` control frame as `revocationId`. Drivers
+pass `revocationId` through unchanged and include it in any MAC they compute
+over the frame. A frame that arrives without it is ignored with a WARN naming
+the channel, logged only by the instance that owns the revoked connection — the
+others had nothing to enforce, so look for it on that node. The revocation then
+waits for the reconcile tick, and a driver that does not implement
+`onRevocationReconcile` never enforces it while the socket stays open
+([#340](https://github.com/locknessland/lockness-monorepo/issues/340)).
+
 **Only if you wrote your own `BroadcastDriver`.** The bundled Redis and memory
 drivers are already migrated, and nothing in your application code changes.
 
