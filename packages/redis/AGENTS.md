@@ -254,6 +254,22 @@ inside it, and `teardown` in a `finally`.
 `packages/realtime/tests/live_realtime.ts` is the worked example, and
 `docs/testing.md` covers running the suites.
 
+### The Lua test evaluator (`tests/lua_eval.ts`)
+
+**Also not counted above**, for the same reason. It is the one model of "what
+Redis does with `EVAL`" that every in-memory double in the monorepo shares
+(`@lockness/realtime`'s `FakeRedis` today). It evaluates a script, never sniffs
+it, and **throws on any construct it does not model**.
+
+The supported subset is listed in its file header and is widened only when a
+production script needs it, with a row in `lua_eval.test.ts` for every addition
+and for the nearby construct it still refuses. Its values follow Redis's
+reply-to-Lua conversion: an integer reply is a `number`, a nil element of a
+multi-bulk is `false` (never `nil`, so the table keeps its length), and a
+returned table stops at its first `nil`. `unpack(ARGV, n)` expands only as the
+last argument of a call — Lua truncates it to one value anywhere else, and a
+full expansion there would pass a script a real broker runs differently (#341).
+
 ## Before you call it done
 
 <!-- generated:gate -->

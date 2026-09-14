@@ -596,10 +596,12 @@ publishes nothing to the other instances — and it returns the same bounded
 blip cannot tell the difference and is never refused.
 
 **A roster read is not free, and the word "nothing" above is exhaustive only
-about writes.** The read is one `HGETALL` on the Redis driver and the `HGETALL`
-reply is **every member in the room, cluster-wide, with their `info`** — so a
-re-join's cost in bytes scales with the room's population. Zero writes; not zero
-cost. The numbers are in the table below.
+about writes.** The read is one `EVAL` on the Redis driver, and since `0.4.0`
+its reply is **bounded**: at most `maxPresenceSnapshotMembers` members, plus the
+own entries of the callers the read serves, with their `info` — however large
+the room ([#341](https://github.com/locknessland/lockness-monorepo/issues/341)).
+Zero writes; not zero cost — but the cost no longer grows with the room's
+population. The numbers are in the table below.
 
 **Concurrent subscribes to one channel share a read.** At most one authoritative
 read per channel is in flight at a time on an instance; callers that arrive
@@ -622,10 +624,14 @@ most `maxPresenceSnapshotMembers` members — `MAX_PRESENCE_SNAPSHOT_MEMBERS`
 (100) by default — so at most K·(M+1)+1 bytes of member JSON, 409 701 at the
 defaults — see
 [The authoritative presence roster](#the-authoritative-presence-roster). What
-the instance **reads** does not: it still fetches and parses the whole room
-before cutting it, so a room of ten thousand still costs ten thousand members of
-ingest per read
-([#341](https://github.com/locknessland/lockness-monorepo/issues/341)).
+the instance **reads** is bounded too
+([#341](https://github.com/locknessland/lockness-monorepo/issues/341)): the
+driver returns at most K members plus the entries of the callers that read
+serves, so a room of ten thousand costs the same ingest per read as a room of a
+thousand. A shared read fetches every caller's own member, deduplicated by id
+and capped at `MAX_ROSTER_READ_SELF_IDS` (1 000) distinct ids; a burst of more
+distinct members than that queues further reads, still one in flight at a time,
+each bounded.
 
 That is a correctness rule before it is a cost one. `joined` records a
 _transition_, and membership is a set: a connection already in the room
@@ -715,11 +721,11 @@ Reading the table:
   sees the verb and the channel name and **cannot tell which case it is in** —
   the hosting state lives in the manager's private maps. Size on the worst.
 - **Driver commands** map one-to-one onto wire commands: `SUBSCRIBE` /
-  `UNSUBSCRIBE` on the subscribe connection, `EVAL` for a roster write and
-  `HGETALL` for the roster read on the command connection. A **control publish
-  is a `PUBLISH`** on the command connection too — it has its own column here
-  rather than being folded into this one, because its cost is paid by the whole
-  fleet rather than by the publisher.
+  `UNSUBSCRIBE` on the subscribe connection, `EVAL` for a roster write and one
+  read-only `EVAL` for the roster read on the command connection. A **control
+  publish is a `PUBLISH`** on the command connection too — it has its own column
+  here rather than being folded into this one, because its cost is paid by the
+  whole fleet rather than by the publisher.
 - **The table is the SUCCESSFUL path, and two things sit outside it.** A
   presence first join whose roster write **fails** pays more than the ceiling
   above: the compensation issues the local leave — which may `UNSUBSCRIBE` — and
@@ -736,13 +742,15 @@ Reading the table:
   channel. It scales with **fleet** size, not with the room. It is CPU, not
   memory: the replay window is bounded at 10 000 entries with a per-origin fair
   share.
-- **The re-join's single command is an `HGETALL` whose reply is the whole
-  room.** A frame-rate budget bounds how many such replies arrive; it never
-  bounds how large one is.
-- **Collapse axes.** A driver with no roster capability has no `EVAL` and no
-  `HGETALL`. A driver with no control plane has no publishes and no
-  verifications. `MemoryBroadcastDriver` is single-process: both columns go to
-  zero.
+- **The re-join's single command is a bounded roster read.** Its reply is at
+  most K members plus the own entries of the callers that read serves — the
+  joiner's alone when nothing else is in flight, and up to
+  `MAX_ROSTER_READ_SELF_IDS` (1 000) when concurrent subscribes share the read —
+  whatever the room's size. A frame-rate budget bounds how many such replies
+  arrive; K and that cap bound how large one is.
+- **Collapse axes.** A driver with no roster capability has no roster `EVAL` at
+  all. A driver with no control plane has no publishes and no verifications.
+  `MemoryBroadcastDriver` is single-process: both columns go to zero.
 
 No throughput figure appears in this table on purpose. Counts are a property of
 the framework; a rate is a property of somebody's hardware.
@@ -1053,11 +1061,12 @@ population has no ceiling, so the reply cannot be the room:
   `ChannelManagerOptions` option, default `MAX_PRESENCE_SNAPSHOT_MEMBERS`, a
   positive integer validated at construction). A room that fits is returned
   whole and unchanged.
-- **The joiner is always in its own snapshot** when the roster holds it. If it
-  falls outside the first K in driver order, it takes the last slot.
-- `here.total` is how many entries the roster held when the snapshot was cut.
+- **The joiner is always in its own snapshot** when the roster holds it. The
+  read fetches the joiner's own entry beside the window, so a joiner outside the
+  window takes the last slot of a full window, or is appended to a short one.
+- `here.total` is how many entries the roster held at the instant of the read.
   `here.members.length < here.total` means the snapshot is partial. Counting
-  costs no extra driver command: it is the length of the read already made.
+  costs no extra driver command: the driver counts inside the same read.
 - Cutting is silent — no log, no metric, no error — and changes neither `ok` nor
   the number of reads.
 
@@ -1067,11 +1076,13 @@ a client building its list from those frames can see `left` for a member it was
 never shown. Treat an unknown `left` as a no-op.
 
 **The snapshot is a UI hint, not an access list.** Authorization never reads it.
-Which members fill the window is driver order: **join order** on the memory
-driver, so the first K joiners hold the visible slots for as long as they stay,
-and hash order on Redis. Return a member id **per identity** from your
-authorizer — not a per-socket id, and not `true` — so one account holds one slot
-however many tabs it opens.
+Which members fill the window is the driver's choice. On the memory driver it is
+**join order**, so the first K joiners hold the visible slots for as long as
+they stay. On Redis a room that fits is returned whole, and a room larger than K
+returns a **random sample of K members, a different one on every subscribe**,
+re-joins included — no member holds a slot, and none is hidden for good. Return
+a member id **per identity** from your authorizer — not a per-socket id, and not
+`true` — so one account holds one slot however many tabs it opens.
 
 **When that read fails, the snapshot narrows — and says so.** If the driver
 cannot answer the closing roster read, `subscribe` still returns `{ ok: true }`
@@ -1179,6 +1190,46 @@ Tightening `livenessTtlSeconds` therefore means revisiting `heartbeatIntervalMs`
 in the same edit: dropping the TTL to `5` while leaving the heartbeat at `5000`
 now throws at construction rather than degrading silently in production.
 
+### Writing a presence driver
+
+**Only if you wrote your own `BroadcastDriver`.** The bundled Redis and memory
+drivers already implement this, and the rules below are what a third one must
+keep ([#341](https://github.com/locknessland/lockness-monorepo/issues/341)).
+
+A driver owns a cross-instance roster when it implements **all three** of
+`addMember(channel, member)`, `removeMember(channel, memberId)` and
+`readRoster(channel, limit, selfIds)` — `PresenceCapableDriver`. With fewer, the
+manager treats it as single-process and answers from its local view. A driver
+that still has the pre-`0.4.0` `listMembers` is **refused at construction** —
+see
+[upgrade item 7](#7-the-driver-roster-read-is-bounded-and-the-channelmanager-constructor-throws-for-a-driver-with-listmembers).
+
+`readRoster` returns a `RosterWindow`, read **at one instant**:
+
+| Field     | The contract                                                                                                                                              |
+| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `members` | `min(limit, total)` members, one per `String(id)`, in the driver's order. An unreadable stored entry may be skipped, with a WARN.                         |
+| `total`   | The roster's population at the same instant — counted **inside** the read, never as `members.length` and never by a second command.                       |
+| `selves`  | The `PresenceMember`s among `selfIds` the roster holds, accepted only when the entry under that id's own slot carries that **same id**. No stored extras. |
+
+**The cost contract is what the method is for.** A driver should transfer and
+parse O(`limit` + `selfIds.length`) entries per call, whatever the room's size.
+The types cannot enforce it: a driver that reads the whole room and slices it
+compiles, passes every functional test, and makes every presence subscribe cost
+the room again. Do not add an unbounded fallback for a "small room" either — a
+room that is small today is the one a client grows.
+
+**Refuse bad input before any work.** Throw unless `limit` is a positive integer
+and `selfIds.length ≤ MAX_ROSTER_READ_SELF_IDS` (1 000, exported). The seam is
+public, and on Redis a negative `HRANDFIELD` count returns entries **with
+repeats**. `selfIds` may be empty — a read that serves no member is valid, and a
+Redis `HMGET` with no field is an arity error, so pad it.
+
+The manager decides everything else: K, the self rule, and how concurrent reads
+share. The Redis driver's read is one `EVAL` of `HLEN`,
+`HRANDFIELD … WITHVALUES` and `HMGET`, which needs no Redis version beyond the
+[7.0 the driver already requires](#redis-minimum-version).
+
 ### Cross-process revocation
 
 `manager.evict(clientId)` revokes a connection wherever its socket lives. It
@@ -1278,6 +1329,8 @@ matters for correctness, not tidiness: reaping expired entries and listing live
 ones happen in one server-side operation against one `now` read from Redis's own
 clock, so a revocation that is live cannot be removed by a concurrent pass, and
 no instance's wall clock takes part in the decision.
+
+<a id="redis-minimum-version"></a>
 
 > **Requires Redis 7.0+.** Every write is extend-only and each needs to be:
 > `ZADD … GT` stops a re-eviction shortening one revocation, `EXPIRE … NX` arms
@@ -1529,10 +1582,11 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Two breaking changes — the driver revocation seam and the presence snapshot a
-subscribe returns — two widened return types, one new control kind, and one
-additive wire field. **No Redis migration**, and nothing to do before you deploy
-except read items 1, 5 and 6.
+Three breaking changes — the driver revocation seam, the presence snapshot a
+subscribe returns, and the driver roster read — two widened return types, one
+new control kind, and one additive wire field. **No Redis migration**, and
+nothing to do before you deploy except read items 1, 5 and 6 — and item 7 if you
+wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -1645,6 +1699,9 @@ which is outside the connection id charset, so a `0.3.0` reader finds no such
 connection and skips it. That reader is inert rather than wrong, and it does not
 delete the record either, so it survives for the upgraded owner.
 
+The bounded roster read (item 7) adds no key and changes no write: it reads the
+same presence hash with a new read-only script.
+
 A two-part `"<target> <channel>"` member was only ever written by unreleased
 builds of `main`. `0.4.0` drops it on read and it expires on its score within
 the revocation TTL.
@@ -1724,6 +1781,39 @@ the new.
 `0.3.0` a member with two tabs on this instance appeared twice in `members`
 (`total` is new in this release, and counts the same unit as `members` on every
 path). The authoritative path already counted members and is unchanged.
+
+### 7. The driver roster read is bounded, and the `ChannelManager` constructor throws for a driver with `listMembers`
+
+`BroadcastDriver.listMembers(channel)` — one read of the whole room — is
+**removed**, and `readRoster(channel, limit, selfIds)` replaces it
+([#341](https://github.com/locknessland/lockness-monorepo/issues/341)). The
+contract is in [Writing a presence driver](#writing-a-presence-driver).
+
+| Before (`0.3.0`)                                                              | After (`0.4.0`)                                                                                                             |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `listMembers(channel: string): PresenceMember[] \| Promise<PresenceMember[]>` | `readRoster(channel: string, limit: number, selfIds: readonly (string \| number)[]): RosterWindow \| Promise<RosterWindow>` |
+| —                                                                             | `MAX_ROSTER_READ_SELF_IDS` (1 000), exported: the most `selfIds` taken                                                      |
+
+**`new ChannelManager({ driver })` throws for a driver that still has
+`listMembers`**, naming the migration — whether or not it also has `readRoster`.
+Narrowing it to "no roster" would silently turn every presence room into this
+instance's local view, and keeping `listMembers` beside `readRoster` keeps the
+unbounded read public.
+
+**Only if you wrote your own `BroadcastDriver`.** The bundled drivers are
+migrated, and nothing in your application code changes.
+
+**On Redis, a room larger than K now shows a random sample.** Each subscribe,
+re-joins included, returns a different K members of a room larger than
+`maxPresenceSnapshotMembers`; `total` and the joiner's own entry are unchanged,
+and a room that fits is returned whole. The memory driver keeps join order. This
+is a deliberate trade, accepted on 2026-09-14: a stable window would cost a scan
+inside the script or a new index key, and a new key would break "no Redis
+migration".
+
+**No Redis migration.** The read uses the existing presence hash; the
+`HRANDFIELD` it needs is covered by the
+[Redis 7.0 minimum](#redis-minimum-version) the driver already requires.
 
 ## Upgrading to v0.3.0
 
