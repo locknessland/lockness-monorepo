@@ -171,7 +171,7 @@ Deno.test('#312 a REFUSED control frame loses the ANNOUNCEMENT, not the roster',
         'the AUTHORITATIVE roster holds the member',
     )
     assertEquals(
-        result.members?.map((member) => member.id),
+        result.here?.members.map((member) => member.id),
         ['ada'],
         'and a reader of that roster gets it back — the snapshot returned to ' +
             'the joiner comes from the driver, not from local state',

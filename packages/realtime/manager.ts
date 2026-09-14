@@ -65,6 +65,22 @@ export const MAX_CHANNELS_PER_CONNECTION = 100
 export const MAX_PRESENCE_MEMBER_BYTES = 4 * 1024
 
 /**
+ * The DEFAULT bound on how many members one presence `subscribe` returns
+ * (#339).
+ *
+ * A room's population has no ceiling, so without this a subscribe's reply was
+ * the whole room: 10 000 members at {@link MAX_PRESENCE_MEMBER_BYTES} put
+ * 40 970 001 bytes into one result, on every join and every re-join. With it,
+ * one reply holds at most K·(M+1)+1 bytes of member JSON — 409 701 at the
+ * defaults — however large the room.
+ *
+ * **The reply is bounded; the read is not.** The instance still fetches and
+ * parses the whole roster before cutting it (#341). This bounds what the
+ * application and its clients receive, not what the broker sends.
+ */
+export const MAX_PRESENCE_SNAPSHOT_MEMBERS = 100
+
+/**
  * Refuse a cap that is not a positive integer, at construction.
  *
  * @param option - The option's name, so the message names what to fix.
@@ -353,9 +369,11 @@ import {
     type AuthorizeResult,
     channelKind,
     type PresenceMember,
+    type PresenceSnapshot,
 } from './channel.ts'
 import type { ServerMessage } from './protocol.ts'
 import { RosterReadBarrier } from './roster_read_barrier.ts'
+import { boundPresenceSnapshot, sameMemberId } from './presence_snapshot.ts'
 
 /**
  * The single feature-detect guard for a driver's optional presence-state ops
@@ -570,22 +588,17 @@ export type RevokeChannelOutcome = 'revoked' | 'not-subscribed' | 'not-owned'
 export interface SubscribeResult {
     /** Whether the subscription was authorized. */
     ok: boolean
-    /** For an authorized presence channel: the current member list ("here"). */
-    members?: PresenceMember[]
     /**
-     * Where {@link members} came from — present only when `members` is.
+     * For an authorized presence channel: the bounded "here" snapshot — at most
+     * `maxPresenceSnapshotMembers` members, the joiner's own among them, the
+     * roster's `total`, and its `source` (#339).
      *
-     * `'authoritative'` is every instance's roster, read from the driver.
-     * `'local'` is a **fragment**: this instance's own members, returned when
-     * the authoritative read failed on a join that had already committed
-     * everywhere. Refusing the join would have been a lie, and returning the
-     * fragment silently would have been a different one — a consumer counting
-     * `members.length` cannot otherwise tell a whole roster from a piece of it.
-     *
-     * A driver with no roster capability is single-process, so its local view
-     * IS the authority and it reports `'authoritative'`.
+     * Replaces the 0.3.0 `members` and `rosterSource` fields, which were
+     * removed rather than deprecated: `members` used to be the whole room, and a
+     * consumer counting `members.length` as the room size must fail to compile
+     * rather than silently read a bounded list as everyone. Use `here.total`.
      */
-    rosterSource?: 'authoritative' | 'local'
+    here?: PresenceSnapshot
 }
 
 /** Options for a {@link ChannelManager}. */
@@ -645,6 +658,20 @@ export interface ChannelManagerOptions<Identity = unknown> {
      * documents the headroom the default leaves.
      */
     maxPresenceMemberBytes?: number
+    /**
+     * How many members one presence `subscribe` returns at most, self
+     * included. Defaults to {@link MAX_PRESENCE_SNAPSHOT_MEMBERS}.
+     *
+     * A positive integer, validated at construction. It limits the size of ONE
+     * reply and keeps no state across frames — it is not a meter, a budget or
+     * a rationing policy (#329): every subscribe is answered, and `ok` and the
+     * number of driver reads never change. Cutting is silent.
+     *
+     * One reply carries at most K·(M+1)+1 bytes of member JSON, where M is
+     * {@link maxPresenceMemberBytes} — or the largest value any instance of the
+     * fleet runs, since peers write the roster too.
+     */
+    maxPresenceSnapshotMembers?: number
 }
 
 /**
@@ -669,6 +696,7 @@ export class ChannelManager<Identity = unknown> {
     readonly #maxChannelsPerConnection: number
     readonly #anonymousHostingShare: number
     readonly #maxPresenceMemberBytes: number
+    readonly #maxPresenceSnapshotMembers: number
     /**
      * One serial tail per authoritative roster slot, keyed
      * `<channel>\0<member.id>` (#330). Entries live only while a write for
@@ -759,10 +787,16 @@ export class ChannelManager<Identity = unknown> {
         this.#anonymousHostingShare = options.anonymousHostingShare ?? 0.8
         this.#maxPresenceMemberBytes = options.maxPresenceMemberBytes ??
             MAX_PRESENCE_MEMBER_BYTES
+        this.#maxPresenceSnapshotMembers = options.maxPresenceSnapshotMembers ??
+            MAX_PRESENCE_SNAPSHOT_MEMBERS
         assertCap('maxWatchedChannels', this.#maxWatchedChannels)
         assertCap('maxChannelsPerConnection', this.#maxChannelsPerConnection)
         assertShare('anonymousHostingShare', this.#anonymousHostingShare)
         assertCap('maxPresenceMemberBytes', this.#maxPresenceMemberBytes)
+        assertCap(
+            'maxPresenceSnapshotMembers',
+            this.#maxPresenceSnapshotMembers,
+        )
         if (this.#maxChannelsPerConnection > this.#maxWatchedChannels) {
             throw new Error(
                 `realtime: maxChannelsPerConnection ` +
@@ -1112,9 +1146,11 @@ export class ChannelManager<Identity = unknown> {
      *
      * @param connection - The subscribing connection.
      * @param channel - The channel name.
-     * @returns Whether it was authorized, plus the presence roster when
-     *   relevant and a `rosterSource` saying whether that roster is every
-     *   instance's or only this one's — see {@link SubscribeResult}.
+     * @returns Whether it was authorized, plus — for a presence channel — the
+     *   bounded `here` snapshot: at most `maxPresenceSnapshotMembers` members
+     *   with the joiner's own among them, the roster's `total`, and whether
+     *   that roster is every instance's or only this one's — see
+     *   {@link SubscribeResult}.
      * @throws {ConnectionIdError} If `connection.id` is outside the supported
      *   charset. That is a caller bug, not an authorization outcome — a denied
      *   subscribe answers `{ ok: false }`, and folding the two together would
@@ -1142,8 +1178,9 @@ export class ChannelManager<Identity = unknown> {
      * `SubscribeResult` a first join returns, so a client re-subscribing after
      * a network blip cannot tell the difference and is never refused.
      * **Zero writes is not zero cost** (#329): the read is one authoritative
-     * roster fetch per inbound frame and its reply is every member in the room,
-     * cluster-wide. `docs/realtime.md` carries the per-frame table. `joined`
+     * roster fetch per inbound frame, and the read is still the whole room
+     * cluster-wide (#341) — only its reply is bounded (#339).
+     * `docs/realtime.md` carries the per-frame table. `joined`
      * records a transition and membership is a set, so a connection already in
      * the room transitions nothing (#327).
      *
@@ -1234,7 +1271,7 @@ export class ChannelManager<Identity = unknown> {
      * **Extracted, and the extraction is the whole point.** `subscribe` had
      * grown to 198 lines carrying seven responsibilities, and it grew during
      * #323 rather than shrinking: both HIGH fixes that review demanded — the
-     * compensation and the `rosterSource` discriminator — added statements
+     * compensation and the roster-source discriminator — added statements
      * here. The branch that made the behaviour correct made the structure
      * worse.
      *
@@ -1248,7 +1285,7 @@ export class ChannelManager<Identity = unknown> {
      * keep that true.
      *
      * Returns the full {@link SubscribeResult} rather than the members array
-     * the issue proposed: `rosterSource` cannot ride on a bare array, and
+     * the issue proposed: `here.source` cannot ride on a bare array, and
      * re-wrapping it in the caller would put the authoritative-versus-local
      * distinction back in the method this extraction exists to shrink.
      *
@@ -1281,8 +1318,8 @@ export class ChannelManager<Identity = unknown> {
         // a channel this connection already holds transitions nothing. It
         // announces nothing, writes nothing, publishes nothing — though
         // NOT nothing at all: the closing read below is one authoritative
-        // roster fetch per frame whose reply is the whole room (#329) — and
-        // returns the same authoritative snapshot a first join returns,
+        // roster fetch per frame whose read is the whole room (#329, #341) —
+        // and returns the same bounded snapshot a first join returns (#339),
         // because a client re-subscribing after a network blip is
         // legitimate traffic and must not be able to tell the difference.
         //
@@ -1303,7 +1340,7 @@ export class ChannelManager<Identity = unknown> {
         // not one, and pressing it into service as one abuses the
         // vocabulary. That is `presence:update`, if a caller ever needs it.
         if (members.has(connection.id)) {
-            return await this.#closingRead(channel)
+            return await this.#closingRead(channel, connection.id)
         }
         // CLAIMED IN THE SAME SYNCHRONOUS TURN as the check above, and
         // before `#joinLocal`'s first `await`. The guard is otherwise a
@@ -1332,7 +1369,7 @@ export class ChannelManager<Identity = unknown> {
                     // never claim a membership the roster did not accept.
                     // Nothing was announced yet, so nothing is retracted; the
                     // leave that overtook this join already told the room.
-                    return await this.#closingRead(channel)
+                    return await this.#closingRead(channel, connection.id)
                 }
             } catch (error) {
                 // NOTHING WAS ANNOUNCED, so nothing is retracted — the
@@ -1430,7 +1467,7 @@ export class ChannelManager<Identity = unknown> {
                     `the frame is lost: ${renderError(error)}`,
             )
         }
-        return await this.#closingRead(channel)
+        return await this.#closingRead(channel, connection.id)
     }
 
     /**
@@ -1450,20 +1487,41 @@ export class ChannelManager<Identity = unknown> {
      * degrades to what this instance knows and says which it gave, so a caller
      * that cares can tell an authoritative answer from a local one.
      *
+     * **The one place the snapshot is bounded (#339)**, once, after the read
+     * settles, on whichever roster the read produced — authoritative or local.
+     * Not at each of the three exits, where one would be forgotten; not in
+     * `rosterSnapshot` or the barrier, where a cut shared between callers
+     * would hand one joiner's self to another. The cut is silent, and its
+     * `total` is a snapshot-time number that costs no driver command — it is
+     * never added to `joined`/`left` frames, because a live count per frame is
+     * the state #329 declined. `rosterSnapshot`'s spread is still what gives
+     * each caller its own array: the cut returns its input when the room fits.
+     *
+     * **Self is looked up here, after the await, in the same statement as the
+     * cut** — so the roster, the local fallback and self describe one moment.
+     * Not passed from the exits: at the re-join exit the authorizer's `member`
+     * is the discarded new payload, and on a superseded join the connection
+     * holds no member at all, so there is correctly no self to keep.
+     *
      * @param channel - The presence channel to read the roster of.
-     * @returns `{ ok: true }` with the members and the source of that list.
+     * @param clientId - The subscribing connection, whose member is kept in
+     *   the snapshot when the roster holds it.
+     * @returns `{ ok: true }` with the bounded snapshot.
      */
-    async #closingRead(channel: string): Promise<SubscribeResult> {
-        // `here` is the domain's own word for it, and `members` is taken by the
-        // LOCAL map at both call sites — two different rosters, and naming them
-        // alike is how a fallback quietly becomes the source.
-        let here: PresenceMember[]
-        let rosterSource: 'authoritative' | 'local' = 'authoritative'
+    async #closingRead(
+        channel: string,
+        clientId: string,
+    ): Promise<SubscribeResult> {
+        // `roster` is what the source reported; `members` is taken by the
+        // LOCAL map at every call site — two different rosters, and naming
+        // them alike is how a fallback quietly becomes the source.
+        let roster: PresenceMember[]
+        let source: PresenceSnapshot['source'] = 'authoritative'
         try {
-            here = await this.rosterSnapshot(channel)
+            roster = await this.rosterSnapshot(channel)
         } catch (error) {
-            here = [...(this.presence.get(channel)?.values() ?? [])]
-            rosterSource = 'local'
+            roster = [...(this.presence.get(channel)?.values() ?? [])]
+            source = 'local'
             console.warn(
                 `realtime: the here-roster for ${
                     safeForLog(channel)
@@ -1473,7 +1531,12 @@ export class ChannelManager<Identity = unknown> {
                     }`,
             )
         }
-        return { ok: true, members: here, rosterSource }
+        const here = boundPresenceSnapshot(
+            roster,
+            this.presence.get(channel)?.get(clientId)?.id,
+            this.#maxPresenceSnapshotMembers,
+        )
+        return { ok: true, here: { ...here, source } }
     }
 
     /**
@@ -1755,7 +1818,7 @@ export class ChannelManager<Identity = unknown> {
         const prior = this.#rosterTails.get(key) ?? Promise.resolve()
         const run = prior.then(async () => {
             const desired = [...(this.presence.get(channel)?.values() ?? [])]
-                .find((candidate) => String(candidate.id) === field)
+                .find((candidate) => sameMemberId(candidate.id, field))
             if (desired) await roster.addMember(channel, desired)
             else await roster.removeMember(channel, field)
             return desired

@@ -38,6 +38,7 @@ export {
     type ChannelKind,
     channelKind,
     type PresenceMember,
+    type PresenceSnapshot,
 } from './channel.ts'
 export type {
     BroadcastDriver,
@@ -76,6 +77,7 @@ export {
     type LeaveOutcome,
     MAX_CHANNELS_PER_CONNECTION,
     MAX_PRESENCE_MEMBER_BYTES,
+    MAX_PRESENCE_SNAPSHOT_MEMBERS,
     MAX_WATCHED_CHANNELS,
     type OutboundFrame,
     PresenceMemberIdError,

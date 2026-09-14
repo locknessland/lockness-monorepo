@@ -501,7 +501,7 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
         })
         using captured = captureConsole()
         const result = await m.subscribe(fakeConn('c1'), 'presence-room')
-        assertEquals(result.rosterSource, 'local')
+        assertEquals(result.here?.source, 'local')
         const line = captured.lines.map((l) => l.text).join('\n')
         assertStringIncludes(line, 'presence-room')
         assert(!line.includes(SECRET), `the snapshot WARN leaked info: ${line}`)

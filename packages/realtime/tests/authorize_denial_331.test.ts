@@ -119,7 +119,7 @@ Deno.test('#331 a denied re-subscribe leaves delivery, roster and membership int
 
     assertEquals(denied.ok, false, 'the frame is refused')
     assertEquals(
-        denied.members,
+        denied.here,
         undefined,
         'and it carries no roster — a denied caller learns nothing about the ' +
             'room, which is why the authorizer runs before the re-join guard',

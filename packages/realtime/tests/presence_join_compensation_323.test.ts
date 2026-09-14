@@ -200,7 +200,7 @@ Deno.test('#323/SC-003 a failed join can be retried, and yields ONE member', asy
 
     assertEquals(retried.ok, true)
     assertEquals(
-        retried.rosterSource,
+        retried.here?.source,
         'authoritative',
         'a healthy join reports the authoritative roster',
     )
@@ -279,15 +279,16 @@ Deno.test('#323/FR-006 a failed roster read degrades to the local view', async (
 
     assertEquals(result.ok, true)
     assertEquals(
-        result.members?.map((x) => x.id).sort(),
+        result.here?.members.map((x) => x.id).sort(),
         [1, 2],
         'the here-roster falls back to what this instance knows',
     )
     assertEquals(
-        result.rosterSource,
+        result.here?.source,
         'local',
-        'and it SAYS so — a fragment and a whole roster are otherwise ' +
-            'indistinguishable to the caller that has to act on them',
+        'and it SAYS so through `here.source` — a fragment and a whole ' +
+            'roster are otherwise indistinguishable to the caller that has to ' +
+            'act on them',
     )
 })
 

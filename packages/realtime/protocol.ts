@@ -20,7 +20,17 @@ export type ClientMessage =
 
 /** Server → client frames. */
 export type ServerMessage =
-    | { type: 'subscribed'; channel: string; members?: PresenceMember[] }
+    | {
+        type: 'subscribed'
+        channel: string
+        members?: PresenceMember[]
+        /**
+         * The roster size `members` was cut from (#339). Present from 0.4.0;
+         * `members.length < total` means the snapshot is partial. Absent from
+         * an older server, which sent the whole room.
+         */
+        total?: number
+    }
     | { type: 'unsubscribed'; channel: string }
     | { type: 'event'; channel?: string; event: string; data: unknown }
     | {
@@ -28,6 +38,11 @@ export type ServerMessage =
         channel: string
         action: 'here' | 'joined' | 'left'
         members?: PresenceMember[]
+        /**
+         * On a `here` frame: the roster size `members` was cut from (#339). A
+         * snapshot-time number — `joined`/`left` frames never carry it.
+         */
+        total?: number
         member?: PresenceMember
     }
     | { type: 'error'; message: string }

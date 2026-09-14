@@ -66,6 +66,48 @@ export interface PresenceMember {
 }
 
 /**
+ * The presence roster one `subscribe` returns — bounded, and honest about it
+ * (#339).
+ *
+ * A room's population has no ceiling, so the reply cannot be the room. It is at
+ * most `maxPresenceSnapshotMembers` members (default
+ * `MAX_PRESENCE_SNAPSHOT_MEMBERS`), and the joiner's own member is always among
+ * them when the roster it was cut from holds it. `members.length < total` if
+ * and only if the snapshot is partial.
+ *
+ * **A UI hint, not an access list.** Which members fill the window is driver
+ * order: join order on the memory driver, hash order on Redis. Authorization
+ * never reads this.
+ *
+ * @example
+ * ```ts
+ * const { here } = await manager.subscribe(connection, 'presence-room.1')
+ * if (here) render(here.members, { others: here.total - here.members.length })
+ * ```
+ */
+export interface PresenceSnapshot {
+    /** Up to the bound's worth of members, in driver order, self included. */
+    members: PresenceMember[]
+    /**
+     * How many entries the roster held when this snapshot was cut — taken from
+     * the read already made, never an extra driver command. A snapshot-time
+     * number: `joined`/`left` frames do not carry or update it. On a `'local'`
+     * snapshot it counts this instance's connections, so one member with two
+     * tabs counts twice (#343).
+     */
+    total: number
+    /**
+     * Where the roster came from. `'authoritative'` is every instance's roster,
+     * read from the driver. `'local'` is a **fragment**: this instance's own
+     * members, returned when the authoritative read failed on a join that had
+     * already committed everywhere. A driver with no roster capability is
+     * single-process, so its local view IS the authority and it reports
+     * `'authoritative'`.
+     */
+    source: 'authoritative' | 'local'
+}
+
+/**
  * The result of authorizing a connection for a channel.
  *
  * **`false` refuses THIS ATTEMPT. It never removes a standing membership**

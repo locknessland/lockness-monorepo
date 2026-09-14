@@ -32,7 +32,7 @@
  */
 
 import { assert, assertEquals } from '@std/assert'
-import { ChannelManager } from '../manager.ts'
+import { ChannelManager, type SubscribeResult } from '../manager.ts'
 import { RosterReadBarrier } from '../roster_read_barrier.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
@@ -133,14 +133,14 @@ function gatedRosterDriver() {
  * The roster a join returned, asserted present.
  *
  * `SubscribeResult.ok` is a plain boolean rather than a discriminant, so it
- * narrows nothing — and `members` is absent for a non-presence channel. Saying
+ * narrows nothing — and `here` is absent for a non-presence channel. Saying
  * so once here beats a non-null assertion at every use, which would also be the
  * one spelling that hides a genuinely missing roster.
  */
-function membersOf(result: { ok: boolean; members?: PresenceMember[] }) {
+function membersOf(result: SubscribeResult): PresenceMember[] {
     assert(result.ok, 'the join succeeded')
-    assert(result.members !== undefined, 'a presence join carries a roster')
-    return result.members
+    assert(result.here !== undefined, 'a presence join carries a roster')
+    return result.here.members
 }
 
 /** Let every already-queued microtask and timer run. */
@@ -179,7 +179,7 @@ Deno.test('#333 K concurrent presence subscribes cost exactly two reads', async 
     for (const result of results) {
         assert(result.ok, 'every join succeeded')
         assertEquals(
-            result.rosterSource,
+            result.here?.source,
             'authoritative',
             'sharing a read must be invisible in the answer — a shared read ' +
                 'that degraded to the local projection would be a different ' +

@@ -90,7 +90,7 @@ Deno.test('#323/FR-009 a throwing socket does not fail the join it is announcing
     const result = await m.subscribe(newcomer, 'presence-room')
     assertEquals(result.ok, true)
     assertEquals(
-        result.members?.map((x) => x.id).sort(),
+        result.here?.members.map((x) => x.id).sort(),
         [1, 2],
         'and the roster holds both members',
     )

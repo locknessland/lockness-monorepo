@@ -178,13 +178,18 @@ Deno.test('#327 a re-join still returns the authoritative roster', async () => {
     const again = await m.subscribe(conn('c1', 1), CHANNEL)
 
     assertEquals(again.ok, true, 'a re-join is never refused')
+    // A WHOLE-ROOM assertion, and still correct under #339: the snapshot is
+    // bounded at `maxPresenceSnapshotMembers` (default 100) and this two-member
+    // room fits it, so nothing is cut. "Never a fragment that does not say so"
+    // over the bound is `presence_snapshot_bound_339.test.ts`'s re-join row.
     assertEquals(
-        again.members?.map((x) => x.id).sort(),
+        again.here?.members.map((x) => x.id).sort(),
         [1, 2],
-        'and it answers with the whole room, not a fragment',
+        'and it answers with the whole room, since the room fits the bound',
     )
+    assertEquals(again.here?.total, 2, 'and says the room is whole')
     assertEquals(
-        again.rosterSource,
+        again.here?.source,
         'authoritative',
         "from the roster, not from this instance's local view",
     )
@@ -322,10 +327,10 @@ Deno.test('#327 a re-join degrades like a first join when the roster read fails'
 
     assertEquals(again.ok, true, 'a failed READ never fails a committed join')
     assertEquals(
-        again.rosterSource,
+        again.here?.source,
         'local',
         'and it SAYS the answer is this instance only — the same degradation ' +
             'a first join reports, from the same code',
     )
-    assertEquals(again.members?.map((x) => x.id), [1])
+    assertEquals(again.here?.members.map((x) => x.id), [1])
 })

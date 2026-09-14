@@ -44,10 +44,10 @@ Deno.test('SC-006: subscribing returns the here-roster; a join notifies existing
 
     const ra = await m.subscribe(a, 'presence-room')
     assertEquals(ra.ok, true)
-    assertEquals(ra.members?.map((x) => x.id), [1]) // here = [Alice]
+    assertEquals(ra.here?.members.map((x) => x.id), [1]) // here = [Alice]
 
     const rb = await m.subscribe(b, 'presence-room')
-    assertEquals(rb.members?.map((x) => x.id).sort(), [1, 2]) // here = [Alice, Bob]
+    assertEquals(rb.here?.members.map((x) => x.id).sort(), [1, 2]) // here = [Alice, Bob]
 
     // Alice was notified of Bob's join.
     const aJoin = framesOf(a).find((f) => f.action === 'joined')

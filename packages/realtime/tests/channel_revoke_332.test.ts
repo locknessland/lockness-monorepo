@@ -258,7 +258,7 @@ Deno.test('#332 a revocation is NOT a ban — the client may re-subscribe', asyn
 
     const again = await b.subscribe(victim, ROOM)
     assertEquals(again.ok, true, 'the application authorizes; it is admitted')
-    assertEquals(again.members?.map((m) => m.id), [1])
+    assertEquals(again.here?.members.map((m) => m.id), [1])
 })
 
 Deno.test('#332 BOTH names are asserted, and nothing is published on refusal', async () => {
