@@ -34,6 +34,9 @@ import { FakeRedis } from './fake_redis.ts'
 
 const PREFIX = 'app:rt'
 const INDEX = `${PREFIX}__revocations`
+/** Revocation ids as the manager mints them (#337). */
+const ID1 = '5f0c1c8e-8a4e-4a57-9d8e-2f4b6b1d7c01'
+const ID2 = '5f0c1c8e-8a4e-4a57-9d8e-2f4b6b1d7c02'
 
 /** A driver on `redis`, with a TTL long enough that nothing expires mid-test. */
 function driverOn(redis: FakeRedis): RedisBroadcastDriver {
@@ -73,11 +76,16 @@ Deno.test('#332 a composite member decodes to CHANNEL scope, round-trip', async 
     redis.setTime(1_000)
     const driver = driverOn(redis)
     try {
-        await driver.markRevocation({ target: 'c1', channel: 'private-orders' })
+        await driver.markRevocation({
+            target: 'c1',
+            channel: 'private-orders',
+            id: ID1,
+        })
         assertEquals(await driver.listRevocations(), [{
             target: 'c1',
             channel: 'private-orders',
-        }])
+            id: ID1,
+        }], 'the id comes back verbatim — it is part of the record (#337)')
         // And the two scopes coexist in one index, on the same target, without
         // either shadowing the other — they are different members.
         await driver.markRevocation({ target: 'c1' })
@@ -101,21 +109,27 @@ Deno.test('#332 an undecodable member is DROPPED, never widened', async () => {
         // somewhere else. NONE may come back as `{ target }` — that is the
         // escalation this whole decoder exists to refuse.
         const hostile = [
-            // A second separator: the channel half is not a valid name, and a
-            // decoder that split on the LAST separator instead would hand back
-            // a different channel than the one written.
-            'c1 private-orders extra',
-            // An invalid target half.
-            'has space c1 private-orders',
-            // An invalid channel half — a wildcard is outside the charset and
+            // The two-part form unreleased builds of `main` wrote before #337.
+            // It names no id, so no clear could remove exactly it.
+            'c1 private-orders',
+            // A fourth part: a decoder that took the first three would hand
+            // back a record that was never written.
+            `c1 private-orders ${ID1} extra`,
+            // An invalid target part.
+            `c1;x private-orders ${ID1}`,
+            // An invalid channel part — a wildcard is outside the charset and
             // is exactly what an attacker would reach for.
-            'c1 *',
+            `c1 * ${ID1}`,
+            // An invalid id part.
+            'c1 private-orders *',
             // A bare member outside the charset.
             'c1;FLUSHALL',
             // Leading separator: an empty target.
-            ' private-orders',
-            // Trailing separator: an empty channel.
-            'c1 ',
+            ` private-orders ${ID1}`,
+            // A doubled separator: an empty channel.
+            `c1  ${ID1}`,
+            // Trailing separator: an empty id.
+            'c1 private-orders ',
         ]
         for (const member of hostile) await plant(redis, member)
 
@@ -144,7 +158,7 @@ Deno.test('#332 a dropped member is not DELETED — the owner can still act on i
     redis.setTime(1_000)
     const driver = driverOn(redis)
     try {
-        await plant(redis, 'c1 private-orders extra')
+        await plant(redis, `c1 private-orders ${ID1} extra`)
         assertEquals(await driver.listRevocations(), [], 'skipped on read')
         assertEquals(
             redis.zcard(INDEX),
@@ -167,8 +181,9 @@ Deno.test('#332 the driver REFUSES to write a record it could not decode back', 
     try {
         for (
             const bad of [
-                { target: 'c1', channel: 'orders room' },
-                { target: 'has space', channel: 'orders' },
+                { target: 'c1', channel: 'orders room', id: ID1 },
+                { target: 'has space', channel: 'orders', id: ID1 },
+                { target: 'c1', channel: 'orders', id: 'not an id' },
                 { target: 'c1;FLUSHALL' },
             ]
         ) {
@@ -194,11 +209,23 @@ Deno.test('#332 clearRevocation removes exactly its own record', async () => {
     redis.setTime(1_000)
     const driver = driverOn(redis)
     try {
-        await driver.markRevocation({ target: 'c1', channel: 'orders' })
-        await driver.markRevocation({ target: 'c1', channel: 'billing' })
+        await driver.markRevocation({
+            target: 'c1',
+            channel: 'orders',
+            id: ID1,
+        })
+        await driver.markRevocation({
+            target: 'c1',
+            channel: 'billing',
+            id: ID2,
+        })
         await driver.markRevocation({ target: 'c1' })
 
-        await driver.clearRevocation({ target: 'c1', channel: 'orders' })
+        await driver.clearRevocation({
+            target: 'c1',
+            channel: 'orders',
+            id: ID1,
+        })
 
         assertEquals(
             // Sorted: the index returns by score then lexicographically, and
@@ -214,7 +241,11 @@ Deno.test('#332 clearRevocation removes exactly its own record', async () => {
         // Clearing a record that is already gone is not an error: the reconcile
         // and the local apply can both reach it, and the second must be a
         // no-op rather than a failure that gets logged as a fault.
-        await driver.clearRevocation({ target: 'c1', channel: 'orders' })
+        await driver.clearRevocation({
+            target: 'c1',
+            channel: 'orders',
+            id: ID1,
+        })
         assertEquals((await driver.listRevocations()).length, 2)
     } finally {
         await driver.close()

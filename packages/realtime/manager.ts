@@ -325,12 +325,28 @@ import type { Connection, WebSocketHooks } from './types.ts'
 import type {
     BroadcastDriver,
     BroadcastMessage,
+    ChannelRevocation,
     ChannelWatchCapableDriver,
+    ConnectionRevocation,
     ControlMessage,
     PresenceCapableDriver,
-    Revocation,
     RevocationStoreDriver,
 } from './driver.ts'
+
+/**
+ * Every revocation of ONE connection from ONE channel that an apply answers
+ * for (#337): the pair, and the id of each record it will clear on a `'left'`.
+ *
+ * One leave settles all of them, so they are applied as a group. Applied one
+ * record at a time, the first leave returns `'left'` and clears its record, and
+ * every later one finds `'not-subscribed'` and survives — to kick the client
+ * again at the next tick if it has legitimately re-subscribed.
+ */
+interface ChannelRevocationGroup {
+    readonly target: string
+    readonly channel: string
+    readonly ids: readonly string[]
+}
 import { MemoryBroadcastDriver } from './drivers/memory.ts'
 import {
     type Authorizer,
@@ -431,7 +447,9 @@ export function channelWatcher(
  * @example
  * ```ts
  * const store = revocationStore(driver)
- * if (store) await store.markRevocation({ target, channel })
+ * if (store) {
+ *     await store.markRevocation({ target, channel, id: crypto.randomUUID() })
+ * }
  * ```
  */
 export function revocationStore(
@@ -481,8 +499,10 @@ function assertNotLegacyRevocationDriver(driver: BroadcastDriver): void {
         'realtime: this driver implements the pre-0.4.0 revocation seam ' +
             '(markRevoked / listRevoked), which no longer exists. Replace it ' +
             'with markRevocation(revocation) / listRevocations() / ' +
-            'clearRevocation(revocation) over a Revocation record ' +
-            '({ target, channel? }). Keeping the old pair would silently ' +
+            'clearRevocation(channelRevocation) over a Revocation record ' +
+            '({ target } for a whole connection, { target, channel, id } for ' +
+            'one channel — clear removes exactly that id). Keeping the old ' +
+            'pair would silently ' +
             'disable durable revocation on a driver that plainly implements ' +
             'it: evict would still close the socket locally, and a lost ' +
             'control frame would never be recovered.',
@@ -2133,7 +2153,17 @@ export class ChannelManager<Identity = unknown> {
         if (!store && this.#hasControlPlane) {
             throw new RevocationScopeError(channel)
         }
-        const revocation: Revocation = { target: clientId, channel }
+        // ONE CALL, ONE RECORD (#337). The id is minted here rather than by the
+        // driver so a failed mark still publishes a frame the owner can clear
+        // by, and so uniqueness is promised in one place instead of by every
+        // driver. Without it, a clear for an earlier revocation of this pair
+        // erases this one's record in flight — and if this frame is lost,
+        // nothing enforces it.
+        const revocation: ChannelRevocation = {
+            target: clientId,
+            channel,
+            id: crypto.randomUUID(),
+        }
         // Durable first, and a failure NEVER cancels the revocation — the same
         // sequencing `evict` records at length: the local apply needs no broker
         // at all, so letting a durability write reject out of this method would
@@ -2153,7 +2183,11 @@ export class ChannelManager<Identity = unknown> {
         }
         let outcome: RevokeChannelOutcome = 'not-owned'
         if (this.connections.has(clientId)) {
-            const applied = await this.#revokeChannelLocal(revocation)
+            const applied = await this.#revokeChannelLocal({
+                target: clientId,
+                channel,
+                ids: [revocation.id],
+            })
             outcome = applied.outcome
             // Only HERE is a clear failure re-thrown: this is the one apply
             // path with a caller to receive it. The control-frame and reconcile
@@ -2167,6 +2201,8 @@ export class ChannelManager<Identity = unknown> {
                 kind: 'revoke-channel',
                 target: clientId,
                 channel,
+                // The owner clears exactly this record, never the pair.
+                revocationId: revocation.id,
             })
         }
         if (durabilityError !== undefined) throw durabilityError
@@ -2180,20 +2216,18 @@ export class ChannelManager<Identity = unknown> {
      * `left`, and the cross-instance `presence-leave` — rather than growing a
      * second announcement mechanism beside it.
      *
-     * @param revocation - The channel-scoped revocation to apply.
-     * @returns The outcome, and any error from clearing the durable record —
-     *   returned rather than thrown so each caller decides, since only one of
-     *   the two has anyone to tell.
+     * @param group - The pair, and the id of every record this one leave
+     *   answers for. Only these ids are cleared (#337): a record for the same
+     *   pair written after the caller read it has an id nobody here has seen,
+     *   so no clear can reach it.
+     * @returns The outcome, and the first error from clearing a durable record
+     *   — returned rather than thrown so each caller decides, since only one of
+     *   the callers has anyone to tell.
      */
     async #revokeChannelLocal(
-        revocation: Revocation,
+        group: ChannelRevocationGroup,
     ): Promise<{ outcome: RevokeChannelOutcome; clearError: unknown }> {
-        const { target, channel } = revocation
-        // A channel-scoped record always carries its channel; a decoder that
-        // could not recover one drops the record rather than widening it.
-        if (channel === undefined) {
-            return { outcome: 'not-owned', clearError: undefined }
-        }
+        const { target, channel } = group
         const left = await this.unsubscribe(target, channel)
         if (left === 'left') {
             // WITHOUT THIS THE TARGET NEVER LEARNS. `emitPresence` fans the
@@ -2222,9 +2256,21 @@ export class ChannelManager<Identity = unknown> {
         // exactly what `evict` has always done. Re-applying it costs one
         // no-op leave per reconcile tick and sends the client nothing, because
         // the frame below is gated on the same predicate.
-        const clearError = left === 'left'
-            ? await this.#clearRevocation(revocation)
-            : undefined
+        //
+        // EVERY id in the group, each by its own exact id (#337). One leave
+        // settled all of them; a clear that named the pair instead would also
+        // take a record written after this group was read.
+        let clearError: unknown
+        if (left === 'left') {
+            for (const id of group.ids) {
+                const error = await this.#clearRevocation({
+                    target,
+                    channel,
+                    id,
+                })
+                if (clearError === undefined) clearError = error
+            }
+        }
         return {
             outcome: left === 'left'
                 ? 'revoked'
@@ -2236,21 +2282,21 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
-     * Forget a revocation this instance has applied.
+     * Forget exactly one channel revocation this instance has applied.
      *
-     * @param revocation - The applied revocation.
+     * @param revocation - The applied revocation, by its exact id.
      * @returns The failure, if it failed — never thrown from here, because one
-     *   of the two callers is a fire-and-forget control-frame dispatch where a
+     *   of the callers is a fire-and-forget control-frame dispatch where a
      *   rejection has nowhere to go.
      */
-    async #clearRevocation(revocation: Revocation): Promise<unknown> {
+    async #clearRevocation(revocation: ChannelRevocation): Promise<unknown> {
         try {
             await this.#revocations?.clearRevocation(revocation)
             return undefined
         } catch (error) {
             console.warn(
                 `realtime: the revocation record for ${
-                    safeForLog(revocation.channel ?? revocation.target)
+                    safeForLog(revocation.channel)
                 } was applied but could not be cleared — reconcile will ` +
                     `re-apply it until it expires: ${renderError(error)}`,
             )
@@ -2292,10 +2338,12 @@ export class ChannelManager<Identity = unknown> {
      * and the reconcile is invoked by the driver's timer, so neither has anyone
      * to receive a rejection (FR-019).
      *
-     * @param revocation - The revocation to apply to a socket this instance
-     *   owns.
+     * @param revocation - A whole-connection revocation, or every channel
+     *   revocation of one pair, to apply to a socket this instance owns.
      */
-    async #applyRevocation(revocation: Revocation): Promise<void> {
+    async #applyRevocation(
+        revocation: ConnectionRevocation | ChannelRevocationGroup,
+    ): Promise<void> {
         try {
             if (revocation.channel === undefined) {
                 // Connection scope. The record is NOT cleared: it becomes moot
@@ -2321,13 +2369,42 @@ export class ChannelManager<Identity = unknown> {
      * was lost while the owning socket was between reconnects.
      *
      * **Scope is dispatched, not decided**: see {@link #applyRevocation}.
+     *
+     * **Channel records are grouped by pair, and each pair leaves ONCE**
+     * (#337). Two `revokeChannel` calls for one pair are two records, and one
+     * leave settles both — so on `'left'` every id listed for that pair is
+     * cleared. Applied one record at a time, the second finds
+     * `'not-subscribed'`, survives, and kicks the client again at the next
+     * tick if it has legitimately re-subscribed.
      */
     private async reconcileRevocations(): Promise<void> {
         const revocations = await this.#revocations?.listRevocations() ?? []
+        const groups = new Map<
+            string,
+            { target: string; channel: string; ids: string[] }
+        >()
         for (const revocation of revocations) {
-            if (this.connections.has(revocation.target)) {
+            if (!this.connections.has(revocation.target)) continue
+            if (revocation.channel === undefined) {
                 await this.#applyRevocation(revocation)
+                continue
             }
+            // A JSON pair, so no delimiter a third-party driver's names could
+            // contain can fuse two different pairs into one group.
+            const key = JSON.stringify([revocation.target, revocation.channel])
+            const group = groups.get(key)
+            if (group) {
+                group.ids.push(revocation.id)
+            } else {
+                groups.set(key, {
+                    target: revocation.target,
+                    channel: revocation.channel,
+                    ids: [revocation.id],
+                })
+            }
+        }
+        for (const group of groups.values()) {
+            await this.#applyRevocation(group)
         }
     }
 
@@ -2458,8 +2535,10 @@ export class ChannelManager<Identity = unknown> {
      *   `evict`; the durable record is the same backstop.
      *
      * **The switch has no `default`, and that is load-bearing.** An instance
-     * running an older release meets `revoke-channel` here, matches nothing,
-     * and returns — inert rather than wrong. Adding a `default` that threw or
+     * running an older release meets a kind added after it here, matches
+     * nothing, and returns — inert rather than wrong. (`revoke-channel` itself
+     * no longer reaches a `0.3.0` peer's switch: its `revocationId` field is
+     * MAC-covered, so that peer drops the frame at ingest with a WARN, #337.) Adding a `default` that threw or
      * warned would turn a forward-compatible frame into noise on every peer
      * during a rolling deploy.
      */
@@ -2498,14 +2577,19 @@ export class ChannelManager<Identity = unknown> {
                 // Same rule as `evict`: only the owner acts. Every other
                 // instance hears the resulting `left` as a `presence-leave`.
                 // A frame with no channel is not a channel revocation and is
-                // dropped rather than widened into a socket kill.
+                // dropped rather than widened into a socket kill. A frame with
+                // no revocation id names no record to clear, so it is dropped
+                // too (#337) — the durable record, if written, is recovered by
+                // the reconcile, which has the id.
                 if (
                     control.channel !== undefined &&
+                    control.revocationId !== undefined &&
                     this.connections.has(control.target)
                 ) {
                     void this.#applyRevocation({
                         target: control.target,
                         channel: control.channel,
+                        ids: [control.revocationId],
                     })
                 }
                 return

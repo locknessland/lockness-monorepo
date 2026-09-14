@@ -21,7 +21,7 @@
  * @module @lockness/realtime/tests/live_fake_conformance
  */
 
-import { assert, assertEquals } from '@std/assert'
+import { assertEquals } from '@std/assert'
 import type { RespReply } from '../../redis/resp.ts'
 import { RedisClient } from '../../redis/mod.ts'
 import {
@@ -33,6 +33,7 @@ import {
 } from '../../redis/tests/live_broker.ts'
 import { FakeRedis } from './fake_redis.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
+import type { Revocation } from '../driver.ts'
 
 /** One command, and whether the fake is expected to refuse it. */
 interface Step {
@@ -542,45 +543,74 @@ Deno.test({
                 'a re-mark diverged',
             )
 
-            // #332: the CHANNEL scope and the clear, on both backends. The
-            // composite is a plain member string, so the fake's ZSET arms carry
-            // it unchanged — but `clearRevocation` needs ZREM, which the fake
-            // did not model at all until this feature, and an unmodelled
+            // #332/#337: the CHANNEL scope and the exact clear, on both
+            // backends. The composite is a plain member string, so the fake's
+            // ZSET arms carry it unchanged — but `clearRevocation` needs ZREM,
+            // which the fake did not model at all until #332, and an unmodelled
             // command is exactly the divergence this file exists to catch.
+            //
+            // TWO marks for ONE pair, then a clear of the first (#337). The
+            // index semantics the fix rests on are the broker's: `ZADD GT`
+            // must ADD the second member rather than update the first, and
+            // `ZREM` must remove one exact member. A fake that got either
+            // wrong would let a pair-keyed clear pass here.
+            const first = '5f0c1c8e-8a4e-4a57-9d8e-2f4b6b1d7c01'
+            const second = '5f0c1c8e-8a4e-4a57-9d8e-2f4b6b1d7c02'
             for (const driver of [onLive, onFake]) {
-                await driver.markRevocation?.({
-                    target: 'c1',
-                    channel: 'presence-room',
-                })
+                for (const id of [first, second]) {
+                    await driver.markRevocation?.({
+                        target: 'c1',
+                        channel: 'presence-room',
+                        id,
+                    })
+                }
             }
-            const scoped = (rs: { target: string; channel?: string }[]) =>
-                rs.map((r) => `${r.target}/${r.channel ?? '-'}`).sort()
+            const scoped = (rs: Revocation[]) =>
+                rs.map((r) =>
+                    r.channel === undefined
+                        ? `${r.target}/-`
+                        : `${r.target}/${r.channel}/${r.id}`
+                ).sort()
             assertEquals(
                 scoped(await onFake.listRevocations?.() ?? []),
                 scoped(await onLive.listRevocations?.() ?? []),
-                'the channel-scoped record round-tripped differently — the ' +
-                    'SCOPE is asserted here, not merely the target, because a ' +
-                    'record that lost its channel is applied as a socket kill',
+                'the channel-scoped records round-tripped differently — the ' +
+                    'SCOPE and the ID are asserted here, not merely the ' +
+                    'target, because a record that lost its channel is applied ' +
+                    'as a socket kill and one that lost its id cannot be cleared',
+            )
+            // Only c1's records: earlier steps in this test mark other targets.
+            const c1 = async () =>
+                scoped(await onLive.listRevocations?.() ?? []).filter((r) =>
+                    r.startsWith('c1/')
+                )
+            assertEquals(
+                await c1(),
+                [
+                    'c1/-',
+                    `c1/presence-room/${first}`,
+                    `c1/presence-room/${second}`,
+                ],
+                'two revocations of one pair are two records on the broker',
             )
 
             for (const driver of [onLive, onFake]) {
                 await driver.clearRevocation?.({
                     target: 'c1',
                     channel: 'presence-room',
+                    id: first,
                 })
             }
             assertEquals(
                 scoped(await onFake.listRevocations?.() ?? []),
                 scoped(await onLive.listRevocations?.() ?? []),
-                'clearing one record diverged — and clearing the CHANNEL ' +
-                    "record must leave c1's connection-scoped one standing on " +
-                    'both backends',
+                'clearing one record diverged',
             )
-            assert(
-                (await onLive.listRevocations?.() ?? []).some((r) =>
-                    r.target === 'c1' && r.channel === undefined
-                ),
-                'the connection-scoped record for the same target survives',
+            assertEquals(
+                await c1(),
+                ['c1/-', `c1/presence-room/${second}`],
+                'the clear removed EXACTLY its own id: the newer record for the ' +
+                    "same pair and c1's connection-scoped record both survive",
             )
         } finally {
             await teardown(live, NS)

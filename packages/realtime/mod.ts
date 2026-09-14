@@ -42,6 +42,8 @@ export {
 export type {
     BroadcastDriver,
     BroadcastMessage,
+    ChannelRevocation,
+    ConnectionRevocation,
     ControlMessage,
     ControlRefusal,
     PresenceCapableDriver,

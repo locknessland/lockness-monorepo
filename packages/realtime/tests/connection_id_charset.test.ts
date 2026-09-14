@@ -180,7 +180,10 @@ Deno.test('#304 reconcile drops a broker-injected id outside the charset', async
         EVAL: array([
             bulk('7c9e6679-7425-40de-944b-e07fc1f90ae7'),
             bulk('user@example.com'),
-            bulk('id with spaces'),
+            // FOUR space-separated names. Exactly three valid names is a
+            // well-formed channel-scoped record since #337 (`target channel
+            // id`), so a three-word id would test the scope decoder instead.
+            bulk('an id with spaces'),
             bulk('svc:worker-3'),
             bulk('x\nGET /admin 200'),
         ]),

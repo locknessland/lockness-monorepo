@@ -67,38 +67,86 @@ export interface ControlRefusal {
 }
 
 /**
+ * A whole connection is revoked; the owning instance hard-closes the socket.
+ * This is `ChannelManager.evict`.
+ *
+ * **Never cleared.** The record becomes moot the instant the socket dies, so it
+ * is left to expire — which is why {@link BroadcastDriver.clearRevocation} does
+ * not accept one.
+ *
+ * @example
+ * ```ts
+ * const wholeConnection: ConnectionRevocation = { target: connectionId }
+ * ```
+ */
+export interface ConnectionRevocation {
+    /** The revoked connection id. */
+    readonly target: string
+    /** Absent: no channel is what makes this the whole connection. */
+    readonly channel?: undefined
+    /** Absent: a connection revocation is never cleared, so needs no identity. */
+    readonly id?: undefined
+}
+
+/**
+ * One connection revoked from one channel, socket left open. This is
+ * `ChannelManager.revokeChannel`.
+ *
+ * **One call, one record** (#337). Two revocations of the same connection and
+ * channel are two records, told apart by {@link id}, so a clear for the one an
+ * instance applied can never remove one written after it. Keyed on the pair
+ * alone, the clear for an older revocation erased a newer one in flight — and
+ * when the newer one's control frame was lost, nothing ever enforced it.
+ *
+ * @example
+ * ```ts
+ * const oneRoom: ChannelRevocation = {
+ *     target: connectionId,
+ *     channel: 'private-orders',
+ *     id: crypto.randomUUID(),
+ * }
+ * ```
+ */
+export interface ChannelRevocation {
+    /** The revoked connection id. */
+    readonly target: string
+    /** The channel the revocation is scoped to. */
+    readonly channel: string
+    /**
+     * Identity of THIS revocation: `crypto.randomUUID()`, minted by the manager
+     * once per `revokeChannel` call. Two revocations of the same pair are two
+     * records. A driver stores and returns it verbatim and compares it by
+     * equality; it never parses, merges or mints it.
+     */
+    readonly id: string
+}
+
+/**
  * What a revocation revokes — the domain fact the driver seam carries.
  *
- * Two scopes, and they differ in whether the socket survives:
+ * Two scopes, and they differ in whether the socket survives: a
+ * {@link ConnectionRevocation} (`channel` absent) hard-closes the socket; a
+ * {@link ChannelRevocation} (`channel` and `id` present) leaves one channel and
+ * keeps the socket open.
  *
- * - **connection** (`channel` absent) — the whole connection is revoked; the
- *   owning instance hard-closes the socket. This is `ChannelManager.evict`.
- * - **channel** (`channel` present) — the connection leaves ONE channel and
- *   keeps every other it holds, socket open. This is
- *   `ChannelManager.revokeChannel`.
- *
- * **The record is the pair, and a decoder may never guess the missing half.** A
+ * **The record is whole, and a decoder may never guess a missing part.** A
  * channel-scoped record returned without its channel reads as a connection
  * revocation and kills a session that should have lost one room — an escalation
  * with no error, no warning and no type failure. `listRevocations` drops what it
- * cannot fully decode for exactly this reason.
+ * cannot fully decode for exactly this reason, and a channel record without its
+ * id is as undecodable as one without its channel.
  *
  * @example
  * ```ts
  * const wholeConnection: Revocation = { target: connectionId }
- * const oneRoom: Revocation = { target: connectionId, channel: 'private-orders' }
+ * const oneRoom: Revocation = {
+ *     target: connectionId,
+ *     channel: 'private-orders',
+ *     id: crypto.randomUUID(),
+ * }
  * ```
  */
-export interface Revocation {
-    /** The revoked connection id. */
-    readonly target: string
-    /**
-     * The channel the revocation is scoped to. **Absent means the whole
-     * connection**, which hard-closes the socket — so an implementation that
-     * cannot recover this field must drop the record rather than omit it.
-     */
-    readonly channel?: string
-}
+export type Revocation = ConnectionRevocation | ChannelRevocation
 
 /**
  * A control frame carried on the same bus as channel events but on a **distinct**
@@ -118,13 +166,21 @@ export interface ControlMessage {
      * revokes it from ONE channel and leaves the socket open; `presence-join` /
      * `presence-leave` announce a roster change across instances.
      *
-     * **A new KIND is safe here; a new FIELD is not** — and the asymmetry is
-     * load-bearing rather than stylistic. The Redis driver's MAC covers a fixed
-     * field list, so a kind added to this union changes no canonical bytes and
-     * a peer running an older release verifies the frame, admits it, and falls
-     * off the end of a `switch` that has no `default`. A **field** added to the
-     * wire but not to that list would ship unauthenticated; added to both on
-     * one side only, every older peer would drop the frame as an invalid MAC.
+     * **A new KIND is safe here; a new FIELD costs every older peer the frame**
+     * — and the asymmetry is load-bearing rather than stylistic. The Redis
+     * driver's MAC covers a fixed field list, so a kind added to this union
+     * changes no canonical bytes and a peer running an older release verifies
+     * the frame, admits it, and falls off the end of a `switch` that has no
+     * `default`. A **field** added to the wire but not to that list would ship
+     * unauthenticated, so it is always added to both — and then every older
+     * peer drops that frame as an invalid MAC, with a WARN.
+     *
+     * That is acceptable only on a kind no published peer ACTS on. A field
+     * that is `undefined` is left out of the canonical bytes, so a field
+     * carried by one kind leaves every other kind's MAC byte-identical.
+     * `revocationId` (#337) rides only on `revoke-channel`, which a `0.3.0`
+     * peer never obeyed, so what it costs there is a WARN and not a lost
+     * action. A field on `evict` or a presence kind would cost the action.
      * Decision-table home for that rule: `#canonical`'s field list in
      * `drivers/redis.ts`.
      */
@@ -147,6 +203,12 @@ export interface ControlMessage {
      * travels on this field). Absent for an `evict`.
      */
     readonly member?: PresenceMember
+    /**
+     * `revoke-channel` only: the {@link ChannelRevocation.id} this frame
+     * announces, so the owner clears exactly that record once it has applied
+     * it (#337). Absent on every other kind.
+     */
+    readonly revocationId?: string
     /** The FR-015 authenticity tag; absent on an unauthenticated frame. */
     readonly mac?: string
 }
@@ -269,9 +331,15 @@ export interface BroadcastDriver {
      * mean exactly one thing: *a revocation the owning instance has not applied
      * yet.*
      *
-     * @param revocation - The revocation that has been applied.
+     * **Removes exactly the record with this id** (#337). A record for the same
+     * target and channel with another id MUST survive: it is a revocation
+     * written after the one being cleared, and nothing else will enforce it if
+     * its control frame was lost. Clearing a record that is already gone is not
+     * an error.
+     *
+     * @param revocation - The channel revocation that has been applied.
      */
-    clearRevocation?(revocation: Revocation): void | Promise<void>
+    clearRevocation?(revocation: ChannelRevocation): void | Promise<void>
     /**
      * OPTIONAL (#318). Register the handler the driver invokes when it declines
      * to publish a control frame.
@@ -368,8 +436,8 @@ export interface RevocationStoreDriver extends BroadcastDriver {
     markRevocation(revocation: Revocation): void | Promise<void>
     /** The revocations that are live now. */
     listRevocations(): Revocation[] | Promise<Revocation[]>
-    /** Forget a revocation that has been applied. */
-    clearRevocation(revocation: Revocation): void | Promise<void>
+    /** Forget exactly the channel revocation with this id, once applied. */
+    clearRevocation(revocation: ChannelRevocation): void | Promise<void>
 }
 
 /**

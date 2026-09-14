@@ -48,6 +48,7 @@
 import type {
     BroadcastDriver,
     BroadcastMessage,
+    ChannelRevocation,
     ControlMessage,
     ControlRefusal,
     Revocation,
@@ -125,8 +126,9 @@ const LIST_REVOKED_SCRIPT: string = [
 ].join('\n')
 
 /**
- * The delimiter between a revocation's target and its channel inside one index
- * member.
+ * The delimiter between the names inside one index member: a channel-scoped
+ * record is `"<target> <channel> <id>"` (#332, #337), a whole-connection one is
+ * the bare `target`.
  *
  * **A space, and it must stay outside `NAME_RE`** (`/^[A-Za-z0-9:._-]+$/`).
  * That is what makes the composite decidable in both directions, and what makes
@@ -650,6 +652,13 @@ interface ControlWire {
     target: string
     channel?: string
     member?: PresenceMember
+    /**
+     * `revoke-channel` only: the id of the record the frame announces (#337).
+     * Inside the MAC, and appended LAST in `#canonical` — absent, it is left
+     * out of the canonical bytes, so every other kind signs exactly what a
+     * `0.3.0` peer signs.
+     */
+    revocationId?: string
     origin: string
     /**
      * Epoch milliseconds at issue (#272). Inside the MAC — outside it, an
@@ -1348,6 +1357,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             target: control.target,
             channel: control.channel,
             member: control.member,
+            revocationId: control.revocationId,
             origin: this.instanceId,
             ts: this.now(),
             nonce: newControlNonce(),
@@ -1492,17 +1502,24 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * `Revocation` records and never sees a member string, which is what keeps
      * the encoding from becoming normative on the public driver interface.
      *
-     * Both halves are re-asserted here even though the manager already asserted
+     * **The id is part of the member, and that is the whole of #337's fix.**
+     * Two revocations of one pair are two members, so `ZREM` of one exact
+     * member is already a compare-and-delete: a clear can only name an id its
+     * caller saw, and a newer write has an id nobody has seen yet. `ZADD GT`
+     * always adds a new member — `GT` only governs an update — so the mark
+     * script needs no change.
+     *
+     * Every part is re-asserted here even though the manager already asserted
      * them, because this is the last point at which an undecodable member can
      * be prevented rather than merely detected. A composite whose channel
      * carried a space would decode to a different channel — or to nothing.
      *
      * @param revocation - The revocation to encode.
      * @returns The sorted-set member.
-     * @throws {Error} If either half is outside the supported charset.
+     * @throws {Error} If any part is outside the supported charset.
      */
     #encodeRevocation(revocation: Revocation): string {
-        const { target, channel } = revocation
+        const { target } = revocation
         if (!isValidName(target)) {
             throw new Error(
                 `realtime: refusing to record a revocation for ${
@@ -1511,7 +1528,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     'could never be matched to a live socket.',
             )
         }
-        if (channel === undefined) return target
+        if (revocation.channel === undefined) return target
+        const { channel, id } = revocation
         if (!isValidName(channel)) {
             throw new Error(
                 `realtime: refusing to record a revocation on ${
@@ -1520,7 +1538,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     'composite record would not decode back to this channel.',
             )
         }
-        return `${target}${REVOCATION_SCOPE_SEPARATOR}${channel}`
+        if (!isValidName(id)) {
+            throw new Error(
+                `realtime: refusing to record a revocation with id ${
+                    safeForLog(id)
+                } — the id is outside the supported charset, so the ` +
+                    'composite record would not decode back to this id.',
+            )
+        }
+        return [target, channel, id].join(REVOCATION_SCOPE_SEPARATOR)
     }
 
     /**
@@ -1538,22 +1564,25 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * every other room gone. So a member that does not fully decode is
      * discarded, never returned with a partial scope, and never widened.
      *
+     * **Exactly one part, or exactly three.** The two-part `"<target>
+     * <channel>"` form was only ever written by unreleased builds of `main`
+     * (#332 before #337); it carries no id, so it names no record a clear
+     * could remove, and it is dropped like any other malformed member. It
+     * expires on its score.
+     *
      * @param member - The raw sorted-set member.
      * @returns The revocation, or `undefined` when the member does not fully
      *   decode.
      */
     #decodeRevocation(member: string): Revocation | undefined {
-        const at = member.indexOf(REVOCATION_SCOPE_SEPARATOR)
-        if (at === -1) {
-            return isValidName(member) ? { target: member } : undefined
-        }
-        const target = member.slice(0, at)
-        const channel = member.slice(at + REVOCATION_SCOPE_SEPARATOR.length)
-        // BOTH halves. A member carrying a second separator leaves a channel
-        // that fails the charset, so it is dropped here rather than silently
-        // truncated into a different channel.
-        if (!isValidName(target) || !isValidName(channel)) return undefined
-        return { target, channel }
+        const parts = member.split(REVOCATION_SCOPE_SEPARATOR)
+        // EVERY part is charset-checked. An empty part (a doubled separator)
+        // fails it, so a member is never re-split into a different record.
+        if (!parts.every((part) => isValidName(part))) return undefined
+        if (parts.length === 1) return { target: parts[0] }
+        if (parts.length !== 3) return undefined
+        const [target, channel, id] = parts
+        return { target, channel, id }
     }
 
     /**
@@ -1568,8 +1597,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * reconnect".
      *
      * A **channel**-scoped record is the same member string with its channel
-     * appended after a space (#332) — the same index, the same script, the same
-     * extend-only discipline. No new key, no migration, no dual-write.
+     * and its revocation id appended, space-separated (#332, #337) — the same
+     * index, the same script, the same extend-only discipline. No new key, no
+     * migration, no dual-write. Two revocations of one pair are two members.
      *
      * @param revocation - What is revoked: a whole connection, or a connection
      *   in one channel.
@@ -1670,11 +1700,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * record mean exactly one thing: *a revocation the owning instance has not
      * applied yet.*
      *
-     * @param revocation - The revocation that has been applied.
+     * **One exact member, by its id** (#337). `ZREM` deletes one member in one
+     * atomic command, so a record for the same pair with another id — one
+     * written after the revocation being cleared — survives. No script: the
+     * semantics are the broker's own, identical on a live broker and the fake.
+     *
+     * @param revocation - The channel revocation that has been applied.
      * @throws {Error} If the write fails. `ChannelManager` reports it to a
      *   caller where one exists and warns where none does.
      */
-    async clearRevocation(revocation: Revocation): Promise<void> {
+    async clearRevocation(revocation: ChannelRevocation): Promise<void> {
         await this.command.command(
             'ZREM',
             this.revocationIndexKey,
@@ -1800,6 +1835,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             // that before FR-013 — see tests/control_mac_coverage.test.ts.
             ts: wire.ts,
             nonce: wire.nonce,
+            // #337: LAST, and only ever present on `revoke-channel`. An
+            // `undefined` value is omitted by `JSON.stringify`, so every other
+            // kind canonicalises to the exact bytes a 0.3.0 peer computes. A
+            // 0.3.0 peer cannot cover it, so it drops `revoke-channel` as an
+            // invalid MAC — a kind it never acted on, so a WARN, not a loss.
+            revocationId: wire.revocationId,
         }))
     }
 
@@ -1854,7 +1895,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             wire.nonce.length !== CONTROL_NONCE_HEX_LENGTH ||
             // The one field the shape gate never checked, and the one an
             // attacker can make arbitrarily large (FR-011).
-            !isPlainMember(wire.member)
+            !isPlainMember(wire.member) ||
+            // #337: a string when present. A non-string would be compared by
+            // the manager against a record id that can never equal it.
+            (wire.revocationId !== undefined &&
+                typeof wire.revocationId !== 'string')
         ) {
             console.warn('realtime: dropped a control message of invalid shape')
             return undefined
@@ -1883,7 +1928,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // path that does not pass through here.
         if (
             !isValidName(wire.target) || !isValidName(wire.origin) ||
-            (wire.channel !== undefined && !isValidName(wire.channel))
+            (wire.channel !== undefined && !isValidName(wire.channel)) ||
+            (wire.revocationId !== undefined && !isValidName(wire.revocationId))
         ) {
             console.warn(
                 'realtime: dropped a control message with an invalid name',
@@ -1925,6 +1971,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             target: wire.target,
             channel: wire.channel,
             member: wire.member,
+            revocationId: wire.revocationId,
         }
     }
 
