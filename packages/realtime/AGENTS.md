@@ -136,7 +136,11 @@ Anything not listed is internal and free to change.
   membership — leaving a member in the authoritative roster with no local
   membership and its `left` already announced, which only a sweep of a DEAD
   instance reclaims. The three remedies the ADR rejects are each intuitive
-  enough to be proposed again; read it before proposing one.
+  enough to be proposed again; read it before proposing one. On a roster-less
+  driver the projection still runs through the tail and writes nothing, so its
+  `undefined` keeps the one meaning "superseded" — an early "no roster" return
+  would silence every first `joined`
+  ([#342](https://github.com/locknessland/lockness-monorepo/issues/342)).
 - **`PresenceMember` is bounded at ADMISSION, and the bound cannot move to the
   publish**
   ([#326](https://github.com/locknessland/lockness-monorepo/issues/326)). The
@@ -467,7 +471,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-62 test files for 18 source files:
+63 test files for 18 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
@@ -511,6 +515,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_cap_concurrency_323.test.ts`
 - `packages/realtime/tests/presence_eviction_334.test.ts`
 - `packages/realtime/tests/presence_join_compensation_323.test.ts`
+- `packages/realtime/tests/presence_join_rosterless_342.test.ts`
 - `packages/realtime/tests/presence_member_id.test.ts`
 - `packages/realtime/tests/presence_rejoin_327.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
@@ -532,7 +537,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-18 mutation batteries — **`deno test` does not run these.** Each is an
+19 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -547,6 +552,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/prefix_288.ts`
 - `packages/realtime/tests/mutations/presence_eviction_334.ts`
 - `packages/realtime/tests/mutations/presence_join_323.ts`
+- `packages/realtime/tests/mutations/presence_join_rosterless_342.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
 - `packages/realtime/tests/mutations/presence_snapshot_339.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
@@ -571,7 +577,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 62 test files directly —
+Then, specific to this package: run its 63 test files directly —
 
 ```bash
 deno test -A packages/realtime/

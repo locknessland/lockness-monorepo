@@ -51,6 +51,10 @@ from the local map **inside** the serial tail, immediately before the write.
 Three call sites route through it and none may bypass it: the join, the join's
 failed-write compensation, and `unsubscribe`.
 
+On a roster-less driver the projection still runs inside the tail and writes
+nothing, so `undefined` means "the local map held no member for this slot at
+issue time" on every driver — never "this driver has no roster" (#342).
+
 ---
 
 ## 4. Why this shape
