@@ -598,8 +598,27 @@ network blip cannot tell the difference and is never refused.
 **A roster read is not free, and the word "nothing" above is exhaustive only
 about writes.** The read is one `HGETALL` on the Redis driver and its reply is
 **every member in the room, cluster-wide, with their `info`** — so a re-join's
-cost in bytes scales with the room's population, once per inbound frame, metered
-by nothing. Zero writes; not zero cost. The numbers are in the table below.
+cost in bytes scales with the room's population. Zero writes; not zero cost. The
+numbers are in the table below.
+
+**Concurrent subscribes to one channel share a read.** At most one authoritative
+read per channel is in flight at a time on an instance; callers that arrive
+while one is running are answered by the next read, issued the moment the
+current one settles. So a burst of K simultaneous subscribes to one room costs
+**two** reads rather than K, and the bound is one read per channel per driver
+round-trip, independent of how fast frames arrive.
+
+They are answered by the _next_ read and never by the one already running, and
+that is deliberate: the snapshot you receive was always read at an instant no
+earlier than the moment you asked for it, and sharing an already-running read
+would break that — a joiner whose own roster write had just committed could be
+handed a roster it is not in. The extra read per burst is what buys that back.
+
+**The figures in the table below are the unconcurrent case** — one subscribe,
+nothing else in flight. They are the worst case per frame, and concurrency only
+ever lowers the total. Note also what this does **not** bound: the size of any
+single reply. One subscriber alone in a room of ten thousand still receives ten
+thousand members.
 
 That is a correctness rule before it is a cost one. `joined` records a
 _transition_, and membership is a set: a connection already in the room

@@ -74,8 +74,22 @@ Anything not listed is internal and free to change.
 | The wire protocol + name validation                              | `protocol.ts`                            |
 | The events→broadcast bridge + marker                             | `events_bridge.ts`, `broadcastable.ts`   |
 | The optional browser client                                      | `client.ts` (leaf, `./client` subpath)   |
+| When the driver is asked for a roster (never what it answers)    | `roster_read_barrier.ts`                 |
 
 ## Pitfalls
+
+- **The roster read barrier is TRAILING-edge, and turning it into an ordinary
+  single-flight is a correctness regression, not an optimisation.**
+  `roster_read_barrier.ts` answers a caller that arrived mid-read with the
+  _next_ read, never the one already running. The difference is one expression
+  and it looks like waste. It is not: a join commits its roster write before it
+  reads, and the Redis client chains commands onto its tail synchronously, so a
+  joiner has always appeared in its own `here`. Share an already-running read
+  and a joiner can subscribe to a room and be handed a roster it is not in —
+  silently, with nothing thrown, logged, or type-changed. The witness is
+  `presence_roster_read_333.test.ts`'s `'a joiner sees ITSELF in its own reply'`
+  and the first row of `tests/mutations/roster_read_barrier_333.ts`. Everything
+  else in the suite passes under both designs.
 
 - **A presence join announces LAST, and the bookkeeping stays first.** It all
   lives in `#joinPresence` since
@@ -410,7 +424,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-56 test files for 16 source files:
+58 test files for 17 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
@@ -457,6 +471,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_member_id.test.ts`
 - `packages/realtime/tests/presence_rejoin_327.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
+- `packages/realtime/tests/presence_roster_read_333.test.ts`
 - `packages/realtime/tests/presence_sweep.test.ts`
 - `packages/realtime/tests/protocol.test.ts`
 - `packages/realtime/tests/redis_broker_integration.test.ts`
@@ -466,10 +481,11 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/revocation_seam_332.test.ts`
 - `packages/realtime/tests/roster_atomicity_323.test.ts`
 - `packages/realtime/tests/roster_control_atomicity.test.ts`
+- `packages/realtime/tests/roster_read_barrier_333.test.ts`
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-15 mutation batteries — **`deno test` does not run these.** Each is an
+16 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -486,6 +502,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_join_323.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
+- `packages/realtime/tests/mutations/roster_read_barrier_333.ts`
 - `packages/realtime/tests/mutations/roster_sync_330.ts`
 - `packages/realtime/tests/mutations/self_skip_310.ts`
 - `packages/realtime/tests/mutations/subscription_identity_315.ts`
@@ -505,7 +522,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 56 test files directly —
+Then, specific to this package: run its 58 test files directly —
 
 ```bash
 deno test -A packages/realtime/
