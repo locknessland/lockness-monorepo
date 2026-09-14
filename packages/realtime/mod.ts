@@ -50,7 +50,11 @@ export type {
     PresenceCapableDriver,
     Revocation,
     RevocationStoreDriver,
+    RosterWindow,
 } from './driver.ts'
+// A VALUE, so it cannot ride the type-only re-export above: a driver author
+// needs the number to honour the seam's input assert (#341).
+export { MAX_ROSTER_READ_SELF_IDS } from './driver.ts'
 export { MemoryBroadcastDriver } from './drivers/memory.ts'
 export {
     type RedisBroadcastConnectionConfig,

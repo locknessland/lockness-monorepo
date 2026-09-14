@@ -19,6 +19,7 @@
  */
 
 import type { PresenceMember, PresenceSnapshot } from './channel.ts'
+import type { RosterWindow } from './driver.ts'
 
 /**
  * Whether two presence member ids name the same member.
@@ -75,58 +76,95 @@ export function uniqueMembers(
 }
 
 /**
- * Cut a roster to at most `limit` members, keeping the caller's own member.
+ * The window a roster-less driver or the local fallback reports: the whole
+ * local list, its length as `total`, and no separate selves (#341).
  *
- * - **Fits:** the roster is returned unchanged, same array, same order.
- * - **Does not fit:** the first `limit` in driver order, except that `selfId`'s
- *   member — when the roster holds it and it is not already among them —
- *   replaces the last slot. The snapshot is still exactly `limit`.
- * - `total` is `roster.length`, taken **before** the cut, from the read the
- *   caller already made. Counting costs no driver command.
+ * The single home of that shape, so the fallback and the roster-less path
+ * cannot build `{ members, total, selves }` two different ways. Local members
+ * are already this instance's own, so the caller's member — when this instance
+ * holds it — is in `members` and needs no second list.
+ *
+ * @param members - This instance's members of the channel, one per member.
+ * @returns A window over exactly those members. The array is not copied.
+ *
+ * @example
+ * ```ts
+ * localWindow([{ id: 1 }, { id: 2 }])
+ * // { members: [{ id: 1 }, { id: 2 }], total: 2, selves: [] }
+ * ```
+ */
+export function localWindow(members: PresenceMember[]): RosterWindow {
+    return { members, total: members.length, selves: [] }
+}
+
+/**
+ * Cut a roster window to at most `limit` members, keeping the caller's own.
+ *
+ * - **Fits, self present or not held:** the window's `members` are returned
+ *   unchanged, same array, same order.
+ * - **Larger than `limit`** (only a local window can be): the first `limit` in
+ *   driver order.
+ * - **Self** is kept iff the roster holds it: found in the window's `members`
+ *   first, else in its `selves` (the driver's same-instant lookup, #341). When
+ *   it is not already among the cut members it **replaces the last slot if the
+ *   cut is exactly `limit`**, and is **appended otherwise** — a short window
+ *   (an unparseable entry was skipped) has room, and overwriting there would
+ *   drop a member the roster holds.
+ * - `total` is the window's `total`, counted by the driver inside the same
+ *   read. Never `members.length`, which on a bounded read is at most `limit`.
  *
  * Rules this function carries, each of which has been proposed and each of
  * which is wrong:
  *
- * - **No sort.** Driver order is kept. A sort here is O(N log N) per caller on
- *   a read the barrier shares between callers, and no caller asks for an order.
- * - **No mutation.** The input may be shared; the manager's `rosterSnapshot`
- *   spread is what gives each caller its own array, and this function must not
- *   be the reason that spread "can go" — it returns its input when it fits.
+ * - **No sort, no shuffle.** Which members fill the window is the driver's
+ *   decision (#341); this function only cuts and keeps self.
+ * - **No mutation.** The window may be shared by every caller of one read; the
+ *   manager's `rosterSnapshot` copy is what gives each caller its own array,
+ *   and this function returns its input when nothing changes.
  * - **Silent.** Cutting is the designed reply, not a fault: no log, no meter,
  *   no error. Nothing here can reach a logger.
  * - **Not in the barrier or a driver.** Cutting a shared read would hand one
  *   caller's self to another; the cut happens per caller, after the read.
+ * - **Self is decided by `selfId` looked up AFTER the read.** A self id taken
+ *   before the await only widens what the driver fetches; it never decides
+ *   what is kept here.
  *
- * @param roster - The roster a source reported, in driver order. Not mutated.
+ * @param window - The window a source reported. Not mutated.
  * @param selfId - The subscribing connection's member id, or `undefined` when
  *   it holds none (a superseded join).
  * @param limit - The bound, a positive integer validated by the manager.
- * @returns The members to return and the pre-cut `total`.
+ * @returns The members to return and the roster's `total`.
  *
  * @example
  * ```ts
- * boundPresenceSnapshot([{ id: 1 }, { id: 2 }, { id: 3 }], 3, 2)
- * // { members: [{ id: 1 }, { id: 3 }], total: 3 }
+ * boundPresenceSnapshot(
+ *     { members: [{ id: 1 }, { id: 2 }], total: 9, selves: [{ id: 7 }] },
+ *     7,
+ *     2,
+ * )
+ * // { members: [{ id: 1 }, { id: 7 }], total: 9 }
  * ```
  */
 export function boundPresenceSnapshot(
-    roster: PresenceMember[],
+    window: RosterWindow,
     selfId: string | number | undefined,
     limit: number,
 ): Omit<PresenceSnapshot, 'source'> {
-    const total = roster.length
-    if (total <= limit) return { members: roster, total }
-    const members = roster.slice(0, limit)
+    const { total } = window
+    const members = window.members.length <= limit
+        ? window.members
+        : window.members.slice(0, limit)
     if (
-        selfId !== undefined &&
-        !members.some((member) => sameMemberId(member.id, selfId))
+        selfId === undefined ||
+        members.some((member) => sameMemberId(member.id, selfId))
     ) {
-        for (let index = limit; index < total; index++) {
-            if (sameMemberId(roster[index].id, selfId)) {
-                members[limit - 1] = roster[index]
-                break
-            }
-        }
+        return { members, total }
     }
-    return { members, total }
+    const isSelf = (member: PresenceMember) => sameMemberId(member.id, selfId)
+    const self = window.members.find(isSelf) ?? window.selves.find(isSelf)
+    if (!self) return { members, total }
+    const kept = members === window.members ? [...members] : members
+    if (kept.length === limit) kept[limit - 1] = self
+    else kept.push(self)
+    return { members: kept, total }
 }

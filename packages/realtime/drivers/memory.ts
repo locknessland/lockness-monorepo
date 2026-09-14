@@ -8,7 +8,12 @@
  * @module @lockness/realtime/drivers/memory
  */
 
-import type { BroadcastDriver, BroadcastMessage } from '../driver.ts'
+import {
+    type BroadcastDriver,
+    type BroadcastMessage,
+    MAX_ROSTER_READ_SELF_IDS,
+    type RosterWindow,
+} from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 
 /**
@@ -73,12 +78,62 @@ export class MemoryBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * List the channel's in-process roster (FR-005).
+     * Read a bounded window of the channel's in-process roster (FR-005, #341).
+     *
+     * Walks at most `limit` entries in join order — the same order this driver
+     * has always reported — and never copies the whole room. `total` is the
+     * map's size and `selves` are direct lookups, all within one synchronous
+     * call, so the three describe one instant.
      *
      * @param channel - The presence channel.
-     * @returns The current members ("here").
+     * @param limit - The most members to return; a positive integer.
+     * @param selfIds - The member ids to return in `selves` when held; at most
+     *   {@link MAX_ROSTER_READ_SELF_IDS}.
+     * @returns The window, the population and the selves.
+     * @throws {Error} If `limit` is not a positive integer or `selfIds` is
+     *   longer than {@link MAX_ROSTER_READ_SELF_IDS}.
+     *
+     * @example
+     * ```ts
+     * const { members, total, selves } = driver.readRoster('presence-room', 100, [7])
+     * ```
      */
-    listMembers(channel: string): PresenceMember[] {
-        return [...(this.roster.get(channel)?.values() ?? [])]
+    readRoster(
+        channel: string,
+        limit: number,
+        selfIds: readonly (string | number)[],
+    ): RosterWindow {
+        // Before any work: the seam is exported, so this driver cannot rely on
+        // the manager having validated its own call (S2).
+        if (!Number.isInteger(limit) || limit < 1) {
+            throw new Error(
+                `realtime: readRoster limit must be a positive integer, got ${limit}`,
+            )
+        }
+        if (selfIds.length > MAX_ROSTER_READ_SELF_IDS) {
+            throw new Error(
+                `realtime: readRoster accepts at most ${MAX_ROSTER_READ_SELF_IDS} ` +
+                    `self ids, got ${selfIds.length}`,
+            )
+        }
+        const room = this.roster.get(channel)
+        if (!room) return { members: [], total: 0, selves: [] }
+        const members: PresenceMember[] = []
+        for (const member of room.values()) {
+            if (members.length === limit) break
+            members.push(member)
+        }
+        // One self per `String(id)`, as `RosterWindow` promises and the Redis
+        // driver does: `7` and `'7'` name one roster entry.
+        const selves: PresenceMember[] = []
+        const seen = new Set<string>()
+        for (const selfId of selfIds) {
+            const id = String(selfId)
+            const self = room.get(id)
+            if (!self || seen.has(id)) continue
+            seen.add(id)
+            selves.push(self)
+        }
+        return { members, total: room.size, selves }
     }
 }

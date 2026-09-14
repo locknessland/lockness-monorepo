@@ -75,9 +75,10 @@ export interface PresenceMember {
  * them when the roster it was cut from holds it. `members.length < total` if
  * and only if the snapshot is partial.
  *
- * **A UI hint, not an access list.** Which members fill the window is driver
- * order: join order on the memory driver, hash order on Redis. Authorization
- * never reads this.
+ * **A UI hint, not an access list.** Which members fill the window is the
+ * driver's choice: join order on the memory driver; on Redis, the whole room in
+ * hash order when it fits, and otherwise a new random sample of K members on
+ * every subscribe, re-joins included. Authorization never reads this.
  *
  * @example
  * ```ts

@@ -74,9 +74,11 @@ export const MAX_PRESENCE_MEMBER_BYTES = 4 * 1024
  * one reply holds at most K·(M+1)+1 bytes of member JSON — 409 701 at the
  * defaults — however large the room.
  *
- * **The reply is bounded; the read is not.** The instance still fetches and
- * parses the whole roster before cutting it (#341). This bounds what the
- * application and its clients receive, not what the broker sends.
+ * **The reply and the read are both bounded.** The reply holds at most K
+ * members. The driver's read (#341) fetches at most K members plus the own
+ * entries of the callers that read serves — one per distinct member id, at
+ * most `MAX_ROSTER_READ_SELF_IDS` — so what the instance ingests does not grow
+ * with the room either.
  */
 export const MAX_PRESENCE_SNAPSHOT_MEMBERS = 100
 
@@ -347,6 +349,7 @@ import type {
     ControlMessage,
     PresenceCapableDriver,
     RevocationStoreDriver,
+    RosterWindow,
 } from './driver.ts'
 import { MemoryBroadcastDriver } from './drivers/memory.ts'
 import {
@@ -360,6 +363,7 @@ import type { ServerMessage } from './protocol.ts'
 import { RosterReadBarrier } from './roster_read_barrier.ts'
 import {
     boundPresenceSnapshot,
+    localWindow,
     sameMemberId,
     uniqueMembers,
 } from './presence_snapshot.ts'
@@ -386,6 +390,11 @@ interface ChannelRevocationGroup {
  * authoritative roster (all three ops present) or it does not, and this narrows
  * once to {@link PresenceCapableDriver} accordingly.
  *
+ * **The three are `addMember`, `removeMember` and `readRoster`** (#341). A
+ * driver offering only the pre-`0.4.0` whole-room read is simply not
+ * presence-capable to this probe — refusing it is a different question, and it
+ * lives in {@link assertNotLegacyRosterDriver}.
+ *
  * @param driver - The broadcast driver to probe.
  * @returns The driver narrowed to {@link PresenceCapableDriver} when it exposes
  *   the full presence-state surface, otherwise `undefined` (single-process
@@ -402,7 +411,7 @@ export function presenceRoster(
 ): PresenceCapableDriver | undefined {
     return typeof driver.addMember === 'function' &&
             typeof driver.removeMember === 'function' &&
-            typeof driver.listMembers === 'function'
+            typeof driver.readRoster === 'function'
         ? driver as PresenceCapableDriver
         : undefined
 }
@@ -527,6 +536,38 @@ function assertNotLegacyRevocationDriver(driver: BroadcastDriver): void {
             'pair would silently disable durable revocation on a driver that ' +
             'plainly implements it: evict would still close the socket ' +
             'locally, and a lost control frame would never be recovered.',
+    )
+}
+
+/**
+ * Refuse a driver that still offers the unbounded roster read this package
+ * published before `0.4.0` (#341).
+ *
+ * **It throws rather than warning**, for the reason
+ * {@link assertNotLegacyRevocationDriver} does. A driver presenting
+ * `listMembers` and not `readRoster` would be narrowed to "no roster" and
+ * silently lose its authoritative presence; one presenting both would keep the
+ * unbounded read public — the per-subscribe cost #341 exists to remove — for
+ * any caller that reaches the driver directly.
+ *
+ * **Beside, and separate from, the revocation refusal.** Each tests one
+ * retired seam and names one migration; fusing them would give one function
+ * two reasons to change.
+ *
+ * @param driver - The broadcast driver being wired into a manager.
+ * @throws {Error} If the driver presents `listMembers`.
+ */
+function assertNotLegacyRosterDriver(driver: BroadcastDriver): void {
+    const legacy = driver as { listMembers?: unknown }
+    if (typeof legacy.listMembers !== 'function') return
+    throw new Error(
+        'realtime: this driver implements the pre-0.4.0 roster read ' +
+            '(listMembers), which no longer exists. Replace it with ' +
+            'readRoster(channel, limit, selfIds), returning a RosterWindow ' +
+            '{ members, total, selves }: at most `limit` members, the ' +
+            "roster's size counted in the same read, and the members of " +
+            '`selfIds` it holds — and remove listMembers. An unbounded read ' +
+            'makes every presence subscribe cost the whole room.',
     )
 }
 
@@ -842,13 +883,20 @@ export class ChannelManager<Identity = unknown> {
         // must fail loudly here rather than be narrowed to `undefined` and
         // silently treated as having no revocation store at all.
         assertNotLegacyRevocationDriver(this.driver)
+        // Same placement, separate refusal: a driver still offering the
+        // unbounded read must not be narrowed to "no roster" (#341).
+        assertNotLegacyRosterDriver(this.driver)
         const roster = presenceRoster(this.driver)
         this.roster = roster
         // ONE barrier, at construction, for every authoritative read (#333).
         // It takes a FUNCTION rather than the driver, so the unit cannot drift
-        // with `BroadcastDriver`'s optional-member surface.
+        // with `BroadcastDriver`'s optional-member surface. The read is
+        // bounded to K in the driver (#341); K itself stays in the cut.
+        const limit = this.#maxPresenceSnapshotMembers
         this.rosterReads = roster
-            ? new RosterReadBarrier((channel) => roster.listMembers(channel))
+            ? new RosterReadBarrier((channel, selfIds) =>
+                roster.readRoster(channel, limit, selfIds)
+            )
             : undefined
         // ONE guard, at construction, for the whole watch pair (#295).
         this.#watcher = channelWatcher(this.driver)
@@ -1189,8 +1237,8 @@ export class ChannelManager<Identity = unknown> {
      * `SubscribeResult` a first join returns, so a client re-subscribing after
      * a network blip cannot tell the difference and is never refused.
      * **Zero writes is not zero cost** (#329): the read is one authoritative
-     * roster fetch per inbound frame, and the read is still the whole room
-     * cluster-wide (#341) — only its reply is bounded (#339).
+     * roster fetch per inbound frame — bounded to K members plus the
+     * joiners' own (#341), and its reply bounded to K (#339).
      * `docs/realtime.md` carries the per-frame table. `joined`
      * records a transition and membership is a set, so a connection already in
      * the room transitions nothing (#327).
@@ -1329,7 +1377,8 @@ export class ChannelManager<Identity = unknown> {
         // a channel this connection already holds transitions nothing. It
         // announces nothing, writes nothing, publishes nothing — though
         // NOT nothing at all: the closing read below is one authoritative
-        // roster fetch per frame whose read is the whole room (#329, #341) —
+        // roster fetch per frame, bounded to K plus the joiners' own entries
+        // (#329, #341) —
         // and returns the same bounded snapshot a first join returns (#339),
         // because a client re-subscribing after a network blip is
         // legitimate traffic and must not be able to tell the difference.
@@ -1510,6 +1559,7 @@ export class ChannelManager<Identity = unknown> {
      *
      * **Self is looked up here, after the await, in the same statement as the
      * cut** — so the roster, the local fallback and self describe one moment.
+     * The id looked up BEFORE the await (#341) is only what the read fetches.
      * Not passed from the exits: at the re-join exit the authorizer's `member`
      * is the discarded new payload, and on a superseded join the connection
      * holds no member at all, so there is correctly no self to keep.
@@ -1523,15 +1573,20 @@ export class ChannelManager<Identity = unknown> {
         channel: string,
         clientId: string,
     ): Promise<SubscribeResult> {
-        // `roster` is what the source reported; `members` is taken by the
+        // `window` is what the source reported; `members` is taken by the
         // LOCAL map at every call site — two different rosters, and naming
         // them alike is how a fallback quietly becomes the source.
-        let roster: PresenceMember[]
+        let window: RosterWindow
         let source: PresenceSnapshot['source'] = 'authoritative'
+        // The id to FETCH, taken before the await (#341). It only widens what
+        // the read returns, so a self outside the sampled window can still be
+        // kept; it never decides what is kept — that is the post-await lookup
+        // below.
+        const fetchSelfId = this.presence.get(channel)?.get(clientId)?.id
         try {
-            roster = await this.rosterSnapshot(channel)
+            window = await this.rosterSnapshot(channel, fetchSelfId)
         } catch (error) {
-            roster = this.#localRoster(channel)
+            window = localWindow(this.#localRoster(channel))
             source = 'local'
             console.warn(
                 `realtime: the here-roster for ${
@@ -1543,7 +1598,7 @@ export class ChannelManager<Identity = unknown> {
             )
         }
         const here = boundPresenceSnapshot(
-            roster,
+            window,
             this.presence.get(channel)?.get(clientId)?.id,
             this.#maxPresenceSnapshotMembers,
         )
@@ -1861,25 +1916,37 @@ export class ChannelManager<Identity = unknown> {
      * capability is single-process.
      *
      * **Every authoritative read in this class goes through here**, and #333 is
-     * why that mattered: this was the only caller of `roster.listMembers`, so
-     * one edit bounds the read for every entry point. It is reached once per
-     * presence `subscribe` frame, re-joins included, and the reply is the whole
-     * room cluster-wide — a cost #329's application-side frame meter provably
-     * cannot bound, because a room grows without the frame rate changing.
+     * why that mattered: this is the only caller of the barrier, so one edit
+     * shapes the read for every entry point. It is reached once per presence
+     * `subscribe` frame, re-joins included — which is why the read is a
+     * bounded window (#341): K members plus the callers' own, whatever the
+     * room's size.
      *
-     * **The spread is now load-bearing, not defensive.** The barrier hands ONE
-     * array to every caller sharing a read; without this copy they would share
-     * a mutable list. The members inside it are still shared by reference, and
-     * deliberately so — a per-caller deep copy would restore the per-caller
-     * `O(room)` cost this change exists to remove, in CPU instead of bytes.
+     * **Returns a window, authoritative or local**, never a bare list: the
+     * local path goes through `localWindow`, so there is one read shape.
+     *
+     * **The spread is load-bearing, not defensive.** The barrier hands ONE
+     * window to every caller sharing a read; without this copy they would share
+     * a mutable `members` list. The members inside it are still shared by
+     * reference, and deliberately so — a per-caller deep copy would restore a
+     * per-caller cost, in CPU instead of bytes.
+     *
+     * @param channel - The presence channel.
+     * @param selfId - The caller's member id for the read to fetch, if any.
      */
-    private async rosterSnapshot(channel: string): Promise<PresenceMember[]> {
+    private async rosterSnapshot(
+        channel: string,
+        selfId?: string | number,
+    ): Promise<RosterWindow> {
         // Branching on the BARRIER, not on `roster`: they are constructed
         // together, and reading the thing actually used leaves no second
         // spelling of "this driver owns a roster" to fall out of step.
         const reads = this.rosterReads
-        if (reads) return [...await reads.snapshot(channel)]
-        return this.#localRoster(channel)
+        if (reads) {
+            const window = await reads.snapshot(channel, selfId)
+            return { ...window, members: [...window.members] }
+        }
+        return localWindow(this.#localRoster(channel))
     }
 
     /**

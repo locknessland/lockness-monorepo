@@ -45,13 +45,15 @@
  * @module @lockness/realtime/drivers/redis
  */
 
-import type {
-    BroadcastDriver,
-    BroadcastMessage,
-    ChannelRevocation,
-    ControlMessage,
-    ControlRefusal,
-    Revocation,
+import {
+    type BroadcastDriver,
+    type BroadcastMessage,
+    type ChannelRevocation,
+    type ControlMessage,
+    type ControlRefusal,
+    MAX_ROSTER_READ_SELF_IDS,
+    type Revocation,
+    type RosterWindow,
 } from '../driver.ts'
 import { isValidName } from '../protocol.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
@@ -195,6 +197,45 @@ const ADD_MEMBER_SCRIPT: string = [
 const REMOVE_MEMBER_SCRIPT: string = [
     "redis.call('HDEL', KEYS[1], ARGV[1])",
     "redis.call('SREM', KEYS[2], ARGV[2])",
+].join('\n')
+
+/**
+ * Read a bounded window of the roster, its size, and the callers' own entries —
+ * ONE operation, ONE instant (#341).
+ *
+ * `HLEN`, `HRANDFIELD … WITHVALUES` and `HMGET` in one `EVAL`, so `total`, the
+ * window and the selves cannot disagree under a concurrent join or leave. Split
+ * into separate commands, a reply could count a member it no longer lists, or
+ * list one it did not count.
+ *
+ * **Bounded by construction.** `HRANDFIELD` with a positive count returns at
+ * most `count` DISTINCT pairs, and at or above the hash size the whole hash in
+ * the hash's own iteration order — the order the previous whole-room read
+ * returned — so a small room is unchanged and a large one costs `limit`
+ * entries, whatever its size. A negative count would repeat pairs, which is one
+ * reason the caller asserts `limit` before ever reaching this script.
+ *
+ * **`ARGV[2]` is always `''`**, and the self ids follow from `ARGV[3]`. `HMGET`
+ * with no field is an arity error on a real broker, and a read with no self id
+ * is legitimate (a superseded join reaches it holding no member, A1). No member
+ * id can be `''` — ids are 1–200 characters (#306) — so the padding field never
+ * matches and costs one nil. A Lua `if` would be a second code path; an empty
+ * `HMGET` would be a production-only failure.
+ *
+ * **No loop, and no id in the script text.** Ids reach it through `ARGV` only.
+ * The reply is parsed in TypeScript, where a self is accepted only when the
+ * entry under its own field carries that same id (S3).
+ *
+ * Returns `{ HLEN, [field, value, …], [value-or-nil, …] }`.
+ *
+ * `KEYS[1]` presence hash · `ARGV[1]` limit · `ARGV[2]` `''` ·
+ * `ARGV[3…]` self ids.
+ */
+const READ_ROSTER_SCRIPT: string = [
+    "local total = redis.call('HLEN', KEYS[1])",
+    "local sample = redis.call('HRANDFIELD', KEYS[1], ARGV[1], 'WITHVALUES')",
+    "local selves = redis.call('HMGET', KEYS[1], unpack(ARGV, 2))",
+    'return {total, sample, selves}',
 ].join('\n')
 
 /** A resource the driver owns and must release on {@link RedisBroadcastDriver.close}. */
@@ -1459,39 +1500,142 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * OPTIONAL (FR-005). List the channel's authoritative roster — every
-     * instance's members. Only the client-visible member is returned; the
-     * owning-instance metadata stays internal (FR-018).
+     * OPTIONAL (FR-005, #341). Read a bounded window of the channel's
+     * authoritative roster: at most `limit` members, the hash's size, and the
+     * entries of `selfIds` — in ONE `EVAL` (see {@link READ_ROSTER_SCRIPT}).
+     *
+     * On a room larger than `limit` the window is a random sample, a different
+     * one per call; at or below `limit` it is the whole hash in its own order.
+     * Only the client-visible member leaves this method — the entry's `owner`
+     * stays internal (FR-018, S4). A self is returned only when its stored entry
+     * names the id that was asked for (S3). An unparseable entry is skipped with
+     * a WARN, so `members` can be shorter than `min(limit, total)`.
      *
      * @param channel - The presence channel.
-     * @returns The current members ("here").
+     * @param limit - The most members to return; a positive integer.
+     * @param selfIds - The member ids to return in `selves` when held; at most
+     *   {@link MAX_ROSTER_READ_SELF_IDS}.
+     * @returns The window, the population and the selves.
+     * @throws {Error} Before any command, if `limit` is not a positive integer
+     *   or `selfIds` is longer than {@link MAX_ROSTER_READ_SELF_IDS}; or if the
+     *   broker's reply is not the script's shape.
+     *
+     * @example
+     * ```ts
+     * const { members, total, selves } = await driver.readRoster(
+     *     'presence-room',
+     *     100,
+     *     [7],
+     * )
+     * ```
      */
-    async listMembers(channel: string): Promise<PresenceMember[]> {
-        const reply = await this.command.command(
-            'HGETALL',
-            this.presenceKey(channel),
+    async readRoster(
+        channel: string,
+        limit: number,
+        selfIds: readonly (string | number)[],
+    ): Promise<RosterWindow> {
+        // Before any command (S2). A negative `HRANDFIELD` count returns
+        // |count| pairs WITH repeats, and a non-integer is a broker error — the
+        // manager validates its own call, but this seam is exported.
+        if (!Number.isInteger(limit) || limit < 1) {
+            throw new Error(
+                `realtime: readRoster limit must be a positive integer, got ${limit}`,
+            )
+        }
+        if (selfIds.length > MAX_ROSTER_READ_SELF_IDS) {
+            throw new Error(
+                `realtime: readRoster accepts at most ${MAX_ROSTER_READ_SELF_IDS} ` +
+                    `self ids, got ${selfIds.length}`,
+            )
+        }
+        const wanted = selfIds.map(String)
+        const reply = asArray(
+            await this.command.command(
+                'EVAL',
+                READ_ROSTER_SCRIPT,
+                '1',
+                this.presenceKey(channel),
+                String(limit),
+                '',
+                ...wanted,
+            ),
         )
-        const flat = asArray(reply)
-        if (!flat) return []
+        const total = asInteger(reply?.[0])
+        const sample = asArray(reply?.[1])
+        const stored = asArray(reply?.[2])
+        if (total === undefined || !sample || !stored) {
+            throw new Error(
+                `realtime: the roster read for ${
+                    safeForLog(channel)
+                } returned an unexpected reply shape`,
+            )
+        }
         const members: PresenceMember[] = []
-        // HGETALL returns [field1, value1, field2, value2, …] as bulk strings.
-        for (let i = 1; i < flat.length; i += 2) {
-            const value = asBulk(flat[i])
-            if (!value) continue
-            try {
-                const entry = JSON.parse(value) as RosterEntry
-                if (entry && typeof entry === 'object' && entry.member) {
-                    members.push(entry.member)
-                }
-            } catch (error) {
+        // HRANDFIELD … WITHVALUES returns [field1, value1, field2, value2, …].
+        for (let i = 1; i < sample.length; i += 2) {
+            const member = this.#parseRosterValue(channel, asBulk(sample[i]))
+            if (member) members.push(member)
+        }
+        // `stored[0]` answers the `''` padding field and is always nil. Slot i
+        // answers the FIELD `wanted[i - 1]` — `HMGET` replies in field order,
+        // by protocol — and is accepted only if the entry it holds CARRIES
+        // that same id (FR-001, S3). Both must agree: an entry naming another
+        // id is never somebody's self, not even the self of another id this
+        // read also asked for, since only its own field could prove it is
+        // theirs. A repeated id is returned once, as `RosterWindow` promises.
+        const selves: PresenceMember[] = []
+        const seen = new Set<string>()
+        for (let i = 1; i < stored.length; i++) {
+            const member = this.#parseRosterValue(channel, asBulk(stored[i]))
+            if (!member) continue
+            const id = String(member.id)
+            if (id !== wanted[i - 1] || seen.has(id)) continue
+            seen.add(id)
+            selves.push(member)
+        }
+        return { members, total, selves }
+    }
+
+    /**
+     * Parse one stored roster value to its client-visible member, or
+     * `undefined` for an absent or malformed entry (logged at WARN).
+     *
+     * A fresh `{ id, info }` object is built rather than returning
+     * `entry.member` as parsed, so nothing else stored beside the member — the
+     * `owner`, or a field a future write adds — can reach a snapshot (S4).
+     */
+    #parseRosterValue(
+        channel: string,
+        value: string | undefined,
+    ): PresenceMember | undefined {
+        if (value === undefined) return undefined
+        try {
+            const entry = JSON.parse(value) as Partial<RosterEntry> | null
+            const member = entry && typeof entry === 'object'
+                ? entry.member
+                : undefined
+            if (
+                !member || typeof member !== 'object' ||
+                (typeof member.id !== 'string' && typeof member.id !== 'number')
+            ) {
                 console.warn(
                     `realtime: skipped a malformed roster entry on ${
                         safeForLog(channel)
-                    }: ${renderError(error)}`,
+                    }: no member id`,
                 )
+                return undefined
             }
+            return member.info === undefined
+                ? { id: member.id }
+                : { id: member.id, info: member.info }
+        } catch (error) {
+            console.warn(
+                `realtime: skipped a malformed roster entry on ${
+                    safeForLog(channel)
+                }: ${renderError(error)}`,
+            )
+            return undefined
         }
-        return members
     }
 
     /**

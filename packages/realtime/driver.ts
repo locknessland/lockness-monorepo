@@ -23,6 +23,74 @@
 
 import type { PresenceMember } from './channel.ts'
 
+/**
+ * The most self ids one {@link BroadcastDriver.readRoster} call may carry
+ * (#341).
+ *
+ * A shared roster read serves every caller that queued behind it, and each
+ * caller's own member is fetched by id so its reply can keep it. Uncapped, one
+ * read would ingest one entry per queued caller and the per-read bound would
+ * be a function of the burst, not a constant. At 1 000 the ingest of one read
+ * stays below `(limit + 1 000) × maxPresenceMemberBytes`, and a Redis script's
+ * `unpack` of the ids stays far below Lua's stack limit.
+ *
+ * **Every driver enforces it, not only the manager.** The seam is exported, so
+ * a caller other than `ChannelManager` can reach a driver directly; a driver
+ * refuses a list longer than this before issuing any command.
+ *
+ * @example
+ * ```ts
+ * import { MAX_ROSTER_READ_SELF_IDS } from '@lockness/realtime'
+ *
+ * if (selfIds.length > MAX_ROSTER_READ_SELF_IDS) {
+ *     throw new Error('split the batch')
+ * }
+ * ```
+ */
+export const MAX_ROSTER_READ_SELF_IDS = 1000
+
+/**
+ * What one bounded roster read reports (#341): a window onto the room, the
+ * room's size, and the members of the callers the read serves.
+ *
+ * All three describe **one instant**. A `total` counted by a second command
+ * could disagree with `members` under a concurrent join or leave, and a reply
+ * could then report fewer members than it lists.
+ *
+ * Invariants a driver guarantees:
+ *
+ * - `members.length === min(limit, total)`, less any stored entry the driver
+ *   could not parse (skipped with a WARN, never returned).
+ * - One entry per `String(member.id)`, in the driver's order. The order is the
+ *   driver's choice: join order on the memory driver, a random sample on Redis
+ *   when the room is larger than `limit`.
+ * - `selves` holds, for each requested self id the roster holds at that
+ *   instant, its {@link PresenceMember} — accepted only when the entry stored
+ *   under that id's own slot carries that same id, so an entry naming anyone
+ *   else is never returned as a self — **one per `String(id)`**, however many times
+ *   and in whichever type (`7`, `'7'`) the id was requested. An absent id
+ *   contributes nothing. Order is not significant.
+ * - Only the client-visible {@link PresenceMember} is returned; driver-internal
+ *   metadata (the Redis entry's `owner`) never appears in either list.
+ *
+ * @example
+ * ```ts
+ * const window: RosterWindow = {
+ *     members: [{ id: 1 }, { id: 2 }],
+ *     total: 10_000,
+ *     selves: [{ id: 9_999, info: { name: 'joiner' } }],
+ * }
+ * ```
+ */
+export interface RosterWindow {
+    /** At most `limit` members of the room, in the driver's order. */
+    readonly members: PresenceMember[]
+    /** The room's population when the window was read. */
+    readonly total: number
+    /** The requested self ids' members that the roster held at that instant. */
+    readonly selves: PresenceMember[]
+}
+
 /** A message broadcast to a channel. */
 export interface BroadcastMessage {
     /** The channel name. */
@@ -258,15 +326,33 @@ export interface BroadcastDriver {
         memberId: string | number,
     ): void | Promise<void>
     /**
-     * OPTIONAL (FR-005). List the channel's authoritative roster (every
-     * instance's members).
+     * OPTIONAL (FR-005, #341). Read a bounded window of the channel's
+     * authoritative roster, its population, and the members of `selfIds` — at
+     * one instant. See {@link RosterWindow} for the invariants.
+     *
+     * **Replaces the pre-`0.4.0` whole-room read**, which a `ChannelManager`
+     * refuses at construction if a driver still offers it.
+     *
+     * **Cost contract.** A driver SHOULD transfer and parse O(`limit` +
+     * `selfIds.length`) entries per call, independently of the room's size.
+     * Nothing can enforce this through the types: a driver that reads the whole
+     * room and slices it satisfies the signature and reintroduces the
+     * per-subscribe cost this method exists to bound.
      *
      * @param channel - The presence channel.
-     * @returns The current members ("here").
+     * @param limit - The most members to return; a positive integer.
+     * @param selfIds - The member ids whose entries must be returned in
+     *   `selves` when the roster holds them; at most
+     *   {@link MAX_ROSTER_READ_SELF_IDS}. May be empty.
+     * @returns The window, the population and the selves.
+     * @throws {Error} Before any work, if `limit` is not a positive integer or
+     *   `selfIds` is longer than {@link MAX_ROSTER_READ_SELF_IDS}.
      */
-    listMembers?(
+    readRoster?(
         channel: string,
-    ): PresenceMember[] | Promise<PresenceMember[]>
+        limit: number,
+        selfIds: readonly (string | number)[],
+    ): RosterWindow | Promise<RosterWindow>
     /**
      * OPTIONAL (A2/FR-016). Register the handler for {@link ControlMessage}s —
      * a **distinct** seam from {@link onMessage}, never folded into the
@@ -468,10 +554,17 @@ export interface PresenceCapableDriver extends BroadcastDriver {
         memberId: string | number,
     ): void | Promise<void>
     /**
-     * List the channel's authoritative roster (every instance's members).
+     * Read a bounded window of the channel's authoritative roster (#341). See
+     * {@link BroadcastDriver.readRoster} for the contract.
      *
      * @param channel - The presence channel.
-     * @returns The current members ("here").
+     * @param limit - The most members to return; a positive integer.
+     * @param selfIds - The member ids to return in `selves` when held.
+     * @returns The window, the population and the selves.
      */
-    listMembers(channel: string): PresenceMember[] | Promise<PresenceMember[]>
+    readRoster(
+        channel: string,
+        limit: number,
+        selfIds: readonly (string | number)[],
+    ): RosterWindow | Promise<RosterWindow>
 }

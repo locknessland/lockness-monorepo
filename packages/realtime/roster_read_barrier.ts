@@ -19,8 +19,8 @@
  * ## The rule, and why it is the TRAILING edge
  *
  * At most one read per channel is in flight. A caller arriving while one is in
- * flight is answered by **the next read, issued the instant the current one
- * settles** — never by the one already running. That is a read barrier, not the
+ * flight is answered by **a read issued after the current one settles** —
+ * never by the one already running. That is a read barrier, not the
  * leading-edge single-flight the issue proposed, and the difference is
  * correctness rather than tuning.
  *
@@ -44,49 +44,92 @@
  * burst — two rather than one for K concurrent callers — and that price is
  * correct.
  *
+ * ## Self ids ride the shared read, in batches (#341)
+ *
+ * A bounded read returns a window, and a caller's own member may fall outside
+ * it — so each read also fetches the members of the callers it serves. The
+ * running read carries the id of the caller that issued it. Callers arriving
+ * during it queue into **batches**, each a `Set` of `String(id)` and each
+ * answered by one read:
+ *
+ * - a caller whose id is already in a queued batch **joins that batch without
+ *   counting** — N frames from one member cost one id (S1), so a pipelined
+ *   re-join storm from one socket still costs two reads, as under #333;
+ * - a caller with **no id** (a superseded join) contributes nothing and joins
+ *   the earliest queued batch;
+ * - a new id joins the newest batch, and when that batch already holds the cap
+ *   (`MAX_ROSTER_READ_SELF_IDS`) it opens the **next** batch instead — never
+ *   rides a read without its id, which would silently drop its self.
+ *
+ * Batches are issued FIFO, each when its predecessor settles, so a storm of S
+ * distinct members costs ⌈S / cap⌉ + 1 sequential reads, each bounded, with one
+ * in flight — the accepted residue of the #341 plan. The cap bounds what one
+ * read transfers; this file only decides how ids are grouped, never how many a
+ * driver accepts.
+ *
  * ## What it does not do
  *
- * It bounds reads per unit time. It never bounds the bytes of any single read:
- * a lone subscriber in a room of ten thousand still pulls ten thousand members.
- * That is a separate defect with a separate option space, tracked as #339.
- *
- * It refuses nothing, meters nothing, and remembers no desired state — an
- * in-flight promise is not a state to reconcile, which is why ADR 003 §6's ban
- * on coalescing roster **writes** does not reach a read.
+ * It bounds reads per unit time. The bytes of one read are bounded by the
+ * driver's `readRoster` (#341), never here. It refuses nothing, meters nothing,
+ * and remembers no desired state — an in-flight promise is not a state to
+ * reconcile, which is why ADR 003 §6's ban on coalescing roster **writes** does
+ * not reach a read.
  *
  * @module @lockness/realtime/roster_read_barrier
  */
 
-import type { PresenceMember } from './channel.ts'
+import { MAX_ROSTER_READ_SELF_IDS, type RosterWindow } from './driver.ts'
 
-/** The function a barrier calls when it decides a fresh read is owed. */
+/**
+ * The function a barrier calls when it decides a fresh read is owed.
+ *
+ * @param channel - The presence channel.
+ * @param selfIds - The distinct member ids of the callers this read serves.
+ */
 export type RosterRead = (
     channel: string,
-) => PresenceMember[] | Promise<PresenceMember[]>
+    selfIds: readonly string[],
+) => RosterWindow | Promise<RosterWindow>
 
-/** One channel's two slots. `next` exists only while `running` is in flight. */
+/**
+ * One queued read: the ids it will fetch, and the promise every caller in it
+ * shares. `ids` stays open until the read is issued, which happens only after
+ * the read ahead of it settles.
+ */
+interface Batch {
+    readonly ids: Set<string>
+    readonly promise: Promise<RosterWindow>
+}
+
+/**
+ * One channel's state. `queue` is FIFO; `pending` indexes every id in it, so a
+ * repeated id finds its batch without a scan. Both exist only while a read is
+ * in flight.
+ */
 interface Slot {
-    running: Promise<PresenceMember[]>
-    next?: Promise<PresenceMember[]>
+    running: Promise<RosterWindow>
+    readonly queue: Batch[]
+    readonly pending: Map<string, Batch>
 }
 
 /**
  * Collapses concurrent authoritative roster reads of one channel onto the
- * trailing edge.
+ * trailing edge, batching the callers' self ids.
  *
  * @example
  * ```ts
- * const barrier = new RosterReadBarrier((channel) =>
- *     roster.listMembers(channel)
+ * const barrier = new RosterReadBarrier((channel, selfIds) =>
+ *     roster.readRoster(channel, 100, selfIds)
  * )
  * // Eight concurrent subscribes to one channel cost two reads, not eight.
- * const rosters = await Promise.all(
- *     Array.from({ length: 8 }, () => barrier.snapshot('presence-room')),
+ * const windows = await Promise.all(
+ *     Array.from({ length: 8 }, (_, i) => barrier.snapshot('presence-room', i)),
  * )
  * ```
  */
 export class RosterReadBarrier {
     readonly #read: RosterRead
+    readonly #maxSelfIds: number
     /**
      * Keyed by channel, and **bounded by reads in flight, not by names ever
      * seen**. Every entry is deleted the moment its last read settles with
@@ -101,9 +144,23 @@ export class RosterReadBarrier {
      *   the driver: the unit is then testable alone and cannot drift with
      *   `BroadcastDriver`'s eleven optional members, three of which are
      *   feature-detected by `typeof`.
+     * @param maxSelfIds - The most distinct ids one read may carry. Defaults to
+     *   the seam's `MAX_ROSTER_READ_SELF_IDS`; injectable so the overflow path
+     *   is reachable in a unit test without a thousand callers.
+     * @throws {RangeError} When `maxSelfIds` is not a positive integer — a
+     *   batch that can hold no id would open a new read for every caller.
      */
-    constructor(read: RosterRead) {
+    constructor(
+        read: RosterRead,
+        maxSelfIds: number = MAX_ROSTER_READ_SELF_IDS,
+    ) {
+        if (!Number.isInteger(maxSelfIds) || maxSelfIds < 1) {
+            throw new RangeError(
+                `RosterReadBarrier: maxSelfIds must be a positive integer, got ${maxSelfIds}`,
+            )
+        }
         this.#read = read
+        this.#maxSelfIds = maxSelfIds
     }
 
     /**
@@ -120,11 +177,11 @@ export class RosterReadBarrier {
     }
 
     /**
-     * The authoritative roster for `channel`, sharing an in-flight read where
-     * sharing cannot cost freshness.
+     * The authoritative roster window for `channel`, sharing an in-flight read
+     * where sharing cannot cost freshness.
      *
-     * **The returned array is shared by every caller of one read**, and so are
-     * the `PresenceMember` objects in it. Callers that hand the list onward
+     * **The returned window is shared by every caller of one read**, and so
+     * are its arrays and the `PresenceMember` objects in them. Callers that hand the list onward
      * must copy it; `ChannelManager.rosterSnapshot` spreads it for exactly that
      * reason, and that spread stopped being defensive the day this class
      * arrived. The members themselves are deliberately **not** cloned: a
@@ -133,39 +190,87 @@ export class RosterReadBarrier {
      * object and the framework never mutates one.
      *
      * @param channel - The presence channel to read the roster of.
-     * @returns The members the driver reported.
+     * @param selfId - The caller's member id, fetched by the read that answers
+     *   it so the caller's own member survives a bounded window; `undefined`
+     *   when the caller holds none.
+     * @returns The window the driver reported.
      * @throws Whatever the read threw — propagated to **every** caller sharing
      *   it, never swallowed. The manager's own `#closingRead` stays the single
      *   decider of the local fallback.
      */
-    snapshot(channel: string): Promise<PresenceMember[]> {
+    snapshot(
+        channel: string,
+        selfId?: string | number,
+    ): Promise<RosterWindow> {
         const slot = this.#slots.get(channel)
         if (!slot) {
-            const running = this.#issue(channel)
-            this.#slots.set(channel, { running })
+            const running = this.#issue(
+                channel,
+                selfId === undefined ? [] : [String(selfId)],
+            )
+            this.#slots.set(channel, {
+                running,
+                queue: [],
+                pending: new Map(),
+            })
             this.#watch(channel, running)
             return running
         }
-        // Everyone who arrives during one read shares ONE next read, not one
-        // each — otherwise K callers queue K reads and the bound is a delay
-        // rather than a bound.
-        if (slot.next) return slot.next
-        // THE TRAILING EDGE. A fresh read, issued when the current one settles
-        // — and `#issue` on BOTH branches, because a continuation that only
-        // runs on fulfilment strands every queued caller forever the first time
-        // the driver rejects. That is the trap in this shape.
-        const next = slot.running.then(
-            () => this.#issue(channel),
-            () => this.#issue(channel),
+        return this.#batchFor(channel, slot, selfId).promise
+    }
+
+    /**
+     * The queued batch that answers a caller arriving during a read.
+     *
+     * Everyone who arrives during one read shares the queued reads, not one
+     * each — otherwise K callers queue K reads and the bound is a delay rather
+     * than a bound. A new batch is opened only when there is none, or when a
+     * NEW id would take the newest past the cap.
+     */
+    #batchFor(
+        channel: string,
+        slot: Slot,
+        selfId: string | number | undefined,
+    ): Batch {
+        if (selfId === undefined) {
+            return slot.queue[0] ?? this.#open(channel, slot)
+        }
+        const id = String(selfId)
+        const queued = slot.pending.get(id)
+        if (queued) return queued
+        const newest = slot.queue.at(-1)
+        const batch = newest && newest.ids.size < this.#maxSelfIds
+            ? newest
+            : this.#open(channel, slot)
+        batch.ids.add(id)
+        slot.pending.set(id, batch)
+        return batch
+    }
+
+    /**
+     * Open a batch at the tail, issued when the read ahead of it settles.
+     *
+     * THE TRAILING EDGE — and `#issue` on BOTH branches, because a
+     * continuation that only runs on fulfilment strands every queued caller
+     * forever the first time the driver rejects. That is the trap in this
+     * shape.
+     */
+    #open(channel: string, slot: Slot): Batch {
+        const ahead = slot.queue.at(-1)?.promise ?? slot.running
+        const ids = new Set<string>()
+        const promise = ahead.then(
+            () => this.#issue(channel, [...ids]),
+            () => this.#issue(channel, [...ids]),
         )
-        slot.next = next
-        return next
+        const batch = { ids, promise }
+        slot.queue.push(batch)
+        return batch
     }
 
     /** Run the read, normalising a synchronous driver to a promise. */
-    #issue(channel: string): Promise<PresenceMember[]> {
+    #issue(channel: string, selfIds: readonly string[]): Promise<RosterWindow> {
         try {
-            return Promise.resolve(this.#read(channel))
+            return Promise.resolve(this.#read(channel, selfIds))
         } catch (error) {
             // A driver that throws synchronously must reject like one that
             // rejects, or the slot below is never installed and the map leaks.
@@ -174,24 +279,26 @@ export class RosterReadBarrier {
     }
 
     /**
-     * Promote `next` when `promise` settles, or give the channel's entry back.
+     * Promote the head batch when `promise` settles, or give the channel's
+     * entry back.
      *
-     * Registered BEFORE any `next` can be, so it runs first on settlement and
-     * sees the queued read rather than deleting the slot out from under it.
+     * A promoted batch's ids leave `pending` here: a caller arriving after its
+     * read was issued must not join it, or it would be answered by a read
+     * older than its ask.
      */
-    #watch(channel: string, promise: Promise<PresenceMember[]>): void {
+    #watch(channel: string, promise: Promise<RosterWindow>): void {
         const settled = () => {
             const slot = this.#slots.get(channel)
             // A slot replaced by a later burst is not ours to retire.
             if (!slot || slot.running !== promise) return
-            if (!slot.next) {
+            const head = slot.queue.shift()
+            if (!head) {
                 this.#slots.delete(channel)
                 return
             }
-            const promoted = slot.next
-            slot.running = promoted
-            slot.next = undefined
-            this.#watch(channel, promoted)
+            for (const id of head.ids) slot.pending.delete(id)
+            slot.running = head.promise
+            this.#watch(channel, head.promise)
         }
         // Both arms: a rejected read must still release the channel, or one
         // driver fault makes that room unreadable for the life of the process.
