@@ -53,6 +53,8 @@ import {
     type ControlRefusal,
     MAX_ROSTER_READ_SELF_IDS,
     type Revocation,
+    type RosterHold,
+    type RosterRelease,
     type RosterWindow,
 } from '../driver.ts'
 import { isValidName } from '../protocol.ts'
@@ -148,55 +150,89 @@ const LIST_REVOKED_SCRIPT: string = [
 const REVOCATION_SCOPE_SEPARATOR = ' '
 
 /**
- * Add a member to the authoritative roster — ONE operation, both structures.
+ * Hold a roster slot for one instance — ONE operation, four structures (#345).
  *
- * A roster member IS the pair: a field in the channel's presence hash, and an
- * entry in its owning instance's owned set. Two round-trips could write one and
- * not the other, and the two halves fail in different, both-bad ways. A field
- * with no owned entry is invisible to {@link RedisBroadcastDriver} ghost
- * sweeping, which enumerates owned sets and nothing else — so it is
- * unreclaimable by any instance, forever, outliving the process that wrote it.
+ * A roster slot is a field in the channel's presence hash; **who holds it** is
+ * the slot's holders hash, `instanceId → that instance's latest entry JSON`. A
+ * hold writes the instance's entry into both, records the slot in the
+ * instance's owned set (what the ghost sweep enumerates), and registers the
+ * instance itself — so no hold can exist on an instance the sweep does not know
+ * of (S1b). Two structures encoding one fact must not be writable into
+ * disagreement (#276, #323): a field with no owned entry is unreclaimable by
+ * any instance, forever.
  *
- * Same reasoning, same shape, as {@link MARK_REVOKED_SCRIPT}: two structures
- * encoding one fact must not be writable into disagreement (#276, #323).
+ * **`arrived` is decided HERE and nowhere else**: 1 iff the holders `HSET`
+ * added a field and the hash then has exactly one — this instance filled an
+ * empty slot. Inferring it from the presence `HSET` reply would report a slot
+ * another instance already fills as an arrival; reading `HLEN` from TypeScript
+ * would race another instance's hold between the two round-trips.
  *
- * **Two keys, and they hash to different slots.** This is the file's first
- * multi-key script, and on Redis Cluster a cross-slot `EVAL` is refused where
- * the previous independent `HSET` + `SADD` would each have succeeded. Nothing
- * in this package claims Cluster as a target and the driver has never been
- * exercised against one; a deployment that wants it needs the two keys hash-
- * tagged onto one slot, which is a key-layout change and therefore breaking.
- * Recorded here rather than left to be discovered at runtime.
+ * **No `EXPIRE`, deliberately.** A holders hash that expired alone would bring
+ * #345 back — a release would see no holders and delete a slot another
+ * instance still holds — so the realtime Redis must not evict these keys.
  *
- * `KEYS[1]` presence hash · `KEYS[2]` owned set ·
- * `ARGV[1]` field · `ARGV[2]` entry JSON · `ARGV[3]` owned entry.
+ * **Four keys, and they hash to different slots**: a cross-slot `EVAL` is
+ * refused on Redis Cluster, which this package does not target.
+ *
+ * `KEYS[1]` presence hash · `KEYS[2]` holders hash · `KEYS[3]` owned set ·
+ * `KEYS[4]` instances set ·
+ * `ARGV[1]` field · `ARGV[2]` instance id · `ARGV[3]` entry JSON ·
+ * `ARGV[4]` owned entry. Returns integer 1 (arrived) or 0.
  */
-const ADD_MEMBER_SCRIPT: string = [
-    "redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])",
-    "redis.call('SADD', KEYS[2], ARGV[3])",
+const HOLD_MEMBER_SCRIPT: string = [
+    "local added = redis.call('HSET', KEYS[2], ARGV[2], ARGV[3])",
+    "redis.call('HSET', KEYS[1], ARGV[1], ARGV[3])",
+    "redis.call('SADD', KEYS[3], ARGV[4])",
+    "redis.call('SADD', KEYS[4], ARGV[2])",
+    "local n = redis.call('HLEN', KEYS[2])",
+    'if added == 1 then',
+    '  if n == 1 then',
+    '    return 1',
+    '  end',
+    'end',
+    'return 0',
 ].join('\n')
 
 /**
- * Remove a member from the authoritative roster — ONE operation, both halves.
+ * Release one instance's hold on a roster slot — ONE operation, three
+ * structures (#345). The leave AND the ghost sweep run it; there is no second
+ * release path.
  *
- * This is the direction that can delete somebody else's live member. The sweep
- * HDELs whatever a dead instance's owned set names **without checking the
- * entry's `owner`** ({@link RedisBroadcastDriver} `#sweepInstance`). So an
- * owned entry left behind by a half-completed removal names a field this
- * instance no longer owns; once that member re-joins elsewhere and this
- * instance dies, the sweep deletes a member somebody else owns and that is
- * genuinely present.
+ * It drops the releaser's holders entry and owned entry, then: if no holder is
+ * left, deletes the presence field and returns 1 **only if the releaser held
+ * it** (the script's `mine == false` test answers 0) — a non-holder emptying a
+ * legacy or already-emptied slot is not a departure. If holders remain, the
+ * field stays; and when the shown entry was the releaser's (`shown == mine`),
+ * one remaining holder's entry is copied in, so the shown `info` never belongs
+ * to a departed holder.
+ * Releasing a holder whose entry is not shown leaves the field unchanged.
  *
- * The sweep trusts the owned set completely. That is exactly why the owned set
- * must never be able to lie, and why atomicity here is correctness rather than
- * tidiness.
+ * **This is the direction that could delete somebody else's live member**, and
+ * the only one that touches the presence field on a leave: no raw `HDEL` on the
+ * presence hash exists anywhere else in this driver.
  *
- * `KEYS[1]` presence hash · `KEYS[2]` owned set ·
- * `ARGV[1]` field · `ARGV[2]` owned entry.
+ * `KEYS[1]` presence hash · `KEYS[2]` holders hash · `KEYS[3]` the releaser's
+ * owned set · `ARGV[1]` field · `ARGV[2]` releaser instance id ·
+ * `ARGV[3]` owned entry. Returns integer 1 (gone) or 0.
  */
-const REMOVE_MEMBER_SCRIPT: string = [
-    "redis.call('HDEL', KEYS[1], ARGV[1])",
-    "redis.call('SREM', KEYS[2], ARGV[2])",
+const RELEASE_MEMBER_SCRIPT: string = [
+    "local mine = redis.call('HGET', KEYS[2], ARGV[2])",
+    "local shown = redis.call('HGET', KEYS[1], ARGV[1])",
+    "redis.call('HDEL', KEYS[2], ARGV[2])",
+    "redis.call('SREM', KEYS[3], ARGV[3])",
+    "local n = redis.call('HLEN', KEYS[2])",
+    'if n == 0 then',
+    "  redis.call('HDEL', KEYS[1], ARGV[1])",
+    '  if mine == false then',
+    '    return 0',
+    '  end',
+    '  return 1',
+    'end',
+    'if shown == mine then',
+    "  local promoted = redis.call('HRANDFIELD', KEYS[2], 1, 'WITHVALUES')",
+    "  redis.call('HSET', KEYS[1], ARGV[1], promoted[2])",
+    'end',
+    'return 0',
 ].join('\n')
 
 /**
@@ -679,11 +715,46 @@ function asInteger(reply: unknown): number | undefined {
         : undefined
 }
 
+/**
+ * Decode a hold / release script's reply: integer 1 is `true`, integer 0 is
+ * `false`, and anything else throws (#345, FR-004a).
+ *
+ * The one decoder both {@link HOLD_MEMBER_SCRIPT} and
+ * {@link RELEASE_MEMBER_SCRIPT} replies go through. Truthiness would read an
+ * error string or an unexpected array as an arrival — and the manager announces
+ * a `joined` or `left` from this bit.
+ *
+ * @param reply - The `EVAL` reply.
+ * @param script - Which script answered, for the error message.
+ * @returns The transition bit.
+ * @throws {Error} If the reply is not the integer 0 or 1.
+ */
+function decodeTransitionReply(reply: unknown, script: string): boolean {
+    const value = asInteger(reply)
+    if (value === 1) return true
+    if (value === 0) return false
+    throw new Error(
+        `realtime: the ${script} script answered something other than 0 or 1`,
+    )
+}
+
 /** A stored roster entry: the client-visible member + its internal owner (FR-018). */
 interface RosterEntry {
     /** The client-visible member (the only field that enters snapshots/frames). */
     readonly member: PresenceMember
-    /** The owning-instance id — internal sweep metadata, never client-visible. */
+    /**
+     * The id of the instance that wrote this entry — internal, never
+     * client-visible. Who HOLDS a slot is the holders hash's keys (#345), not
+     * this field; nothing decides a hold or a sweep by reading it.
+     *
+     * **It is still load-bearing: it makes each holder's stored value
+     * distinct.** Two instances holding one member with identical `info` would
+     * otherwise store byte-identical entries, and the release script's
+     * `shown == mine` — which decides whether the shown entry must be replaced —
+     * would be a value comparison that a departing holder could win for an
+     * entry another instance wrote. With the owner in the bytes it is an
+     * identity check.
+     */
     readonly owner: string
 }
 
@@ -771,7 +842,7 @@ const MIN_CONTROL_SECRET_BYTES = 32
  * and `#sweepInstance` then split `presence-my room u1` into channel
  * `presence-my` and field `room u1`, issuing `HDEL` against a key that does not
  * exist and leaving the members unreclaimed forever. Only the death-recovery
- * path broke, because `removeMember` re-joins the full string, which is why it
+ * path broke, because the leave path re-joins the full string, which is why it
  * went unnoticed. `ChannelManager`'s `#assertUsableChannel` is the enforcement
  * point this docstring now depends on rather than assumes.
  *
@@ -780,6 +851,10 @@ const MIN_CONTROL_SECRET_BYTES = 32
  * a two-space id. Before that its id was `2`, so `indexOf` and `lastIndexOf`
  * agreed on every entry and the sweep could have parsed on the LAST space
  * undetected: the line ran on every pass and no fixture could observe it.
+ *
+ * **The holders key joins channel and member id with this separator too**
+ * (#345, `holdersKey`), so the same no-space-in-a-channel rule is what keeps
+ * two slots from sharing one holders hash.
  */
 const OWNED_SEP = ' '
 
@@ -1152,6 +1227,25 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         return `${this.prefix}${RESERVED_SEPARATOR_LEAD}presence:${channel}`
     }
 
+    /**
+     * The holders hash of one roster slot: `instanceId → entry JSON` (#345).
+     *
+     * **Unambiguous only because a channel carries no space.** The key joins
+     * channel and member id with {@link OWNED_SEP}, the separator the owned set
+     * already splits on; `ChannelManager`'s `#assertUsableChannel` refuses a
+     * channel containing one, so `a b` + `c` and `a` + `b c` cannot share a
+     * key. Weaken that check and two slots share one holders hash.
+     *
+     * @param channel - The presence channel.
+     * @param id - The member id naming the slot.
+     * @returns The holders hash key.
+     */
+    private holdersKey(channel: string, id: string | number): string {
+        return `${this.prefix}${RESERVED_SEPARATOR_LEAD}holders:${channel}${OWNED_SEP}${
+            String(id)
+        }`
+    }
+
     private ownedKey(instanceId: string): string {
         return `${this.prefix}${RESERVED_SEPARATOR_LEAD}owned:${instanceId}`
     }
@@ -1428,16 +1522,18 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     'control.maxPayloadBytes on EVERY instance.',
             )
             // THROWS, where it used to `return` (#326). Refusing and then
-            // reporting success is a lie to every caller: `unsubscribe` and
-            // `evict` await this and had no way to learn their frame was never
-            // sent. The refusal is recorded first — `#refuseControl` logs and
-            // runs the `onControlRefused` handler — so the drop is still
-            // observable to an operator whichever way the caller handles this.
+            // reporting success is a lie to every caller: `evict` awaits this
+            // and had no way to learn its frame was never sent. The refusal is
+            // recorded first — `#refuseControl` logs and runs the
+            // `onControlRefused` handler — so the drop is still observable to
+            // an operator whichever way the caller handles this.
             //
-            // The presence-join caller catches it and warns on purpose; see
-            // the note at that catch. It is reachable there only for a member
-            // admitted before this bound existed, because `ChannelManager`
-            // now refuses an oversized member at admission (#326).
+            // Both presence announcements catch it and warn on purpose, in
+            // `ChannelManager`'s `#announcePresence` (#344): a throw there
+            // would reject a queued roster write. It is reachable there only
+            // for a member admitted before this bound existed, because
+            // `ChannelManager` now refuses an oversized member at admission
+            // (#326).
             throw new Error(
                 `realtime: control message of ${payload.length} bytes ` +
                     `exceeds control.maxPayloadBytes ` +
@@ -1448,55 +1544,89 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * OPTIONAL (FR-005). Add a member to the channel's authoritative Redis
-     * roster, tagged with this instance's owning id for the ghost sweep (FR-008),
-     * and start the instance-liveness heartbeat if it is not already running.
+     * OPTIONAL (FR-005, #345). Hold the channel's roster slot for THIS
+     * instance, with `member` as its entry, and start the instance-liveness
+     * heartbeat if it is not already running. See {@link HOLD_MEMBER_SCRIPT}.
      *
      * @param channel - The presence channel.
-     * @param member - The client-visible member to add.
+     * @param member - The client-visible member this instance holds the slot as.
+     * @returns `arrived: true` iff no instance held the slot before.
+     * @throws {Error} If the broker fails, or the script's reply is not 0 or 1.
      */
-    async addMember(channel: string, member: PresenceMember): Promise<void> {
+    async holdMember(
+        channel: string,
+        member: PresenceMember,
+    ): Promise<RosterHold> {
         await this.#ensureSweepStarted()
         const entry: RosterEntry = { member, owner: this.instanceId }
         const field = String(member.id)
-        // ONE operation (#323). Decision-table home: "the authoritative roster
-        // write is ONE fact". The sweep start above is deliberately outside it —
-        // it is this instance's liveness, not this member's membership.
-        await this.command.command(
+        // ONE operation (#323, #345). The sweep start above is deliberately
+        // outside it — it is this instance's liveness, not this member's hold.
+        const reply = await this.command.command(
             'EVAL',
-            ADD_MEMBER_SCRIPT,
-            '2',
+            HOLD_MEMBER_SCRIPT,
+            '4',
             this.presenceKey(channel),
+            this.holdersKey(channel, field),
             this.ownedKey(this.instanceId),
+            this.instancesKey,
             field,
+            this.instanceId,
             JSON.stringify(entry),
             `${channel}${OWNED_SEP}${field}`,
         )
+        return { arrived: decodeTransitionReply(reply, 'hold') }
     }
 
     /**
-     * OPTIONAL (FR-005). Remove a member from the channel's authoritative roster.
+     * OPTIONAL (FR-005, #345). Drop THIS instance's hold on the channel's
+     * roster slot. The slot leaves the roster only with its last holder. See
+     * {@link RELEASE_MEMBER_SCRIPT}.
      *
      * @param channel - The presence channel.
-     * @param memberId - The id of the member to remove.
+     * @param memberId - The id of the member whose slot this instance releases.
+     * @returns `gone: true` iff this instance held the slot and none is left.
+     * @throws {Error} If the broker fails, or the script's reply is not 0 or 1.
      */
-    async removeMember(
+    async releaseMember(
         channel: string,
         memberId: string | number,
-    ): Promise<void> {
-        const field = String(memberId)
-        // ONE operation (#323), for a sharper reason than the add: a stale
-        // owned entry makes the sweep delete a LIVE member owned by another
-        // instance. See {@link REMOVE_MEMBER_SCRIPT}.
-        await this.command.command(
+    ): Promise<RosterRelease> {
+        const gone = await this.#release(
+            channel,
+            String(memberId),
+            this.instanceId,
+        )
+        return { gone }
+    }
+
+    /**
+     * Run {@link RELEASE_MEMBER_SCRIPT} for one slot on behalf of `releaserId`
+     * — this instance on a leave, a dead instance on a sweep. One path, so a
+     * leave and a sweep cannot disagree about what releasing means.
+     *
+     * @param channel - The presence channel.
+     * @param field - The slot's member id, as a string.
+     * @param releaserId - The instance whose hold is dropped.
+     * @returns Whether the release emptied a slot the releaser held.
+     */
+    async #release(
+        channel: string,
+        field: string,
+        releaserId: string,
+    ): Promise<boolean> {
+        const reply = await this.command.command(
             'EVAL',
-            REMOVE_MEMBER_SCRIPT,
-            '2',
+            RELEASE_MEMBER_SCRIPT,
+            '3',
             this.presenceKey(channel),
-            this.ownedKey(this.instanceId),
+            this.holdersKey(channel, field),
+            this.ownedKey(releaserId),
             field,
+            releaserId,
             `${channel}${OWNED_SEP}${field}`,
         )
+        return decodeTransitionReply(reply, 'release')
     }
 
     /**
@@ -2168,8 +2298,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * Sweep the roster members of every instance whose liveness key has expired
-     * (Q1/FR-008), so a crashed instance leaves no permanent ghost members.
+     * Release the roster holds of every instance whose liveness key has expired
+     * (Q1/FR-008, #345), so a crashed instance leaves no permanent ghost members
+     * and never removes a member a live instance still holds.
      */
     async #reconcile(): Promise<void> {
         try {
@@ -2196,7 +2327,20 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // presence-free deployment that never starts this ghost-sweep pass.
     }
 
-    /** Remove every roster member owned by a dead instance, then forget it. */
+    /**
+     * Release every hold of a dead instance, then forget the instance (#345).
+     *
+     * **A sweep is a leave on the dead instance's behalf**: one
+     * {@link RELEASE_MEMBER_SCRIPT} per owned entry, with `deadId` as the
+     * releaser, so a slot another live instance still holds stays in the
+     * roster. Its return is ignored — a sweep announces nothing (#348).
+     *
+     * **The owned set is never `DEL`eted.** Each release already removes its own
+     * entry; a hold that lands between the `SMEMBERS` below and the end of the
+     * sweep stays in the set, sweepable next time (S1c).
+     *
+     * @param deadId - The instance whose liveness lapsed.
+     */
     async #sweepInstance(deadId: string): Promise<void> {
         const reply = await this.command.command(
             'SMEMBERS',
@@ -2211,13 +2355,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             if (sep < 0) continue
             const channel = entry.slice(0, sep)
             const field = entry.slice(sep + 1)
-            await this.command.command('HDEL', this.presenceKey(channel), field)
+            await this.#release(channel, field, deadId)
             swept++
         }
-        await this.command.command('DEL', this.ownedKey(deadId))
         await this.command.command('SREM', this.instancesKey, deadId)
         console.warn(
-            `realtime: swept ${swept} ghost member(s) of dead instance ${
+            `realtime: released ${swept} hold(s) of dead instance ${
                 safeForLog(deadId)
             }`,
         )
@@ -2227,7 +2370,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * Release the connections this driver constructed itself (via
      * {@link fromConfig}) — the subscribe socket first (stops the push read
      * loop), then the command client (drains its QUIT) — and stop the sweep
-     * timers. Does NOT proactively drop this instance's roster members: a real
+     * timers. Does NOT proactively release this instance's roster holds: a real
      * crash cannot, so its liveness key simply expires and a surviving instance
      * sweeps it (that is what {@link close} models in the sweep tests).
      * Idempotent; for an injected-port driver it stops the timers and drops the

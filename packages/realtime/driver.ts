@@ -282,6 +282,50 @@ export interface ControlMessage {
 }
 
 /**
+ * The result of {@link BroadcastDriver.holdMember}: whether this hold filled an
+ * empty roster slot.
+ *
+ * A hold means "this process holds the slot `String(member.id)` with this
+ * entry". `arrived` is `true` **only if no process held the slot** before this
+ * hold — cluster-wide on a shared roster, not per connection and not per
+ * instance. The manager announces a `joined` frame from it, so a driver may not
+ * fake it: reporting `true` for a slot another holder already fills sends a
+ * duplicate `joined` to every subscriber.
+ *
+ * @example
+ * ```ts
+ * const { arrived } = await driver.holdMember('presence-room', { id: 7, info: {} })
+ * if (arrived) console.log('member 7 is now present')
+ * ```
+ */
+export interface RosterHold {
+    /** `true` iff no process held the slot before this hold. */
+    readonly arrived: boolean
+}
+
+/**
+ * The result of {@link BroadcastDriver.releaseMember}: whether this release
+ * emptied the roster slot.
+ *
+ * A release means "this process drops its hold on the slot". `gone` is `true`
+ * **only if this process held the slot and no holder is left** after the
+ * release. A release by a process that did not hold the slot is `false`, even
+ * when the slot ends up empty. The manager announces a `left` frame from it, so
+ * a driver may not fake it: reporting `true` while another holder remains
+ * removes a present member from every client's list.
+ *
+ * @example
+ * ```ts
+ * const { gone } = await driver.releaseMember('presence-room', 7)
+ * if (gone) console.log('member 7 has left')
+ * ```
+ */
+export interface RosterRelease {
+    /** `true` iff this process held the slot and no holder is left. */
+    readonly gone: boolean
+}
+
+/**
  * A broadcast transport. `publish` emits a message; every instance's
  * `onMessage` handler (registered once) receives it and re-resolves local
  * delivery. The memory driver loops back in-process; the Redis driver fans out
@@ -306,25 +350,45 @@ export interface BroadcastDriver {
      */
     onMessage(handler: (message: BroadcastMessage) => void): void
     /**
-     * OPTIONAL (FR-005). Add a member to the channel's authoritative roster.
+     * OPTIONAL (FR-005, #345). Hold the channel's roster slot `String(member.id)`
+     * for this process, with `member` as this process's entry.
+     *
+     * Holding a slot this process already holds replaces its entry and reports
+     * `arrived: false`. Several processes may hold one slot at once; the slot
+     * stays in the roster while any holder remains. See {@link RosterHold} for
+     * what `arrived` promises — a driver may not fake it.
+     *
+     * **Replaces the pre-`0.4.0` add method**, whose old name a `ChannelManager`
+     * refuses at construction if a driver still offers it.
      *
      * @param channel - The presence channel.
-     * @param member - The client-visible member to add.
+     * @param member - The client-visible member this process holds the slot as.
+     * @returns Whether this hold filled an empty slot.
      */
-    addMember?(
+    holdMember?(
         channel: string,
         member: PresenceMember,
-    ): void | Promise<void>
+    ): RosterHold | Promise<RosterHold>
     /**
-     * OPTIONAL (FR-005). Remove a member from the channel's authoritative roster.
+     * OPTIONAL (FR-005, #345). Drop this process's hold on the channel's roster
+     * slot `String(memberId)`.
+     *
+     * The slot leaves the roster only when its last holder releases it; a
+     * release by a process that holds nothing leaves every other holder's hold
+     * untouched. See {@link RosterRelease} for what `gone` promises — a driver
+     * may not fake it.
+     *
+     * **Replaces the pre-`0.4.0` remove method**, whose old name a
+     * `ChannelManager` refuses at construction if a driver still offers it.
      *
      * @param channel - The presence channel.
-     * @param memberId - The id of the member to remove.
+     * @param memberId - The id of the member whose slot this process releases.
+     * @returns Whether this release emptied a slot this process held.
      */
-    removeMember?(
+    releaseMember?(
         channel: string,
         memberId: string | number,
-    ): void | Promise<void>
+    ): RosterRelease | Promise<RosterRelease>
     /**
      * OPTIONAL (FR-005, #341). Read a bounded window of the channel's
      * authoritative roster, its population, and the members of `selfIds` — at
@@ -537,22 +601,29 @@ export interface RevocationStoreDriver extends BroadcastDriver {
  */
 export interface PresenceCapableDriver extends BroadcastDriver {
     /**
-     * Add a member to the channel's authoritative roster.
+     * Hold the channel's roster slot for this process (#345). See
+     * {@link BroadcastDriver.holdMember} for the contract.
      *
      * @param channel - The presence channel.
-     * @param member - The client-visible member to add.
+     * @param member - The client-visible member this process holds the slot as.
+     * @returns Whether this hold filled an empty slot.
      */
-    addMember(channel: string, member: PresenceMember): void | Promise<void>
+    holdMember(
+        channel: string,
+        member: PresenceMember,
+    ): RosterHold | Promise<RosterHold>
     /**
-     * Remove a member from the channel's authoritative roster.
+     * Drop this process's hold on the channel's roster slot (#345). See
+     * {@link BroadcastDriver.releaseMember} for the contract.
      *
      * @param channel - The presence channel.
-     * @param memberId - The id of the member to remove.
+     * @param memberId - The id of the member whose slot this process releases.
+     * @returns Whether this release emptied a slot this process held.
      */
-    removeMember(
+    releaseMember(
         channel: string,
         memberId: string | number,
-    ): void | Promise<void>
+    ): RosterRelease | Promise<RosterRelease>
     /**
      * Read a bounded window of the channel's authoritative roster (#341). See
      * {@link BroadcastDriver.readRoster} for the contract.

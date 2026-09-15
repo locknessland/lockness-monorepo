@@ -50,6 +50,8 @@ export type {
     PresenceCapableDriver,
     Revocation,
     RevocationStoreDriver,
+    RosterHold,
+    RosterRelease,
     RosterWindow,
 } from './driver.ts'
 // A VALUE, so it cannot ride the type-only re-export above: a driver author

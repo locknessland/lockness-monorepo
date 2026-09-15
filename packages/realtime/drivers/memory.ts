@@ -12,6 +12,8 @@ import {
     type BroadcastDriver,
     type BroadcastMessage,
     MAX_ROSTER_READ_SELF_IDS,
+    type RosterHold,
+    type RosterRelease,
     type RosterWindow,
 } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
@@ -56,25 +58,34 @@ export class MemoryBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * Add a member to the channel's in-process roster (FR-005).
+     * Hold the channel's in-process roster slot (FR-005, #345).
+     *
+     * One process is the only possible holder, so the slot is filled iff it
+     * was empty before this call; holding it again replaces the entry.
      *
      * @param channel - The presence channel.
-     * @param member - The client-visible member to add.
+     * @param member - The client-visible member to hold the slot as.
+     * @returns `arrived: true` iff the slot was empty before this hold.
      */
-    addMember(channel: string, member: PresenceMember): void {
+    holdMember(channel: string, member: PresenceMember): RosterHold {
         let members = this.roster.get(channel)
         if (!members) this.roster.set(channel, members = new Map())
-        members.set(String(member.id), member)
+        const key = String(member.id)
+        const arrived = !members.has(key)
+        members.set(key, member)
+        return { arrived }
     }
 
     /**
-     * Remove a member from the channel's in-process roster (FR-005).
+     * Release the channel's in-process roster slot (FR-005, #345).
      *
      * @param channel - The presence channel.
-     * @param memberId - The id of the member to remove.
+     * @param memberId - The id of the member whose slot is released.
+     * @returns `gone: true` iff the slot was held and is now empty.
      */
-    removeMember(channel: string, memberId: string | number): void {
-        this.roster.get(channel)?.delete(String(memberId))
+    releaseMember(channel: string, memberId: string | number): RosterRelease {
+        const gone = this.roster.get(channel)?.delete(String(memberId)) ?? false
+        return { gone }
     }
 
     /**
