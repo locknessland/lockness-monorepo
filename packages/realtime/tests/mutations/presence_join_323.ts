@@ -65,19 +65,17 @@ const MUTATIONS: Mutation[] = [
         // FAILING join, where the original emit is never reached.
         killedBy: 'a rejected roster write announces NOTHING',
     },
-    {
-        label: '#323 the newcomer is no longer excluded from its own join',
-        file: MANAGER,
-        edits: [[
-            '        }, { except: connection.id })',
-            '        })',
-        ]],
-        // The exclusion used to be a consequence of WHERE the call sat. This
-        // row is why it is now an argument: with the call below `#joinLocal`,
-        // dropping `except` puts the joiner in its own announcement, and
-        // nothing about the statement order would tell you.
-        killedBy: 'the joiner never receives its own `joined`',
-    },
+    // ── RETIRED by #344, with the reason, rather than deleted ──────────────
+    //
+    // `#323 the newcomer is no longer excluded from its own join` stood here.
+    // It dropped `{ except: connection.id }` from the `joined` emit in
+    // `subscribe`, and was killed by `the joiner never receives its own
+    // \`joined\``. That emit no longer exists: since #344 the announcement is
+    // the queued roster write's (`#announcePresence`), and it excludes every
+    // local connection of the member id, not one connection. The row is
+    // subsumed by `#344 M7 \`joined\` excludes only the origin connection` in
+    // `presence_member_transitions_344.ts`, which carries this row's reason
+    // verbatim.
     // ── the compensation ───────────────────────────────────────────────────
     {
         label: '#323 the failed join keeps its local membership',
@@ -150,7 +148,7 @@ const MUTATIONS: Mutation[] = [
             // sits in that same run, so the await goes above both.
             '        members.set(connection.id, member)\n' +
             '        await this.#joinLocal(channel, connection.id)\n',
-            '        if (this.roster) await this.roster.addMember(channel, member)\n' +
+            '        if (this.roster) await this.roster.holdMember(channel, member)\n' +
             '        members.set(connection.id, member)\n' +
             '        await this.#joinLocal(channel, connection.id)\n',
         ]],
@@ -185,18 +183,22 @@ const MUTATIONS: Mutation[] = [
     // question, because the answer is no by construction.
 
     {
-        label:
-            '#323 the roster script receives its two KEYS in the wrong order',
+        label: '#323 the roster script receives its KEYS in the wrong order',
         file: new URL('../../drivers/redis.ts', import.meta.url),
         edits: [[
+            // RE-ANCHORED by #345: the hold script takes FOUR keys now
+            // (presence, holders, owned, instances). The swap stays presence ↔
+            // owned — the holders key also carries the channel, so swapping
+            // presence with IT would slip past the helper's `includes(channel)`
+            // check and measure nothing.
             '            this.presenceKey(channel),\n' +
+            '            this.holdersKey(channel, field),\n' +
             '            this.ownedKey(this.instanceId),\n' +
-            '            field,\n' +
-            '            JSON.stringify(entry),',
+            '            this.instancesKey,\n',
             '            this.ownedKey(this.instanceId),\n' +
+            '            this.holdersKey(channel, field),\n' +
             '            this.presenceKey(channel),\n' +
-            '            field,\n' +
-            '            JSON.stringify(entry),',
+            '            this.instancesKey,\n',
         ]],
         // `prefix_anchoring`'s helper reads KEYS[1] to learn the presence key a
         // prefix derives. Swapped, it reads the OWNED key — which embeds a

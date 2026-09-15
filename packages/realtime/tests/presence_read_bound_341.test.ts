@@ -224,11 +224,13 @@ function gatedRosterDriver(seed: PresenceMember[]) {
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
-        addMember(_channel, member) {
+        holdMember(_channel, member) {
+            const arrived = !roster.has(String(member.id))
             roster.set(String(member.id), member)
+            return { arrived }
         },
-        removeMember(_channel, memberId) {
-            roster.delete(String(memberId))
+        releaseMember(_channel, memberId) {
+            return { gone: roster.delete(String(memberId)) }
         },
         readRoster(_channel, limit, selfIds) {
             reads.push(selfIds.map(String))
@@ -564,8 +566,8 @@ Deno.test("#341 the local fallback still answers a 'local' window of this instan
         driver: {
             publish: () => {},
             onMessage: () => {},
-            addMember: () => Promise.resolve(),
-            removeMember: () => Promise.resolve(),
+            holdMember: () => Promise.resolve({ arrived: true }),
+            releaseMember: () => Promise.resolve({ gone: true }),
             readRoster: (_channel, limit, selfIds) =>
                 asWindow(
                     Promise.reject(new Error('broker unreachable')),

@@ -3,7 +3,7 @@
  *
  * `subscribe` committed the locally VISIBLE half of a presence join before the
  * authoritative one: the `joined` frame went out, the local set grew and the
- * `presence` map was written, and only then did `roster.addMember` run. A
+ * `presence` map was written, and only then did `roster.holdMember` run. A
  * rejection there propagated out — the caller saw a failed join — while every
  * local subscriber already held a `joined` for a member the authoritative
  * roster never received.
@@ -77,15 +77,18 @@ function faultyRoster() {
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
-        addMember(channel, member) {
+        holdMember(channel, member) {
             if (state.rejectAdds) return Promise.reject(new Error('NOPERM'))
             let members = roster.get(channel)
             if (!members) roster.set(channel, members = new Map())
+            const arrived = !members.has(String(member.id))
             members.set(String(member.id), member)
-            return Promise.resolve()
+            return Promise.resolve({ arrived })
         },
-        removeMember(channel, memberId) {
-            roster.get(channel)?.delete(String(memberId))
+        releaseMember(channel, memberId) {
+            return {
+                gone: roster.get(channel)?.delete(String(memberId)) ?? false,
+            }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(
@@ -171,11 +174,28 @@ Deno.test('#323/FR-002 a rejected roster write leaves no local residue', async (
     // The local view must agree. A leave for the failed joiner is the probe:
     // if the `presence` map still held it, unsubscribe would announce a `left`
     // for a member that never joined.
+    //
+    // Since #344 that `left` needs the release to empty a slot, and nothing
+    // holds this one — so the frame alone no longer sees a residue. The
+    // release the leave issues does: only a member still in the local map
+    // sends one.
+    let releases = 0
+    const release = driver.releaseMember!.bind(driver)
+    driver.releaseMember = (channel, memberId) => {
+        releases++
+        return release(channel, memberId)
+    }
     await m.unsubscribe(newcomer.id, CHANNEL)
     assertEquals(
         watcher.received.filter((f) => f.action === 'left').length,
         0,
         'the local presence map kept no entry for the failed joiner',
+    )
+    assertEquals(
+        releases,
+        0,
+        'a leave for the failed joiner released a slot — the local presence ' +
+            'map still held it',
     )
 })
 
@@ -339,8 +359,8 @@ Deno.test('#323 a failed FIRST join best-effort removes a write that may have la
     const { driver, roster, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     // Model the lost reply: the write lands, the caller sees a rejection.
-    const original = driver.addMember!.bind(driver)
-    driver.addMember = async (channel, member) => {
+    const original = driver.holdMember!.bind(driver)
+    driver.holdMember = async (channel, member) => {
         state.rejectAdds = false
         await original(channel, member)
         throw new Error('connection reset after the write committed')

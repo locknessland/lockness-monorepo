@@ -2,27 +2,26 @@
  * @fileoverview #342 — a presence join on a driver without roster support.
  *
  * The roster ops on `BroadcastDriver` are OPTIONAL (FR-005), so a driver that
- * omits all three is a driver the contract allows. `#syncRosterMember` used to
- * return `undefined` straight away on such a driver — and the join reads
- * `undefined` as SUPERSEDED ("an `unsubscribe` overtook this join"). Two
- * meanings shared one value, so every first join on a roster-less driver took
- * the superseded exit and `joined` was never announced.
+ * omits all three (`holdMember`, `releaseMember`, `readRoster`) is a driver the
+ * contract allows. #342 found every first join on such a driver silent: the
+ * roster write answered "no roster" with the same value that meant
+ * "superseded", so `joined` was never announced.
  *
- * The fix keeps ONE meaning: the projection always runs inside the per-slot
- * tail (#330) and reads the local map; roster capability only decides whether
- * the answer is written to a driver. `undefined` still means "the local map
- * held no member for this slot at issue time", on every driver.
+ * Since #344 there is no such return to confuse. `#syncRosterMember` resolves
+ * `Promise<void>` and announces from inside the per-slot tail (#330) itself; on
+ * a roster-less driver the arrival and departure come from the manager's own
+ * `#heldSlots`, updated before the announcement runs.
  *
- * - W1 is the reproduction: a first join announces `joined` exactly once.
- * - W2 holds the other half: a roster-less join an `unsubscribe` overtakes is
- *   still superseded, and still announces nothing — the fix must not buy W1 by
- *   dropping the check on roster-less drivers.
+ * - W1: a roster-less first join announces `joined` exactly once.
+ * - W2: a roster-less join an `unsubscribe` overtakes announces nothing —
+ *   neither the `joined` its write no longer has a local entry for, nor a
+ *   `left` from a release of a slot `#heldSlots` never held.
  *
  * **Known gaps, recorded rather than faked** (#342 review). Neither witness
- * pins that the local read happens INSIDE the tail rather than at call time
- * (the rejected shape a1 passes both), and nothing observes that a roster-less
- * slot's tail entry is deleted once it settles — both are private state no
- * public surface exposes.
+ * here pins that the local read happens INSIDE the tail rather than at call
+ * time on a roster-less driver (344-W8 pins it on a roster driver), and nothing
+ * observes that a roster-less slot's tail entry is deleted once it settles —
+ * private state no public surface exposes.
  *
  * @module @lockness/realtime/tests/presence_join_rosterless_342
  */
@@ -67,7 +66,7 @@ const presenceFrames = (c: Recording, action: string) =>
 
 Deno.test('#342 a roster-less first join announces joined exactly once', async () => {
     const published: Record<string, unknown>[] = []
-    // NO `addMember` / `removeMember` / `readRoster` — the shape the contract
+    // NO `holdMember` / `releaseMember` / `readRoster` — the shape the contract
     // allows and neither built-in driver has.
     const driver: BroadcastDriver = {
         publish: () => {},
@@ -175,9 +174,14 @@ Deno.test('#342 a roster-less join overtaken by an unsubscribe announces nothing
         'no instance is told a member joined when a leave already took it ' +
             'out of the local map — the authority on a roster-less driver',
     )
+    // INTENTIONALLY INVERTED by #344 (plan §8, A1): this used to expect ONE
+    // `presence-leave`, sent by the overtaking `unsubscribe` itself. A leave no
+    // longer announces; the queued write that empties a slot does, and here
+    // no write ever filled it — the superseded join held nothing. A `left`
+    // for a member no `joined` was sent for is the defect 344-W6 pins.
     assertEquals(
         published.filter((c) => c.kind === 'presence-leave').length,
-        1,
-        'and the room hears the leave exactly once',
+        0,
+        'and the room hears no leave either — nobody was ever told it joined',
     )
 })

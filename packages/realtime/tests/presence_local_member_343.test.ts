@@ -65,8 +65,8 @@ function unreadableDriver(): BroadcastDriver {
     return {
         publish: () => {},
         onMessage: () => {},
-        addMember: () => Promise.resolve(),
-        removeMember: () => Promise.resolve(),
+        holdMember: () => Promise.resolve({ arrived: true }),
+        releaseMember: () => Promise.resolve({ gone: true }),
         readRoster: (_channel, limit, selfIds) =>
             asWindow(
                 Promise.reject(new Error('broker unreachable')),

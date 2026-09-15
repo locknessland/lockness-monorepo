@@ -205,8 +205,10 @@ const MUTATIONS: Mutation[] = [
         label: '#341 the legacy roster guard returns silently',
         file: MANAGER,
         edits: [[
-            "    if (typeof legacy.listMembers !== 'function') return\n",
-            "    if (typeof legacy.listMembers !== 'function' || legacy) return\n",
+            // RE-ANCHORED by #345: one guard now refuses every retired roster
+            // member at once, so "returns silently" is its empty-list exit.
+            '    if (present.length === 0) return\n',
+            '    if (present.length === 0 || legacy) return\n',
         ]],
         // A pre-0.4.0 driver constructs, is narrowed to "no roster" because it
         // lacks `readRoster`, and every presence room silently becomes this

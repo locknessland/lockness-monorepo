@@ -85,19 +85,22 @@ function rosterDriver(options: { failAdd?: boolean } = {}) {
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
-        addMember(channel, member) {
-            commands.push(`addMember ${channel} ${member.id}`)
+        holdMember(channel, member) {
+            commands.push(`holdMember ${channel} ${member.id}`)
             if (options.failAdd) {
                 return Promise.reject(new Error('roster refused the write'))
             }
             let members = roster.get(channel)
             if (!members) roster.set(channel, members = new Map())
+            const arrived = !members.has(String(member.id))
             members.set(String(member.id), member)
-            return Promise.resolve()
+            return Promise.resolve({ arrived })
         },
-        removeMember(channel, memberId) {
-            commands.push(`removeMember ${channel} ${memberId}`)
-            roster.get(channel)?.delete(String(memberId))
+        releaseMember(channel, memberId) {
+            commands.push(`releaseMember ${channel} ${memberId}`)
+            return {
+                gone: roster.get(channel)?.delete(String(memberId)) ?? false,
+            }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(
@@ -178,7 +181,7 @@ Deno.test('#334 the authoritative roster still receives the removal', async () =
         'the local entry went first — that is the ordering under test',
     )
     assert(
-        commands.includes(`removeMember ${ROOM} 1`),
+        commands.includes(`releaseMember ${ROOM} 1`),
         `the projection must still issue the removal; got ${
             JSON.stringify(commands)
         }`,

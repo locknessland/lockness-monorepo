@@ -71,20 +71,23 @@ function conn(
  */
 function countingDriver() {
     const roster = new Map<string, Map<string, PresenceMember>>()
-    const calls = { addMember: 0, removeMember: 0, readRoster: 0, control: 0 }
+    const calls = { holdMember: 0, releaseMember: 0, readRoster: 0, control: 0 }
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
-        addMember(channel, member) {
-            calls.addMember++
+        holdMember(channel, member) {
+            calls.holdMember++
             let members = roster.get(channel)
             if (!members) roster.set(channel, members = new Map())
+            const arrived = !members.has(String(member.id))
             members.set(String(member.id), member)
-            return Promise.resolve()
+            return Promise.resolve({ arrived })
         },
-        removeMember(channel, memberId) {
-            calls.removeMember++
-            roster.get(channel)?.delete(String(memberId))
+        releaseMember(channel, memberId) {
+            calls.releaseMember++
+            return {
+                gone: roster.get(channel)?.delete(String(memberId)) ?? false,
+            }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(
@@ -135,7 +138,7 @@ Deno.test('#327 a re-join announces NOTHING and writes NOTHING', async () => {
     await m.subscribe(holder, CHANNEL)
 
     assertEquals(
-        calls.addMember - before.addMember,
+        calls.holdMember - before.holdMember,
         0,
         'three re-joins perform EXACTLY zero roster writes',
     )
@@ -230,7 +233,7 @@ Deno.test('#327 K pipelined subscribe frames produce exactly ONE join', async ()
         'every frame is answered — none is refused',
     )
     assertEquals(
-        calls.addMember - before.addMember,
+        calls.holdMember - before.holdMember,
         1,
         `${K} pipelined frames perform ONE roster write, not ${K}`,
     )
@@ -275,7 +278,7 @@ Deno.test('#327 a re-join DISCARDS its payload rather than broadcasting an updat
         'the authoritative entry the first join wrote still stands',
     )
     assertEquals(
-        calls.addMember - before.addMember,
+        calls.holdMember - before.holdMember,
         0,
         'and no write was attempted to change it',
     )

@@ -89,14 +89,17 @@ function gatedRosterDriver() {
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
-        addMember(channel, member) {
+        holdMember(channel, member) {
             let members = store.get(channel)
             if (!members) store.set(channel, members = new Map())
+            const arrived = !members.has(String(member.id))
             members.set(String(member.id), member)
-            return Promise.resolve()
+            return Promise.resolve({ arrived })
         },
-        removeMember(channel, memberId) {
-            store.get(channel)?.delete(String(memberId))
+        releaseMember(channel, memberId) {
+            return {
+                gone: store.get(channel)?.delete(String(memberId)) ?? false,
+            }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(

@@ -54,22 +54,26 @@ const MUTATIONS: Mutation[] = [
         // two of the four witnesses fail.
         killedBy: 'a pipelined subscribe+unsubscribe leaves no roster ghost',
     },
-    {
-        label: '#330 a superseded join announces anyway',
-        file: MANAGER,
-        edits: [[
-            '                if (applied === undefined) {',
-            '                if (false) {',
-        ]],
-        // NEUTRALISED rather than deleted: the branch still compiles and the
-        // `#closingRead` inside it stays reachable to the type checker, so the
-        // mutant fails by test name rather than by a compile error the harness
-        // would report as dead. The join then publishes `presence-join` for a
-        // member its own write removed — #323's rule broken from a direction
-        // #323 could not have seen, since the write that supersedes it comes
-        // from another verb entirely.
-        killedBy: 'a superseded join announces nothing',
-    },
+    // ── RETIRED by #344, with the reason, rather than deleted ──────────────
+    //
+    // `#330 a superseded join announces anyway` stood here. It neutralised the
+    // join's `if (applied === undefined) {` superseded branch, and its reason
+    // was: "NEUTRALISED rather than deleted: the branch still compiles and the
+    // `#closingRead` inside it stays reachable to the type checker, so the
+    // mutant fails by test name rather than by a compile error the harness
+    // would report as dead. The join then publishes `presence-join` for a
+    // member its own write removed — #323's rule broken from a direction
+    // #323 could not have seen, since the write that supersedes it comes
+    // from another verb entirely."
+    //
+    // That branch is gone: since #344 the queued write announces, and a join
+    // an `unsubscribe` overtook reaches the RELEASE path, where only `gone`
+    // keeps it silent. Forcing the announcement there sends a `left`, not a
+    // `presence-join` — and `a superseded join announces nothing` counts
+    // `presence-join` alone, so a re-anchored row was MISATTRIBUTED (killed
+    // only by an unrelated #323 test). Subsumed by `#344 M2 the release path
+    // ignores the roster's gone` in `presence_member_transitions_344.ts`,
+    // killed by 344-W6, which asserts silence on both frames.
 ]
 
 if (import.meta.main) {

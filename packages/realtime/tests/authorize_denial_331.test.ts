@@ -73,16 +73,19 @@ function recordingDriver() {
     const driver: BroadcastDriver = {
         publish: (message) => deliver?.(message),
         onMessage: (handler) => void (deliver = handler),
-        addMember(channel, member) {
-            commands.push(`addMember ${channel}`)
+        holdMember(channel, member) {
+            commands.push(`holdMember ${channel}`)
             let members = roster.get(channel)
             if (!members) roster.set(channel, members = new Map())
+            const arrived = !members.has(String(member.id))
             members.set(String(member.id), member)
-            return Promise.resolve()
+            return Promise.resolve({ arrived })
         },
-        removeMember(channel, memberId) {
-            commands.push(`removeMember ${channel} ${memberId}`)
-            roster.get(channel)?.delete(String(memberId))
+        releaseMember(channel, memberId) {
+            commands.push(`releaseMember ${channel} ${memberId}`)
+            return {
+                gone: roster.get(channel)?.delete(String(memberId)) ?? false,
+            }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(
@@ -158,7 +161,7 @@ Deno.test('#331 a denied re-subscribe leaves delivery, roster and membership int
     assertEquals(
         commands.slice(before).filter((c) => !c.startsWith('publish ')),
         [],
-        'and the denied frame ran no driver command at all — no removeMember, ' +
+        'and the denied frame ran no driver command at all — no releaseMember, ' +
             'no presence-leave publish',
     )
 })

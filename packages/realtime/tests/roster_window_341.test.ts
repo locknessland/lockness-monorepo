@@ -33,7 +33,7 @@ const BAD_LIMITS = [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]
 
 function memoryRoom(size: number): MemoryBroadcastDriver {
     const driver = new MemoryBroadcastDriver()
-    for (let id = 1; id <= size; id++) driver.addMember(ROOM, member(id))
+    for (let id = 1; id <= size; id++) driver.holdMember(ROOM, member(id))
     return driver
 }
 
@@ -128,7 +128,7 @@ async function withRedis(
 
 async function seed(driver: RedisBroadcastDriver, size: number) {
     for (let id = 1; id <= size; id++) {
-        await driver.addMember(ROOM, member(id))
+        await driver.holdMember(ROOM, member(id))
     }
 }
 
@@ -258,7 +258,7 @@ Deno.test('#341 redis readRoster refuses bad input before issuing any command (S
 /** A shipped driver under the shared contract, and how to release it. */
 interface ContractSubject {
     readRoster: RedisBroadcastDriver['readRoster']
-    addMember(channel: string, member: PresenceMember): unknown
+    holdMember(channel: string, member: PresenceMember): unknown
     close(): Promise<void>
 }
 
@@ -269,7 +269,7 @@ const CONTRACT_SUBJECTS: [string, () => ContractSubject][] = [
             // `async` turns the driver's synchronous throw into a rejection,
             // so one set of assertions reads both drivers.
             readRoster: async (...args) => await driver.readRoster(...args),
-            addMember: (channel, m) => driver.addMember(channel, m),
+            holdMember: (channel, m) => driver.holdMember(channel, m),
             close: () => Promise.resolve(),
         }
     }],
@@ -280,7 +280,7 @@ const CONTRACT_SUBJECTS: [string, () => ContractSubject][] = [
         })
         return {
             readRoster: (...args) => driver.readRoster(...args),
-            addMember: (channel, m) => driver.addMember(channel, m),
+            holdMember: (channel, m) => driver.holdMember(channel, m),
             close: async () => {
                 redis.assertNoRejections()
                 await driver.close()
@@ -294,7 +294,7 @@ for (const [name, make] of CONTRACT_SUBJECTS) {
         const driver = make()
         try {
             for (let id = 1; id <= 5; id++) {
-                await driver.addMember(ROOM, member(id))
+                await driver.holdMember(ROOM, member(id))
             }
 
             const window = await driver.readRoster(ROOM, 3, [])

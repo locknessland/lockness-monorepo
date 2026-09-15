@@ -87,8 +87,12 @@ const MUTATIONS: Mutation[] = [
                 // which stayed in `subscribe` — so only this half ever
                 // changes, and a blanket re-edit of the row would break the
                 // half that was still correct.
-                '                const applied = await this.#syncRosterMember(',
-                '                this.#assertUsableMemberId(member.id)\n                const applied = await this.#syncRosterMember(',
+                // RE-ANCHORED a THIRD time by #344: the join's write returns
+                // nothing now, and the 16-space call is a substring of the
+                // 20-space reclaim call below it, so the anchor carries its
+                // `try {` line to match exactly once.
+                '            try {\n                await this.#syncRosterMember(channel, origin)\n',
+                '            try {\n                this.#assertUsableMemberId(member.id)\n                await this.#syncRosterMember(channel, origin)\n',
             ],
         ],
         // RED since #312, and the path is worth keeping. It survived here for

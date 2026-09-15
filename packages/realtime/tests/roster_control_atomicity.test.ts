@@ -4,7 +4,7 @@
  * `subscribe` writes the authoritative roster and then publishes a
  * `presence-join` control frame, and until now **nothing could see that
  * order**. #306's battery records the consequence honestly: moving the member-id
- * assertion AFTER `addMember` survives, because the suite that proves the
+ * assertion AFTER `holdMember` survives, because the suite that proves the
  * refusal uses no roster and cannot observe a write that has already happened.
  * The ordering was held by a comment at the call site.
  *
@@ -34,8 +34,8 @@ interface User {
  * A connection whose frames land in the SAME ordered log as the driver ops.
  *
  * `send: () => {}` was the gap that made this file's log unable to witness the
- * one ordering #323 turns on. It recorded driver ops only, so `addMember` vs
- * `publishControl` was observable and `emitPresence` vs `addMember` was not —
+ * one ordering #323 turns on. It recorded driver ops only, so `holdMember` vs
+ * `publishControl` was observable and `emitPresence` vs `holdMember` was not —
  * a clean-join assertion passed identically before and after the announcement
  * moved. A home whose witness cannot see it is a comment.
  */
@@ -59,15 +59,19 @@ function recordingDriver(options: { refuseControl?: boolean } = {}) {
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
-        addMember(channel, member) {
-            log.push(`addMember ${channel} ${member.id}`)
+        holdMember(channel, member) {
+            log.push(`holdMember ${channel} ${member.id}`)
             let members = roster.get(channel)
             if (!members) roster.set(channel, members = new Map())
+            const arrived = !members.has(String(member.id))
             members.set(String(member.id), member)
+            return { arrived }
         },
-        removeMember(channel, memberId) {
-            log.push(`removeMember ${channel} ${memberId}`)
-            roster.get(channel)?.delete(String(memberId))
+        releaseMember(channel, memberId) {
+            log.push(`releaseMember ${channel} ${memberId}`)
+            return {
+                gone: roster.get(channel)?.delete(String(memberId)) ?? false,
+            }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(
@@ -97,7 +101,7 @@ function recordingDriver(options: { refuseControl?: boolean } = {}) {
 
 Deno.test('#312 the member-id assertion runs BEFORE the roster write', async () => {
     // The row #306 could only record as an equivalent mutant. Its guard still
-    // throws when moved after `addMember`, so every refusal assertion in that
+    // throws when moved after `holdMember`, so every refusal assertion in that
     // suite still passes — what changes is that the oversized field is already
     // in the authoritative roster when it does. An empty log is the assertion
     // that suite had no way to make.
@@ -123,7 +127,7 @@ Deno.test('#312 the member-id assertion runs BEFORE the roster write', async () 
         log,
         [],
         'the refusal must happen before ANY driver write — a guard that ' +
-            'throws after `addMember` leaves the oversized field in the ' +
+            'throws after `holdMember` leaves the oversized field in the ' +
             'authoritative roster and is a partial write, not a refusal',
     )
 })
@@ -144,7 +148,7 @@ Deno.test('#312 a clean join writes the roster, THEN publishes the join frame', 
     assertRosterRead(rosterReadsBefore)
     assertEquals(result.ok, true)
     assertEquals(log, [
-        'addMember presence-room ada',
+        'holdMember presence-room ada',
         'publishControl presence-join',
     ])
 })
@@ -175,7 +179,7 @@ Deno.test('#312 a REFUSED control frame loses the ANNOUNCEMENT, not the roster',
 
     assertEquals(result.ok, true, 'the join succeeds locally')
     assertEquals(log, [
-        'addMember presence-room ada',
+        'holdMember presence-room ada',
         'publishControl REFUSED presence-join',
     ])
     assertEquals(
@@ -219,9 +223,10 @@ Deno.test('#323 the ONE log shows write, then frame, then announcement', async (
     // double learned to log. It is the whole of FR-001: the frame that tells a
     // subscriber somebody joined comes AFTER the write that makes it true.
     const { driver, log } = recordingDriver()
+    let nextId = 'ada'
     const m = new ChannelManager<User>({
         driver,
-        authorize: () => ({ id: 'ada' }),
+        authorize: () => ({ id: nextId }),
     })
     const watcher = connLogging(log, 'watcher')
     m.register(watcher)
@@ -232,14 +237,35 @@ Deno.test('#323 the ONE log shows write, then frame, then announcement', async (
     m.register(newcomer)
     await m.subscribe(newcomer, 'presence-room')
 
+    // INTENTIONALLY INVERTED by #344 (plan §8, A1): the newcomer used to be a
+    // second connection of `ada` whose join announced `joined` to the watcher
+    // and published `presence-join`. `ada` was already present, so that frame
+    // told the room a member already listed had joined. A second tab now only
+    // re-holds the slot, and announces nothing.
+    assertEquals(
+        log,
+        ['holdMember presence-room ada'],
+        'a second connection of a present member writes its hold and ' +
+            'announces nothing',
+    )
+
+    // FR-001's order, on a member that DOES arrive: the write, then the local
+    // frame, then the announcement — and no connection of `bea` hears it.
+    log.length = 0
+    nextId = 'bea'
+    const bea = connLogging(log, 'bea')
+    m.register(bea)
+    await m.subscribe(bea, 'presence-room')
+
     assertEquals(
         log,
         [
-            'addMember presence-room ada',
+            'holdMember presence-room bea',
             'frame joined presence-room -> watcher',
+            'frame joined presence-room -> newcomer',
             'publishControl presence-join',
         ],
         'the authoritative write leads; the frame follows it; and the ' +
-            'newcomer is absent from its own announcement',
+            'arriving member is absent from its own announcement',
     )
 })

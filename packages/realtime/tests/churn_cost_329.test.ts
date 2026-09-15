@@ -41,7 +41,7 @@
  *
  * The rig counts calls on the `BroadcastDriver` interface. For
  * `RedisBroadcastDriver` they map one-to-one onto wire commands — `watchChannel`
- * → `SUBSCRIBE`, `unwatchChannel` → `UNSUBSCRIBE`, `addMember`/`removeMember` →
+ * → `SUBSCRIBE`, `unwatchChannel` → `UNSUBSCRIBE`, `holdMember`/`releaseMember` →
  * `EVAL`, `readRoster` → one read `EVAL` (`HGETALL` before #341) — and the
  * first two ride the subscribe connection while the rest ride the command
  * connection. A driver with no roster
@@ -90,7 +90,7 @@ interface User {
 interface Cost {
     /** `watchChannel` + `unwatchChannel` — `SUBSCRIBE` / `UNSUBSCRIBE`, on the subscribe connection. */
     watchOps: number
-    /** `addMember` + `removeMember` — the roster `EVAL`s. */
+    /** `holdMember` + `releaseMember` — the roster `EVAL`s. */
     rosterWrites: number
     /**
      * `readRoster` — one read `EVAL`, bounded to K members plus the callers'
@@ -160,16 +160,19 @@ function fleet(deny = false, size = 3) {
                 controlHandlers[i]?.(control)
             }
         },
-        addMember(channel, member) {
+        holdMember(channel, member) {
             if (index === 0) cost.rosterWrites++
             let members = roster.get(channel)
             if (!members) roster.set(channel, members = new Map())
+            const arrived = !members.has(String(member.id))
             members.set(String(member.id), member)
-            return Promise.resolve()
+            return Promise.resolve({ arrived })
         },
-        removeMember(channel, memberId) {
+        releaseMember(channel, memberId) {
             if (index === 0) cost.rosterWrites++
-            roster.get(channel)?.delete(String(memberId))
+            return {
+                gone: roster.get(channel)?.delete(String(memberId)) ?? false,
+            }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(

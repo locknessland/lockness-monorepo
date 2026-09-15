@@ -112,12 +112,12 @@ async function consoleCallsDuring<T>(
  */
 function roomOf250() {
     const driver = new MemoryBroadcastDriver()
-    for (let id = 1; id <= 250; id++) driver.addMember(ROOM, paddedMember(id))
+    for (let id = 1; id <= 250; id++) driver.holdMember(ROOM, paddedMember(id))
     let writes = 0
-    const add = driver.addMember.bind(driver)
-    driver.addMember = (channel, member) => {
+    const add = driver.holdMember.bind(driver)
+    driver.holdMember = (channel, member) => {
         writes++
-        add(channel, member)
+        return add(channel, member)
     }
     return {
         driver,
@@ -251,8 +251,8 @@ Deno.test('#339 the local fallback is bounded by the same rule', async () => {
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
-        addMember: () => Promise.resolve(),
-        removeMember: () => Promise.resolve(),
+        holdMember: () => Promise.resolve({ arrived: true }),
+        releaseMember: () => Promise.resolve({ gone: true }),
         readRoster: (_channel, limit, selfIds) =>
             asWindow(
                 Promise.reject(new Error('broker unreachable')),
@@ -292,12 +292,13 @@ function gatedRosterDriver() {
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
-        addMember(_channel, member) {
+        holdMember(_channel, member) {
+            const arrived = !store.has(String(member.id))
             store.set(String(member.id), member)
-            return Promise.resolve()
+            return Promise.resolve({ arrived })
         },
-        removeMember(_channel, memberId) {
-            store.delete(String(memberId))
+        releaseMember(_channel, memberId) {
+            return { gone: store.delete(String(memberId)) }
         },
         readRoster(_channel, limit, selfIds) {
             return asWindow(

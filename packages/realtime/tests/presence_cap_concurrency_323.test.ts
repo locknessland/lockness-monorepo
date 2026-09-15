@@ -9,7 +9,7 @@
  *
  * That pairing is why #323 moved the presence ANNOUNCEMENT behind the
  * authoritative roster write and left the WRITE itself below `#joinLocal`. The
- * obvious version of this fix — hoist `addMember` to the front, so nothing is
+ * obvious version of this fix — hoist `holdMember` to the front, so nothing is
  * visible before the roster accepts — puts a broker round-trip inside that
  * turn. `onMessage` is dispatched as `void guard(...)`, so a client's subscribe
  * frames are not serialized: it pipelines K of them into one write, all K read
@@ -30,7 +30,7 @@
  * work out how many turns are enough. It is not what makes the test valid.
  *
  * **THE HAZARD IS THE AWAIT'S POSITION, NOT THE WRITE'S — measured, and it is
- * not what you would guess.** Hoisting `roster.addMember` ABOVE
+ * not what you would guess.** Hoisting `roster.holdMember` ABOVE
  * `#checkChannelCaps` does NOT break the cap: every racer then suspends
  * *before* the read, and each resumes to run check-then-add with nothing
  * awaited between them, so the pairing survives. This file was written against
@@ -74,15 +74,19 @@ function deferredRoster(): BroadcastDriver {
     return {
         publish: () => {},
         onMessage: () => {},
-        async addMember(channel, member) {
+        async holdMember(channel, member) {
             await later()
             let members = roster.get(channel)
             if (!members) roster.set(channel, members = new Map())
+            const arrived = !members.has(String(member.id))
             members.set(String(member.id), member)
+            return { arrived }
         },
-        async removeMember(channel, memberId) {
+        async releaseMember(channel, memberId) {
             await later()
-            roster.get(channel)?.delete(String(memberId))
+            return {
+                gone: roster.get(channel)?.delete(String(memberId)) ?? false,
+            }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(

@@ -18,14 +18,19 @@ import type {
 } from '../driver.ts'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
 import type { PresenceMember } from '../channel.ts'
+import type { RosterHold, RosterRelease } from '../driver.ts'
 
 /** A driver that exposes the full presence-state surface. */
 class FullPresenceDriver implements BroadcastDriver {
     publish(_message: BroadcastMessage): void {}
     onMessage(_handler: (message: BroadcastMessage) => void): void {}
     onControl(_handler: (control: ControlMessage) => void): void {}
-    addMember(_channel: string, _member: PresenceMember): void {}
-    removeMember(_channel: string, _memberId: string | number): void {}
+    holdMember(_channel: string, _member: PresenceMember): RosterHold {
+        return { arrived: true }
+    }
+    releaseMember(_channel: string, _memberId: string | number): RosterRelease {
+        return { gone: true }
+    }
     readRoster(
         _channel: string,
         _limit: number,
@@ -39,8 +44,10 @@ class FullPresenceDriver implements BroadcastDriver {
 class PartialPresenceDriver implements BroadcastDriver {
     publish(_message: BroadcastMessage): void {}
     onMessage(_handler: (message: BroadcastMessage) => void): void {}
-    addMember(_channel: string, _member: PresenceMember): void {}
-    // removeMember + readRoster intentionally absent.
+    holdMember(_channel: string, _member: PresenceMember): RosterHold {
+        return { arrived: true }
+    }
+    // releaseMember + readRoster intentionally absent.
 }
 
 Deno.test('presenceRoster narrows a fully presence-capable driver', async () => {
@@ -80,12 +87,12 @@ const window = { members: [], total: 0, selves: [] }
 const bounded = () => ({
     publish: () => {},
     onMessage: () => {},
-    addMember: () => {},
-    removeMember: () => {},
+    holdMember: () => ({ arrived: true }),
+    releaseMember: () => ({ gone: true }),
     readRoster: () => window,
 })
 
-Deno.test('#341 presenceRoster is addMember + removeMember + readRoster', () => {
+Deno.test('#341 presenceRoster is holdMember + releaseMember + readRoster', () => {
     const driver: BroadcastDriver = bounded()
     const roster = presenceRoster(driver)
     assert(roster !== undefined, 'a bounded-read driver owns the roster')

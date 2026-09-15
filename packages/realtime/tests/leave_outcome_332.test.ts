@@ -68,16 +68,19 @@ function recordingDriver() {
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
-        addMember(channel, member) {
-            commands.push(`addMember ${channel}`)
+        holdMember(channel, member) {
+            commands.push(`holdMember ${channel}`)
             let members = roster.get(channel)
             if (!members) roster.set(channel, members = new Map())
+            const arrived = !members.has(String(member.id))
             members.set(String(member.id), member)
-            return Promise.resolve()
+            return Promise.resolve({ arrived })
         },
-        removeMember(channel, memberId) {
-            commands.push(`removeMember ${channel} ${memberId}`)
-            roster.get(channel)?.delete(String(memberId))
+        releaseMember(channel, memberId) {
+            commands.push(`releaseMember ${channel} ${memberId}`)
+            return {
+                gone: roster.get(channel)?.delete(String(memberId)) ?? false,
+            }
         },
         readRoster(channel, limit, selfIds) {
             return asWindow(

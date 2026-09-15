@@ -662,16 +662,16 @@ Deno.test('#322/SC-004: a presence cap breach leaves the roster untouched', asyn
     const m = new ChannelManager<{ sub: string }>({
         driver: {
             ...driver,
-            addMember: (channel: string) => {
+            holdMember: (channel: string) => {
                 joins.push(channel)
-                return Promise.resolve()
+                return Promise.resolve({ arrived: true })
             },
             readRoster: (
                 _channel: string,
                 limit: number,
                 selfIds: readonly (string | number)[],
             ) => asWindow(Promise.resolve([]), limit, selfIds),
-            removeMember: () => Promise.resolve(),
+            releaseMember: () => Promise.resolve({ gone: true }),
         } as unknown as BroadcastDriver,
         maxWatchedChannels: 2,
         maxChannelsPerConnection: 2,

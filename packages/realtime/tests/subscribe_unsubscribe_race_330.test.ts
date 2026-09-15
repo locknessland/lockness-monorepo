@@ -13,8 +13,8 @@
  * (`packages/redis/client.ts`), so commands commit in the order they are
  * enqueued. What was unordered was when each verb reached its enqueue:
  * `#joinPresence` claimed the membership, suspended at `#watch`, and only then
- * issued `addMember` — **from a state that no longer held the membership** —
- * while `RedisBroadcastDriver.addMember` awaits `#ensureSweepStarted()` before
+ * issued `holdMember` — **from a state that no longer held the membership** —
+ * while `RedisBroadcastDriver.holdMember` awaits `#ensureSweepStarted()` before
  * enqueueing, so the join's write could reach the tail after a removal called
  * later. The member was written back into the roster after being removed, with
  * no local membership and its `left` already announced. Only the ghost sweep
@@ -141,22 +141,27 @@ function rig(
             published.push(control as unknown as Record<string, unknown>)
             return g.gate('publishControl')
         },
-        async addMember(channel, member) {
+        async holdMember(channel, member) {
             const leave = enter(channel, String(member.id))
             try {
-                await g.gate('addMember')
+                await g.gate('holdMember')
                 let members = roster.get(channel)
                 if (!members) roster.set(channel, members = new Map())
+                const arrived = !members.has(String(member.id))
                 members.set(String(member.id), member)
+                return { arrived }
             } finally {
                 leave()
             }
         },
-        async removeMember(channel, memberId) {
+        async releaseMember(channel, memberId) {
             const leave = enter(channel, String(memberId))
             try {
-                await g.gate('removeMember')
-                roster.get(channel)?.delete(String(memberId))
+                await g.gate('releaseMember')
+                return {
+                    gone: roster.get(channel)?.delete(String(memberId)) ??
+                        false,
+                }
             } finally {
                 leave()
             }
