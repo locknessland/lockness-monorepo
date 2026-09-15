@@ -148,11 +148,14 @@ const MUTATIONS: Mutation[] = [
             '#332 a channel-less revoke-channel frame is widened to the socket',
         file: MANAGER,
         edits: [[
-            '                    control.channel !== undefined &&\n',
+            '                    control.channel === undefined ||\n',
             '',
         ], [
-            '                        channel: control.channel,\n                        ids: [control.revocationId],',
-            '                        channel: control.channel as string,\n                        ids: [control.revocationId],',
+            '                    channel: control.channel,\n                    ids: [control.revocationId],',
+            '                    channel: control.channel as string,\n                    ids: [control.revocationId],',
+        ], [
+            '                            safeForLog(control.channel)\n',
+            '                            safeForLog(String(control.channel))\n',
         ]],
         killedBy: 'a revoke-channel frame with NO channel is dropped',
     },
