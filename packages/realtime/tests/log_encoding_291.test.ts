@@ -128,15 +128,15 @@ const fakeSocket = () => ({ send() {}, close() {} })
 const tick = () => new Promise((r) => setTimeout(r, 0))
 
 Deno.test('#291 evict-teardown WARN renders the error and encodes the client id', async () => {
-    // A roster whose removeMember rejects makes disconnect() throw, which is
+    // A roster whose releaseMember rejects makes disconnect() throw, which is
     // the only way into revokeLocal's catch.
     const driver: BroadcastDriver = {
         publish: () => Promise.resolve(),
         onMessage: () => {},
-        addMember: () => Promise.resolve(),
+        holdMember: () => Promise.resolve({ arrived: true }),
         readRoster: (_channel, limit, selfIds) =>
             asWindow(Promise.resolve([]), limit, selfIds),
-        removeMember: () => Promise.reject(DSN_FAILURE()),
+        releaseMember: () => Promise.reject(DSN_FAILURE()),
     }
     // #304 made a hostile id UNCONSTRUCTIBLE: `register` refuses anything
     // outside `isValidName`, so a bidi override can no longer BE a connection
@@ -443,14 +443,18 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
         const driver: BroadcastDriver = {
             publish: () => {},
             onMessage: () => {},
-            addMember: () => Promise.resolve(),
-            removeMember: () => Promise.resolve(),
+            holdMember: () => Promise.resolve({ arrived: true }),
+            releaseMember: () => Promise.resolve({ gone: true }),
             readRoster: (_channel, limit, selfIds) =>
                 asWindow(Promise.resolve([member]), limit, selfIds),
         }
+        // TWO MEMBER IDS, not one (#344). A `joined` never reaches a connection
+        // of its own member id, so a deaf socket sharing the newcomer's id is
+        // no longer in the fan-out and this path would warn about nothing.
+        let joins = 0
         const m = new ChannelManager<User>({
             driver,
-            authorize: () => member,
+            authorize: () => joins++ === 0 ? { ...member, id: 'u0' } : member,
         })
         const deaf = fakeConn('deaf')
         deaf.send = () => {
@@ -475,8 +479,8 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
         const driver: BroadcastDriver = {
             publish: () => {},
             onMessage: () => {},
-            addMember: () => Promise.resolve(),
-            removeMember: () => Promise.resolve(),
+            holdMember: () => Promise.resolve({ arrived: true }),
+            releaseMember: () => Promise.resolve({ gone: true }),
             readRoster: (_channel, limit, selfIds) =>
                 asWindow(Promise.resolve([member]), limit, selfIds),
             onControl: () => {},
@@ -495,7 +499,7 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
         assertStringIncludes(line, 'presence-room')
         assert(!line.includes(SECRET), `the control WARN leaked info: ${line}`)
         assert(
-            !line.includes('hunter2'),
+            !line.includes('S3cr3t'),
             'and renderError redacted the DSN credential',
         )
     }
@@ -505,8 +509,8 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
         const driver: BroadcastDriver = {
             publish: () => {},
             onMessage: () => {},
-            addMember: () => Promise.resolve(),
-            removeMember: () => Promise.resolve(),
+            holdMember: () => Promise.resolve({ arrived: true }),
+            releaseMember: () => Promise.resolve({ gone: true }),
             readRoster: (_channel, limit, selfIds) =>
                 asWindow(Promise.reject(DSN_FAILURE()), limit, selfIds),
         }
