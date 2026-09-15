@@ -160,6 +160,8 @@ const PREFIX_MEMBERS: readonly string[] = [
     'controlTopic',
     'presenceKey',
     'ownedKey',
+    // The slot's holders hash (#345), driven by `holdMember` / `releaseMember`.
+    'holdersKey',
     'aliveKey',
     'instancesKey',
     'revocationIndexKey',
@@ -210,16 +212,22 @@ const FRAGMENT_DERIVED: readonly string[] = ['topic', 'eventPattern']
 const CANNED = {
     HGETALL: { type: 'array', value: [] },
     ZRANGEBYSCORE: { type: 'array', value: [] },
-    // The roster read's reply shape, `{ HLEN, sample, selves }` (#341). The
-    // revocation list reads the same canned reply and finds no bulk member.
-    EVAL: {
-        type: 'array',
-        value: [
-            { type: 'integer', value: 0 },
-            { type: 'array', value: [] },
-            { type: 'array', value: [] },
-        ],
-    },
+    // Keyed on the DECLARED KEY COUNT (`EVAL <script> <numkeys> …`), never on
+    // the script text — a reply chosen by searching the source breaks on a
+    // reformat Lua cannot see. The hold script declares 4 keys and the release
+    // script 3 (#345, FR-004a); both answer the integer their strict decoder
+    // accepts. Every 1-key script — the roster read (#341) and the revocation
+    // mark and list — gets the roster read's `{ HLEN, sample, selves }` shape,
+    // in which the revocation list finds no bulk member.
+    EVAL: (args: string[]) =>
+        Number(args[2]) >= 3 ? { type: 'integer', value: 0 } : {
+            type: 'array',
+            value: [
+                { type: 'integer', value: 0 },
+                { type: 'array', value: [] },
+                { type: 'array', value: [] },
+            ],
+        },
     TIME: {
         type: 'array',
         value: [
@@ -233,7 +241,7 @@ const CANNED = {
  * Drive every prefix-deriving path in the driver and return what crossed the
  * ports.
  *
- * No timer and no `FakeTime`: `addMember` awaits `#ensureSweepStarted()`, which
+ * No timer and no `FakeTime`: `holdMember` awaits `#ensureSweepStarted()`, which
  * awaits `#heartbeat()` before installing either interval
  * (`drivers/redis.ts:733`, `:1116`), so the instance and liveness keys are
  * created synchronously on the first join.
@@ -256,11 +264,11 @@ async function exercise(prefix: string) {
         driver.onRevocationReconcile(() => {})
         await driver.publish({ channel: 'room', event: 'e', data: {} })
         await driver.publishControl({ kind: 'evict', target: 'conn-1' })
-        // addMember reaches instancesKey and aliveKey too: it awaits
+        // holdMember reaches instancesKey and aliveKey too: it awaits
         // #ensureSweepStarted() -> #heartbeat() before any interval exists.
-        await driver.addMember('presence-room', { id: 'u1', info: {} })
+        await driver.holdMember('presence-room', { id: 'u1', info: {} })
         await driver.readRoster('presence-room', 1_000, [])
-        await driver.removeMember('presence-room', 'u1')
+        await driver.releaseMember('presence-room', 'u1')
         await driver.markRevocation({ target: 'conn-1' })
         await driver.listRevocations()
     } finally {
@@ -373,6 +381,7 @@ Deno.test('SC-001: every prefix-derived name is anchored', async () => {
             // matches against, and the channel half is the part a nested prefix
             // could once reach into.
             'alpha__event:room',
+            'alpha__holders:presence-room u1',
             'alpha__instances',
             'alpha__owned:<id>',
             'alpha__presence:presence-room',
@@ -436,6 +445,7 @@ Deno.test('FR-006: every pinned member is actually driven by the exercise', asyn
         controlTopic: 'alpha__control',
         presenceKey: 'alpha__presence:presence-room',
         ownedKey: 'alpha__owned:',
+        holdersKey: 'alpha__holders:presence-room u1',
         aliveKey: 'alpha__alive:',
         instancesKey: 'alpha__instances',
         revocationIndexKey: 'alpha__revocations',
@@ -996,19 +1006,21 @@ Deno.test('FR-004: the refused sequence and the separator lead-in are ONE decisi
 async function presenceKeyOf(prefix: string, channel: string): Promise<string> {
     const { command, subscriber, recording } = recordingPorts(CANNED)
     const driver = new RedisBroadcastDriver(command, subscriber, { prefix })
-    await driver.addMember(channel, { id: 'u1', info: {} })
+    await driver.holdMember(channel, { id: 'u1', info: {} })
     await driver.close()
-    // Read the key off the EVAL, not off an HSET. `addMember` became ONE
+    // Read the key off the EVAL, not off an HSET. `holdMember` became ONE
     // operation in #323 — the presence-hash write and the owned-set write are
     // two structures encoding one fact, and two round-trips could write them
     // into disagreement. `EVAL <script> <numkeys> KEYS…` puts the presence key
     // first, so argv[3] is what this helper has always been asking for: the key
     // the driver DERIVES. Matching on the command name was matching the shape.
     const evaluated = recording.commands.find((argv) => argv[0] === 'EVAL')
-    assert(evaluated !== undefined, 'addMember did not EVAL its roster write')
+    assert(evaluated !== undefined, 'holdMember did not EVAL its roster write')
+    // FOUR keys since #345: presence hash, holders hash, owned set, instances
+    // set — the presence key still first.
     assert(
-        evaluated[2] === '2',
-        `the roster script must declare 2 keys, got ${evaluated[2]}`,
+        evaluated[2] === '4',
+        `the hold script must declare 4 keys, got ${evaluated[2]}`,
     )
     const key = evaluated[3]
     // WHICH key, not just the first one. Swap KEYS[1] and KEYS[2] in the driver

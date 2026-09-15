@@ -451,3 +451,70 @@ Deno.test('#341 EVAL returns an integer as an integer and a nil element as nil, 
         value: [int(1), { type: 'array', value: [nil, bulk('1')] }],
     })
 })
+
+Deno.test('#345 HGET answers a bulk for a present field, nil for an absent one, and checks its arity', async () => {
+    const r = new FakeRedis()
+    await r.command('HSET', 'h', 'a', '1')
+    assertEquals(await r.command('HGET', 'h', 'a'), bulk('1'))
+    assertEquals(await r.command('HGET', 'h', 'zz'), nil)
+    assertEquals(await r.command('HGET', 'absent', 'a'), nil)
+    for (const argv of [['HGET', 'h'], ['HGET', 'h', 'a', 'EXTRA']]) {
+        assertThrows(
+            () => run(r, ...argv),
+            Error,
+            'FakeRedis: HGET',
+            argv.join(' '),
+        )
+    }
+})
+
+Deno.test('#345 inside a script, HGET of a missing field is false — the nil reply converted once, at the bridge', async () => {
+    // Redis hands Lua `false` for a nil reply. The release script's
+    // `mine == false` decides the `gone` bit #344 announces from, so a bridge
+    // handing Lua anything else would make the fake and a real broker disagree
+    // on exactly that bit.
+    const r = new FakeRedis()
+    await r.command('HSET', 'h', 'present', 'v')
+    const script = "local v = redis.call('HGET', KEYS[1], ARGV[1])\n" +
+        'if v == false then\nreturn 1\nend\nreturn 0'
+    assertEquals(await r.command('EVAL', script, '1', 'h', 'missing'), int(1))
+    assertEquals(await r.command('EVAL', script, '1', 'absent', 'f'), int(1))
+    assertEquals(await r.command('EVAL', script, '1', 'h', 'present'), int(0))
+})
+
+Deno.test('#345 HRANDFIELD key 1 WITHVALUES is [field, value], indexable in a script', async () => {
+    const r = new FakeRedis()
+    await r.command('HSET', 'holders', 'B', '{"id":7}')
+    assertEquals(await r.command('HRANDFIELD', 'holders', '1', 'WITHVALUES'), {
+        type: 'array',
+        value: [bulk('B'), bulk('{"id":7}')],
+    })
+    const script =
+        "local promoted = redis.call('HRANDFIELD', KEYS[1], 1, 'WITHVALUES')\n" +
+        "redis.call('HSET', KEYS[2], ARGV[1], promoted[2])\n" +
+        "return redis.call('HGET', KEYS[2], ARGV[1])"
+    assertEquals(
+        await r.command('EVAL', script, '2', 'holders', 'presence', '7'),
+        bulk('{"id":7}'),
+    )
+})
+
+Deno.test('#345 a holders hash emptied inside a script no longer EXISTS', async () => {
+    const r = new FakeRedis()
+    await r.command('HSET', 'holders', 'A', 'e')
+    const script = "redis.call('HDEL', KEYS[1], ARGV[1])\n" +
+        "return redis.call('HLEN', KEYS[1])"
+    assertEquals(await r.command('EVAL', script, '1', 'holders', 'A'), int(0))
+    assertEquals(await r.command('EXISTS', 'holders'), int(0))
+})
+
+Deno.test('#345 HSET returns 1 for a new field and 0 for an update, inside a script too', async () => {
+    const r = new FakeRedis()
+    assertEquals(await r.command('HSET', 'h', 'f', 'v1'), int(1))
+    assertEquals(await r.command('HSET', 'h', 'f', 'v2'), int(0))
+    const script =
+        "local added = redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])\n" +
+        'if added == 1 then\nreturn 1\nend\nreturn 0'
+    assertEquals(await r.command('EVAL', script, '1', 'h', 'g', 'x'), int(1))
+    assertEquals(await r.command('EVAL', script, '1', 'h', 'g', 'y'), int(0))
+})

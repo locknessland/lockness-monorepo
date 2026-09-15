@@ -2,8 +2,9 @@
  * @fileoverview An in-memory fake Redis for the realtime driver unit tests.
  *
  * It models exactly the command surface the {@link RedisBroadcastDriver} uses —
- * `PUBLISH`, the roster hash (`HSET`/`HDEL`/`HGETALL`, and `HLEN`/`HMGET`/
- * `HRANDFIELD … WITHVALUES` for the bounded read, #341), the owned/instances sets
+ * `PUBLISH`, the roster hash (`HSET`/`HDEL`/`HGETALL`, `HLEN`/`HMGET`/
+ * `HRANDFIELD … WITHVALUES` for the bounded read, #341, and `HGET` for the
+ * roster release, #345), the owned/instances sets
  * (`SADD`/`SREM`/`SMEMBERS`/`DEL`) and the liveness string (`SET … EX`/`EXISTS`)
  * — returning `RespReply`-shaped values so the driver's real reply-narrowing
  * runs unchanged. Pub/sub fan-out is synchronous, like the existing
@@ -59,11 +60,13 @@ type Reply =
 /**
  * A reply as a script sees it, by Redis's reply-to-Lua conversion (#341).
  *
- * An integer stays a number, and a nil ELEMENT of a multi-bulk becomes `false`
- * — Redis never hands Lua a `nil` inside a table, so its length survives. The
- * previous bridge turned both into strings (`'3'`, `''`), which let a script's
- * returned table carry a shape no real broker sends. A top-level nil is the
- * caller's to map; it never reaches here.
+ * An integer stays a number, and a nil reply becomes `false` — top-level
+ * (`HGET` of an absent field, #345) or an ELEMENT of a multi-bulk. Redis never
+ * hands Lua a `nil` for a reply: a table keeps its length, and a script's
+ * `mine == false` is how it asks "was it there". The earliest bridge turned
+ * both into strings (`'3'`, `''`), which let a returned table carry a shape no
+ * real broker sends; the next mapped a top-level nil to `undefined`, which
+ * would have made `mine == false` false on the fake and true on Redis.
  */
 function toLua(reply: Reply): LuaValue {
     switch (reply.type) {
@@ -579,11 +582,12 @@ export class FakeRedis {
                     script,
                     keys,
                     argv,
-                    (command, cargs) => {
-                        const reply = this.#exec([command, ...cargs])
-                        if (reply.type === 'nil') return undefined
-                        return toLua(reply)
-                    },
+                    // The ONE place a reply becomes a Lua value, nil included:
+                    // Redis hands a script `false` for a nil reply (`HGET` of
+                    // an absent field), and the #345 release script's
+                    // `mine == false` reads exactly that. No arm answers
+                    // `false` itself.
+                    (command, cargs) => toLua(this.#exec([command, ...cargs])),
                 )
                 if (result === undefined) return { type: 'nil' }
                 return fromLua(result)
@@ -647,6 +651,20 @@ export class FakeRedis {
                     flat.push({ type: 'bulk', value })
                 }
                 return { type: 'array', value: flat }
+            }
+            case 'HGET': {
+                // HGET key field -> the value, or a nil reply for an absent
+                // field or key. Nil, never `false`: turning it into Lua's
+                // `false` is the EVAL bridge's job, once, for every command.
+                if (rest.length !== 2) {
+                    this.#reject(
+                        `FakeRedis: HGET takes key and field, got ${rest.length}`,
+                    )
+                }
+                const value = this.#liveHash(rest[0])?.get(rest[1])
+                return value === undefined
+                    ? { type: 'nil' }
+                    : { type: 'bulk', value }
             }
             case 'HLEN': {
                 // HLEN key -> the number of fields; 0 for an absent key.

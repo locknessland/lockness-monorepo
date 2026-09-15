@@ -49,8 +49,8 @@ Deno.test('SC-005: a crashed instance leaves no permanent ghost roster members',
     const a = driver(redis)
     const b = driver(redis)
     try {
-        await a.addMember('presence-lobby', { id: 1, info: { name: 'A' } })
-        await b.addMember('presence-lobby', { id: 2, info: { name: 'B' } })
+        await a.holdMember('presence-lobby', { id: 1, info: { name: 'A' } })
+        await b.holdMember('presence-lobby', { id: 2, info: { name: 'B' } })
 
         // Both members are authoritatively "here" from either instance's view.
         assertEquals(

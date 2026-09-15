@@ -121,9 +121,12 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'the Lua subset drops a statement — the reap never runs',
         file: LUA,
+        // Re-anchored when the evaluator began parsing every expression up
+        // front: a bare call statement is now its own node, and dropping it is
+        // skipping its evaluation — no fall-through to a refusal any more.
         edits: [[
-            "if (statement.startsWith('redis.call(')) {",
-            "if (false && statement.startsWith('redis.call(')) {",
+            '            evaluate(node.call)\n',
+            '            void node.call\n',
         ]],
         killedBy: 'the revocation scripts agree',
     },

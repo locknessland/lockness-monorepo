@@ -621,7 +621,7 @@ integrationTest(
 // Row 9 is GREEN and is an EQUIVALENT mutant, recorded rather than dropped: the
 // two forms differ only at `sep === 0`, an entry that BEGINS with a space, which
 // means an empty channel name. `ChannelManager.subscribe` refuses that
-// (#314's `#assertUsableChannel`, via `isValidName`), so no `addMember` can
+// (#314's `#assertUsableChannel`, via `isValidName`), so no `holdMember` can
 // write one. The guard being unreachable from a valid input is the desired
 // state, exactly as for row 7.
 //

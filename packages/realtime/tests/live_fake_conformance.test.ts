@@ -33,6 +33,7 @@ import {
 } from '../../redis/tests/live_broker.ts'
 import { FakeRedis } from './fake_redis.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
+import { ChannelManager } from '../manager.ts'
 import { MAX_ROSTER_READ_SELF_IDS, type Revocation } from '../driver.ts'
 
 /** One command, and whether the fake is expected to refuse it. */
@@ -127,7 +128,90 @@ function normalise(argv: string[], reply: RespReply): RespReply {
     return reply
 }
 
+/**
+ * A script shaped like the release script's `mine == false` branch: 1 when the
+ * `HGET` reply reached Lua as `false`, 0 otherwise (#345).
+ */
+const HGET_IS_FALSE_SCRIPT = [
+    "local v = redis.call('HGET', KEYS[1], ARGV[1])",
+    'if v == false then',
+    '  return 1',
+    'end',
+    'return 0',
+].join('\n')
+
 const SEQUENCES: Sequence[] = [
+    {
+        name: 'the holders hash primitives #345 rests on',
+        steps: [
+            // HSET answers 1 for a NEW field and 0 for an update — the bit
+            // the hold script reads as `added`.
+            { argv: ['HSET', K('holders'), 'inst-a', '{"a":1}'] },
+            { argv: ['HSET', K('holders'), 'inst-a', '{"a":2}'] },
+            // The same bit from INSIDE a script, where the hold reads it.
+            {
+                argv: [
+                    'EVAL',
+                    "return redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])",
+                    '1',
+                    K('holders'),
+                    'inst-b',
+                    '{"b":"é ✓"}',
+                ],
+            },
+            {
+                argv: [
+                    'EVAL',
+                    "return redis.call('HSET', KEYS[1], ARGV[1], ARGV[2])",
+                    '1',
+                    K('holders'),
+                    'inst-b',
+                    '{"b":"é ✓"}',
+                ],
+            },
+            { argv: ['HLEN', K('holders')] },
+            // A missing field reaches Lua as `false`; a present one does not.
+            {
+                argv: [
+                    'EVAL',
+                    HGET_IS_FALSE_SCRIPT,
+                    '1',
+                    K('holders'),
+                    'nobody',
+                ],
+            },
+            {
+                argv: [
+                    'EVAL',
+                    HGET_IS_FALSE_SCRIPT,
+                    '1',
+                    K('holders'),
+                    'inst-a',
+                ],
+            },
+            { argv: ['HDEL', K('holders'), 'inst-a'] },
+            // One field left, so `HRANDFIELD k 1 WITHVALUES` is deterministic:
+            // the `[field, value]` shape the promotion indexes with `[2]`.
+            { argv: ['HRANDFIELD', K('holders'), '1', 'WITHVALUES'] },
+            // The promoted value copied through a script reads back byte for byte.
+            {
+                argv: [
+                    'EVAL',
+                    "local p = redis.call('HRANDFIELD', KEYS[1], 1, 'WITHVALUES')\n" +
+                    "redis.call('HSET', KEYS[2], ARGV[1], p[2])\n" +
+                    'return 0',
+                    '2',
+                    K('holders'),
+                    K('shown'),
+                    '7',
+                ],
+            },
+            { argv: ['HGET', K('shown'), '7'] },
+            // An emptied hash no longer exists — no stale holders key.
+            { argv: ['HDEL', K('holders'), 'inst-b'] },
+            { argv: ['EXISTS', K('holders')] },
+        ],
+    },
     {
         name: 'the revocation index triple #276 is built on',
         steps: [
@@ -624,7 +708,7 @@ Deno.test({
     ignore: !LIVE_BROKER,
     async fn() {
         // The same argument as the revocation arm, for the two scripts #323
-        // added. `addMember` and `removeMember` each became one `EVAL`, and the
+        // added. `holdMember` and `releaseMember` each became one `EVAL`, and the
         // whole atomicity guarantee now rests on the fake's Lua subset agreeing
         // with a real interpreter about two multi-key scripts — the file's
         // first. Nothing else checks that.
@@ -632,8 +716,8 @@ Deno.test({
         // **What this arm can and cannot see.** It compares the OBSERVABLE
         // roster through the production path on both backends, which is what
         // the fake could get wrong. It cannot see cross-slot behaviour: a
-        // single-node broker accepts a two-key `EVAL` that Redis Cluster would
-        // refuse, and that limitation is stated on ADD_MEMBER_SCRIPT rather
+        // single-node broker accepts a multi-key `EVAL` that Redis Cluster would
+        // refuse, and that limitation is stated on HOLD_MEMBER_SCRIPT rather
         // than pretended away here.
         const config = brokerConfig()
         await preflight(config)
@@ -661,13 +745,13 @@ Deno.test({
 
             try {
                 await both((d) =>
-                    d.addMember!('presence-room', {
+                    d.holdMember('presence-room', {
                         id: 'u1',
                         info: { name: 'Ada' },
-                    }) as Promise<void>
+                    }).then(() => {})
                 )
                 await both((d) =>
-                    d.addMember!('presence-room', { id: 'u2' }) as Promise<void>
+                    d.holdMember('presence-room', { id: 'u2' }).then(() => {})
                 )
 
                 assertEquals(
@@ -691,7 +775,7 @@ Deno.test({
                 )
 
                 await both((d) =>
-                    d.removeMember!('presence-room', 'u1') as Promise<void>
+                    d.releaseMember('presence-room', 'u1').then(() => {})
                 )
                 assertEquals(
                     ids(
@@ -718,7 +802,7 @@ Deno.test({
                 // have been written, so a second remove must be a no-op rather
                 // than an error on either backend.
                 await both((d) =>
-                    d.removeMember!('presence-room', 'u1') as Promise<void>
+                    d.releaseMember('presence-room', 'u1').then(() => {})
                 )
                 assertEquals(
                     ids(
@@ -773,7 +857,7 @@ Deno.test({
             // matched to the wrong entry is visible (S3).
             const seeded = ['u1', 'u2', 'u3', 'u4', 'u5', 'u6', 'u7']
             for (const id of seeded) {
-                await driver.addMember(ROOM, { id, info: { of: id } })
+                await driver.holdMember(ROOM, { id, info: { of: id } })
             }
             const hlen = await live.command('HLEN', key) as RespReply
             assertEquals(hlen, { type: 'integer', value: 7 }, 'the fixture')
@@ -902,7 +986,7 @@ Deno.test({
         try {
             for (const driver of [onLive, onFake]) {
                 for (let i = 0; i < HELD; i++) {
-                    await driver.addMember(ROOM, {
+                    await driver.holdMember(ROOM, {
                         id: `u${i}`,
                         info: { of: i },
                     })
@@ -930,6 +1014,245 @@ Deno.test({
         } finally {
             await onLive.close()
             await onFake.close()
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})
+
+/**
+ * Two roster drivers per backend, sharing that backend (#345). The sweep timings
+ * are short so a lapse fits a live run; the fake is driven on the same clock.
+ */
+function holderPair(
+    port: { command: (...args: string[]) => Promise<unknown> },
+    prefix: string,
+) {
+    const nothing = { psubscribe: () => {} }
+    const make = () =>
+        new RedisBroadcastDriver(port as RedisClient, nothing, {
+            prefix,
+            presence: {
+                livenessTtlSeconds: 1,
+                heartbeatIntervalMs: 250,
+                reconcileIntervalMs: 400,
+            },
+        })
+    return { a: make(), b: make() }
+}
+
+Deno.test({
+    name:
+        '#345 holds and releases agree with a real broker (W1, W3, W5, W8, W11, invariant)',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        const CH = 'presence-room'
+        const observe = async (
+            port: { command: (...args: string[]) => Promise<unknown> },
+            prefix: string,
+        ) => {
+            const { a, b } = holderPair(port, prefix)
+            const steps: unknown[] = []
+            const slot = async (id: number) => {
+                const field = await port.command(
+                    'HGET',
+                    `${prefix}__presence:${CH}`,
+                    String(id),
+                ) as RespReply
+                const holders = await port.command(
+                    'HLEN',
+                    `${prefix}__holders:${CH} ${id}`,
+                ) as RespReply
+                const exists = await port.command(
+                    'EXISTS',
+                    `${prefix}__holders:${CH} ${id}`,
+                ) as RespReply
+                const n = holders.type === 'integer' ? holders.value : -1
+                assertEquals(
+                    field.type !== 'nil',
+                    n >= 1,
+                    `${prefix}: presence field exists iff holders >= 1`,
+                )
+                return { field: field.type, holders: n, exists }
+            }
+            const infos = async () =>
+                (await a.readRoster(CH, 1_000, [])).members.map((m) => [
+                    m.id,
+                    m.info,
+                ])
+            try {
+                const ada = (from: string) => ({ id: 7, info: { from } })
+                steps.push(await a.holdMember(CH, ada('A'))) // W11 hold → true
+                steps.push(await a.holdMember(CH, ada('A'))) // hold again → false
+                steps.push(await b.holdMember(CH, ada('B'))) // B shown now
+                steps.push(await slot(7))
+                steps.push(await infos()) // W5: exact info with 2 holders
+                steps.push(await b.releaseMember(CH, 7)) // shown == mine → promote
+                steps.push(await infos()) // A's info, copied byte for byte
+                steps.push(await slot(7))
+                steps.push(await a.holdMember(CH, { id: 8, info: {} }))
+                steps.push(await a.releaseMember(CH, 8)) // W8: 7 untouched
+                steps.push((await a.readRoster(CH, 1_000, [])).total)
+                steps.push(await b.releaseMember(CH, 7)) // non-holder → false
+                steps.push(await a.releaseMember(CH, 7)) // last → true (W3)
+                steps.push(await slot(7))
+                steps.push((await a.readRoster(CH, 1_000, [])).total)
+                steps.push(await b.releaseMember(CH, 7)) // empty slot, non-holder → false
+                steps.push(await slot(7))
+            } finally {
+                await a.close()
+                await b.close()
+            }
+            return steps
+        }
+        try {
+            const onLive = await observe(live, `${NS}-live-holders`)
+            const onFake = await observe(
+                { command: fake.command },
+                `${NS}-fake-holders`,
+            )
+            assertEquals(onFake, onLive, 'the fake and the broker disagreed')
+            assertEquals(onLive[0], { arrived: true })
+            assertEquals(onLive[1], { arrived: false })
+            assertEquals(onLive[2], { arrived: false })
+            assertEquals(onLive[4], [[7, { from: 'B' }]])
+            assertEquals(onLive[5], { gone: false })
+            assertEquals(onLive[6], [[7, { from: 'A' }]])
+            assertEquals(onLive[10], 1)
+            assertEquals(onLive[11], { gone: false })
+            assertEquals(onLive[12], { gone: true })
+            assertEquals(onLive[13], {
+                field: 'nil',
+                holders: 0,
+                exists: { type: 'integer', value: 0 },
+            })
+            assertEquals(onLive[14], 0)
+            assertEquals(
+                onLive[15],
+                { gone: false },
+                'a non-holder releasing an already-empty slot is not a departure',
+            )
+            assertEquals(onLive[16], onLive[13], 'and it writes nothing')
+        } finally {
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})
+
+Deno.test({
+    name: '#345 a sweep releases, it does not delete (W2, W6) on a real broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const prefix = `${NS}-live-sweep`
+        const CH = 'presence-room'
+        const { a, b } = holderPair(live, prefix)
+        try {
+            await b.holdMember(CH, { id: 7, info: { from: 'B' } })
+            await a.holdMember(CH, { id: 7, info: { from: 'A' } })
+            await a.close()
+            // A's liveness key lapses (1 s TTL); B's reconcile sweeps A. Wait
+            // on the sweep's own effect — A's hold gone from the holders hash —
+            // not on a fixed sleep: the lapse and the next reconcile tick both
+            // run on the broker's clock, and a loaded host stretches them.
+            const holders = `${prefix}__holders:${CH} 7`
+            const deadline = Date.now() + 15_000
+            for (;;) {
+                const n = await live.command('HLEN', holders) as RespReply
+                if (n.type === 'integer' && n.value === 1) break
+                if (Date.now() > deadline) {
+                    throw new Error(
+                        `precondition: B never swept A within 15 s (holders ${
+                            JSON.stringify(n)
+                        })`,
+                    )
+                }
+                await new Promise((resolve) => setTimeout(resolve, 100))
+            }
+            const window = await b.readRoster(CH, 1_000, [])
+            assertEquals(
+                window.members.map((m) => [m.id, m.info]),
+                [[7, { from: 'B' }]],
+                'W2: a dead holder never removes a slot a live one holds',
+            )
+            // W6: A, swept while it believed itself live, releases — B untouched.
+            assertEquals(await a.releaseMember(CH, 7), { gone: false })
+            assertEquals((await b.readRoster(CH, 1_000, [])).total, 1)
+        } finally {
+            await b.close()
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})
+
+Deno.test({
+    name:
+        '#344 W5 one presence-join and one presence-leave across two managers on a real broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const prefix = `${NS}-live-announce`
+        const CH = 'presence-room'
+        const published: { kind: string; from: string }[] = []
+        const nothing = { psubscribe: () => {} }
+        const instance = (from: string) => {
+            const driver = new RedisBroadcastDriver(live, nothing, {
+                prefix,
+                control: { secret: 'deployment-secret-with-enough-entropy' },
+            })
+            const publish = driver.publishControl.bind(driver)
+            driver.publishControl = (control) => {
+                published.push({ kind: control.kind, from })
+                return publish(control)
+            }
+            const manager = new ChannelManager<{ id: number }>({
+                driver,
+                authorize: (identity) => identity ? { id: identity.id } : false,
+            })
+            return { driver, manager }
+        }
+        const connection = (id: string) => ({
+            id,
+            identity: { id: 7 },
+            metadata: {},
+            send: () => {},
+            close: () => {},
+        })
+        const A = instance('A')
+        const B = instance('B')
+        try {
+            await A.manager.subscribe(connection('a1'), CH)
+            await B.manager.subscribe(connection('b1'), CH)
+            assertEquals(
+                published.filter((c) => c.kind === 'presence-join').length,
+                1,
+                'one arrival, one presence-join, whichever instance held first',
+            )
+            await A.manager.unsubscribe('a1', CH)
+            assertEquals(
+                published.filter((c) => c.kind === 'presence-leave').length,
+                0,
+                'A leaves while B holds: nothing',
+            )
+            await B.manager.unsubscribe('b1', CH)
+            assertEquals(
+                published.filter((c) => c.kind === 'presence-leave'),
+                [{ kind: 'presence-leave', from: 'B' }],
+                'the last holder announces the departure',
+            )
+        } finally {
+            await A.driver.close()
+            await B.driver.close()
             await teardown(live, NS)
             await live.close()
         }

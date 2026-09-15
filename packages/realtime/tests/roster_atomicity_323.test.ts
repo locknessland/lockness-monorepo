@@ -1,9 +1,9 @@
 /**
  * @fileoverview #323 — the authoritative roster write is ONE fact, or none.
  *
- * `addMember` stored a member as TWO structures — a field in the channel's
+ * `holdMember` stored a member as TWO structures — a field in the channel's
  * presence hash, and an entry in the owning instance's owned set — written by
- * two separate round-trips with no transaction. `removeMember` removed them the
+ * two separate round-trips with no transaction. `releaseMember` removed them the
  * same way. Either pair can be interrupted between its halves, and each
  * direction fails differently:
  *
@@ -55,7 +55,7 @@ const touchesOwnedSet = (args: string[]): boolean =>
 const touchesRosterKey = (args: string[]): boolean =>
     args.some((a) => a.startsWith(OWNED_PREFIX) || a.includes(CHANNEL))
 
-Deno.test('#323 addMember is ONE operation — there is no between', async () => {
+Deno.test('#323 holdMember is ONE operation — there is no between', async () => {
     const redis = new FakeRedis()
     const issued: string[][] = []
     const counting = (...args: string[]): Promise<unknown> => {
@@ -68,15 +68,15 @@ Deno.test('#323 addMember is ONE operation — there is no between', async () =>
         // its own commands and resetting after the first add assumes it fires
         // exactly once and exactly there — an assumption that would make this
         // test fail for an unrelated reason the day it changes.
-        await driver.addMember(CHANNEL, { id: 'u1' })
+        await driver.holdMember(CHANNEL, { id: 'u1' })
         issued.length = 0
-        await driver.addMember(CHANNEL, { id: 'u2' })
+        await driver.holdMember(CHANNEL, { id: 'u2' })
         const rosterWrites = issued.filter(touchesRosterKey)
 
         assertEquals(
             rosterWrites.length,
             1,
-            `addMember must be ONE operation, issued: ${
+            `holdMember must be ONE operation, issued: ${
                 issued.map((a) => a[0]).join(', ')
             }`,
         )
@@ -95,7 +95,7 @@ Deno.test('#323 addMember is ONE operation — there is no between', async () =>
     }
 })
 
-Deno.test('#323 removeMember is ONE operation — the owned set cannot lie', async () => {
+Deno.test('#323 releaseMember is ONE operation — the owned set cannot lie', async () => {
     const redis = new FakeRedis()
     const issued: string[][] = []
     const counting = (...args: string[]): Promise<unknown> => {
@@ -104,15 +104,15 @@ Deno.test('#323 removeMember is ONE operation — the owned set cannot lie', asy
     }
     const driver = driverOn(redis, counting)
     try {
-        await driver.addMember(CHANNEL, { id: 'u1' })
+        await driver.holdMember(CHANNEL, { id: 'u1' })
         issued.length = 0
-        await driver.removeMember(CHANNEL, 'u1')
+        await driver.releaseMember(CHANNEL, 'u1')
         const rosterWrites = issued.filter(touchesRosterKey)
 
         assertEquals(
             rosterWrites.length,
             1,
-            `removeMember must be ONE operation, issued: ${
+            `releaseMember must be ONE operation, issued: ${
                 issued.map((a) => a[0]).join(', ')
             }`,
         )
@@ -143,11 +143,11 @@ Deno.test('#323 a rejected add leaves NEITHER structure', async () => {
     try {
         // Start the sweep first, so its own owned-set writes are not the ones
         // this test rejects.
-        await driver.addMember(CHANNEL, { id: 'warmup' })
-        await driver.removeMember(CHANNEL, 'warmup')
+        await driver.holdMember(CHANNEL, { id: 'warmup' })
+        await driver.releaseMember(CHANNEL, 'warmup')
         armed = true
 
-        await driver.addMember(CHANNEL, { id: 'u1' }).then(
+        await driver.holdMember(CHANNEL, { id: 'u1' }).then(
             () => assert(false, 'the roster write must not report success'),
             () => {},
         )
@@ -174,10 +174,10 @@ Deno.test('#323 a rejected remove leaves the member wholly present', async () =>
     }
     const driver = driverOn(redis, failing)
     try {
-        await driver.addMember(CHANNEL, { id: 'u1' })
+        await driver.holdMember(CHANNEL, { id: 'u1' })
         armed = true
 
-        await driver.removeMember(CHANNEL, 'u1').then(
+        await driver.releaseMember(CHANNEL, 'u1').then(
             () => assert(false, 'the roster removal must not report success'),
             () => {},
         )
@@ -236,11 +236,11 @@ Deno.test(
         try {
             // A holds the member, then gives it up. With a non-atomic removal
             // whose second half is lost, A's owned set still names it.
-            await a.addMember(CHANNEL, { id: 'u1' })
-            await a.removeMember(CHANNEL, 'u1')
+            await a.holdMember(CHANNEL, { id: 'u1' })
+            await a.releaseMember(CHANNEL, 'u1')
 
             // The same member joins on B. It is B's now, and it is genuinely here.
-            await b.addMember(CHANNEL, { id: 'u1' })
+            await b.holdMember(CHANNEL, { id: 'u1' })
             assertEquals(
                 (await b.readRoster!(CHANNEL, 1_000, [])).members.map((m) =>
                     m.id
