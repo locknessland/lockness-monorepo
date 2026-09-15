@@ -130,8 +130,8 @@ const MUTATIONS: Mutation[] = [
         label: 'the reconcile filter dropped on the bare sorted-set member',
         file: DRIVER,
         edits: [[
-            'return isValidName(member) ? { target: member } : undefined',
-            'return { target: member }',
+            '        if (!parts.every((part) => isValidName(part))) return undefined\n',
+            '',
         ]],
         killedBy: 'reconcile drops a broker-injected id',
     },
