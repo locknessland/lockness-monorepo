@@ -270,6 +270,28 @@ returned table stops at its first `nil`. `unpack(ARGV, n)` expands only as the
 last argument of a call — Lua truncates it to one value anywhere else, and a
 full expansion there would pass a script a real broker runs differently (#341).
 
+Control flow is exactly what the roster hold/release scripts need (#344, #345):
+`if <operand> == <operand> then … end`, nested, each `if` and `end` on its own
+line; a `false` literal; `[n]` on a bound local; and `return` only as the last
+statement of its block. `==` is **type-strict**, as Lua's is — `'1' == 1` is
+false, and a numeric literal is a number — so a script comparing an integer
+reply to `1` behaves as on a real broker, and a fake that answered a bulk `'1'`
+would be caught. Integer `+` / `-` yields a **number** too, as in Lua, so
+`local n = redis.call('HLEN', KEYS[1]) - 1` satisfies `n == 0` and
+`return n + 1` is an integer reply, not a bulk one. A **nil reply reaches Lua as
+`false`** (that is what `mine == false` tests); the conversion belongs to the
+consumer's reply bridge, once, never to a single command's arm. Every other
+operator (`~=`, `<`, `>`, `and`, `or`, `not`), `else` / `elseif`, loops and a
+table or call as a comparison operand are refused.
+
+**The whole script is parsed before any command runs**, as a broker compiles it:
+not only each statement's shape but every expression inside it — a `local`
+right-hand side, both `if` operands, each call argument — goes through the one
+grammar evaluation later walks. So `local x = a or b` or an unclosed
+`redis.call(` throws even inside a branch that is not taken, and the parse-time
+check cannot drift from what evaluation accepts. Only what a value decides (an
+unbound name, indexing a non-table, `false` as an argument) waits until it runs.
+
 ## Before you call it done
 
 <!-- generated:gate -->

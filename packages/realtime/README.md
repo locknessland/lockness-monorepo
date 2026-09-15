@@ -146,11 +146,23 @@ app.get(
   room larger than K, different per subscribe) and an authorizer returning
   `true` lets one identity take many slots. `members` and `rosterSource` were
   removed in 0.4.0.
-- **A custom presence driver implements `readRoster`, not `listMembers`** — a
-  bounded window, the population counted in the same read, and the callers' own
-  members. A driver that still has `listMembers` is refused at construction. See
+- **Presence is announced per member, and a slot is held per instance** — a
+  member's first connection anywhere sends one `joined`, its last one `left` (a
+  crashed instance's members leave silently until
+  [#348](https://github.com/locknessland/lockness-monorepo/issues/348)); a
+  second tab, or closing one of two, sends nothing. On Redis every instance with
+  a connection for a member holds its slot, and the slot leaves the roster only
+  with its last holder, so no instance leaving or dying removes a member another
+  still holds. Roster keys carry no TTL: run that Redis with `noeviction` or a
+  `volatile-*` policy. See
+  [The authoritative presence roster](../../docs/realtime.md#the-authoritative-presence-roster).
+- **A custom presence driver implements `readRoster`, `holdMember` and
+  `releaseMember`** — a bounded window with the population counted in the same
+  read, and a per-process hold / release that reports `arrived` / `gone`, which
+  the manager announces from and a driver may not fake. A driver that still has
+  any pre-0.4.0 roster method is refused at construction, once, naming them. See
   [Writing a presence driver](../../docs/realtime.md#writing-a-presence-driver);
-  the Redis read needs nothing beyond the
+  the Redis scripts need nothing beyond the
   [Redis 7.0 minimum](../../docs/realtime.md#redis-minimum-version).
 - **The framework does not meter the verb rate, and `authorize` is not where a
   budget goes** — the caps bound how many channels are held, never how often

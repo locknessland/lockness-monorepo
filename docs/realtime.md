@@ -60,12 +60,27 @@ members only.
 
 ### What a `joined` frame promises — and what it does not
 
+**`joined` and `left` are announced per member, not per connection**
+([#344](https://github.com/locknessland/lockness-monorepo/issues/344)). A
+member's first connection anywhere in the fleet sends one `joined`; its last
+connection closing sends one `left`. A second tab — on the same instance or on
+another — sends nothing, and closing one of two tabs sends nothing: the member
+is still here. That holds on the memory and Redis drivers, whose roster is
+authoritative; a custom driver with a control plane and no roster decides per
+instance. It is only as truthful as your member ids: return one id **per
+identity** from your authorizer (see
+[The authoritative presence roster](#the-authoritative-presence-roster)).
+
 **A `joined` frame emitted by the instance the member joined on follows a
-successful authoritative roster write.** The join writes the roster first and
-announces second, so no subscriber is ever told about a member the roster
-refused. If that write fails the subscribe rejects, nothing was announced, and
-the attempt leaves no trace — the same connection can retry the same channel and
-produces exactly one member.
+successful authoritative roster write that filled the member's slot.** The write
+that observes the slot go from no holder to one is the one that announces, so no
+subscriber is ever told about a member the roster refused. If that write fails
+the subscribe rejects, nothing was announced, and the attempt leaves no trace —
+the same connection can retry the same channel and produces exactly one member.
+**One exception:** when the write committed but its reply was lost, the rollback
+releases the slot it cannot see, and that release sends a truthful `left` for a
+member no `joined` was sent for. Treat an unknown `left` as a no-op. A
+connection never receives `joined` for its own member id.
 
 **A `joined` frame on any OTHER instance reflects an announcement, not a roster
 read.** Cross-instance presence travels the control plane, and a receiving
@@ -79,9 +94,10 @@ serializes the verbs a client sends, so a `subscribe` and an `unsubscribe` for
 the same channel can be in flight together. Every authoritative roster write is
 issued as a projection of what this instance holds locally, one slot at a time,
 so the later verb wins and the earlier one becomes a no-op rather than a write
-arriving out of order. A join that loses that race also announces nothing — it
-has no membership to announce. See
-[ADR 003](adr/003-realtime-roster-write-ownership.md).
+arriving out of order. A join that loses that race announces nothing, and
+neither does the leave that overtook it — no `left` without a `joined`. See
+[ADR 003](adr/003-realtime-roster-write-ownership.md) and
+[ADR 004](adr/004-realtime-roster-slots-held-per-instance.md).
 
 **A re-subscribe to a channel the connection already holds produces NO `joined`
 frame at all** — not locally, not on any other instance. A `joined` records a
@@ -703,10 +719,10 @@ are owned by `channel_watch_295.test.ts`, `roster_atomicity_323.test.ts` and
 | `subscribe` public                      |             0–1 |                 0 |                   0 |                0 |
 | `subscribe` private                     |             0–1 |                 0 |                   0 |                1 |
 | `subscribe` private, **denied**         |               0 |                 0 |                   0 |                1 |
-| `subscribe` presence, first join        |             2–3 |                 1 |                 N−1 |                1 |
+| `subscribe` presence, first join        |             2–3 |               0–1 |             0 / N−1 |                1 |
 | `subscribe` presence, **re-join**       |               1 |                 0 |                   0 |                1 |
 | `unsubscribe` public / private          |             0–1 |                 0 |                   0 |                0 |
-| `unsubscribe` presence, member          |             1–2 |                 1 |                 N−1 |                0 |
+| `unsubscribe` presence, member          |             1–2 |               0–1 |             0 / N−1 |                0 |
 | `unsubscribe`, not a member / not owned |               0 |                 0 |                   0 |                0 |
 
 **A churn pair on a presence channel, sole holder: 5 driver commands, 2 control
@@ -729,11 +745,18 @@ Reading the table:
 - **The table is the SUCCESSFUL path, and two things sit outside it.** A
   presence first join whose roster write **fails** pays more than the ceiling
   above: the compensation issues the local leave — which may `UNSUBSCRIBE` — and
-  a second roster `EVAL` to reclaim a possibly-committed entry. And the Redis
-  driver starts its ghost sweep on the first roster write of a process, a
-  once-per-process cost that no per-frame row can carry. Neither is a path a
-  client chooses, but a budget sized on the table alone is sized on the happy
-  path.
+  a second roster `EVAL` to release a possibly-committed hold. When that hold
+  had in fact committed and no other instance holds the slot, the release
+  empties it and publishes one `presence-leave`, though no `presence-join` went
+  out. And the Redis driver starts its ghost sweep on the first roster write of
+  a process, a once-per-process cost that no per-frame row can carry. Neither is
+  a path a client chooses, but a budget sized on the table alone is sized on the
+  happy path.
+- **The control publish is per member, not per frame.** A first join publishes
+  only when it fills the member's slot, and a presence leave only when it
+  empties it; a second tab and a leave while another holder remains publish
+  nothing. The upper figure is the one to size on: a client controls how many
+  identities it presents only as far as your authorizer lets it.
 - **Fleet verifications** are the term nobody counts. A control frame goes to
   one shared topic every instance subscribes to, and the publisher's own
   loopback is dropped **before** the MAC — so every _other_ instance pays a
@@ -1053,6 +1076,17 @@ per-channel member store), not by any one instance's memory. When a client joins
 returns the **cross-instance** roster (both members) and a `joined` frame
 reaches presence subscribers on **both** instances.
 
+**One slot per member, held per instance**
+([#345](https://github.com/locknessland/lockness-monorepo/issues/345)). Each
+member id is one slot in the roster, and the driver records **which instances
+hold it**. Every instance with a connection for that member holds the slot; the
+slot leaves the roster only when its last holder releases it. So while at least
+one live instance holds a member, every `here` snapshot on every instance lists
+it and counts it in `total`, and no instance leaving or dying removes a member
+another instance still holds. The member's shown `info` is always a current
+holder's: when the holder whose entry is shown releases, another holder's entry
+takes its place.
+
 **What a subscribe returns is a bounded snapshot, `here`**
 ([#339](https://github.com/locknessland/lockness-monorepo/issues/339)). A room's
 population has no ceiling, so the reply cannot be the room:
@@ -1097,14 +1131,17 @@ with two tabs on one instance takes one slot and counts once in `total`, whether
 the snapshot is authoritative, the local fallback, or a driver with no roster
 capability — ids compare as `String(id)`, so `1` and `'1'` are one member. Its
 `info` is the **earliest-joined connection still subscribed** on that instance,
-which is the same entry the roster holds; when that connection leaves, the next
-one takes over on both views. That agreement holds for a member connected to one
-instance only; the same member on two instances shares one Redis slot that the
-last write wins
-([#345](https://github.com/locknessland/lockness-monorepo/issues/345)).
-Announcements are still per connection: a second tab sends `joined` for a member
-already present, and closing one of two tabs sends `left` for a member still
-here.
+which is the same entry that instance holds the slot with; when that connection
+leaves, the next one takes over on both views. A member on several instances
+shows one holder's `info` — any of them, and on Redis with three or more holders
+which one takes over is random. Announcements are per member too: a second tab
+sends no `joined`, and closing one of two tabs sends no `left` (#344).
+
+**One id per identity is what makes this true.** Two identities your authorizer
+maps to the same `id` are one member: the roster shows one entry for both, the
+second one's arrival is never announced, and neither is a departure while the
+other is still connected
+([#346](https://github.com/locknessland/lockness-monorepo/issues/346)).
 
 **`here.source` says which you got**: `'authoritative'` for every instance's
 roster, `'local'` for this instance's members alone. A driver with no roster
@@ -1128,38 +1165,46 @@ if (here) {
 }
 ```
 
-A leave — `unsubscribe`, `disconnect`, or a socket close — removes the member
-from the authoritative roster and fans a `left` to every instance.
+A leave — `unsubscribe`, `disconnect`, or a socket close — releases this
+instance's hold on the member's slot once its last local connection for that
+member is gone. If that empties the slot, one `left` fans to every instance; if
+another instance still holds it, nothing is sent.
 
 Fan-out itself stays pure pub/sub: the roster is consulted on
 subscribe/unsubscribe/evict only, never on the per-event delivery path.
 
-**Ghost sweep.** Each instance records the roster entries it adds in an
-instance-scoped _owned set_, and refreshes an instance-liveness key on a
-heartbeat. If an instance crashes without cleanup, a surviving instance's
-periodic reconcile pass sweeps what that dead instance's owned set names, so a
-crash leaves no permanent ghosts.
+**Ghost sweep.** Each instance records the slots it holds in an instance-scoped
+_owned set_, and refreshes an instance-liveness key on a heartbeat. If an
+instance crashes without cleanup, a surviving instance's periodic reconcile pass
+releases every hold that dead instance's owned set names — one release `EVAL`
+per entry, exactly the release a leave runs, on the dead instance's behalf — so
+a crash leaves no permanent ghosts and never removes a member a live instance
+still holds. A sweep announces nothing: a member whose last holder crashed gets
+no `left`
+([#348](https://github.com/locknessland/lockness-monorepo/issues/348)).
 
 **Know what it reaches.** The sweep enumerates the owned set and nothing else,
 and it only ever runs against an instance whose liveness key has expired — a
-live instance never reclaims its own entries. Two consequences worth holding on
-to:
+live instance never reclaims its own holds. Consequences worth holding on to:
 
-- A roster entry that is in **no** owned set is invisible to the sweep, by every
-  instance, forever. Adding a member is therefore one atomic operation: the
-  roster field and the owned-set entry are written together or not at all, so
-  the pair cannot be created half-formed.
-- The sweep `HDEL`s whatever a dead instance's owned set names **without
-  checking the entry's owner**. So a stale owned entry — one naming a member
-  this instance no longer holds — makes the sweep delete a member that is
-  genuinely present and owned by somebody else. Removing a member is one atomic
-  operation for that reason, and it is the sharper of the two: an orphaned field
-  is invisible, a stale owned entry is actively destructive.
+- A hold that is in **no** owned set is invisible to the sweep, by every
+  instance, forever. A hold is therefore one atomic operation that writes the
+  roster field, the slot's holders entry and the owned-set entry together, and
+  registers the instance in the same step, so no hold exists on an instance the
+  sweep cannot find.
+- A release — a leave or a sweep — drops only the releaser's own hold. It
+  deletes the roster field only when no holder is left, so a stale owned entry
+  can no longer delete a member somebody else holds.
+- The sweep never deletes the owned set wholesale: each release removes its own
+  entry, so a hold landing mid-sweep stays sweepable.
 - The sweep is a **crash** recovery mechanism. It is not a repair for a
   divergence on a running instance, and nothing should be designed to lean on it
-  as one.
+  as one. An instance whose heartbeat lapsed while it stayed up loses its holds
+  to a peer's sweep with no `left`; a later hold for that member announces a
+  `joined` its clients may already have seen, and a leave before any such hold
+  sends no `left` (it holds nothing to release).
 
-Tune it with the `presence` option:
+Tune the sweep with the `presence` option:
 
 ```ts
 RedisBroadcastDriver.fromConfig(config, {
@@ -1190,19 +1235,56 @@ Tightening `livenessTtlSeconds` therefore means revisiting `heartbeatIntervalMs`
 in the same edit: dropping the TTL to `5` while leaving the heartbeat at `5000`
 now throws at construction rather than degrading silently in production.
 
+<a id="what-the-roster-asks-of-redis"></a>
+
+**What the roster asks of Redis:**
+
+- **Roster keys carry no TTL, so Redis must not evict them.** Run the realtime
+  Redis with `maxmemory-policy noeviction`, or a `volatile-*` policy, which only
+  evicts keys that have a TTL. An `allkeys-*` policy can evict a slot's holders
+  hash on its own, and a release then sees no holder and deletes a member
+  another instance still holds.
+- **Memory is `1 + k` stored entries per member held on k instances**: the
+  roster field plus one holders entry per holding instance, each carrying that
+  instance's member JSON (bounded by `maxPresenceMemberBytes`). The owned sets
+  add their one short entry per holding instance, as before.
+- **Each hold and each release is one `EVAL`** (over four keys and three keys),
+  so the commands per subscribe and unsubscribe are unchanged. Those keys hash
+  to different slots: Redis Cluster is not supported.
+
 ### Writing a presence driver
 
 **Only if you wrote your own `BroadcastDriver`.** The bundled Redis and memory
 drivers already implement this, and the rules below are what a third one must
-keep ([#341](https://github.com/locknessland/lockness-monorepo/issues/341)).
+keep ([#341](https://github.com/locknessland/lockness-monorepo/issues/341),
+[#345](https://github.com/locknessland/lockness-monorepo/issues/345)).
 
 A driver owns a cross-instance roster when it implements **all three** of
-`addMember(channel, member)`, `removeMember(channel, memberId)` and
+`holdMember(channel, member)`, `releaseMember(channel, memberId)` and
 `readRoster(channel, limit, selfIds)` — `PresenceCapableDriver`. With fewer, the
 manager treats it as single-process and answers from its local view. A driver
-that still has the pre-`0.4.0` `listMembers` is **refused at construction** —
-see
-[upgrade item 7](#7-the-driver-roster-read-is-bounded-and-the-channelmanager-constructor-throws-for-a-driver-with-listmembers).
+that still has any pre-`0.4.0` roster method — the whole-room read or the
+add/remove pair — is **refused at construction**, once, naming every one it
+found. See
+[The driver roster seam is replaced, and the old names throw](#7-the-driver-roster-seam-is-replaced-and-the-old-names-throw).
+
+**A slot is held per process.** Several processes may hold one member's slot at
+once, each with its own entry, and the slot stays in the roster while any holder
+remains:
+
+| Method                             | Means                                                      | Returns                                                                                                |
+| :--------------------------------- | :--------------------------------------------------------- | :----------------------------------------------------------------------------------------------------- |
+| `holdMember(channel, member)`      | This process holds `String(member.id)` with this entry.    | `RosterHold { arrived }` — `true` only if **no process** held the slot before. Holding again: `false`. |
+| `releaseMember(channel, memberId)` | This process drops its hold; other holders stay untouched. | `RosterRelease { gone }` — `true` only if **this process held it** and no holder is left.              |
+
+Either may return the value or a `Promise` of it. **Neither bit may be faked.**
+The manager announces `joined` from `arrived` and `left` from `gone`, so a
+driver that reports `arrived` for a slot another holder fills sends a duplicate
+`joined` to the room, and one that reports `gone` while a holder remains removes
+a present member from every client's list. A release by a process that held
+nothing is `gone: false`, even when it leaves the slot empty. On a shared store
+both bits must be decided atomically with the write — a count read in a second
+command races another process's hold.
 
 `readRoster` returns a `RosterWindow`, read **at one instant**:
 
@@ -1282,8 +1364,9 @@ const outcome = await manager.revokeChannel(connectionId, 'presence-orders')
 ```
 
 The revoked client receives `{ "type": "unsubscribed", "channel": "..." }` — it
-would otherwise learn nothing, since it is removed from the channel's subscriber
-set before the `left` fans out and so does not even receive its own departure. A
+would otherwise learn nothing: it is removed from the channel's subscriber set
+before any `left` fans out, and on a presence channel a `left` goes out at all
+only when that connection was the member's last hold in the fleet. A
 **client-initiated** `unsubscribe` sends no such frame; your application owns
 that reply.
 
@@ -1582,10 +1665,11 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Three breaking changes — the driver revocation seam, the presence snapshot a
-subscribe returns, and the driver roster read — two widened return types, one
-new control kind, and one additive wire field. **No Redis migration**, and
-nothing to do before you deploy except read items 1, 5 and 6 — and item 7 if you
+Four breaking changes — the driver revocation seam, the presence snapshot a
+subscribe returns, the driver roster seam, and presence frames announced per
+member rather than per connection — two widened return types, one new control
+kind, and one additive wire field. **No migration step, and one new Redis key
+family.** Before you deploy, read items 1, 3, 5, 6 and 8 — and item 7 if you
 wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
@@ -1689,18 +1773,81 @@ what your decoder refuses is the boundary.
 > written against those unreleased signatures is caught by the type checker
 > only.
 
-### 3. No Redis migration
+### 3. No migration step; one new key family
 
-The revocation index is read-compatible in both directions and there is no new
-key, no dual-write and nothing to backfill. A whole-connection record is the
-bare connection id, byte-identical to `0.3.0`. A channel-scoped record is the
-three-part member `"<target> <channel> <id>"`. The delimiter is a **space**,
-which is outside the connection id charset, so a `0.3.0` reader finds no such
-connection and skips it. That reader is inert rather than wrong, and it does not
-delete the record either, so it survives for the upgraded owner.
+**Nothing to run before or after the deploy, and nothing to backfill.** One key
+family is new: `<prefix>__holders:<channel> <memberId>`, one hash per presence
+slot recording which instances hold it (see
+[The authoritative presence roster](#the-authoritative-presence-roster)). It
+fills as members join and empties as they leave.
 
-The bounded roster read (item 7) adds no key and changes no write: it reads the
-same presence hash with a new read-only script.
+**Check your Redis eviction policy first.** Roster keys carry no TTL, so the
+realtime Redis must run `noeviction` or a `volatile-*` policy — see
+[What the roster asks of Redis](#what-the-roster-asks-of-redis), which also
+sizes the new family at `1 + k` stored entries per member held on k instances.
+
+The revocation index is read-compatible in both directions, with no dual-write.
+A whole-connection record is the bare connection id, byte-identical to `0.3.0`.
+A channel-scoped record is the three-part member `"<target> <channel> <id>"`.
+The delimiter is a **space**, which is outside the connection id charset, so a
+`0.3.0` reader finds no such connection and skips it. That reader is inert
+rather than wrong, and it does not delete the record either, so it survives for
+the upgraded owner.
+
+The bounded roster read (item 7) adds no key: it reads the same presence hash
+with a new read-only script. The presence hash itself keeps its layout.
+
+**A roster slot `0.3.0` wrote, with no holders hash, needs nothing either.** A
+`0.4.0` release or sweep deletes it without announcing a `left`; a `0.4.0` hold
+on it announces a `joined`. Until the last `0.3.0` instance is gone, a member on
+two instances can still lose its slot to a `0.3.0` leave — the defect this
+release fixes stays live for the length of the deploy.
+
+#### Rolling back to `0.3.0`, then upgrading again
+
+`0.3.0` neither reads nor writes the holders family, so a rollback leaves it
+behind. **Before you upgrade again, delete it.** Otherwise a `0.4.0` instance
+that crashed and was swept by a `0.3.0` peer leaves a holders entry no sweep can
+reach, and that member stays in the roster for good — its old `info` in every
+`here`, and every later `joined` / `left` for it suppressed.
+
+Delete the family with `SCAN MATCH` and `UNLINK`, **never `KEYS`** (it blocks
+the server for the whole keyspace) and **never a shell pipeline that splits on
+whitespace** such as `redis-cli --scan | xargs redis-cli unlink`: a member id
+may contain spaces, and a split key deletes the wrong thing or nothing. Handle
+each key as one opaque value, as this script does:
+
+```ts
+import { RedisClient } from '@lockness/redis'
+
+const prefix = '<prefix>' // the driver's `prefix` option
+const client = new RedisClient({ hostname: '<host>', port: 6379 })
+let cursor = '0'
+do {
+    const reply = await client.command(
+        'SCAN',
+        cursor,
+        'MATCH',
+        `${prefix}__holders:*`,
+        'COUNT',
+        '500',
+    )
+    if (reply.type !== 'array') throw new Error('unexpected SCAN reply')
+    const [next, batch] = reply.value
+    if (next?.type !== 'bulk' || batch?.type !== 'array') {
+        throw new Error('unexpected SCAN reply')
+    }
+    cursor = next.value
+    const keys = batch.value.flatMap((k) => k.type === 'bulk' ? [k.value] : [])
+    // Each key is its own argument: nothing is split, joined or re-parsed.
+    if (keys.length > 0) await client.command('UNLINK', ...keys)
+} while (cursor !== '0')
+await client.close()
+```
+
+Run it with every instance stopped or still on `0.3.0`, then deploy `0.4.0`. The
+prefix is glob-safe — the driver refuses one containing a glob metacharacter —
+so the pattern matches that family and nothing else.
 
 A two-part `"<target> <channel>"` member was only ever written by unreleased
 builds of `main`. `0.4.0` drops it on read and it expires on its score within
@@ -1782,38 +1929,88 @@ the new.
 (`total` is new in this release, and counts the same unit as `members` on every
 path). The authoritative path already counted members and is unchanged.
 
-### 7. The driver roster read is bounded, and the `ChannelManager` constructor throws for a driver with `listMembers`
-
-`BroadcastDriver.listMembers(channel)` — one read of the whole room — is
-**removed**, and `readRoster(channel, limit, selfIds)` replaces it
-([#341](https://github.com/locknessland/lockness-monorepo/issues/341)). The
-contract is in [Writing a presence driver](#writing-a-presence-driver).
-
-| Before (`0.3.0`)                                                              | After (`0.4.0`)                                                                                                             |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `listMembers(channel: string): PresenceMember[] \| Promise<PresenceMember[]>` | `readRoster(channel: string, limit: number, selfIds: readonly (string \| number)[]): RosterWindow \| Promise<RosterWindow>` |
-| —                                                                             | `MAX_ROSTER_READ_SELF_IDS` (1 000), exported: the most `selfIds` taken                                                      |
-
-**`new ChannelManager({ driver })` throws for a driver that still has
-`listMembers`**, naming the migration — whether or not it also has `readRoster`.
-Narrowing it to "no roster" would silently turn every presence room into this
-instance's local view, and keeping `listMembers` beside `readRoster` keeps the
-unbounded read public.
+### 7. The driver roster seam is replaced, and the old names throw
 
 **Only if you wrote your own `BroadcastDriver`.** The bundled drivers are
-migrated, and nothing in your application code changes.
+migrated, and nothing in your application code changes for this item — what
+applications see is item 8. The whole roster seam changes: the read is bounded
+([#341](https://github.com/locknessland/lockness-monorepo/issues/341)), and the
+write pair becomes hold / release with a return value
+([#345](https://github.com/locknessland/lockness-monorepo/issues/345)). The
+contract is in [Writing a presence driver](#writing-a-presence-driver).
 
-**On Redis, a room larger than K now shows a random sample.** Each subscribe,
-re-joins included, returns a different K members of a room larger than
-`maxPresenceSnapshotMembers`; `total` and the joiner's own entry are unchanged,
-and a room that fits is returned whole. The memory driver keeps join order. This
-is a deliberate trade, accepted on 2026-09-14: a stable window would cost a scan
-inside the script or a new index key, and a new key would break "no Redis
-migration".
+| Before (`0.3.0`)                                                                   | After (`0.4.0`)                                                                                                             |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `listMembers(channel: string): PresenceMember[] \| Promise<PresenceMember[]>`      | `readRoster(channel: string, limit: number, selfIds: readonly (string \| number)[]): RosterWindow \| Promise<RosterWindow>` |
+| —                                                                                  | `MAX_ROSTER_READ_SELF_IDS` (1 000), exported: the most `selfIds` taken                                                      |
+| `addMember(channel: string, member: PresenceMember): void \| Promise<void>`        | `holdMember(channel: string, member: PresenceMember): RosterHold \| Promise<RosterHold>` — `{ arrived: boolean }`           |
+| `removeMember(channel: string, memberId: string \| number): void \| Promise<void>` | `releaseMember(channel: string, memberId: string \| number): RosterRelease \| Promise<RosterRelease>` — `{ gone: boolean }` |
 
-**No Redis migration.** The read uses the existing presence hash; the
-`HRANDFIELD` it needs is covered by the
+**The rename is not cosmetic: the meaning changed.** `addMember` wrote _the_
+slot; `holdMember` records that _this process_ holds it, beside any other
+process that also does. `removeMember` deleted the slot; `releaseMember` drops
+only this process's hold, and the slot leaves the roster with its last holder.
+`arrived` is `true` only if no process held the slot; `gone` only if this
+process held it and none is left. The manager announces `joined` and `left` from
+those two bits, so **a driver may not fake either** — a driver that keeps
+last-writer-wins semantics under the new names sends duplicate `joined` frames
+and removes present members. `RosterHold` and `RosterRelease` are exported.
+
+**`new ChannelManager({ driver })` throws for a driver that still has any of
+`listMembers`, `addMember` or `removeMember`** — whether or not it also has the
+new methods. It throws **once**, naming every retired member it found and this
+section by its title, so a `0.3.0` driver carrying all three is sent through one
+migration, not three. Narrowing such a driver to "no roster" would silently turn
+every presence room into this instance's local view; keeping `listMembers`
+beside `readRoster` keeps the unbounded read public; and an old add method left
+to run would fail later, inside a join's rollback, instead of at construction.
+
+**A fleet mixing `0.3.0` and `0.4.0` Redis instances** keeps `0.3.0`'s slot
+defect until the last `0.3.0` instance is gone: a `0.3.0` leave or sweep still
+deletes a slot a `0.4.0` instance holds, and that member is missing from `here`
+until its next hold or its last release. Releases and sweeps are idempotent, so
+nothing else carries past the deploy — see item 3 for the one case that does, a
+rollback followed by a re-upgrade.
+
+**Redis version.** The bounded read's `HRANDFIELD`, and the one the release uses
+to show another holder's entry, are covered by the
 [Redis 7.0 minimum](#redis-minimum-version) the driver already requires.
+
+### 8. Presence frames are per member, and a failed leave announcement no longer rejects
+
+**What your application sees** from item 7's change — no code change is
+required, but read this if a client or server builds anything from presence
+frames ([#344](https://github.com/locknessland/lockness-monorepo/issues/344)).
+
+- **`joined` and `left` are announced per member, not per connection.** A
+  member's first connection anywhere in the fleet sends one `joined`; its last
+  connection closing sends one `left`. A second tab — on this instance or
+  another — sends nothing, and closing one of two tabs sends nothing. In `0.3.0`
+  a second tab announced a join for a member already listed, and closing one of
+  two tabs removed a member still present from every client's list until the
+  next snapshot. See
+  [What a `joined` frame promises](#what-a-joined-frame-promises--and-what-it-does-not).
+- **If you counted tabs from frames, that signal is gone.** Code that tallied
+  `joined` minus `left` per member to know how many connections it has will now
+  read at most one. Nothing in the protocol reports a connection count; keep one
+  on the server if you need it.
+- **A `left` can arrive for a member no `joined` was sent for**, when a join's
+  roster write committed but its reply was lost. Treat an unknown `left` as a
+  no-op, as you already should for members outside your snapshot.
+- **`unsubscribe` no longer rejects when its `presence-leave` publish fails.**
+  The membership was removed and the roster released, so it logs one WARN —
+  naming the channel, never the member — and resolves `'left'`. A failed roster
+  **release** still rejects, as before. `'left'` means "a membership was removed
+  here", not "a frame was sent"; see item 4 for the outcomes. A failed
+  `presence-join` publish was already a WARN, and still is.
+
+**On Redis, a room larger than K shows a random sample** (from item 7's bounded
+read). Each subscribe, re-joins included, returns a different K members of a
+room larger than `maxPresenceSnapshotMembers`; `total` and the joiner's own
+entry are unchanged, and a room that fits is returned whole. The memory driver
+keeps join order. This is a deliberate trade, accepted on 2026-09-14: a stable
+window would cost a scan inside the script, or an index key every existing room
+would have to be backfilled into.
 
 ## Upgrading to v0.3.0
 

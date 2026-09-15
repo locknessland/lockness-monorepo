@@ -51,13 +51,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                                                        |
-| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                                                     |
-| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `PresenceSnapshot`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `RosterWindow`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
-| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                          |
-| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_PRESENCE_MEMBER_BYTES`, `MAX_PRESENCE_SNAPSHOT_MEMBERS`, `MAX_ROSTER_READ_SELF_IDS`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                                    |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                                                                                       |
+| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                                                                                    |
+| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `PresenceSnapshot`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `RosterHold`, `RosterRelease`, `RosterWindow`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
+| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                                                         |
+| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_PRESENCE_MEMBER_BYTES`, `MAX_PRESENCE_SNAPSHOT_MEMBERS`, `MAX_ROSTER_READ_SELF_IDS`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                                                                   |
 
 Anything not listed is internal and free to change.
 
@@ -114,16 +114,15 @@ Anything not listed is internal and free to change.
 - **A presence join announces LAST, and the bookkeeping stays first.** It all
   lives in `#joinPresence` since
   [#328](https://github.com/locknessland/lockness-monorepo/issues/328); the cap
-  check that pairs with it stays in `subscribe`. The roster write sits between
-  the bookkeeping and the announcement, and neither side of that sandwich is
-  arbitrary. `emitPresence` is the only locally _visible_ effect, so it must not
-  claim a membership the authoritative roster has not accepted. But `#joinLocal`
-  must NOT move below the roster write, because its set/index adds run in the
-  same synchronous turn as `#checkChannelCaps` and that pairing is the whole of
-  what keeps the channel cap exact — an awaited round-trip between them lets K
-  pipelined subscribes read one count and all act on it (`onMessage` is
-  dispatched unserialized). **The intuitive fix is the wrong one**: hoisting the
-  roster write to the front looks like it breaks the cap and does not (every
+  check that pairs with it stays in `subscribe`. The announcement is made by the
+  queued roster write itself, after the hold returns `arrived` (#344), so it can
+  never claim a membership the authoritative roster has not accepted. But
+  `#joinLocal` must NOT move below the roster write, because its set/index adds
+  run in the same synchronous turn as `#checkChannelCaps` and that pairing is
+  the whole of what keeps the channel cap exact — an awaited round-trip between
+  them lets K pipelined subscribes read one count and all act on it (`onMessage`
+  is dispatched unserialized). **The intuitive fix is the wrong one**: hoisting
+  the roster write to the front looks like it breaks the cap and does not (every
   racer suspends before the read); only an await _between_ the check and the
   adds does — measured at 5 joins admitted against 1 free slot
   ([#323](https://github.com/locknessland/lockness-monorepo/issues/323)).
@@ -147,19 +146,43 @@ Anything not listed is internal and free to change.
   of them carries its desired state from its caller**
   ([#330](https://github.com/locknessland/lockness-monorepo/issues/330), and
   [ADR 003](../../docs/adr/003-realtime-roster-write-ownership.md) is the
-  standing constraint). The caller names a `(channel, member.id)` slot; the
-  desired state is read from the local `presence` map **inside** the serial
-  tail, at issue time. A direct `roster.addMember` / `roster.removeMember` is
-  the defect, not a shortcut: `#joinPresence` claims, suspends at `#watch`, and
-  its write would otherwise be issued from a state that no longer holds the
-  membership — leaving a member in the authoritative roster with no local
-  membership and its `left` already announced, which only a sweep of a DEAD
-  instance reclaims. The three remedies the ADR rejects are each intuitive
-  enough to be proposed again; read it before proposing one. On a roster-less
-  driver the projection still runs through the tail and writes nothing, so its
-  `undefined` keeps the one meaning "superseded" — an early "no roster" return
-  would silence every first `joined`
+  standing constraint). The caller passes an `origin` — the connection to
+  announce as and the member naming the `(channel, member.id)` slot — never the
+  desired state, which is read from the local `presence` map **inside** the
+  serial tail, at issue time. A direct `roster.holdMember` /
+  `roster.releaseMember` is the defect, not a shortcut: `#joinPresence` claims,
+  suspends at `#watch`, and its write would otherwise be issued from a state
+  that no longer holds the membership — leaving a hold in the authoritative
+  roster with no local membership, which only a sweep of a DEAD instance
+  reclaims — and it would bypass the only code that turns the `arrived` / `gone`
+  bit into a frame. The three remedies ADR 003 rejects are each intuitive enough
+  to be proposed again; read it before proposing one. It returns `Promise<void>`
+  since #344; the old "member or `undefined`" contract is gone. **On a
+  roster-less driver the bits come from `#heldSlots`**, touched only inside the
+  queued run and updated BEFORE the announcement, so a write queued behind sees
+  the slot already held or released. Deriving them from `presence` sizes in
+  `subscribe` / `unsubscribe` instead is per-connection announcing again; an
+  early "no roster" return would silence every first `joined`
   ([#342](https://github.com/locknessland/lockness-monorepo/issues/342)).
+- **Announcements live in the queue, never back in `subscribe` / `unsubscribe`**
+  ([#344](https://github.com/locknessland/lockness-monorepo/issues/344),
+  [ADR 004](../../docs/adr/004-realtime-roster-slots-held-per-instance.md)).
+  `#announcePresence` is the only sender of a local `joined` / `left` and of a
+  `presence-join` / `presence-leave` publish, and `#syncRosterMember`'s queued
+  run is its only caller — on `arrived` or `gone`, never otherwise.
+  `handleControl`'s re-emit is the one receive-side exception. Adding an emit or
+  publish to `#joinPresence`, `unsubscribe`, the #323 compensation or a new verb
+  "so the frame goes out sooner" brings back a `joined` per tab and a `left` for
+  a member still present, and a join overtaken by its leave announcing both
+  (#330). Three details a tidy-up breaks: **the WARN is never rethrown** — a
+  throw inside the tail rejects another call's write and rolls back a committed
+  hold — and carries only channel, action and error, never the member id or
+  `info`; **`joined` excludes by member id** (`emitPresence`'s `exceptMemberId`,
+  asked by both the announcer and the `presence-join` arm), because excluding
+  only `origin.clientId` sends a second tab, or a remote claimer, `joined` for
+  itself; **`left` excludes nobody**. Witness:
+  `presence_member_transitions_344.test.ts`; battery
+  `tests/mutations/presence_member_transitions_344.ts`.
 - **`PresenceMember` is bounded at ADMISSION, and the bound cannot move to the
   publish**
   ([#326](https://github.com/locknessland/lockness-monorepo/issues/326)). The
@@ -259,14 +282,27 @@ Anything not listed is internal and free to change.
   framework ships no socket-to-manager wiring, so the application writes that
   handler — and the id-shaped signature invites passing a client-supplied id.
   Say so at every site that returns one.
-- **A roster member is a PAIR, written by one operation.** The presence hash
-  field and the owning instance's owned-set entry are two structures encoding
-  one fact. The ghost sweep enumerates owned sets and nothing else, so a field
-  in no owned set is unreclaimable by every instance forever; and a stale owned
-  entry makes the sweep `HDEL` a live member another instance owns, because it
-  never checks the entry's `owner`. Both `addMember` and `removeMember` are a
-  single `EVAL` for that reason — the sweep trusts the owned set completely, so
-  the owned set must never be able to lie (#323).
+- **A roster slot is HELD per instance, and every hold and release is one
+  operation**
+  ([#323](https://github.com/locknessland/lockness-monorepo/issues/323),
+  [#345](https://github.com/locknessland/lockness-monorepo/issues/345)). On
+  Redis a slot is the presence-hash field plus its holders hash (`holdersKey`:
+  `instanceId → entry`, no TTL), and each holder has an owned-set entry.
+  `HOLD_MEMBER_SCRIPT` writes all three and `SADD`s the instance into the
+  instances set in one `EVAL`, so no hold exists that the sweep cannot find;
+  `RELEASE_MEMBER_SCRIPT` drops only the releaser's entries, deletes the field
+  only when no holder is left, and copies another holder's entry in only when
+  the shown one was the releaser's (or when neither exists: a non-holder's
+  release restores a missing field). **`arrived` and `gone` are decided inside
+  those scripts** and decoded by one strict decoder (1 / 0 / throw): an `HLEN`
+  or owner read from TypeScript races another instance's hold, and truthiness
+  would announce from an error reply. **The sweep is a release with `deadId`** —
+  the same script, return ignored — and it never `DEL`s the owned set, or a hold
+  landing mid-sweep becomes unreachable. Three edits look harmless and bring
+  #345 back: a raw presence `HDEL` anywhere, an `EXPIRE` on the holders hash,
+  and passing `this.instanceId` to the sweep's release. Witness:
+  `roster_holders_345.test.ts`; battery
+  `tests/mutations/presence_member_holds_345.ts`.
 - **`heartbeatIntervalMs` and `livenessTtlSeconds` are ONE setting with two
   numbers.** The heartbeat is what keeps this instance's `{prefix}:alive:<id>`
   key alive, and that key's TTL is `livenessTtlSeconds`. Beat slower than the
@@ -460,9 +496,10 @@ Anything not listed is internal and free to change.
     widens what the read fetches; the post-await lookup decides what is kept. A
     caller that left during the read must not get its member back from `selves`.
     On Redis a room larger than K is a random sample per subscribe — accepted by
-    the maintainer 2026-09-14, not a bug to "stabilise" with a new key (that
-    breaks "no Redis migration"). The memory driver's O(limit) walk cannot be
-    pinned by a mutant (a full copy is equivalent); keep it by review.
+    the maintainer 2026-09-14, not a bug to "stabilise" with an index key (every
+    existing room would need backfilling into it — a migration step `0.4.0` does
+    not have). The memory driver's O(limit) walk cannot be pinned by a mutant (a
+    full copy is equivalent); keep it by review.
     `tests/mutations/presence_read_bound_341.ts`. 2026-09-15.
 - Nothing imports `realtime` (pure sink), and `@lockness/core` is untouched
   (app-wired) — keep it that way.
@@ -520,7 +557,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-66 test files for 19 source files:
+68 test files for 19 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
@@ -567,6 +604,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_join_rosterless_342.test.ts`
 - `packages/realtime/tests/presence_local_member_343.test.ts`
 - `packages/realtime/tests/presence_member_id.test.ts`
+- `packages/realtime/tests/presence_member_transitions_344.test.ts`
 - `packages/realtime/tests/presence_read_bound_341.test.ts`
 - `packages/realtime/tests/presence_rejoin_327.test.ts`
 - `packages/realtime/tests/presence_roster_guard.test.ts`
@@ -584,12 +622,13 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/revoke_channel_idless_340.test.ts`
 - `packages/realtime/tests/roster_atomicity_323.test.ts`
 - `packages/realtime/tests/roster_control_atomicity.test.ts`
+- `packages/realtime/tests/roster_holders_345.test.ts`
 - `packages/realtime/tests/roster_read_barrier_333.test.ts`
 - `packages/realtime/tests/roster_window_341.test.ts`
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-21 mutation batteries — **`deno test` does not run these.** Each is an
+22 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -604,9 +643,10 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/prefix_288.ts`
 - `packages/realtime/tests/mutations/presence_eviction_334.ts`
 - `packages/realtime/tests/mutations/presence_join_323.ts`
-- `packages/realtime/tests/mutations/presence_join_rosterless_342.ts`
 - `packages/realtime/tests/mutations/presence_local_member_343.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
+- `packages/realtime/tests/mutations/presence_member_holds_345.ts`
+- `packages/realtime/tests/mutations/presence_member_transitions_344.ts`
 - `packages/realtime/tests/mutations/presence_read_bound_341.ts`
 - `packages/realtime/tests/mutations/presence_snapshot_339.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
@@ -631,7 +671,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 66 test files directly —
+Then, specific to this package: run its 68 test files directly —
 
 ```bash
 deno test -A packages/realtime/
