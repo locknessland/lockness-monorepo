@@ -384,14 +384,24 @@ interface ChannelRevocationGroup {
 }
 
 /**
+ * The connection a queued roster write announces as, and the member it names
+ * (#344). It never carries the desired state: that is read from the local map
+ * inside the slot's tail.
+ */
+interface PresenceOrigin {
+    readonly clientId: string
+    readonly member: PresenceMember
+}
+
+/**
  * The single feature-detect guard for a driver's optional presence-state ops
  * (A5). The roster-aware methods route through this **one** helper rather than
- * repeating `if (driver.addMember)` per call site: a driver either owns the
+ * repeating `if (driver.holdMember)` per call site: a driver either owns the
  * authoritative roster (all three ops present) or it does not, and this narrows
  * once to {@link PresenceCapableDriver} accordingly.
  *
- * **The three are `addMember`, `removeMember` and `readRoster`** (#341). A
- * driver offering only the pre-`0.4.0` whole-room read is simply not
+ * **The three are `holdMember`, `releaseMember` and `readRoster`** (#341,
+ * #345). A driver offering only the pre-`0.4.0` roster names is simply not
  * presence-capable to this probe — refusing it is a different question, and it
  * lives in {@link assertNotLegacyRosterDriver}.
  *
@@ -403,14 +413,14 @@ interface ChannelRevocationGroup {
  * @example
  * ```ts
  * const roster = presenceRoster(driver)
- * if (roster) await roster.addMember(channel, member)
+ * if (roster) await roster.holdMember(channel, member)
  * ```
  */
 export function presenceRoster(
     driver: BroadcastDriver,
 ): PresenceCapableDriver | undefined {
-    return typeof driver.addMember === 'function' &&
-            typeof driver.removeMember === 'function' &&
+    return typeof driver.holdMember === 'function' &&
+            typeof driver.releaseMember === 'function' &&
             typeof driver.readRoster === 'function'
         ? driver as PresenceCapableDriver
         : undefined
@@ -540,34 +550,63 @@ function assertNotLegacyRevocationDriver(driver: BroadcastDriver): void {
 }
 
 /**
- * Refuse a driver that still offers the unbounded roster read this package
- * published before `0.4.0` (#341).
+ * The upgrade-notes section a refused roster driver is sent to — by **title**,
+ * never by item number, so renumbering the notes cannot send an author to the
+ * wrong migration.
+ */
+const ROSTER_SEAM_UPGRADE_SECTION =
+    'The driver roster seam is replaced, and the old names throw'
+
+/**
+ * The roster members this package published before `0.4.0` and retired: the
+ * unbounded read (#341) and the add/remove pair that could not tell a holder
+ * from the slot (#345).
+ */
+const RETIRED_ROSTER_MEMBERS = [
+    'listMembers',
+    'addMember',
+    'removeMember',
+] as const
+
+/**
+ * Refuse a driver that still offers any roster member this package retired
+ * before `0.4.0` — the unbounded read (#341) or the add/remove pair (#345).
  *
  * **It throws rather than warning**, for the reason
- * {@link assertNotLegacyRevocationDriver} does. A driver presenting
- * `listMembers` and not `readRoster` would be narrowed to "no roster" and
- * silently lose its authoritative presence; one presenting both would keep the
- * unbounded read public — the per-subscribe cost #341 exists to remove — for
- * any caller that reaches the driver directly.
+ * {@link assertNotLegacyRevocationDriver} does. A driver presenting the old
+ * names and not the new ones would be narrowed to "no roster" and silently lose
+ * its authoritative presence; one presenting both would keep a retired
+ * behaviour public for any caller that reaches the driver directly. A stale
+ * add/remove pair left to run would fail later, with a `TypeError` inside the
+ * #323 rollback, instead of here.
+ *
+ * **Once, naming every retired member present.** A `0.3.0` driver carries all
+ * three; two sequential refusals would send its author through two upgrades.
  *
  * **Beside, and separate from, the revocation refusal.** Each tests one
  * retired seam and names one migration; fusing them would give one function
  * two reasons to change.
  *
  * @param driver - The broadcast driver being wired into a manager.
- * @throws {Error} If the driver presents `listMembers`.
+ * @throws {Error} If the driver presents any member of
+ *   {@link RETIRED_ROSTER_MEMBERS}, naming all of those present.
  */
 function assertNotLegacyRosterDriver(driver: BroadcastDriver): void {
-    const legacy = driver as { listMembers?: unknown }
-    if (typeof legacy.listMembers !== 'function') return
+    const legacy = driver as unknown as Record<string, unknown>
+    const present = RETIRED_ROSTER_MEMBERS.filter((name) =>
+        typeof legacy[name] === 'function'
+    )
+    if (present.length === 0) return
     throw new Error(
-        'realtime: this driver implements the pre-0.4.0 roster read ' +
-            '(listMembers), which no longer exists. Replace it with ' +
-            'readRoster(channel, limit, selfIds), returning a RosterWindow ' +
-            '{ members, total, selves }: at most `limit` members, the ' +
-            "roster's size counted in the same read, and the members of " +
-            '`selfIds` it holds — and remove listMembers. An unbounded read ' +
-            'makes every presence subscribe cost the whole room.',
+        `realtime: this driver implements pre-0.4.0 roster members ` +
+            `(${present.join(', ')}), which no longer exist — see ` +
+            `"${ROSTER_SEAM_UPGRADE_SECTION}" in the v0.4.0 upgrade notes. ` +
+            'The roster seam is now readRoster(channel, limit, selfIds) → ' +
+            '{ members, total, selves }, holdMember(channel, member) → ' +
+            '{ arrived } and releaseMember(channel, memberId) → { gone }: a ' +
+            'slot is held per process, `arrived` is true only when no process ' +
+            'held it, and `gone` only when this process held it and no holder ' +
+            'is left. Remove the retired members.',
     )
 }
 
@@ -750,6 +789,14 @@ export class ChannelManager<Identity = unknown> {
      * nothing (#342).
      */
     readonly #rosterTails = new Map<string, Promise<unknown>>()
+    /**
+     * The roster slots this instance holds on a roster-less driver, keyed like
+     * {@link #rosterTails} (#344). Arrived/gone on such a driver is this set's
+     * transition, read and written only inside {@link #syncRosterMember}'s
+     * queued run and updated before the announcement. An entry lives while a
+     * local connection holds the member, so it is bounded by the presence map.
+     */
+    readonly #heldSlots = new Set<string>()
     /** The instance cap an anonymous connection may reach, precomputed once. */
     readonly #anonymousWatchedCeiling: number
     /**
@@ -784,8 +831,9 @@ export class ChannelManager<Identity = unknown> {
      * The **local** presence members this instance's sockets own, per channel
      * (`clientId → member`). NOT the authoritative roster (that is the driver,
      * possibly remote — decision-table §5): this map only records what THIS
-     * instance added, so `unsubscribe`/`disconnect` know which member to remove
-     * from the driver roster and to announce as `left`.
+     * instance added, so `unsubscribe`/`disconnect` know which member's slot to
+     * release in the driver roster, and which member a `left` names when that
+     * release empties the slot (#344).
      *
      * **Keyed by connection, read by member (#343).** One member with two tabs
      * is two values here and one slot in the roster. Never read `.values()`
@@ -1087,7 +1135,7 @@ export class ChannelManager<Identity = unknown> {
      *   `presence-my room` + `u1` split to channel `presence-my` and field
      *   `room u1`. The `HDEL` then hit a key that does not exist and the members
      *   were never reclaimed. Only the death-recovery path broke — the ordinary
-     *   `removeMember` re-joins the full string — which is why nothing caught it.
+     *   leave path re-joins the full string — which is why nothing caught it.
      *
      * Two shipped docstrings already asserted this invariant
      * (`OWNED_SEP`'s and {@link #assertUsableMemberId}'s), which is worse than a
@@ -1225,8 +1273,10 @@ export class ChannelManager<Identity = unknown> {
      *   0→1 channel subscription taken by the attempt is released. The same
      *   pair can be retried and yields one member (#323/FR-003).
      *
-     *   **A `joined` frame from THIS instance follows a successful roster
-     *   write.** It is not an authorization token: a frame re-emitted on
+     *   **A `joined` frame from THIS instance follows the successful roster
+     *   write that filled the member's slot** — a connection of a member
+     *   already held anywhere sends none (#344). It is not an authorization
+     *   token: a frame re-emitted on
      *   another instance comes from the control plane without a roster read
      *   ({@link handleControl}), and an application must re-authorize an action
      *   rather than infer permission from a presence frame or a snapshot.
@@ -1324,8 +1374,10 @@ export class ChannelManager<Identity = unknown> {
 
     /**
      * The presence half of {@link subscribe} — the re-join guard, the local
-     * claim, the authoritative roster write with its compensation, the two
-     * announcements, and the closing read (#328).
+     * claim, the authoritative roster write with its compensation, and the
+     * closing read (#328). It announces nothing itself: the roster write
+     * announces the member's arrival when, and only when, it fills the slot
+     * (#344).
      *
      * **Extracted, and the extraction is the whole point.** `subscribe` had
      * grown to 198 lines carrying seven responsibilities, and it grew during
@@ -1353,7 +1405,7 @@ export class ChannelManager<Identity = unknown> {
      * @param member - The member the authorizer returned, already asserted.
      * @returns The join's result, with the roster and its source.
      * @throws If the authoritative roster refuses the write; the local state
-     *   is compensated first and nothing was announced.
+     *   is compensated first, and nothing was announced for the refused hold.
      */
     async #joinPresence(
         connection: Connection<Identity>,
@@ -1419,18 +1471,16 @@ export class ChannelManager<Identity = unknown> {
         // that overtook this join may already have removed the membership, and
         // the projection then issues that removal instead of re-adding a
         // member nothing local holds.
+        //
+        // THE ANNOUNCEMENT IS THE PROJECTION'S, not this method's (#344). Only
+        // the queued write that observes the slot fill (`arrived`) announces
+        // `joined`, so a second tab of a member already present, and a join
+        // superseded by the leave that overtook it, announce nothing — and
+        // there is no "superseded" branch left here to keep in step with it.
+        const origin = { clientId: connection.id, member }
         {
             try {
-                const applied = await this.#syncRosterMember(channel, member.id)
-                if (applied === undefined) {
-                    // SUPERSEDED. The slot was written to match a local map
-                    // that no longer has this member, so the roster does not
-                    // hold it — and #323's rule says an announcement must
-                    // never claim a membership the roster did not accept.
-                    // Nothing was announced yet, so nothing is retracted; the
-                    // leave that overtook this join already told the room.
-                    return await this.#closingRead(channel, connection.id)
-                }
+                await this.#syncRosterMember(channel, origin)
             } catch (error) {
                 // NOTHING WAS ANNOUNCED, so nothing is retracted — the
                 // compensation is internal only, and no `left` goes out for
@@ -1465,8 +1515,12 @@ export class ChannelManager<Identity = unknown> {
                 // projection computes "absent" and issues the removal on its
                 // own — the reclaim falls out of the design rather than being
                 // a separate call that could race the very write it undoes.
+                //
+                // A reclaim that finds a committed hold returns `gone` and
+                // announces a truthful `left` for a member no `joined` was
+                // sent for — the accepted cost of a reply lost after commit.
                 try {
-                    await this.#syncRosterMember(channel, member.id)
+                    await this.#syncRosterMember(channel, origin)
                 } catch (cleanupError) {
                     console.warn(
                         `realtime: could not reclaim a possibly-written ` +
@@ -1479,53 +1533,6 @@ export class ChannelManager<Identity = unknown> {
                 }
                 throw error
             }
-        }
-        // FIRST visible effect. `except` keeps the newcomer out of its own
-        // announcement — the rule that used to be a consequence of emitting
-        // before the set contained it (A5).
-        this.emitPresence(channel, {
-            type: 'presence',
-            channel,
-            action: 'joined',
-            member,
-        }, { except: connection.id })
-        // Announce the join on every OTHER instance via the control plane;
-        // the driver drops its own control loopback.
-        //
-        // FR-005: a failure here loses the ANNOUNCEMENT, never the roster.
-        // Everything above has committed, so propagating would tell the
-        // caller a join failed that every other instance can see succeeded
-        // — the defect this branch closed, arrived at from the other side.
-        // Caught HERE and not inside `publishControl`, which `unsubscribe`
-        // and `evict` also call: a lost eviction frame is a different
-        // question with its own durable backstop, and one blanket policy
-        // for three callers is one decision in the wrong home.
-        try {
-            await this.publishControl({
-                kind: 'presence-join',
-                target: connection.id,
-                channel,
-                member,
-            })
-        } catch (error) {
-            // STILL SWALLOWED, and #326 is what makes that safe rather
-            // than accidental. The catch was written for a broker that is
-            // gone or slow — a failure that loses the announcement and
-            // nothing else. It used to also swallow an OVERSIZE refusal,
-            // which is a different thing: a frame the driver will never
-            // send, for a member already in the roster, i.e. the cloak.
-            // That case cannot reach here any more, because the admission
-            // bound above refuses the member before anything commits. The
-            // decision is therefore recorded rather than inherited: this
-            // stays a warn, and the reason it may is that the only
-            // failures left are transient ones the roster survives.
-            console.warn(
-                `realtime: the presence join on ${
-                    safeForLog(channel)
-                } was not announced to other instances — the roster holds ` +
-                    `the member and a roster read there is correct; only ` +
-                    `the frame is lost: ${renderError(error)}`,
-            )
         }
         return await this.#closingRead(channel, connection.id)
     }
@@ -1541,7 +1548,8 @@ export class ChannelManager<Identity = unknown> {
      * block is how "indistinguishable" quietly stops being true.
      *
      * **It never throws.** By the time either caller reaches it the join has
-     * fully committed — roster, local view, both announcements — so a failure
+     * fully committed — roster, local view, and whatever the queued write
+     * announced (#344) — so a failure
      * here has no residue to compensate and nothing wrong to report. Throwing
      * would leave the caller believing a completed join was rejected. It
      * degrades to what this instance knows and says which it gave, so a caller
@@ -1787,7 +1795,8 @@ export class ChannelManager<Identity = unknown> {
      * @param clientId - The leaving connection.
      * @returns The member that was removed, or `undefined` when this connection
      *   held no membership here — the fact {@link unsubscribe} gates its
-     *   announcements on.
+     *   roster release on (the release, not `unsubscribe`, decides whether a
+     *   `left` is announced, #344).
      */
     #forgetPresenceMember(
         channel: string,
@@ -1845,7 +1854,7 @@ export class ChannelManager<Identity = unknown> {
      * **The desired state is DERIVED, not passed.** The caller names a slot;
      * this reads what the local map says about it **at issue time**, inside the
      * serial tail, and writes that. So a join whose membership was removed
-     * while its write was queued issues a removal, not the add it set out to
+     * while its write was queued issues a release, not the hold it set out to
      * make — and there is no version, epoch or tombstone to keep in step with
      * anything, because nothing is remembered.
      *
@@ -1854,7 +1863,7 @@ export class ChannelManager<Identity = unknown> {
      * SAME synchronous turn, so racing verbs issue `watchChannel` /
      * `unwatchChannel` in decision order. The roster write was the one place
      * that did not: `#joinPresence` claims, suspends at `#watch`, and only then
-     * issues `addMember` — from a state that no longer holds the membership.
+     * issues the hold — from a state that no longer holds the membership.
      * With `RedisClient.command` chaining onto its tail synchronously at call
      * time, commit order is enqueue order, so a removal enqueued first and an
      * add enqueued second left the member in the authoritative roster with no
@@ -1867,33 +1876,73 @@ export class ChannelManager<Identity = unknown> {
      * keeps: the earliest-joined connection still subscribed (#343), the same
      * entry the local view shows.
      *
+     * **The write that observes the transition announces it, and only it**
+     * (#344). A hold that fills the slot (`arrived`) announces `joined` with
+     * the entry it wrote; a release that empties a slot this instance held
+     * (`gone`) announces `left` as `origin.member`. Every other write — a
+     * second connection of a present member, a leave while another holder
+     * remains, a join superseded by its own leave — announces nothing. Running
+     * inside the tail is what makes that exact: two writes for one slot never
+     * observe the same transition.
+     *
+     * **A roster-less driver decides from {@link #heldSlots}**, updated before
+     * the announcement runs, so a write queued behind this one already sees the
+     * slot as held or released.
+     *
      * @param channel - The presence channel owning the slot.
-     * @param memberId - The member id naming the slot.
-     * @returns The member the local map holds for the slot at issue time, or
-     *   `undefined` when it holds none — which tells a join it was superseded
-     *   and has nothing to announce. That meaning is the same on every driver:
-     *   a roster-less one still runs the projection through the tail and
-     *   only skips the write (#342).
-     * @throws Whatever the driver throws; the tail still advances.
+     * @param origin - The connection the write announces as, and the member it
+     *   names. It names the slot and who to announce as, never the desired
+     *   state, which is read from the local map at issue time.
+     * @returns Settles once the slot is written and any announcement is done.
+     * @throws Whatever the driver throws; the tail still advances. An
+     *   announcement failure is never thrown (see {@link #announcePresence}).
      */
     #syncRosterMember(
         channel: string,
-        memberId: string | number,
-    ): Promise<PresenceMember | undefined> {
+        origin: PresenceOrigin,
+    ): Promise<void> {
         const roster = this.roster
-        const field = String(memberId)
+        const field = String(origin.member.id)
         const key = `${channel}\0${field}`
         const prior = this.#rosterTails.get(key) ?? Promise.resolve()
         const run = prior.then(async () => {
             const desired = this.#localRoster(channel)
                 .find((candidate) => sameMemberId(candidate.id, field))
-            // A roster-less driver still gets the projection, just no write
-            // (#342). Returning early before the tail would hand the join an
-            // `undefined` that means "no roster" where it reads "superseded".
-            if (!roster) return desired
-            if (desired) await roster.addMember(channel, desired)
-            else await roster.removeMember(channel, field)
-            return desired
+            if (desired) {
+                // A roster-less driver still gets the projection, just no
+                // write (#342); its holder count is this instance's own.
+                let arrived: boolean
+                if (roster) {
+                    arrived =
+                        (await roster.holdMember(channel, desired)).arrived
+                } else {
+                    arrived = !this.#heldSlots.has(key)
+                    this.#heldSlots.add(key)
+                }
+                if (arrived) {
+                    await this.#announcePresence(
+                        'joined',
+                        channel,
+                        desired,
+                        origin,
+                    )
+                }
+                return
+            }
+            let gone: boolean
+            if (roster) {
+                gone = (await roster.releaseMember(channel, field)).gone
+            } else {
+                gone = this.#heldSlots.delete(key)
+            }
+            if (gone) {
+                await this.#announcePresence(
+                    'left',
+                    channel,
+                    origin.member,
+                    origin,
+                )
+            }
         })
         // The tail must always settle so the next write for this slot runs;
         // `run` still rejects to this caller, so nothing is swallowed.
@@ -1907,6 +1956,71 @@ export class ChannelManager<Identity = unknown> {
             }
         })
         return run
+    }
+
+    /**
+     * Announce a member's arrival or departure — locally first, then to every
+     * other instance over the control plane (#344).
+     *
+     * **Called only from {@link #syncRosterMember}'s queued run**, by the write
+     * that observed the transition. Any `joined` / `left` emit or
+     * `presence-join` / `presence-leave` publish elsewhere (the receive side in
+     * {@link handleControl} excepted) would announce per connection again.
+     *
+     * **Local, then remote.** `joined` carries the entry the roster now holds
+     * (`member` = the write's desired entry) and excludes every local
+     * connection of that member id; `left` carries the releasing connection's
+     * member and excludes nobody. `target` is the origin connection either way.
+     *
+     * **Each half fails on its own, as one WARN, and is never rethrown.** This
+     * runs inside the slot's tail: a throw here would reject the queued write of
+     * whichever call awaits it — and a join that sees its write reject rolls
+     * back a hold that committed. A local emit that throws (the application's
+     * `encode` refusing the frame) still lets the control publish run, so other
+     * instances are not silenced by this instance's codec; a frame both halves
+     * cannot carry is two WARNs, one per audience. The WARN carries the
+     * channel, the action, the audience and the error only: never the member id
+     * or `info`, which may be application PII.
+     *
+     * @param action - Which transition to announce.
+     * @param channel - The presence channel.
+     * @param member - The member the frame carries.
+     * @param origin - The connection announced as the frame's origin.
+     */
+    async #announcePresence(
+        action: 'joined' | 'left',
+        channel: string,
+        member: PresenceMember,
+        origin: PresenceOrigin,
+    ): Promise<void> {
+        const lost = (audience: string, error: unknown) =>
+            console.warn(
+                `realtime: a presence ${action} on ${
+                    safeForLog(channel)
+                } was not announced to ${audience} — the roster is written ` +
+                    `and a roster read is correct; only the frame is lost: ${
+                        renderError(error)
+                    }`,
+            )
+        try {
+            this.emitPresence(
+                channel,
+                { type: 'presence', channel, action, member },
+                action === 'joined' ? { exceptMemberId: member.id } : {},
+            )
+        } catch (error) {
+            lost('local subscribers', error)
+        }
+        try {
+            await this.publishControl({
+                kind: action === 'joined' ? 'presence-join' : 'presence-leave',
+                target: origin.clientId,
+                channel,
+                member,
+            })
+        } catch (error) {
+            lost('other instances', error)
+        }
     }
 
     /**
@@ -1985,11 +2099,14 @@ export class ChannelManager<Identity = unknown> {
     /**
      * Unsubscribe a connection from a channel (eviction primitive, S7).
      *
-     * `async` because a presence leave now removes the member from the driver's
-     * authoritative roster, which for the Redis driver is a round-trip (FR-017).
-     * The `left` frame reaches this instance's local presence subscribers, and
-     * the same leave is announced cross-instance over the control plane (US4) so
-     * presence subscribers on every OTHER instance emit their own local `left`.
+     * `async` because a presence leave releases this instance's hold on the
+     * member's slot in the driver's authoritative roster, which for the Redis
+     * driver is a round-trip (FR-017). **A `left` is announced only when that
+     * release empties the slot** (#344) — this instance's local presence
+     * subscribers get it, and every OTHER instance re-emits it from the
+     * control plane (US4). A leave while another connection or instance still
+     * holds the member announces nothing, and a failed announcement is a WARN:
+     * this still resolves `'left'`. A failed release rejects.
      *
      * **This is a LOCAL verb, and its `clientId` argument makes it look like an
      * addressed one.** It acts only on sockets this instance owns. Called with
@@ -2040,27 +2157,15 @@ export class ChannelManager<Identity = unknown> {
         const left = await this.#leaveLocal(channel, clientId)
         const member = this.#forgetPresenceMember(channel, clientId)
         if (member) {
-            // Remove from the authoritative roster before announcing the
-            // leave, through the per-slot projection (#330). The local delete
-            // above is what the projection reads, so this issues a removal —
-            // and a join racing it can no longer re-add the member behind it,
+            // Released through the per-slot projection (#330). The local delete
+            // above is what the projection reads, so this issues a release —
+            // and a join racing it can no longer re-hold the member behind it,
             // because its own write is chained after this one and computes the
-            // same absent state.
-            await this.#syncRosterMember(channel, member.id)
-            this.emitPresence(channel, {
-                type: 'presence',
-                channel,
-                action: 'left',
-                member,
-            })
-            // Announce the leave to presence subscribers on every OTHER instance
-            // (US4/T030) — the driver drops this instance's own control loopback.
-            await this.publishControl({
-                kind: 'presence-leave',
-                target: clientId,
-                channel,
-                member,
-            })
+            // same absent state. The `left` is the projection's to send, and
+            // only when this release empties the slot (#344): a leave while
+            // another holder remains announces nothing. A failed release still
+            // rejects; a failed announcement does not.
+            await this.#syncRosterMember(channel, { clientId, member })
         }
         // `left` first: something WAS removed, whatever `connections` says
         // about a socket that may already have been pruned around it.
@@ -2069,9 +2174,10 @@ export class ChannelManager<Identity = unknown> {
 
     /**
      * Disconnect a connection entirely — unsubscribe it from every channel
-     * (emitting presence leaves) and forget it (eviction primitive, S7).
+     * (releasing its presence holds, which announce `left` for any slot they
+     * empty) and forget it (eviction primitive, S7).
      *
-     * `async` (FR-017): it awaits each channel's roster removal so a caller — the
+     * `async` (FR-017): it awaits each channel's roster release so a caller — the
      * handler's `onClose` — can await teardown before the socket is gone.
      *
      * **Local, like {@link unsubscribe}, and misaddressable the same way.**
@@ -2109,10 +2215,11 @@ export class ChannelManager<Identity = unknown> {
             ) {
                 // ONE CHANNEL'S TEARDOWN CANNOT ABORT THE REST.
                 //
-                // `unsubscribe` awaits three rejectable calls — the driver's
-                // unwatch, the roster removal and the control publish — and a
-                // single transient fault used to throw straight out of this
-                // loop, leaving every later channel unwatched AND the two
+                // `unsubscribe` awaits two rejectable calls — the driver's
+                // unwatch and the roster release (a failed control publish is
+                // a WARN since #344) — and a single transient fault used to
+                // throw straight out of this loop, leaving every later channel
+                // unwatched AND the two
                 // deletes below unreached. The connection then sat in
                 // `connections`, in the reverse index and in `subscriptions`
                 // for the life of the process, permanently charged against its
@@ -2234,8 +2341,9 @@ export class ChannelManager<Identity = unknown> {
     /**
      * Revoke a connection this instance owns: hard-close its socket (Q2 — a
      * revocation-driven evict, not a plain leave) then disconnect it from every
-     * channel, which removes it from the authoritative roster and announces the
-     * `left` on every instance. A failure to tear down is logged at WARN, never
+     * channel, which releases its holds in the authoritative roster and
+     * announces `left` on every instance for each slot a release empties. A
+     * failure to tear down is logged at WARN, never
      * swallowed — the socket is closed regardless.
      *
      * @param clientId - The owned connection id to revoke.
@@ -2384,9 +2492,10 @@ export class ChannelManager<Identity = unknown> {
     /**
      * Apply a channel-scoped revocation to a socket this instance owns.
      *
-     * **Reuses the whole existing leave path** — roster removal, the local
-     * `left`, and the cross-instance `presence-leave` — rather than growing a
-     * second announcement mechanism beside it.
+     * **Reuses the whole existing leave path** — the roster release, and the
+     * `left` / `presence-leave` its queued write announces when it empties the
+     * slot (#344) — rather than growing a second announcement mechanism beside
+     * it.
      *
      * @param group - The pair, and the id of every record this one leave
      *   answers for. Only these ids are cleared (#337): a record for the same
@@ -2402,11 +2511,12 @@ export class ChannelManager<Identity = unknown> {
         const { target, channel } = group
         const left = await this.unsubscribe(target, channel)
         if (left === 'left') {
-            // WITHOUT THIS THE TARGET NEVER LEARNS. `emitPresence` fans the
-            // `left` to the channel's remaining subscribers, and the leaver was
-            // removed from that set before it ran — so it does not even receive
-            // its own departure. `evict`'s target at least gets close code
-            // 4403; this one would get silence.
+            // WITHOUT THIS THE TARGET NEVER LEARNS. Any `left` fans only to the
+            // channel's remaining subscribers, and the leaver was removed from
+            // that set before it ran — so it does not even receive its own
+            // departure, and no `left` is sent at all while another of the
+            // member's connections holds the slot (#344). `evict`'s target at
+            // least gets close code 4403; this one would get silence.
             //
             // A CLIENT-initiated unsubscribe still sends nothing: the
             // application owns that reply, and this is gated on a leave the
@@ -2645,13 +2755,14 @@ export class ChannelManager<Identity = unknown> {
      * cannot reach. Cross-instance presence is carried by the control plane
      * ({@link handleControl}), not by iterating a roster of unreachable sockets.
      *
-     * **`except` is how a joiner is kept out of its own announcement** (#323).
-     * Decision-table home: "who is excluded from a join's own announcement".
-     * That exclusion used to be a consequence of WHERE the call sat — emitted
-     * before the joiner was added, so the set could not contain it — which no
-     * test could observe and which silently inverts the moment the call moves.
-     * It is now an argument, and moving the call is safe because the rule
-     * travels with it.
+     * **`exceptMemberId` is how a member is kept out of its own `joined`**
+     * (#323, #344). Decision-table home: "`joined` never reaches a connection
+     * of the same member id". It skips every local subscriber whose presence
+     * entry has that `String(id)`, read from `presence` at emit time — so a
+     * connection that claimed the member while the arrival was queued, or that
+     * claimed it here while another instance announced it, is excluded too.
+     * Excluding only the origin connection would send a second tab a `joined`
+     * for itself. `left` excludes nobody.
      *
      * **One unusable socket is skipped, never fatal** (FR-009). `send` returns
      * `void` and a closing `WebSocket.send` raises, so an uncaught throw here
@@ -2664,18 +2775,27 @@ export class ChannelManager<Identity = unknown> {
      *
      * @param channel - The channel whose local subscribers receive the frame.
      * @param frame - The frame to encode and send.
-     * @param options - `except` omits one connection id from the fan-out.
+     * @param options - `exceptMemberId` omits every local connection holding
+     *   that member id from the fan-out.
+     * @throws Whatever `encode` throws, before any socket is written.
      */
     private emitPresence(
         channel: string,
         frame: OutboundFrame,
-        options: { except?: string } = {},
+        options: { exceptMemberId?: string | number } = {},
     ): void {
         const set = this.subscriptions.get(channel)
         if (!set) return
         const encoded = this.encode(frame)
+        const members = this.presence.get(channel)
+        const excluded = options.exceptMemberId === undefined
+            ? undefined
+            : String(options.exceptMemberId)
         for (const clientId of set) {
-            if (clientId === options.except) continue
+            if (excluded !== undefined) {
+                const entry = members?.get(clientId)
+                if (entry && sameMemberId(entry.id, excluded)) continue
+            }
             const connection = this.connections.get(clientId)
             if (!connection) continue
             try {
@@ -2698,12 +2818,16 @@ export class ChannelManager<Identity = unknown> {
      * control frame drives a roster/eviction consequence, never event fan-out:
      *
      * - `presence-join` / `presence-leave`: emit the `joined` / `left` frame to
-     *   THIS instance's local presence subscribers, so a member joining/leaving
-     *   on another instance is seen here (US2).
+     *   THIS instance's local presence subscribers, so a member arriving in or
+     *   departing from the roster on another instance is seen here (US2). The
+     *   sender published it only on `arrived` / `gone` (#344), so this re-emit
+     *   is already per member; `joined` still skips local connections of that
+     *   member id.
      * - `evict`: the owning instance revokes the target socket (hard-close +
-     *   roster/`left`, Q2); an instance that does not own it is a no-op here —
-     *   the owning instance's teardown fans the `left` to it via `presence-leave`
-     *   (FR-009). The durable marker (FR-014) is the backstop for a lost frame.
+     *   roster release, Q2); an instance that does not own it is a no-op here —
+     *   the owning instance's teardown fans any `left` to it via
+     *   `presence-leave` (FR-009). The durable marker (FR-014) is the backstop
+     *   for a lost frame.
      * - `revoke-channel`: the owning instance removes the target from ONE
      *   channel and leaves the socket open (#332). Same ownership rule as
      *   `evict`; the durable record is the same backstop.
@@ -2720,12 +2844,15 @@ export class ChannelManager<Identity = unknown> {
         switch (control.kind) {
             case 'presence-join':
                 if (control.channel && control.member) {
+                    // The same exclusion a local arrival uses (#344): a
+                    // connection here that claimed this member id never
+                    // receives a `joined` for itself.
                     this.emitPresence(control.channel, {
                         type: 'presence',
                         channel: control.channel,
                         action: 'joined',
                         member: control.member,
-                    })
+                    }, { exceptMemberId: control.member.id })
                 }
                 return
             case 'presence-leave':
@@ -2740,16 +2867,17 @@ export class ChannelManager<Identity = unknown> {
                 return
             case 'evict':
                 // Only the instance that owns the socket revokes it; every other
-                // instance leaves it to the owner (which fans the `left` here via
-                // a `presence-leave`). The revoke is async; its awaits settle in
-                // microtasks, and it logs on failure — never a silent catch.
+                // instance leaves it to the owner (which fans any `left` here
+                // via a `presence-leave`). The revoke is async; its awaits
+                // settle in microtasks, and it logs on failure — never a silent
+                // catch.
                 if (this.connections.has(control.target)) {
                     void this.#applyRevocation({ target: control.target })
                 }
                 return
             case 'revoke-channel':
                 // Same rule as `evict`: only the owner acts. Every other
-                // instance hears the resulting `left` as a `presence-leave`.
+                // instance hears any resulting `left` as a `presence-leave`.
                 // A frame with no channel is not a channel revocation and is
                 // dropped rather than widened into a socket kill.
                 if (
