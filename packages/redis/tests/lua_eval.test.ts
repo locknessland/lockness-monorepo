@@ -221,6 +221,397 @@ Deno.test('lua_eval - THROWS when false is used where a scalar argument is requi
     )
 })
 
+// --- #344 / #345: `==`, `if … end`, `false`, a local's `[n]` -----------------
+
+/** Plan 260 §6 HOLD, verbatim. */
+const HOLD_SCRIPT = [
+    "local added = redis.call('HSET', KEYS[2], ARGV[2], ARGV[3])",
+    "redis.call('HSET', KEYS[1], ARGV[1], ARGV[3])",
+    "redis.call('SADD', KEYS[3], ARGV[4])",
+    "redis.call('SADD', KEYS[4], ARGV[2])",
+    "local n = redis.call('HLEN', KEYS[2])",
+    'if added == 1 then',
+    '  if n == 1 then',
+    '    return 1',
+    '  end',
+    'end',
+    'return 0',
+].join('\n')
+
+/** Plan 260 §6 RELEASE, verbatim. */
+const RELEASE_SCRIPT = [
+    "local mine = redis.call('HGET', KEYS[2], ARGV[2])",
+    "local shown = redis.call('HGET', KEYS[1], ARGV[1])",
+    "redis.call('HDEL', KEYS[2], ARGV[2])",
+    "redis.call('SREM', KEYS[3], ARGV[3])",
+    "local n = redis.call('HLEN', KEYS[2])",
+    'if n == 0 then',
+    "  redis.call('HDEL', KEYS[1], ARGV[1])",
+    '  if mine == false then',
+    '    return 0',
+    '  end',
+    '  return 1',
+    'end',
+    'if shown == mine then',
+    "  local promoted = redis.call('HRANDFIELD', KEYS[2], 1, 'WITHVALUES')",
+    "  redis.call('HSET', KEYS[1], ARGV[1], promoted[2])",
+    'end',
+    'return 0',
+].join('\n')
+
+/**
+ * The few hash/set commands the two scripts issue, over plain maps — with a
+ * nil reply handed to Lua as `false`, the callback's contract.
+ */
+function slotStore() {
+    const hashes = new Map<string, Map<string, string>>()
+    const sets = new Map<string, Set<string>>()
+    const calls: Array<[string, string[]]> = []
+    const hash = (key: string) => {
+        let h = hashes.get(key)
+        if (!h) hashes.set(key, h = new Map())
+        return h
+    }
+    const call = (command: string, args: string[]) => {
+        calls.push([command, args])
+        const [key, a, b] = args
+        switch (command) {
+            case 'HSET': {
+                const added = hash(key).has(a) ? 0 : 1
+                hash(key).set(a, b)
+                return added
+            }
+            case 'HGET':
+                return hashes.get(key)?.get(a) ?? false
+            case 'HDEL':
+                return hashes.get(key)?.delete(a) ? 1 : 0
+            case 'HLEN':
+                return hashes.get(key)?.size ?? 0
+            case 'HRANDFIELD': {
+                const first = [...(hashes.get(key) ?? [])][0]
+                return first ? [first[0], first[1]] : []
+            }
+            case 'SADD': {
+                let s = sets.get(key)
+                if (!s) sets.set(key, s = new Set())
+                const added = s.has(a) ? 0 : 1
+                s.add(a)
+                return added
+            }
+            case 'SREM':
+                return sets.get(key)?.delete(a) ? 1 : 0
+            default:
+                throw new Error(`slotStore: unmodelled ${command}`)
+        }
+    }
+    return { hashes, sets, calls, call }
+}
+
+const HOLD_KEYS = ['presence', 'holders', 'owned:A', 'instances']
+const holdArgv = (instance: string, entry: string) => [
+    '7',
+    instance,
+    entry,
+    `ch 7`,
+]
+const RELEASE_KEYS = ['presence', 'holders', 'owned:A']
+
+Deno.test('lua_eval - HOLD script: the first holder reports 1 (arrived)', () => {
+    const s = slotStore()
+    const out = evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
+    assertEquals(out, 1)
+    assertEquals(s.hashes.get('holders'), new Map([['A', 'e-A']]))
+    assertEquals(s.hashes.get('presence'), new Map([['7', 'e-A']]))
+    assertEquals(s.sets.get('instances'), new Set(['A']))
+})
+
+Deno.test('lua_eval - HOLD script: a second instance adds a holder and reports 0', () => {
+    const s = slotStore()
+    evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
+    const out = evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('B', 'e-B'), s.call)
+    // added == 1 but n == 2: the inner `if` is not taken, the outer block ends
+    // without a return, and the final `return 0` runs.
+    assertEquals(out, 0)
+    assertEquals(s.hashes.get('holders')?.size, 2)
+})
+
+Deno.test('lua_eval - HOLD script: a re-hold by the same instance reports 0', () => {
+    const s = slotStore()
+    evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
+    const out = evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A2'), s.call)
+    assertEquals(out, 0, 'added == 0: the outer `if` is not taken')
+    assertEquals(s.hashes.get('presence')?.get('7'), 'e-A2')
+})
+
+Deno.test('lua_eval - RELEASE script: the last holder deletes the field and reports 1', () => {
+    const s = slotStore()
+    evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
+    const out = evalLua(
+        RELEASE_SCRIPT,
+        RELEASE_KEYS,
+        ['7', 'A', 'ch 7'],
+        s.call,
+    )
+    assertEquals(out, 1)
+    assertEquals(s.hashes.get('presence')?.has('7'), false)
+    assertEquals(s.sets.get('owned:A')?.has('ch 7'), false)
+})
+
+Deno.test('lua_eval - RELEASE script: a non-holder on an empty slot reports 0 (mine == false)', () => {
+    const s = slotStore()
+    const out = evalLua(
+        RELEASE_SCRIPT,
+        RELEASE_KEYS,
+        ['7', 'A', 'ch 7'],
+        s.call,
+    )
+    assertEquals(out, 0)
+    assertEquals(
+        s.calls.map((c) => c[0]),
+        ['HGET', 'HGET', 'HDEL', 'SREM', 'HLEN', 'HDEL'],
+    )
+})
+
+Deno.test('lua_eval - RELEASE script: releasing the SHOWN holder copies a remaining one in', () => {
+    const s = slotStore()
+    evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
+    evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('B', 'e-B'), s.call)
+    // B wrote last, so the shown entry is B's; B releases.
+    const out = evalLua(
+        RELEASE_SCRIPT,
+        RELEASE_KEYS,
+        ['7', 'B', 'ch 7'],
+        s.call,
+    )
+    assertEquals(out, 0)
+    assertEquals(s.hashes.get('presence')?.get('7'), 'e-A', 'promoted[2]')
+    const random = s.calls.find((c) => c[0] === 'HRANDFIELD')
+    assertEquals(random?.[1], ['holders', '1', 'WITHVALUES'])
+})
+
+Deno.test('lua_eval - RELEASE script: releasing a holder that is NOT shown copies nothing', () => {
+    const s = slotStore()
+    evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('A', 'e-A'), s.call)
+    evalLua(HOLD_SCRIPT, HOLD_KEYS, holdArgv('B', 'e-B'), s.call)
+    const out = evalLua(
+        RELEASE_SCRIPT,
+        RELEASE_KEYS,
+        ['7', 'A', 'ch 7'],
+        s.call,
+    )
+    assertEquals(out, 0)
+    assertEquals(s.hashes.get('presence')?.get('7'), 'e-B')
+    assertEquals(s.calls.some((c) => c[0] === 'HRANDFIELD'), false)
+})
+
+Deno.test("lua_eval - == is type-strict: '1' == 1 is false", () => {
+    const script = "if ARGV[1] == 1 then\nreturn 'equal'\nend\nreturn 'differ'"
+    assertEquals(evalLua(script, [], ['1'], recorder().call), 'differ')
+    const byNumber = "local n = redis.call('HLEN', KEYS[1])\n" +
+        "if n == 1 then\nreturn 'equal'\nend\nreturn 'differ'"
+    assertEquals(evalLua(byNumber, ['h'], [], () => 1), 'equal')
+    assertEquals(evalLua(byNumber, ['h'], [], () => '1'), 'differ')
+})
+
+Deno.test('lua_eval - a numeric literal is a number, returned as one', () => {
+    assertEquals(evalLua('return 1', [], [], recorder().call), 1)
+})
+
+Deno.test('lua_eval - false is a literal, equal only to false', () => {
+    const script = "local v = redis.call('HGET', KEYS[1], 'f')\n" +
+        "if v == false then\nreturn 'absent'\nend\nreturn 'present'"
+    assertEquals(evalLua(script, ['h'], [], () => false), 'absent')
+    assertEquals(evalLua(script, ['h'], [], () => ''), 'present')
+    assertEquals(evalLua(script, ['h'], [], () => 0), 'present')
+})
+
+Deno.test('lua_eval - a return nested two blocks deep ends the script', () => {
+    const r = recorder()
+    const out = evalLua(
+        "if 1 == 1 then\nif 'a' == 'a' then\nreturn 'inner'\nend\n" +
+            "redis.call('SET', 'x', 'y')\nend\nreturn 'outer'",
+        [],
+        [],
+        r.call,
+    )
+    assertEquals(out, 'inner')
+    assertEquals(r.calls.length, 0, 'nothing after the return ran')
+})
+
+Deno.test('lua_eval - indexes a bound local, 1-based', () => {
+    const out = evalLua(
+        "local pair = redis.call('HRANDFIELD', KEYS[1], 1, 'WITHVALUES')\n" +
+            'return pair[2]',
+        ['h'],
+        [],
+        () => ['field', 'value'],
+    )
+    assertEquals(out, 'value')
+})
+
+Deno.test('lua_eval - THROWS when indexing a local that is not a table', () => {
+    assertThrows(
+        () =>
+            evalLua(
+                "local n = redis.call('HLEN', KEYS[1])\nreturn n[1]",
+                ['h'],
+                [],
+                () => 3,
+            ),
+        LuaEvalUnsupportedError,
+    )
+})
+
+Deno.test('lua_eval - THROWS on a return that is not the last statement of its block', () => {
+    const r = recorder()
+    assertThrows(
+        () =>
+            evalLua(
+                "redis.call('SET', 'a', 'b')\nreturn 1\nredis.call('SET', 'c', 'd')",
+                [],
+                [],
+                r.call,
+            ),
+        LuaEvalUnsupportedError,
+    )
+    assertEquals(r.calls.length, 0, 'refused at parse, nothing ran')
+})
+
+Deno.test('lua_eval - THROWS on every operator but ==', () => {
+    for (
+        const condition of [
+            'ARGV[1] ~= 1',
+            'ARGV[1] > 1',
+            'ARGV[1] < 1',
+            'ARGV[1] == 1 and ARGV[1] == 2',
+            'ARGV[1] == 1 or ARGV[1] == 2',
+            'not ARGV[1] == 1',
+            'ARGV[1]',
+        ]
+    ) {
+        assertThrows(
+            () =>
+                evalLua(
+                    `if ${condition} then\nreturn 1\nend\nreturn 0`,
+                    [],
+                    ['1'],
+                    recorder().call,
+                ),
+            LuaEvalUnsupportedError,
+            undefined,
+            condition,
+        )
+    }
+})
+
+Deno.test('lua_eval - THROWS on else, a missing end, a stray end and a loop', () => {
+    for (
+        const script of [
+            'if 1 == 1 then\nreturn 1\nelse\nreturn 0\nend',
+            'if 1 == 1 then\nreturn 1\nelseif 2 == 2 then\nreturn 2\nend',
+            "if 1 == 1 then\nredis.call('SET', 'a', 'b')",
+            "redis.call('SET', 'a', 'b')\nend",
+            'if 1 == 1 then return 1 end',
+            'while 1 == 1 do\nend',
+        ]
+    ) {
+        const r = recorder()
+        assertThrows(
+            () => evalLua(script, [], [], r.call),
+            LuaEvalUnsupportedError,
+            undefined,
+            script,
+        )
+        assertEquals(r.calls.length, 0, `nothing ran: ${script}`)
+    }
+})
+
+Deno.test('lua_eval - THROWS on an unmodelled statement even in a branch not taken', () => {
+    assertThrows(
+        () =>
+            evalLua(
+                "if 1 == 2 then\nredis.pcall('DEL', 'x')\nend\nreturn 0",
+                [],
+                [],
+                recorder().call,
+            ),
+        LuaEvalUnsupportedError,
+    )
+})
+
+// A real broker compiles the whole script before running a line of it, so each
+// of these is rejected however the branch would have gone. A check of statement
+// SHAPE alone let all three through. One row each, so each is proven on its own.
+for (
+    const statement of [
+        'local x = ARGV[1] or ARGV[2]',
+        "redis.call('HSET', KEYS[1]",
+        'if ARGV[1] == ARGV[2] or ARGV[3] then\nreturn 1\nend',
+    ]
+) {
+    Deno.test(`lua_eval - THROWS at parse on \`${statement}\` in a branch not taken`, () => {
+        const r = recorder()
+        assertThrows(
+            () =>
+                evalLua(
+                    `if 1 == 2 then\n${statement}\nend\nreturn 0`,
+                    ['k'],
+                    ['a', 'b', 'c'],
+                    r.call,
+                ),
+            LuaEvalUnsupportedError,
+            undefined,
+            statement,
+        )
+        assertEquals(r.calls.length, 0, `nothing ran: ${statement}`)
+    })
+}
+
+Deno.test('lua_eval - arithmetic yields a NUMBER, comparable to a numeric literal', () => {
+    const script = "local n = redis.call('HLEN', KEYS[1]) - 1\n" +
+        "if n == 0 then\nreturn 'empty'\nend\nreturn 'held'"
+    assertEquals(evalLua(script, ['h'], [], () => 1), 'empty')
+    assertEquals(evalLua(script, ['h'], [], () => 2), 'held')
+})
+
+Deno.test('lua_eval - a returned sum is an integer reply, not a bulk string', () => {
+    const out = evalLua(
+        "local n = redis.call('HLEN', KEYS[1])\nreturn n + 1",
+        ['h'],
+        [],
+        () => 4,
+    )
+    assertEquals(out, 5)
+})
+
+Deno.test('lua_eval - + and - associate to the left, as Lua does', () => {
+    assertEquals(evalLua('return 10 - 3 + 2', [], [], recorder().call), 9)
+})
+
+Deno.test('lua_eval - THROWS on a table or a call as a comparison operand', () => {
+    assertThrows(
+        () =>
+            evalLua(
+                "local t = redis.call('HRANDFIELD', KEYS[1], 1, 'WITHVALUES')\n" +
+                    'if t == t then\nreturn 1\nend\nreturn 0',
+                ['h'],
+                [],
+                () => ['f', 'v'],
+            ),
+        LuaEvalUnsupportedError,
+    )
+    assertThrows(
+        () =>
+            evalLua(
+                "if redis.call('HLEN', KEYS[1]) == 0 then\nreturn 1\nend\nreturn 0",
+                ['h'],
+                [],
+                () => 0,
+            ),
+        LuaEvalUnsupportedError,
+    )
+})
+
 Deno.test('lua_eval - THROWS when indexing a non-array reply', () => {
     const r = recorder({ GET: 'scalar' })
     assertThrows(
