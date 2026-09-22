@@ -287,6 +287,64 @@ export class PresenceMemberIdError extends Error {
     }
 }
 
+/**
+ * The app's authorizer returned a value outside its contract (#347).
+ *
+ * The contract is `true`, `false` or a {@link PresenceMember} object. Anything
+ * else — `undefined` from a missing `return`, `null` or `undefined` from an
+ * empty query row, `0`, `''`, `'yes'`, `1`, an array, a boxed primitive — is a
+ * defect in the authorizer, and `subscribe` refuses it with this error before
+ * anything is written, published or delivered.
+ *
+ * **A throw, not `{ ok: false }`.** `{ ok: false }` means one thing, "not
+ * authorized" (#331). Read as a deny, a forgotten `return` would become a
+ * deny-all nobody could tell from policy; read as an admit — which is what the
+ * manager did before — it put authenticated strangers on private channels.
+ * Named, like its siblings, so an `onError` handler can tell "a bug in my own
+ * code that no retry fixes" from a dead socket with `instanceof`.
+ *
+ * The message carries the channel (log-encoded) and the value's TYPE label
+ * only — never the value, which is application data. Nothing is sent to the
+ * client; the application's `onMessage` owns any reply.
+ *
+ * @example
+ * ```ts
+ * import { AuthorizeResultError } from '@lockness/realtime'
+ *
+ * try {
+ *     await manager.subscribe(connection, 'private-orders')
+ * } catch (error) {
+ *     if (error instanceof AuthorizeResultError) {
+ *         // Fix the authorizer — end it with `?? false` — do not retry.
+ *     }
+ * }
+ * ```
+ */
+export class AuthorizeResultError extends Error {
+    override readonly name = 'AuthorizeResultError'
+
+    /**
+     * @param channel - The channel being subscribed, encoded before it
+     *   reaches the message.
+     * @param type - The result's type label (`undefined`, `null`, `number`,
+     *   `string`, `array`…), never the value itself.
+     */
+    constructor(channel: string, type: string) {
+        super(
+            `realtime: authorize() returned ${type} for ` +
+                `${safeForLog(channel)} — it must return true, false or a ` +
+                'PresenceMember object (#347). The value is not echoed; it is ' +
+                'application data and this message reaches logs. The ' +
+                'subscribe was refused and nothing was written. Any other ' +
+                'result is treated as a bug in the authorizer rather than a ' +
+                'denial, so a missing return or an absent query row cannot ' +
+                'pass as a policy decision: end the authorizer with `?? false` ' +
+                'where the value may be absent, and return an explicit member ' +
+                'rather than a raw row.',
+        )
+    }
+}
+
 export class ConnectionIdError extends Error {
     override readonly name = 'ConnectionIdError'
 
@@ -355,7 +413,9 @@ import { MemoryBroadcastDriver } from './drivers/memory.ts'
 import {
     type Authorizer,
     type AuthorizeResult,
+    type AuthorizeVerdict,
     channelKind,
+    classifyAuthorizeResult,
     type PresenceMember,
     type PresenceSnapshot,
 } from './channel.ts'
@@ -1262,6 +1322,13 @@ export class ChannelManager<Identity = unknown> {
      *   charset. That is a caller bug, not an authorization outcome — a denied
      *   subscribe answers `{ ok: false }`, and folding the two together would
      *   put a policy decision and a defect behind the same branch.
+     * @throws {AuthorizeResultError} If the authorizer returned anything but
+     *   `true`, `false` or a non-array object (#347) — `undefined`, `null`,
+     *   `0`, `''`, `'yes'`, an array, a boxed primitive. The same reasoning
+     *   as the line above: that is a defect in the authorizer, not a denial.
+     *   Raised before the member id check, the caps and every write, so
+     *   nothing is written, published or delivered; on a channel already held
+     *   it removes nothing (#331).
      * @throws {ChannelLimitError} If the join would take this instance or this
      *   connection past a watched-channel cap, or past the share reserved for
      *   connections with no identity. Raised only AFTER authorization, so an
@@ -1340,9 +1407,22 @@ export class ChannelManager<Identity = unknown> {
             const result: AuthorizeResult = this.authorize
                 ? await this.authorize(connection.identity, channel)
                 : false
-            if (result === false) return { ok: false }
+            // STRAIGHT AFTER the awaited authorizer, and ahead of the member
+            // id check, the size check, the caps and every write (#347). The
+            // authorizer is application code and the type does not reach it:
+            // `(await select())[0]`, an `any` row or plain JS hand this any
+            // value. Only `true` or an object admits and only `false` denies;
+            // anything else is a defect, thrown rather than folded into
+            // `{ ok: false }` (#331 gives that one meaning), and refused before
+            // anything exists to undo. On a channel already held it throws
+            // and removes nothing, exactly as a denial does.
+            const verdict: AuthorizeVerdict = classifyAuthorizeResult(result)
+            if (verdict.verdict === 'invalid') {
+                throw new AuthorizeResultError(channel, verdict.type)
+            }
+            if (verdict.verdict === 'deny') return { ok: false }
             if (kind === 'presence') {
-                member = result === true ? { id: connection.id } : result
+                member = verdict.member ?? { id: connection.id }
                 // BEFORE the roster write and before the control publish
                 // (#306). Asserting after either one is what makes an
                 // oversized id a partial write rather than a refusal.
@@ -1364,7 +1444,19 @@ export class ChannelManager<Identity = unknown> {
         )
         this.connections.set(connection.id, connection)
 
-        if (kind === 'presence' && member) {
+        if (kind === 'presence') {
+            // An INVARIANT since #347, not a filter. It read
+            // `kind === 'presence' && member`, and a falsy "member" such as
+            // `0` fell through to `#joinLocal`: delivery with no roster
+            // entry, an invisible listener. Every presence admission now
+            // carries a member, so reaching here without one is a bug in
+            // this method, and it must not degrade into that listener.
+            if (member === undefined) {
+                throw new Error(
+                    'realtime: a presence admission reached the join without ' +
+                        'a member — an invariant of subscribe is broken (#347).',
+                )
+            }
             return await this.#joinPresence(connection, channel, member)
         }
 

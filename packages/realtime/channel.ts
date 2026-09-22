@@ -130,14 +130,150 @@ export interface PresenceSnapshot {
  * client asking again: `ChannelManager.unsubscribe` for one channel,
  * `ChannelManager.evict` for a real revoke — which is durable and crosses
  * processes, where a denial-driven removal would survive nothing.
+ *
+ * **The admission rule is enforced at runtime, not only by this type** (#347).
+ * `true` or a non-null, non-array object admits; `false` denies; ANY other
+ * value — `undefined`, `null`, `0`, `''`, `'yes'`, `1`, an array, a boxed
+ * primitive — makes `subscribe` throw `AuthorizeResultError`. The type cannot
+ * stop those on its own: `(await select())[0]` under the default
+ * `noUncheckedIndexedAccess: false`, an `any`-typed query row, a cast or a
+ * plain-JS app all reach the manager with a value this union does not name.
+ * They throw rather than deny because a missing `return` is a bug, and read as
+ * `false` it would be a deny-all nobody could diagnose. Lockness deliberately
+ * does not treat a falsy value as a quiet deny.
  */
 export type AuthorizeResult = boolean | PresenceMember
 
 /**
+ * What {@link classifyAuthorizeResult} decided about one authorizer result.
+ *
+ * - `deny` — the authorizer returned exactly `false`: a policy decision.
+ * - `admit` — `true` (`member` is `undefined`) or an object (`member` is it).
+ * - `invalid` — anything else, a defect in the authorizer. `type` is the
+ *   value's type label only; the value itself is never carried, because it is
+ *   application data and the label ends up in a log.
+ */
+export type AuthorizeVerdict =
+    | { verdict: 'deny' }
+    | { verdict: 'admit'; member: PresenceMember | undefined }
+    | { verdict: 'invalid'; type: string }
+
+/**
+ * Classify an authorizer's result against the admission rule (#347).
+ *
+ * Pure and total: it runs on `unknown` because the value comes from
+ * application code the type system does not reach (see {@link AuthorizeResult}).
+ * `ChannelManager.subscribe` calls it straight after the awaited authorizer and
+ * before the member id check, the size check, the caps and every write, so a
+ * refusal is never a partial write.
+ *
+ * An admitting object's FIELDS are not checked here — the member id (#306) and
+ * size (#326) checks own that, and a private channel reads no member at all.
+ * The rule is "an object", not "a plain object": a class-instance member is
+ * legitimate. Arrays and boxed primitives are objects to `typeof` and are
+ * refused all the same; `[]` is what an empty query result looks like.
+ *
+ * @param result - Whatever the authorizer resolved to.
+ * @returns The verdict: `deny`, `admit` with the member (if any), or
+ *   `invalid` with the value's type label.
+ *
+ * @example
+ * ```ts
+ * classifyAuthorizeResult(false)       // { verdict: 'deny' }
+ * classifyAuthorizeResult(true)        // { verdict: 'admit', member: undefined }
+ * classifyAuthorizeResult({ id: 7 })   // { verdict: 'admit', member: { id: 7 } }
+ * classifyAuthorizeResult(undefined)   // { verdict: 'invalid', type: 'undefined' }
+ * ```
+ */
+export function classifyAuthorizeResult(result: unknown): AuthorizeVerdict {
+    if (result === false) return { verdict: 'deny' }
+    if (result === true) return { verdict: 'admit', member: undefined }
+    if (isAdmittingObject(result)) return { verdict: 'admit', member: result }
+    return { verdict: 'invalid', type: typeLabel(result) }
+}
+
+/**
+ * Whether a value is an object that may stand for a member.
+ *
+ * The predicate claims `PresenceMember` for the verdict's type only; the
+ * member's fields are checked downstream (see {@link classifyAuthorizeResult}).
+ *
+ * @param value - The authorizer's result.
+ * @returns `true` for a non-null, non-array, non-boxed-primitive object.
+ */
+function isAdmittingObject(value: unknown): value is PresenceMember {
+    if (typeof value !== 'object' || value === null) return false
+    if (Array.isArray(value)) return false
+    if (boxedPrimitiveLabel(value) !== undefined) return false
+    return true
+}
+
+/**
+ * The label for a boxed primitive (`new Boolean(false)`, `Object(1n)`…), or
+ * `undefined` when the value is not one.
+ *
+ * Boxed primitives are refused because they are objects only by accident:
+ * `new Boolean(false)` is truthy and has no member fields.
+ *
+ * @param value - Any value.
+ * @returns `'boxed <primitive>'`, or `undefined`.
+ */
+function boxedPrimitiveLabel(value: unknown): string | undefined {
+    if (value instanceof Boolean) return 'boxed boolean'
+    if (value instanceof Number) return 'boxed number'
+    if (value instanceof String) return 'boxed string'
+    if (value instanceof BigInt) return 'boxed bigint'
+    if (value instanceof Symbol) return 'boxed symbol'
+    return undefined
+}
+
+/**
+ * A log-safe label for a value's TYPE, never its content.
+ *
+ * Package-internal (not exported from `mod.ts`): it names the offending type in
+ * the messages of the realtime errors that refuse an application value —
+ * `AuthorizeResultError` (#347) and the presence member id check (#346) — so an
+ * operator learns what shape arrived without the value itself, which is
+ * application data, reaching a log.
+ *
+ * `typeof` with the three cases it gets wrong for this purpose split out:
+ * `null` (not `'object'`), arrays and boxed primitives.
+ *
+ * @param value - Any value.
+ * @returns `'undefined'`, `'null'`, `'number'`, `'string'`, `'array'`,
+ *   `'symbol'`, `'boxed boolean'`, `'object'`…
+ *
+ * @example
+ * ```ts
+ * typeLabel(undefined)          // 'undefined'
+ * typeLabel([])                 // 'array'
+ * typeLabel(new Boolean(false)) // 'boxed boolean'
+ * ```
+ */
+export function typeLabel(value: unknown): string {
+    if (value === null) return 'null'
+    if (Array.isArray(value)) return 'array'
+    if (typeof value === 'object') return boxedPrimitiveLabel(value) ?? 'object'
+    return typeof value
+}
+
+/**
  * An app authorizer for private/presence channels. Receives the connection's
- * **server-derived** identity (never a wire field). Returns `false` to deny; a
- * private channel returns `true` to allow; a presence channel returns the
- * {@link PresenceMember} to allow (or `false` to deny).
+ * **server-derived** identity (never a wire field).
+ *
+ * Return exactly one of three things (#347):
+ *
+ * - `false` to deny — `subscribe` answers `{ ok: false }`.
+ * - `true` to allow. On a presence channel the member is then
+ *   `{ id: connection.id }`.
+ * - A {@link PresenceMember} object to allow a presence channel as that member
+ *   (a private channel accepts one too, and ignores it).
+ *
+ * Anything else — `undefined` from a missing `return`, `null` or `undefined`
+ * from an empty query, `0`, `''`, `'yes'`, `1`, an array — makes `subscribe`
+ * throw `AuthorizeResultError`. Write `return row ? { id: row.id } : false`,
+ * never the raw row: a truthy row would ship every column to the room, and an
+ * absent one throws. `?? false` closes the gap where a value may be absent.
  *
  * @typeParam Identity - The app's identity shape.
  */
