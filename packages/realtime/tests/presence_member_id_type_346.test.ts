@@ -17,9 +17,13 @@
  * - (a) The collapse, on every path it reached — memory, the local fallback, a
  *   roster-less driver and two fake-Redis instances. Each join now throws
  *   `PresenceMemberIdError`, and the state is READ afterwards: no roster write,
- *   no control publish, no local presence entry, no `connections` entry.
+ *   no control publish, no local presence entry, no `connections` entry. Each
+ *   row then ends with a positive control (#351): a valid id's join on the
+ *   same path moves the same `writes()` counter, so its "0" is not the silence
+ *   of an instrument that counts nothing.
  * - (b) The value table: what joins, and what is refused — never with a
- *   `TypeError` or `PresenceMemberSizeError`.
+ *   `TypeError` or `PresenceMemberSizeError`. Every boxed primitive is a row,
+ *   `new Boolean(false)` and `Object(Symbol())` included.
  * - (c) Sender and receiver agree, across two fake-Redis instances, through the
  *   frame ingest and through the roster read.
  * - (d) The refusal never echoes a non-primitive id, only its type.
@@ -250,10 +254,20 @@ const COLLAPSING: ReadonlyArray<readonly [string, () => unknown, string]> = [
     ['{}', () => ({}), 'of type object'],
 ]
 
+/**
+ * The identity whose authorizer answer is a VALID id — the positive control
+ * that proves `writes()` can register a join on this path at all (#351).
+ */
+const CAROL = 3
+
 for (const [pathName, makePath] of PATHS) {
     for (const [idName, id, fragment] of COLLAPSING) {
         Deno.test(`#346 (a) ${pathName}: two people with a ${idName} member id are each refused, and nothing is written`, async () => {
-            const path = makePath(returningId(id))
+            const path = makePath(
+                ((identity: User | null) => ({
+                    id: identity?.id === CAROL ? 'carol' : id(),
+                })) as unknown as Authorizer<User>,
+            )
             try {
                 const [onA, onB] = path.managers
                 const alice = conn('alice', 1)
@@ -283,6 +297,18 @@ for (const [pathName, makePath] of PATHS) {
                 }
                 assertEquals(alice.received, [], 'nothing sent to Alice')
                 assertEquals(bob.received, [], 'nothing sent to Bob')
+
+                // POSITIVE CONTROL (#351), LAST so it cannot disturb the
+                // reads above: a valid id's join on the same path moves the
+                // same counter. Without it, a `writes()` that never counts
+                // anything passes the "0" above on every path.
+                const carol = conn('carol', CAROL)
+                const joined = await quietly(() => onA.subscribe(carol, ROOM))
+                assertEquals(joined.ok, true, 'CONTROL: a valid id joins')
+                assert(
+                    path.writes() > 0,
+                    'CONTROL: an admitted join moves writes() on this path',
+                )
             } finally {
                 await path.close()
             }
@@ -362,6 +388,12 @@ const REFUSED: ReadonlyArray<readonly [string, () => unknown, string]> = [
     ['a boxed string', () => new String('u1'), 'of type boxed string'],
     ['a boxed number', () => new Number(1), 'of type boxed number'],
     ['a boxed bigint', () => Object(1n), 'of type boxed bigint'],
+    // Falsy in its primitive form and truthy boxed — `if (id)` reads it as
+    // present.
+    ['a boxed boolean', () => new Boolean(false), 'of type boxed boolean'],
+    // `String()` on it throws a `TypeError`: the unboxed Symbol reaches
+    // `ToString`. The type check must run first.
+    ['a boxed symbol', () => Object(Symbol('member')), 'of type boxed symbol'],
     ['{}', () => ({}), 'of type object'],
     ['a null-prototype object', () => Object.create(null), 'of type object'],
     [

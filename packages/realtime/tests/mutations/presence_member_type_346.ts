@@ -7,8 +7,9 @@
  * widened to booleans (M3), each receive-side site narrowed back to strings
  * only so the sender accepts what a peer drops (M4 the frame ingest, M5 the
  * roster read), `String(id)` moved ahead of the predicate so a null-prototype
- * object throws a `TypeError` instead of the named error (M6), and the refused
- * value echoed into the message beside its type (M7).
+ * object throws a `TypeError` instead of the named error (M6), the refused
+ * value echoed into the message beside its type (M7), and a boxed boolean or
+ * boxed symbol id named as a plain object (M8, M9 — #351).
  *
  * The killing assertions match the TYPE-BRANCH wording (`of type null`),
  * which #306's value-echoing wording cannot produce, so a refusal that comes
@@ -37,6 +38,7 @@ import { type Mutation, runBattery } from '@mutations/harness.ts'
 const PROTOCOL = new URL('../../protocol.ts', import.meta.url)
 const MANAGER = new URL('../../manager.ts', import.meta.url)
 const REDIS = new URL('../../drivers/redis.ts', import.meta.url)
+const CHANNEL = new URL('../../channel.ts', import.meta.url)
 const SUITES = [
     new URL('../presence_member_id_type_346.test.ts', import.meta.url).pathname,
     // #306's suite: M2's witness is its NaN row.
@@ -111,6 +113,26 @@ const MUTATIONS: Mutation[] = [
         ]],
         killedBy:
             '#346 (d) the message names an object id by type and never echoes it',
+    },
+    {
+        label: 'M8 — a boxed boolean id named as a plain object (#351)',
+        file: CHANNEL,
+        edits: [[
+            "    if (value instanceof Boolean) return 'boxed boolean'\n",
+            '',
+        ]],
+        killedBy: '#346 (b) a boxed boolean member id is refused',
+    },
+    {
+        label: 'M9 — a boxed symbol id named as a plain object (#351)',
+        file: CHANNEL,
+        edits: [[
+            "    if (value instanceof Symbol) return 'boxed symbol'\n",
+            '',
+        ]],
+        // M6 also dies on the boxed-symbol row now: `String()` on a Symbol
+        // wrapper throws a `TypeError`, like a null-prototype object.
+        killedBy: '#346 (b) a boxed symbol member id is refused',
     },
 ]
 

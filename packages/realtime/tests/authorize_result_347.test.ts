@@ -22,6 +22,15 @@
  * observer on the same channel that does receive the broadcast, so "the refused
  * connection got nothing" cannot pass because nothing was delivered at all.
  *
+ * **Every "nothing happened" counter is paired with a positive control (#351).**
+ * `connectionCount` and the control-publish count are each read before the
+ * observer's admitted subscribe and shown to MOVE on it, in the same row, so a
+ * counter that cannot register the event cannot pass for one that registered
+ * none. The control-publish zero is asserted on presence rows only: an admitted
+ * PRIVATE subscribe publishes no control frame at all (pinned below), so on a
+ * private row that counter could not move whatever the manager did — there the
+ * guards are the `connections` entry and the delivery control.
+ *
  * @module @lockness/realtime/tests/authorize_result_347
  */
 
@@ -166,6 +175,8 @@ for (const [backendName, makeBackend] of BACKENDS) {
                         driver: backend.driver,
                         authorize: suspectAuthorizer(value),
                     })
+                    const connectionsAtStart = m.connectionCount
+                    const publishesAtStart = backend.controlPublishes()
                     const observer = conn('observer', OBSERVER)
                     assertEquals(
                         (await m.subscribe(observer, channel)).ok,
@@ -173,15 +184,35 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     )
                     const connectionsBefore = m.connectionCount
                     const publishesBefore = backend.controlPublishes()
+                    // POSITIVE CONTROLS (#351): the instruments the refusal
+                    // is read with can register an admission at all.
+                    assertEquals(
+                        connectionsBefore,
+                        connectionsAtStart + 1,
+                        'CONTROL: an admitted subscribe moves connectionCount',
+                    )
+                    if (
+                        channel === PRESENCE && publishesAtStart !== undefined
+                    ) {
+                        assertEquals(
+                            publishesBefore,
+                            publishesAtStart + 1,
+                            'CONTROL: an admitted presence join publishes one control frame',
+                        )
+                    }
 
                     const suspect = conn('suspect', SUSPECT)
+                    // The class argument is what rules out an accidental
+                    // `TypeError` (a Symbol in a template literal): any other
+                    // class fails the row here.
                     const error = await assertRejects(
                         () => m.subscribe(suspect, channel),
                         AuthorizeResultError,
                     )
-                    assert(
-                        !(error instanceof TypeError),
-                        'a named error, never an accidental TypeError',
+                    assertEquals(
+                        error.name,
+                        'AuthorizeResultError',
+                        'an `onError` log line names the error, not a bare `Error`',
                     )
                     assert(
                         error.message.includes(`returned ${label} for`),
@@ -200,11 +231,16 @@ for (const [backendName, makeBackend] of BACKENDS) {
                             'no roster entry was written for the suspect',
                         )
                     }
-                    assertEquals(
-                        backend.controlPublishes(),
-                        publishesBefore,
-                        'no control frame was published',
-                    )
+                    if (channel === PRESENCE) {
+                        // Presence only — see the fileoverview: a private
+                        // admission publishes nothing, so this zero would be
+                        // vacuous there.
+                        assertEquals(
+                            backend.controlPublishes(),
+                            publishesBefore,
+                            'no control frame was published',
+                        )
+                    }
 
                     const observerFrames = observer.received.length
                     m.broadcast(channel, 'secret', { n: 1 })
@@ -225,6 +261,38 @@ for (const [backendName, makeBackend] of BACKENDS) {
         }
     }
 }
+
+Deno.test('#347 fake Redis: an admitted private subscribe publishes no control frame, so a private refusal row does not read that counter', async () => {
+    // The reason the refusal matrix asserts the control-publish zero on
+    // presence rows only (#351). If a private admission ever starts
+    // publishing, this fails — and the private rows should assert the counter
+    // again, because it would then be able to move.
+    const [, makeBackend] = BACKENDS[1]
+    const backend = makeBackend()
+    try {
+        const m = new ChannelManager<User>({
+            driver: backend.driver,
+            authorize: suspectAuthorizer(() => true),
+        })
+        const before = backend.controlPublishes() ?? 0
+        assertEquals((await m.subscribe(conn('c1', SUSPECT), PRIVATE)).ok, true)
+        assertEquals(
+            (await m.subscribe(conn('c2', OBSERVER), PRIVATE)).ok,
+            true,
+        )
+        assertEquals(backend.controlPublishes(), before)
+        // CONTROL: the same instrument, on the same backend, moves for a
+        // presence join — the zero above is the private path's, not the
+        // counter's.
+        assertEquals(
+            (await m.subscribe(conn('c3', OBSERVER), PRESENCE)).ok,
+            true,
+        )
+        assertEquals(backend.controlPublishes(), before + 1)
+    } finally {
+        await backend.close()
+    }
+})
 
 // --- What admits, and what denies ------------------------------------------
 
