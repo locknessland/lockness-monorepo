@@ -133,8 +133,12 @@ the subscribe rejects, nothing was announced, and the attempt leaves no trace �
 the same connection can retry the same channel and produces exactly one member.
 **One exception:** when the write committed but its reply was lost, the rollback
 releases the slot it cannot see, and that release sends a truthful `left` for a
-member no `joined` was sent for. Treat an unknown `left` as a no-op. A
-connection never receives `joined` for its own member id.
+member no `joined` was sent for. **A crash is the second cause**: an instance
+that committed a hold and died before announcing it leaves a slot the ghost
+sweep later empties, and that sweep announces a `left` for a member nobody was
+told had arrived (see [the ghost sweep](#the-authoritative-presence-roster)).
+Treat an unknown `left` as a no-op. A connection never receives `joined` for its
+own member id.
 
 **A `joined` frame on any OTHER instance reflects an announcement, not a roster
 read.** Cross-instance presence travels the control plane, and a receiving
@@ -1272,9 +1276,34 @@ instance crashes without cleanup, a surviving instance's periodic reconcile pass
 releases every hold that dead instance's owned set names — one release `EVAL`
 per entry, exactly the release a leave runs, on the dead instance's behalf — so
 a crash leaves no permanent ghosts and never removes a member a live instance
-still holds. A sweep announces nothing: a member whose last holder crashed gets
-no `left`
-([#348](https://github.com/locknessland/lockness-monorepo/issues/348)).
+still holds.
+
+**What the room receives after a crash**
+([#348](https://github.com/locknessland/lockness-monorepo/issues/348)). When a
+sweep's release empties a slot — the dead instance was that member's last holder
+— the sweeping instance announces the member as `left`, exactly as a leave
+would: its own subscribers get a `left` frame carrying the dead instance's last
+stored entry, and every other instance gets it through a `presence-leave`
+control frame. A member another live instance still holds is not announced. Two
+instances sweeping the same dead one produce **one** `left`: the release hands
+the departed entry to whichever sweep runs it first.
+
+- **Latency.** The `left` arrives up to the liveness TTL plus the reconcile
+  interval after the crash — about 25 s with the defaults below. Tighten both
+  options to shorten it; the heartbeat must stay well inside the TTL.
+- **A large crash is a burst.** Each such member costs the sweeping instance one
+  release `EVAL` and one `PUBLISH` on its shared command connection, so its
+  other commands queue behind them. Past a peer's per-origin share of the replay
+  window (10 000 nonces in all), that peer WARNs and evicts that origin's oldest
+  nonces; a replayed one would be a duplicate `left`.
+- **What it does not cover.** If the sweeping instance crashes, or its publish
+  fails, after the release, nobody announces — clients heal on resubscribe. A
+  `0.3.0` sweeper announces nothing, and a crashed `0.3.0` instance wrote no
+  holders entry to announce from: during a mixed-version deploy expect at most
+  one `left`, not exactly one.
+- **The bytes are the broker's.** The announced entry is read back from Redis.
+  An entry whose member id is not the slot it was stored under, or whose channel
+  is not a valid name, is dropped with one WARN naming the channel only.
 
 **Know what it reaches.** The sweep enumerates the owned set and nothing else,
 and it only ever runs against an instance whose liveness key has expired — a
@@ -1293,9 +1322,12 @@ live instance never reclaims its own holds. Consequences worth holding on to:
 - The sweep is a **crash** recovery mechanism. It is not a repair for a
   divergence on a running instance, and nothing should be designed to lean on it
   as one. An instance whose heartbeat lapsed while it stayed up loses its holds
-  to a peer's sweep with no `left`; a later hold for that member announces a
-  `joined` its clients may already have seen, and a leave before any such hold
-  sends no `left` (it holds nothing to release).
+  to a peer's sweep, which announces them `left` to the room — that member's own
+  open tabs on the lapsed instance included; a later hold for that member is a
+  real arrival and announces one `joined`, which those tabs do not receive (it
+  excludes their member id), and a leave before any such hold sends nothing (it
+  holds nothing to release). That lapsed-alive residue is tracked in
+  [#349](https://github.com/locknessland/lockness-monorepo/issues/349).
 
 Tune the sweep with the `presence` option:
 
@@ -1399,6 +1431,27 @@ and `selfIds.length ≤ MAX_ROSTER_READ_SELF_IDS` (1 000, exported). The seam is
 public, and on Redis a negative `HRANDFIELD` count returns entries **with
 repeats**. `selfIds` may be empty — a read that serves no member is valid, and a
 Redis `HMGET` with no field is an arity error, so pad it.
+
+**Reporting a departure you caused for someone else — optional.** A driver that
+can empty a slot on **another process's** behalf (the Redis ghost sweep releases
+a crashed instance's holds) implements `onRosterDeparture(handler)`. The manager
+registers the handler at construction, and only when the driver owns a roster.
+Call it with a `RosterDeparture` (`{ channel, member }`, exported) for each slot
+such a release emptied, and the manager announces the member as `left` — locally
+and over the control plane, through the same path as a leave. The contract:
+
+- **Never for `releaseMember`.** Its caller announces `gone` itself; a report
+  there is a second `left`.
+- **One handler.** Registering again replaces it; `close()` drops it.
+- **Only well-formed departures are announced.** A channel that is not a valid
+  name, or a member every peer would refuse at ingest (an id that is not a
+  string or finite number, a non-object `info`, more than `id` and `info`), is
+  dropped by the manager with one WARN.
+- **Order.** Do no I/O between learning the slot emptied and calling the
+  handler, and await the handler: a hold of the same slot committed right behind
+  your release must be announced after this `left`, not before.
+
+A driver without the method keeps a silent sweep; nothing else changes.
 
 The manager decides everything else: K, the self rule, and how concurrent reads
 share. The Redis driver's read is one `EVAL` of `HLEN`,
@@ -2089,8 +2142,16 @@ frames ([#344](https://github.com/locknessland/lockness-monorepo/issues/344)).
   read at most one. Nothing in the protocol reports a connection count; keep one
   on the server if you need it.
 - **A `left` can arrive for a member no `joined` was sent for**, when a join's
-  roster write committed but its reply was lost. Treat an unknown `left` as a
+  roster write committed but its reply was lost, or when an instance crashed
+  after committing a hold it never announced. Treat an unknown `left` as a
   no-op, as you already should for members outside your snapshot.
+- **A crash now sends `left`.** On Redis, when an instance dies, the members
+  only it held are announced as `left` to every surviving instance's subscribers
+  once a peer's ghost sweep releases them — up to the liveness TTL plus the
+  reconcile interval later (~25 s by default). In `0.3.0` they stayed in every
+  client's list until it resubscribed. See
+  [The authoritative presence roster](#the-authoritative-presence-roster)
+  ([#348](https://github.com/locknessland/lockness-monorepo/issues/348)).
 - **`unsubscribe` no longer rejects when its `presence-leave` publish fails.**
   The membership was removed and the roster released, so it logs one WARN —
   naming the channel, never the member — and resolves `'left'`. A failed roster

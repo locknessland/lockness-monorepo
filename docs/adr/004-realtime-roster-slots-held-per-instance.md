@@ -1,6 +1,8 @@
 # ADR 004 — Roster slots are held per instance, and the holder that fills or empties one announces it
 
-**Status:** Accepted **Date:** 2026-09-15 **Owner:** architect **Amends:**
+**Status:** Accepted, amended by
+[ADR 005](005-realtime-swept-departures-announced.md) (§2, §5, §6) **Date:**
+2026-09-15 **Owner:** architect **Amends:**
 [ADR 003](003-realtime-roster-write-ownership.md) §3, §6, §7 **Affects:**
 `packages/realtime/driver.ts`, `packages/realtime/manager.ts`,
 `packages/realtime/drivers/redis.ts`, `packages/realtime/drivers/memory.ts`,
@@ -71,6 +73,14 @@ Each slot has `<prefix>__holders:<channel> <id>`, mapping
 - **The ghost sweep is a release on the dead instance's behalf** — the same
   script, with the dead id, once per owned entry, return ignored. It no longer
   deletes the owned set, so a hold landing mid-sweep stays sweepable.
+
+> **Amended by [ADR 005](005-realtime-swept-departures-announced.md)
+> (2026-09-23).** The release no longer returns 1 when it empties a slot it
+> held: it returns **the released holder's stored entry**, and 0 otherwise,
+> decoded by a second strict decoder (`decodeReleaseReply`). The sweep's return
+> is **no longer ignored** — each entry it gets back is reported, through the
+> driver's optional `onRosterDeparture` callback, as a departure the manager
+> announces as `left`.
 
 The memory driver has one process: `arrived = !has`, `gone = delete`. A
 roster-less driver gets its bits from the manager's private `#heldSlots`,
@@ -162,10 +172,17 @@ inside the #323 rollback instead of at construction.
   sweep's final instance deregistration on an instance that then dies. The later
   fix is to prune holders whose instance is not registered — no migration
   needed.
-- **A live instance whose heartbeat lapsed** loses its holds to a peer's sweep
-  with no `left`; its next hold announces a duplicate `joined`
-  ([#348](https://github.com/locknessland/lockness-monorepo/issues/348)).
-- **Sweep removals announce nothing** (#348).
+- **A live instance whose heartbeat lapsed** loses its holds to a peer's sweep,
+  which now announces `left`; its next hold is a real arrival, so its `joined`
+  follows that `left`. Its own open tabs still receive the `left` and never the
+  `joined`
+  ([#349](https://github.com/locknessland/lockness-monorepo/issues/349)).
+
+> **Amended by [ADR 005](005-realtime-swept-departures-announced.md)
+> (2026-09-23).** "Sweep removals announce nothing" is no longer a residue: a
+> slot the sweep empties is announced as `left`, exactly once across sweepers.
+> The lapsed-instance bullet above is rewritten accordingly.
+
 - **A lost release reply** skips the `left`, with no retry.
 - **A lost hold reply after commit** (#323): the rollback's release reports
   `gone` and sends a truthful `left` with no `joined` before it.
@@ -191,3 +208,9 @@ returned.** The receive side of the control plane is the one exception. A
 `subscribe`, `unsubscribe`, the join's compensation or any new verb reintroduces
 per-connection announcements. And a driver's hold / release decides its bit in
 the same atomic operation as its write, or it is wrong under concurrency.
+
+> **Amended by [ADR 005](005-realtime-swept-departures-announced.md)
+> (2026-09-23).** `#announcePresence` has a **second caller**: the manager's
+> departure handler, on an entry a release returned while emptying another
+> process's slot (the ghost sweep). Both callers announce only a bit a roster
+> write returned. The departure is not queued on the slot's tail.
