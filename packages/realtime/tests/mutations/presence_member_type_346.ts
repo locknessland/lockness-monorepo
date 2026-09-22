@@ -79,7 +79,9 @@ const MUTATIONS: Mutation[] = [
     {
         label:
             'M4 — the frame ingest narrowed to strings: a peer drops what the sender joined',
-        file: REDIS,
+        // The ingest's member rule lives in `isWirePresenceMember` since #348,
+        // asked by `isPlainMember` and by the manager's departure handler.
+        file: PROTOCOL,
         edits: [[
             '    const idOk = isPresenceMemberIdValue(member.id)\n',
             "    const idOk = typeof member.id === 'string'\n",

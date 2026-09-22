@@ -129,9 +129,12 @@ const MUTATIONS: Mutation[] = [
     {
         label: '#345 the sweep goes back to a raw presence HDEL',
         file: REDIS,
+        // Re-anchored for #348: the sweep keeps the release's reply as
+        // `released`; the raw `HDEL` has none, so the mutant reports nothing.
         edits: [[
-            '            await this.#release(channel, field, deadId)\n',
-            "            await this.command.command('HDEL', this.presenceKey(channel), field)\n",
+            '            const released = await this.#release(channel, field, deadId)\n',
+            "            await this.command.command('HDEL', this.presenceKey(channel), field)\n" +
+            '            const released: string | undefined = undefined\n',
         ]],
         // The original #345 defect on the crash path: B keeps holding 7, the
         // sweep of A deletes it anyway.
@@ -142,8 +145,8 @@ const MUTATIONS: Mutation[] = [
             "#345 the sweep releases with its OWN id instead of the dead one's",
         file: REDIS,
         edits: [[
-            '            await this.#release(channel, field, deadId)\n',
-            '            await this.#release(channel, field, this.instanceId)\n',
+            '            const released = await this.#release(channel, field, deadId)\n',
+            '            const released = await this.#release(channel, field, this.instanceId)\n',
         ]],
         // B's sweep of A drops B's own hold, and A's stays: the slot then
         // outlives the instance that was declared dead, or vanishes under B.

@@ -1258,3 +1258,117 @@ Deno.test({
         }
     },
 })
+
+/**
+ * Drive one release sequence through a holder pair on `inner` and collect every
+ * release script reply (#348 FR-010): B releases while A still holds (0), A
+ * releases last (its entry), B releases an empty slot it never held (0).
+ *
+ * The release script is observed on the wire, through the drivers' own port:
+ * the script text stays private to the driver, and what is pinned is the reply
+ * it produces on each backend.
+ */
+async function observeReleases(
+    inner: { command: (...args: string[]) => Promise<unknown> },
+    prefix: string,
+): Promise<{ releases: RespReply[]; stored: RespReply | undefined }> {
+    const CH = 'presence-room'
+    const releases: RespReply[] = []
+    const port = {
+        command: async (...args: string[]) => {
+            const reply = await inner.command(...args)
+            // Only the release script issues an `SREM` on the owned set; the
+            // hold script `SADD`s.
+            if (args[0] === 'EVAL' && args[1].includes("'SREM'")) {
+                releases.push(reply as RespReply)
+            }
+            return reply
+        },
+    }
+    const { a, b } = holderPair(port, prefix)
+    const holders = `${prefix}__holders:${CH} 7`
+    let stored: RespReply | undefined
+    try {
+        await a.holdMember(CH, { id: 7, info: { from: 'A' } })
+        await b.holdMember(CH, { id: 7, info: { from: 'B' } })
+        await b.releaseMember(CH, 7) // a holder remains → 0
+        const remaining = await inner.command('HGETALL', holders) as RespReply
+        assert(
+            remaining.type === 'array' && remaining.value.length === 2,
+            `${prefix}: precondition, A alone holds 7`,
+        )
+        stored = remaining.value[1]
+        await a.releaseMember(CH, 7) // the last holder → A's entry
+        await b.releaseMember(CH, 7) // empty slot, non-holder → 0
+    } finally {
+        await a.close()
+        await b.close()
+    }
+    return { releases, stored }
+}
+
+/** The FR-010 reply contract, asserted on one backend's observed releases. */
+function assertReleaseReplies(
+    backend: string,
+    seen: { releases: RespReply[]; stored: RespReply | undefined },
+): void {
+    assert(
+        seen.stored?.type === 'bulk',
+        `${backend}: A's stored entry is a bulk`,
+    )
+    assertEquals(
+        seen.releases,
+        [
+            { type: 'integer', value: 0 },
+            seen.stored,
+            { type: 'integer', value: 0 },
+        ],
+        `${backend}: 0 while a holder remains, the released entry byte for ` +
+            'byte when the slot empties, 0 for a non-holder',
+    )
+}
+
+// The fake half needs no broker, so it runs on every `deno task test`: the
+// sweep's departure is only as good as the fake's release reply, and a gated
+// row left that unguarded wherever no broker is configured.
+Deno.test('#348 FR-010 the release reply is the released entry when the slot empties, integer 0 otherwise, on the fake', async () => {
+    const fake = new FakeRedis()
+    assertReleaseReplies(
+        'fake',
+        await observeReleases({ command: fake.command }, 'fr010-fake'),
+    )
+    fake.assertNoRejections()
+})
+
+Deno.test({
+    name:
+        '#348 FR-010 the release reply is the released entry when the slot empties, integer 0 otherwise, and the fake agrees with the broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        try {
+            const onLive = await observeReleases(live, `${NS}-live-release`)
+            const onFake = await observeReleases(
+                { command: fake.command },
+                `${NS}-fake-release`,
+            )
+            assertReleaseReplies('broker', onLive)
+            assertReleaseReplies('fake', onFake)
+            // Each entry carries its driver's random instance id, so the two
+            // backends agree on the replies' kinds and on each one's equality
+            // to its own stored entry — not on the bytes.
+            assertEquals(
+                onFake.releases.map((r) => r.type),
+                onLive.releases.map((r) => r.type),
+                'the fake and the broker disagreed on the reply kinds',
+            )
+            fake.assertNoRejections()
+        } finally {
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})

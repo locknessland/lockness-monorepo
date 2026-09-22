@@ -15,6 +15,7 @@ import { renderError, safeForLog } from '@lockness/contract'
 import {
     isPresenceMemberIdValue,
     isValidName,
+    isWirePresenceMember,
     MAX_NAME_LENGTH,
 } from './protocol.ts'
 
@@ -459,6 +460,7 @@ import type {
     ControlMessage,
     PresenceCapableDriver,
     RevocationStoreDriver,
+    RosterDeparture,
     RosterWindow,
 } from './driver.ts'
 import { MemoryBroadcastDriver } from './drivers/memory.ts'
@@ -1071,6 +1073,14 @@ export class ChannelManager<Identity = unknown> {
         // The durable revocation re-check (S1/FR-014): on every reconcile pass
         // the owning instance recovers an evict whose control frame was lost.
         this.driver.onRevocationReconcile?.(() => this.reconcileRevocations())
+        // A slot the driver emptied for ANOTHER process — on Redis, the ghost
+        // sweep of a crashed instance — is announced here (#348). Only with a
+        // roster: without one there is no slot a driver could have emptied.
+        if (roster) {
+            this.driver.onRosterDeparture?.((departure) =>
+                this.#announceDeparture(departure)
+            )
+        }
     }
 
     /**
@@ -2094,7 +2104,7 @@ export class ChannelManager<Identity = unknown> {
                         'joined',
                         channel,
                         desired,
-                        origin,
+                        origin.clientId,
                     )
                 }
                 return
@@ -2110,7 +2120,7 @@ export class ChannelManager<Identity = unknown> {
                     'left',
                     channel,
                     origin.member,
-                    origin,
+                    origin.clientId,
                 )
             }
         })
@@ -2132,15 +2142,20 @@ export class ChannelManager<Identity = unknown> {
      * Announce a member's arrival or departure — locally first, then to every
      * other instance over the control plane (#344).
      *
-     * **Called only from {@link #syncRosterMember}'s queued run**, by the write
-     * that observed the transition. Any `joined` / `left` emit or
-     * `presence-join` / `presence-leave` publish elsewhere (the receive side in
-     * {@link handleControl} excepted) would announce per connection again.
+     * **Two callers, and each announces only a bit a roster write returned**:
+     * {@link #syncRosterMember}'s queued run, by the write that observed the
+     * transition, and {@link #announceDeparture}, for a slot the driver
+     * emptied while releasing another process's hold (#348). Any `joined` /
+     * `left` emit or `presence-join` / `presence-leave` publish elsewhere (the
+     * receive side in {@link handleControl} excepted) would announce per
+     * connection again.
      *
      * **Local, then remote.** `joined` carries the entry the roster now holds
      * (`member` = the write's desired entry) and excludes every local
-     * connection of that member id; `left` carries the releasing connection's
-     * member and excludes nobody. `target` is the origin connection either way.
+     * connection of that member id; `left` carries the departed member and
+     * excludes nobody. `target` is informational on a presence frame (see
+     * `ControlMessage.target`): the origin connection for a queued write, the
+     * channel name for a reported departure.
      *
      * **Each half fails on its own, as one WARN, and is never rethrown.** This
      * runs inside the slot's tail: a throw here would reject the queued write of
@@ -2155,13 +2170,13 @@ export class ChannelManager<Identity = unknown> {
      * @param action - Which transition to announce.
      * @param channel - The presence channel.
      * @param member - The member the frame carries.
-     * @param origin - The connection announced as the frame's origin.
+     * @param target - The control frame's informational `target`.
      */
     async #announcePresence(
         action: 'joined' | 'left',
         channel: string,
         member: PresenceMember,
-        origin: PresenceOrigin,
+        target: string,
     ): Promise<void> {
         const lost = (audience: string, error: unknown) =>
             console.warn(
@@ -2184,13 +2199,65 @@ export class ChannelManager<Identity = unknown> {
         try {
             await this.publishControl({
                 kind: action === 'joined' ? 'presence-join' : 'presence-leave',
-                target: origin.clientId,
+                target,
                 channel,
                 member,
             })
         } catch (error) {
             lost('other instances', error)
         }
+    }
+
+    /**
+     * Announce a departure the driver reported through
+     * `onRosterDeparture` — a roster slot it emptied while releasing another
+     * process's hold, such as the ghost sweep of a crashed instance (#348).
+     *
+     * **What a driver reports is checked before anything is emitted** (S3).
+     * A departure whose channel is not a valid name, or whose member fails
+     * `isWirePresenceMember` (the #346 id rule, a plain-object `info`, at most
+     * two keys — what every peer's ingest asks of the same member), is
+     * dropped with one WARN naming the channel only: every peer would refuse
+     * that frame at ingest, and this instance must not show its own
+     * subscribers what the rest of the fleet cannot. Never throws.
+     *
+     * **Not queued on the slot's roster tail, and nothing is awaited before
+     * {@link #announcePresence}** (A1, W8). A hold of the same slot issued
+     * while the sweep's release was outstanding commits after that release;
+     * its reply is behind the release's on the one command client, so this
+     * `left` is emitted and its publish issued before that hold's `joined`.
+     * Chained on the tail instead, it would wait for the hold and its
+     * announcement, and the room would hear `joined` then `left` for a member
+     * who is present.
+     *
+     * @param departure - What the driver reported.
+     * @returns Settles once the announcement is done; never rejects.
+     */
+    #announceDeparture(departure: RosterDeparture): Promise<void> {
+        const channel: unknown = departure?.channel
+        // What every peer's ingest requires of a presence frame's member — the
+        // one wire-member rule, never a copy here.
+        if (
+            typeof channel !== 'string' || !isValidName(channel) ||
+            !isWirePresenceMember(departure?.member)
+        ) {
+            console.warn(
+                `realtime: dropped a roster departure the driver reported on ${
+                    typeof channel === 'string'
+                        ? safeForLog(channel)
+                        : `a ${typeLabel(channel)} channel`
+                } — it is not a departure this instance can announce. The ` +
+                    'driver must report a valid channel and a member it could ' +
+                    'have admitted.',
+            )
+            return Promise.resolve()
+        }
+        return this.#announcePresence(
+            'left',
+            channel,
+            departure.member,
+            channel,
+        )
     }
 
     /**

@@ -16,7 +16,7 @@
  */
 
 import { assertEquals, assertThrows } from '@std/assert'
-import { FakeRedis } from './fake_redis.ts'
+import { FakeRedis, serializedCommands } from './fake_redis.ts'
 
 const int = (value: number) => ({ type: 'integer', value })
 
@@ -517,4 +517,76 @@ Deno.test('#345 HSET returns 1 for a new field and 0 for an update, inside a scr
         'if added == 1 then\nreturn 1\nend\nreturn 0'
     assertEquals(await r.command('EVAL', script, '1', 'h', 'g', 'x'), int(1))
     assertEquals(await r.command('EVAL', script, '1', 'h', 'g', 'y'), int(0))
+})
+
+Deno.test('#348 the serialized wrapper runs one exchange at a time, in issue order', async () => {
+    // `RedisClient` chains every command on one tail; FakeRedis settles each
+    // on its own. W8's `left`-before-`joined` ordering depends on the former.
+    const r = new FakeRedis()
+    const started: string[] = []
+    const serial = serializedCommands((...args) => {
+        started.push(args[0])
+        return r.command(...args)
+    })
+    const gate = serial.hold((args) => args[0] === 'HSET')
+    const settled: string[] = []
+    const first = serial.command('HSET', 'h', 'f', 'v').then((reply) => {
+        settled.push('HSET')
+        return reply
+    })
+    const second = serial.command('HGET', 'h', 'f').then((reply) => {
+        settled.push('HGET')
+        return reply
+    })
+    await gate.reached
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    assertEquals(
+        started,
+        ['HSET'],
+        'the second command must not start while the first is in flight',
+    )
+    assertEquals(settled, [])
+
+    gate.release()
+    assertEquals(await first, int(1))
+    assertEquals(await second, bulk('v'))
+    assertEquals(started, ['HSET', 'HGET'])
+    assertEquals(settled, ['HSET', 'HGET'])
+})
+
+Deno.test('#348 whenIssued resolves on the matching command being ISSUED, before it runs, and only for a match', async () => {
+    // W8 waits on it to know the hold is queued behind the held release: it
+    // must fire on issue (not on execution, which the gate is holding back)
+    // and must not fire for a command that does not match.
+    const r = new FakeRedis()
+    const started: string[] = []
+    const serial = serializedCommands((...args) => {
+        started.push(args[0])
+        return r.command(...args)
+    })
+    const gate = serial.hold((args) => args[0] === 'HSET')
+    let issued = false
+    const watched = serial.whenIssued((args) => args[0] === 'HGET')
+        .then(() => void (issued = true))
+
+    const first = serial.command('HSET', 'h', 'f', 'v')
+    await gate.reached
+    const other = serial.command('EXISTS', 'h')
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+    assertEquals(issued, false, 'a non-matching command does not resolve it')
+
+    const second = serial.command('HGET', 'h', 'f')
+    await watched
+    assertEquals(issued, true)
+    assertEquals(
+        started,
+        ['HSET'],
+        'resolved on issue: the matched command has not started yet',
+    )
+
+    gate.release()
+    assertEquals(await first, int(1))
+    assertEquals(await other, int(1))
+    assertEquals(await second, bulk('v'))
+    assertEquals(started, ['HSET', 'EXISTS', 'HGET'])
 })

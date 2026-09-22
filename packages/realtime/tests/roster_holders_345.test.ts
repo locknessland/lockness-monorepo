@@ -433,10 +433,10 @@ Deno.test('#345 W8 one instance holding 7 and 8 releases 8 — 7 is still there'
     }
 })
 
-Deno.test('#345 FR-004a a hold or release reply other than the integer 0 or 1 throws', async () => {
-    // The manager announces `joined` / `left` from this bit, so a reply the
-    // scripts never produce must fail loudly rather than read as a transition
-    // (an integer 2) or as none (an array).
+Deno.test('#345 FR-004a a hold reply other than the integer 0 or 1 throws', async () => {
+    // The manager announces `joined` from this bit, so a reply the script
+    // never produces must fail loudly rather than read as a transition (an
+    // integer 2) or as none (an array).
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     try {
@@ -457,14 +457,55 @@ Deno.test('#345 FR-004a a hold or release reply other than the integer 0 or 1 th
                     Error,
                     'other than 0 or 1',
                 )
+            } finally {
+                await a.close()
+            }
+        }
+    } finally {
+        time.restore()
+        redis.assertNoRejections()
+    }
+})
+
+Deno.test('#348 FR-004a a release reply other than 0 or a released entry throws', async () => {
+    // Since #348 the release script replies with the released holder's entry
+    // when the slot is gone, and 0 otherwise. The pre-#348 integer 1, a nil,
+    // an array and an empty bulk are none of those: each must fail loudly
+    // rather than read as a departure the manager would announce.
+    const redis = new FakeRedis()
+    const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
+    try {
+        for (
+            const reply of [
+                { type: 'integer', value: 1 },
+                { type: 'nil' },
+                { type: 'array', value: [] },
+                { type: 'bulk', value: '' },
+            ]
+        ) {
+            const odd: CommandFn = (...args) =>
+                args[0] === 'EVAL'
+                    ? Promise.resolve(reply)
+                    : redis.command(...args)
+            const a = driver(redis, odd)
+            try {
                 await assertRejects(
                     () => a.releaseMember(CHANNEL, 7),
                     Error,
-                    'other than 0 or 1',
+                    'other than 0 or a released entry',
                 )
             } finally {
                 await a.close()
             }
+        }
+        // And the two replies it does produce.
+        const a = driver(redis)
+        try {
+            await a.holdMember(CHANNEL, member(7, 'seven'))
+            assertEquals(await a.releaseMember(CHANNEL, 7), { gone: true })
+            assertEquals(await a.releaseMember(CHANNEL, 7), { gone: false })
+        } finally {
+            await a.close()
         }
     } finally {
         time.restore()

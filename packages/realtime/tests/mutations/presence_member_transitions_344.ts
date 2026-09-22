@@ -114,7 +114,7 @@ const TRANSITION_ROWS: Mutation[] = [
             "                    'left',\n" +
             '                    channel,\n' +
             '                    origin.member,\n' +
-            '                    origin,\n' +
+            '                    origin.clientId,\n' +
             '                )\n' +
             '            }\n',
             '            if (gone) {\n' +
@@ -122,10 +122,10 @@ const TRANSITION_ROWS: Mutation[] = [
             "                    'left',\n" +
             '                    channel,\n' +
             '                    origin.member,\n' +
-            '                    origin,\n' +
+            '                    origin.clientId,\n' +
             '                )\n' +
             '            } else {\n' +
-            "                await this.#announcePresence('joined', channel, origin.member, origin)\n" +
+            "                await this.#announcePresence('joined', channel, origin.member, origin.clientId)\n" +
             '            }\n',
         ]],
         // SUCCESSOR to `presence_join_rosterless_342.ts` M3's `joined` half,
@@ -186,7 +186,11 @@ const TRANSITION_ROWS: Mutation[] = [
             '',
         ]],
         // A release by an instance that never held the slot, on an empty or
-        // legacy slot, answers `gone` and announces a `left` nobody earned.
+        // legacy slot, used to answer `gone` and announce a `left` nobody
+        // earned. Since #348 the script answers `mine` itself when the slot
+        // empties, and a non-holder's `mine` is Lua `false` — a nil reply —
+        // so the mutant now dies because `decodeReleaseReply` throws on nil:
+        // the non-holder's release rejects instead of reporting nothing.
         killedBy: '#344 W11 FakeRedis: the six contract rows',
     },
     {
@@ -217,7 +221,7 @@ const TRANSITION_ROWS: Mutation[] = [
             ],
             [
                 "                action === 'joined' ? { exceptMemberId: member.id } : {},\n",
-                "                action === 'joined' ? { except: origin.clientId } : {},\n",
+                "                action === 'joined' ? { except: target } : {},\n",
             ],
         ],
         // SUCCESSOR to `presence_join_323.ts` "the newcomer is no longer

@@ -53,11 +53,17 @@ import {
     type ControlRefusal,
     MAX_ROSTER_READ_SELF_IDS,
     type Revocation,
+    type RosterDeparture,
     type RosterHold,
     type RosterRelease,
     type RosterWindow,
 } from '../driver.ts'
-import { isPresenceMemberIdValue, isValidName } from '../protocol.ts'
+import {
+    isPresenceMemberIdValue,
+    isValidName,
+    isWirePresenceMember,
+} from '../protocol.ts'
+import { sameMemberId } from '../presence_snapshot.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { RealtimeControlConfig } from '../types.ts'
@@ -199,13 +205,22 @@ const HOLD_MEMBER_SCRIPT: string = [
  * release path.
  *
  * It drops the releaser's holders entry and owned entry, then: if no holder is
- * left, deletes the presence field and returns 1 **only if the releaser held
- * it** (the script's `mine == false` test answers 0) — a non-holder emptying a
- * legacy or already-emptied slot is not a departure. If holders remain, the
- * field stays; and when the shown entry was the releaser's (`shown == mine`),
- * one remaining holder's entry is copied in, so the shown `info` never belongs
- * to a departed holder.
+ * left, deletes the presence field and returns **the releaser's own entry**
+ * **only if the releaser held it** (the script's `mine == false` test answers
+ * 0) — a non-holder emptying a legacy or already-emptied slot is not a
+ * departure. If holders remain, the field stays and the reply is 0; and when
+ * the shown entry was the releaser's (`shown == mine`), one remaining holder's
+ * entry is copied in, so the shown `info` never belongs to a departed holder.
  * Releasing a holder whose entry is not shown leaves the field unchanged.
+ *
+ * **Whether the slot is gone, and which entry left, is decided HERE and
+ * nowhere else (#348).** The entry IS the gone bit: a leave reads only that it
+ * is present, and the ghost sweep hands it to the departure handler as the
+ * member to announce. Reading it with an `HGET` before or after this `EVAL`
+ * would race another instance's hold; and because the read and the delete of
+ * the releaser's holders entry are one atomic step, of two sweeps of one dead
+ * instance only the first gets the entry — exactly one announcement, with no
+ * lock and no leader.
  *
  * **This is the direction that could delete somebody else's live member**, and
  * the only one that touches the presence field on a leave: no raw `HDEL` on the
@@ -213,7 +228,8 @@ const HOLD_MEMBER_SCRIPT: string = [
  *
  * `KEYS[1]` presence hash · `KEYS[2]` holders hash · `KEYS[3]` the releaser's
  * owned set · `ARGV[1]` field · `ARGV[2]` releaser instance id ·
- * `ARGV[3]` owned entry. Returns integer 1 (gone) or 0.
+ * `ARGV[3]` owned entry. Returns the released entry as a bulk string (gone) or
+ * integer 0 — decoded by {@link decodeReleaseReply}.
  */
 const RELEASE_MEMBER_SCRIPT: string = [
     "local mine = redis.call('HGET', KEYS[2], ARGV[2])",
@@ -226,7 +242,7 @@ const RELEASE_MEMBER_SCRIPT: string = [
     '  if mine == false then',
     '    return 0',
     '  end',
-    '  return 1',
+    '  return mine',
     'end',
     'if shown == mine then',
     "  local promoted = redis.call('HRANDFIELD', KEYS[2], 1, 'WITHVALUES')",
@@ -286,6 +302,15 @@ interface Closeable {
  * op is an ordinary serialized command — the serialized-command client handles
  * it. The reply is a `@lockness/redis` `RespReply` (`{ type, value }`), narrowed
  * here through the {@link asArray}/{@link asBulk}/{@link asInteger} guards.
+ *
+ * **Contract: one exchange in flight at a time, in call order** (#348 A1). A
+ * command issued while another is outstanding is sent only once that one has
+ * settled — `RedisClient` chains every command on one tail. The ghost sweep
+ * depends on it: a hold of a slot, issued while the sweep's release of that
+ * slot is outstanding, commits after the release, and the sweep reports the
+ * departure before the hold's reply can announce the arrival — so the room
+ * hears `left`, then `joined`. A pipelining client, or a second client for the
+ * sweep, would let the two replies race.
  */
 export interface RedisCommandClient {
     /**
@@ -673,24 +698,15 @@ function newControlNonce(): string {
  * `member` was the one field the ingest shape gate never checked, and it is the
  * one an attacker can make arbitrarily large — which matters because everything
  * downstream of the gate re-serialises it and hashes it synchronously
- * (FR-011). `undefined` is valid: an `evict` frame carries no member.
+ * (FR-011). `undefined` is valid: an `evict` frame carries no member. What a
+ * member must be is {@link isWirePresenceMember}'s rule, shared with the
+ * manager's departure handler (#348) — never a copy here.
  *
  * @param value - The candidate, straight off the wire.
  * @returns Whether it is safe to canonicalise.
  */
 function isPlainMember(value: unknown): boolean {
-    if (value === undefined) return true
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-        return false
-    }
-    const member = value as { id?: unknown; info?: unknown }
-    // The join boundary's own predicate (#346): a frame is refused here only
-    // for an id the sending instance would itself have refused at `subscribe`.
-    const idOk = isPresenceMemberIdValue(member.id)
-    const infoOk = member.info === undefined ||
-        (typeof member.info === 'object' && member.info !== null &&
-            !Array.isArray(member.info))
-    return idOk && infoOk && Object.keys(member).length <= 2
+    return value === undefined || isWirePresenceMember(value)
 }
 
 /** Narrow an unknown `RespReply` to its array elements, or `undefined`. */
@@ -718,25 +734,48 @@ function asInteger(reply: unknown): number | undefined {
 }
 
 /**
- * Decode a hold / release script's reply: integer 1 is `true`, integer 0 is
- * `false`, and anything else throws (#345, FR-004a).
+ * Decode a {@link HOLD_MEMBER_SCRIPT} reply: integer 1 is `true` (arrived),
+ * integer 0 is `false`, and anything else throws (#345, FR-004a).
  *
- * The one decoder both {@link HOLD_MEMBER_SCRIPT} and
- * {@link RELEASE_MEMBER_SCRIPT} replies go through. Truthiness would read an
- * error string or an unexpected array as an arrival — and the manager announces
- * a `joined` or `left` from this bit.
+ * Truthiness would read an error string or an unexpected array as an arrival —
+ * and the manager announces a `joined` from this bit.
  *
  * @param reply - The `EVAL` reply.
- * @param script - Which script answered, for the error message.
- * @returns The transition bit.
+ * @returns Whether the hold filled an empty slot.
  * @throws {Error} If the reply is not the integer 0 or 1.
  */
-function decodeTransitionReply(reply: unknown, script: string): boolean {
+function decodeHoldReply(reply: unknown): boolean {
     const value = asInteger(reply)
     if (value === 1) return true
     if (value === 0) return false
     throw new Error(
-        `realtime: the ${script} script answered something other than 0 or 1`,
+        'realtime: the hold script answered something other than 0 or 1',
+    )
+}
+
+/**
+ * Decode a {@link RELEASE_MEMBER_SCRIPT} reply: integer 0 is `undefined` (the
+ * slot is not gone), a non-empty bulk string is the released holder's entry
+ * (gone), and anything else throws (#348, FR-004a).
+ *
+ * **The single home of what a release reply means.** There is no third
+ * answer: an integer 1 is a pre-#348 script, a nil or an array is not this
+ * script at all, and an empty bulk is an entry no hold ever writes. Truthiness
+ * would read any of them as a departure, and a leave announces its `left`
+ * — and a sweep announces the entry itself — from this value.
+ *
+ * @param reply - The `EVAL` reply.
+ * @returns The released entry when the release emptied the slot, else
+ *   `undefined`.
+ * @throws {Error} If the reply is neither the integer 0 nor a non-empty bulk.
+ */
+function decodeReleaseReply(reply: unknown): string | undefined {
+    if (asInteger(reply) === 0) return undefined
+    const entry = asBulk(reply)
+    if (entry) return entry
+    throw new Error(
+        'realtime: the release script answered something other than 0 or a ' +
+            'released entry',
     )
 }
 
@@ -861,6 +900,15 @@ const MIN_CONTROL_SECRET_BYTES = 32
 const OWNED_SEP = ' '
 
 /**
+ * What an undecodable swept entry costs (#348), appended to the decoder's
+ * one WARN: the departure was never reported, so the room did not hear it.
+ * Words only — never the entry.
+ */
+const SWEPT_ENTRY_NOT_ANNOUNCED =
+    'the member swept from it was not announced as left. The release is ' +
+    'committed; clients heal on resubscribe.'
+
+/**
  * Constant-time-ish comparison of two lowercase-hex MAC strings. Compares every
  * character regardless of the first mismatch so verification does not leak where
  * a forged MAC first diverges.
@@ -956,6 +1004,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * so a presence-free deployment still recovers a lost evict (FR-014).
      */
     private revocationHandler?: () => void | Promise<void>
+    /**
+     * The owning instance's departure announcer (#348), registered by the
+     * manager via {@link onRosterDeparture}. ONE handler: re-registration
+     * replaces it and {@link close} drops it. Only {@link #sweepInstance}
+     * calls it.
+     */
+    #departureHandler?: (departure: RosterDeparture) => void | Promise<void>
     /**
      * Resources this driver constructed itself (via {@link fromConfig}) and is
      * therefore responsible for closing. Empty when the ports were injected — a
@@ -1577,7 +1632,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             JSON.stringify(entry),
             `${channel}${OWNED_SEP}${field}`,
         )
-        return { arrived: decodeTransitionReply(reply, 'hold') }
+        return { arrived: decodeHoldReply(reply) }
     }
 
     /**
@@ -1585,21 +1640,26 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * roster slot. The slot leaves the roster only with its last holder. See
      * {@link RELEASE_MEMBER_SCRIPT}.
      *
+     * **Never reports a departure** through {@link onRosterDeparture} (#348):
+     * its caller announces `gone` itself, and a report here would be a second
+     * `left`.
+     *
      * @param channel - The presence channel.
      * @param memberId - The id of the member whose slot this instance releases.
      * @returns `gone: true` iff this instance held the slot and none is left.
-     * @throws {Error} If the broker fails, or the script's reply is not 0 or 1.
+     * @throws {Error} If the broker fails, or the script's reply is neither 0
+     *   nor a released entry.
      */
     async releaseMember(
         channel: string,
         memberId: string | number,
     ): Promise<RosterRelease> {
-        const gone = await this.#release(
+        const released = await this.#release(
             channel,
             String(memberId),
             this.instanceId,
         )
-        return { gone }
+        return { gone: released !== undefined }
     }
 
     /**
@@ -1610,13 +1670,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * @param channel - The presence channel.
      * @param field - The slot's member id, as a string.
      * @param releaserId - The instance whose hold is dropped.
-     * @returns Whether the release emptied a slot the releaser held.
+     * @returns The releaser's entry when the release emptied a slot the
+     *   releaser held, else `undefined` (see {@link decodeReleaseReply}).
+     * @throws {Error} If the broker fails, or the reply is neither 0 nor a
+     *   released entry.
      */
     async #release(
         channel: string,
         field: string,
         releaserId: string,
-    ): Promise<boolean> {
+    ): Promise<string | undefined> {
         const reply = await this.command.command(
             'EVAL',
             RELEASE_MEMBER_SCRIPT,
@@ -1628,7 +1691,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             releaserId,
             `${channel}${OWNED_SEP}${field}`,
         )
-        return decodeTransitionReply(reply, 'release')
+        return decodeReleaseReply(reply)
     }
 
     /**
@@ -1735,12 +1798,30 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * A fresh `{ id, info }` object is built rather than returning
      * `entry.member` as parsed, so nothing else stored beside the member — the
      * `owner`, or a field a future write adds — can reach a snapshot (S4).
+     *
+     * **The one decode of a roster entry**, for the roster read and for the
+     * member a swept departure announces (#348). Its WARN names the channel
+     * and a fixed reason only — never the entry's bytes — and is the ONLY
+     * line a skipped entry logs, so a caller says what the skip cost through
+     * `consequence` rather than with a WARN of its own.
+     *
+     * @param channel - The channel the entry was read from, for the WARN.
+     * @param value - The stored entry, or `undefined` when there was none.
+     * @param consequence - What skipping the entry costs this caller, appended
+     *   to the WARN (the sweep: the departure was not announced).
      */
     #parseRosterValue(
         channel: string,
         value: string | undefined,
+        consequence?: string,
     ): PresenceMember | undefined {
         if (value === undefined) return undefined
+        const skipped = (reason: string) =>
+            console.warn(
+                `realtime: skipped a malformed roster entry on ${
+                    safeForLog(channel)
+                }: ${reason}${consequence ? ` — ${consequence}` : ''}`,
+            )
         try {
             const entry = JSON.parse(value) as Partial<RosterEntry> | null
             const member = entry && typeof entry === 'object'
@@ -1754,22 +1835,17 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 !member || typeof member !== 'object' ||
                 !isPresenceMemberIdValue(member.id)
             ) {
-                console.warn(
-                    `realtime: skipped a malformed roster entry on ${
-                        safeForLog(channel)
-                    }: no member id`,
-                )
+                skipped('no member id')
                 return undefined
             }
             return member.info === undefined
                 ? { id: member.id }
                 : { id: member.id, info: member.info }
-        } catch (error) {
-            console.warn(
-                `realtime: skipped a malformed roster entry on ${
-                    safeForLog(channel)
-                }: ${renderError(error)}`,
-            )
+        } catch {
+            // A FIXED reason, never the parser's message (#348 S2): V8's
+            // `SyntaxError` quotes the input, and the input is the entry —
+            // a member id such as an email address, and application `info`.
+            skipped('not valid JSON')
             return undefined
         }
     }
@@ -2334,12 +2410,56 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * Release every hold of a dead instance, then forget the instance (#345).
+     * OPTIONAL (#348). Register the handler the ghost sweep calls for every
+     * roster slot it empties while releasing a dead instance's hold — the
+     * member nobody else would ever announce as `left`. See
+     * {@link BroadcastDriver.onRosterDeparture} for the contract.
+     *
+     * One handler: registering again replaces it, and {@link close} drops it —
+     * the {@link onRevocationReconcile} precedent. {@link releaseMember} never
+     * calls it.
+     *
+     * @param handler - Called with each swept departure, awaited one at a
+     *   time; a throw is contained as one WARN.
+     *
+     * @example
+     * ```ts
+     * driver.onRosterDeparture(({ channel, member }) =>
+     *     console.log(`swept ${member.id} out of ${channel}`)
+     * )
+     * ```
+     */
+    onRosterDeparture(
+        handler: (departure: RosterDeparture) => void | Promise<void>,
+    ): void {
+        this.#departureHandler = handler
+    }
+
+    /**
+     * Release every hold of a dead instance, report each slot that release
+     * emptied, then forget the instance (#345, #348).
      *
      * **A sweep is a leave on the dead instance's behalf**: one
      * {@link RELEASE_MEMBER_SCRIPT} per owned entry, with `deadId` as the
      * releaser, so a slot another live instance still holds stays in the
-     * roster. Its return is ignored — a sweep announces nothing (#348).
+     * roster. **When the release empties the slot, its reply is the dead
+     * holder's entry**, and this is the only caller of the departure handler
+     * ({@link onRosterDeparture}): the manager announces the member as `left`.
+     * Of two instances sweeping the same dead one, only the first release gets
+     * the entry, so the room hears it once.
+     *
+     * **What it reports is checked here, where the slot is known** (#348 A2,
+     * S1). An entry is dropped — one WARN naming the channel only, no report,
+     * the release still committed — if its owned entry's channel is not a
+     * valid name, if the entry does not decode, or if its member id is not the
+     * slot it was released from. The entry's bytes come from the broker, and
+     * the report becomes a MAC-signed `presence-leave`. A throwing handler is
+     * the same one WARN, and the sweep goes on.
+     *
+     * **No I/O await between the release reply and the handler call** (A1):
+     * the command client runs one exchange at a time, so a hold of this slot
+     * issued mid-sweep has not had its reply yet, and the `left` goes out
+     * before its `joined`. An await here would hand that order to the race.
      *
      * **The owned set is never `DEL`eted.** Each release already removes its own
      * entry; a hold that lands between the `SMEMBERS` below and the end of the
@@ -2361,8 +2481,47 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             if (sep < 0) continue
             const channel = entry.slice(0, sep)
             const field = entry.slice(sep + 1)
-            await this.#release(channel, field, deadId)
+            const released = await this.#release(channel, field, deadId)
             swept++
+            const handler = this.#departureHandler
+            if (released === undefined || !handler) continue
+            const dropped = () =>
+                console.warn(
+                    `realtime: a member swept from ${
+                        safeForLog(channel)
+                    } was not announced as left — its roster entry is not ` +
+                        'a departure this sweep can report. The release is ' +
+                        'committed; clients heal on resubscribe.',
+                )
+            if (!isValidName(channel)) {
+                dropped()
+                continue
+            }
+            // An entry that does not decode is logged by its decoder, told
+            // what the skip cost here: still one WARN per dropped entry.
+            const member = this.#parseRosterValue(
+                channel,
+                released,
+                SWEPT_ENTRY_NOT_ANNOUNCED,
+            )
+            if (!member) continue
+            if (!sameMemberId(member.id, field)) {
+                dropped()
+                continue
+            }
+            try {
+                await handler({ channel, member })
+            } catch {
+                // DELIBERATELY drops the error (#348 plan §11, S2): a
+                // handler's message may carry the entry, and the entry is
+                // application data — so neither the member nor the error.
+                console.warn(
+                    `realtime: the roster departure handler failed for a ` +
+                        `member swept from ${
+                            safeForLog(channel)
+                        } — the release is committed and the sweep goes on`,
+                )
+            }
         }
         await this.command.command('SREM', this.instancesKey, deadId)
         console.warn(
@@ -2381,7 +2540,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * sweeps it (that is what {@link close} models in the sweep tests).
      * Idempotent; for an injected-port driver it stops the timers and drops the
      * revocation handler, so a later reconnect on the app-owned subscriber
-     * revokes nothing (FR-007).
+     * revokes nothing (FR-007). It also drops the departure handler
+     * ({@link onRosterDeparture}), on both construction paths.
      *
      * @returns Resolves once every owned connection is closed.
      * @example
@@ -2413,6 +2573,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // `#runRevocationReconcile`'s existing guard the ONE gate that quiesces
         // both triggers on both construction paths.
         this.revocationHandler = undefined
+        // A closed driver reports no departure either (#348).
+        this.#departureHandler = undefined
         for (const resource of this.owned) {
             await resource.close()
         }

@@ -119,6 +119,54 @@ export function isPresenceMemberIdValue(
 }
 
 /**
+ * Whether a value is a well-formed presence member as it crosses a process
+ * boundary: a plain object whose `id` passes {@link isPresenceMemberIdValue},
+ * whose `info` is absent or a plain (non-array) object, and which carries at
+ * most two own keys (#348).
+ *
+ * **One rule, two callers, and they must agree.** The Redis control-frame
+ * ingest (`isPlainMember`, the pre-MAC guard on the one field an attacker can
+ * make arbitrarily large) refuses any `presence-join` / `presence-leave` whose
+ * member fails it. The manager's departure handler asks the same question of
+ * a member a driver reports through `onRosterDeparture`, before it emits
+ * locally and publishes: a member this instance showed its own subscribers
+ * while every peer dropped the frame would be a silent partial failure — the
+ * #346 shape again. Before #348 the manager spelled the `info` half inline and
+ * never bounded the keys, so exactly that member got through.
+ *
+ * **The key bound is a count, not an allow-list** — what the ingest has
+ * always enforced, kept unchanged so no frame a 0.3.0 peer admits is refused:
+ * `{ id, info, extra }` fails it, `{ id, extra }` does not.
+ *
+ * Package-internal: exported from this module for its callers, NOT from
+ * `mod.ts`.
+ *
+ * @param value - A candidate member, off the wire or from a driver.
+ * @returns `true` when every peer's ingest would admit it.
+ *
+ * @example
+ * ```ts
+ * isWirePresenceMember({ id: 7, info: { name: 'Ada' } }) // true
+ * isWirePresenceMember({ id: 7, info: [] })              // false
+ * isWirePresenceMember({ id: 7, info: {}, extra: 1 })    // false
+ * isWirePresenceMember({ id: null })                     // false
+ * ```
+ */
+export function isWirePresenceMember(value: unknown): value is PresenceMember {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        return false
+    }
+    const member = value as { id?: unknown; info?: unknown }
+    // The join boundary's own predicate (#346): a member is refused here only
+    // for an id the sending instance would itself have refused at `subscribe`.
+    const idOk = isPresenceMemberIdValue(member.id)
+    const infoOk = member.info === undefined ||
+        (typeof member.info === 'object' && member.info !== null &&
+            !Array.isArray(member.info))
+    return idOk && infoOk && Object.keys(member).length <= 2
+}
+
+/**
  * Encode a server frame for the wire.
  *
  * @param message - The frame to send.

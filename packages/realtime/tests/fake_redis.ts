@@ -839,3 +839,114 @@ export class FakeRedis {
         }
     }
 }
+
+/** A command function, the shape of the driver's command port. */
+export type CommandFn = (...args: string[]) => Promise<unknown>
+
+/** A command matcher, over the arguments the driver issued. */
+export type CommandMatch = (args: readonly string[]) => boolean
+
+/** A one-shot gate holding ONE command's reply in flight. */
+export interface CommandGate {
+    /** Resolves once the gated command has executed and its reply is held. */
+    readonly reached: Promise<void>
+    /** Deliver the held reply, letting the queue behind it move. */
+    release(): void
+}
+
+/** A {@link CommandFn} with one exchange in flight at a time, plus gates. */
+export interface SerializedCommands {
+    /** The serialized command function to hand to a driver. */
+    readonly command: CommandFn
+    /**
+     * Hold the reply of the NEXT command matching `match` until the returned
+     * gate is released. The command has already executed at the fake broker
+     * when `reached` resolves — in flight the way a written command whose
+     * reply has not been read is — and every command issued after it waits.
+     *
+     * @param match - Which command to hold.
+     * @returns The gate.
+     */
+    hold(match: CommandMatch): CommandGate
+    /**
+     * Resolve once a command matching `match` has been ISSUED — enqueued on
+     * the tail, not necessarily executed.
+     *
+     * @param match - Which command to wait for.
+     * @returns Resolves on the first matching issue from now on.
+     */
+    whenIssued(match: CommandMatch): Promise<void>
+}
+
+/**
+ * Chain every command on ONE tail, exactly as `@lockness/redis`'s `RedisClient`
+ * does with its `commandTail` (`packages/redis/client.ts`, `command`), so a
+ * command does not start until the one before it has settled (#348 A1).
+ *
+ * `FakeRedis.command` settles each command on its own, instantly, so it cannot
+ * show an ordering that depends on the production client running one exchange
+ * at a time — which is what keeps a swept `left` ahead of a hold committed
+ * right behind the sweep's release. This wrapper restores that property, and
+ * its gate holds one command's reply in flight so a test can issue a second
+ * command while the first is outstanding.
+ *
+ * @param inner - The command function each exchange runs, usually
+ *   `redis.command`.
+ * @returns The serialized command function and its gates.
+ *
+ * @example
+ * ```typescript
+ * const serial = serializedCommands(redis.command)
+ * const gate = serial.hold((args) => args[0] === 'EVAL')
+ * const driver = new RedisBroadcastDriver({ command: serial.command }, sub)
+ * ```
+ */
+export function serializedCommands(inner: CommandFn): SerializedCommands {
+    let tail: Promise<unknown> = Promise.resolve()
+    const gates: Array<{
+        match: CommandMatch
+        reach: () => void
+        released: Promise<void>
+    }> = []
+    const watchers: Array<{ match: CommandMatch; issued: () => void }> = []
+    const command: CommandFn = (...args) => {
+        const watcher = watchers.findIndex((w) => w.match(args))
+        if (watcher >= 0) watchers.splice(watcher, 1)[0].issued()
+        const run = tail.then(async () => {
+            const index = gates.findIndex((g) => g.match(args))
+            if (index < 0) return await inner(...args)
+            const gate = gates.splice(index, 1)[0]
+            // Settled to a value first: a rejection held behind the gate must
+            // not surface as unhandled before its reply is delivered.
+            const outcome = inner(...args).then(
+                (value) => ({ ok: true as const, value }),
+                (error: unknown) => ({ ok: false as const, error }),
+            )
+            gate.reach()
+            await gate.released
+            const settled = await outcome
+            if (!settled.ok) throw settled.error
+            return settled.value
+        })
+        // The tail must always settle so the next command runs; `run` still
+        // rejects to its caller, as the production client's does.
+        tail = run.catch(() => {})
+        return run
+    }
+    return {
+        command,
+        hold(match) {
+            let reach!: () => void
+            let release!: () => void
+            const reached = new Promise<void>((resolve) => (reach = resolve))
+            const released = new Promise<void>((resolve) => (release = resolve))
+            gates.push({ match, reach, released })
+            return { reached, release }
+        },
+        whenIssued(match) {
+            return new Promise<void>((issued) =>
+                void watchers.push({ match, issued })
+            )
+        },
+    }
+}

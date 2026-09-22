@@ -257,7 +257,17 @@ export interface ControlMessage {
         | 'presence-join'
         | 'presence-leave'
         | 'revoke-channel'
-    /** The target connection id the control acts on. */
+    /**
+     * The connection id the control acts on — for `evict` and
+     * `revoke-channel`, the only kinds whose receiver acts on it.
+     *
+     * **Informational on `presence-join` / `presence-leave`** (#348): the
+     * announcing connection's id, or the channel name for a departure a
+     * driver reported through {@link BroadcastDriver.onRosterDeparture} (no
+     * connection announced it). No receiver may act on it for those kinds;
+     * it stays on the wire, and inside the MAC, because a `0.3.0` peer
+     * requires it.
+     */
     readonly target: string
     /**
      * For a `presence-join` / `presence-leave`: the presence channel the roster
@@ -323,6 +333,29 @@ export interface RosterHold {
 export interface RosterRelease {
     /** `true` iff this process held the slot and no holder is left. */
     readonly gone: boolean
+}
+
+/**
+ * A roster slot a driver emptied while releasing ANOTHER process's hold —
+ * reported through {@link BroadcastDriver.onRosterDeparture} (#348).
+ *
+ * The Redis driver produces one when its ghost sweep releases a crashed
+ * instance's hold and no holder is left: nobody else would ever announce that
+ * member's `left`. `member` is the entry the released holder last stored, as
+ * the roster read decodes it.
+ *
+ * @example
+ * ```ts
+ * driver.onRosterDeparture?.(({ channel, member }) => {
+ *     console.log(`member ${member.id} left ${channel}`)
+ * })
+ * ```
+ */
+export interface RosterDeparture {
+    /** The presence channel whose slot was emptied. */
+    readonly channel: string
+    /** The client-visible member the released holder last stored. */
+    readonly member: PresenceMember
 }
 
 /**
@@ -525,6 +558,36 @@ export interface BroadcastDriver {
      * @param handler - Called with no arguments on each reconcile tick.
      */
     onRevocationReconcile?(handler: () => void | Promise<void>): void
+    /**
+     * OPTIONAL (#348). Register the handler the driver calls for every roster
+     * slot it empties while releasing **another process's** hold — on Redis,
+     * the ghost sweep of a crashed instance. The manager announces each one as
+     * a `left`, exactly as it announces a leave.
+     *
+     * **Never for {@link releaseMember}**: that release's `gone` is already
+     * announced by its caller, and calling the handler too would send a
+     * second `left`. A driver may not report a departure the roster did not
+     * record — the manager announces it to every subscriber of the channel.
+     *
+     * **One handler.** Registering again replaces the previous one, and
+     * closing the driver drops it, so a closed driver reports nothing.
+     *
+     * The driver awaits the handler, one departure at a time, and contains a
+     * throw as a WARN; the release that produced the departure stays
+     * committed either way.
+     *
+     * @param handler - Called with each departure.
+     *
+     * @example
+     * ```ts
+     * driver.onRosterDeparture?.(({ channel, member }) =>
+     *     console.log(`swept ${member.id} out of ${channel}`)
+     * )
+     * ```
+     */
+    onRosterDeparture?(
+        handler: (departure: RosterDeparture) => void | Promise<void>,
+    ): void
     /**
      * OPTIONAL (#295). Declare that this instance now hosts `channel`, so the
      * driver subscribes to its traffic and nothing else's.
