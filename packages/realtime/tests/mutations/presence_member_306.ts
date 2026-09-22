@@ -21,6 +21,7 @@
 import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const MANAGER = new URL('../../manager.ts', import.meta.url)
+const PROTOCOL = new URL('../../protocol.ts', import.meta.url)
 const SUITES = [
     new URL('../presence_member_id.test.ts', import.meta.url).pathname,
     // #312's recording roster. Row 5 below was an equivalent mutant against
@@ -61,10 +62,15 @@ const MUTATIONS: Mutation[] = [
     {
         label:
             'the non-finite number check removed — every NaN member shares one field',
-        file: MANAGER,
+        // RE-ANCHORED by #346: the finiteness rule moved out of
+        // `#assertUsableMemberId` into `isPresenceMemberIdValue`, the one
+        // predicate the join, the Redis frame ingest and the roster read
+        // share. Same mutant, new home — #346's battery carries the same edit
+        // as its M2; each battery stays self-contained.
+        file: PROTOCOL,
         edits: [[
-            "        if (typeof id === 'number' && !Number.isFinite(id)) {\n            throw new PresenceMemberIdError(String(id))\n        }\n",
-            '',
+            "    return typeof value === 'number' && Number.isFinite(value)\n",
+            "    return typeof value === 'number'\n",
         ]],
         killedBy: 'a NON-FINITE numeric id is refused',
     },
