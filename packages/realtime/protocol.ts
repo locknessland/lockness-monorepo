@@ -76,6 +76,47 @@ export function isValidName(name: string): boolean {
 }
 
 /**
+ * Whether a value may be a presence member id: a string, or a finite number
+ * (#346).
+ *
+ * **One rule, three callers, and they must change together.** The join
+ * boundary (`ChannelManager`'s `#assertUsableMemberId`), the Redis frame ingest
+ * (`isPlainMember`) and the Redis roster read (`#parseRosterValue`) all decide
+ * the id's TYPE through this predicate. Before #346 the two receive-side sites
+ * each carried their own copy and the join carried none, so a `null`, an
+ * `undefined` or an object id joined locally — `String()` turned each into an
+ * ordinary-looking key that two different people then shared — while every
+ * peer dropped the frame announcing it. A sender that accepts what its
+ * receivers refuse is a silent partial failure; one predicate makes that
+ * disagreement unrepresentable.
+ *
+ * TYPE ONLY. #306's length bound stays at the join, where it protects the
+ * roster write; applying it on the receive side would skip entries that still
+ * count in a snapshot's `total` (#339). `JSON.parse` never yields a non-finite
+ * number, so on the receive side this accepts exactly what the copies did.
+ *
+ * Package-internal: exported from this module for its callers, NOT from
+ * `mod.ts`.
+ *
+ * @param value - A candidate member id, straight from `authorize()` or a wire.
+ * @returns `true` for a string or a finite number.
+ *
+ * @example
+ * ```ts
+ * isPresenceMemberIdValue('ada@example.com') // true
+ * isPresenceMemberIdValue(1e21)              // true
+ * isPresenceMemberIdValue(Number.NaN)        // false
+ * isPresenceMemberIdValue(null)              // false
+ * ```
+ */
+export function isPresenceMemberIdValue(
+    value: unknown,
+): value is string | number {
+    if (typeof value === 'string') return true
+    return typeof value === 'number' && Number.isFinite(value)
+}
+
+/**
  * Encode a server frame for the wire.
  *
  * @param message - The frame to send.

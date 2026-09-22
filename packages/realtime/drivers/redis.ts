@@ -57,7 +57,7 @@ import {
     type RosterRelease,
     type RosterWindow,
 } from '../driver.ts'
-import { isValidName } from '../protocol.ts'
+import { isPresenceMemberIdValue, isValidName } from '../protocol.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { RealtimeControlConfig } from '../types.ts'
@@ -684,7 +684,9 @@ function isPlainMember(value: unknown): boolean {
         return false
     }
     const member = value as { id?: unknown; info?: unknown }
-    const idOk = typeof member.id === 'string' || typeof member.id === 'number'
+    // The join boundary's own predicate (#346): a frame is refused here only
+    // for an id the sending instance would itself have refused at `subscribe`.
+    const idOk = isPresenceMemberIdValue(member.id)
     const infoOk = member.info === undefined ||
         (typeof member.info === 'object' && member.info !== null &&
             !Array.isArray(member.info))
@@ -1744,9 +1746,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             const member = entry && typeof entry === 'object'
                 ? entry.member
                 : undefined
+            // The join boundary's predicate (#346), so a roster entry is read
+            // back exactly when its id could have been admitted. Entries a
+            // 0.3.0 app wrote with a malformed id are skipped here, and
+            // removed when their owner leaves.
             if (
                 !member || typeof member !== 'object' ||
-                (typeof member.id !== 'string' && typeof member.id !== 'number')
+                !isPresenceMemberIdValue(member.id)
             ) {
                 console.warn(
                     `realtime: skipped a malformed roster entry on ${
