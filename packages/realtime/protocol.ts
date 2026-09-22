@@ -80,7 +80,8 @@ export function isValidName(name: string): boolean {
  * (#346).
  *
  * **One rule, three callers, and they must change together.** The join
- * boundary (`ChannelManager`'s `#assertUsableMemberId`), the Redis frame ingest
+ * boundary (`admitPresenceMember`'s id check, `presence_member.ts`), the Redis
+ * frame ingest
  * (`isPlainMember`) and the Redis roster read (`#parseRosterValue`) all decide
  * the id's TYPE through this predicate. Before #346 the two receive-side sites
  * each carried their own copy and the join carried none, so a `null`, an
@@ -119,51 +120,115 @@ export function isPresenceMemberIdValue(
 }
 
 /**
- * Whether a value is a well-formed presence member as it crosses a process
- * boundary: a plain object whose `id` passes {@link isPresenceMemberIdValue},
- * whose `info` is absent or a plain (non-array) object, and which carries at
- * most two own keys (#348).
+ * Whether an own key may sit on a presence member: `id` or `info`, and
+ * nothing else (#350).
  *
- * **One rule, two callers, and they must agree.** The Redis control-frame
- * ingest (`isPlainMember`, the pre-MAC guard on the one field an attacker can
- * make arbitrarily large) refuses any `presence-join` / `presence-leave` whose
- * member fails it. The manager's departure handler asks the same question of
- * a member a driver reports through `onRosterDeparture`, before it emits
- * locally and publishes: a member this instance showed its own subscribers
- * while every peer dropped the frame would be a silent partial failure — the
- * #346 shape again. Before #348 the manager spelled the `info` half inline and
- * never bounded the keys, so exactly that member got through.
- *
- * **The key bound is a count, not an allow-list** — what the ingest has
- * always enforced, kept unchanged so no frame a 0.3.0 peer admits is refused:
- * `{ id, info, extra }` fails it, `{ id, extra }` does not.
+ * The key half of {@link isPresenceMemberWire}, extracted so the join's
+ * admission (`admitPresenceMember`, which must NAME the offending keys, not
+ * just answer no) and every receiver ask the one allow-list. Two copies of it
+ * would drift the day a third key is allowed.
  *
  * Package-internal: exported from this module for its callers, NOT from
  * `mod.ts`.
  *
- * @param value - A candidate member, off the wire or from a driver.
+ * @param key - An own enumerable key of a candidate member.
+ * @returns `true` for `id` and `info`.
+ *
+ * @example
+ * ```ts
+ * isPresenceMemberKey('info')  // true
+ * isPresenceMemberKey('email') // false
+ * ```
+ */
+export function isPresenceMemberKey(key: string): boolean {
+    return key === 'id' || key === 'info'
+}
+
+/**
+ * Whether a value may be a presence member's `info`: absent (`undefined`), or
+ * a non-null, non-array object (#350).
+ *
+ * One of the two value halves of {@link isPresenceMemberWire}, extracted so
+ * the Redis roster read (`#parseRosterValue`) asks a stored entry the same
+ * `info` question the join and the frame ingest ask a member.
+ *
+ * Package-internal: exported from this module for its callers, NOT from
+ * `mod.ts`.
+ *
+ * @param value - A candidate `info`, as parsed from JSON.
+ * @returns `true` for `undefined` or a non-array object.
+ *
+ * @example
+ * ```ts
+ * isPresenceMemberInfoValue(undefined)       // true
+ * isPresenceMemberInfoValue({ name: 'Ada' }) // true
+ * isPresenceMemberInfoValue(null)            // false
+ * isPresenceMemberInfoValue('1970-01-01')    // false
+ * ```
+ */
+export function isPresenceMemberInfoValue(
+    value: unknown,
+): value is Record<string, unknown> | undefined {
+    return value === undefined ||
+        (typeof value === 'object' && value !== null && !Array.isArray(value))
+}
+
+/**
+ * Whether a value is exactly a presence member as a receiver sees it: a
+ * non-null, non-array object whose EVERY own key passes
+ * {@link isPresenceMemberKey} (`id` or `info`), whose `id`
+ * passes {@link isPresenceMemberIdValue} and whose `info` passes
+ * {@link isPresenceMemberInfoValue} (#348, made strict by #350).
+ *
+ * **One rule, and every caller runs it on the PARSED WIRE FORM**:
+ *
+ * - the join, inside `admitPresenceMember` (`presence_member.ts`), on
+ *   `JSON.parse` of the `{ id, info }` pair it just serialized — so a member
+ *   is admitted exactly when every peer admits the frame announcing it;
+ * - the Redis control-frame ingest (`isPlainMember`, the pre-MAC guard on the
+ *   one field an attacker can make arbitrarily large), on `JSON.parse` of the
+ *   frame;
+ * - the manager's departure handler, on a member a driver reports through
+ *   `onRosterDeparture` — this instance must not show its own subscribers a
+ *   member every peer refuses.
+ *
+ * The Redis roster read (`#parseRosterValue`) asks the id and `info` halves
+ * only, NOT the key rule: it REDUCES a stored entry to `{ id, info }`, so a
+ * legacy entry carrying extra keys is read back without them rather than
+ * skipped — skipping would hide a 0.3.0 member for its whole session during a
+ * rolling deploy.
+ *
+ * **The key rule is an allow-list, not a count** (#350). #348 bounded the
+ * count at two, so `{ id, smuggled }` passed and every peer re-emitted
+ * `smuggled`. And running this on an in-memory object is not enough: a
+ * `Date` `info` passes there as an object and arrives as a string — which is
+ * why the join runs it on the parsed copy, never on the authorizer's object.
+ *
+ * Package-internal: exported from this module for its callers, NOT from
+ * `mod.ts`.
+ *
+ * @param value - A candidate member, parsed off the wire or from a driver.
  * @returns `true` when every peer's ingest would admit it.
  *
  * @example
  * ```ts
- * isWirePresenceMember({ id: 7, info: { name: 'Ada' } }) // true
- * isWirePresenceMember({ id: 7, info: [] })              // false
- * isWirePresenceMember({ id: 7, info: {}, extra: 1 })    // false
- * isWirePresenceMember({ id: null })                     // false
+ * isPresenceMemberWire({ id: 7, info: { name: 'Ada' } }) // true
+ * isPresenceMemberWire({ id: 7 })                        // true
+ * isPresenceMemberWire({ id: 7, info: [] })              // false
+ * isPresenceMemberWire({ id: 7, smuggled: 1 })           // false
+ * isPresenceMemberWire({ id: null })                     // false
  * ```
  */
-export function isWirePresenceMember(value: unknown): value is PresenceMember {
+export function isPresenceMemberWire(value: unknown): value is PresenceMember {
     if (typeof value !== 'object' || value === null || Array.isArray(value)) {
         return false
     }
+    if (!Object.keys(value).every(isPresenceMemberKey)) return false
     const member = value as { id?: unknown; info?: unknown }
     // The join boundary's own predicate (#346): a member is refused here only
     // for an id the sending instance would itself have refused at `subscribe`.
     const idOk = isPresenceMemberIdValue(member.id)
-    const infoOk = member.info === undefined ||
-        (typeof member.info === 'object' && member.info !== null &&
-            !Array.isArray(member.info))
-    return idOk && infoOk && Object.keys(member).length <= 2
+    return idOk && isPresenceMemberInfoValue(member.info)
 }
 
 /**

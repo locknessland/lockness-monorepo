@@ -30,11 +30,8 @@
  */
 
 import { assert, assertEquals, assertRejects } from '@std/assert'
-import {
-    ChannelManager,
-    MAX_PRESENCE_MEMBER_BYTES,
-    PresenceMemberSizeError,
-} from '../manager.ts'
+import { ChannelManager, MAX_PRESENCE_MEMBER_BYTES } from '../manager.ts'
+import { PresenceMemberSizeError } from '../presence_member.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'

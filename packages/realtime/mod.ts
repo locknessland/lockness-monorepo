@@ -90,12 +90,15 @@ export {
     MAX_PRESENCE_SNAPSHOT_MEMBERS,
     MAX_WATCHED_CHANNELS,
     type OutboundFrame,
-    PresenceMemberIdError,
-    PresenceMemberSizeError,
     RevocationScopeError,
     type RevokeChannelOutcome,
     type SubscribeResult,
 } from './manager.ts'
+export {
+    PresenceMemberIdError,
+    PresenceMemberShapeError,
+    PresenceMemberSizeError,
+} from './presence_member.ts'
 export {
     type ClientMessage,
     decodeClientMessage,

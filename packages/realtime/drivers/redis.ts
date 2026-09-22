@@ -60,12 +60,13 @@ import {
 } from '../driver.ts'
 import {
     isPresenceMemberIdValue,
+    isPresenceMemberInfoValue,
+    isPresenceMemberWire,
     isValidName,
-    isWirePresenceMember,
 } from '../protocol.ts'
 import { sameMemberId } from '../presence_snapshot.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
-import type { PresenceMember } from '../channel.ts'
+import { type PresenceMember, typeLabel } from '../channel.ts'
 import type { RealtimeControlConfig } from '../types.ts'
 import { renderError, safeForLog } from '@lockness/contract'
 import {
@@ -693,20 +694,23 @@ function newControlNonce(): string {
 }
 
 /**
- * Whether a control frame's `member` is a plain, small presence member.
+ * Whether a control frame's `member` is exactly a presence member: `id` and
+ * `info` and nothing else (#350).
  *
  * `member` was the one field the ingest shape gate never checked, and it is the
  * one an attacker can make arbitrarily large — which matters because everything
  * downstream of the gate re-serialises it and hashes it synchronously
  * (FR-011). `undefined` is valid: an `evict` frame carries no member. What a
- * member must be is {@link isWirePresenceMember}'s rule, shared with the
- * manager's departure handler (#348) — never a copy here.
+ * member must be is {@link isPresenceMemberWire}'s rule, shared with the
+ * join's admission and the manager's departure handler (#348, #350) — never
+ * a copy here. Before #350 it bounded the key COUNT, so a signed
+ * `{ id, smuggled }` was admitted and re-emitted to every subscriber.
  *
  * @param value - The candidate, straight off the wire.
  * @returns Whether it is safe to canonicalise.
  */
 function isPlainMember(value: unknown): boolean {
-    return value === undefined || isWirePresenceMember(value)
+    return value === undefined || isPresenceMemberWire(value)
 }
 
 /** Narrow an unknown `RespReply` to its array elements, or `undefined`. */
@@ -1836,6 +1840,17 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 !isPresenceMemberIdValue(member.id)
             ) {
                 skipped('no member id')
+                return undefined
+            }
+            // The join's `info` rule (#350), so an entry is read back only
+            // with an `info` a join could have admitted. The TYPE label only,
+            // never the value — `info` is application data. The key rule
+            // is NOT applied: the reduction below drops extra keys, and a
+            // skip would hide a 0.3.0 member for its whole session.
+            if (!isPresenceMemberInfoValue(member.info)) {
+                skipped(
+                    `info of type ${typeLabel(member.info)} is not an object`,
+                )
                 return undefined
             }
             return member.info === undefined

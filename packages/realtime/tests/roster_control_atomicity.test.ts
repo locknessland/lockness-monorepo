@@ -15,7 +15,8 @@
  */
 
 import { assert, assertEquals } from '@std/assert'
-import { ChannelManager, PresenceMemberIdError } from '../manager.ts'
+import { ChannelManager } from '../manager.ts'
+import { PresenceMemberIdError } from '../presence_member.ts'
 import { MAX_NAME_LENGTH } from '../protocol.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'

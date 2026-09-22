@@ -29,6 +29,9 @@
  *   one driver announces every swept departure twice (A6).
  * - M12 `close()` keeps the handler: a sweep in flight when the driver closes
  *   still reports its departure (A6).
+ * - M13 the member rule's key check back to a COUNT (`<= 2`), the #348
+ *   original: a driver-reported `{ id, smuggled }` passes the manager's
+ *   departure check and the room hears `smuggled` in a `left` frame (S3).
  *
  * Every row was proven LIVE by the harness run that recorded it: the mutant ran
  * and turned its named witness red.
@@ -43,6 +46,8 @@
 import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const REDIS = new URL('../../drivers/redis.ts', import.meta.url)
+// M13: the manager's departure handler asks `isPresenceMemberWire`.
+const PROTOCOL = new URL('../../protocol.ts', import.meta.url)
 const MANAGER = new URL('../../manager.ts', import.meta.url)
 const SUITES = [
     new URL('../presence_sweep_departure_348.test.ts', import.meta.url)
@@ -207,6 +212,16 @@ const MUTATIONS: Mutation[] = [
             '        // A closed driver reports no departure either (#348).\n',
         ]],
         killedBy: '#348 A6 the departure handler',
+    },
+    {
+        label: 'M13 — the member key rule back to a count: { id, smuggled } ' +
+            'is announced as left',
+        file: PROTOCOL,
+        edits: [[
+            '    if (!Object.keys(value).every(isPresenceMemberKey)) return false\n',
+            '    if (Object.keys(value).length > 2) return false\n',
+        ]],
+        killedBy: '#348 S3 a malformed departure from a driver is dropped',
     },
 ]
 

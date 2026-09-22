@@ -4,9 +4,11 @@
  *
  * Each row puts back one way the rule can be wrong: the join's type check
  * removed (M1, the shipped defect), the finiteness half dropped (M2), the set
- * widened to booleans (M3), each receive-side site narrowed back to strings
- * only so the sender accepts what a peer drops (M4 the frame ingest, M5 the
- * roster read), `String(id)` moved ahead of the predicate so a null-prototype
+ * widened to booleans (M3), the shared wire predicate narrowed to string ids
+ * (M4 — since #350 it is asked by the join's admission, the frame ingest and
+ * the departure handler alike, so a numeric id is refused everywhere), the
+ * roster read narrowed back to strings only so the sender accepts what a peer
+ * skips (M5), `String(id)` moved ahead of the predicate so a null-prototype
  * object throws a `TypeError` instead of the named error (M6), the refused
  * value echoed into the message beside its type (M7), and a boxed boolean or
  * boxed symbol id named as a plain object (M8, M9 — #351).
@@ -36,7 +38,9 @@
 import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const PROTOCOL = new URL('../../protocol.ts', import.meta.url)
-const MANAGER = new URL('../../manager.ts', import.meta.url)
+// #350 moved the join's id check and `describeMemberId` into
+// `presence_member.ts`: source moved, guard remains. M1, M6, M7 anchor there.
+const MEMBER = new URL('../../presence_member.ts', import.meta.url)
 const REDIS = new URL('../../drivers/redis.ts', import.meta.url)
 const CHANNEL = new URL('../../channel.ts', import.meta.url)
 const SUITES = [
@@ -46,15 +50,17 @@ const SUITES = [
 ]
 
 const TYPE_CHECK =
-    '        if (!isPresenceMemberIdValue(id)) throw new PresenceMemberIdError(id)\n'
-const TO_TEXT = '        const text = String(id)\n'
+    '    if (!isPresenceMemberIdValue(id)) throw new PresenceMemberIdError(id)\n'
+const TO_TEXT = '    const text = String(id)\n'
 
 const MUTATIONS: Mutation[] = [
     {
         label: 'M1 — the join-time type check removed: the shipped defect',
-        file: MANAGER,
+        file: MEMBER,
         edits: [[TYPE_CHECK, '']],
-        // `String(null)` is 'null': Alice and Bob join as one member.
+        // `String(null)` is 'null': Alice and Bob joined as one member. Since
+        // #350 the parsed copy's wire check still refuses the null id, as a
+        // PresenceMemberShapeError — the witness wants PresenceMemberIdError.
         killedBy: '#346 (a) memory: two people with a null member id',
     },
     {
@@ -77,10 +83,12 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#346 (b) true member id is refused',
     },
     {
-        label:
-            'M4 — the frame ingest narrowed to strings: a peer drops what the sender joined',
-        // The ingest's member rule lives in `isWirePresenceMember` since #348,
-        // asked by `isPlainMember` and by the manager's departure handler.
+        label: 'M4 — isPresenceMemberWire narrowed to string ids: the join, ' +
+            'the frame ingest and the departure handler all refuse a numeric id',
+        // The member rule lives in `isPresenceMemberWire` (#348, #350), asked
+        // by `isPlainMember`, the join's admission and the manager's departure
+        // handler — so this no longer splits sender from receiver, it refuses
+        // a numeric id at every site. The ingest row is the witness.
         file: PROTOCOL,
         edits: [[
             '    const idOk = isPresenceMemberIdValue(member.id)\n',
@@ -100,7 +108,7 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: 'M6 — String(id) ahead of the predicate',
-        file: MANAGER,
+        file: MEMBER,
         edits: [[TYPE_CHECK + TO_TEXT, TO_TEXT + TYPE_CHECK]],
         // `String()` on a null-prototype object throws a TypeError before the
         // predicate can refuse it by name.
@@ -108,7 +116,7 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: 'M7 — the refused value echoed into the message beside its type',
-        file: MANAGER,
+        file: MEMBER,
         edits: [[
             '    return `of type ${typeLabel(id)}`\n',
             '    return `of type ${typeLabel(id)} ${JSON.stringify(id)}`\n',

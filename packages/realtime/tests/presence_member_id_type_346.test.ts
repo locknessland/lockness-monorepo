@@ -40,11 +40,8 @@
  */
 
 import { assert, assertEquals, assertRejects } from '@std/assert'
-import {
-    ChannelManager,
-    PresenceMemberIdError,
-    type SubscribeResult,
-} from '../manager.ts'
+import { ChannelManager, type SubscribeResult } from '../manager.ts'
+import { PresenceMemberIdError } from '../presence_member.ts'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import { isPresenceMemberIdValue } from '../protocol.ts'

@@ -21,6 +21,9 @@
 import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const MANAGER = new URL('../../manager.ts', import.meta.url)
+// #350 moved the id check into `admitPresenceMember`: source moved, guard
+// remains (`docs/testing.md`). Rows 1, 2, 3 and 6 now anchor there.
+const MEMBER = new URL('../../presence_member.ts', import.meta.url)
 const PROTOCOL = new URL('../../protocol.ts', import.meta.url)
 const SUITES = [
     new URL('../presence_member_id.test.ts', import.meta.url).pathname,
@@ -33,9 +36,10 @@ const SUITES = [
 const MUTATIONS: Mutation[] = [
     {
         label: 'the boundary assertion removed entirely',
-        file: MANAGER,
+        // RE-ANCHORED by #350: the one call, inside the admission.
+        file: MEMBER,
         edits: [[
-            '                this.#assertUsableMemberId(member.id)\n',
+            '    assertUsableMemberId(id)\n',
             '',
         ]],
         killedBy:
@@ -43,7 +47,7 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: 'the length bound loosened past the roster field it protects',
-        file: MANAGER,
+        file: MEMBER,
         edits: [[
             'if (text.length > 0 && text.length <= MAX_NAME_LENGTH) return',
             'if (text.length > 0 && text.length <= MAX_NAME_LENGTH * 10) return',
@@ -52,7 +56,7 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: 'the empty-id half of the bound dropped',
-        file: MANAGER,
+        file: MEMBER,
         edits: [[
             'if (text.length > 0 && text.length <= MAX_NAME_LENGTH) return',
             'if (text.length <= MAX_NAME_LENGTH) return',
@@ -80,8 +84,14 @@ const MUTATIONS: Mutation[] = [
         file: MANAGER,
         edits: [
             [
-                '                this.#assertUsableMemberId(member.id)\n',
-                '',
+                // RE-ANCHORED by #350: the admission is one call now, so
+                // the row takes it out of `subscribe` (the member stays
+                // the raw candidate) and runs it just before the write.
+                '                member = admitPresenceMember(\n' +
+                '                    verdict.member ?? { id: connection.id },\n' +
+                '                    this.#maxPresenceMemberBytes,\n' +
+                '                )\n',
+                '                member = (verdict.member ?? { id: connection.id }) as PresenceMember\n',
             ],
             [
                 // RE-ANCHORED TWICE. #328 moved the roster write out of
@@ -98,7 +108,7 @@ const MUTATIONS: Mutation[] = [
                 // 20-space reclaim call below it, so the anchor carries its
                 // `try {` line to match exactly once.
                 '            try {\n                await this.#syncRosterMember(channel, origin)\n',
-                '            try {\n                this.#assertUsableMemberId(member.id)\n                await this.#syncRosterMember(channel, origin)\n',
+                '            try {\n                admitPresenceMember(member, this.#maxPresenceMemberBytes)\n                await this.#syncRosterMember(channel, origin)\n',
             ],
         ],
         // RED since #312, and the path is worth keeping. It survived here for
@@ -122,11 +132,18 @@ const MUTATIONS: Mutation[] = [
     {
         label:
             'THE DECISION INVERTED — the charset applied, as #304 does to Connection.id',
-        file: MANAGER,
-        edits: [[
-            '        const text = String(id)\n        if (text.length > 0 && text.length <= MAX_NAME_LENGTH) return',
-            '        const text = String(id)\n        if (isValidName(text)) return',
-        ]],
+        file: MEMBER,
+        edits: [
+            [
+                '    const text = String(id)\n    if (text.length > 0 && text.length <= MAX_NAME_LENGTH) return',
+                '    const text = String(id)\n    if (isValidName(text)) return',
+            ],
+            // `presence_member.ts` does not import the charset predicate.
+            [
+                '    isPresenceMemberWire,\n',
+                '    isPresenceMemberWire,\n    isValidName,\n',
+            ],
+        ],
         killedBy: 'an application id the charset would REJECT is accepted',
     },
 ]

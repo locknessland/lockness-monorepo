@@ -12,12 +12,8 @@
  */
 
 import { renderError, safeForLog } from '@lockness/contract'
-import {
-    isPresenceMemberIdValue,
-    isValidName,
-    isWirePresenceMember,
-    MAX_NAME_LENGTH,
-} from './protocol.ts'
+import { isPresenceMemberWire, isValidName } from './protocol.ts'
+import { admitPresenceMember } from './presence_member.ts'
 
 /**
  * A connection id the control plane cannot carry.
@@ -49,7 +45,7 @@ export const MAX_CHANNELS_PER_CONNECTION = 100
  * **It is half the default control-payload ceiling, and that is the whole
  * relationship.** A member is announced inside a control frame that also
  * carries `kind`, `target` and `channel`; `target` and `channel` are each
- * bounded at {@link MAX_NAME_LENGTH} characters and `kind` is a short literal,
+ * bounded at `MAX_NAME_LENGTH` characters and `kind` is a short literal,
  * so the envelope around the member cannot exceed roughly 1 KiB even when every
  * character escapes. Against the driver's 8 KiB default that leaves the
  * envelope four times the room it can ever need, so **a member admitted here
@@ -247,97 +243,6 @@ export class ChannelNameError extends Error {
                 'and be silently dropped by every other one.',
         )
     }
-}
-
-export class PresenceMemberSizeError extends Error {
-    override readonly name = 'PresenceMemberSizeError'
-
-    /**
-     * @param bytes - The serialized size that was refused.
-     * @param limit - The ceiling it exceeded.
-     */
-    constructor(bytes: number, limit: number) {
-        super(
-            `realtime: this presence member serializes to ${bytes} bytes, ` +
-                `over the ${limit}-byte ceiling (#326). Its content is NOT ` +
-                'echoed here — it is application data and this message reaches ' +
-                'logs. The member is refused at admission, before any local ' +
-                'join, roster write or announcement exists, because the roster ' +
-                'write happens before the control publish: admitted, it would ' +
-                'sit in the authoritative roster while the frame announcing it ' +
-                'is dropped for being oversized, leaving a member present in ' +
-                'the room and invisible to every other instance. Shrink ' +
-                '`member.info`, or raise maxPresenceMemberBytes AND the ' +
-                "driver's control.maxPayloadBytes together.",
-        )
-    }
-}
-
-/**
- * A presence member id the roster and the control plane cannot carry (#306,
- * #346).
- *
- * `ChannelManager.subscribe` raises it on a presence channel when the member
- * `authorize()` returned has an id that is not a string or a finite number
- * (#346), or whose string form is empty or over {@link MAX_NAME_LENGTH}
- * characters (#306). It is raised after the authorizer result is classified
- * (#347) and before the size check, the caps, and every write and publish, so
- * a refusal leaves nothing behind.
- *
- * **A throw, not `{ ok: false }`.** `{ ok: false }` means "not authorized"
- * (#331); a malformed id is a defect in the application's authorizer, and read
- * as a denial it would be one nobody could diagnose.
- *
- * **The message never echoes a non-primitive id.** A string or number id is
- * encoded through `safeForLog`; any other value is named by its type only
- * (`null`, `undefined`, `object`, `array`, `bigint`…). An object id may be a
- * whole user record — application data, and this message reaches logs (#326)
- * — and a template literal on a Symbol, or `String()` on a null-prototype
- * object, would itself throw.
- *
- * @example
- * ```ts
- * // An authorizer that cannot produce a malformed id: deny when it is absent.
- * const authorize = (user: User | null) =>
- *     user?.id == null ? false : { id: String(user.id) }
- * ```
- */
-export class PresenceMemberIdError extends Error {
-    override readonly name = 'PresenceMemberIdError'
-
-    /**
-     * @param id - The offending id. A string or number is encoded before it
-     *   reaches the message; any other value is named by its type only.
-     */
-    constructor(id: unknown) {
-        super(
-            `realtime: presence member id ${describeMemberId(id)} is ` +
-                'unusable — it must be a string or a finite number whose ' +
-                `string form is 1 to ${MAX_NAME_LENGTH} characters (#306, ` +
-                '#346). Every presence consumer keys a member by `String(id)`, ' +
-                'so a null, undefined or object id would merge different ' +
-                'people into one entry that no peer instance accepts. The id ' +
-                'also becomes a Redis hash field on the authoritative roster, ' +
-                'and an oversized one is written there BEFORE the control ' +
-                'frame that announces it is refused for size. Deny in ' +
-                'authorize() when the id is absent, and send a 64-bit key as ' +
-                'a string.',
-        )
-    }
-}
-
-/**
- * How a refused member id appears in {@link PresenceMemberIdError}'s message:
- * a string or number encoded through `safeForLog`, anything else by type only.
- *
- * @param id - The refused id.
- * @returns The log-safe rendering.
- */
-function describeMemberId(id: unknown): string {
-    if (typeof id === 'string' || typeof id === 'number') {
-        return safeForLog(String(id))
-    }
-    return `of type ${typeLabel(id)}`
 }
 
 /**
@@ -1196,7 +1101,8 @@ export class ChannelManager<Identity = unknown> {
      *
      * **`subscribe` asserted two of the three values it received and skipped
      * this one.** `connection.id` goes through `#assertUsableId` (#304) and a
-     * presence `member.id` through `#assertUsableMemberId` (#306); the channel
+     * presence `member.id` through the member-id check (#306, now inside
+     * `admitPresenceMember`, `presence_member.ts`); the channel
      * went through nothing. The only channel validation in the package was
      * `decodeClientMessage`, which guards the WebSocket wire — so the
      * framework's own socket path refused a name the public programmatic API
@@ -1217,7 +1123,7 @@ export class ChannelManager<Identity = unknown> {
      *   leave path re-joins the full string — which is why nothing caught it.
      *
      * Two shipped docstrings already asserted this invariant
-     * (`OWNED_SEP`'s and {@link #assertUsableMemberId}'s), which is worse than a
+     * (`OWNED_SEP`'s and the member-id check's), which is worse than a
      * gap: the next reader takes it as settled. Both now cite this method.
      *
      * @param channel - The channel name to check.
@@ -1226,121 +1132,6 @@ export class ChannelManager<Identity = unknown> {
     #assertUsableChannel(channel: string): void {
         if (isValidName(channel)) return
         throw new ChannelNameError(channel)
-    }
-
-    /**
-     * Assert a presence member's id can cross the control plane and land in
-     * the roster (#306, #346).
-     *
-     * **TYPE first (#346).** `PresenceMember.id` is typed `string | number`,
-     * but the value comes from the application's `authorize()` — plain JS, a
-     * cast, a nullable column or a parsed payload — and the type does not
-     * reach it. Every presence consumer keys a member by `String(id)`, and
-     * `String(null)`, `String(undefined)` and `String({})` are all ordinary,
-     * short keys: two different people with such an id collapsed into ONE
-     * presence entry, and on Redis every peer's ingest guard dropped the frame
-     * the local join had just published. The rule is
-     * {@link isPresenceMemberIdValue} — a string or a finite number — the SAME
-     * predicate the Redis frame ingest and roster read apply, so this instance
-     * can no longer accept what its peers refuse. It runs before `String(id)`,
-     * which itself throws on a null-prototype object. Nothing is coerced: an id
-     * is refused, never replaced (say, by `connection.id`), because a
-     * replacement would hide the application's bug and give one user a
-     * different id per tab.
-     *
-     * **Then LENGTH (#306), and the charset is deliberately NOT constrained.**
-     * This value is application identity, not a framework-minted name: real
-     * deployments key presence on an email, a username or an external
-     * provider's id, and `isValidName`'s charset rejects `a@b.com` on the `@`.
-     * Borrowing {@link Connection.id}'s charset here would break those
-     * applications to buy nothing, because the three ways a hostile id could
-     * hurt are all closed elsewhere:
-     *
-     * - Not command injection — `encodeCommand` emits length-prefixed RESP
-     *   bulk strings, so a CRLF or a space in the value cannot forge a command.
-     * - Not owned-set parser confusion — the entry is `<channel> <field>` and
-     *   the parse is `indexOf(' ')`, which takes the FIRST space, so a field
-     *   may contain spaces freely. That rests on the channel containing none —
-     *   which #306 asserted and **nothing enforced**: `isValidName` ran only on
-     *   the WebSocket wire, never on `subscribe`'s public path. #314 added
-     *   {@link #assertUsableChannel}, and this claim now cites an enforcement
-     *   point instead of a convention. (#306 originally credited the MEMBER
-     *   id's charset, which does not exist at all.)
-     * - Not frame forgery — control frames carry a MAC.
-     *
-     * What is NOT closed elsewhere is length. The id becomes a Redis hash field
-     * on the authoritative roster, and the only two caps upstream of it are a
-     * 10 MiB RESP frame and an 8 KiB control payload — neither a bound on this
-     * value. Worse, the roster write happens BEFORE the control publish, and
-     * the oversize check there only warns and returns: an oversized id is
-     * already in the hash while the frame announcing it is silently dropped and
-     * `subscribe` still answers `{ ok: true }`. Refusing at the boundary is
-     * what keeps that from being a partial write. Length stays a join-time
-     * rule: the receive side applies the type rule only.
-     *
-     * A NUMERIC id is length-checked through its string form. `String(1e21)`
-     * is `"1e+21"`, whose `+` is outside `isValidName` — which is why a charset
-     * predicate could not be applied to this type without rejecting a
-     * legitimate large integer. Length has no such problem. Non-finite numbers
-     * fail the type rule: `String(NaN)` is `"NaN"`, a perfectly
-     * ordinary-looking field name that every NaN-identified member would
-     * silently share.
-     *
-     * @param id - The member id to check, exactly as `authorize()` supplied it.
-     * @throws {PresenceMemberIdError} If the id is not a string or a finite
-     *   number, or its string form is empty or over {@link MAX_NAME_LENGTH}
-     *   characters.
-     */
-    #assertUsableMemberId(id: unknown): void {
-        if (!isPresenceMemberIdValue(id)) throw new PresenceMemberIdError(id)
-        const text = String(id)
-        if (text.length > 0 && text.length <= MAX_NAME_LENGTH) return
-        throw new PresenceMemberIdError(text)
-    }
-
-    /**
-     * Refuse a presence member whose serialized form exceeds the ceiling,
-     * at the admission boundary (#326).
-     *
-     * Sibling of {@link #assertUsableMemberId}, and it exists for the same
-     * reason that one does: the roster write happens BEFORE the control
-     * publish, and the driver's oversize check is on the publish. A member the
-     * publish would refuse is therefore already in the authoritative roster —
-     * present in the room, invisible to every peer instance, with `subscribe`
-     * having answered `{ ok: true }`. Refusing here is what keeps that from
-     * being a partial write.
-     *
-     * **The WHOLE member is measured, not just `info`.** The control frame
-     * carries the member as one value, so that is the size that has to fit; and
-     * measuring the part rather than the whole is how a bound is passed by a
-     * value that then fails downstream anyway.
-     *
-     * Measured in BYTES via {@link TextEncoder}, not in string length — `info`
-     * is application data and a single emoji or CJK character is three to four
-     * bytes where `.length` counts one or two. A ceiling compared against a
-     * payload limit must be in the payload's own unit.
-     *
-     * @param member - The member the authorizer returned.
-     * @throws {PresenceMemberSizeError} If the serialized member is over the
-     *   ceiling, or if it cannot be serialized at all.
-     */
-    #assertUsableMemberSize(member: PresenceMember): void {
-        let bytes: number
-        try {
-            bytes = new TextEncoder().encode(JSON.stringify(member)).length
-        } catch {
-            // A cycle or a throwing `toJSON` in application-supplied `info`.
-            // It is refused HERE rather than allowed to throw out of the roster
-            // write, where the same value would take down a join that had
-            // already committed local state. `Infinity` names it as unbounded
-            // rather than inventing a byte count nobody measured.
-            throw new PresenceMemberSizeError(
-                Infinity,
-                this.#maxPresenceMemberBytes,
-            )
-        }
-        if (bytes <= this.#maxPresenceMemberBytes) return
-        throw new PresenceMemberSizeError(bytes, this.#maxPresenceMemberBytes)
     }
 
     /**
@@ -1410,6 +1201,12 @@ export class ChannelManager<Identity = unknown> {
      *   nothing is written, published or delivered; on a channel already held
      *   it removes nothing (#331).
      * @throws {ChannelNameError} If `channel` is not a usable channel name.
+     * @throws {PresenceMemberShapeError} If a presence member has an own key
+     *   other than `id` and `info`, or an `info` that does not serialize to
+     *   a JSON object — one that serializes to nothing (a function, a
+     *   symbol) included (#350). The member the room receives is exactly the
+     *   JSON round trip of `{ id, info }`, read once from the authorizer's
+     *   object — never that object, and never any other key of it.
      * @throws {PresenceMemberIdError} If a presence member's id is not a string
      *   or a finite number (#346), or is empty or too long (#306).
      * @throws {PresenceMemberSizeError} If a presence member serializes past
@@ -1508,17 +1305,18 @@ export class ChannelManager<Identity = unknown> {
             }
             if (verdict.verdict === 'deny') return { ok: false }
             if (kind === 'presence') {
-                member = verdict.member ?? { id: connection.id }
-                // BEFORE the roster write and before the control publish
-                // (#306). Asserting after either one is what makes an
-                // oversized id a partial write rather than a refusal. It
-                // checks the id's TYPE too (#346): `member` is an object the
-                // authorizer returned, and nothing has read its `id` yet.
-                this.#assertUsableMemberId(member.id)
-                // AT THE SAME BOUNDARY, and for the same reason (#326): the
-                // roster write precedes the control publish, so a member the
-                // publish would refuse is already authoritative by then.
-                this.#assertUsableMemberSize(member)
+                // THE ONE READ of the authorizer's object (#350): its keys,
+                // its `id` and its `info` are each read once, and what comes
+                // back is the JSON round trip of `{ id, info }` — the only
+                // member stored, held, snapshotted or announced from here on.
+                // BEFORE the caps and every write (#306, #326): refusing after
+                // the roster write is a partial write, not a refusal. Stays
+                // synchronous — nothing may be awaited between the verdict and
+                // `#checkChannelCaps` (#323/#327).
+                member = admitPresenceMember(
+                    verdict.member ?? { id: connection.id },
+                    this.#maxPresenceMemberBytes,
+                )
             }
         }
 
@@ -2215,8 +2013,9 @@ export class ChannelManager<Identity = unknown> {
      *
      * **What a driver reports is checked before anything is emitted** (S3).
      * A departure whose channel is not a valid name, or whose member fails
-     * `isWirePresenceMember` (the #346 id rule, a plain-object `info`, at most
-     * two keys — what every peer's ingest asks of the same member), is
+     * `isPresenceMemberWire` (the #346 id rule, a plain-object `info`, no key
+     * but `id` and `info` — what every peer's ingest asks of the same
+     * member), is
      * dropped with one WARN naming the channel only: every peer would refuse
      * that frame at ingest, and this instance must not show its own
      * subscribers what the rest of the fleet cannot. Never throws.
@@ -2239,7 +2038,7 @@ export class ChannelManager<Identity = unknown> {
         // one wire-member rule, never a copy here.
         if (
             typeof channel !== 'string' || !isValidName(channel) ||
-            !isWirePresenceMember(departure?.member)
+            !isPresenceMemberWire(departure?.member)
         ) {
             console.warn(
                 `realtime: dropped a roster departure the driver reported on ${

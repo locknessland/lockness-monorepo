@@ -156,14 +156,16 @@ export type AuthorizeResult = boolean | PresenceMember
  * What {@link classifyAuthorizeResult} decided about one authorizer result.
  *
  * - `deny` — the authorizer returned exactly `false`: a policy decision.
- * - `admit` — `true` (`member` is `undefined`) or an object (`member` is it).
+ * - `admit` — `true` (`member` is `undefined`) or an object (`member` is it,
+ *   UNCHECKED: typed `object`, not `PresenceMember`, because only
+ *   `admitPresenceMember` may turn it into one — #350).
  * - `invalid` — anything else, a defect in the authorizer. `type` is the
  *   value's type label only; the value itself is never carried, because it is
  *   application data and the label ends up in a log.
  */
 export type AuthorizeVerdict =
     | { verdict: 'deny' }
-    | { verdict: 'admit'; member: PresenceMember | undefined }
+    | { verdict: 'admit'; member: object | undefined }
     | { verdict: 'invalid'; type: string }
 
 /**
@@ -175,8 +177,9 @@ export type AuthorizeVerdict =
  * before the member id check, the size check, the caps and every write, so a
  * refusal is never a partial write.
  *
- * An admitting object's FIELDS are not checked here — the member id (#306) and
- * size (#326) checks own that, and a private channel reads no member at all.
+ * An admitting object's FIELDS are not checked here — `admitPresenceMember`
+ * owns that (#306, #326, #346, #350), and a private channel reads no member
+ * at all.
  * The rule is "an object", not "a plain object": a class-instance member is
  * legitimate. Arrays and boxed primitives are objects to `typeof` and are
  * refused all the same; `[]` is what an empty query result looks like.
@@ -203,13 +206,13 @@ export function classifyAuthorizeResult(result: unknown): AuthorizeVerdict {
 /**
  * Whether a value is an object that may stand for a member.
  *
- * The predicate claims `PresenceMember` for the verdict's type only; the
- * member's fields are checked downstream (see {@link classifyAuthorizeResult}).
+ * It claims `object` and nothing more: the member's fields are checked
+ * downstream, by `admitPresenceMember` (see {@link classifyAuthorizeResult}).
  *
  * @param value - The authorizer's result.
  * @returns `true` for a non-null, non-array, non-boxed-primitive object.
  */
-function isAdmittingObject(value: unknown): value is PresenceMember {
+function isAdmittingObject(value: unknown): value is object {
     if (typeof value !== 'object' || value === null) return false
     if (Array.isArray(value)) return false
     if (boxedPrimitiveLabel(value) !== undefined) return false
@@ -280,8 +283,16 @@ export function typeLabel(value: unknown): string {
  * Anything else — `undefined` from a missing `return`, `null` or `undefined`
  * from an empty query, `0`, `''`, `'yes'`, `1`, an array — makes `subscribe`
  * throw `AuthorizeResultError`. Write `return row ? { id: row.id } : false`,
- * never the raw row: a truthy row would ship every column to the room, and an
- * absent one throws. `?? false` closes the gap where a value may be absent.
+ * never the raw row: on a presence channel it throws
+ * `PresenceMemberShapeError` (#350), and an absent one throws either way.
+ * `?? false` closes the gap where a value may be absent.
+ *
+ * **What reaches the room is exactly `{ id, info? }`** (#350): the pair is
+ * read once from your object, serialized once and parsed back, and only that
+ * copy is stored and announced — any other own key, or an `info` that is not
+ * a JSON object, throws `PresenceMemberShapeError` before anything is written.
+ * The CONTENTS of `info` remain your declaration: `info: row` ships the whole
+ * row to everyone in the room. Lockness guarantees the envelope only.
  *
  * @typeParam Identity - The app's identity shape.
  */

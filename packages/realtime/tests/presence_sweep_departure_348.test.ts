@@ -892,6 +892,16 @@ Deno.test('#348 S3 a malformed departure from a driver is dropped by the manager
                 extra: SENTINEL,
             } as unknown as PresenceMember,
         }, CHANNEL],
+        // The key rule is an ALLOW-LIST, not a count (#350): two keys, but
+        // the second is not `info`. A count bound of two admits it, and the
+        // room would hear `smuggled` in a `left` frame.
+        ['a two-key member whose second key is not info', {
+            channel: CHANNEL,
+            member: {
+                id: 7,
+                smuggled: SENTINEL,
+            } as unknown as PresenceMember,
+        }, CHANNEL],
     ]
     for (const [label, departure, names] of bad) {
         const warnings = captureWarnings()
