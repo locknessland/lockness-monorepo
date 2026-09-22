@@ -16,11 +16,15 @@
  *
  * - (a) The collapse, on every path it reached — memory, the local fallback, a
  *   roster-less driver and two fake-Redis instances. Each join now throws
- *   `PresenceMemberIdError`, and the state is READ afterwards: no roster write,
- *   no control publish, no local presence entry, no `connections` entry. Each
- *   row then ends with a positive control (#351): a valid id's join on the
- *   same path moves the same `writes()` counter, so its "0" is not the silence
- *   of an instrument that counts nothing.
+ *   `PresenceMemberIdError`, and the state is READ afterwards: `writes()` — ONE
+ *   counter over roster holds and control publishes together — stays 0, no
+ *   local presence entry, no `connections` entry, nothing sent, and an empty
+ *   roster where the path has one to read (memory, fake Redis). Each row then
+ *   ends with a positive control (#351): a valid id's join on the same path
+ *   moves `writes()` past its value just before that join, so its "0" is not
+ *   the silence of an instrument that counts nothing. The control shows the
+ *   counter registers an admitted join; it does not show roster holds and
+ *   control publishes are each counted on their own.
  * - (b) The value table: what joins, and what is refused — never with a
  *   `TypeError` or `PresenceMemberSizeError`. Every boxed primitive is a row,
  *   `new Boolean(false)` and `Object(Symbol())` included.
@@ -156,6 +160,22 @@ function counting(driver: BroadcastDriver, count: { n: number }) {
     return driver
 }
 
+/**
+ * A broker command that WRITES presence state: a control `PUBLISH`, an `HSET`,
+ * or an `EVAL` whose script writes — the hold script. The read-roster script
+ * is an `EVAL` too, and it runs on every admitted join and on every
+ * `path.roster()`: counting it let a join that wrote nothing move the counter
+ * (#351). A script is classified by the Redis write commands it calls, not
+ * matched verbatim, so a reworded hold script still counts and the read-only
+ * script never does.
+ */
+function isWriteShaped([cmd, first]: string[]): boolean {
+    if (cmd === 'PUBLISH') return first === CONTROL_TOPIC
+    if (cmd === 'HSET') return true
+    return cmd === 'EVAL' &&
+        /redis\.call\('(HSET|HDEL|SADD|SREM)'/.test(first ?? '')
+}
+
 const PATHS: ReadonlyArray<
     readonly [string, (authorize: Authorizer<User>) => Path]
 > = [
@@ -233,11 +253,7 @@ const PATHS: ReadonlyArray<
         )
         return {
             managers: [managers[0], managers[1]],
-            writes: () =>
-                redis.commandLog().filter(([cmd, key]) =>
-                    (cmd === 'PUBLISH' && key === CONTROL_TOPIC) ||
-                    cmd === 'EVAL' || cmd === 'EVALSHA' || cmd === 'HSET'
-                ).length,
+            writes: () => redis.commandLog().filter(isWriteShaped).length,
             roster: async () =>
                 (await drivers[1].readRoster(ROOM, 1_000, [])).members,
             close: async () => {
@@ -262,7 +278,7 @@ const CAROL = 3
 
 for (const [pathName, makePath] of PATHS) {
     for (const [idName, id, fragment] of COLLAPSING) {
-        Deno.test(`#346 (a) ${pathName}: two people with a ${idName} member id are each refused, and nothing is written`, async () => {
+        Deno.test(`#346 (a) ${pathName}: two people with a ${idName} member id are each refused, and writes(), presence, connections, roster and frames stay empty`, async () => {
             const path = makePath(
                 ((identity: User | null) => ({
                     id: identity?.id === CAROL ? 'carol' : id(),
@@ -301,13 +317,16 @@ for (const [pathName, makePath] of PATHS) {
                 // POSITIVE CONTROL (#351), LAST so it cannot disturb the
                 // reads above: a valid id's join on the same path moves the
                 // same counter. Without it, a `writes()` that never counts
-                // anything passes the "0" above on every path.
+                // anything passes the "0" above on every path. `before` is
+                // read HERE, not taken as 0: only Carol's own join may move
+                // it, not a read above that an over-broad counter caught.
                 const carol = conn('carol', CAROL)
+                const before = path.writes()
                 const joined = await quietly(() => onA.subscribe(carol, ROOM))
                 assertEquals(joined.ok, true, 'CONTROL: a valid id joins')
                 assert(
-                    path.writes() > 0,
-                    'CONTROL: an admitted join moves writes() on this path',
+                    path.writes() > before,
+                    `CONTROL: an admitted join moves writes() on this path (${before} -> ${path.writes()})`,
                 )
             } finally {
                 await path.close()

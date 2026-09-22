@@ -165,10 +165,30 @@ const REFUSED: ReadonlyArray<readonly [string, () => unknown, string]> = [
     ['a Symbol', () => Symbol('member'), 'symbol'],
 ]
 
+/**
+ * What a refusal row on `channel` over `backendName` actually asserts — the
+ * row name claims exactly this. The roster is read on presence rows only, and
+ * the control-publish zero only on a presence row over the backend that has a
+ * control plane to count (the fake Redis).
+ */
+function refusalClaims(backendName: string, channel: string): string {
+    const claims = ['no connection']
+    if (channel === PRESENCE) {
+        claims.push('no roster entry')
+        if (backendName === 'fake Redis') claims.push('no control frame')
+    }
+    claims.push('no delivery')
+    return claims.join(', ')
+}
+
 for (const [backendName, makeBackend] of BACKENDS) {
     for (const channel of [PRIVATE, PRESENCE]) {
         for (const [valueName, value, label] of REFUSED) {
-            Deno.test(`#347 ${backendName} ${channel}: an authorizer returning ${valueName} throws AuthorizeResultError and writes, publishes and delivers nothing`, async () => {
+            const name =
+                `#347 ${backendName} ${channel}: an authorizer returning ${valueName} throws AuthorizeResultError — ${
+                    refusalClaims(backendName, channel)
+                }`
+            Deno.test(name, async () => {
                 const backend = makeBackend()
                 try {
                     const m = new ChannelManager<User>({
@@ -231,10 +251,13 @@ for (const [backendName, makeBackend] of BACKENDS) {
                             'no roster entry was written for the suspect',
                         )
                     }
-                    if (channel === PRESENCE) {
+                    if (
+                        channel === PRESENCE && publishesBefore !== undefined
+                    ) {
                         // Presence only — see the fileoverview: a private
                         // admission publishes nothing, so this zero would be
-                        // vacuous there.
+                        // vacuous there. And only with a control plane: with
+                        // none, `undefined === undefined` could never fail.
                         assertEquals(
                             backend.controlPublishes(),
                             publishesBefore,
