@@ -104,6 +104,11 @@ authorize: ;
 
 `?? false` closes the gap wherever the value may be absent.
 
+On a presence channel the member object is checked next: its `id` must be a
+string or a finite number, or `subscribe` throws `PresenceMemberIdError` — see
+[The presence member id is bounded too](#the-presence-member-id-is-bounded-too--by-length-not-by-charset).
+A `row.userId` that can be `null` needs the same `: false` branch.
+
 ### What a `joined` frame promises — and what it does not
 
 **`joined` and `left` are announced per member, not per connection**
@@ -415,9 +420,41 @@ and partial to immediate and obvious, which is the point, but it does move.
 
 `PresenceMember.id` is the other id-shaped value that crosses the control plane.
 It comes from your `authorize()` and becomes a field on the authoritative
-presence roster, and `subscribe` **throws `PresenceMemberIdError`** when its
-string form is empty or longer than 200 characters, or when a numeric id is not
-finite.
+presence roster, and `subscribe` **throws `PresenceMemberIdError`** unless it is
+**a string or a finite number** whose string form is 1 to 200 characters.
+
+**The type is checked first**
+([#346](https://github.com/locknessland/lockness-monorepo/issues/346)).
+`PresenceMember.id` is typed `string | number`, but the type does not reach an
+authorizer written in plain JavaScript, behind a cast, or returning a nullable
+column: `{ id: user.id }` with a `null` `user.id` compiles. Every presence
+consumer keys a member by `String(id)`, and `String(null)`, `String(undefined)`
+and `String({})` are ordinary short keys — so before 0.4.0 two different people
+whose authorizer returned such an id **merged into one presence entry**, and on
+Redis every other instance dropped the frame announcing the join while
+`subscribe` answered `{ ok: true }`. Now `null`, `undefined`, booleans, a
+`bigint`, a symbol, a function, an array, a boxed primitive and every object
+throw, as do `NaN` and `±Infinity`. Every finite number is accepted — integers,
+fractions, negatives, and a large integer such as `1e21`; `-0` is the same
+member as `0`, and `1` is the same member as `'1'`. Nothing is coerced: Lockness
+never replaces a malformed id (with the connection id, say), because that would
+hide your authorizer's bug.
+
+The same rule decides what a Redis instance accepts from another — on a
+`presence-join` frame and on a roster read — so an id one instance admits is one
+every instance admits. The error message names a string or number id (encoded
+for the log) and names any other value **by its type only** (`of type null`,
+`of type object`…): an object id may be a whole user record, and the message
+reaches your logs. Like `AuthorizeResultError`, it is thrown before anything is
+written, published or delivered, and it reaches your `onError` hook.
+
+Two consequences for how you write `authorize()`:
+
+- **Deny when the id is absent**:
+  `return user?.id == null ? false : { id: user.id }`.
+- **Send a 64-bit key as a string.** A number above `2 ** 53` has already lost
+  precision in your code before Lockness sees it, and is accepted as the
+  imprecise value it became.
 
 **Its charset is deliberately unconstrained**, unlike a connection id. A member
 id is your users' identity — an email, a username, an id from an external
@@ -570,7 +607,8 @@ if (error instanceof AuthorizeResultError) {
 }
 
 if (error instanceof PresenceMemberIdError) {
-    // The authorizer returned an id the roster cannot carry — fix the
+    // The authorizer returned an id the roster cannot carry — not a string
+    // or a finite number, empty, or over 200 characters. Fix the
     // authorizer, do not retry.
 }
 
@@ -1717,12 +1755,13 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Five breaking changes — the driver revocation seam, the presence snapshot a
+Six breaking changes — the driver revocation seam, the presence snapshot a
 subscribe returns, the driver roster seam, presence frames announced per member
-rather than per connection, and an authorizer result outside its contract now
+rather than per connection, an authorizer result outside its contract now
+throwing, and a presence member id that is not a string or a finite number now
 throwing — two widened return types, one new control kind, and one additive wire
 field. **No migration step, and one new Redis key family.** Before you deploy,
-read items 1, 3, 5, 6, 8 and 9 — and item 7 if you wrote your own driver.
+read items 1, 3, 5, 6, 8, 9 and 10 — and item 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2088,6 +2127,35 @@ before anything is written, published or delivered. The error reaches your
 
 `AuthorizeResultError` is exported from `@lockness/realtime`. See
 [What your authorizer may return](#what-your-authorizer-may-return).
+
+### 10. A presence member id must be a string or a finite number
+
+**Before**, `subscribe` checked a presence member id's length and refused a
+non-finite number, but never its type. An authorizer returning `{ id: null }`,
+`{ id: undefined }` or an object id joined, and every user whose id stringified
+the same way — every `null`-id user, say — **shared one presence entry**. On
+Redis, every other instance dropped the frame announcing such a join, so peers
+never saw the member at all
+([#346](https://github.com/locknessland/lockness-monorepo/issues/346)).
+
+**After**, `subscribe` throws `PresenceMemberIdError` for any id that is not a
+string or a finite number — before the size check, the caps and every write,
+publish and delivery. It is checked after item 9's result rule, so an
+authorizer's result is judged first, then the member's id.
+
+- **An app whose `authorize()` can return a null or undefined id** now has those
+  joins refused where they were silently merged. Deny instead:
+  `return user?.id == null ? false : { id: user.id }`.
+- **A `bigint` id changes error class**: it used to surface as
+  `PresenceMemberSizeError` (it cannot be serialized), and is now
+  `PresenceMemberIdError`. Send a 64-bit key as a string — a number above
+  `2 ** 53` has already lost precision before Lockness sees it.
+- **Roster entries a misconfigured `0.3.0` app already wrote** with such an id
+  are skipped on read, as they already were on Redis, and removed when their
+  owner leaves. No migration step.
+
+See
+[The presence member id is bounded too](#the-presence-member-id-is-bounded-too--by-length-not-by-charset).
 
 ## Upgrading to v0.3.0
 

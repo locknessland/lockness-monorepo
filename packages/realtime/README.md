@@ -74,11 +74,15 @@ app.get(
   `evict` throw `ConnectionIdError` otherwise, because a frame naming an id
   outside that charset is dropped by every _other_ instance and the failure was
   previously silent and partial. A `PresenceMember.id` — the value your
-  `authorize()` returns — is bounded only by **length** (1–200 characters, and a
-  numeric id must be finite), raising `PresenceMemberIdError`: it is your users'
-  identity, so an email or a username has to keep working, and the charset would
-  buy nothing that length-prefixed commands and MAC-signed frames do not
-  already. A **channel name** must match the connection-id charset and raises
+  `authorize()` returns — must be **a string or a finite number** whose string
+  form is 1–200 characters, raising `PresenceMemberIdError` otherwise. The type
+  is checked first: a `null`, `undefined` or object id used to merge different
+  users into one presence entry, since every consumer keys a member by
+  `String(id)`, so deny when your user's id is absent and send a 64-bit key as a
+  string. Its charset is deliberately free: it is your users' identity, so an
+  email or a username has to keep working, and the charset would buy nothing
+  that length-prefixed commands and MAC-signed frames do not already. A
+  **channel name** must match the connection-id charset and raises
   `ChannelNameError`: it travels the control plane on a presence join, and it is
   the left half of the roster's `<channel> <member>` entries, which are parsed
   on the first space. All three error types are exported so an `onError` handler

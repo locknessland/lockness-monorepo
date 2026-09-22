@@ -212,6 +212,21 @@ Anything not listed is internal and free to change.
   place an offending value becomes a log-safe TYPE label; an error message never
   echoes the value. Witness: `authorize_result_347.test.ts`; battery
   `tests/mutations/authorize_result_347.ts`.
+- **A presence member id's TYPE is one predicate, `isPresenceMemberIdValue` in
+  `protocol.ts`, shared by three sites that must never drift apart**
+  ([#346](https://github.com/locknessland/lockness-monorepo/issues/346)): the
+  join's `#assertUsableMemberId`, and on Redis the frame ingest `isPlainMember`
+  and the roster read `#parseRosterValue`. Before it, the two Redis sites each
+  had a copy and the join had none, so a `null` / `undefined` / object id joined
+  locally, merged different people under one `String(id)` key, and was dropped
+  by every peer. **Never inline a `typeof` at one site** — widen one copy and a
+  join succeeds here while every peer drops it, silently. **Never add #306's
+  length bound to the receive side**: a roster entry skipped for length still
+  counts in `total` (#339). The join checks the type BEFORE `String(id)`, which
+  throws on a null-prototype object. `PresenceMemberIdError` names a
+  non-primitive id by `typeLabel` only. The predicate is not exported from
+  `mod.ts`. Witness: `presence_member_id_type_346.test.ts`; battery
+  `tests/mutations/presence_member_type_346.ts`.
 - **A denial never revokes, and making it revoke was tried and rejected**
   ([#331](https://github.com/locknessland/lockness-monorepo/issues/331)).
   `authorize` runs on every subscribe including a re-subscribe, and when one
@@ -574,7 +589,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-69 test files for 19 source files:
+70 test files for 19 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -622,6 +637,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_join_rosterless_342.test.ts`
 - `packages/realtime/tests/presence_local_member_343.test.ts`
 - `packages/realtime/tests/presence_member_id.test.ts`
+- `packages/realtime/tests/presence_member_id_type_346.test.ts`
 - `packages/realtime/tests/presence_member_transitions_344.test.ts`
 - `packages/realtime/tests/presence_read_bound_341.test.ts`
 - `packages/realtime/tests/presence_rejoin_327.test.ts`
@@ -646,7 +662,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-23 mutation batteries — **`deno test` does not run these.** Each is an
+24 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -666,6 +682,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_member_306.ts`
 - `packages/realtime/tests/mutations/presence_member_holds_345.ts`
 - `packages/realtime/tests/mutations/presence_member_transitions_344.ts`
+- `packages/realtime/tests/mutations/presence_member_type_346.ts`
 - `packages/realtime/tests/mutations/presence_read_bound_341.ts`
 - `packages/realtime/tests/mutations/presence_snapshot_339.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
@@ -690,7 +707,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 69 test files directly —
+Then, specific to this package: run its 70 test files directly —
 
 ```bash
 deno test -A packages/realtime/

@@ -39,10 +39,18 @@ export interface PresenceMember {
     /**
      * The member's stable id.
      *
-     * **Length-bounded, charset-free — decided in #306.** The string form must
-     * be 1 to 200 characters, and a numeric id must be finite;
+     * **A string or a finite number (#346), length-bounded and charset-free
+     * (#306).** The type is checked at runtime, not only by this annotation:
+     * an authorizer in plain JS, behind a cast or reading a nullable column
+     * can hand over `null`, `undefined`, a bigint or an object, and every
+     * presence consumer keys a member by `String(id)` — so two users with a
+     * `null` id would share one entry, and on Redis every peer would drop the
+     * frame announcing it. Then the string form must be 1 to 200 characters.
      * `ChannelManager.subscribe` refuses anything else with a
-     * `PresenceMemberIdError` before it writes the roster.
+     * `PresenceMemberIdError` before it writes the roster. Any finite number
+     * is accepted, `1e21` included, and `-0` is the same member as `0`; send a
+     * 64-bit key as a string, since a number above `2 ** 53` has already lost
+     * precision.
      *
      * The charset is deliberately NOT constrained, unlike {@link Connection.id}
      * which #304 bound to `[A-Za-z0-9:._-]`. This is application identity —
