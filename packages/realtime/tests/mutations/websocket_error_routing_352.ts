@@ -9,6 +9,18 @@
  * error reported twice (M4), and the no-hook default sink silenced below
  * `console.error` (M5). Every row must die on a `#352` test.
  *
+ * The witness each row dies on — the assertion that fails, not only the test:
+ * M1 `onError is called exactly once` (0 calls), M2 `nothing is sent to the
+ * client`, M3 `the socket is not closed`, M4 `onError is called exactly once`
+ * (2 calls), M5 `exactly one console.error line` (0 lines). Each is named again
+ * on its row below.
+ *
+ * Every row was proven LIVE before it was trusted: a marker was placed at the
+ * row's anchor and seen to execute under the killing witness — the `catch`
+ * anchor (M1–M4) under `private-orders: an AuthorizeResultError from
+ * onMessage`, the default-sink anchor (M5) under `private-orders: with no
+ * onError hook`. A row whose line never runs reports a kill it did not cause.
+ *
  * Runs under the shared harness: green baseline before anything is mutated, an
  * atomic per-file lock, anchors matched exactly once (a stale anchor reports
  * the row DEAD, never a silent survival), a non-compiling mutant reported DEAD,
@@ -43,6 +55,7 @@ const MUTATIONS: Mutation[] = [
             '            void error\n' +
             '        }\n',
         ]],
+        // Witness: `onError is called exactly once` — it is called 0 times.
         killedBy: 'private-orders: an AuthorizeResultError from onMessage',
     },
     {
@@ -55,6 +68,7 @@ const MUTATIONS: Mutation[] = [
             '            await reportError(conn, error)\n' +
             '        }\n',
         ]],
+        // Witness: `nothing is sent to the client` — one frame was.
         killedBy: 'private-orders: an AuthorizeResultError from onMessage',
     },
     {
@@ -67,6 +81,7 @@ const MUTATIONS: Mutation[] = [
             '            await reportError(conn, error)\n' +
             '        }\n',
         ]],
+        // Witness: `the socket is not closed` — one close, code 1011.
         killedBy: 'private-orders: an AuthorizeResultError from onMessage',
     },
     {
@@ -79,6 +94,7 @@ const MUTATIONS: Mutation[] = [
             '            await reportError(conn, error)\n' +
             '        }\n',
         ]],
+        // Witness: `onError is called exactly once` — it is called twice.
         killedBy: 'private-orders: an AuthorizeResultError from onMessage',
     },
     {
@@ -90,6 +106,7 @@ const MUTATIONS: Mutation[] = [
             '            console.debug(\n' +
             '                `realtime: unhandled websocket error: ',
         ]],
+        // Witness: `exactly one console.error line` — none reaches it.
         killedBy: 'private-orders: with no onError hook',
     },
 ]

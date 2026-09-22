@@ -50,16 +50,17 @@ const PUBLIC = 'news'
 function fakeSocket() {
     const sent: string[] = []
     const closes: { code?: number; reason?: string }[] = []
-    return {
-        sent,
-        closes,
+    // `satisfies` ties the two methods `buildEvents` drives to Hono's own
+    // signatures, so a drift in `WSContext` fails type-checking here.
+    const methods = {
         send(data: string | ArrayBuffer | Uint8Array) {
             sent.push(data as string)
         },
         close(code?: number, reason?: string) {
             closes.push({ code, reason })
         },
-    }
+    } satisfies Pick<WSContext, 'send' | 'close'>
+    return { sent, closes, ...methods }
 }
 
 type FakeSocket = ReturnType<typeof fakeSocket>
@@ -105,14 +106,17 @@ function appOnMessage(
 /** Open a socket through `buildEvents`; return it and a subscribe-frame sender. */
 function open(hooks: WebSocketHooks<User>) {
     const ws = fakeSocket()
+    // Still a cast: the events take a full `WSContext` (`readyState`, `raw`,
+    // `url`, …) and the fake implements only the two methods checked above.
+    const context = ws as unknown as WSContext
     const events = buildEvents<User>(hooks, { id: 1 })
-    events.onOpen?.(new Event('open'), ws as unknown as WSContext)
+    events.onOpen?.(new Event('open'), context)
     const subscribe = (channel: string) =>
         events.onMessage?.(
             {
                 data: JSON.stringify({ type: 'subscribe', channel }),
             } as MessageEvent,
-            ws as unknown as WSContext,
+            context,
         )
     return { ws, subscribe }
 }
@@ -177,7 +181,7 @@ for (const channel of [PRIVATE, PRESENCE]) {
     Deno.test(`#352 ${channel}: with no onError hook, exactly one console.error line names the AuthorizeResultError and the socket stays open`, async () => {
         const manager = brokenManager()
         const lines: string[] = []
-        const error = console.error
+        const originalConsoleError = console.error
         console.error = (...args: unknown[]) =>
             void lines.push(args.map(String).join(' '))
         try {
@@ -203,7 +207,7 @@ for (const channel of [PRIVATE, PRESENCE]) {
             await assertStillServing(manager, ws, subscribe)
             assertEquals(lines.length, 1, 'and the valid frame logs nothing')
         } finally {
-            console.error = error
+            console.error = originalConsoleError
         }
     })
 }
