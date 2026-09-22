@@ -77,7 +77,9 @@ primitive such as `new Boolean(false)`. The `AuthorizeResult` type already says
 `(await db.select()...)[0]` under the default `noUncheckedIndexedAccess: false`,
 an `any`-typed row, a cast or a plain-JS app all compile and hand the manager a
 value the type does not name. Until #347 every such value except `false`
-**admitted** — an authenticated stranger on someone else's `private-*` channel.
+**admitted** a private channel — an authenticated stranger on someone else's
+`private-*` channel. (On a presence channel `null` and `undefined` failed with a
+raw `TypeError` instead, closed only by accident.)
 
 **Lockness deliberately does not treat a falsy value as a quiet deny**, unlike
 Laravel. A forgotten `return` is a bug, and read as `false` it would be a
@@ -91,14 +93,15 @@ removes nothing, exactly like a denial (see below).
 Write the authorizer so every path ends in one of the three:
 
 ```ts
-authorize: ;
-;(async (identity, channel) => {
-    const row = identity
-        ? await findMembership(identity.id, channel)
-        : undefined
-    // Never `return row`: a found row would ship every column to the room,
-    // and a missing one throws.
-    return row ? { id: row.userId, info: { name: row.displayName } } : false
+new ChannelManager({
+    authorize: async (identity, channel) => {
+        const row = identity
+            ? await findMembership(identity.id, channel)
+            : undefined
+        // Never `return row`: a found row would ship every column to the room,
+        // and a missing one throws.
+        return row ? { id: row.userId, info: { name: row.displayName } } : false
+    },
 })
 ```
 

@@ -1399,6 +1399,11 @@ export class ChannelManager<Identity = unknown> {
      *   Raised before the member id check, the caps and every write, so
      *   nothing is written, published or delivered; on a channel already held
      *   it removes nothing (#331).
+     * @throws {ChannelNameError} If `channel` is not a usable channel name.
+     * @throws {PresenceMemberIdError} If a presence member's id is not a string
+     *   or a finite number (#346), or is empty or too long (#306).
+     * @throws {PresenceMemberSizeError} If a presence member serializes past
+     *   the configured byte bound (#326).
      * @throws {ChannelLimitError} If the join would take this instance or this
      *   connection past a watched-channel cap, or past the share reserved for
      *   connections with no identity. Raised only AFTER authorization, so an
@@ -1420,7 +1425,8 @@ export class ChannelManager<Identity = unknown> {
      *
      * **A RE-SUBSCRIBE to a presence channel this connection already holds is a
      * roster READ.** It writes nothing, emits no `joined` to anyone, publishes
-     * nothing to other instances, and never throws — and it returns the same
+     * nothing to other instances, and never throws once the authorizer's result
+     * and member are accepted — and it returns the same
      * `SubscribeResult` a first join returns, so a client re-subscribing after
      * a network blip cannot tell the difference and is never refused.
      * **Zero writes is not zero cost** (#329): the read is one authoritative

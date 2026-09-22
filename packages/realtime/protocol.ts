@@ -92,8 +92,10 @@ export function isValidName(name: string): boolean {
  *
  * TYPE ONLY. #306's length bound stays at the join, where it protects the
  * roster write; applying it on the receive side would skip entries that still
- * count in a snapshot's `total` (#339). `JSON.parse` never yields a non-finite
- * number, so on the receive side this accepts exactly what the copies did.
+ * count in a snapshot's `total` (#339). The one receive-side difference from
+ * the copies it replaced: an overflowing literal such as `1e999` parses to
+ * `Infinity`, which they accepted and this refuses — no join can produce one,
+ * since the join boundary refuses a non-finite id first.
  *
  * Package-internal: exported from this module for its callers, NOT from
  * `mod.ts`.
