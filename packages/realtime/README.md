@@ -34,8 +34,12 @@ app.get(
 - **A CSWSH origin guard** — fail-closed, exact origin triple, same-origin by
   default from `APP_URL`.
 - **Channels** — public / private / presence, with an app authorizer, backed by
-  a memory or Redis driver. What a `joined` frame promises — and what it does
-  not — is in
+  a memory or Redis driver. The authorizer returns exactly `true`, `false` or a
+  `PresenceMember`; anything else — `undefined`, `null`, `0`, a raw query row
+  that was not found — throws `AuthorizeResultError` rather than admitting or
+  quietly denying
+  ([#347](https://github.com/locknessland/lockness-monorepo/issues/347)). What a
+  `joined` frame promises — and what it does not — is in
   [docs/realtime.md](../../docs/realtime.md#what-a-joined-frame-promises--and-what-it-does-not).
   The Redis driver runs across instances: broadcasts fan out over pub/sub, the
   presence `here` roster is authoritative in Redis, and `manager.evict(id)`

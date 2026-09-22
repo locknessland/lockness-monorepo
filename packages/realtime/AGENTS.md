@@ -53,7 +53,7 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                                                                                       |
+| class     | `AuthorizeResultError`, `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                                                               |
 | function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                                                                                    |
 | interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `PresenceSnapshot`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `RosterHold`, `RosterRelease`, `RosterWindow`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
 | typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                                                         |
@@ -195,6 +195,23 @@ Anything not listed is internal and free to change.
   `maxPresenceMemberBytes` defaults to half `control.maxPayloadBytes`; the gap
   is the frame envelope, and **the two move together or the invariant "an
   admitted member can always be announced" breaks**.
+- **An authorizer result is classified ONCE, in `classifyAuthorizeResult`, and
+  anything outside `true` / `false` / a non-array object THROWS**
+  ([#347](https://github.com/locknessland/lockness-monorepo/issues/347)). The
+  gate used to be `result === false`, so `undefined`, `null`, `0` and `''`
+  admitted to private channels and a falsy presence "member" joined with no
+  roster entry. Two "simplifications" bring it back. **Never map `invalid` to
+  `{ ok: false }`**: #331 gives that one meaning, and a forgotten `return` would
+  become a deny-all indistinguishable from policy — the maintainer decided
+  `null` / `undefined` throw, not deny Laravel-style. **Never move the
+  classification below `#checkChannelCaps` or `connections.set`**: an invalid
+  result must be refused before anything exists to undo, and a full connection
+  must hear `AuthorizeResultError`, not `ChannelLimitError`. The classifier
+  lives in `channel.ts`, not `protocol.ts` (which imports `channel.ts` — a
+  cycle), and does not call #346's member-id predicate. `typeLabel` is the one
+  place an offending value becomes a log-safe TYPE label; an error message never
+  echoes the value. Witness: `authorize_result_347.test.ts`; battery
+  `tests/mutations/authorize_result_347.ts`.
 - **A denial never revokes, and making it revoke was tried and rejected**
   ([#331](https://github.com/locknessland/lockness-monorepo/issues/331)).
   `authorize` runs on every subscribe including a re-subscribe, and when one
@@ -557,9 +574,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-68 test files for 19 source files:
+69 test files for 19 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
+- `packages/realtime/tests/authorize_result_347.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channel_name_boundary.test.ts`
 - `packages/realtime/tests/channel_revoke_332.test.ts`
@@ -628,12 +646,13 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-22 mutation batteries — **`deno test` does not run these.** Each is an
+23 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
 [testing.md](../../docs/testing.md#mutation-batteries).
 
+- `packages/realtime/tests/mutations/authorize_result_347.ts`
 - `packages/realtime/tests/mutations/channel_name_314.ts`
 - `packages/realtime/tests/mutations/channel_revoke_332.ts`
 - `packages/realtime/tests/mutations/connection_id_304.ts`
@@ -671,7 +690,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 68 test files directly —
+Then, specific to this package: run its 69 test files directly —
 
 ```bash
 deno test -A packages/realtime/

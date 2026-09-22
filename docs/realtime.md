@@ -58,6 +58,52 @@ approves; an unauthorized connection never receives that channel's events. A
 presence channel returns the current member roster and emits join/leave to
 members only.
 
+### What your authorizer may return
+
+Exactly three things
+([#347](https://github.com/locknessland/lockness-monorepo/issues/347)):
+
+| The authorizer returns                                     | `subscribe`                                                                    |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `false`                                                    | denies — `{ ok: false }`                                                       |
+| `true`                                                     | admits; on a presence channel the member is `{ id: connection.id }`            |
+| a `PresenceMember` object (any non-null, non-array object) | admits; on a presence channel as that member — a private channel ignores it    |
+| **anything else**                                          | **throws `AuthorizeResultError`** — nothing is written, published or delivered |
+
+"Anything else" is `undefined` from a missing `return`, `null` or `undefined`
+from a query that found nothing, `0`, `''`, `'yes'`, `1`, an array, a boxed
+primitive such as `new Boolean(false)`. The `AuthorizeResult` type already says
+`boolean | PresenceMember`, but the type does not reach every authorizer:
+`(await db.select()...)[0]` under the default `noUncheckedIndexedAccess: false`,
+an `any`-typed row, a cast or a plain-JS app all compile and hand the manager a
+value the type does not name. Until #347 every such value except `false`
+**admitted** — an authenticated stranger on someone else's `private-*` channel.
+
+**Lockness deliberately does not treat a falsy value as a quiet deny**, unlike
+Laravel. A forgotten `return` is a bug, and read as `false` it would be a
+deny-all that looks exactly like policy. It throws instead, so the bug is
+visible: the error reaches your `onError` hook through the WebSocket handler,
+and names the channel and the value's **type** only — never the value, which is
+your data. Nothing is sent to the client; your `onMessage` owns any reply, as
+for `ChannelLimitError`. On a channel the connection already holds it throws and
+removes nothing, exactly like a denial (see below).
+
+Write the authorizer so every path ends in one of the three:
+
+```ts
+authorize: ;
+;(async (identity, channel) => {
+    const row = identity
+        ? await findMembership(identity.id, channel)
+        : undefined
+    // Never `return row`: a found row would ship every column to the room,
+    // and a missing one throws.
+    return row ? { id: row.userId, info: { name: row.displayName } } : false
+})
+```
+
+`?? false` closes the gap wherever the value may be absent.
+
 ### What a `joined` frame promises — and what it does not
 
 **`joined` and `left` are announced per member, not per connection**
@@ -511,11 +557,17 @@ that no retry will fix" from a dead socket:
 
 ```ts
 import {
+    AuthorizeResultError,
     ChannelNameError,
     ConnectionIdError,
     PresenceMemberIdError,
     RevocationScopeError,
 } from '@lockness/realtime'
+
+if (error instanceof AuthorizeResultError) {
+    // The authorizer returned something other than true, false or a member —
+    // usually a missing `return` or a raw query row. Fix it; do not retry.
+}
 
 if (error instanceof PresenceMemberIdError) {
     // The authorizer returned an id the roster cannot carry — fix the
@@ -1665,12 +1717,12 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Four breaking changes — the driver revocation seam, the presence snapshot a
-subscribe returns, the driver roster seam, and presence frames announced per
-member rather than per connection — two widened return types, one new control
-kind, and one additive wire field. **No migration step, and one new Redis key
-family.** Before you deploy, read items 1, 3, 5, 6 and 8 — and item 7 if you
-wrote your own driver.
+Five breaking changes — the driver revocation seam, the presence snapshot a
+subscribe returns, the driver roster seam, presence frames announced per member
+rather than per connection, and an authorizer result outside its contract now
+throwing — two widened return types, one new control kind, and one additive wire
+field. **No migration step, and one new Redis key family.** Before you deploy,
+read items 1, 3, 5, 6, 8 and 9 — and item 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2011,6 +2063,31 @@ entry are unchanged, and a room that fits is returned whole. The memory driver
 keeps join order. This is a deliberate trade, accepted on 2026-09-14: a stable
 window would cost a scan inside the script, or an index key every existing room
 would have to be backfilled into.
+
+### 9. `authorize` must return `true`, `false` or a `PresenceMember`
+
+**Before**, `subscribe` denied only on exactly `false`. `undefined`, `null`, `0`
+and `''` admitted to private channels, and `'yes'`, `1` and arrays admitted to
+both kinds — a falsy presence "member" joined with no roster entry, receiving
+events while invisible to the room
+([#347](https://github.com/locknessland/lockness-monorepo/issues/347)).
+
+**After**, any other value makes `subscribe` throw `AuthorizeResultError`,
+before anything is written, published or delivered. The error reaches your
+`onError` hook and the client gets no reply unless your `onMessage` sends one.
+
+- **An app that allowed with `1` or `'yes'`** now refuses those users until the
+  authorizer returns `true`.
+- **An app that denied with `null` or `undefined`** — the Laravel habit — now
+  throws where it used to admit. Lockness deliberately does not treat a falsy
+  value as a quiet deny: a missing `return` must stay visible.
+- **An authorizer returning a raw query row** keeps working while the row is
+  found, and throws when it is not. Return an explicit member instead —
+  `return row ? { id: row.id } : false` — because the raw row ships every column
+  to the room.
+
+`AuthorizeResultError` is exported from `@lockness/realtime`. See
+[What your authorizer may return](#what-your-authorizer-may-return).
 
 ## Upgrading to v0.3.0
 
