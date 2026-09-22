@@ -112,6 +112,45 @@ string or a finite number, or `subscribe` throws `PresenceMemberIdError` — see
 [The presence member id is bounded too](#the-presence-member-id-is-bounded-too--by-length-not-by-charset).
 A `row.userId` that can be `null` needs the same `: false` branch.
 
+### What reaches the room: exactly `{ id, info }`
+
+A presence member is **exactly `{ id, info? }`**
+([#350](https://github.com/locknessland/lockness-monorepo/issues/350)). The room
+never receives the object your authorizer returned — it receives a copy made
+once, at admission:
+
+- **Only `id` and `info` may be own keys.** Any other key — the `email`,
+  `passwordHash` or `isAdmin` column of a raw row — makes `subscribe` throw
+  `PresenceMemberShapeError` before anything is written. The error names up to
+  three of the offending keys and their count, never a value. It refuses rather
+  than silently dropping the key, so a top-level `name` does not just vanish
+  from your UI.
+- **`info` must serialize to a JSON object**, or be absent. `null`, an array, a
+  `Date` (which serializes to a string) or a `toJSON` returning a non-object
+  throw `PresenceMemberShapeError`, naming the type only: every other instance
+  would drop such a member, so it would be visible here and nowhere else. An
+  `info` that serializes to nothing — a function, a symbol, or a `toJSON`
+  returning `undefined` — throws too, rather than joining as a bare `{ id }`
+  with its `info` silently lost.
+- **`id` and `info` are each read once.** The pair is serialized once and parsed
+  back, and that parsed copy is what the roster, the `here` snapshot and every
+  `joined` frame carry — on this instance and on every other one. A getter, a
+  Proxy or a `toJSON` on your object cannot make a later read ship something the
+  checks never saw, and changing the object after `subscribe` changes nothing in
+  the room.
+- **`info` follows JSON rules**: a `Map` or `Set` becomes `{}`, `undefined`
+  values vanish, a nested `Date` becomes a string — the same for every
+  subscriber.
+
+**What Lockness does not decide: what you put inside `info`.** `info: row` still
+ships the whole row, every column, to everyone in the room. Lockness guarantees
+the envelope; the contents are your declaration of what the room may see. Pick
+the fields:
+
+```ts
+return row ? { id: row.id, info: { name: row.displayName } } : false
+```
+
 ### What a `joined` frame promises — and what it does not
 
 **`joined` and `left` are announced per member, not per connection**
@@ -605,6 +644,7 @@ import {
     ChannelNameError,
     ConnectionIdError,
     PresenceMemberIdError,
+    PresenceMemberShapeError,
     RevocationScopeError,
 } from '@lockness/realtime'
 
@@ -617,6 +657,12 @@ if (error instanceof PresenceMemberIdError) {
     // The authorizer returned an id the roster cannot carry — not a string
     // or a finite number, empty, or over 200 characters. Fix the
     // authorizer, do not retry.
+}
+
+if (error instanceof PresenceMemberShapeError) {
+    // The member carried a key other than `id` and `info` — usually a raw
+    // query row — or an `info` that is not a JSON object. Return
+    // `{ id, info }` explicitly; do not retry.
 }
 
 if (error instanceof RevocationScopeError) {
@@ -1811,13 +1857,14 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Six breaking changes — the driver revocation seam, the presence snapshot a
+Seven breaking changes — the driver revocation seam, the presence snapshot a
 subscribe returns, the driver roster seam, presence frames announced per member
 rather than per connection, an authorizer result outside its contract now
-throwing, and a presence member id that is not a string or a finite number now
-throwing — two widened return types, one new control kind, and one additive wire
-field. **No migration step, and one new Redis key family.** Before you deploy,
-read items 1, 3, 5, 6, 8, 9 and 10 — and item 7 if you wrote your own driver.
+throwing, a presence member id that is not a string or a finite number now
+throwing, and a presence member that is not exactly `{ id, info }` now throwing
+— two widened return types, one new control kind, and one additive wire field.
+**No migration step, and one new Redis key family.** Before you deploy, read
+items 1, 3, 5, 6, 8, 9, 10 and 11 — and item 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2184,10 +2231,11 @@ before anything is written, published or delivered. The error reaches your
 - **An app that denied with `null` or `undefined`** — the Laravel habit — now
   throws where it used to admit. Lockness deliberately does not treat a falsy
   value as a quiet deny: a missing `return` must stay visible.
-- **An authorizer returning a raw query row** keeps working while the row is
-  found, and throws when it is not. Return an explicit member instead —
-  `return row ? { id: row.id } : false` — because the raw row ships every column
-  to the room.
+- **An authorizer returning a raw query row** keeps working on a **private**
+  channel while the row is found, and throws when it is not. On a presence
+  channel a found row now throws too, as `PresenceMemberShapeError` — see
+  item 11. Return an explicit member instead —
+  `return row ? { id: row.id } : false`.
 
 `AuthorizeResultError` is exported from `@lockness/realtime`. See
 [What your authorizer may return](#what-your-authorizer-may-return).
@@ -2220,6 +2268,43 @@ authorizer's result is judged first, then the member's id.
 
 See
 [The presence member id is bounded too](#the-presence-member-id-is-bounded-too--by-length-not-by-charset).
+
+### 11. A presence member is exactly `{ id, info }`
+
+**Before**, the object `authorize()` returned was stored and shipped as-is
+([#350](https://github.com/locknessland/lockness-monorepo/issues/350)):
+
+- Every own key of a raw row reached subscribers on the same instance, and was
+  written to the Redis roster at rest.
+- With exactly one extra key and no `info`, it reached every other instance too.
+- A `toJSON` on the object decided what shipped.
+- An `info` that serialized to a non-object joined locally and was dropped by
+  every other instance.
+- A getter `id` could pass the checks with one value and be stored as another.
+
+**After**:
+
+- On a presence channel, `subscribe` throws `PresenceMemberShapeError` before
+  anything is written if the member has an own key other than `id` / `info`, or
+  an `info` that is not a JSON object once serialized — including one that
+  serializes to nothing (a function, a symbol, a `toJSON` returning
+  `undefined`), which used to join as a bare `{ id }`.
+- The room receives a copy of `{ id, info }` made once at admission; later
+  changes to the returned object are not seen.
+- A frame from another instance whose member has any other key is dropped.
+- Roster entries with a non-object `info` are skipped on read (a `0.3.0`
+  instance may have written them); entries with extra keys are read back reduced
+  to `{ id, info }`. They leave with their owner — no migration step.
+- Private channels are unchanged: they never read the member.
+
+Return the pair explicitly:
+
+```ts
+return row ? { id: row.id, info: { name: row.displayName } } : false
+```
+
+`PresenceMemberShapeError` is exported from `@lockness/realtime`. See
+[What reaches the room](#what-reaches-the-room-exactly--id-info-).
 
 ## Upgrading to v0.3.0
 

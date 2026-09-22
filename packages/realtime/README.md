@@ -38,8 +38,14 @@ app.get(
   `PresenceMember`; anything else — `undefined`, `null`, `0`, a raw query row
   that was not found — throws `AuthorizeResultError` rather than admitting or
   quietly denying
-  ([#347](https://github.com/locknessland/lockness-monorepo/issues/347)). What a
-  `joined` frame promises — and what it does not — is in
+  ([#347](https://github.com/locknessland/lockness-monorepo/issues/347)). On a
+  presence channel the room receives **exactly `{ id, info }`**, copied once at
+  admission — never your object: any other own key, or an `info` that is not a
+  JSON object once serialized (a function or a symbol included), throws
+  `PresenceMemberShapeError`
+  ([#350](https://github.com/locknessland/lockness-monorepo/issues/350)). What
+  you put inside `info` is still yours to choose — `info: row` ships the row.
+  What a `joined` frame promises — and what it does not — is in
   [docs/realtime.md](../../docs/realtime.md#what-a-joined-frame-promises--and-what-it-does-not).
   The Redis driver runs across instances: broadcasts fan out over pub/sub, the
   presence `here` roster is authoritative in Redis, and `manager.evict(id)`

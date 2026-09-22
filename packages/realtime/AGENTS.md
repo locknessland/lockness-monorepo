@@ -53,7 +53,7 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `AuthorizeResultError`, `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                                                                                  |
+| class     | `AuthorizeResultError`, `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberShapeError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                                                      |
 | function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `PresenceSnapshot`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `RosterDeparture`, `RosterHold`, `RosterRelease`, `RosterWindow`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
 | typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                                                                            |
@@ -220,28 +220,57 @@ Anything not listed is internal and free to change.
   place an offending value becomes a log-safe TYPE label; an error message never
   echoes the value. Witness: `authorize_result_347.test.ts`; battery
   `tests/mutations/authorize_result_347.ts`.
-- **A wire presence member is one predicate, `isWirePresenceMember` in
+- **A member is parsed once, by `admitPresenceMember` (`presence_member.ts`);
+  never read `id`/`info` from the authorizer's object anywhere else, and never
+  validate an in-memory copy**
+  ([#350](https://github.com/locknessland/lockness-monorepo/issues/350)). The
+  authorizer's object is untrusted: a getter or Proxy answers a second read
+  differently, a `toJSON` decides what a serialization ships, and a `Date`
+  `info` is an object in memory and a string on the wire. So admission reads the
+  keys, `id` and `info` once each, serializes `{ id, info }` once, parses those
+  bytes back and checks the PARSED copy with `isPresenceMemberWire` — the
+  receivers' predicate on the receivers' representation. That copy is the only
+  member stored, held, snapshotted or announced. Three tidy-ups bring the leak
+  back: returning the candidate (or a spread of it) "to save a parse",
+  re-reading `candidate.id` / `candidate.info` when building the draft, and
+  checking the draft instead of `JSON.parse(text)`. An own key beside
+  `id`/`info` is REFUSED (`PresenceMemberShapeError`), never stripped — the
+  product default; the security property holds either way (battery M2).
+  Admission is synchronous and stays above `#checkChannelCaps`. The rule has
+  changed four times (#306, #326, #346, #350): it changes in
+  `presence_member.ts`, not in the orchestrator. Witness:
+  `presence_member_admission_350.test.ts`; battery
+  `tests/mutations/presence_member_admission_350.ts`.
+- **A wire presence member is one predicate, `isPresenceMemberWire` in
   `protocol.ts`**
-  ([#348](https://github.com/locknessland/lockness-monorepo/issues/348)): a
-  plain object, an id passing `isPresenceMemberIdValue`, a plain-object or
-  absent `info`, at most two keys. The Redis frame ingest (`isPlainMember`) and
-  the manager's departure handler both ask it, so the manager never shows its
-  own subscribers a member every peer refuses. Package-internal — not exported
-  from `mod.ts`. Never re-spell the `info` or key-count half at a call site.
+  ([#348](https://github.com/locknessland/lockness-monorepo/issues/348), made
+  strict by
+  [#350](https://github.com/locknessland/lockness-monorepo/issues/350)): a
+  non-array object whose EVERY key is `id` or `info`, an id passing
+  `isPresenceMemberIdValue`, an `info` passing `isPresenceMemberInfoValue`. The
+  join's admission (on the parsed copy), the Redis frame ingest
+  (`isPlainMember`) and the manager's departure handler all ask it, so no
+  instance admits or shows a member every peer refuses. The key rule is an
+  ALLOW-LIST — #348's count (`<= 2`) let `{ id, smuggled }` through. The roster
+  read (`#parseRosterValue`) asks the id and `info` halves only and REDUCES to
+  `{ id, info }`: skipping a legacy entry with extra keys would hide a 0.3.0
+  member for its session. Package-internal — not exported from `mod.ts`. Never
+  re-spell a half at a call site.
 - **A presence member id's TYPE is one predicate, `isPresenceMemberIdValue` in
   `protocol.ts`, shared by three sites that must never drift apart**
   ([#346](https://github.com/locknessland/lockness-monorepo/issues/346)): the
-  join's `#assertUsableMemberId`, and on Redis the frame ingest `isPlainMember`
-  and the roster read `#parseRosterValue`. Before it, the two Redis sites each
-  had a copy and the join had none, so a `null` / `undefined` / object id joined
-  locally, merged different people under one `String(id)` key, and was dropped
-  by every peer. **Never inline a `typeof` at one site** — widen one copy and a
-  join succeeds here while every peer drops it, silently. **Never add #306's
-  length bound to the receive side**: a roster entry skipped for length still
-  counts in `total` (#339). The join checks the type BEFORE `String(id)`, which
-  throws on a null-prototype object. `PresenceMemberIdError` names a
-  non-primitive id by `typeLabel` only. The predicate is not exported from
-  `mod.ts`. Witness: `presence_member_id_type_346.test.ts`; battery
+  join's id check (`assertUsableMemberId` in `presence_member.ts` since #350),
+  and on Redis the frame ingest `isPlainMember` and the roster read
+  `#parseRosterValue`. Before it, the two Redis sites each had a copy and the
+  join had none, so a `null` / `undefined` / object id joined locally, merged
+  different people under one `String(id)` key, and was dropped by every peer.
+  **Never inline a `typeof` at one site** — widen one copy and a join succeeds
+  here while every peer drops it, silently. **Never add #306's length bound to
+  the receive side**: a roster entry skipped for length still counts in `total`
+  (#339). The join checks the type BEFORE `String(id)`, which throws on a
+  null-prototype object. `PresenceMemberIdError` names a non-primitive id by
+  `typeLabel` only. The predicate is not exported from `mod.ts`. Witness:
+  `presence_member_id_type_346.test.ts`; battery
   `tests/mutations/presence_member_type_346.ts`.
 - **A denial never revokes, and making it revoke was tried and rejected**
   ([#331](https://github.com/locknessland/lockness-monorepo/issues/331)).
@@ -612,7 +641,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-72 test files for 19 source files:
+73 test files for 20 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -660,6 +689,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_join_compensation_323.test.ts`
 - `packages/realtime/tests/presence_join_rosterless_342.test.ts`
 - `packages/realtime/tests/presence_local_member_343.test.ts`
+- `packages/realtime/tests/presence_member_admission_350.test.ts`
 - `packages/realtime/tests/presence_member_id.test.ts`
 - `packages/realtime/tests/presence_member_id_type_346.test.ts`
 - `packages/realtime/tests/presence_member_transitions_344.test.ts`
@@ -687,7 +717,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-26 mutation batteries — **`deno test` does not run these.** Each is an
+27 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -705,6 +735,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_join_323.ts`
 - `packages/realtime/tests/mutations/presence_local_member_343.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
+- `packages/realtime/tests/mutations/presence_member_admission_350.ts`
 - `packages/realtime/tests/mutations/presence_member_holds_345.ts`
 - `packages/realtime/tests/mutations/presence_member_transitions_344.ts`
 - `packages/realtime/tests/mutations/presence_member_type_346.ts`
@@ -734,7 +765,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 72 test files directly —
+Then, specific to this package: run its 73 test files directly —
 
 ```bash
 deno test -A packages/realtime/

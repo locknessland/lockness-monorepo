@@ -80,11 +80,12 @@ instead — which fixes its `readRoster` caller too.
 ### The manager: the second caller of `#announcePresence`
 
 The departure handler checks the departure — a valid channel name and a member
-that passes `isWirePresenceMember` (`protocol.ts`), the same rule every peer's
-ingest applies — then announces a `left` through `#announcePresence`, with the
-channel as the frame's `target`. A departure that fails either check is dropped
-with one WARN: this instance must not show its own subscribers a frame every
-peer refuses.
+that passes `isWirePresenceMember` (`protocol.ts`; renamed
+`isPresenceMemberWire` and made an allow-list of keys by #350), the same rule
+every peer's ingest applies — then announces a `left` through
+`#announcePresence`, with the channel as the frame's `target`. A departure that
+fails either check is dropped with one WARN: this instance must not show its own
+subscribers a frame every peer refuses.
 
 `#announcePresence`'s `origin` parameter became `target: string`. A departure
 passes the **channel name**: it always passes the peers' `isValidName`, and no
