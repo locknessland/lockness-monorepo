@@ -122,6 +122,13 @@ app.get(
   Reach for the first when the identity is unwelcome, the second when a room is
   — using `evict` for a per-room action drops every other room the connection
   holds, and the bundled client implements no reconnect at all.
+- **A disconnected connection is refused at admission.** Once `disconnect` has
+  begun for a connection object, `register` and `subscribe` throw
+  `ConnectionDisconnectedError` for it — before the authorizer where they can,
+  and always before anything is written — so a subscribe racing the socket's
+  close no longer strands a membership. A different object presenting an id
+  still being torn down gets `ConnectionIdInUseError`. See
+  [item 17 of Upgrading to v0.4.0](../../docs/realtime.md#17-a-disconnected-connection-is-refused-at-admission).
 - **The local verbs report.** `unsubscribe` and `disconnect` take a connection
   id but act only on sockets this instance owns, and they now say which:
   `'left'` / `'not-subscribed'` / `'not-owned'`. Server-side values — never

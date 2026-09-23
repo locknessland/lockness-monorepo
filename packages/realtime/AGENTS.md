@@ -24,8 +24,8 @@ satisfies `@lockness/notification`'s `BroadcasterLike`.
 - **Origin is checked fail-closed** — exact origin triple, absent/empty/`null`
   rejected, no substring/implicit wildcard (CSWSH, S5).
 - **A private/presence channel event reaches a connection only after the
-  authorizer approved it** (S1 disclosure control); a Redis-received message is
-  re-authorized on the receiving instance (S6).
+  authorizer approved that object's own subscribe** (S1 disclosure control); a
+  Redis-received message is re-authorized on the receiving instance (S6).
 - **The events bridge forwards only `broadcastWith()`** — minimal default, never
   the whole event (leak-by-default, S2).
 - **No `any` in exported signatures; JSDoc on every export; no direct `hono`.**
@@ -53,7 +53,7 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | :-------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `AuthorizeResultError`, `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionIdError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberShapeError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                                                                      |
+| class     | `AuthorizeResultError`, `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionDisconnectedError`, `ConnectionIdError`, `ConnectionIdInUseError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberShapeError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                             |
 | function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PresenceCapableDriver`, `PresenceMember`, `PresenceSnapshot`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `RosterDeparture`, `RosterHold`, `RosterRelease`, `RosterWindow`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
 | typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                                                                            |
@@ -567,6 +567,16 @@ Anything not listed is internal and free to change.
     never silent (a broker formatting scores differently would leave every
     revocation unenforced). Witness: `revocation_paging_359.test.ts`; battery
     `tests/mutations/revocation_paging_359.ts`.
+- **Retirement is never an ownership reader's business**
+  ([#361](https://github.com/locknessland/lockness-monorepo/issues/361)). What
+  "retired" means is `#retired`'s JSDoc in `manager.ts`, and why is
+  [ADR 010](../../docs/adr/010-realtime-disconnect-retires-the-connection-object.md);
+  read those, do not restate them. The pitfalls: consulting it in the revocation
+  decider or any other ownership reader (`connections` answers ownership),
+  re-keying it by id, reading it anywhere but `#assertAdmissible`, and deleting
+  from `connections` at `disconnect`'s entry. Witness:
+  `disconnect_admission_361.test.ts`; battery
+  `tests/mutations/disconnect_admission_361.ts`.
 - **Every realtime reply that grows with a collection has a named bound** — the
   inventory for `MAX_REPLY_BYTES`'s rule (`@lockness/redis`, `resp.ts`: the
   caller bounds the reply; the cap is a backstop that costs the whole socket).
@@ -903,7 +913,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-82 test files for 21 source files:
+83 test files for 21 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -924,6 +934,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/control_replay.test.ts`
 - `packages/realtime/tests/control_replay_window.test.ts`
 - `packages/realtime/tests/deliver_local_reauth.test.ts`
+- `packages/realtime/tests/disconnect_admission_361.test.ts`
 - `packages/realtime/tests/disconnect_propagation.test.ts`
 - `packages/realtime/tests/driver_contract.test.ts`
 - `packages/realtime/tests/driver_redis.test.ts`
@@ -988,7 +999,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-35 mutation batteries — **`deno test` does not run these.** Each is an
+36 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -999,6 +1010,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/channel_name_314.ts`
 - `packages/realtime/tests/mutations/channel_revoke_332.ts`
 - `packages/realtime/tests/mutations/connection_id_304.ts`
+- `packages/realtime/tests/mutations/disconnect_admission_361.ts`
 - `packages/realtime/tests/mutations/fake_redis_280.ts`
 - `packages/realtime/tests/mutations/lapse_rehold_349.ts`
 - `packages/realtime/tests/mutations/live_conformance_285.ts`
@@ -1044,7 +1056,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 82 test files directly —
+Then, specific to this package: run its 83 test files directly —
 
 ```bash
 deno test -A packages/realtime/

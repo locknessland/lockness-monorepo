@@ -30,6 +30,10 @@ app.get(
 The origin guard is **fail-closed**: exact origin triple, same-origin by default
 from `APP_URL`, and an absent / `null` / substring-lookalike origin is rejected.
 
+If you wire your own transport instead of `handlerHooks`, it owes the manager
+three lifecycle duties and your ids owe it two rules — see
+[Your connection ids and your transport's lifecycle](#your-connection-ids-and-your-transports-lifecycle).
+
 ### A failing hook is reported, never fatal
 
 A synchronous throw or an async rejection from `onOpen`, `onMessage` **or
@@ -496,14 +500,40 @@ Redis roster on every subscribe, and a missed eviction is recovered by the
 durable revocation record. Nothing is permanently lost; some cross-instance
 presence events are simply not delivered while both versions are running.
 
-### Two constraints on your connection ids
+### Your connection ids and your transport's lifecycle
 
-`manager.evict(id)` names a connection id in a frame that crosses the bus, so
-**a connection id must be unguessable and never reused**. The framework's own
-WebSocket upgrade generates one per connection; if you wire your own transport,
-generate a fresh `crypto.randomUUID()` rather than passing a user id or a
-session id. A stable, guessable id makes a captured eviction frame a repeatable
-weapon against whoever currently holds it.
+`handlerHooks` meets everything in this section for you. Read it if you mint
+your own ids or wire your own transport.
+
+**Your transport owes the manager three lifecycle duties**
+([#361](https://github.com/locknessland/lockness-monorepo/issues/361)):
+
+1. **Call `register` with the connection object from the socket's open hook** —
+   not lazily, and not from the first `subscribe`.
+2. **Present that same object for the socket's whole life.** Do not build a
+   fresh `Connection` per frame.
+3. **Call `disconnect` when the socket closes.**
+
+A `disconnect` retires the connection **object** it was given: from then on
+`register` and `subscribe` refuse that object with
+`ConnectionDisconnectedError`, before the authorizer runs and before anything is
+written. That refusal is what keeps a `subscribe` racing the close from leaving
+a membership, a cap slot, a broker watch and a roster entry that nothing would
+ever tear down. It reaches only what the three duties make reachable. A
+connection first seen by a `subscribe` racing its own `disconnect`, or a fresh
+object built per call after the teardown, escapes it — and strands exactly that
+state.
+
+While a teardown is still running, a **different** object presenting the same id
+is refused with `ConnectionIdInUseError`. That is the first id rule below being
+broken, not a race to wait out.
+
+**Your ids owe it two rules.** `manager.evict(id)` names a connection id in a
+frame that crosses the bus, so **a connection id must be unguessable and never
+reused**. The framework's own WebSocket upgrade generates one per connection; if
+you wire your own transport, generate a fresh `crypto.randomUUID()` rather than
+passing a user id or a session id. A stable, guessable id makes a captured
+eviction frame a repeatable weapon against whoever currently holds it.
 
 **It must also stay inside the charset the control plane can carry**: letters,
 digits and `:` `.` `_` `-`, at most 200 characters. `crypto.randomUUID()`
@@ -1086,7 +1116,16 @@ const hooks = manager.handlerHooks({
                 return
             }
         }
-        await dispatch(conn, frame)
+        try {
+            await dispatch(conn, frame)
+        } catch (error) {
+            // The `await` above lets the socket close before `subscribe` runs,
+            // and a disconnected connection is refused at admission. No client
+            // is left to answer, so drop the frame — and let anything else
+            // reach `onError`. Import it from `@lockness/realtime`.
+            if (error instanceof ConnectionDisconnectedError) return
+            throw error
+        }
     },
     // Install this. Without it every malformed frame prints one line through
     // the framework's default sink, at whatever rate the client chooses.
@@ -2100,19 +2139,20 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Sixteen items. Eleven are breaking changes — the driver revocation seam, the
+Seventeen items. Twelve are breaking changes — the driver revocation seam, the
 presence snapshot a subscribe returns, the driver roster seam, presence frames
 announced per member rather than per connection, an authorizer result outside
 its contract now throwing, a presence member id that is not a string or a finite
 number now throwing, a presence member that is not exactly `{ id, info }` now
 throwing, presence members now read-only, an object result on a private channel
 now checked as a presence member, no connection receiving `joined` or `left` for
-its own member id, and a presence member over its byte bound now throwing — plus
-two widened return types, one new control kind, one additive wire field and one
-additive getter. Item 16 changes no behaviour: it corrects earlier guidance.
-**No migration step, and one new Redis key family.** Before you deploy, read
-items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15 and 16 — and items 2 and 7 if you
-wrote your own driver.
+its own member id, a presence member over its byte bound now throwing, and a
+disconnected connection now refused at admission — plus two widened return
+types, one new control kind, one additive wire field and one additive getter.
+Item 16 changes no behaviour: it corrects earlier guidance. **No migration step,
+and one new Redis key family.** Before you deploy, read items 1, 3, 5, 6, 8, 9,
+10, 11, 12, 13, 14, 15, 16 and 17 — and items 2 and 7 if you wrote your own
+driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2704,6 +2744,73 @@ budget you believe you have is smaller than you believe — see
 `ChannelManager` also gained one read-only getter, `maxChannelsPerConnection`,
 which reports the **effective** cap rather than the default constant. Additive
 only.
+
+### 17. A disconnected connection is refused at admission
+
+**Before**, nothing recorded that a connection had been disconnected
+([#361](https://github.com/locknessland/lockness-monorepo/issues/361)). A
+`subscribe` whose authorizer was still pending when the socket closed, or one
+issued by an `onMessage` that resumed after an `await`, resolved `{ ok: true }`.
+It wrote a membership no teardown would ever reach: a cap slot, a broker watch
+and, on a presence channel, a roster entry every instance kept showing. After
+the teardown it also re-registered the connection, which `connectionCount` then
+counted.
+
+**After**, `register` and `subscribe` throw instead, before the authorizer runs
+where they can and always before anything is written. Two classes, both exported
+from `@lockness/realtime`, handled differently:
+
+- **`ConnectionDisconnectedError`**: this connection object was disconnected.
+  The socket is gone and no retry can succeed. Catch it with `instanceof` and
+  drop the frame.
+- **`ConnectionIdInUseError`**: a _different_ object presented an id that is
+  still being torn down. That breaks the id contract, so it is neither retried
+  nor dropped silently — fix the transport that minted the id.
+
+```ts
+// Before: resolved { ok: true } for a socket that had already closed.
+await manager.subscribe(conn, channel)
+
+// After: drop the frame; let anything else reach onError.
+try {
+    await manager.subscribe(conn, channel)
+} catch (error) {
+    if (error instanceof ConnectionDisconnectedError) return
+    throw error
+}
+```
+
+The worked example under
+[Where a verb budget belongs](#where-a-verb-budget-belongs) does exactly this.
+If you catch nothing, the refusal reaches your `onError` hook, or the default
+ERROR line when you installed none — one line per race.
+
+**A denial is still a denial.** When the authorizer answers `false` for a
+connection that disconnected while it ran, `subscribe` still resolves
+`{ ok: false }`, and an authorizer result outside its contract still throws its
+own error. Only an **admission** is replaced by the refusal.
+
+Four smaller changes ride with it:
+
+1. **`handlerHooks` now always disconnects on close**, even when your own
+   `onClose` throws. Your error is still what the close rejects with, and it
+   reaches your `onError` (see
+   [A failing hook is reported, never fatal](#a-failing-hook-is-reported-never-fatal));
+   a teardown failure after it is logged as a WARN.
+2. **`connectionCount` no longer counts zombies** re-registered by a late
+   `subscribe`.
+3. **`evict` and `revokeChannel` re-throw a rejection whose value is
+   `undefined`** from the durable record write or clear. It used to be read as
+   success.
+4. **A failed unwatch no longer leaves a presence member behind.** `unsubscribe`
+   forgets the member before it leaves the channel and releases its roster slot
+   even when the leave rejects, so a liveness lapse cannot bring it back.
+
+If you wire your own transport, it must meet three lifecycle duties for the
+refusal to reach it — see
+[Your connection ids and your transport's lifecycle](#your-connection-ids-and-your-transports-lifecycle).
+
+No wire change, and no migration step.
 
 ## Upgrading to v0.3.0
 

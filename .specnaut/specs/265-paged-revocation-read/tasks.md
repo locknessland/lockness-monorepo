@@ -219,6 +219,8 @@ output is saved to the scratchpad. It is committed **with** the code that makes 
   `SUITES` lists `revocation_paging_359.test.ts`.
 
   **As built:** M14 is killed by a witness added during implementation, R13 (d), not by R13 (c). Against an id foreign to every local map, applying is a no-op, so R13 (c) cannot see the mutant. R13 (d) sets up the one state reachable through the public API that tells the two apart: a `subscribe` that resolves while a `disconnect` of the same id is suspended in its teardown loop. That leaves a membership naming an id that `connections` no longer holds, and with the check deleted the re-check would clear that id's durable record. The state itself is a separate membership leak, filed as #361. If #361 is fixed, R13 (d)'s precondition fails: there is then no reachable state where deleting the check is wrong, and M14 moves to `expectSurvival`. R3 (a, b) and R3 (c) hold the reap's reply, not the first page's. A held page reply has already been read, so M6 and M7 survived that version.
+
+  Resolved by #361: R13 (d) retired, M14 is `expectSurvival`.
 - [X] T036 [P] Re-anchor `sweep_paging_358` M3 in `packages/realtime/tests/mutations/sweep_paging_358.ts` (A5) on `"            if (end !== 'swept') return end\n            cursor = page.cursor\n        } while (cursor !== '0')\n"`, with its mutant text changed to match, and re-prove it live (killed by `#358 W1 `).
 - [X] T037 [P] `packages/realtime/tests/mutations/live_conformance_285.ts` (A11):
   - relabel "the Lua subset drops a statement — the reap never runs" to "… — `MARK_REVOKED_SCRIPT`'s `ZADD` never runs";
