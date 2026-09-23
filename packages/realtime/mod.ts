@@ -74,7 +74,9 @@ export {
     // `instanceof`, which needs this line. #306 adds the presence-member
     // sibling and closes the same gap for it. #347's `AuthorizeResultError`
     // is exported for the same reason: an authorizer returning a value
-    // outside its contract is a bug no retry fixes.
+    // outside its contract is a bug no retry fixes. A lifecycle refusal that
+    // reaches the shared `onError` hook needs `instanceof` too (#361): the
+    // two below tell a socket that is gone from an id reused by a second one.
     AuthorizeResultError,
     CHANNEL_LIMIT_SCOPES,
     ChannelLimitError,
@@ -82,7 +84,9 @@ export {
     ChannelManager,
     type ChannelManagerOptions,
     ChannelNameError,
+    ConnectionDisconnectedError,
     ConnectionIdError,
+    ConnectionIdInUseError,
     type DisconnectOutcome,
     type LeaveOutcome,
     MAX_CHANNELS_PER_CONNECTION,

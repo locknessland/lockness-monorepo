@@ -77,11 +77,13 @@ const MUTATIONS: Mutation[] = [
         label:
             '#334 the local entry is dropped AFTER the roster write, not before',
         file: MANAGER,
+        // RE-ANCHORED by #361: `unsubscribe` now forgets BEFORE its awaited
+        // leave, so the forget and `if (member) {` are no longer adjacent. The
+        // forget is still unique — the #323 compensation forgets
+        // `connection.id` — and the guard is the same.
         edits: [[
-            '        const member = this.#forgetPresenceMember(channel, clientId)\n' +
-            '        if (member) {\n',
-            '        const member = this.presence.get(channel)?.get(clientId)\n' +
-            '        if (member) {\n',
+            '        const member = this.#forgetPresenceMember(channel, clientId)\n',
+            '        const member = this.presence.get(channel)?.get(clientId)\n',
         ]],
         // The ordering row. The local removal never happens at all, so
         // `#syncRosterMember` derives the member as still present and re-adds

@@ -110,6 +110,17 @@ export interface RealtimeControlConfig {
  * from a wire frame) and is immutable; `metadata` is free-form and is never
  * treated as identity (security S1).
  *
+ * **One object per socket, for the socket's whole life** (#361). A transport
+ * that wires its own hooks must present the very object it passed to
+ * `ChannelManager.register` on every later call for that socket, and never
+ * build a fresh `Connection` per frame. A `disconnect` retires the object it
+ * was given, and `register` and `subscribe` refuse a retired object with
+ * `ConnectionDisconnectedError`; a fresh object built after the teardown is
+ * unknown to the manager and escapes that refusal. `buildEvents` creates one
+ * object per socket, so `handlerHooks` meets this for you. The other two
+ * lifecycle duties — register at open, disconnect at close — are
+ * `ChannelManager.register`'s and `disconnect`'s to state.
+ *
  * @typeParam Identity - The app's identity shape (e.g. a user id or record).
  */
 export interface Connection<Identity = unknown> {

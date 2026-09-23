@@ -382,6 +382,115 @@ export class ConnectionIdError extends Error {
 }
 
 /**
+ * A connection that was disconnected was presented again (#361).
+ *
+ * `ChannelManager` raises it from `register`, and from `subscribe` both before
+ * the authorizer runs and again after it, when the connection **object** is one
+ * a `disconnect` has already begun for — by the socket's close, by `evict`, or
+ * by a direct call. It is always raised before anything is written: no slot is
+ * taken, no channel is watched, no roster entry is held and no frame is sent.
+ * Its usual cause is an `onMessage` that awaits something (a body read, a
+ * database lookup) before calling `subscribe`, while the socket closes.
+ *
+ * **A named type, not `{ ok: false }`.** `{ ok: false }` means the authorizer
+ * denied (#331), a policy outcome an application may answer the client with.
+ * Nobody decided anything about the channel here: the socket has gone. Folding
+ * the two together would put a lifecycle race and a policy decision behind one
+ * branch.
+ *
+ * **Not a field on `SubscribeResult` either.** A field every caller must
+ * remember to read is one a caller that checks only `ok` silently ignores, and
+ * `register` has no result to carry it at all.
+ *
+ * No client is left to answer and no retry can succeed, so the one right
+ * handling is to drop the frame.
+ *
+ * @example
+ * ```ts
+ * import { ConnectionDisconnectedError } from '@lockness/realtime'
+ *
+ * const hooks = manager.handlerHooks({
+ *     onMessage: async (conn, data) => {
+ *         const channel = await channelFrom(data) // the socket may close here
+ *         try {
+ *             await manager.subscribe(conn, channel)
+ *         } catch (error) {
+ *             // No client is left to answer: drop the frame.
+ *             if (error instanceof ConnectionDisconnectedError) return
+ *             throw error
+ *         }
+ *     },
+ * })
+ * ```
+ */
+export class ConnectionDisconnectedError extends Error {
+    /** Always `'ConnectionDisconnectedError'`, for logs and `onError`. */
+    override readonly name = 'ConnectionDisconnectedError'
+
+    /**
+     * Build the refusal, naming the id through `safeForLog`.
+     *
+     * @param id - The disconnected connection's id, encoded before it reaches
+     *   the message.
+     */
+    constructor(id: string) {
+        super(
+            `realtime: connection ${safeForLog(id)} was disconnected, so ` +
+                'nothing was subscribed or registered for it. No retry will ' +
+                'help: the socket is gone.',
+        )
+    }
+}
+
+/**
+ * A different connection object presented an id still bound to a connection
+ * that is being disconnected (#361).
+ *
+ * `ChannelManager` raises it from `register` and `subscribe`, before anything
+ * is written, while the teardown of the connection that holds the id is still
+ * running. The {@link Connection.id} contract forbids reusing an id, so this is
+ * a breach of that contract in the caller's transport, not a race to wait out.
+ *
+ * A sibling of {@link ConnectionDisconnectedError} and not the same class,
+ * because the two call for different handling: that one means *this* socket
+ * has gone, this one means two sockets were given one id. The refusal holds
+ * only while the id is still bound to the retiring connection; #363 may widen
+ * it to an id bound to a live connection.
+ *
+ * @example
+ * ```ts
+ * import { ConnectionIdInUseError } from '@lockness/realtime'
+ *
+ * try {
+ *     manager.register(connection)
+ * } catch (error) {
+ *     if (error instanceof ConnectionIdInUseError) {
+ *         // Mint a fresh id per socket with `crypto.randomUUID()`.
+ *     }
+ *     throw error
+ * }
+ * ```
+ */
+export class ConnectionIdInUseError extends Error {
+    /** Always `'ConnectionIdInUseError'`, for logs and `onError`. */
+    override readonly name = 'ConnectionIdInUseError'
+
+    /**
+     * Build the refusal, naming the id through `safeForLog`.
+     *
+     * @param id - The id the second object presented, encoded before it
+     *   reaches the message.
+     */
+    constructor(id: string) {
+        super(
+            `realtime: a different connection object presented id ` +
+                `${safeForLog(id)}, which is still bound to a connection ` +
+                'being disconnected. A connection id must never be reused.',
+        )
+    }
+}
+
+/**
  * A scoped revocation was asked for on a driver that can route it but cannot
  * record it durably.
  *
@@ -919,6 +1028,27 @@ export class ChannelManager<Identity = unknown> {
      * inside {@link #joinLocal} / {@link #leaveLocal}, so it cannot drift.
      */
     readonly #channelsByClient = new Map<string, Set<string>>()
+    /**
+     * The connection objects a `disconnect` has begun for — **retired** (#361).
+     *
+     * This is the definition's one home
+     * ([ADR 010](../../docs/adr/010-realtime-disconnect-retires-the-connection-object.md)
+     * links here rather than restating it):
+     *
+     * - **Retired** means a `disconnect` has begun for this connection
+     *   **object**. {@link disconnect} is the only writer, at its entry.
+     * - It is **terminal** and **per-manager**: nothing ever removes an entry,
+     *   and another manager knows nothing of it.
+     * - It is **keyed by object**, so an entry lives exactly as long as someone
+     *   can still present that object, then dies with it — bounded by
+     *   construction, with no TTL and no sweep. An id-keyed record would have
+     *   to outlive the teardown, one entry per socket ever closed.
+     * - It is **not a spelling of ownership.** A retiring connection is still
+     *   owned — `connections` answers that, for every reader that asks it —
+     *   and is only no longer admissible. {@link #assertAdmissible} is the one
+     *   reader.
+     */
+    readonly #retired = new WeakSet<Connection<Identity>>()
     /** The driver's per-channel watch ops, or `undefined` — one guard (#295). */
     #watcher: ChannelWatchCapableDriver | undefined
     /**
@@ -1123,6 +1253,11 @@ export class ChannelManager<Identity = unknown> {
      * path and cannot refuse the expensive one. `docs/realtime.md` carries the
      * per-frame cost table and a worked example.
      *
+     * **`onClose` always disconnects** (#361). The app's `onClose` runs first,
+     * and the teardown runs whatever it did — so the connection is torn down
+     * and retired even when the app's hook throws. The app's error is then
+     * what the close rejects with; a teardown failure after it is one WARN.
+     *
      * @param userHooks - The app's own hooks (run alongside the teardown).
      * @returns Hooks to pass to `createWebSocketHandler`.
      *
@@ -1156,8 +1291,33 @@ export class ChannelManager<Identity = unknown> {
             onMessage: userHooks.onMessage,
             onError: userHooks.onError,
             onClose: async (conn, code, reason) => {
-                await userHooks.onClose?.(conn, code, reason)
-                await this.disconnect(conn.id)
+                // THE TEARDOWN RUNS WHATEVER THE APP'S HOOK DID (#361). An app
+                // `onClose` that threw used to skip `disconnect`: no teardown,
+                // no retirement, and every leak retirement removes. Each
+                // failure is recorded by a flag — a rejection may carry
+                // `undefined` — and never by a bare `try/finally`, which would
+                // drop the app's error if the teardown failed too.
+                let appFailed = false
+                let appError: unknown
+                try {
+                    await userHooks.onClose?.(conn, code, reason)
+                } catch (error) {
+                    appFailed = true
+                    appError = error
+                }
+                try {
+                    await this.disconnect(conn.id)
+                } catch (error) {
+                    if (!appFailed) throw error
+                    console.warn(
+                        `realtime: disconnecting ${
+                            safeForLog(conn.id)
+                        } after the application's onClose threw also ` +
+                            `failed: ${renderError(error)}`,
+                    )
+                }
+                // The app's error first: it is the one its own code raised.
+                if (appFailed) throw appError
             },
         }
     }
@@ -1225,12 +1385,68 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
-     * Register a live connection (call from the handler's `onOpen`).
+     * Refuse a connection that may no longer be admitted (#361) — the one
+     * reader of {@link #retired}, and the one decider its three askers share.
+     *
+     * The askers, and why each exists:
+     *
+     * - **`register`, first.** A transport re-registering a socket it already
+     *   closed would otherwise re-add a zombie that `connectionCount` counts.
+     * - **`subscribe`, before the authorizer.** A retired connection's
+     *   authorizer — a database read, an audit write — never runs, and no cap
+     *   or anonymous share is spent on it (windows (b) and (c)).
+     * - **`subscribe`, after the authorizer's result is classified**, in the
+     *   synchronous turn it shares with the caps, `connections` and the join's
+     *   adds. The disconnect may have begun while the authorizer ran (window
+     *   (a)); refusing here, before every write, is what leaves nothing to
+     *   undo. Below the denial `return` and every result check, so a denial is
+     *   still a denial and a defect is still a defect.
+     *
+     * One predicate, two clauses, two classes — because the two call for
+     * different handling:
+     *
+     * 1. **This object was retired** — its socket is gone, and no retry helps.
+     * 2. **A different object presents an id still bound to a retired one** —
+     *    the `Connection.id` contract is breached. The clause reads the
+     *    binding, so it holds only while the teardown runs and retains
+     *    nothing.
+     *
+     * @param connection - The connection being admitted.
+     * @throws {ConnectionDisconnectedError} If this object was retired.
+     * @throws {ConnectionIdInUseError} If its id is bound to a retired object.
+     */
+    #assertAdmissible(connection: Connection<Identity>): void {
+        if (this.#retired.has(connection)) {
+            throw new ConnectionDisconnectedError(connection.id)
+        }
+        const bound = this.connections.get(connection.id)
+        if (bound !== undefined && this.#retired.has(bound)) {
+            throw new ConnectionIdInUseError(connection.id)
+        }
+    }
+
+    /**
+     * Register a live connection.
+     *
+     * **A transport must call this from its open hook** (#361), with the
+     * connection object it will present for the socket's whole life — the
+     * first of the three lifecycle duties `docs/realtime.md` states
+     * (§ *Your connection ids and your transport's lifecycle*); the
+     * same-object duty is {@link Connection}'s. A connection first seen by a
+     * `subscribe` racing its own `disconnect` was never registered, so there
+     * is nothing to retire and its membership is stranded. `handlerHooks`
+     * registers from `onOpen` for you.
      *
      * @param connection - The connection to track.
-     * @throws If `connection.id` is outside the supported charset.
+     * @throws {ConnectionDisconnectedError} If a `disconnect` has already
+     *   begun for this object.
+     * @throws {ConnectionIdInUseError} If a different object under the same
+     *   id is still being disconnected.
+     * @throws {ConnectionIdError} If `connection.id` is outside the supported
+     *   charset.
      */
     register(connection: Connection<Identity>): void {
+        this.#assertAdmissible(connection)
         this.#assertUsableId(connection.id)
         this.connections.set(connection.id, connection)
     }
@@ -1294,6 +1510,16 @@ export class ChannelManager<Identity = unknown> {
      *   nothing is written, published or delivered; on a channel already held
      *   it removes nothing (#331).
      * @throws {ChannelNameError} If `channel` is not a usable channel name.
+     * @throws {ConnectionDisconnectedError} If a `disconnect` has begun for
+     *   this connection object (#361). Raised before the authorizer when the
+     *   disconnect began first — the authorizer then never runs — and again
+     *   after it, when the disconnect began while it ran; always before
+     *   anything is written. A denial is still `{ ok: false }` and a result
+     *   outside the contract still throws its own error: the refusal
+     *   replaces only an admission.
+     * @throws {ConnectionIdInUseError} If a different object presents an id
+     *   still bound to a connection being disconnected (#361), at the same
+     *   two points.
      * @throws {PresenceMemberShapeError} If an object result has an own key
      *   other than `id` and `info`, or an `info` that does not serialize to
      *   a JSON object — one that serializes to nothing (a function, a
@@ -1387,6 +1613,7 @@ export class ChannelManager<Identity = unknown> {
         // that can never work spends that side effect on nothing.
         this.#assertUsableChannel(channel)
         const kind = channelKind(channel)
+        this.#assertAdmissible(connection)
 
         let member: PresenceMember | undefined
         if (kind !== 'public') {
@@ -1457,6 +1684,9 @@ export class ChannelManager<Identity = unknown> {
                     'a member — an invariant of subscribe is broken (#347).',
             )
         }
+        // The post-check (#361): the disconnect may have begun while the
+        // authorizer ran. No await from here to the join's adds.
+        this.#assertAdmissible(connection)
 
         // BEFORE any membership mutation, and after authorization: an
         // unauthorized subscribe is denied on its own terms, and a cap breach
@@ -2369,6 +2599,12 @@ export class ChannelManager<Identity = unknown> {
      * holds the member announces nothing, and a failed announcement is a WARN:
      * this still resolves `'left'`. A failed release rejects.
      *
+     * **The presence member is forgotten before the leave** (#361), and its
+     * roster slot is released even when the leave rejects (a failed unwatch):
+     * the leave's failure is then the rejection, and a release failure after
+     * it is a WARN. A failed unwatch therefore leaves no presence member for a
+     * lapse re-assert to bring back.
+     *
      * **This is a LOCAL verb, and its `clientId` argument makes it look like an
      * addressed one.** It acts only on sockets this instance owns. Called with
      * an id owned by another instance it removes nothing, announces nothing and
@@ -2415,19 +2651,48 @@ export class ChannelManager<Identity = unknown> {
         // it — so a value sampled after the leave could report `'not-owned'`
         // for a connection this instance had just finished tearing down.
         const owned = this.connections.has(clientId)
-        const left = await this.#leaveLocal(channel, clientId)
+        // FORGET BEFORE THE LEAVE (#361), the order the #323 compensation
+        // already uses. The leave awaits an unwatch that may reject; forgetting
+        // after it let that rejection skip the forget and the release, leaving
+        // a roster ghost the lapse re-assert (#349) re-held forever. And a
+        // subscribe racing a suspended leave read the member still here, took
+        // the re-join guard and answered `ok` for a membership being removed.
         const member = this.#forgetPresenceMember(channel, clientId)
-        if (member) {
-            // Released through the per-slot projection (#330). The local delete
-            // above is what the projection reads, so this issues a release —
-            // and a join racing it can no longer re-hold the member behind it,
-            // because its own write is chained after this one and computes the
-            // same absent state. The `left` is the projection's to send, and
-            // only when this release empties the slot (#344): a leave while
-            // another holder remains announces nothing. A failed release still
-            // rejects; a failed announcement does not.
-            await this.#syncRosterMember(channel, { clientId, member })
+        let left = false
+        // The failure is recorded by a FLAG, never by its value: a rejection
+        // may carry `undefined`.
+        let leaveFailed = false
+        let leaveError: unknown
+        try {
+            left = await this.#leaveLocal(channel, clientId)
+        } catch (error) {
+            leaveFailed = true
+            leaveError = error
         }
+        if (member) {
+            // Released through the per-slot projection (#330), WHETHER OR NOT
+            // the leave failed. The local delete above is what the projection
+            // reads, so this issues a release — and a join racing it can no
+            // longer re-hold the member behind it, because its own write is
+            // chained after this one and computes the same absent state. The
+            // `left` is the projection's to send, and only when this release
+            // empties the slot (#344). A failed announcement does not reject.
+            try {
+                await this.#syncRosterMember(channel, { clientId, member })
+            } catch (error) {
+                // The leave's failure came first and is the one re-thrown;
+                // this one is logged, naming the channel and never the member.
+                if (!leaveFailed) throw error
+                console.warn(
+                    `realtime: releasing a presence member of ${
+                        safeForLog(channel)
+                    } also failed after its leave failed: ${
+                        renderError(error)
+                    }`,
+                )
+            }
+        }
+        if (leaveFailed) throw leaveError
         // `left` first: something WAS removed, whatever `connections` says
         // about a socket that may already have been pruned around it.
         return left ? 'left' : owned ? 'not-subscribed' : 'not-owned'
@@ -2450,6 +2715,20 @@ export class ChannelManager<Identity = unknown> {
      * The outcome is a **server**-side value; the warning on
      * {@link LeaveOutcome} applies here unchanged.
      *
+     * **It retires the connection object first** (#361), in the synchronous
+     * turn that copies the connection's channels: from then on `register` and
+     * `subscribe` refuse that object with {@link ConnectionDisconnectedError},
+     * and a different object under its id with {@link ConnectionIdInUseError}
+     * while the teardown runs. A join that committed before this call is torn
+     * down with the rest; one resolving after it is refused before it writes.
+     * The connection stays in `connections` — still owned — until the teardown
+     * ends. An id this instance does not own retires nothing.
+     *
+     * One channel's failure never aborts the rest: the first failure is
+     * re-thrown after every channel was tried and the connection forgotten,
+     * later ones are WARNed, and a failure is recorded by a flag, so a
+     * rejection carrying `undefined` is re-thrown too.
+     *
      * @param clientId - The connection id.
      * @returns `'disconnected'` when this instance owned the socket and tore it
      *   down, `'not-owned'` when the socket lives elsewhere and nothing local
@@ -2459,16 +2738,26 @@ export class ChannelManager<Identity = unknown> {
      *   case because the throw is the report.
      */
     async disconnect(clientId: string): Promise<DisconnectOutcome> {
-        // Sampled before the loop, from the one spelling of ownership this
-        // class has. It cannot change underneath: only this method's own
-        // `finally` deletes from `connections`.
-        const owned = this.connections.has(clientId)
+        // RETIRED FIRST, before any await, from the same read that decides
+        // `owned` (#361). This turn also copies the reverse index below, so a
+        // join that committed before it is in the copy and torn down, and a
+        // join after it meets the retirement at admission — `subscribe`
+        // refuses a retired object before it writes anything. `owned` is
+        // sampled here because a value read after the loop could report
+        // `'not-owned'` for the connection this call just tore down.
+        const bound = this.connections.get(clientId)
+        if (bound) this.#retired.add(bound)
+        const owned = bound !== undefined
         // THIS CONNECTION'S channels, not every channel this instance has ever
         // hosted. The old loop walked `subscriptions.keys()` and called
         // `unsubscribe` for all of them, which was harmless only because a
         // non-member delete is a no-op — and stopped being harmless the moment
         // a 1→0 transition acquired a wire op. It was also O(channels under the
         // prefix) per disconnect.
+        //
+        // A failure is recorded by a FLAG beside its value (#361): a
+        // rejection may carry `undefined`, and testing the value lost it.
+        let failed = false
         let failure: unknown
         try {
             for (
@@ -2498,8 +2787,10 @@ export class ChannelManager<Identity = unknown> {
                     // made that line unreachable. Only the SUBSEQUENT ones are
                     // logged here, because they are the ones no caller will
                     // ever see.
-                    if (failure === undefined) failure = error
-                    else {
+                    if (!failed) {
+                        failed = true
+                        failure = error
+                    } else {
                         console.warn(
                             `realtime: tearing ${
                                 safeForLog(clientId)
@@ -2519,7 +2810,7 @@ export class ChannelManager<Identity = unknown> {
         // AFTER the teardown completed and the connection was forgotten. The
         // caller still learns the disconnect was not clean; what it no longer
         // does is decide how much of the teardown ran.
-        if (failure !== undefined) throw failure
+        if (failed) throw failure
         return owned ? 'disconnected' : 'not-owned'
     }
 
@@ -2543,6 +2834,11 @@ export class ChannelManager<Identity = unknown> {
      *   charset. Without this the call would publish a control frame that every
      *   receiving instance drops on ingest, and return successfully having
      *   revoked nothing.
+     * @throws Whatever the durable revocation write rejected with, after the
+     *   revocation itself was applied or published — recorded by a flag, so a
+     *   rejection carrying `undefined` is re-thrown too (#361). A local evict
+     *   retires the connection through `disconnect`, so a later `subscribe`
+     *   with that object is refused.
      * @example
      * ```ts
      * // A revoked token: kick the connection off every instance.
@@ -2566,11 +2862,14 @@ export class ChannelManager<Identity = unknown> {
         // failing open on the framework's only revocation path. The error is
         // re-thrown after the revocation has been applied, so the caller still
         // learns that durability was lost and this evict will not survive a
-        // reconcile (#276 review HIGH-2).
+        // reconcile (#276 review HIGH-2). Recorded by a FLAG (#361): a
+        // rejection may carry `undefined`.
+        let durabilityFailed = false
         let durabilityError: unknown
         try {
             await this.#revocations?.markRevocation({ target: clientId })
         } catch (error) {
+            durabilityFailed = true
             durabilityError = error
             // Rendered, not passed as a separate console argument. The old
             // comment here reasoned that not interpolating meant no encoder was
@@ -2596,7 +2895,7 @@ export class ChannelManager<Identity = unknown> {
             // plane.
             await this.publishControl({ kind: 'evict', target: clientId })
         }
-        if (durabilityError !== undefined) throw durabilityError
+        if (durabilityFailed) throw durabilityError
     }
 
     /**
@@ -2709,11 +3008,14 @@ export class ChannelManager<Identity = unknown> {
         // sequencing `evict` records at length: the local apply needs no broker
         // at all, so letting a durability write reject out of this method would
         // skip the one revocation still possible. Re-thrown after the apply, so
-        // the caller learns durability was lost.
+        // the caller learns durability was lost. Recorded by a FLAG (#361):
+        // a rejection may carry `undefined`.
+        let durabilityFailed = false
         let durabilityError: unknown
         try {
             await store?.markRevocation(revocation)
         } catch (error) {
+            durabilityFailed = true
             durabilityError = error
             console.warn(
                 `realtime: the durable revocation write for ${
@@ -2734,7 +3036,8 @@ export class ChannelManager<Identity = unknown> {
             // path with a caller to receive it. The control-frame and reconcile
             // paths have none, so re-throwing there would be an unhandled
             // rejection rather than a signal (FR-019).
-            if (durabilityError === undefined) {
+            if (!durabilityFailed && applied.clearFailed) {
+                durabilityFailed = true
                 durabilityError = applied.clearError
             }
         } else if (this.#hasControlPlane) {
@@ -2746,7 +3049,7 @@ export class ChannelManager<Identity = unknown> {
                 revocationId: revocation.id,
             })
         }
-        if (durabilityError !== undefined) throw durabilityError
+        if (durabilityFailed) throw durabilityError
         return outcome
     }
 
@@ -2764,11 +3067,18 @@ export class ChannelManager<Identity = unknown> {
      *   so no clear can reach it.
      * @returns The outcome, and the first error from clearing a durable record
      *   — returned rather than thrown so each caller decides, since only one of
-     *   the callers has anyone to tell.
+     *   the callers has anyone to tell — with `clearFailed` beside it, because
+     *   a rejection may carry `undefined` (#361).
      */
     async #revokeChannelLocal(
         group: ChannelRevocationGroup,
-    ): Promise<{ outcome: RevokeChannelOutcome; clearError: unknown }> {
+    ): Promise<
+        {
+            outcome: RevokeChannelOutcome
+            clearFailed: boolean
+            clearError: unknown
+        }
+    > {
         const { target, channel } = group
         const left = await this.unsubscribe(target, channel)
         if (left === 'left') {
@@ -2803,15 +3113,22 @@ export class ChannelManager<Identity = unknown> {
         // EVERY id in the group, each by its own exact id (#337). One leave
         // settled all of them; a clear that named the pair instead would also
         // take a record written after this group was read.
+        //
+        // The first failure is recorded by a FLAG (#361), carried across the
+        // return: a rejection may carry `undefined`.
+        let clearFailed = false
         let clearError: unknown
         if (left === 'left') {
             for (const id of group.ids) {
-                const error = await this.#clearRevocation({
+                const cleared = await this.#clearRevocation({
                     target,
                     channel,
                     id,
                 })
-                if (clearError === undefined) clearError = error
+                if (!clearFailed && cleared.failed) {
+                    clearFailed = true
+                    clearError = cleared.error
+                }
             }
         }
         return {
@@ -2820,6 +3137,7 @@ export class ChannelManager<Identity = unknown> {
                 : left === 'not-subscribed'
                 ? 'not-subscribed'
                 : 'not-owned',
+            clearFailed,
             clearError,
         }
     }
@@ -2828,14 +3146,17 @@ export class ChannelManager<Identity = unknown> {
      * Forget exactly one channel revocation this instance has applied.
      *
      * @param revocation - The applied revocation, by its exact id.
-     * @returns The failure, if it failed — never thrown from here, because one
-     *   of the callers is a fire-and-forget control-frame dispatch where a
-     *   rejection has nowhere to go.
+     * @returns Whether it failed, and the failure — never thrown from here,
+     *   because one of the callers is a fire-and-forget control-frame dispatch
+     *   where a rejection has nowhere to go. A flag beside the value (#361),
+     *   because a rejection may carry `undefined`.
      */
-    async #clearRevocation(revocation: ChannelRevocation): Promise<unknown> {
+    async #clearRevocation(
+        revocation: ChannelRevocation,
+    ): Promise<{ failed: boolean; error: unknown }> {
         try {
             await this.#revocations?.clearRevocation(revocation)
-            return undefined
+            return { failed: false, error: undefined }
         } catch (error) {
             console.warn(
                 `realtime: the revocation record for ${
@@ -2843,7 +3164,7 @@ export class ChannelManager<Identity = unknown> {
                 } was applied but could not be cleared — reconcile will ` +
                     `re-apply it until it expires: ${renderError(error)}`,
             )
-            return error
+            return { failed: true, error }
         }
     }
 

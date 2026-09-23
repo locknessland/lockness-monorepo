@@ -333,6 +333,39 @@ Deno.test('#344 W6 a join overtaken by its own leave announces nothing — neith
 
 Deno.test('#344 W7 a hold that lands before the leave announces joined, then left', async () => {
     // Green before and after #344: this interleaving genuinely held the member.
+    //
+    // REPAIRED by #361, which made `unsubscribe` forget the member BEFORE its
+    // awaited leave. The leave used to be issued while the join was still
+    // suspended at its watch, before its hold existed, and the forget then
+    // landed after the hold; now the forget lands first, so that interleaving
+    // is a join the leave overtook (below). The hold is therefore put in
+    // flight first here, which is what this witness is named for.
+    const r = rig({
+        gated: ['authorize', 'watch', 'unwatch', 'hold', 'release'],
+        publishControl: () => {},
+    })
+    const join = r.manager.subscribe(conn('c1', 1), CHANNEL)
+    await settle()
+    await r.g.open('authorize')
+    await r.g.open('watch') // the join's hold is issued and suspended
+    const leave = r.manager.unsubscribe('c1', CHANNEL)
+    await settle()
+    await r.g.drain()
+    await Promise.all([join, leave])
+
+    assertEquals(
+        r.published
+            .filter((c) => c.member?.id === 1)
+            .map((c) => c.kind),
+        ['presence-join', 'presence-leave'],
+    )
+})
+
+Deno.test('#344 W7b a leave issued before the join held anything overtakes it, and nothing is announced (#361)', async () => {
+    // The pre-#361 interleaving of W7: the leave arrives while the join is
+    // suspended at its watch. The leave forgets the member first, so the
+    // join's queued write computes "absent" and holds nothing (#330) — no
+    // `joined` for a member already leaving, and no `left` after it.
     const r = rig({
         gated: ['authorize', 'watch', 'unwatch', 'hold', 'release'],
         publishControl: () => {},
@@ -344,14 +377,17 @@ Deno.test('#344 W7 a hold that lands before the leave announces joined, then lef
     await settle()
     await r.g.open('watch')
     await r.g.drain()
-    await Promise.all([join, leave])
+    const [joined, left] = await Promise.all([join, leave])
 
     assertEquals(
-        r.published
-            .filter((c) => c.member?.id === 1)
-            .map((c) => c.kind),
-        ['presence-join', 'presence-leave'],
+        r.published.filter((c) => c.member?.id === 1).map((c) => c.kind),
+        [],
     )
+    assertEquals(r.roster.size, 0, 'the roster holds nobody')
+    // The join committed before the leave began (#330): `ok`, not "held".
+    assertEquals(joined.ok, true)
+    assertEquals(left, 'left')
+    assertEquals(r.manager.connectionCount, 1)
 })
 
 Deno.test("#344 W8 a join whose queued write finds the slot emptied sends the one left, from that join's write", async () => {

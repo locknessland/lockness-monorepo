@@ -33,10 +33,10 @@
  * - M11 an odd-length page accepted, its trailing item dropped.
  * - M12 the Redis driver ignores `owns`.
  * - M13 the manager stops handing `owns` over.
- * - M14 the manager's own `connections.has` check deleted — killed only
- *   where an id absent from `connections` still holds a membership (R13 (d),
- *   #361's stranded membership); against a truly foreign id applying is a
- *   no-op.
+ * - M14 the manager's own `connections.has` check deleted — a recorded
+ *   equivalent mutant since #361: no membership can name an id absent from
+ *   `connections` any more, so applying there is a no-op (R13 (d), which
+ *   built that state, is retired).
  * - M15 the revocation timer back on `setInterval`.
  * - M16 a reconnect during a pass dropped (no rerun recorded).
  * - M17 trailing passes counted instead of coalesced.
@@ -337,15 +337,15 @@ const MUTATIONS: Mutation[] = [
             '            if (revocation.channel === undefined) {\n',
             '            if (revocation.channel === undefined) {\n',
         ]],
-        // Killed, though under R13 (b, c)'s foreign ids applying is a no-op
-        // (every map is keyed by an id absent from all of them): a membership
-        // stranded by a `subscribe` resolving during a `disconnect` of the
-        // same id (#361) names an id `connections` no longer holds, and with
-        // the check deleted the re-check leaves that room and clears the
-        // record. R13 (d) builds that state. Once #361 is fixed there is no
-        // reachable state where deleting the check is wrong, and this row
-        // moves to `expectSurvival`.
-        killedBy: '#359 R13 (d)',
+        // Killed until #361 by R13 (d), which built a membership stranded by a
+        // `subscribe` resolving during a `disconnect` of the same id. #361
+        // made that state unreachable, retired R13 (d) and moved this row to
+        // its recorded survival. Kept, never deleted: if applying to an id
+        // absent from `connections` ever becomes observable again, R13 (b, c)
+        // is the fixture that would kill it.
+        killedBy: '(none — equivalent)',
+        expectSurvival:
+            "Equivalent since #361, for a transport that honours the documented register-on-open contract: an id absent from `connections` is then named by no membership and no presence entry. A retired connection is refused at admission (#361 W1, W3, W8), and `unsubscribe` forgets presence before its awaited leave (#361 W9). The contract is documented, not enforced at runtime: an unregistered first subscribe racing its own disconnect can still strand such a membership, and #370 (retiring implicit registration) is what would make the equivalence enforced. Against such an id, applying is otherwise a no-op. The fixture that would kill it is R13 (b, c)'s foreign id, if applying there ever became observable.",
     },
     {
         label: 'M15 — the revocation timer back on setInterval',
