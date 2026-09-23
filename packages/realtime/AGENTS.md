@@ -257,6 +257,28 @@ Anything not listed is internal and free to change.
   `presence_member.ts`, not in the orchestrator. Witness:
   `presence_member_admission_350.test.ts`; battery
   `tests/mutations/presence_member_admission_350.ts`.
+- **An object result is admitted ONLY by `admitPresenceMember`, on EVERY channel
+  kind ([#357](https://github.com/locknessland/lockness-monorepo/issues/357)); a
+  private channel discards the member, not the check.** Before #357 a private
+  channel admitted any object for being one, and a lookup that found nothing
+  usually is one — a Deno KV `{ key, value: null, versionstamp: null }`, a pg
+  `QueryResult` with `rows: []`, `{}` — so an untyped authorizer returning its
+  lookup put every authenticated user on someone else's private channel. The
+  invariant: for every result other than `true`, `subscribe` gives the same
+  outcome on `private-X` as on `presence-X`; the kind decides only whether the
+  admitted member is seated. The admission sits where #350's did — after the
+  `deny` return, before the member invariant, the caps and every write,
+  synchronous — and `classifyAuthorizeResult` takes no `kind`. The member errors
+  end with `PRIVATE_CHANNEL_HINT` so `admitPresenceMember` stays
+  channel-agnostic. Three tidy-ups reopen or distort it:
+  - moving the call back inside `if (kind === 'presence')` because "a private
+    channel never reads the member" (M1);
+  - "saving the parse" on private with an in-memory predicate (M2);
+  - making private `true`-only without the product veto, because the type
+    sanctions a member on any channel (M3).
+
+  Witness: `authorize_result_357.test.ts`; battery
+  `tests/mutations/authorize_result_357.ts`.
 - **A `PresenceMember` is deep-frozen where it is minted (`admitPresenceMember`,
   `#parseRosterValue`, `#verifyAndDecode`) and nowhere else**
   ([#354](https://github.com/locknessland/lockness-monorepo/issues/354)).
@@ -677,10 +699,11 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-75 test files for 20 source files:
+76 test files for 20 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
+- `packages/realtime/tests/authorize_result_357.test.ts`
 - `packages/realtime/tests/authorize_result_websocket_352.test.ts`
 - `packages/realtime/tests/broadcaster.test.ts`
 - `packages/realtime/tests/channel_name_boundary.test.ts`
@@ -755,13 +778,14 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-29 mutation batteries — **`deno test` does not run these.** Each is an
+30 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
 [testing.md](../../docs/testing.md#mutation-batteries).
 
 - `packages/realtime/tests/mutations/authorize_result_347.ts`
+- `packages/realtime/tests/mutations/authorize_result_357.ts`
 - `packages/realtime/tests/mutations/channel_name_314.ts`
 - `packages/realtime/tests/mutations/channel_revoke_332.ts`
 - `packages/realtime/tests/mutations/connection_id_304.ts`
@@ -805,7 +829,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 75 test files directly —
+Then, specific to this package: run its 76 test files directly —
 
 ```bash
 deno test -A packages/realtime/

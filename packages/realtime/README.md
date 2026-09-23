@@ -38,7 +38,12 @@ app.get(
   `PresenceMember`; anything else — `undefined`, `null`, `0`, a raw query row
   that was not found — throws `AuthorizeResultError` rather than admitting or
   quietly denying
-  ([#347](https://github.com/locknessland/lockness-monorepo/issues/347)). On a
+  ([#347](https://github.com/locknessland/lockness-monorepo/issues/347)). An
+  object admits only as a `PresenceMember`, on **every** channel kind: on a
+  private channel a Deno KV entry, a pg `QueryResult`, `{}` or a raw row throws
+  a member error, and a well-formed member is checked and then discarded —
+  answer a private channel with a boolean
+  ([#357](https://github.com/locknessland/lockness-monorepo/issues/357)). On a
   presence channel the room receives **exactly `{ id, info }`**, copied once at
   admission — never your object: any other own key, or an `info` that is not a
   JSON object once serialized (a function or a symbol included), throws

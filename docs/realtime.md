@@ -63,12 +63,13 @@ members only.
 Exactly three things
 ([#347](https://github.com/locknessland/lockness-monorepo/issues/347)):
 
-| The authorizer returns                                     | `subscribe`                                                                    |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `false`                                                    | denies — `{ ok: false }`                                                       |
-| `true`                                                     | admits; on a presence channel the member is `{ id: connection.id }`            |
-| a `PresenceMember` object (any non-null, non-array object) | admits; on a presence channel as that member — a private channel ignores it    |
-| **anything else**                                          | **throws `AuthorizeResultError`** — nothing is written, published or delivered |
+| The authorizer returns                                                  | `subscribe`                                                                                                                                                                           |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `false`                                                                 | denies — `{ ok: false }`                                                                                                                                                              |
+| `true`                                                                  | admits; on a presence channel the member is `{ id: connection.id }`                                                                                                                   |
+| a `PresenceMember` — exactly `{ id, info? }` with a valid `id`          | admits; on a presence channel as that member — a private channel runs the same check, then discards the member ([#357](https://github.com/locknessland/lockness-monorepo/issues/357)) |
+| any other object — a Deno KV entry, a pg `QueryResult`, `{}`, a raw row | **throws `PresenceMemberShapeError`, `PresenceMemberIdError` or `PresenceMemberSizeError`**, on either kind — nothing is written, published or delivered                              |
+| **anything else**                                                       | **throws `AuthorizeResultError`** — nothing is written, published or delivered                                                                                                        |
 
 "Anything else" is `undefined` from a missing `return`, `null` or `undefined`
 from a query that found nothing, `0`, `''`, `'yes'`, `1`, an array, a boxed
@@ -107,10 +108,33 @@ new ChannelManager({
 
 `?? false` closes the gap wherever the value may be absent.
 
-On a presence channel the member object is checked next: its `id` must be a
-string or a finite number, or `subscribe` throws `PresenceMemberIdError` — see
-[The presence member id is bounded too](#the-presence-member-id-is-bounded-too--by-length-not-by-charset).
-A `row.userId` that can be `null` needs the same `: false` branch.
+An object is checked next, as a presence member, **on either channel kind**
+([#357](https://github.com/locknessland/lockness-monorepo/issues/357)): its own
+keys must be `id` and `info` only, its `id` must be a string or a finite number,
+and it must fit `maxPresenceMemberBytes` — or `subscribe` throws
+`PresenceMemberShapeError`, `PresenceMemberIdError` or `PresenceMemberSizeError`
+— see
+[The presence member id is bounded too](#the-presence-member-id-is-bounded-too--by-length-not-by-charset)
+and [What reaches the room](#what-reaches-the-room-exactly--id-info-). A
+`row.userId` that can be `null` needs the same `: false` branch.
+
+A private channel runs the same check and then **discards** the member: it has
+no roster, so the object carries no meaning there. That is why the check runs at
+all. A lookup that found nothing is usually still an object — Deno KV's
+`kv.get()` resolves to `{ key, value: null, versionstamp: null }`, a pg query to
+a `QueryResult` with `rows: []` — and before #357 any object admitted a private
+channel, so an authorizer returning its lookup put every authenticated user on
+someone else's channel. On a private channel, answer with a boolean:
+
+```ts
+const entry = await kv.get(['member', channel, identity.id])
+return entry.value !== null // not `return entry`
+```
+
+The member errors end with that advice, since the same error class now reaches a
+private-channel authorizer. The rule is the same on both kinds, so one
+authorizer returning `identity ? { id: identity.id } : false` serves both with
+the same outcome.
 
 ### What reaches the room: exactly `{ id, info }`
 
@@ -1890,15 +1914,16 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Eight breaking changes — the driver revocation seam, the presence snapshot a
+Nine breaking changes — the driver revocation seam, the presence snapshot a
 subscribe returns, the driver roster seam, presence frames announced per member
 rather than per connection, an authorizer result outside its contract now
 throwing, a presence member id that is not a string or a finite number now
-throwing, a presence member that is not exactly `{ id, info }` now throwing, and
-presence members now read-only — two widened return types, one new control kind,
+throwing, a presence member that is not exactly `{ id, info }` now throwing,
+presence members now read-only, and an object result on a private channel now
+checked as a presence member — two widened return types, one new control kind,
 and one additive wire field. **No migration step, and one new Redis key
-family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11 and 12 — and
-item 7 if you wrote your own driver.
+family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11, 12 and 13 —
+and item 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2265,11 +2290,10 @@ before anything is written, published or delivered. The error reaches your
 - **An app that denied with `null` or `undefined`** — the Laravel habit — now
   throws where it used to admit. Lockness deliberately does not treat a falsy
   value as a quiet deny: a missing `return` must stay visible.
-- **An authorizer returning a raw query row** keeps working on a **private**
-  channel while the row is found, and throws when it is not. On a presence
-  channel a found row now throws too, as `PresenceMemberShapeError` — see
-  item 11. Return an explicit member instead —
-  `return row ? { id: row.id } : false`.
+- **An authorizer returning a raw query row** throws on both kinds: the member
+  errors when it is found (items 11, 13), `AuthorizeResultError` when it is not.
+  Return an explicit member instead — `return row ? { id: row.id } : false` —
+  or, on a private channel, a boolean.
 - **An object that throws when inspected**
   ([#353](https://github.com/locknessland/lockness-monorepo/issues/353)) — a
   Proxy whose `getPrototypeOf` trap throws — now throws `AuthorizeResultError`
@@ -2280,9 +2304,9 @@ before anything is written, published or delivered. The error reaches your
   Lockness holds the value: a revoked Proxy rejects with the engine's
   `TypeError`, and a Proxy whose `get` trap throws, or an object whose `then`
   getter throws, rejects with that trap's or getter's own error. The same goes
-  for a presence member whose `ownKeys` or `get` trap throws while `subscribe`
-  reads its `id` and `info`. None of these is wrapped in a Lockness error, and
-  nothing is written in any of these cases.
+  for an object result whose `ownKeys` or `get` trap throws while `subscribe`
+  reads its `id` and `info`, on either kind (item 13). None of these is wrapped
+  in a Lockness error, and nothing is written in any of these cases.
 
 `AuthorizeResultError` is exported from `@lockness/realtime`. See
 [What your authorizer may return](#what-your-authorizer-may-return).
@@ -2299,7 +2323,8 @@ never saw the member at all
 
 **After**, `subscribe` throws `PresenceMemberIdError` for any id that is not a
 string or a finite number — before the size check, the caps and every write,
-publish and delivery. It is checked after item 9's result rule, so an
+publish and delivery — on either channel kind: since item 13 a private
+`{ id: null }` throws too. It is checked after item 9's result rule, so an
 authorizer's result is judged first, then the member's id.
 
 - **An app whose `authorize()` can return a null or undefined id** now has those
@@ -2342,7 +2367,7 @@ See
 - Roster entries with a non-object `info` are skipped on read (a `0.3.0`
   instance may have written them); entries with extra keys are read back reduced
   to `{ id, info }`. They leave with their owner — no migration step.
-- Private channels are unchanged: they never read the member.
+- Private channels run the same check and discard the member (item 13).
 
 Return the pair explicitly:
 
@@ -2390,6 +2415,44 @@ nothing mutates afterwards. See
 [Writing a presence driver](#writing-a-presence-driver).
 
 No wire change, and no migration step.
+
+### 13. On a private channel, an object result must be a `PresenceMember`
+
+**Before**, any non-null, non-array object `authorize()` returned admitted a
+**private** channel — purely for being an object
+([#357](https://github.com/locknessland/lockness-monorepo/issues/357)). That
+included a lookup that found nothing:
+
+- Deno KV's `{ key, value: null, versionstamp: null }`;
+- a pg `QueryResult` with `rows: []`;
+- `{}`;
+- a `Response`.
+
+An authorizer that returned its lookup instead of a boolean therefore let every
+authenticated user read someone else's private channel.
+
+**After**, an object result is checked exactly as on a presence channel, then
+discarded. Anything but `{ id, info? }` with a valid `id` throws
+`PresenceMemberShapeError`, `PresenceMemberIdError` or `PresenceMemberSizeError`
+before anything is written. This affects:
+
+- a lookup wrapper, whether it found something or not;
+- a found raw row;
+- returning the identity object to mean "allow".
+
+A shared authorizer that returns `{ id, info }` on both kinds keeps working, and
+`true` is unchanged. An `onError` that only checks for `AuthorizeResultError`
+does not catch these; the three member errors are exported from
+`@lockness/realtime` too.
+
+Answer a private channel with a boolean:
+
+```ts
+return entry.value !== null // Deno KV
+return result.rowCount > 0 // pg
+```
+
+See [What your authorizer may return](#what-your-authorizer-may-return).
 
 ## Upgrading to v0.3.0
 
