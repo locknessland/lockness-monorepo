@@ -384,7 +384,11 @@ integrationTest(
                     'a SHORTER-TTL instance never shrinks the index TTL ' +
                         `(EXPIRE ... GT): ${afterLong} -> ${afterShort}`,
                 )
-            }, { revocationTtlSeconds: 30 })
+            }, {
+                revocationTtlSeconds: 30,
+                // At most half the TTL (#362), or the driver refuses to boot.
+                reconcileIntervalMs: 15_000,
+            })
         }, { revocationTtlSeconds: 300 })
     },
 )

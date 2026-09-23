@@ -68,6 +68,10 @@ import { sameMemberId } from '../presence_snapshot.ts'
 import { freezePresenceMember } from '../presence_member.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
 import { LapseRun } from './lapse_run.ts'
+import {
+    EnforcementDeadline,
+    REVOCATION_LOG_FAILED,
+} from './enforcement_deadline.ts'
 import { type PresenceMember, typeLabel } from '../channel.ts'
 import type { RealtimeControlConfig } from '../types.ts'
 import { renderError, safeForLog } from '@lockness/contract'
@@ -433,6 +437,14 @@ interface Closeable {
  * departure before the hold's reply can announce the arrival — so the room
  * hears `left`, then `joined`. A pipelining client, or a second client for the
  * sweep, would let the two replies race.
+ *
+ * **Contract: every command settles** (#362) — resolves or rejects — within a
+ * bound the port owns. `RedisClient` meets it through its read timeout
+ * (`READ_TIMEOUT_MS` in `@lockness/redis`). Because commands are serialised, a
+ * command that never settles stalls every command queued behind it: the
+ * revocation re-check, the ghost sweep, the heartbeat and `close()`. The
+ * driver does not cancel a command; a revocation pass stalled this way is
+ * reported once by the enforcement deadline, and is not recovered.
  */
 export interface RedisCommandClient {
     /**
@@ -1303,6 +1315,24 @@ const DEFAULT_RECONCILE_INTERVAL_MS = 10_000
 const RECONCILE_RETRY_MS = 1_000
 const DEFAULT_REVOCATION_TTL_SECONDS = 300
 /**
+ * How one revocation pass ended (#362), as `#runRevocationReconcile`
+ * declares it: `ok` — the handler resolved, so the enumeration completed
+ * (not that every record was applied); `failed` — it threw; `closed` — no
+ * handler was registered, which happens only after `close()` dropped it.
+ */
+type RevocationPassOutcome = 'ok' | 'failed' | 'closed'
+/**
+ * The largest delay one `setTimeout` can hold, in milliseconds (#362): the
+ * largest signed 32-bit integer.
+ *
+ * **A longer delay does not wait longer; it fires almost at once.** Measured
+ * on Deno 2.9.6: a delay of 2^31 ms or more is replaced by 1 ms, with a
+ * `TimeoutOverflowWarning`. A timing past this ceiling is therefore the hot
+ * loop again, not a slow timer, so the constructor refuses a revocation TTL
+ * whose deadline could not fit one timer, rather than chunking the wait.
+ */
+const MAX_TIMER_MS = 2 ** 31 - 1
+/**
  * How long after issue a control frame may still be obeyed (#272). See
  * `RealtimeControlConfig.windowMs` for why 30s and what widening it costs.
  */
@@ -1488,10 +1518,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      */
     private revocationTimer?: ReturnType<typeof setTimeout>
     /**
-     * The revocation pass in flight, if any (#359). Stored and cleared by
-     * {@link #startRevocationPass} alone.
+     * The revocation pass in flight, if any (#359): its trigger and its start
+     * on {@link #passClock} (#362). Stored and cleared by
+     * {@link #startRevocationPass} alone. No promise is kept, because nothing
+     * awaits a pass; the enforcement deadline reads this record when it
+     * expires, to name the pass that has not settled.
      */
-    #revocationPass?: Promise<void>
+    #revocationPass?: {
+        readonly trigger: 'timer' | 'reconnect' | 'reconnect-retry'
+        readonly startedAt: number
+    }
     /**
      * The one trailing pass a reconnect or retry recorded while a pass was in
      * flight (#359): one slot, not a queue, and `reconnect` wins over
@@ -1516,6 +1552,20 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * so a presence-free deployment still recovers a lost evict (FR-014).
      */
     private revocationHandler?: () => void | Promise<void>
+    /**
+     * The revocation enforcement deadline (#362): says so, once per episode,
+     * when no pass has completed within `revocationTtlSeconds` of the last
+     * success's start. Moved at three sites only — see
+     * {@link #startRevocationPass}.
+     */
+    readonly #deadline: EnforcementDeadline
+    /**
+     * The broker's reap time `t`, in seconds, of the last COMPLETED
+     * revocation enumeration (#362 S1). Its only writer is
+     * {@link listRevocations}; the pass's end site hands it to the deadline's
+     * broker-clock check. A pass that throws mid-enumeration leaves it alone.
+     */
+    #lastReadAt?: number
     /**
      * The owning instance's departure announcer (#348), registered by the
      * manager via {@link onRosterDeparture}. ONE handler: re-registration
@@ -1570,6 +1620,14 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      *   metacharacter (`*`, `?`, `[`, `]`, or a backslash) — an empty prefix
      *   namespaces nothing, and a glob one is `startsWith`-anchored while its
      *   subscribe pattern reaches into other deployments (#282).
+     * @throws {Error} When `presence.reconcileIntervalMs` is not a finite
+     *   number of at least 1 ms, or `revocationTtlSeconds` is not a whole
+     *   number of seconds whose deadline fits one timer — the message says
+     *   `out of range` (#362).
+     * @throws {Error} When `presence.reconcileIntervalMs` is more than HALF of
+     *   `revocationTtlSeconds`: a lost revocation's record could expire before
+     *   a pass applies it (#362). The configuration paragraph of
+     *   `docs/realtime.md` states the relation.
      */
     constructor(
         private readonly command: RedisCommandClient,
@@ -1653,6 +1711,52 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             DEFAULT_RECONCILE_INTERVAL_MS
         this.revocationTtlSeconds = options.revocationTtlSeconds ??
             DEFAULT_REVOCATION_TTL_SECONDS
+        // Ranges first, the relation second — the #293 shape above. A NaN,
+        // zero, negative or infinite interval reaches `setTimeout` as 0 ms and
+        // re-arms both the revocation pass and the ghost sweep back to back,
+        // and a NaN TTL passes every comparison the relation makes. The TTL is
+        // a whole number of seconds whose deadline fits ONE timer
+        // (`MAX_TIMER_MS`); the interval's own ceiling follows from the
+        // relation. A fractional interval stays legal.
+        const maxRevocationTtlSeconds = Math.floor(MAX_TIMER_MS / 1000)
+        if (
+            !Number.isFinite(this.reconcileIntervalMs) ||
+            this.reconcileIntervalMs < 1 ||
+            !Number.isSafeInteger(this.revocationTtlSeconds) ||
+            this.revocationTtlSeconds < 1 ||
+            this.revocationTtlSeconds > maxRevocationTtlSeconds
+        ) {
+            throw new Error(
+                'realtime: presence.reconcileIntervalMs or ' +
+                    'revocationTtlSeconds is out of range (#362) — got ' +
+                    `presence.reconcileIntervalMs=${this.reconcileIntervalMs}ms ` +
+                    `and revocationTtlSeconds=${this.revocationTtlSeconds}s. ` +
+                    'The interval must be a finite number of at least 1 ms, ' +
+                    'and the TTL a whole number of seconds from 1 to ' +
+                    `${maxRevocationTtlSeconds}. An interval out of range ` +
+                    'fires at once, so both the revocation pass and the ghost ' +
+                    'sweep re-arm back to back against the broker.',
+            )
+        }
+        // TWO passes per record lifetime (#362): at any wider interval, one
+        // failed pass lets a lost revocation's record expire before the next
+        // pass can apply it. It also leaves the enforcement deadline at least
+        // half a TTL of headroom over healthy passes — the bound itself lives
+        // on `onRevocationReconcile`, below.
+        if (this.reconcileIntervalMs * 2 > this.revocationTtlSeconds * 1000) {
+            throw new Error(
+                'realtime: presence.reconcileIntervalMs must be at most HALF ' +
+                    'of revocationTtlSeconds (#362) — got ' +
+                    `presence.reconcileIntervalMs=${this.reconcileIntervalMs}ms ` +
+                    `and revocationTtlSeconds=${this.revocationTtlSeconds}s ` +
+                    `(${this.revocationTtlSeconds * 1000}ms). A revocation ` +
+                    'whose control frame was lost could expire before a ' +
+                    'revocation pass applies it. Lower the interval or raise ' +
+                    'the TTL. See https://github.com/locknessland/lockness-monorepo/issues/362 ' +
+                    'and the enforcement bound on onRevocationReconcile in ' +
+                    'packages/realtime/drivers/redis.ts.',
+            )
+        }
         // The window is built only when a control secret exists: without one
         // the control plane refuses to publish and refuses to verify, so there
         // is nothing to remember. The clock is supplied HERE, once — the class
@@ -1698,6 +1802,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 now: () => this.now(),
                 maxEntries,
             })
+        // Built only once both timing checks above have passed, so a refused
+        // configuration never holds a timer.
+        this.#deadline = new EnforcementDeadline({
+            ttlMs: this.revocationTtlSeconds * 1000,
+            now: () => this.#passClock(),
+            inFlight: () => this.#revocationPass,
+        })
     }
 
     /**
@@ -1708,6 +1819,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      */
     private now(): number {
         return Date.now()
+    }
+
+    /**
+     * The pass clock (#362): the ONE monotonic reading intervals are measured
+     * on — a revocation pass's start and end, and the enforcement deadline's
+     * `now`. Not {@link now}: that is the control-frame stamp clock, an epoch
+     * reading, and a wall-clock step would corrupt an interval measured on it.
+     */
+    #passClock(): number {
+        return performance.now()
     }
 
     /**
@@ -2590,6 +2711,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * well-formed page is skipped and counted; after the last page, a nonzero
      * count is ONE WARN ({@link REVOCATION_PAIRS_SKIPPED} and the number).
      *
+     * **A completed enumeration records its reap time** in
+     * {@link #lastReadAt} (#362 S1), its only writer; a pass that throws
+     * records nothing. The enforcement deadline compares consecutive reap
+     * times to notice the broker's clock stepping a full TTL.
+     *
      * @param owns - Which targets to keep, asked once per decoded record,
      *   synchronously; a throw fails the pass. Omitted, every record is kept.
      * @returns The live revocations `owns` keeps, each member once.
@@ -2660,6 +2786,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             cursor = page.cursor
         } while (cursor !== '0')
         if (skipped > 0) console.warn(`${REVOCATION_PAIRS_SKIPPED} ${skipped}`)
+        this.#lastReadAt = t
         return [...live.values()]
     }
 
@@ -2715,9 +2842,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * **The enforcement bound — the one home of it** (#359 S2). A revocation
      * whose one-shot control frame was lost is applied within
      * **`reconcileIntervalMs + 2P`**, where **P** is the duration of one pass:
-     * 1 + ⌈N / {@link REVOCATION_SCAN_COUNT}⌉ round trips made one at a time —
-     * the reap, then one `ZSCAN` per page of an index of N members — each
-     * capped at the command client's read timeout. One P is the pass in flight
+     * 1 + max(1, ⌈N / {@link REVOCATION_SCAN_COUNT}⌉) round trips made one at
+     * a time — the reap, then one `ZSCAN` per page of an index of N members,
+     * and always at least one page — each capped at the command client's read
+     * timeout ({@link RedisCommandClient}'s "every command settles" contract). One P is the pass in flight
      * when the record is written, which may miss it behind its cursor; the
      * interval is armed from that pass's end; the second P is the next pass,
      * which applies it. **A failed pass restarts the clock**: it applies
@@ -2727,12 +2855,17 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * pass's apply (the manager's leaves, roster writes and clears) and any
      * wait on the manager's serial re-check tail (a lapse re-check queued
      * ahead of it) add to the bound. And **P grows with the index size N**,
-     * which counts every instance's live records, not only this one's. Other
-     * documentation links here rather than restating it.
+     * which counts every instance's live records, not only this one's. **Since
+     * #362 the bound is checked**: statically at boot, where the constructor
+     * refuses an interval above half of `revocationTtlSeconds`, and at runtime,
+     * where the enforcement deadline says so when no pass completes within one
+     * TTL of the last success's start. Other documentation links here rather
+     * than restating it.
      *
      * @param handler - Called with no arguments on each revocation pass.
      */
     onRevocationReconcile(handler: () => void | Promise<void>): void {
+        const first = this.revocationHandler === undefined
         this.revocationHandler = handler
         // Re-registration replaces the pending timer rather than stacking one;
         // the one arming site then arms it afresh.
@@ -2741,6 +2874,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             this.revocationTimer = undefined
         }
         this.#armRevocationReconcile()
+        // The enforcement deadline (#362): only the FIRST registration arms
+        // it, one TTL from now, and never once close() has begun. A later
+        // registration leaves a pending or fired deadline alone, so
+        // re-registering during a failure run cannot postpone a due WARN.
+        if (first && !this.#closing) {
+            this.#deadline.arm(this.revocationTtlSeconds * 1000)
+        }
         // The SECOND trigger (#271): the subscribe socket coming back is the
         // routine moment an `evict` frame was lost, so re-check immediately
         // rather than waiting up to `reconcileIntervalMs`. Registered HERE, in
@@ -2802,6 +2942,20 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * the dropped handler makes {@link #runRevocationReconcile} run nothing,
      * and {@link #armRevocationReconcile} arms nothing.
      *
+     * **Where the enforcement deadline moves — three sites and `close()`,
+     * nowhere else** (#362). {@link onRevocationReconcile}'s FIRST
+     * registration arms it one TTL out; here, the start records the pass
+     * `{ trigger, startedAt }` on {@link #passClock}, and the end — which
+     * stays a `finally` and never logs — reads `endedAt`, frees the slot,
+     * takes the rerun or arms the timer, and LAST, for an `ok` pass while
+     * {@link close} has not begun, calls `passSucceeded(startedAt, endedAt,`
+     * {@link #lastReadAt}`)`; a failed or closed pass leaves the deadline
+     * alone. {@link close} clears it. **The deadline never frees the slot**:
+     * a pass whose command never settles holds it forever, and is reported,
+     * not abandoned. An outcome that is never recorded (the pass rejected)
+     * counts as failed, and the chain's last handler writes one marked ERROR
+     * line instead of letting the rejection escape (#369).
+     *
      * @param trigger - What asked for the pass.
      */
     #startRevocationPass(
@@ -2814,15 +2968,32 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             }
             return
         }
-        this.#revocationPass = this.#runRevocationReconcile(trigger).finally(
-            () => {
+        const startedAt = this.#passClock()
+        this.#revocationPass = { trigger, startedAt }
+        let outcome: RevocationPassOutcome = 'failed'
+        this.#runRevocationReconcile(trigger)
+            .then((ended) => void (outcome = ended))
+            .finally(() => {
+                const endedAt = this.#passClock()
                 this.#revocationPass = undefined
                 const rerun = this.#revocationRerun
                 this.#revocationRerun = undefined
                 if (rerun !== undefined) this.#startRevocationPass(rerun)
                 else this.#armRevocationReconcile()
-            },
-        )
+                if (outcome === 'ok' && !this.#closing) {
+                    this.#deadline.passSucceeded(
+                        startedAt,
+                        endedAt,
+                        this.#lastReadAt,
+                    )
+                }
+            })
+            .catch((error: unknown) => {
+                // #369: nothing escapes the pass chain. A rejection reaches
+                // here only when a log sink itself threw (#349); the marker
+                // is the fixed prefix, the rejection is rendered.
+                console.error(`${REVOCATION_LOG_FAILED} ${renderError(error)}`)
+            })
     }
 
     /**
@@ -2848,23 +3019,27 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * @param trigger - What ran this pass. `reconnect` is the only one that
      *   earns a retry, and `reconnect-retry` is that retry, which does not
      *   retry itself.
+     * @returns How the pass ended (#362): `ok` once the handler resolved,
+     *   `failed` on every path out of its failure, and `closed` when no
+     *   handler is registered — only after {@link close} dropped it.
      */
     async #runRevocationReconcile(
         trigger: 'timer' | 'reconnect' | 'reconnect-retry' = 'timer',
-    ): Promise<void> {
-        if (!this.revocationHandler) return
+    ): Promise<RevocationPassOutcome> {
+        if (!this.revocationHandler) return 'closed'
         try {
             await this.revocationHandler()
+            return 'ok'
         } catch (error) {
             console.warn(
                 `realtime: revocation reconcile failed (${trigger}): ${
                     renderError(error)
                 }`,
             )
-            if (trigger !== 'reconnect') return
+            if (trigger !== 'reconnect') return 'failed'
             // Nor once close() has begun (#355): a run already in flight when
             // close() started would arm a timer that outlives the driver.
-            if (this.#closing) return
+            if (this.#closing) return 'failed'
             // ONE retry, and only one. Chaining would turn a broker that keeps
             // failing into a hot loop against the command socket, which is the
             // opposite of what a bounded enforcement window needs.
@@ -2878,6 +3053,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             // Unref'd: this must never be the reason a process stays alive.
             Deno.unrefTimer(id)
             this.revocationRetryTimer = id
+            return 'failed'
         }
     }
 
@@ -3653,6 +3829,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             clearTimeout(this.revocationRetryTimer)
             this.revocationRetryTimer = undefined
         }
+        // The enforcement deadline goes with the other timers (#362); a pass
+        // that ends after this re-arms nothing, because its end site asks
+        // `#closing` first.
+        this.#deadline.close()
         // Closed and aborted synchronously (#349): a beat reply arriving from
         // here on starts no run, and a re-assert in flight stops before its
         // next slot. Awaited only after the sweep pass, on its own line.

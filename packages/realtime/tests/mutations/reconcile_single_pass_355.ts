@@ -440,12 +440,13 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M25 — a revocation run failing during close() arms its retry',
         file: REDIS,
+        // Re-anchored for #362: both guards now return the pass outcome.
         edits: [[
-            "            if (trigger !== 'reconnect') return\n" +
+            "            if (trigger !== 'reconnect') return 'failed'\n" +
             '            // Nor once close() has begun (#355): a run already in flight when\n' +
             '            // close() started would arm a timer that outlives the driver.\n' +
-            '            if (this.#closing) return\n',
-            "            if (trigger !== 'reconnect') return\n",
+            "            if (this.#closing) return 'failed'\n",
+            "            if (trigger !== 'reconnect') return 'failed'\n",
         ]],
         killedBy: '#355 WR',
     },

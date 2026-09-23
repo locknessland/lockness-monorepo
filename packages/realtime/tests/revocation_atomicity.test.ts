@@ -116,7 +116,12 @@ Deno.test('#276 FR-011: a re-eviction extends a live revocation, never shortens 
     const shortTtl = new RedisBroadcastDriver(
         { command: redis.command },
         redis.subscriberFor(),
-        { prefix: PREFIX, revocationTtlSeconds: 10 },
+        {
+            prefix: PREFIX,
+            revocationTtlSeconds: 10,
+            // At most half the TTL (#362), or the driver refuses to boot.
+            presence: { reconcileIntervalMs: 5_000 },
+        },
     )
     try {
         await a.markRevocation({ target: 'z' }) // expires at 3300
@@ -182,7 +187,12 @@ Deno.test('#276 HIGH-1: a shorter-TTL instance cannot shrink the whole index key
     const short = new RedisBroadcastDriver(
         { command: redis.command },
         redis.subscriberFor(),
-        { prefix: PREFIX, revocationTtlSeconds: 5 },
+        {
+            prefix: PREFIX,
+            revocationTtlSeconds: 5,
+            // At most half the TTL (#362), or the driver refuses to boot.
+            presence: { reconcileIntervalMs: 2_500 },
+        },
     )
     try {
         await long.markRevocation({ target: 'long-lived' }) // expires at 8300
