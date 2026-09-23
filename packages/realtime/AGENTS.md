@@ -880,12 +880,30 @@ Anything not listed is internal and free to change.
   `revokeLocal` catches and warns, and only a ghost sweep of a **dead** instance
   reclaims them. Verb-rate policy is the application's `onMessage`, keyed on a
   stable string derived from `connection.identity`.
+- **Every `buildEvents` hook goes through `guard()`, and the sink never throws
+  past itself**
+  ([#369](https://github.com/locknessland/lockness-monorepo/issues/369)). Each
+  event handler `void`s its promise, because Hono does not await it, and the
+  package registers no `unhandledrejection` listener. On Deno an unhandled
+  rejection **terminates the process**, which takes down every socket and every
+  HTTP request with it. A new hook call written as `void hooks.x?.(…)` instead
+  of `void guard(conn, () => hooks.x?.(…))` is the defect. `onClose` was written
+  that way until #369. It looks harmless because a close "has nothing left to
+  do", but `handlerHooks().onClose` awaits `disconnect`, and `disconnect`
+  re-throws its first teardown failure by contract. The same holds for
+  `reportError()`: its `onError` call is wrapped, and a failing hook falls back
+  to one line whose marker `(the onError hook failed too)` sits in the fixed
+  prefix. It must stay there, because an error message can be client-controlled
+  and a marker placed after it can be forged. Removing that `try` because "the
+  app's handler is the app's problem" reopens the crash on all four paths.
+  Witness: `websocket_close_guard_369.test.ts`, battery
+  `tests/mutations/websocket_close_guard_369.ts`.
 
 ## Tests
 
 <!-- generated:tests -->
 
-81 test files for 21 source files:
+82 test files for 21 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -968,8 +986,9 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/sweep_paging_358.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
+- `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-34 mutation batteries — **`deno test` does not run these.** Each is an
+35 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1008,6 +1027,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/subscription_identity_315.ts`
 - `packages/realtime/tests/mutations/sweep_paging_358.ts`
 - `packages/realtime/tests/mutations/sweep_parse_316.ts`
+- `packages/realtime/tests/mutations/websocket_close_guard_369.ts`
 - `packages/realtime/tests/mutations/websocket_error_routing_352.ts`
 
 <!-- /generated:tests -->
@@ -1024,7 +1044,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 81 test files directly —
+Then, specific to this package: run its 82 test files directly —
 
 ```bash
 deno test -A packages/realtime/

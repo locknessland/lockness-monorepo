@@ -30,7 +30,12 @@ app.get(
   `send`, `close`, a server-derived `identity`, free-form `metadata`). The
   handler generates that id for you; supply your own only with a fresh
   `crypto.randomUUID()`, never a user or session id — `evict` names it in a
-  frame that crosses the bus.
+  frame that crosses the bus. A throw or rejection from `onOpen`, `onMessage` or
+  `onClose` is **reported, not fatal**: it reaches `onError`, or one default
+  `console.error` line. That includes a close-path teardown failure re-thrown by
+  `disconnect`. An `onError` that fails falls back to one line marked
+  `(the onError hook failed too)` that names both errors
+  ([#369](https://github.com/locknessland/lockness-monorepo/issues/369)).
 - **A CSWSH origin guard** — fail-closed, exact origin triple, same-origin by
   default from `APP_URL`.
 - **Channels** — public / private / presence, with an app authorizer, backed by

@@ -30,6 +30,39 @@ app.get(
 The origin guard is **fail-closed**: exact origin triple, same-origin by default
 from `APP_URL`, and an absent / `null` / substring-lookalike origin is rejected.
 
+### A failing hook is reported, never fatal
+
+A synchronous throw or an async rejection from `onOpen`, `onMessage` **or
+`onClose`** goes to your `onError` hook, exactly once, with the connection. With
+no `onError`, it is one `console.error` line:
+`realtime: unhandled websocket error: <error>`. The socket is not closed for
+you, and nothing is sent to the client.
+
+The close path matters most. Deno terminates the process on an unhandled
+rejection, so one rejected close used to take the whole server down with every
+other socket on it
+([#369](https://github.com/locknessland/lockness-monorepo/issues/369)). With
+`manager.handlerHooks(...)`, the close awaits `manager.disconnect`, which
+re-throws a teardown failure such as a broker unwatch or a roster release that
+did not complete. That failure now reaches `onError` like any other. The
+connection is still forgotten, and the manager keeps serving.
+
+`onError` is covered as well. If your `onError` throws or rejects, the handler
+writes one fallback line that carries both errors:
+
+```text
+realtime: unhandled websocket error (the onError hook failed too): <error>; hook failure: <failure>
+```
+
+The marker `(the onError hook failed too)` sits in the fixed prefix, before any
+error text. An error message can carry client-controlled text, so a marker
+placed after it could be forged by a client. Both halves are rendered and
+escaped the same way as the default line, so neither can break the line or
+inject control characters. Nothing escapes, but a broken `onError` is a bug in
+your application, and the line names it so you can fix it.
+
+When `onError` works, the handler writes nothing: your hook is the report.
+
 ## Channels
 
 Channel kind is derived from the name: `presence-*`, `private-*`, else public.
