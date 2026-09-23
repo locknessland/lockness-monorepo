@@ -261,6 +261,31 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#358 WC SSCAN refuses a missing COUNT, any option but COUNT',
     },
     {
+        // (#359 F1) A ZSCAN with no COUNT answered at Redis's default of 10:
+        // a revocation page its caller does not bound — the defect #359
+        // closes, and the refusal that pins `REVOCATION_SCAN_COUNT` on the
+        // driver's read (#359 M2a).
+        label: 'ZSCAN accepts a missing COUNT again',
+        file: FAKE,
+        edits: [[
+            "                if (pageSize === undefined) {\n                    this.#reject(\n                        'FakeRedis: ZSCAN without COUNT",
+            "                pageSize ??= 10\n                if (false) {\n                    this.#reject(\n                        'FakeRedis: ZSCAN without COUNT",
+        ]],
+        killedBy: '#359 WC ZSCAN refuses a missing COUNT',
+    },
+    {
+        // (#359 F2) MATCH silently ignored on the revocation index — the
+        // caller believes the page is filtered, and the fake hands it every
+        // record.
+        label: 'ZSCAN accepts MATCH again',
+        file: FAKE,
+        edits: [[
+            "                    if (flag !== 'COUNT') {",
+            "                    if (flag === 'MATCH') continue\n                    if (flag !== 'COUNT') {",
+        ]],
+        killedBy: '#359 WC ZSCAN refuses a missing COUNT, any option but COUNT',
+    },
+    {
         // (#358 F3) A cursor this fake never issued answered as a plausible
         // `[0, []]` — an empty, finished iteration — so a test driving the
         // scan with a made-up cursor reads "nothing left" instead of failing.

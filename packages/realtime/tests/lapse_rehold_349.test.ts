@@ -194,7 +194,10 @@ const isHold = (instanceId: string, id: number): CommandMatch => (args) =>
     args[0] === 'EVAL' && args.includes(OWNED_KEY(instanceId)) &&
     args.includes(INSTANCES_KEY) && args.includes(HOLDERS_KEY(CHANNEL, id))
 
-/** A `listRevocations` read: the one `EVAL` naming the revocation index. */
+/**
+ * A `listRevocations` pass, by its first command: the reap, the one `EVAL`
+ * naming the revocation index (#359 — the pages that follow are `ZSCAN`s).
+ */
 const isListRevocations: CommandMatch = (args) =>
     args[0] === 'EVAL' && args.includes(REVOCATIONS_KEY)
 

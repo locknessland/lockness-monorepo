@@ -18,6 +18,9 @@
  * One row guards a model instead of restoring a past bug: #358 L1, a scan core
  * that skips a member present for the whole iteration — the one SCAN guarantee
  * the ghost sweep relies on, checked against the broker by #358 WC's union.
+ * Another guards the comparison itself: #359 L3, a fake `HGETALL` that pairs
+ * each field with another field's value. Only `sortedPairs` sees it — a flat
+ * element sort puts both replies in the same order and hides it.
  *
  * **Requires a live broker.** Without one the suite is `ignored`, which the
  * harness reads as green — so every row would "survive" and the file would
@@ -123,7 +126,8 @@ const MUTATIONS: Mutation[] = [
         killedBy: 'the fake answers as a real broker does',
     },
     {
-        label: 'the Lua subset drops a statement — the reap never runs',
+        label:
+            "the Lua subset drops a statement — MARK_REVOKED_SCRIPT's ZADD never runs",
         file: LUA,
         // Re-anchored when the evaluator began parsing every expression up
         // front: a bare call statement is now its own node, and dropping it is
@@ -155,6 +159,52 @@ const MUTATIONS: Mutation[] = [
             '            .filter(({ slot }) => slot > from && slot < to)\n',
         ]],
         killedBy: '#358 WC a full SSCAN iteration',
+    },
+    {
+        // (#359 L1) The fake's ZSCAN ARM drops one record before handing the
+        // sorted set to the scan core — a revocation present for the whole
+        // iteration never returned, while every page still looks well formed.
+        // The core's own skip is #358 L1 above and is not duplicated.
+        label: 'the fake ZSCAN arm drops a record present throughout',
+        file: FAKE,
+        edits: [[
+            'const page = this.#scan(key, [...zset.keys()], cursor, pageSize)',
+            'const page = this.#scan(key, [...zset.keys()].slice(1), cursor, pageSize)',
+        ]],
+        killedBy: '#359 WC a full ZSCAN iteration',
+    },
+    {
+        // (#359 L2) An integral score written with a decimal point: every
+        // score the pass reads would fall outside its epoch-seconds grammar,
+        // so every revocation would be skipped — on the fake only.
+        label: 'the fake formats an integral score with a decimal point',
+        file: FAKE,
+        edits: [[
+            '        return String(score)\n',
+            '        return `${score}.0`\n',
+        ]],
+        killedBy: '#359 WC a score MARK_REVOKED_SCRIPT writes reads back',
+    },
+    {
+        // (#359 L3) Guards `sortedPairs`, not the fake: the fake's HGETALL
+        // answers every field with the value of another, a permutation that
+        // keeps the multiset of elements. The #285 normalizer sorts a flat
+        // pair list BY PAIR, so the broker's `a 9 b 2 c 3` and this `a 3 b 2
+        // c 9` diverge; sorted element by element (`sortedItems`) both read
+        // `2 3 9 a b c` and the row survives. Nothing else compares HGETALL
+        // across backends, so this kill rests on the pair sort alone.
+        label: "the fake HGETALL pairs each field with another field's value",
+        file: FAKE,
+        edits: [[
+            '                for (const [field, value] of h ?? []) {\n' +
+            "                    flat.push({ type: 'bulk', value: field })\n" +
+            "                    flat.push({ type: 'bulk', value })\n",
+            '                const values = [...(h?.values() ?? [])].reverse()\n' +
+            '                for (const [field] of h ?? []) {\n' +
+            "                    flat.push({ type: 'bulk', value: field })\n" +
+            "                    flat.push({ type: 'bulk', value: values.shift() ?? '' })\n",
+        ]],
+        killedBy: '#285 the fake answers as a real broker does',
     },
 ]
 

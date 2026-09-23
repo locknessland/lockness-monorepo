@@ -121,21 +121,32 @@ const MARK_REVOKED_SCRIPT: string = [
 ].join('\n')
 
 /**
- * Reap expired revocations and return the live ones — ONE operation, ONE
- * `now`.
+ * Reap expired revocations and answer the `now` it reaped against — the
+ * revocation pass's ONLY delete, and its one `now` (#359).
  *
- * Both halves are bounded by the same `t`, so every member the enumeration
- * returns has a score strictly greater than the bound the reap just used: a
- * live revocation cannot be removed, whatever else is happening concurrently
- * (#276 FR-001). Nothing is read in an earlier round-trip and acted on in a
- * later one, which is the shape the previous `EXISTS`-then-`SREM` had.
+ * It reads `TIME` inside the script, removes every member whose score is at
+ * or below that second, and returns the second exactly as Redis gave it: one
+ * integer's worth of reply, whatever the size of the index. The pass then
+ * reads the index in `ZSCAN` pages and keeps only members scored strictly
+ * above this `t`.
+ *
+ * **Why splitting the reap from the read does not re-open #276.** #276's race
+ * was a read in one round trip acted on by a DELETE in a later one. Here the
+ * delete is still one script bounded by its own `TIME`, so a live revocation
+ * (score above `t`) cannot be removed by it; the read deletes nothing; and
+ * `t` is carried to every page, never re-read — so a page read later cannot
+ * judge liveness against a later clock than the reap did. A member that
+ * another instance's reap removes mid-pass had expired at that reap's `now`.
+ *
+ * The `ZREMRANGEBYSCORE` is a bare call statement, not a returned value: the
+ * reply is `t` alone. Called as `EVAL <script> 1 <index>`, no `ARGV`.
  *
  * `KEYS[1]` index key.
  */
-const LIST_REVOKED_SCRIPT: string = [
+const REAP_REVOKED_SCRIPT: string = [
     "local t = redis.call('TIME')[1]",
     "redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', t)",
-    "return redis.call('ZRANGEBYSCORE', KEYS[1], t, '+inf')",
+    'return t',
 ].join('\n')
 
 /**
@@ -157,6 +168,33 @@ const LIST_REVOKED_SCRIPT: string = [
  * battery carries a row for exactly this substitution.
  */
 const REVOCATION_SCOPE_SEPARATOR = ' '
+
+/**
+ * The `COUNT` of every revocation-index page the revocation pass reads (#359)
+ * — the single home of that page size, and not configurable: no option, no
+ * environment variable. Exported for the test suite only; `mod.ts` does not
+ * re-export it.
+ *
+ * **The bound it buys.** A member is at most 602 bytes (a channel-scoped
+ * record: three 200-byte names and two separators) and its score about 12, so
+ * with RESP framing a page of about `COUNT` pairs plus the rest of the last
+ * bucket visited stays under about 130 KB of wire at maximum member length
+ * (typically about 12 KB) — a few MiB of heap at the roughly 20× amplification
+ * `resp.ts` measured — against the command client's 32 MiB reply cap. An
+ * instance holds one page of other instances' records at a time, plus its own
+ * matches until the pass ends.
+ *
+ * **It holds only while the broker honours `COUNT`.** A listpack-encoded
+ * sorted set is answered whole whatever `COUNT` says (by default at most 128
+ * entries of at most 64 bytes, so harmless); an operator who raises
+ * `zset-max-listpack-*`, or a Redis-compatible server that answers `ZSCAN`
+ * whole, reopens a large reply on that deployment.
+ *
+ * **Why 100 and not 1,000**: the pass runs on every instance on every tick,
+ * so the per-page heap is paid fleet-wide, continuously; the round trips a
+ * smaller page adds are one per hundred records.
+ */
+export const REVOCATION_SCAN_COUNT = 100
 
 /**
  * Hold a roster slot for one instance — ONE operation, four structures (#345).
@@ -986,6 +1024,147 @@ export function decodeScanReply(reply: unknown): ScanPage {
 }
 
 /**
+ * What epoch seconds look like on the wire (#359 FR-002, A12) — the ONE
+ * grammar for both the reap's `t` and every revocation score: `0`, or at most
+ * 15 decimal digits with no leading zero, so `Number` reads it exactly. Not
+ * `Number.isFinite(Number(s))`, which accepts `1e9`, `1.5` and `' 1'`.
+ * Exported for the test suite only.
+ */
+export const EPOCH_SECONDS = /^(0|[1-9][0-9]{0,14})$/
+
+/**
+ * The one message {@link decodeReapReply} throws (#359). It names the shape
+ * it expected and never carries the reply, its type or its length. Exported
+ * for the test suite only.
+ */
+export const REAP_REPLY_REFUSED =
+    'realtime: the revocation reap did not answer one epoch-seconds value — ' +
+    'a bulk string of at most 15 decimal digits with no leading zero'
+
+/**
+ * Decode the reply of {@link REAP_REVOKED_SCRIPT} (#359 FR-002): a bulk
+ * string matching {@link EPOCH_SECONDS}, read as the pass's one `now`.
+ *
+ * **The single home of what a reap reply means.** Anything else — an integer
+ * reply, a nil, a non-canonical or over-long number — throws
+ * {@link REAP_REPLY_REFUSED}, so a pass never judges liveness against a `now`
+ * it guessed (`?? 0` would read every record as live, forever). Exported for
+ * the test suite only; `mod.ts` does not re-export it.
+ *
+ * @param reply - The reap's `EVAL` reply.
+ * @returns The Redis second the reap used, as a number.
+ * @throws {Error} {@link REAP_REPLY_REFUSED}, for any other reply.
+ * @example
+ * ```ts
+ * decodeReapReply({ type: 'bulk', value: '1790157600' }) // 1790157600
+ * ```
+ */
+export function decodeReapReply(reply: unknown): number {
+    const t = asBulk(reply)
+    if (typeof t !== 'string' || !EPOCH_SECONDS.test(t)) {
+        throw new Error(REAP_REPLY_REFUSED)
+    }
+    return Number(t)
+}
+
+/**
+ * The one message {@link decodeRevocationPage} throws for an odd item list
+ * (#359): from its first misalignment on, every score would be read as a
+ * member. Constant; it never carries the reply. Exported for the test suite
+ * only.
+ */
+export const REVOCATION_PAGE_REFUSED =
+    'realtime: a revocation index page does not hold member and score ' +
+    'pairs — its item list has an odd length'
+
+/** One decoded revocation-index page (#359). Internal. */
+export interface RevocationPage {
+    /** The next cursor: `'0'` once the iteration is complete. */
+    readonly cursor: string
+    /** The page's well-formed pairs, member as stored, score as a number. */
+    readonly entries: readonly { member: string; score: number }[]
+    /** How many malformed pairs inside this well-formed page were skipped. */
+    readonly skipped: number
+}
+
+/**
+ * Decode one `ZSCAN` page of the revocation index (#359 FR-005, A12).
+ *
+ * The envelope goes through {@link decodeScanReply} — the one SCAN-envelope
+ * decoder, so every envelope refusal is {@link SCAN_REPLY_REFUSED}. This is
+ * the one `ZSCAN`-specific step after it, and **the single home of what a
+ * well-formed pair is**:
+ * - an **odd-length** item list throws {@link REVOCATION_PAGE_REFUSED}: the
+ *   page cannot be paired at all;
+ * - inside a well-formed page, a pair whose member is not a bulk string, or
+ *   whose score is not a bulk string matching {@link EPOCH_SECONDS} (`inf`,
+ *   `+inf`, a decimal point, an exponent), is **skipped and counted** in
+ *   `skipped`, never thrown — a planted `+inf` member is never reaped, and a
+ *   throw would fail every pass for as long as it stays.
+ *
+ * Exported for the test suite only; `mod.ts` does not re-export it.
+ *
+ * @param reply - The `ZSCAN` reply.
+ * @returns The next cursor, the well-formed pairs and the skip count.
+ * @throws {Error} {@link SCAN_REPLY_REFUSED} for a bad envelope,
+ *   {@link REVOCATION_PAGE_REFUSED} for an odd item list.
+ * @example
+ * ```ts
+ * decodeRevocationPage({
+ *     type: 'array',
+ *     value: [
+ *         { type: 'bulk', value: '0' },
+ *         { type: 'array', value: [
+ *             { type: 'bulk', value: 'c1' },
+ *             { type: 'bulk', value: '1790157900' },
+ *         ] },
+ *     ],
+ * }) // { cursor: '0', entries: [{ member: 'c1', score: 1790157900 }], skipped: 0 }
+ * ```
+ */
+export function decodeRevocationPage(reply: unknown): RevocationPage {
+    const { cursor, items } = decodeScanReply(reply)
+    if (items.length % 2 !== 0) throw new Error(REVOCATION_PAGE_REFUSED)
+    const entries: { member: string; score: number }[] = []
+    let skipped = 0
+    for (let i = 0; i < items.length; i += 2) {
+        const member = asBulk(items[i])
+        const score = asBulk(items[i + 1])
+        if (
+            typeof member !== 'string' || typeof score !== 'string' ||
+            !EPOCH_SECONDS.test(score)
+        ) {
+            skipped++
+            continue
+        }
+        entries.push({ member, score: Number(score) })
+    }
+    return { cursor, entries, skipped }
+}
+
+/**
+ * What a revocation pass throws once {@link RedisBroadcastDriver.close} has
+ * begun (#359): it stops before its next reap or page read, and a closing
+ * pass never answers `[]`, which would read as "nobody is revoked". Exported
+ * for the test suite only.
+ */
+export const REVOCATION_PASS_CLOSING =
+    'realtime: the revocation pass stopped before its next read — the ' +
+    'driver is closing'
+
+/**
+ * The words of the one WARN a revocation pass logs, after its last page, when
+ * well-formed pages carried malformed pairs (#359 FR-006a, S1) — followed by
+ * the count, never by a member or a score. Exported for the test suite only.
+ */
+export const REVOCATION_PAIRS_SKIPPED =
+    'realtime: the revocation index returned pairs that are not revocations ' +
+    '(a member that is not a string, or a score that is not canonical epoch ' +
+    'seconds) and they were skipped — a broker that formats scores ' +
+    'differently would leave every revocation unenforced. Pairs skipped this ' +
+    'pass:'
+
+/**
  * What one heartbeat's `SET <alive key> 1 EX <ttl> GET` reported (#349):
  * `continuous` — the key existed, so this renewal extended it; `lapsed` — the
  * key had expired or was deleted, so this write re-created it, and a peer may
@@ -1303,7 +1482,23 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * timer.
      */
     #closing = false
-    private revocationTimer?: ReturnType<typeof setInterval>
+    /**
+     * The ONE pending revocation timer (#359): a one-shot timeout armed by
+     * {@link #armRevocationReconcile} and nowhere else, never an interval.
+     */
+    private revocationTimer?: ReturnType<typeof setTimeout>
+    /**
+     * The revocation pass in flight, if any (#359). Stored and cleared by
+     * {@link #startRevocationPass} alone.
+     */
+    #revocationPass?: Promise<void>
+    /**
+     * The one trailing pass a reconnect or retry recorded while a pass was in
+     * flight (#359): one slot, not a queue, and `reconnect` wins over
+     * `reconnect-retry`. Consumed by the pass's `finally`; cleared by
+     * {@link close}.
+     */
+    #revocationRerun?: 'reconnect' | 'reconnect-retry'
     /**
      * The ONE retry a failed seam-triggered reconcile gets (#308).
      *
@@ -2366,72 +2561,105 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * OPTIONAL (S1/FR-014). The revocations that are live now, reaping expired
-     * entries so the index stays bounded (#276 FR-002/FR-003).
+     * OPTIONAL (S1/FR-014). One revocation pass's read half (#359): reap the
+     * expired records, then read the index in bounded pages and return the
+     * live, decodable records `owns` keeps. The contract an implementation
+     * owes is {@link BroadcastDriver.listRevocations}'s; this is the Redis
+     * shape of it.
      *
-     * Reap and enumeration happen inside ONE script, against ONE `now` read from
-     * Redis — so every surviving member's score is strictly greater than the
-     * bound the reap just used, and a live revocation is unremovable. There is
-     * no earlier round-trip whose result could go stale before it is acted on.
+     * **One reap, one `now`, then pages.** {@link REAP_REVOKED_SCRIPT} is the
+     * pass's only delete and answers the Redis second `t` it reaped against;
+     * the index is then read with `ZSCAN <index> <cursor> COUNT`
+     * {@link REVOCATION_SCAN_COUNT} — no other option — from cursor `'0'`
+     * until the cursor comes back `'0'`: one full iteration, no budget, no
+     * resume state. A record is live iff its score is strictly above the
+     * carried `t`, never a re-read `TIME` and never this instance's clock.
+     * No reply grows with the index.
      *
-     * **The reap is by SCORE ONLY, and the decode filter below is deliberately
-     * non-destructive.** An instance running an older release meets a
+     * **The decode filter is deliberately non-destructive, and the read path
+     * never deletes.** An instance running an older release meets a
      * channel-scoped member, cannot decode it, and skips it — but it also
      * cannot delete it, so the record survives for the instance that owns the
      * socket and can act on it. Making the reap drop members it fails to parse
      * would silently delete live revocations during a rolling deploy.
      *
-     * @returns The currently-live revocations, with anything undecodable
-     *   dropped.
+     * **A failed, malformed or closing pass throws**, never answers `[]`
+     * (which reads as "nobody is revoked"): a reap reply or page that does not
+     * decode, and a driver whose `close()` has begun, before its next reap or
+     * page read ({@link REVOCATION_PASS_CLOSING}). A malformed PAIR inside a
+     * well-formed page is skipped and counted; after the last page, a nonzero
+     * count is ONE WARN ({@link REVOCATION_PAIRS_SKIPPED} and the number).
+     *
+     * @param owns - Which targets to keep, asked once per decoded record,
+     *   synchronously; a throw fails the pass. Omitted, every record is kept.
+     * @returns The live revocations `owns` keeps, each member once.
+     * @throws {Error} When a round trip fails, a reply does not decode, or the
+     *   driver is closing.
      * @example
      * ```ts
-     * for (const r of await driver.listRevocations()) { /* apply if local *\/ }
+     * const local = await driver.listRevocations((id) => sockets.has(id))
      * ```
      */
-    async listRevocations(): Promise<Revocation[]> {
-        const reply = await this.command.command(
-            'EVAL',
-            LIST_REVOKED_SCRIPT,
-            '1',
-            this.revocationIndexKey,
+    async listRevocations(
+        owns?: (target: string) => boolean,
+    ): Promise<Revocation[]> {
+        if (this.#closing) throw new Error(REVOCATION_PASS_CLOSING)
+        const t = decodeReapReply(
+            await this.command.command(
+                'EVAL',
+                REAP_REVOKED_SCRIPT,
+                '1',
+                this.revocationIndexKey,
+            ),
         )
-        const members = asArray(reply)
-        if (members === undefined) {
-            // "Nobody is revoked" and "the reply was not the shape we expect"
-            // must not look the same to a caller: the first is routine, the
-            // second means every revocation this instance owns goes unenforced.
-            console.warn(
-                'realtime: the revocation index returned an unexpected reply ' +
-                    'shape — treating it as empty, so no revocation will be ' +
-                    'recovered on this pass',
-            )
-        }
         const live = new Map<string, Revocation>()
-        for (const raw of members ?? []) {
-            const member = asBulk(raw)
-            // Filtered, matching what the control-plane ingest has always done
-            // to `wire.target`. Both return paths are broker-sourced: a writer
-            // with bus access could put anything in the index, and reconcile
-            // hands what it finds straight to a revocation. The asymmetry
-            // between the two paths was the finding, not the reach.
-            //
-            // ONE filter, and it is the boundary rather than belt-and-braces.
-            // #304's battery recorded an equivalent mutant here on the grounds
-            // that the real guard had moved inside `#legacyRevoked`, which
-            // built a Redis key from an unfiltered member before the caller
-            // ever saw it. That method is gone (#278) and with it the second
-            // path, so this is the only thing standing between a
-            // broker-sourced member and a revocation — the mutation that
-            // removes it is a kill, not an equivalence.
-            //
-            // #332 made it strictly more load-bearing rather than less: the
-            // filter now also decides SCOPE, and a decode that degraded to
-            // `{ target }` on a malformed member would turn a room revocation
-            // into a socket kill. Failing closed is that decision.
-            if (member === undefined) continue
-            const revocation = this.#decodeRevocation(member)
-            if (revocation) live.set(member, revocation)
-        }
+        let skipped = 0
+        let cursor = '0'
+        do {
+            if (this.#closing) throw new Error(REVOCATION_PASS_CLOSING)
+            const page = decodeRevocationPage(
+                await this.command.command(
+                    'ZSCAN',
+                    this.revocationIndexKey,
+                    cursor,
+                    'COUNT',
+                    String(REVOCATION_SCAN_COUNT),
+                ),
+            )
+            skipped += page.skipped
+            for (const entry of page.entries) {
+                if (!(entry.score > t)) continue
+                // Filtered, matching what the control-plane ingest has always
+                // done to `wire.target`. Both return paths are broker-sourced:
+                // a writer with bus access could put anything in the index,
+                // and reconcile hands what it finds straight to a revocation.
+                // The asymmetry between the two paths was the finding, not the
+                // reach.
+                //
+                // ONE filter, and it is the boundary rather than
+                // belt-and-braces. #304's battery recorded an equivalent
+                // mutant here on the grounds that the real guard had moved
+                // inside `#legacyRevoked`, which built a Redis key from an
+                // unfiltered member before the caller ever saw it. That method
+                // is gone (#278) and with it the second path, so this is the
+                // only thing standing between a broker-sourced member and a
+                // revocation — the mutation that removes it is a kill, not an
+                // equivalence.
+                //
+                // #332 made it strictly more load-bearing rather than less:
+                // the filter now also decides SCOPE, and a decode that
+                // degraded to `{ target }` on a malformed member would turn a
+                // room revocation into a socket kill. Failing closed is that
+                // decision. A member that does not decode is NOT counted as a
+                // skipped pair: during a rolling deploy it is expected state.
+                const revocation = this.#decodeRevocation(entry.member)
+                if (revocation === undefined) continue
+                if (owns !== undefined && !owns(revocation.target)) continue
+                live.set(entry.member, revocation)
+            }
+            cursor = page.cursor
+        } while (cursor !== '0')
+        if (skipped > 0) console.warn(`${REVOCATION_PAIRS_SKIPPED} ${skipped}`)
         return [...live.values()]
     }
 
@@ -2472,52 +2700,145 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * The pass runs on a DEDICATED timer started here, UNCONDITIONALLY — it is
      * not coupled to the presence ghost-sweep (which only starts once this
      * instance hosts a presence member). A deployment that serves only private /
-     * public channels therefore still reconciles revocations, bounding exposure
-     * to a lost evict at ~`reconcileIntervalMs` for EVERY deployment class
-     * (closing the FR-014 gap the presence-coupled cadence left open). The timer
-     * is cleared by {@link close}.
+     * public channels therefore still reconciles revocations, with the bound
+     * below, for EVERY deployment class (closing the FR-014 gap the
+     * presence-coupled cadence left open). The timer is cleared by
+     * {@link close}.
      *
-     * @param handler - Called with no arguments on each reconcile tick.
+     * **The timer rule** (#359 A2): one `setTimeout`, armed by
+     * {@link #armRevocationReconcile} alone, **from the end of the pass that
+     * consumed it** — never a `setInterval`, so a slow pass is never overlapped
+     * by the next one. An edge-triggered pass (a reconnect, the #308 retry)
+     * never moves a pending timer, and at most one revocation pass runs per
+     * driver at a time ({@link #startRevocationPass}).
+     *
+     * **The enforcement bound — the one home of it** (#359 S2). A revocation
+     * whose one-shot control frame was lost is applied within
+     * **`reconcileIntervalMs + 2P`**, where **P** is the duration of one pass:
+     * 1 + ⌈N / {@link REVOCATION_SCAN_COUNT}⌉ round trips made one at a time —
+     * the reap, then one `ZSCAN` per page of an index of N members — each
+     * capped at the command client's read timeout. One P is the pass in flight
+     * when the record is written, which may miss it behind its cursor; the
+     * interval is armed from that pass's end; the second P is the next pass,
+     * which applies it. **A failed pass restarts the clock**: it applies
+     * nothing, and the bound runs again from its end. **It holds only while the
+     * broker honours `COUNT`**: a broker that answers `ZSCAN` whole turns a
+     * page into one unbounded reply. **P counts round trips only**: the
+     * pass's apply (the manager's leaves, roster writes and clears) and any
+     * wait on the manager's serial re-check tail (a lapse re-check queued
+     * ahead of it) add to the bound. And **P grows with the index size N**,
+     * which counts every instance's live records, not only this one's. Other
+     * documentation links here rather than restating it.
+     *
+     * @param handler - Called with no arguments on each revocation pass.
      */
     onRevocationReconcile(handler: () => void | Promise<void>): void {
         this.revocationHandler = handler
-        // Re-registration replaces the previous timer rather than stacking one.
+        // Re-registration replaces the pending timer rather than stacking one;
+        // the one arming site then arms it afresh.
         if (this.revocationTimer !== undefined) {
-            clearInterval(this.revocationTimer)
+            clearTimeout(this.revocationTimer)
+            this.revocationTimer = undefined
         }
-        // A FakeTime `tickAsync` fires this callback and does NOT await the
-        // promise it returns: a test drains the re-check round trip itself.
-        this.revocationTimer = setInterval(
-            () => this.#runRevocationReconcile(),
-            this.reconcileIntervalMs,
-        )
+        this.#armRevocationReconcile()
         // The SECOND trigger (#271): the subscribe socket coming back is the
         // routine moment an `evict` frame was lost, so re-check immediately
         // rather than waiting up to `reconcileIntervalMs`. Registered HERE, in
         // the same method as the timer — "when the revocation re-check runs" has
         // one home, and a future non-revocation consumer of the reconnect signal
-        // does not belong in it. Routed through `#runRevocationReconcile` (not
-        // the raw handler) so both triggers share its contextual WARN, the only
-        // log line naming WHICH control failed.
+        // does not belong in it. Routed through `#startRevocationPass` (not
+        // the raw handler) so every trigger runs one pass at a time and shares
+        // `#runRevocationReconcile`'s contextual WARN, the only log line naming
+        // WHICH control failed. It hands back nothing (#359 A6).
         this.subscriber.onReconnect?.(() =>
-            this.#runRevocationReconcile('reconnect')
+            this.#startRevocationPass('reconnect')
+        )
+    }
+
+    /**
+     * Arm the next timer-triggered revocation pass — **the single arming site
+     * of the revocation timer** (#359 FR-010, A2).
+     *
+     * One `setTimeout`, never a `setInterval`: **the timer is armed from the
+     * end of the pass that consumed it, and an edge-triggered pass never
+     * moves a pending timer.** Its callback clears the field and asks
+     * {@link #startRevocationPass} for a `timer` pass; that pass's end arms
+     * the next one. A reconnect or retry pass that ends while a timer is
+     * pending leaves it where it is — at most one extra pass per reconnect,
+     * never a later timer.
+     *
+     * Returns without arming while {@link close} is in progress (the one
+     * gate for timers), and while a timer is already pending (so at most one
+     * exists).
+     *
+     * A FakeTime `tickAsync(k × interval)` fires the callback once and does
+     * not await its pass, so it runs ONE pass, not k.
+     */
+    #armRevocationReconcile(): void {
+        if (this.#closing) return
+        if (this.revocationTimer !== undefined) return
+        this.revocationTimer = setTimeout(() => {
+            this.revocationTimer = undefined
+            this.#startRevocationPass('timer')
+        }, this.reconcileIntervalMs)
+    }
+
+    /**
+     * Start one revocation pass — **the single entry point for all three
+     * triggers** (the timer, the reconnect seam and the #308 retry), and the
+     * reason a driver never runs two revocation passes at once (#359 FR-011).
+     *
+     * While a pass is in flight a `timer` trigger does nothing (the pass's
+     * end arms the next timer), and a `reconnect` or `reconnect-retry` is
+     * recorded in {@link #revocationRerun} — one slot, where `reconnect` wins
+     * — so however many arrive, ONE trailing pass follows. Otherwise the pass
+     * is stored in {@link #revocationPass}; its `finally` clears the slot,
+     * takes the recorded rerun and starts it, or else arms the timer.
+     *
+     * **It returns nothing** (A6): a promise handed to a coalesced caller
+     * would resolve before that caller's trailing pass had run.
+     *
+     * **No closing check of its own** (D3): once {@link close} has begun,
+     * the dropped handler makes {@link #runRevocationReconcile} run nothing,
+     * and {@link #armRevocationReconcile} arms nothing.
+     *
+     * @param trigger - What asked for the pass.
+     */
+    #startRevocationPass(
+        trigger: 'timer' | 'reconnect' | 'reconnect-retry',
+    ): void {
+        if (this.#revocationPass !== undefined) {
+            if (trigger === 'timer') return
+            if (this.#revocationRerun !== 'reconnect') {
+                this.#revocationRerun = trigger
+            }
+            return
+        }
+        this.#revocationPass = this.#runRevocationReconcile(trigger).finally(
+            () => {
+                this.#revocationPass = undefined
+                const rerun = this.#revocationRerun
+                this.#revocationRerun = undefined
+                if (rerun !== undefined) this.#startRevocationPass(rerun)
+                else this.#armRevocationReconcile()
+            },
         )
     }
 
     /**
      * Run the registered revocation re-check once. A failure is logged at WARN
-     * and never swallowed silently; the timer keeps running so the next pass
-     * still bounds exposure to ~`reconcileIntervalMs`.
+     * and never swallowed silently; the next pass is armed from this one's
+     * end, so exposure stays bounded (see {@link onRevocationReconcile}).
      *
      * **The trigger is named in the log, and it decides whether a failure is
      * retried (#308).** The two triggers are not equivalent on failure. The
-     * timer's next pass is already scheduled, so a failed timer pass costs
-     * nothing but latency. The SEAM fires once per outage and its intent is
-     * consumed by the activation that fired it, so a failed seam pass is
-     * retried by nothing at all — enforcement silently reverts to the periodic
-     * timer, which is exactly the pre-#271 exposure the seam exists to remove.
-     * The condition is broker-controllable: heal the subscribe socket while
-     * stalling the command socket's `EVAL`.
+     * timer's next pass is armed from this one's end whatever happened, so a
+     * failed timer pass costs nothing but latency. The SEAM fires once per
+     * outage and its intent is consumed by the activation that fired it, so a
+     * failed seam pass is retried by nothing at all — enforcement silently
+     * reverts to the periodic timer, which is exactly the pre-#271 exposure
+     * the seam exists to remove. The condition is broker-controllable: heal
+     * the subscribe socket while stalling the command socket's `EVAL`.
      *
      * Naming the trigger is half the fix on its own. Both lines read
      * identically before this, so an operator watching a WARN stream could not
@@ -2551,7 +2872,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 clearTimeout(this.revocationRetryTimer)
             }
             const id = setTimeout(
-                () => void this.#runRevocationReconcile('reconnect-retry'),
+                () => this.#startRevocationPass('reconnect-retry'),
                 RECONCILE_RETRY_MS,
             )
             // Unref'd: this must never be the reason a process stays alive.
@@ -3283,10 +3604,25 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * so a beat reply arriving later starts nothing; after the sweep pass it
      * waits for the run in flight. That wait is at most one slot write plus
      * whatever is queued ahead of it on that slot, or the revocation re-check
-     * in flight (the run's first step, which the signal cannot cut short) —
-     * at most 30 s per command on the built-in client, unbounded on an
-     * injected port whose commands never settle. It then drops the departure handler and the
+     * in flight (the run's first step, which the signal cannot cut short).
+     * That re-check stops before its next reap or page read (#359), so it
+     * adds at most the one command in flight — **but** when that command is
+     * the LAST page, the read returns normally and the manager's apply phase
+     * (leaves, roster writes, clears) runs while this waits. Each command is
+     * at most 30 s on the built-in client, unbounded on an injected port whose
+     * commands never settle. It then drops the departure handler and the
      * {@link onControlRefused} handler, and closes the owned connections.
+     *
+     * **It does not await a revocation pass** (#359 FR-013). A timer- or
+     * reconnect-triggered pass in flight completes the command in flight,
+     * then stops before its next reap or page read and logs one WARN
+     * ({@link REVOCATION_PASS_CLOSING}); a trailing pass recorded for it runs
+     * nothing (the handler is dropped), and no timer or retry is armed after
+     * it. **Unless the command in flight is the pass's LAST page**: there is
+     * no next read to refuse, so the pass finishes with no WARN, and its apply
+     * (the manager's leaves, roster writes and clears) runs while this closes
+     * the owned connections, not awaited. Every such action only removes
+     * access, so a pass cut off there grants nothing.
      *
      * @returns Resolves once the sweep pass in flight has stopped and every
      *   owned connection is closed.
@@ -3307,9 +3643,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             this.reconcileTimer = undefined
         }
         if (this.revocationTimer !== undefined) {
-            clearInterval(this.revocationTimer)
+            clearTimeout(this.revocationTimer)
             this.revocationTimer = undefined
         }
+        // A trailing pass recorded before close() runs nothing either way (the
+        // handler is dropped below); cleared so no stale intent survives.
+        this.#revocationRerun = undefined
         if (this.revocationRetryTimer !== undefined) {
             clearTimeout(this.revocationRetryTimer)
             this.revocationRetryTimer = undefined

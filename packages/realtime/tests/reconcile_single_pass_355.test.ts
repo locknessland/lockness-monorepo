@@ -22,7 +22,7 @@
  *
  * | File | Relies on | Changes? |
  * | :--- | :--- | :--- |
- * | `driver_redis.test.ts` | `tickAsync(3_500)` counting three REVOCATION ticks | no — the revocation timer is still an interval |
+ * | `driver_redis.test.ts` | `tickAsync(3_500)` counting three REVOCATION ticks | no at #355 — the revocation timer was still an interval; since #359 it is a one-shot re-armed from each pass's end too, and the test counts its three ticks over three drained `tickAsync(1_000)` steps |
  * | `eviction_durable.test.ts` | `tickAsync(1_200)`, one revocation tick (the sweep fires once in both designs) | no |
  * | `eviction_reconnect.test.ts` | the reconnect trigger and one revocation tick | no |
  * | `live_fake_conformance.test.ts` | real clock; its holder pair only holds and releases, never waits on a sweep | no |

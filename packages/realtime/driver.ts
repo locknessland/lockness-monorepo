@@ -518,20 +518,52 @@ export interface BroadcastDriver {
      */
     markRevocation?(revocation: Revocation): void | Promise<void>
     /**
-     * OPTIONAL (S1/FR-014). The revocations that are live now, with expired
+     * OPTIONAL (S1/FR-014). The revocations that are live, with expired
      * entries reaped. The owning instance re-checks this on each
-     * {@link onRevocationReconcile} tick to recover a missed revoke.
+     * {@link onRevocationReconcile} pass to recover a missed revoke.
+     *
+     * **What an implementation must return — the one home of this contract**
+     * (#359, refining #276's "exactly the records live at call time"). A call
+     * judges liveness against ONE `now` of its own choosing, and it returns
+     * every record that was live at that `now` **and present for the whole
+     * enumeration**. A record written, or removed, while the call enumerates
+     * may or may not be returned — so a store that pages is conforming, and a
+     * record it misses because it landed behind its cursor is returned by the
+     * next call. Other documentation links here rather than restating it.
      *
      * **An implementation MUST fail closed.** A record it cannot fully decode
      * is dropped, never returned with a missing or partial scope: a record
      * returned without its channel is applied as a whole-connection revocation,
      * which hard-closes a socket that should only have left one room. This
      * index is the one cross-instance write channel with no authenticity tag,
-     * so what a decoder refuses is the boundary.
+     * so what a decoder refuses is the boundary. A read that fails, or a reply
+     * it cannot read, **throws** — never `[]`, which the caller reads as
+     * "nobody is revoked".
      *
-     * @returns The currently-live revocations.
+     * @param owns - Which targets the caller keeps (#359). Implementations
+     *   SHOULD apply it while enumerating, so a store holds only the caller's
+     *   records rather than every instance's. The caller filters again, so an
+     *   implementation that ignores it is correct — only unbounded in its own
+     *   store. It is called synchronously, once per decoded record; a throw
+     *   from it fails the call. Omitted, every live record is returned, which
+     *   is what an existing zero-argument caller gets.
+     * @returns The live revocations `owns` keeps, each record once.
+     * @throws {Error} When the store cannot be read, or its reply cannot be.
+     * @example
+     * ```ts
+     * // A custom store that applies `owns` as it enumerates.
+     * import type { Revocation } from '@lockness/realtime'
+     *
+     * const stored: Revocation[] = [{ target: 'c1' }, { target: 'x9' }]
+     * function listRevocations(owns?: (target: string) => boolean) {
+     *     return stored.filter((r) => owns === undefined || owns(r.target))
+     * }
+     * listRevocations((id) => id === 'c1') // [{ target: 'c1' }]
+     * ```
      */
-    listRevocations?(): Revocation[] | Promise<Revocation[]>
+    listRevocations?(
+        owns?: (target: string) => boolean,
+    ): Revocation[] | Promise<Revocation[]>
     /**
      * OPTIONAL (S1/FR-014). Forget a revocation the owning instance has now
      * applied.
@@ -583,8 +615,9 @@ export interface BroadcastDriver {
      * periodic reconcile pass, so the owning instance re-checks
      * {@link listRevocations} and applies any that name a local socket —
      * recovering a revoke whose control frame was lost while the owning socket
-     * was between reconnects. Bounds exposure to a lost revoke at ~one
-     * reconcile interval.
+     * was between reconnects. How far that bounds exposure to a lost revoke
+     * is the implementation's to state; the Redis driver's bound is on its
+     * own `onRevocationReconcile`.
      *
      * Its registration follows the hooks' shared lifecycle
      * ({@link BroadcastDriver}).
@@ -731,8 +764,18 @@ export interface ChannelWatchCapableDriver extends BroadcastDriver {
 export interface RevocationStoreDriver extends BroadcastDriver {
     /** Durably record a revocation. */
     markRevocation(revocation: Revocation): void | Promise<void>
-    /** The revocations that are live now. */
-    listRevocations(): Revocation[] | Promise<Revocation[]>
+    /**
+     * The live revocations — the contract is
+     * {@link BroadcastDriver.listRevocations}'s, not restated here.
+     *
+     * @param owns - Which targets the caller keeps; optional, and an
+     *   implementation may ignore it (see the contract).
+     * @returns The live revocations `owns` keeps.
+     * @throws {Error} When the store or its reply cannot be read.
+     */
+    listRevocations(
+        owns?: (target: string) => boolean,
+    ): Revocation[] | Promise<Revocation[]>
     /** Forget exactly the channel revocation with this id, once applied. */
     clearRevocation(revocation: ChannelRevocation): void | Promise<void>
 }

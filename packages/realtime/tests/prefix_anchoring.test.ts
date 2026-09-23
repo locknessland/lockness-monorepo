@@ -212,22 +212,33 @@ const FRAGMENT_DERIVED: readonly string[] = ['topic', 'eventPattern']
 const CANNED = {
     HGETALL: { type: 'array', value: [] },
     ZRANGEBYSCORE: { type: 'array', value: [] },
-    // Keyed on the DECLARED KEY COUNT (`EVAL <script> <numkeys> …`), never on
-    // the script text — a reply chosen by searching the source breaks on a
-    // reformat Lua cannot see. The hold and release scripts declare 4 keys
-    // and the deregistration script 3 (#345, #355); all three accept the
-    // integer 0 through their strict decoders. Every 1-key script — the roster read (#341) and the revocation
-    // mark and list — gets the roster read's `{ HLEN, sample, selves }` shape,
-    // in which the revocation list finds no bulk member.
+    // Keyed on the DECLARED KEY COUNT (`EVAL <script> <numkeys> …`) and the
+    // operand count, never on the script text — a reply chosen by searching
+    // the source breaks on a reformat Lua cannot see. The hold and release
+    // scripts declare 4 keys and the deregistration script 3 (#345, #355);
+    // all three accept the integer 0 through their strict decoders. A 1-key
+    // script with NO operand after its key is the revocation reap (#359),
+    // which answers the Redis second as a digit bulk. Every other 1-key
+    // script — the roster read (#341) and the revocation mark — gets the
+    // roster read's `{ HLEN, sample, selves }` shape.
     EVAL: (args: string[]) =>
-        Number(args[2]) >= 3 ? { type: 'integer', value: 0 } : {
-            type: 'array',
-            value: [
-                { type: 'integer', value: 0 },
-                { type: 'array', value: [] },
-                { type: 'array', value: [] },
-            ],
-        },
+        Number(args[2]) >= 3
+            ? { type: 'integer', value: 0 }
+            : Number(args[2]) === 1 && args.length === 4
+            ? { type: 'bulk', value: '1757000000' }
+            : {
+                type: 'array',
+                value: [
+                    { type: 'integer', value: 0 },
+                    { type: 'array', value: [] },
+                    { type: 'array', value: [] },
+                ],
+            },
+    // The revocation pass's page read (#359): an empty index, one page.
+    ZSCAN: {
+        type: 'array',
+        value: [{ type: 'bulk', value: '0' }, { type: 'array', value: [] }],
+    },
     TIME: {
         type: 'array',
         value: [

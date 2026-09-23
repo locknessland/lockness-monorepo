@@ -6,14 +6,22 @@
  * `HRANDFIELD … WITHVALUES` for the bounded read, #341, and `HGET` for the
  * roster release, #345), the owned/instances sets
  * (`SADD`/`SREM`/`SMEMBERS`/`DEL`, and `SSCAN … COUNT` for the sweep's paged
- * owned-set read, #358) and the liveness string (`SET … EX`/`EXISTS`)
- * — returning `RespReply`-shaped values so the driver's real reply-narrowing
- * runs unchanged. Pub/sub fan-out is synchronous, like the existing
- * `driver_redis.test.ts` fake bus.
+ * owned-set read, #358), the revocation index (`ZADD`/`ZREM`,
+ * `ZREMRANGEBYSCORE` inside the reap script, and `ZSCAN … COUNT` for the
+ * revocation pass's paged read, #359) and the liveness string
+ * (`SET … EX`/`EXISTS`) — returning `RespReply`-shaped values so the driver's
+ * real reply-narrowing runs unchanged. Pub/sub fan-out is synchronous, like
+ * the existing `driver_redis.test.ts` fake bus. `ZRANGEBYSCORE` is still
+ * modelled, but since #359 only tests issue it — raw reads of the index; the
+ * driver never does.
  *
  * **The scan model** (#358). `SSCAN key cursor COUNT n` is answered by one
- * private scan core (member list, cursor and `COUNT` in, one page out), which
- * a later SCAN-family arm reuses rather than walking its own way:
+ * private scan core (member list, cursor and `COUNT` in, one page out), and
+ * `ZSCAN key cursor COUNT n` (#359) is its second caller rather than a walk of
+ * its own: it hands the core the members of the LIVE sorted set (key expiry
+ * honoured) and answers `[cursor, [member, score, …]]` in the core's order,
+ * each score written as Redis writes it — an integral score as its plain
+ * digits, a fractional one refused rather than guessed:
  * - **Refused, never ignored**: a missing `COUNT`, any option but `COUNT`
  *   (`MATCH` among them — it filters the page, so ignoring it hands the caller
  *   members a real broker would not), a cursor that is not canonical decimal
@@ -37,7 +45,9 @@
  *   by, slot then byte order.
  * - **Not modelled**: duplicates (a real broker may return a member twice
  *   across a rehash) and the rehash itself — the table never resizes. #358's
- *   W3 proves duplicates are safe with two sweepers instead.
+ *   W3 proves duplicates are safe with two sweepers instead; the revocation
+ *   pass absorbs one by keying its result on the member. `ZSCAN`'s
+ *   `NOSCORES` (Redis 8) is refused like `MATCH`.
  * - **A call ceiling, per key and cumulative**: more than
  *   {@link SCAN_CALLS_PER_KEY} scan calls on one key, or
  *   {@link SCAN_CALLS_TOTAL} on one fake, is a ledger rejection that throws,
@@ -46,7 +56,14 @@
  *   Sizing: the longest legitimate iteration is the #285 coverage case at
  *   `COUNT 10`, `ceil(1024 / 10)` = 103 calls, and the busiest witness
  *   (#358 W6) runs a few iterations of `ceil(1024 / 100)` = 11 — both far
- *   under 1,000 per key, and no test file sweeps ten such keys.
+ *   under 1,000 per key, and no test file sweeps ten such keys. **The
+ *   revocation index is scanned for the whole test** (#359): every driver on
+ *   the fake reads it once per revocation pass, on one shared key. Measured
+ *   on `15997dd5` by counting the index reads per fake across the realtime
+ *   suite, the busiest test runs fewer than 20 passes in all; an index that
+ *   fits one page costs one call per pass, and the largest witness index
+ *   (#359 R1, 307 records) costs `ceil(1024 / 100)` = 11 per pass. Tens to a
+ *   few hundred calls per key, so the ceiling stands as it is.
  *
  * **One clock and one expiry registry** (#280). Every arm reads `#now()`, which
  * {@link FakeRedis.setTime} overrides, and every TTL lives in `#keyExpiry` in
@@ -339,7 +356,14 @@ export class FakeRedis {
     subscriberFor(): {
         psubscribe(pattern: string, handler: Handler): void
         onReconnect(handler: () => void | Promise<void>): void
-        /** Test-only: simulate a reconnect, awaiting the handler's round-trip. */
+        /**
+         * Test-only: simulate a reconnect. It awaits whatever the registered
+         * handler returns — and since #359 the Redis driver's handler starts a
+         * revocation pass and returns NOTHING (a coalesced trigger would
+         * otherwise read another pass's end as its own). So awaiting this does
+         * not wait for the pass: drain with `time.runMicrotasks()` after it,
+         * as for a timer-fired pass.
+         */
         fireReconnect(): Promise<void>
     } {
         let onReconnect: (() => void | Promise<void>) | undefined
@@ -353,7 +377,6 @@ export class FakeRedis {
         }
     }
 
-    /** Whether a string key is present and unexpired (lazy-expiring on read). */
     /**
      * Refuse a command shape, recording it so a swallowed throw still counts.
      *
@@ -534,6 +557,25 @@ export class FakeRedis {
     #liveHash(key: string): Map<string, string> | undefined {
         if (this.#expired(key)) this.#dropKey(key)
         return this.#hashes.get(key)
+    }
+
+    /**
+     * A score as Redis writes it into a reply (#359): an integral score of at
+     * most 2^52 in magnitude is its plain digits — no decimal point, no
+     * exponent — which is every score the driver writes (`TIME` seconds plus a
+     * TTL). Redis switches to a shortest-float form past that bound and for a
+     * fractional score, and the exact digits of that form are not modelled
+     * here: such a score is REFUSED rather than formatted the way JavaScript
+     * happens to.
+     */
+    #formatScore(score: number): string {
+        if (!Number.isInteger(score) || Math.abs(score) > 2 ** 52) {
+            this.#reject(
+                `FakeRedis: unmodelled score format for ${score} — only ` +
+                    'integral scores up to 2^52 are written as Redis does',
+            )
+        }
+        return String(score)
     }
 
     /** Parse a `ZRANGEBYSCORE` bound, honouring `-inf` / `+inf` and `(` exclusivity. */
@@ -991,6 +1033,69 @@ export class FakeRedis {
                                 type: 'bulk',
                                 value: m,
                             })),
+                        },
+                    ],
+                }
+            }
+            case 'ZSCAN': {
+                // ZSCAN key cursor COUNT n (#359) — the one form the
+                // revocation pass issues, walked by the same scan core as
+                // SSCAN over the LIVE sorted set. MATCH filters the page and
+                // NOSCORES (Redis 8) drops the scores: ignoring either hands
+                // the caller a page a real broker would not send.
+                const [key, cursor, ...opts] = rest
+                if (key === undefined || cursor === undefined) {
+                    this.#reject(
+                        `FakeRedis: ZSCAN takes key and cursor, got ${rest.length}`,
+                    )
+                }
+                if (!SCAN_CURSOR.test(cursor)) {
+                    this.#reject(
+                        `FakeRedis: ZSCAN cursor '${cursor}' is not canonical ` +
+                            'decimal',
+                    )
+                }
+                let pageSize: number | undefined
+                for (let i = 0; i < opts.length; i += 2) {
+                    const flag = opts[i].toUpperCase()
+                    if (flag !== 'COUNT') {
+                        this.#reject(
+                            `FakeRedis: unmodelled ZSCAN option '${opts[i]}'`,
+                        )
+                    }
+                    if (pageSize !== undefined) {
+                        this.#reject('FakeRedis: ZSCAN given COUNT twice')
+                    }
+                    const n = opts[i + 1]
+                    if (n === undefined || !/^[1-9][0-9]*$/.test(n)) {
+                        this.#reject(
+                            'FakeRedis: ZSCAN COUNT must be a positive ' +
+                                `integer, got '${n}'`,
+                        )
+                    }
+                    pageSize = Number(n)
+                }
+                if (pageSize === undefined) {
+                    this.#reject(
+                        'FakeRedis: ZSCAN without COUNT — every scan this ' +
+                            'fake models bounds its page',
+                    )
+                }
+                const zset = this.#liveZset(key) ?? new Map<string, number>()
+                const page = this.#scan(key, [...zset.keys()], cursor, pageSize)
+                return {
+                    type: 'array',
+                    value: [
+                        { type: 'bulk', value: page.cursor },
+                        {
+                            type: 'array',
+                            value: page.members.flatMap((m): Reply[] => [
+                                { type: 'bulk', value: m },
+                                {
+                                    type: 'bulk',
+                                    value: this.#formatScore(zset.get(m)!),
+                                },
+                            ]),
                         },
                     ],
                 }

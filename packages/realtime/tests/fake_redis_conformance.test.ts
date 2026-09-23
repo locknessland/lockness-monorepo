@@ -878,3 +878,151 @@ Deno.test('#358 WC SSCAN refuses a missing cursor and a cursor past the slot tab
     const reply = await r.command('SSCAN', 'set', '1023', 'COUNT', '1')
     assertEquals((reply as { type: string }).type, 'array')
 })
+
+/** One `ZSCAN key cursor COUNT count` call: its next cursor and flat items. */
+async function zscan(
+    r: FakeRedis,
+    key: string,
+    cursor: string,
+    count: string,
+): Promise<{ cursor: string; items: string[] }> {
+    const reply = await r.command(
+        'ZSCAN',
+        key,
+        cursor,
+        'COUNT',
+        count,
+    ) as ScanReply
+    return {
+        cursor: reply.value[0].value,
+        items: reply.value[1].value.map((m) => m.value),
+    }
+}
+
+Deno.test('#359 WC ZSCAN refuses a missing COUNT, any option but COUNT, and a non-canonical cursor — into the ledger', async () => {
+    // The #280 rule, for the revocation pass's paged read. MATCH filters the
+    // page and NOSCORES (Redis 8) drops the scores: ignoring either hands the
+    // pass a page a real broker would not send. A missing COUNT is a read its
+    // caller does not bound — the defect #359 closes.
+    const r = new FakeRedis()
+    await r.command('ZADD', 'zset', '1', 'a', '2', 'b')
+    const refused: [string[], string][] = [
+        [['ZSCAN', 'zset', '0'], 'ZSCAN without COUNT'],
+        [
+            ['ZSCAN', 'zset', '0', 'MATCH', '*', 'COUNT', '10'],
+            "unmodelled ZSCAN option 'MATCH'",
+        ],
+        [
+            ['ZSCAN', 'zset', '0', 'COUNT', '10', 'MATCH', '*'],
+            "unmodelled ZSCAN option 'MATCH'",
+        ],
+        [
+            ['ZSCAN', 'zset', '0', 'COUNT', '10', 'NOSCORES'],
+            "unmodelled ZSCAN option 'NOSCORES'",
+        ],
+        [
+            ['ZSCAN', 'zset', '0', 'NOSCORES', 'COUNT', '10'],
+            "unmodelled ZSCAN option 'NOSCORES'",
+        ],
+        [
+            ['ZSCAN', 'zset', '0', 'TYPE', 'zset', 'COUNT', '10'],
+            "unmodelled ZSCAN option 'TYPE'",
+        ],
+        [['ZSCAN', 'zset', '00', 'COUNT', '10'], 'is not canonical decimal'],
+        [['ZSCAN', 'zset', '01', 'COUNT', '10'], 'is not canonical decimal'],
+        [['ZSCAN', 'zset', 'x1', 'COUNT', '10'], 'is not canonical decimal'],
+        [
+            ['ZSCAN', 'zset', '1'.repeat(21), 'COUNT', '10'],
+            'is not canonical decimal',
+        ],
+        [['ZSCAN', 'zset', '0', 'COUNT', '0'], 'COUNT must be a positive'],
+        [['ZSCAN', 'zset', '0', 'COUNT', '-5'], 'COUNT must be a positive'],
+        [['ZSCAN', 'zset', '0', 'COUNT'], 'COUNT must be a positive'],
+        [
+            ['ZSCAN', 'zset', '0', 'COUNT', '10', 'COUNT', '10'],
+            'ZSCAN given COUNT twice',
+        ],
+        [['ZSCAN'], 'ZSCAN takes key and cursor, got 0'],
+        [['ZSCAN', 'zset'], 'ZSCAN takes key and cursor, got 1'],
+    ]
+    for (const [argv, reason] of refused) {
+        assertThrows(() => run(r, ...argv), Error, reason, argv.join(' '))
+    }
+    assertThrows(
+        () => r.assertNoRejections(),
+        Error,
+        `refused ${refused.length} command(s)`,
+    )
+})
+
+Deno.test('#359 ZSCAN answers [cursor, [member, score, …]] with integral scores as plain digits, an absent key as [0, []], and honours key expiry', async () => {
+    const r = new FakeRedis()
+    r.setTime(1_000)
+    assertEquals(await zscan(r, 'absent', '0', '10'), {
+        cursor: '0',
+        items: [],
+    })
+    await r.command('ZADD', 'zset', '1800000300', 'a', '7', 'b')
+    const small = await zscan(r, 'zset', '0', '10')
+    assertEquals(small.cursor, '0')
+    // Pairs stay together; the order is the scan core's.
+    const pairs = new Map<string, string>()
+    for (let i = 0; i < small.items.length; i += 2) {
+        pairs.set(small.items[i], small.items[i + 1])
+    }
+    assertEquals(small.items.length, 4)
+    assertEquals(
+        pairs,
+        new Map([['a', '1800000300'], ['b', '7']]),
+        'an integral score is its digits — no decimal point, no exponent',
+    )
+    // The live sorted set, as every other ZSET arm reads it: a key whose
+    // TTL has passed answers like an absent one.
+    await r.command('EXPIRE', 'zset', '10')
+    r.setTime(1_010)
+    assertEquals(await zscan(r, 'zset', '0', '10'), { cursor: '0', items: [] })
+    r.assertNoRejections()
+    // A fractional score is refused, not formatted as JavaScript would: its
+    // exact digits on a real broker are not modelled.
+    await r.command('ZADD', 'fraction', '1.5', 'x')
+    assertThrows(
+        () => run(r, 'ZSCAN', 'fraction', '0', 'COUNT', '10'),
+        Error,
+        'unmodelled score format',
+    )
+    assertThrows(() => r.assertNoRejections(), Error, 'refused 1 command(s)')
+})
+
+Deno.test('#359 ZSCAN walks a larger sorted set on the shared scan core: each pair once per iteration, in FakeRedis.scanOrder', async () => {
+    const r = new FakeRedis()
+    const seeded = Array.from({ length: 300 }, (_, i) => `m${i}`)
+    for (const [i, m] of seeded.entries()) {
+        await r.command('ZADD', 'zset', String(1_000 + i), m)
+    }
+    const seen = new Map<string, string>()
+    const order: string[] = []
+    let cursor = '0'
+    let calls = 0
+    do {
+        const page = await zscan(r, 'zset', cursor, '10')
+        calls++
+        for (let i = 0; i < page.items.length; i += 2) {
+            const member = page.items[i]
+            assert(
+                FakeRedis.scanSlot(member) >= Number(cursor),
+                `${member} lies at or ahead of cursor ${cursor}`,
+            )
+            assert(!seen.has(member), `${member} returned twice`)
+            seen.set(member, page.items[i + 1])
+            order.push(member)
+        }
+        cursor = page.cursor
+    } while (cursor !== '0')
+    assert(calls > 1, 'a sorted set larger than COUNT is paged')
+    assertEquals(order, [...seeded].sort(FakeRedis.scanOrder))
+    assertEquals(
+        seen,
+        new Map(seeded.map((m, i) => [m, String(1_000 + i)])),
+    )
+    r.assertNoRejections()
+})

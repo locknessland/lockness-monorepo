@@ -319,7 +319,7 @@ Deno.test('#276 FR-004: concurrent reapers are idempotent and lose nothing', asy
     }
 })
 
-Deno.test('#278/SC-001: listRevocations costs ONE command, whatever the count', async () => {
+Deno.test('#278/SC-001 (refined by #359): listRevocations costs one reap plus pages, never one command per member', async () => {
     // The dual read (#276's rollout shim) issued the EVAL, then an SMEMBERS on
     // the legacy index, then one EXISTS PER MEMBER. On a fleet with fifty
     // revoked connections that was fifty-two round trips on every reconcile
@@ -329,6 +329,11 @@ Deno.test('#278/SC-001: listRevocations costs ONE command, whatever the count', 
     // #278 deleted it. The point of this test is not that the answer is right
     // (other tests cover that) but that the COST is flat: a reader who adds a
     // second read path later fails here rather than in a latency graph.
+    //
+    // #359 refined "ONE command" to "one reap plus pages, never one per
+    // member": the one-reply read breached the client's reply cap on a large
+    // index. An index that fits one page — every count here — is exactly the
+    // reap `EVAL` and one `ZSCAN`.
     for (const revocations of [0, 1, 50]) {
         const redis = new FakeRedis()
         redis.setTime(1_000)
@@ -357,7 +362,7 @@ Deno.test('#278/SC-001: listRevocations costs ONE command, whatever the count', 
             )
             assertEquals(
                 issued.map((argv) => argv[0]),
-                ['EVAL'],
+                ['EVAL', 'ZSCAN'],
                 `listRevocations issued ${issued.length} commands for ` +
                     `${revocations} revocation(s): ${JSON.stringify(issued)}`,
             )

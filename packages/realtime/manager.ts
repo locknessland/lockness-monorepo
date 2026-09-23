@@ -885,6 +885,12 @@ export class ChannelManager<Identity = unknown> {
      */
     readonly #rosterTails = new Map<string, Promise<unknown>>()
     /**
+     * The serial tail of durable revocation re-checks (#359 FR-009a): the
+     * last run queued, settled either way. Written only by
+     * {@link reconcileRevocations}.
+     */
+    #revocationTail: Promise<unknown> = Promise.resolve()
+    /**
      * The roster slots this instance holds on a roster-less driver, keyed like
      * {@link #rosterTails} (#344). Arrived/gone on such a driver is this set's
      * transition, read and written only inside {@link #syncRosterMember}'s
@@ -2900,10 +2906,40 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
-     * The durable revocation re-check (S1/FR-014), invoked by the driver on each
-     * periodic reconcile pass. Any live revocation whose socket this instance
-     * owns is applied here — recovering a revoke whose one-shot control frame
-     * was lost while the owning socket was between reconnects.
+     * The durable revocation re-check (S1/FR-014) — **the gate that runs one
+     * re-check at a time** (#359 FR-009a, A1), whoever calls it: the driver's
+     * pass and the lapse run's re-check (#349) are its two callers.
+     *
+     * Each call appends one run of {@link #recheckRevocations} to a private
+     * serial tail (the ADR 003 slot-tail idiom) and returns that run's
+     * promise, so its caller still sees a rejection. A run starts only after
+     * the previous one settled, so every run reads the index afresh — a
+     * record written while a run waited is applied before anything after it
+     * (#349 A2) — and a pair one run left is never re-kicked by another's
+     * older snapshot (#337). The tail continues on **both** settle branches,
+     * so a rejected run never stops the next. No coalescing: the callers are
+     * each one at a time, so the tail is at most two deep.
+     *
+     * @returns Settles once this call's run has settled.
+     * @throws Whatever this call's run throws.
+     */
+    private reconcileRevocations(): Promise<void> {
+        const run = this.#revocationTail.then(() => this.#recheckRevocations())
+        // The tail must always settle so the next run starts; `run` still
+        // rejects to this caller, so nothing is swallowed.
+        this.#revocationTail = run.then(() => {}, () => {})
+        return run
+    }
+
+    /**
+     * One durable revocation re-check (S1/FR-014), run by
+     * {@link reconcileRevocations}'s tail. Any live revocation whose socket
+     * this instance owns is applied here — recovering a revoke whose one-shot
+     * control frame was lost while the owning socket was between reconnects.
+     *
+     * **Nothing is applied before the enumeration ends** (#359): the driver
+     * pages the index, and this reads its whole result before grouping — a
+     * pair whose records sit on different pages still leaves once.
      *
      * **Scope is dispatched, not decided**: see {@link #applyRevocation}.
      *
@@ -2922,7 +2958,7 @@ export class ChannelManager<Identity = unknown> {
      * applied inside its own `try`, and a throw is one WARN naming no target
      * and no member.
      */
-    private async reconcileRevocations(): Promise<void> {
+    async #recheckRevocations(): Promise<void> {
         const apply = async (
             revocation: ConnectionRevocation | ChannelRevocationGroup,
         ): Promise<void> => {
@@ -2936,7 +2972,11 @@ export class ChannelManager<Identity = unknown> {
                 )
             }
         }
-        const revocations = await this.#revocations?.listRevocations() ?? []
+        // The driver is ASKED which targets are local, so it can drop foreign
+        // records as it pages (#359); the check below still decides.
+        const revocations = await this.#revocations?.listRevocations(
+            (target) => this.connections.has(target),
+        ) ?? []
         // Keyed by pair; the ids list is appended to while the index is read,
         // then handed to the apply as a read-only `ChannelRevocationGroup`.
         const groups = new Map<

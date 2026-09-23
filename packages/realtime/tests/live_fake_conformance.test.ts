@@ -86,9 +86,10 @@ function normalise(argv: string[], reply: RespReply): RespReply {
         // constant WITHOUT reading `reply` — which the first version did — made
         // this comparison `'<time>' === '<time>'`, a constant equal to itself,
         // detecting only that the fake had not thrown. That matters concretely:
-        // LIST_REVOKED_SCRIPT reads `redis.call('TIME')[1]` and compares it
-        // against member scores, so a fake TIME reporting MILLISECONDS would
-        // make every revocation look live forever and this suite stay green.
+        // the revocation reap (`REAP_REVOKED_SCRIPT`) reads
+        // `redis.call('TIME')[1]` and every page's scores are judged against
+        // it, so a fake TIME reporting MILLISECONDS would make every
+        // revocation look expired at once and this suite stay green.
         //
         // The two fields are masked DIFFERENTLY, on purpose. Field 0 keeps its
         // digit count, which is the whole point: a 10-digit value is epoch
@@ -117,17 +118,25 @@ function normalise(argv: string[], reply: RespReply): RespReply {
     // Redis does not specify SMEMBERS ordering, and a hash's field order
     // depends on its encoding — a broker with `hash-max-listpack-entries 0`
     // returns hashtable order and would diverge for a reason that has nothing
-    // to do with the fake. Sort those two, and one more: the items of an
-    // SSCAN reply whose cursor is `0` (#358), a set answered WHOLE, whose
-    // order Redis does not specify either. A page with a non-zero cursor is
-    // never sorted here — which members a page holds is the hashtable walk
-    // itself, and the full-iteration coverage case compares that as a union
-    // instead. This is the one place SCAN replies are compared across
-    // backends.
-    if ((cmd === 'SMEMBERS' || cmd === 'HGETALL') && reply.type === 'array') {
+    // to do with the fake. Sort those two, and two more: the items of an
+    // SSCAN or a ZSCAN reply whose cursor is `0` (#358, #359), a collection
+    // answered WHOLE, whose order Redis does not specify either. A page with
+    // a non-zero cursor is never sorted here — which members a page holds is
+    // the hashtable walk itself, and the full-iteration coverage cases
+    // compare that as a union instead. This is the one place SCAN replies are
+    // compared across backends.
+    //
+    // A FLAT PAIR LIST is sorted by pair, never element by element (#359
+    // A10): `HGETALL` and `ZSCAN` answer `[k, v, k, v, …]`, and sorting the
+    // elements on their own would let a field paired with the wrong value —
+    // or a member with the wrong score — compare equal.
+    if (cmd === 'SMEMBERS' && reply.type === 'array') {
         return { type: 'array', value: sortedItems(reply.value) }
     }
-    if (cmd === 'SSCAN' && reply.type === 'array') {
+    if (cmd === 'HGETALL' && reply.type === 'array') {
+        return { type: 'array', value: sortedPairs(reply.value) }
+    }
+    if ((cmd === 'SSCAN' || cmd === 'ZSCAN') && reply.type === 'array') {
         const [cursor, items] = reply.value
         if (
             cursor?.type === 'bulk' && cursor.value === '0' &&
@@ -137,7 +146,9 @@ function normalise(argv: string[], reply: RespReply): RespReply {
                 type: 'array',
                 value: [cursor, {
                     type: 'array',
-                    value: sortedItems(items.value),
+                    value: cmd === 'ZSCAN'
+                        ? sortedPairs(items.value)
+                        : sortedItems(items.value),
                 }],
             }
         }
@@ -150,6 +161,23 @@ function sortedItems(items: readonly RespReply[]): RespReply[] {
     return [...items].sort((a, b) =>
         JSON.stringify(a) < JSON.stringify(b) ? -1 : 1
     )
+}
+
+/**
+ * A flat `[k, v, k, v, …]` reply in a stable order, each pair kept together
+ * (#359 A10) — the one pair-list rule, for `HGETALL` and a whole `ZSCAN`. An
+ * odd-length list is returned as it is, so it diverges rather than being
+ * repaired into a shape the other backend may not have.
+ */
+function sortedPairs(items: readonly RespReply[]): RespReply[] {
+    if (items.length % 2 !== 0) return [...items]
+    const pairs: [RespReply, RespReply][] = []
+    for (let i = 0; i < items.length; i += 2) {
+        pairs.push([items[i], items[i + 1]])
+    }
+    return pairs
+        .sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : 1)
+        .flat()
 }
 
 /**
@@ -442,6 +470,42 @@ const SEQUENCES: Sequence[] = [
         ],
     },
     {
+        // The reply SHAPE of the revocation pass's paged index read (#359):
+        // an absent key is `['0', []]`, and a sorted set small enough for one
+        // reply is answered whole with cursor `0`, as flat `member, score`
+        // pairs — compared by pair, so a member carrying the wrong score
+        // diverges. The scores are integral, the only kind the driver writes,
+        // and read back as plain digits on both.
+        name: 'ZSCAN, the revocation pass’s paged index read (#359)',
+        steps: [
+            { argv: ['ZSCAN', K('absent-zscan'), '0', 'COUNT', '100'] },
+            {
+                argv: [
+                    'ZADD',
+                    K('zscan'),
+                    '1800000300',
+                    'c1',
+                    '1800000301',
+                    'c2 private-room 5f0c1c8e',
+                    '7',
+                    'c3',
+                ],
+            },
+            { argv: ['ZSCAN', K('zscan'), '0', 'COUNT', '100'] },
+            {
+                // A read its caller does not bound is refused by the fake,
+                // never answered at a default — no driver sends it.
+                argv: ['ZSCAN', K('zscan'), '0'],
+                fakeRefuses: 'ZSCAN without COUNT',
+            },
+            {
+                argv: ['ZSCAN', K('zscan'), '0', 'MATCH', 'c*', 'COUNT', '100'],
+                fakeRefuses: "unmodelled ZSCAN option 'MATCH'",
+            },
+            { argv: ['DEL', K('zscan')] },
+        ],
+    },
+    {
         name: 'PUBLISH to nobody, and TIME',
         steps: [
             { argv: ['PUBLISH', K('topic'), 'payload'] },
@@ -573,9 +637,10 @@ Deno.test({
         //
         // The scripts are module-private and copying them here would be the
         // verbatim-second-copy this package's own brief warns against. So this
-        // drives the real production path instead — `markRevoked` and
-        // `listRevocations` on two drivers, one on each backend — which exercises
-        // EVAL through its actual caller and needs no export.
+        // drives the real production path instead — `markRevocation` and
+        // `listRevocations` (one reap `EVAL`, then `ZSCAN` pages) on two
+        // drivers, one on each backend — which exercises EVAL through its
+        // actual caller and needs no export.
         const config = brokerConfig()
         await preflight(config)
         const live = new RedisClient(config)
@@ -629,7 +694,7 @@ Deno.test({
             // indexing so `TIME[1]` reads the microseconds field instead of
             // the seconds one, and every score becomes ~300 instead of
             // ~now+300 — while `ZREMRANGEBYSCORE -inf t` still reaps nothing
-            // and `ZRANGEBYSCORE t +inf` still returns everything. Identical
+            // and the `score > t` filter still keeps everything. Identical
             // membership, completely wrong expiry. Measured: that mutant
             // survived until this block existed.
             //
@@ -1868,6 +1933,151 @@ Deno.test({
                     'hold on it',
             )
             assert(onFake.calls > 1, 'the fake paged the set')
+            fake.assertNoRejections()
+        } finally {
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})
+
+/**
+ * Walk `key` with `ZSCAN … COUNT count` from cursor `0` back to `0`,
+ * answering the union of its `member → score` pairs and how many calls it
+ * took (#359).
+ */
+async function zscanAll(
+    client: { command(...args: string[]): Promise<unknown> },
+    key: string,
+    count: string,
+): Promise<{ pairs: Map<string, string>; calls: number }> {
+    const pairs = new Map<string, string>()
+    let cursor = '0'
+    let calls = 0
+    do {
+        const reply = await client.command('ZSCAN', key, cursor, 'COUNT', count)
+        calls++
+        const parts = (reply as { type?: string; value?: RespReply[] }).value
+        const [next, items] = parts ?? []
+        assert(
+            next?.type === 'bulk' && items?.type === 'array' &&
+                items.value.length % 2 === 0,
+            `a ZSCAN reply is [cursor, [member, score, …]]: ${
+                JSON.stringify(reply)
+            }`,
+        )
+        for (let i = 0; i < items.value.length; i += 2) {
+            const member = items.value[i]
+            const score = items.value[i + 1]
+            assert(
+                member.type === 'bulk' && score.type === 'bulk',
+                JSON.stringify([member, score]),
+            )
+            pairs.set(member.value, score.value)
+        }
+        cursor = next.value
+        assert(calls <= 1_000, 'the walk never came back to cursor 0')
+    } while (cursor !== '0')
+    return { pairs, calls }
+}
+
+Deno.test({
+    name:
+        '#359 WC a full ZSCAN iteration returns every seeded (member, score) pair, on the fake and on the broker — which needed more than one call',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // The one SCAN guarantee the revocation pass relies on — a record
+        // present for the whole iteration is returned — plus the score each
+        // record carries, since the pass reads liveness from it. Page CONTENTS
+        // are the hashtable walk and differ, so the comparison is the union of
+        // pairs. The seed has more than 128 entries (Redis's default
+        // `zset-max-listpack-entries`), so the broker holds a skiplist and
+        // pages it — asserted, or this would compare two whole replies. The
+        // scores are fixed and far in the future, so both sides agree on them.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        const key = K('wc359-index')
+        const seeded = new Map(
+            Array.from(
+                { length: 200 },
+                (
+                    _,
+                    i,
+                ) => [`c${i} presence-room-${i % 7} id-${i}`, `${4e9 + i}`],
+            ),
+        )
+        const zadd = [...seeded].flatMap(([member, score]) => [score, member])
+        try {
+            await live.command('ZADD', key, ...zadd)
+            await fake.command('ZADD', key, ...zadd)
+            const onLive = await zscanAll(live, key, '10')
+            const onFake = await zscanAll(fake, key, '10')
+            const byMember = (m: Map<string, string>) =>
+                [...m].sort(([a], [b]) => (a < b ? -1 : 1))
+            const expected = byMember(seeded)
+            assertEquals(byMember(onLive.pairs), expected, 'broker union')
+            assertEquals(byMember(onFake.pairs), expected, 'fake union')
+            assert(
+                onLive.calls > 1,
+                `the broker answered ${seeded.size} records in one call — ` +
+                    'it does not honour COUNT, so the page bound does not ' +
+                    'hold on it',
+            )
+            assert(onFake.calls > 1, 'the fake paged the sorted set')
+            fake.assertNoRejections()
+        } finally {
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})
+
+Deno.test({
+    name:
+        '#359 WC a score MARK_REVOKED_SCRIPT writes reads back through ZSCAN as a decimal-integer string, on the fake and on the broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // The pass parses every score it reads with one strict grammar
+        // (canonical epoch seconds). A broker that wrote `1.8e9`, or `1800000300.0`,
+        // would leave every revocation unenforced — so the format the
+        // production write produces is asserted on the broker itself, and the
+        // fake is held to it.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        const nothing = { psubscribe: () => {} }
+        try {
+            const drivers = [
+                ['broker', live, `${NS}-wc359-live`],
+                ['fake', { command: fake.command }, `${NS}-wc359-fake`],
+            ] as const
+            for (const [label, client, prefix] of drivers) {
+                const driver = new RedisBroadcastDriver(client, nothing, {
+                    prefix,
+                    revocationTtlSeconds: 300,
+                })
+                await driver.markRevocation?.({ target: 'c1' })
+                await driver.markRevocation?.({
+                    target: 'c1',
+                    channel: 'presence-room',
+                    id: '5f0c1c8e-8a4e-4a57-9d8e-2f4b6b1d7c01',
+                })
+                const { pairs } = await zscanAll(
+                    client,
+                    `${prefix}__revocations`,
+                    '100',
+                )
+                assertEquals(pairs.size, 2, `${label}: both records`)
+                for (const score of pairs.values()) {
+                    assert(
+                        /^[1-9][0-9]*$/.test(score),
+                        `${label}: the score ${score} is not a decimal integer`,
+                    )
+                }
+            }
             fake.assertNoRejections()
         } finally {
             await teardown(live, NS)

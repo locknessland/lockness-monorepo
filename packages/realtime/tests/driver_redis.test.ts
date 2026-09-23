@@ -409,7 +409,13 @@ Deno.test('FR-004: a subscriber without the reconnect seam constructs and arms i
         driver.onRevocationReconcile(() => {
             ticks++
         })
-        await time.tickAsync(3_500)
+        // Since #359 the timer is a one-shot re-armed from the END of the pass
+        // it started, so one `tickAsync` fires one pass: step an interval at
+        // a time and drain each pass (FR-015) before the next.
+        for (let i = 0; i < 3; i++) {
+            await time.tickAsync(1_000)
+            await time.runMicrotasks()
+        }
         assertEquals(
             ticks,
             3,

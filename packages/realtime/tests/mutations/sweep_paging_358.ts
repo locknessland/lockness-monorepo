@@ -33,7 +33,9 @@
  * **Anchors.** `if (this.#closing) return 'closed'` appears twice at 12
  * spaces since #358 — before each page read and before each release — so M6
  * anchors on the check PLUS the page-read line, and M12 (like #355 M12b) on
- * the check plus the release. `killedBy` strings end in a space where a shorter witness
+ * the check plus the release. `} while (cursor !== '0')` also ends the
+ * revocation pass's page loop since #359, so M3 anchors on the two sweep-only
+ * lines above it. `killedBy` strings end in a space where a shorter witness
  * id is a prefix of a longer one (`W1 ` vs `W10` / `W11`).
  *
  * Every row was proven LIVE by the harness run that recorded it: the mutant
@@ -128,8 +130,15 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M3 — the page loop runs only once',
         file: REDIS,
+        // Anchored on the sweep-only context since #359 (A5): the revocation
+        // pass's page loop ends on the same natural `while` line, so the bare
+        // line matches twice.
         edits: [[
+            "            if (end !== 'swept') return end\n" +
+            '            cursor = page.cursor\n' +
             "        } while (cursor !== '0')\n",
+            "            if (end !== 'swept') return end\n" +
+            '            cursor = page.cursor\n' +
             '        } while (false)\n',
         ]],
         killedBy: '#358 W1 ',

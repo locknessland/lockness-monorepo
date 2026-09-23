@@ -169,23 +169,32 @@ Deno.test('#304 reconcile drops a broker-injected id outside the charset', async
     const { recordingPorts } = await import('./recording_ports.ts')
 
     // RESP shapes, not bare arrays: `asArray` requires `{ type: 'array' }` and
-    // `asInteger` requires `{ type: 'integer' }`. A bare array coerces to
-    // undefined, the driver logs "unexpected reply shape" and returns nothing —
-    // which would have made this test pass for an empty result had it asserted
-    // only that the bad ids were absent. It asserts the whole set instead.
+    // `asBulk` requires `{ type: 'bulk' }`. A bare array is a malformed page,
+    // and the pass throws on it (#359) — asserting the whole set below is what
+    // keeps an empty or failed result from passing this test.
+    //
+    // Since #359 the read is a reap (`EVAL`, answering the Redis second `t`)
+    // then `ZSCAN` pages of `member, score` pairs: every score here is above
+    // `t`, so the charset filter alone decides what survives.
     const bulk = (value: string) => ({ type: 'bulk', value })
     const array = (value: unknown[]) => ({ type: 'array', value })
+    const members = [
+        '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+        'user@example.com',
+        // FOUR space-separated names. Exactly three valid names is a
+        // well-formed channel-scoped record since #337 (`target channel
+        // id`), so a three-word id would test the scope decoder instead.
+        'an id with spaces',
+        'svc:worker-3',
+        'x\nGET /admin 200',
+    ]
     const { command, subscriber, recording } = recordingPorts({
-        // The new sorted set, via EVAL.
-        EVAL: array([
-            bulk('7c9e6679-7425-40de-944b-e07fc1f90ae7'),
-            bulk('user@example.com'),
-            // FOUR space-separated names. Exactly three valid names is a
-            // well-formed channel-scoped record since #337 (`target channel
-            // id`), so a three-word id would test the scope decoder instead.
-            bulk('an id with spaces'),
-            bulk('svc:worker-3'),
-            bulk('x\nGET /admin 200'),
+        // The reap's `t`.
+        EVAL: bulk('1000'),
+        // One page, cursor `0`: every record scored past `t`.
+        ZSCAN: array([
+            bulk('0'),
+            array(members.flatMap((m) => [bulk(m), bulk('1300')])),
         ]),
     })
 
@@ -208,10 +217,10 @@ Deno.test('#304 reconcile drops a broker-injected id outside the charset', async
         ],
         'the filter kept or dropped the wrong ids',
     )
-    // Positive control: the EVAL leg ran at all, so an empty result would not
-    // pass this test for the wrong reason.
+    // Positive control: the index was read at all, so an empty result would
+    // not pass this test for the wrong reason.
     assertEquals(
-        recording.commands.some((argv) => argv[0] === 'EVAL'),
+        recording.commands.some((argv) => argv[0] === 'ZSCAN'),
         true,
         'the revocation index was never read',
     )

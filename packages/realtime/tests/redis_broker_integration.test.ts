@@ -408,11 +408,11 @@ integrationTest(
 )
 
 integrationTest(
-    'US4: listRevocations REAPS expired entries and keeps live ones',
+    'US4: listRevocations REAPS expired entries (REAP_REVOKED_SCRIPT) and keeps live ones',
     async (namespace, reader) => {
-        // The only test that makes LIST_REVOKED_SCRIPT actually execute against
-        // a real Redis. `listRevocations()` is the ACTION here, not the assertion —
-        // every claim below is read back raw (FR-008).
+        // The only test that makes REAP_REVOKED_SCRIPT (#359) actually execute
+        // against a real Redis. `listRevocations()` is the ACTION here, not the
+        // assertion — every claim below is read back raw (FR-008).
         await withInstances(1, namespace, async ([a]) => {
             const index = keys(namespace).revocations
             const now = await reader.now()

@@ -44,10 +44,12 @@ export interface PortRecording {
  * A canned reply table: exact command name (upper-cased) to the reply to return.
  *
  * A function receives the argv, so a test can vary a reply without the double
- * acquiring state. Anything unlisted answers `null`, which every driver read
- * path treats as "absent" — except the sweep's owned-set `SSCAN` (#358), whose
- * decoder throws on `null`. No test sweeps through these ports, so none lists
- * `SSCAN`; one that does must answer a `[cursor, array]` page.
+ * acquiring state. Anything unlisted answers `null`, which most driver read
+ * paths treat as "absent" — but not all. The sweep's owned-set `SSCAN` (#358)
+ * throws on `null`, and so does the revocation pass (#359): its reap `EVAL`
+ * must answer a digit bulk string and each `ZSCAN` a `[cursor, array]` page,
+ * or `listRevocations` throws rather than reading "nobody is revoked". A test
+ * that runs either through these ports must list those replies.
  */
 export type CannedReplies = Record<
     string,
