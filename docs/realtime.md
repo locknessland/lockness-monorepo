@@ -1599,6 +1599,26 @@ Tightening `livenessTtlSeconds` therefore means revisiting `heartbeatIntervalMs`
 in the same edit: dropping the TTL to `5` while leaving the heartbeat at `5000`
 now throws at construction rather than degrading silently in production.
 
+<a id="revocation-timing"></a>
+
+**`reconcileIntervalMs` and `revocationTtlSeconds` are bound the same way**
+([#362](https://github.com/locknessland/lockness-monorepo/issues/362)). The
+interval also paces the revocation re-check, and a durable revocation record
+lives `revocationTtlSeconds`. The constructor refuses:
+
+- **a timing out of range**: the interval must be a finite number of at least 1
+  ms (a fractional one is fine), and the TTL a whole number of seconds from 1 to
+  2 147 483, the largest a single timer can wait. An unset environment variable
+  read through `Number(...)` is `NaN`, and before #362 that ran the revocation
+  pass and the ghost sweep back to back against the broker;
+- **`reconcileIntervalMs * 2 > revocationTtlSeconds * 1000`**: at any wider
+  interval, one failed pass lets a revocation whose control frame was lost
+  expire before the next pass applies it.
+
+The fix, for either refusal, is to **lower the interval or raise the TTL**. The
+defaults (`10000` ms against `300` s) pass both. This paragraph is the one
+statement of both relations; other sections link here.
+
 <a id="what-the-roster-asks-of-redis"></a>
 
 **What the roster asks of Redis:**
@@ -1937,6 +1957,16 @@ availability one. The periodic pass bounds the exposure either way, which is why
 bound also counts the time a pass takes, which grows with the index; its exact
 form, and when it holds, is stated once in the `onRevocationReconcile` JSDoc of
 [`packages/realtime/drivers/redis.ts`](../packages/realtime/drivers/redis.ts).
+Since #362 the bound is checked at boot (see
+[the revocation timing](#revocation-timing)) and watched at runtime: one WARN
+per episode — `STALLED`, `MISSED` or `SKEWED` — when no pass completes within
+`revocationTtlSeconds` of the last success's start. `revocationTtlSeconds` is
+assumed **uniform across the fleet**: a record lives for its writer's TTL, so a
+peer configured with a shorter one writes records this instance's checks do not
+cover (ADR [011](adr/011-realtime-revocation-bound-is-checked.md) §5). An
+injected command port must settle every command, as the `RedisCommandClient`
+JSDoc in the same file states; one that never settles stalls the re-check, which
+is then reported, not recovered.
 
 **A mixed `0.3.0` / `0.4.0` fleet.** A `0.3.0` instance still reads the whole
 index in one reply, on its own command client, until it is upgraded — so a large
@@ -2139,20 +2169,20 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Seventeen items. Twelve are breaking changes — the driver revocation seam, the
+Eighteen items. Thirteen are breaking changes — the driver revocation seam, the
 presence snapshot a subscribe returns, the driver roster seam, presence frames
 announced per member rather than per connection, an authorizer result outside
 its contract now throwing, a presence member id that is not a string or a finite
 number now throwing, a presence member that is not exactly `{ id, info }` now
 throwing, presence members now read-only, an object result on a private channel
 now checked as a presence member, no connection receiving `joined` or `left` for
-its own member id, a presence member over its byte bound now throwing, and a
-disconnected connection now refused at admission — plus two widened return
-types, one new control kind, one additive wire field and one additive getter.
-Item 16 changes no behaviour: it corrects earlier guidance. **No migration step,
-and one new Redis key family.** Before you deploy, read items 1, 3, 5, 6, 8, 9,
-10, 11, 12, 13, 14, 15, 16 and 17 — and items 2 and 7 if you wrote your own
-driver.
+its own member id, a presence member over its byte bound now throwing, a
+disconnected connection now refused at admission, and a Redis revocation timing
+the driver cannot enforce now refused at boot — plus two widened return types,
+one new control kind, one additive wire field and one additive getter. Item 16
+changes no behaviour: it corrects earlier guidance. **No migration step, and one
+new Redis key family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11,
+12, 13, 14, 15, 16, 17 and 18 — and items 2 and 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2809,6 +2839,33 @@ Four smaller changes ride with it:
 If you wire your own transport, it must meet three lifecycle duties for the
 refusal to reach it — see
 [Your connection ids and your transport's lifecycle](#your-connection-ids-and-your-transports-lifecycle).
+
+No wire change, and no migration step.
+
+### 18. A Redis revocation timing the driver cannot enforce refuses to boot
+
+**Before**, any `presence.reconcileIntervalMs` and `revocationTtlSeconds`
+constructed
+([#362](https://github.com/locknessland/lockness-monorepo/issues/362)). A
+non-finite, zero or negative interval reached `setTimeout` as 0 ms and ran the
+revocation pass and the ghost sweep back to back, and nothing compared the
+interval with the TTL.
+
+**After**, `new RedisBroadcastDriver` and `fromConfig` throw for a timing
+outside the ranges, or one where the interval is more than half the TTL. Both
+rules, and the fix, are stated once in
+[the revocation timing](#revocation-timing); the defaults pass.
+
+Two more changes ride with it:
+
+1. **An injected command port must settle every command**, within a bound it
+   owns — the contract is on `RedisCommandClient`. The built-in client meets it
+   through its read timeout. A command that never settles is reported, not
+   cancelled.
+2. **A new WARN, in three forms** (`STALLED`, `MISSED`, `SKEWED`), appears at
+   most once per episode when no revocation pass completes within
+   `revocationTtlSeconds` of the last success's start, or when the broker's
+   clock steps a full TTL. A healthy deployment never sees it.
 
 No wire change, and no migration step.
 

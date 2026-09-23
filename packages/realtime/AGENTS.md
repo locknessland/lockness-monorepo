@@ -77,9 +77,21 @@ Anything not listed is internal and free to change.
 | When the driver is asked for a roster (never what it answers)    | `roster_read_barrier.ts`                 |
 | Which members a subscribe returns (the cut, K, self kept)        | `presence_snapshot.ts`                   |
 | How much one roster read ingests (`readRoster`, `total`, cap)    | `driver.ts`, `drivers/{memory,redis}.ts` |
+| When a broken revocation guarantee is reported (one deadline)    | `drivers/enforcement_deadline.ts`        |
 
 ## Pitfalls
 
+- **The Redis revocation pass is bounded, and the bound is checked**
+  ([#362](https://github.com/locknessland/lockness-monorepo/issues/362), ADR
+  [011](../../docs/adr/011-realtime-revocation-bound-is-checked.md)). **Never
+  free the revocation pass slot on a timer**: a stalled pass is reported by the
+  enforcement deadline, not abandoned, and one pass runs at a time. **Never add
+  a second deadline clock**: intervals are read on `#passClock()` alone, and
+  **never on the epoch `now()`**, which is the control-frame stamp clock.
+  **Never log from the pass's end site**: every deadline line is written in the
+  deadline's own timer callback, in the #369 shape. The boot relation between
+  `reconcileIntervalMs` and `revocationTtlSeconds` is stated once, in the
+  configuration paragraph of `docs/realtime.md`.
 - **The local presence view is deduplicated in ONE place, `#localRoster`, and
   nowhere else**
   ([#343](https://github.com/locknessland/lockness-monorepo/issues/343)). The
@@ -913,7 +925,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-83 test files for 21 source files:
+84 test files for 22 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -986,6 +998,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/revocation_clear_race_337.test.ts`
 - `packages/realtime/tests/revocation_encoding_332.test.ts`
 - `packages/realtime/tests/revocation_paging_359.test.ts`
+- `packages/realtime/tests/revocation_pass_bound_362.test.ts`
 - `packages/realtime/tests/revocation_retry.test.ts`
 - `packages/realtime/tests/revocation_seam_332.test.ts`
 - `packages/realtime/tests/revoke_channel_idless_340.test.ts`
@@ -999,7 +1012,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-36 mutation batteries — **`deno test` does not run these.** Each is an
+37 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1031,6 +1044,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_sweep_departure_348.ts`
 - `packages/realtime/tests/mutations/reconcile_single_pass_355.ts`
 - `packages/realtime/tests/mutations/revocation_paging_359.ts`
+- `packages/realtime/tests/mutations/revocation_pass_bound_362.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
 - `packages/realtime/tests/mutations/revoke_channel_idless_340.ts`
 - `packages/realtime/tests/mutations/roster_read_barrier_333.ts`
@@ -1056,7 +1070,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 83 test files directly —
+Then, specific to this package: run its 84 test files directly —
 
 ```bash
 deno test -A packages/realtime/

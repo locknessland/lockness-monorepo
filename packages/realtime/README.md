@@ -24,6 +24,12 @@ app.get(
 
 ## What ships
 
+- **A Redis revocation timing the driver can enforce, or no boot**
+  ([#362](https://github.com/locknessland/lockness-monorepo/issues/362)): the
+  constructor refuses a `presence.reconcileIntervalMs` / `revocationTtlSeconds`
+  pair it could not keep the lost-revocation bound with — see
+  [the revocation timing](../../docs/realtime.md#revocation-timing) — and one
+  WARN per episode says so when no revocation pass completes in time.
 - **A WebSocket handler** over `upgradeWebSocket` with `onOpen` / `onMessage` /
   `onClose` / `onError` hooks, each receiving a typed `Connection` (a
   per-connection transport id that must be **unguessable and never reused**,
