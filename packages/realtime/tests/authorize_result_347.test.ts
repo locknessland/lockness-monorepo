@@ -163,7 +163,26 @@ const REFUSED: ReadonlyArray<readonly [string, () => unknown, string]> = [
     ['[]', () => [], 'array'],
     ['new Boolean(false)', () => new Boolean(false), 'boxed boolean'],
     ['a Symbol', () => Symbol('member'), 'symbol'],
+    // #353: the classifier's `instanceof` runs this trap, so it used to throw
+    // the application's own error instead of answering. A value it cannot
+    // inspect is a defect like any other, named by a label no trap produced.
+    // (A REVOKED Proxy never gets this far — `await` reads its `then` first;
+    // see manager_debt_353.test.ts.)
+    [
+        'a Proxy whose getPrototypeOf trap throws',
+        throwingPrototypeProxy,
+        'uninspectable object',
+    ],
 ]
+
+/** A live Proxy whose `getPrototypeOf` trap throws — `instanceof` runs it. */
+function throwingPrototypeProxy(): object {
+    return new Proxy({ id: SUSPECT }, {
+        getPrototypeOf() {
+            throw new Error('a trap the application wrote')
+        },
+    })
+}
 
 /**
  * What a refusal row on `channel` over `backendName` actually asserts — the

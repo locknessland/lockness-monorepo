@@ -59,12 +59,8 @@ const SUITES = [
 const RELEASE_CALL =
     '            const released = await this.#release(channel, field, deadId)\n'
 
-const ANNOUNCE_DEPARTURE = '        return this.#announcePresence(\n' +
-    "            'left',\n" +
-    '            channel,\n' +
-    '            departure.member,\n' +
-    '            channel,\n' +
-    '        )\n'
+const ANNOUNCE_DEPARTURE =
+    "        return this.#announcePresence('left', channel, member, channel)\n"
 
 const MUTATIONS: Mutation[] = [
     {
@@ -134,12 +130,7 @@ const MUTATIONS: Mutation[] = [
         file: MANAGER,
         edits: [[
             ANNOUNCE_DEPARTURE,
-            '        return this.#announcePresence(\n' +
-            "            'left',\n" +
-            '            channel,\n' +
-            '            departure.member,\n' +
-            "            '',\n" +
-            '        )\n',
+            "        return this.#announcePresence('left', channel, member, '')\n",
         ]],
         // The peer's ingest refuses a presence frame whose target is not a
         // valid name: the non-winning sweeper's observer never hears it.
@@ -160,7 +151,6 @@ const MUTATIONS: Mutation[] = [
         file: MANAGER,
         edits: [[
             ANNOUNCE_DEPARTURE,
-            '        const member = departure.member\n' +
             '        const key = `${channel}\\0${String(member.id)}`\n' +
             '        const prior = this.#rosterTails.get(key) ?? Promise.resolve()\n' +
             '        return prior.then(() =>\n' +

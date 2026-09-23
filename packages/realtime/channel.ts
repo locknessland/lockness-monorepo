@@ -163,7 +163,8 @@ export interface PresenceSnapshot {
  * **The admission rule is enforced at runtime, not only by this type** (#347).
  * `true` or a non-null, non-array object admits; `false` denies; ANY other
  * value — `undefined`, `null`, `0`, `''`, `'yes'`, `1`, an array, a boxed
- * primitive — makes `subscribe` throw `AuthorizeResultError`. The type cannot
+ * primitive, an object that throws when inspected (#353) — makes `subscribe`
+ * throw `AuthorizeResultError`. The type cannot
  * stop those on its own: `(await select())[0]` under the default
  * `noUncheckedIndexedAccess: false`, an `any`-typed query row, a cast or a
  * plain-JS app all reach the manager with a value this union does not name.
@@ -205,6 +206,12 @@ export type AuthorizeVerdict =
  * legitimate. Arrays and boxed primitives are objects to `typeof` and are
  * refused all the same; `[]` is what an empty query result looks like.
  *
+ * **It never throws** (#353). An object it cannot inspect — a revoked Proxy,
+ * on which `Array.isArray` throws, or a Proxy whose `getPrototypeOf` trap
+ * throws — is `invalid` with the type `'uninspectable object'`, so `subscribe`
+ * raises `AuthorizeResultError` rather than an anonymous `TypeError`. A
+ * transparent Proxy is an object like any other and admits.
+ *
  * @param result - Whatever the authorizer resolved to.
  * @returns The verdict: `deny`, `admit` with the member (if any), or
  *   `invalid` with the value's type label.
@@ -235,9 +242,43 @@ export function classifyAuthorizeResult(result: unknown): AuthorizeVerdict {
  */
 function isAdmittingObject(value: unknown): value is object {
     if (typeof value !== 'object' || value === null) return false
-    if (Array.isArray(value)) return false
-    if (boxedPrimitiveLabel(value) !== undefined) return false
-    return true
+    return objectLabel(value) === 'object'
+}
+
+/**
+ * The label {@link typeLabel} gives an object it cannot inspect (#353).
+ *
+ * A constant, because nothing about such a value can be learned without
+ * running the trap that just threw.
+ */
+const UNINSPECTABLE_LABEL = 'uninspectable object'
+
+/**
+ * The type label of an object: `'array'`, `'boxed <primitive>'`, `'object'`,
+ * or {@link UNINSPECTABLE_LABEL} when inspecting it throws (#353).
+ *
+ * The ONE place the realtime classifiers inspect an object beyond `typeof`, so
+ * {@link classifyAuthorizeResult} and {@link typeLabel} cannot disagree about
+ * one. Both inspections here can throw: `Array.isArray` on a revoked Proxy, and
+ * `instanceof` — which asks the handler for a prototype — on a revoked Proxy
+ * or one whose `getPrototypeOf` trap throws. The value comes from application
+ * code, and a classifier over untrusted input must answer rather than throw,
+ * or its caller loses the named error it builds from the answer.
+ *
+ * @param value - Any object, including a Proxy.
+ * @returns The label. Never throws.
+ */
+function objectLabel(value: object): string {
+    try {
+        if (Array.isArray(value)) return 'array'
+        return boxedPrimitiveLabel(value) ?? 'object'
+    } catch {
+        // Not silent: the label IS the report. Every caller throws a named
+        // error carrying it (`AuthorizeResultError`, `PresenceMemberIdError`)
+        // or logs it in a WARN. The caught error is not kept — a trap the
+        // application wrote may quote application data in its message.
+        return UNINSPECTABLE_LABEL
+    }
 }
 
 /**
@@ -271,9 +312,14 @@ function boxedPrimitiveLabel(value: unknown): string | undefined {
  * `typeof` with the three cases it gets wrong for this purpose split out:
  * `null` (not `'object'`), arrays and boxed primitives.
  *
+ * **Total** (#353): an object it cannot inspect — a revoked Proxy, or one whose
+ * `getPrototypeOf` trap throws — is `'uninspectable object'`, never a thrown
+ * `TypeError`. It labels the value inside an error's constructor and a WARN,
+ * where a throw would replace the named error with an anonymous one.
+ *
  * @param value - Any value.
  * @returns `'undefined'`, `'null'`, `'number'`, `'string'`, `'array'`,
- *   `'symbol'`, `'boxed boolean'`, `'object'`…
+ *   `'symbol'`, `'boxed boolean'`, `'object'`, `'uninspectable object'`…
  *
  * @example
  * ```ts
@@ -284,8 +330,7 @@ function boxedPrimitiveLabel(value: unknown): string | undefined {
  */
 export function typeLabel(value: unknown): string {
     if (value === null) return 'null'
-    if (Array.isArray(value)) return 'array'
-    if (typeof value === 'object') return boxedPrimitiveLabel(value) ?? 'object'
+    if (typeof value === 'object') return objectLabel(value)
     return typeof value
 }
 

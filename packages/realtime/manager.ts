@@ -16,14 +16,6 @@ import { isPresenceMemberWire, isValidName } from './protocol.ts'
 import { admitPresenceMember } from './presence_member.ts'
 
 /**
- * A connection id the control plane cannot carry.
- *
- * A named type rather than a bare `Error` because this reaches the application
- * through the same `onError` hook as a transport failure and a driver failure,
- * and those want different handling: a dead socket is operational, an unusable
- * id is a bug in the caller's own code that no retry will fix.
- */
-/**
  * The DEFAULT per-instance watched-channel cap (#295/FR-017, #322).
  *
  * **The couplings belong to this default, not to the cap.** This number is also
@@ -203,9 +195,12 @@ export const CHANNEL_LIMIT_SCOPES = [
  * ```
  */
 export class ChannelLimitError extends Error {
+    /** Always `'ChannelLimitError'`, for logs and `onError`. */
     override readonly name = 'ChannelLimitError'
 
     /**
+     * Build the refusal. The numbers ride on the error, never in the message.
+     *
      * @param scope - Which cap was breached. An open set — see
      *   {@link ChannelLimitScope}.
      * @param count - The count at the moment of the breach.
@@ -228,10 +223,41 @@ export class ChannelLimitError extends Error {
     }
 }
 
+/**
+ * A channel name the control plane cannot carry (#314).
+ *
+ * `ChannelManager` raises it from `subscribe` — before the authorizer runs and
+ * before anything is written — and from `revokeChannel`, when the name is
+ * outside {@link isValidName}'s charset (letters, digits and `: . _ -`, at most
+ * 200 characters). The WebSocket wire already refused such a name; the
+ * programmatic API did not, so a presence join succeeded on this instance while
+ * every peer dropped the control frame announcing it, and the ghost sweep
+ * mis-parsed the roster's owned-member entry at the first space.
+ *
+ * Named, like its siblings, so an `onError` handler can tell a bug in the
+ * application's own channel naming — which no retry fixes — from a dead socket
+ * with `instanceof`.
+ *
+ * @example
+ * ```ts
+ * import { ChannelNameError } from '@lockness/realtime'
+ *
+ * try {
+ *     await manager.subscribe(connection, `presence-${room.title}`)
+ * } catch (error) {
+ *     if (error instanceof ChannelNameError) {
+ *         // Name the channel by the room's id, not its title — do not retry.
+ *     }
+ * }
+ * ```
+ */
 export class ChannelNameError extends Error {
+    /** Always `'ChannelNameError'`, for logs and `onError`. */
     override readonly name = 'ChannelNameError'
 
     /**
+     * Build the refusal, naming the channel through `safeForLog`.
+     *
      * @param channel - The offending name, encoded before it reaches the message.
      */
     constructor(channel: string) {
@@ -279,9 +305,12 @@ export class ChannelNameError extends Error {
  * ```
  */
 export class AuthorizeResultError extends Error {
+    /** Always `'AuthorizeResultError'`, for logs and `onError`. */
     override readonly name = 'AuthorizeResultError'
 
     /**
+     * Build the refusal from the result's type label, never its value.
+     *
      * @param channel - The channel being subscribed, encoded before it
      *   reaches the message.
      * @param type - The result's type label (`undefined`, `null`, `number`,
@@ -303,10 +332,41 @@ export class AuthorizeResultError extends Error {
     }
 }
 
+/**
+ * A connection id the control plane cannot carry.
+ *
+ * `ChannelManager` raises it from `register`, `subscribe` (before the
+ * authorizer runs), `evict` and `revokeChannel` — each time before anything is
+ * written or published — when a connection id is outside the control plane's
+ * charset (letters, digits and `: . _ -`, at most 200 characters). The control
+ * plane drops a frame naming such an id, so eviction would work on this
+ * instance and silently fail on every other one (#304).
+ *
+ * A named type rather than a bare `Error` because this reaches the application
+ * through the same `onError` hook as a transport failure and a driver failure,
+ * and those want different handling: a dead socket is operational, an unusable
+ * id is a bug in the caller's own code that no retry will fix.
+ *
+ * @example
+ * ```ts
+ * import { ConnectionIdError } from '@lockness/realtime'
+ *
+ * try {
+ *     await manager.subscribe(connection, 'public-feed')
+ * } catch (error) {
+ *     if (error instanceof ConnectionIdError) {
+ *         // Mint connection ids with `crypto.randomUUID()` — do not retry.
+ *     }
+ * }
+ * ```
+ */
 export class ConnectionIdError extends Error {
+    /** Always `'ConnectionIdError'`, for logs and `onError`. */
     override readonly name = 'ConnectionIdError'
 
     /**
+     * Build the refusal, naming the id through `safeForLog`.
+     *
      * @param id - The offending id, encoded before it reaches the message.
      */
     constructor(id: string) {
@@ -337,9 +397,12 @@ export class ConnectionIdError extends Error {
  * bus on which to lose a frame, so no durability is owed.
  */
 export class RevocationScopeError extends Error {
+    /** Always `'RevocationScopeError'`, for logs and `onError`. */
     override readonly name = 'RevocationScopeError'
 
     /**
+     * Build the refusal, naming the channel through `safeForLog`.
+     *
      * @param channel - The channel the revocation was scoped to, encoded before
      *   it reaches the message.
      */
@@ -882,6 +945,9 @@ export class ChannelManager<Identity = unknown> {
     private readonly rosterReads: RosterReadBarrier | undefined
 
     /**
+     * Build a manager over a broadcast driver — an in-memory one when none is
+     * given, which is single-process.
+     *
      * @param options - The driver, authorizer, and encoder.
      */
     constructor(options: ChannelManagerOptions<Identity> = {}) {
@@ -1219,6 +1285,13 @@ export class ChannelManager<Identity = unknown> {
      *   connections with no identity. Raised only AFTER authorization, so an
      *   unauthorized caller is denied on its own terms and never learns the
      *   instance is full.
+     * @throws Whatever the authorizer itself throws or rejects with,
+     *   propagated unchanged — Lockness wraps only a result it can read. That
+     *   includes an error raised while `await` reads the result's `then` (a
+     *   revoked Proxy's `TypeError`, a throwing `get` trap or `then` getter)
+     *   and an error a presence member's own `ownKeys` or `get` trap throws
+     *   during the one read of its `id` and `info` (#353). All of them
+     *   propagate before anything is written, published or delivered.
      * @throws If the authoritative roster refuses a presence join. The
      *   rejection is propagated, and the instance is left as it was: no
      *   subscriber received a `joined`, no local membership survives, and a
@@ -1323,6 +1396,23 @@ export class ChannelManager<Identity = unknown> {
             }
         }
 
+        // An INVARIANT since #347, not a filter. It read
+        // `kind === 'presence' && member`, and a falsy "member" such as `0`
+        // fell through to `#joinLocal`: delivery with no roster entry, an
+        // invisible listener. Every presence admission now carries a member
+        // (the one `admitPresenceMember` call above), so reaching here
+        // without one is a bug in this method, and it must not degrade into
+        // that listener. Checked HERE, above the caps and `connections.set`
+        // (#353): it is a refusal like the others, and a refusal after the
+        // write would leave a `connections` entry behind — the partial write
+        // #306 and #347 ordered everything else to avoid.
+        if (kind === 'presence' && member === undefined) {
+            throw new Error(
+                'realtime: a presence admission reached the join without ' +
+                    'a member — an invariant of subscribe is broken (#347).',
+            )
+        }
+
         // BEFORE any membership mutation, and after authorization: an
         // unauthorized subscribe is denied on its own terms, and a cap breach
         // is not an authorization outcome (#295/FR-017, §5 row 14).
@@ -1333,19 +1423,10 @@ export class ChannelManager<Identity = unknown> {
         )
         this.connections.set(connection.id, connection)
 
-        if (kind === 'presence') {
-            // An INVARIANT since #347, not a filter. It read
-            // `kind === 'presence' && member`, and a falsy "member" such as
-            // `0` fell through to `#joinLocal`: delivery with no roster
-            // entry, an invisible listener. Every presence admission now
-            // carries a member, so reaching here without one is a bug in
-            // this method, and it must not degrade into that listener.
-            if (member === undefined) {
-                throw new Error(
-                    'realtime: a presence admission reached the join without ' +
-                        'a member — an invariant of subscribe is broken (#347).',
-                )
-            }
+        // `member` is set on a presence admission and nowhere else, and the
+        // invariant above guarantees it there, so it IS the presence
+        // discriminator here — and it narrows without a cast.
+        if (member !== undefined) {
             return await this.#joinPresence(connection, channel, member)
         }
 
@@ -2036,12 +2117,23 @@ export class ChannelManager<Identity = unknown> {
      * @returns Settles once the announcement is done; never rejects.
      */
     #announceDeparture(departure: RosterDeparture): Promise<void> {
-        const channel: unknown = departure?.channel
+        // Each field is read ONCE, and a throwing getter or trap on the
+        // departure itself is a malformed report like any other — dropped,
+        // never thrown: the check and the announcement must see one value.
+        let channel: unknown
+        let member: unknown
+        try {
+            channel = departure?.channel
+            member = departure?.member
+        } catch {
+            channel = undefined
+            member = undefined
+        }
         // What every peer's ingest requires of a presence frame's member — the
         // one wire-member rule, never a copy here.
         if (
             typeof channel !== 'string' || !isValidName(channel) ||
-            !isPresenceMemberWire(departure?.member)
+            !isPresenceMemberWire(member)
         ) {
             console.warn(
                 `realtime: dropped a roster departure the driver reported on ${
@@ -2054,12 +2146,7 @@ export class ChannelManager<Identity = unknown> {
             )
             return Promise.resolve()
         }
-        return this.#announcePresence(
-            'left',
-            channel,
-            departure.member,
-            channel,
-        )
+        return this.#announcePresence('left', channel, member, channel)
     }
 
     /**

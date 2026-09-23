@@ -50,6 +50,11 @@ export type ServerMessage =
 
 /** Raised for any invalid inbound frame. The caller sends an `error`, not a crash. */
 export class ProtocolError extends Error {
+    /**
+     * Build the refusal. `name` is set to `'ProtocolError'` for logs.
+     *
+     * @param message - What was wrong with the frame.
+     */
     constructor(message: string) {
         super(message)
         this.name = 'ProtocolError'
@@ -169,8 +174,33 @@ export function isPresenceMemberKey(key: string): boolean {
 export function isPresenceMemberInfoValue(
     value: unknown,
 ): value is Record<string, unknown> | undefined {
-    return value === undefined ||
-        (typeof value === 'object' && value !== null && !Array.isArray(value))
+    return value === undefined || isNonArrayObject(value)
+}
+
+/**
+ * Whether a value is a non-null, non-array object — answering `false`, never
+ * throwing, for a revoked Proxy (#353).
+ *
+ * `Array.isArray` throws on a revoked Proxy ("Cannot perform 'IsArray' on a
+ * proxy that has been revoked"), and both wire predicates ran it on a value a
+ * driver or an application supplied. A predicate that throws hands its caller
+ * an anonymous `TypeError` in place of the refusal it would have reported —
+ * the manager's departure handler, documented never to throw, threw.
+ *
+ * @param value - Any value.
+ * @returns `true` for an inspectable non-array object.
+ */
+function isNonArrayObject(value: unknown): value is Record<string, unknown> {
+    if (typeof value !== 'object' || value === null) return false
+    try {
+        return !Array.isArray(value)
+    } catch {
+        // Not silent: `false` is the refusal, and every caller reports it —
+        // the join throws a named error, the departure handler and the Redis
+        // frame ingest WARN, the Redis roster read skips with a reason. A
+        // revoked Proxy is no member and no `info`.
+        return false
+    }
 }
 
 /**
@@ -204,11 +234,17 @@ export function isPresenceMemberInfoValue(
  * `Date` `info` passes there as an object and arrives as a string — which is
  * why the join runs it on the parsed copy, never on the authorizer's object.
  *
+ * **Total** (#353): it answers `false`, and never throws, for a value it
+ * cannot read — a revoked Proxy, or a live one whose `ownKeys` or `get` trap
+ * throws. The departure handler hands it whatever a driver reported, and is
+ * documented never to throw.
+ *
  * Package-internal: exported from this module for its callers, NOT from
  * `mod.ts`.
  *
  * @param value - A candidate member, parsed off the wire or from a driver.
- * @returns `true` when every peer's ingest would admit it.
+ * @returns `true` when every peer's ingest would admit it; `false` for
+ *   anything else, a value whose reads throw included.
  *
  * @example
  * ```ts
@@ -220,15 +256,26 @@ export function isPresenceMemberInfoValue(
  * ```
  */
 export function isPresenceMemberWire(value: unknown): value is PresenceMember {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    if (!isNonArrayObject(value)) return false
+    // The reads below run a LIVE Proxy's `ownKeys` and `get` traps, which
+    // `isNonArrayObject` never does (#353 review) — so they sit in a try of
+    // their own. No read is added: the key list, `id` and `info` are still
+    // each read once, and the join only ever hands this parsed JSON (#350).
+    try {
+        if (!Object.keys(value).every(isPresenceMemberKey)) return false
+        const member = value as { id?: unknown; info?: unknown }
+        // The join boundary's own predicate (#346): a member is refused here
+        // only for an id the sending instance would itself have refused at
+        // `subscribe`.
+        const idOk = isPresenceMemberIdValue(member.id)
+        return idOk && isPresenceMemberInfoValue(member.info)
+    } catch {
+        // Not silent, for the reason `isNonArrayObject`'s catch is not: every
+        // caller reports `false`. A member whose own traps throw is no member
+        // — and the departure handler, documented never to throw, reached
+        // here with a driver's value.
         return false
     }
-    if (!Object.keys(value).every(isPresenceMemberKey)) return false
-    const member = value as { id?: unknown; info?: unknown }
-    // The join boundary's own predicate (#346): a member is refused here only
-    // for an id the sending instance would itself have refused at `subscribe`.
-    const idOk = isPresenceMemberIdValue(member.id)
-    return idOk && isPresenceMemberInfoValue(member.info)
 }
 
 /**

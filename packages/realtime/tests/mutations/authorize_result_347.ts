@@ -53,17 +53,24 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M2 — the object check dropped: any non-boolean admits',
         file: CHANNEL,
+        // RE-EXPRESSED by #353: `objectLabel` takes an `object`, so deleting
+        // the guard alone no longer type-checks (a DEAD row). The cast keeps
+        // the mutant compiling; `objectLabel` answers 'object' for a primitive
+        // or `null`, so every non-boolean admits, as before.
         edits: [[
-            "    if (typeof value !== 'object' || value === null) return false\n",
-            '',
+            "    if (typeof value !== 'object' || value === null) return false\n" +
+            "    return objectLabel(value) === 'object'\n",
+            "    return objectLabel(value as object) === 'object'\n",
         ]],
         killedBy: 'private-orders: an authorizer returning null throws',
     },
     {
         label: 'M3 — arrays admitted, the shape of an empty query result',
         file: CHANNEL,
+        // RE-ANCHORED by #353: the array and boxed-primitive checks moved
+        // into `objectLabel`, which the classifier and `typeLabel` share.
         edits: [[
-            '    if (Array.isArray(value)) return false\n',
+            "        if (Array.isArray(value)) return 'array'\n",
             '',
         ]],
         killedBy: 'private-orders: an authorizer returning [] throws',
@@ -96,9 +103,10 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M6 — boxed primitives admitted as objects',
         file: CHANNEL,
+        // RE-ANCHORED by #353 (see M3).
         edits: [[
-            '    if (boxedPrimitiveLabel(value) !== undefined) return false\n',
-            '',
+            "        return boxedPrimitiveLabel(value) ?? 'object'\n",
+            "        return 'object'\n",
         ]],
         killedBy:
             'private-orders: an authorizer returning new Boolean(false) throws',
