@@ -297,28 +297,48 @@ in a battery nobody has touched is noticed without anyone deciding to look —
 three of those four rotted rows were broken by merges that touched neither the
 battery nor the row's subject.
 
-**If a run is killed** — `Ctrl-C` is handled, but a `SIGKILL` (the OOM killer, a
-CI runner eviction, `kill -9`) is not — it leaves `*.mutation-lock` files beside
-the sources it was holding. **The next run reclaims them itself**: each lock
-records the owning pid, and a lock whose owner is gone is removed, loudly,
-naming the lock, the dead pid and when it was taken. No manual step.
+**If a run is interrupted** — `Ctrl-C`, `SIGTERM` and a closed terminal
+(`SIGHUP`) are handled: the battery restores the source and exits `128 + signo`,
+the code a shell shows for a process that signal ended — `130` for `SIGINT`,
+`143` for `SIGTERM`, `129` for `SIGHUP`. The runner (`deno task mutate`) follows
+the same convention and removes its own `.runner-lock` synchronously before
+exiting. A `SIGKILL` (the OOM killer, a CI runner eviction, `kill -9`) cannot be
+handled, and restores nothing.
+
+**Either way the battery leaves its `*.mutation-lock` files behind** beside the
+sources it was holding: a handled signal exits without running the lock's
+release, and a `SIGKILL` runs nothing at all. **The next run reclaims them
+itself**: each lock records the owning pid, and a lock whose owner `ps` no
+longer sees, over a source git reports pristine, is removed, loudly, naming the
+lock, the pid and when it was taken. No manual step.
 
 A lock held by a **live** process still refuses, unchanged — two batteries over
 one file snapshot each other's live mutant and "restore" it permanently.
 
-Two cases still stop and ask, both deliberately:
+A run that could not put a source back keeps its lock too, even when it ends
+normally: the lock is released only over the bytes it was taken on. The next run
+then refuses, as below, rather than reading the mutant as the pristine source.
 
-- **The guarded source is not pristine.** A `SIGKILL` can leave a mutant on
-  disk, and mutating a mutant produces a source nobody wrote plus a "restore"
-  that writes it back. The lock stands and the file is named; restore it, then
-  delete the lock.
+Three cases still stop and ask, all deliberately:
+
+- **Git reports the guarded source modified.** A `SIGKILL`, or a restore that
+  failed, can leave a mutant on disk, and mutating a mutant produces a source
+  nobody wrote plus a "restore" that writes it back. The battery refuses before
+  mutating anything, and the refusal names the pid `ps` cannot see and the
+  recovery, with the paths quoted: `git checkout -- '<file>'` then remove the
+  lock if the change is a leftover mutant, or commit or stash it first if it is
+  your own work. It restores nothing itself — it cannot tell the two apart.
+- **Git cannot answer, or the lock names no usable pid.** Neither is evidence of
+  a leftover mutant, so the refusal gives its reason — git's own error, or the
+  lock's contents — and prescribes no command. Look before removing the lock.
 - **The pid was reused.** A recycled pid reads as alive, so a genuinely stale
   lock can still refuse. The timestamp in the lock is what tells you. Erring
   this way is deliberate: refusing a run costs a message, breaking a live one
   corrupts a source file.
 
 ```bash
-# Only for those two cases. Two kinds of lock exist and this clears both:
+# Only for those cases, once the source is known to be right. Two kinds of lock
+# exist and this clears both:
 find packages -name '*.mutation-lock' -delete   # one per guarded source
 rm -f tests/mutations/.runner-lock              # one per `deno task mutate` run
 ```
@@ -330,10 +350,10 @@ deno run -A packages/realtime/tests/mutations/prefix_288.ts
 ```
 
 Its exit code is `0` when every row resolved and `1` when one did not — except
-`2`, which means it could not run every row and is not a pass either way. Prefer
-`deno task mutate`, which spells that out; run directly and a bare `2` is easy
-to misread as two survivors. Each package's `AGENTS.md` lists its own batteries
-under **Tests**.
+`2`, which means it could not run every row and is not a pass either way, and
+`128 + signo` when a signal interrupted it. Prefer `deno task mutate`, which
+spells that out; run directly and a bare `2` is easy to misread as two
+survivors. Each package's `AGENTS.md` lists its own batteries under **Tests**.
 
 ### What a row looks like
 
@@ -355,8 +375,14 @@ thing it claims.
 
 The harness runs a green baseline before mutating anything, takes an atomic
 per-file lock, requires every anchor to match **exactly once**, restores the
-file on `SIGINT`/`SIGTERM`, and reports a mutant that fails to type-check as
-`DEAD` rather than aborting the run.
+file on `SIGINT`/`SIGTERM`/`SIGHUP`, and reports a mutant that fails to
+type-check as `DEAD` rather than aborting the run. Every mutant write and every
+restore is synchronous, so a signal can never land between a restore and a
+still-pending write that puts the mutant back. Paths are decoded from their
+`file:` URLs, so a checkout under a directory with a space in its name is
+restored like any other. A battery that mutates outside `runBattery` (a
+type-level row run through `deno check`, say) takes the same protection from the
+harness's `MutantGuard`.
 
 ### `expectSurvival` — a surviving row can be correct
 
