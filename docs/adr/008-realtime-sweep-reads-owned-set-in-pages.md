@@ -1,6 +1,8 @@
 # ADR 008 — The ghost sweep reads the owned set in pages
 
-**Status:** Accepted **Date:** 2026-09-23 **Owner:** architect **Amends:**
+**Status:** Accepted, amended by
+[ADR 009](009-realtime-revocation-recheck-reads-index-in-pages.md) (§5)
+**Date:** 2026-09-23 **Owner:** architect **Amends:**
 [ADR 006](006-realtime-sweep-writes-only-while-dead.md) §2, §5, §6 **Affects:**
 `packages/realtime/drivers/redis.ts`, `packages/redis/resp.ts` (JSDoc only),
 `packages/realtime/tests/fake_redis.ts`, `docs/realtime.md`,
@@ -184,6 +186,13 @@ against. `realtime`'s inventory of such replies, and the bound of each, lives in
   at once, unbounded — tracked as
   [#359](https://github.com/locknessland/lockness-monorepo/issues/359), whose
   paged read is to reuse `decodeScanReply` and the FakeRedis scan core.
+
+> **Amended by
+> [ADR 009](009-realtime-revocation-recheck-reads-index-in-pages.md)
+> (2026-09-23).** Solved: `LIST_REVOKED_SCRIPT` is gone. The revocation pass
+> reaps with `REAP_REVOKED_SCRIPT`, which answers one integer, and reads the
+> index in `ZSCAN` pages of `REVOCATION_SCAN_COUNT`, decoded on
+> `decodeScanReply` and modelled on the FakeRedis scan core.
 
 ---
 

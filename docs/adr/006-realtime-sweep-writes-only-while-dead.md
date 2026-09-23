@@ -1,9 +1,10 @@
 # ADR 006 — One sweep pass at a time, and a sweep writes only while its target is dead
 
 **Status:** Accepted, amended by
-[ADR 007](007-realtime-lapsed-instance-reasserts.md) (§5) and
-[ADR 008](008-realtime-sweep-reads-owned-set-in-pages.md) (§2, §5, §6) **Date:**
-2026-09-23 **Owner:** architect **Amends:**
+[ADR 007](007-realtime-lapsed-instance-reasserts.md) (§5),
+[ADR 008](008-realtime-sweep-reads-owned-set-in-pages.md) (§2, §5, §6) and
+[ADR 009](009-realtime-revocation-recheck-reads-index-in-pages.md) (§2)
+**Date:** 2026-09-23 **Owner:** architect **Amends:**
 [ADR 004](004-realtime-roster-slots-held-per-instance.md) §2, §5 and
 [ADR 005](005-realtime-swept-departures-announced.md) §2, §5 **Affects:**
 `packages/realtime/drivers/redis.ts`, `docs/realtime.md`,
@@ -50,6 +51,16 @@ set and each liveness key, so a pass that did not run loses nothing.
 The heartbeat stays an **unguarded `setInterval`**: a guard would turn one slow
 renewal into a missed one — a lapse — while an overlapping beat is a harmless
 repeat. `#ensureSweepStarted` arms it only while not closing.
+
+> **Amended by
+> [ADR 009](009-realtime-revocation-recheck-reads-index-in-pages.md)
+> (2026-09-23).** The one-pass rule now covers the **revocation** timer too:
+> `#armRevocationReconcile` is its single arming site, one `setTimeout` armed
+> from the end of the pass that consumed it, and `#startRevocationPass` runs one
+> revocation pass per driver at a time. Unlike the sweep, the reconnect trigger
+> is **edge-triggered** — its intent is consumed by the activation that fired it
+> — so a reconnect or retry during a pass is not dropped but coalesced into
+> **one** trailing pass. An edge-triggered pass never moves a pending timer.
 
 ### `close()` waits for the pass
 

@@ -383,7 +383,8 @@ Anything not listed is internal and free to change.
   fully decode; never narrow it. The reap is score-only and the charset filter
   is non-destructive, and both must stay that way: a reader that cannot use a
   record must not be the reader that destroys it, or a rolling deploy deletes
-  live revocations.
+  live revocations. **The read path never deletes; the reap
+  (`REAP_REVOKED_SCRIPT`) is the only delete** (#359).
 - **A clear names an id, never a pair**
   ([#337](https://github.com/locknessland/lockness-monorepo/issues/337)). Every
   `revokeChannel` call mints its own `ChannelRevocation.id`, and the id is part
@@ -522,6 +523,50 @@ Anything not listed is internal and free to change.
     `FakeRedis.scanSlot`, and refuses past a per-key and cumulative call
     ceiling, so a scan that never advances fails instead of hanging. Witness:
     `sweep_paging_358.test.ts`; battery `tests/mutations/sweep_paging_358.ts`.
+    **Revocation passes too** (#359): a test that needs a finished revocation
+    pass drains after the tick that fires it, and after firing the reconnect
+    seam, which returns `void` — never `await fireReconnect()` as if it handed
+    back the pass. A witness that holds a page or an apply waits on the gate's
+    `reached`.
+- **The revocation index is read in ONE place, in bounded pages, one pass at a
+  time** ([#359](https://github.com/locknessland/lockness-monorepo/issues/359),
+  [ADR 009](../../docs/adr/009-realtime-revocation-recheck-reads-index-in-pages.md)).
+  `listRevocations` reaps with `REAP_REVOKED_SCRIPT` (it answers the pass's one
+  `now`, `t`), then reads `ZSCAN <index> <cursor> COUNT REVOCATION_SCAN_COUNT` —
+  no option but `COUNT`, never a literal `'100'`, never a `ZRANGE*` read of the
+  index in production — from cursor `'0'` to cursor `'0'`, with no budget and no
+  resume state. What a port implementation must return is the `listRevocations`
+  JSDoc in `driver.ts`; the enforcement bound is `onRevocationReconcile`'s JSDoc
+  in `drivers/redis.ts`. Link to both, never restate them.
+  - **Nothing is applied before the enumeration ends** (#337 across pages). The
+    manager's re-check awaits the whole `listRevocations(owns)` result, then
+    groups by pair, then applies. A per-page callback, an `AsyncIterable` seam
+    or grouping per page makes two records of one pair on two pages leave twice,
+    and the second leave kicks a client that has legitimately re-subscribed.
+    `owns` only lets the driver drop foreign records early; the manager's own
+    `connections.has` check still decides.
+  - **One revocation pass at a time, with two homes, and both are needed.** The
+    driver's single-flight — `#startRevocationPass` (the one entry for the
+    timer, the reconnect seam and the #308 retry; a reconnect or retry during a
+    pass becomes ONE trailing pass, `'reconnect'` winning) and
+    `#armRevocationReconcile` (the one arming site: a `setTimeout` armed from
+    the end of the pass that consumed it, never a `setInterval`) — decides when
+    a pass runs. The manager's serial tail behind `reconcileRevocations()`
+    decides that no two re-checks overlap, because the lapse run's re-check
+    (#349) is a second caller the driver never sees: without it, an older
+    snapshot re-kicks a client that re-subscribed after the first run's leave.
+    Never a boolean flag, a coalescing flag in the manager, or a tail continued
+    only on success.
+  - **A malformed page fails the pass; a malformed pair is counted and WARNed.**
+    A bad envelope, an odd item list, a bad reap reply or a closing driver
+    throws a constant message — never `[]`, which reads as "nobody is revoked".
+    A pair inside a well-formed page whose score is not canonical epoch seconds
+    (`EPOCH_SECONDS`, the one grammar) is skipped and counted, and the pass logs
+    ONE `REVOCATION_PAIRS_SKIPPED` WARN with the count, never broker bytes.
+    Never a throw (a planted `+inf` is never reaped and would fail every pass),
+    never silent (a broker formatting scores differently would leave every
+    revocation unenforced). Witness: `revocation_paging_359.test.ts`; battery
+    `tests/mutations/revocation_paging_359.ts`.
 - **Every realtime reply that grows with a collection has a named bound** — the
   inventory for `MAX_REPLY_BYTES`'s rule (`@lockness/redis`, `resp.ts`: the
   caller bounds the reply; the cap is a backstop that costs the whole socket).
@@ -530,8 +575,8 @@ Anything not listed is internal and free to change.
   - a dead instance's owned set → `OWNED_SCAN_COUNT` (paged, #358);
   - the instance set (`SMEMBERS` in `#reconcile`) → unbounded, small by
     construction (one entry per running instance);
-  - the revocation index → `LIST_REVOKED_SCRIPT` → **unbounded**, tracked as
-    [#359](https://github.com/locknessland/lockness-monorepo/issues/359).
+  - the revocation index → `REVOCATION_SCAN_COUNT` (paged, #359); the reap
+    answers one integer.
 - **A lapsed-but-alive instance re-asserts its slots, and the pieces live in
   fixed homes**
   ([#349](https://github.com/locknessland/lockness-monorepo/issues/349),
@@ -712,9 +757,11 @@ Anything not listed is internal and free to change.
   failure will tell you. Both #276 plan audits named this independently as the
   likeliest way that feature could have shipped broken. 2026-09-05.
 - **Revocation liveness is decided by Redis, never by `Date.now()`.** The score
-  in `{prefix}:revocations` is compared against a `TIME` read inside the script.
-  A stored expiry judged against an instance's clock would let a fast-clocked
-  host delete revocations that are live for the whole fleet (#276). 2026-09-05.
+  in `{prefix}:revocations` is compared against the reap's `TIME` — read once
+  inside `REAP_REVOKED_SCRIPT`, carried to every page as `t`, never re-read per
+  page and never `Date.now()` (#359). A stored expiry judged against an
+  instance's clock would let a fast-clocked host delete revocations that are
+  live for the whole fleet (#276). 2026-09-05.
 - **Presence membership is CROSS-PROCESS authoritative** since #268 (shipped
   2026-09-05, `6ed138f4`). The roster lives in the driver — `rosterSnapshot`
   reads a bounded `roster.readRoster(channel, K, selfIds)` window off it (#341),
@@ -838,7 +885,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-80 test files for 21 source files:
+81 test files for 21 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -909,6 +956,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/revocation_atomicity.test.ts`
 - `packages/realtime/tests/revocation_clear_race_337.test.ts`
 - `packages/realtime/tests/revocation_encoding_332.test.ts`
+- `packages/realtime/tests/revocation_paging_359.test.ts`
 - `packages/realtime/tests/revocation_retry.test.ts`
 - `packages/realtime/tests/revocation_seam_332.test.ts`
 - `packages/realtime/tests/revoke_channel_idless_340.test.ts`
@@ -921,7 +969,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/sweep_paging_358.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-33 mutation batteries — **`deno test` does not run these.** Each is an
+34 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -951,6 +999,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_snapshot_339.ts`
 - `packages/realtime/tests/mutations/presence_sweep_departure_348.ts`
 - `packages/realtime/tests/mutations/reconcile_single_pass_355.ts`
+- `packages/realtime/tests/mutations/revocation_paging_359.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
 - `packages/realtime/tests/mutations/revoke_channel_idless_340.ts`
 - `packages/realtime/tests/mutations/roster_read_barrier_333.ts`
@@ -975,7 +1024,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 80 test files directly —
+Then, specific to this package: run its 81 test files directly —
 
 ```bash
 deno test -A packages/realtime/

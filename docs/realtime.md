@@ -1688,6 +1688,16 @@ They are detected **as a set**: a driver either has all three or has none, and
 one with two of them is treated as having none. A driver that omits them falls
 back to fire-and-forget revocation, with no recovery from a lost frame.
 
+**A custom driver and `owns`.** The re-check calls
+`listRevocations((target) => …)`: the argument says which targets this instance
+owns, so a store can drop every other instance's records while it enumerates
+rather than hand them all back. Apply it if you can — the manager filters again,
+so ignoring it is correct, only unbounded in your own store. It is called
+synchronously, and a throw from it fails the call. What an implementation must
+return is stated once, in the `listRevocations` JSDoc of
+[`packages/realtime/driver.ts`](../packages/realtime/driver.ts). The zero-
+argument call still returns every record, so an existing driver needs no change.
+
 > **A driver written against `markRevoked` / `listRevoked` now throws at
 > construction.** That pair no longer exists. See
 > [Upgrading to v0.4.0](#upgrading-to-v040).
@@ -1761,11 +1771,22 @@ await manager.disconnect(clientId) // 'disconnected' | 'not-owned'
 > this instance owns it, and whether it is in a given room.
 
 The Redis driver stores it as a **single sorted set** at `{prefix}:revocations`,
-whose score is the second the revocation expires. One structure rather than two
-matters for correctness, not tidiness: reaping expired entries and listing live
-ones happen in one server-side operation against one `now` read from Redis's own
-clock, so a revocation that is live cannot be removed by a concurrent pass, and
-no instance's wall clock takes part in the decision.
+whose score is the second the revocation expires. A re-check is **one reap, then
+pages** ([#359](https://github.com/locknessland/lockness-monorepo/issues/359),
+[ADR 009](adr/009-realtime-revocation-recheck-reads-index-in-pages.md)):
+
+- **The reap** is one server-side script. It reads Redis's own `TIME`, removes
+  every record at or below that second, and answers that second, `now`. It is
+  the only thing that ever deletes from the index, so a revocation that is live
+  cannot be removed by a concurrent pass.
+- **The read** walks the index with `ZSCAN … COUNT REVOCATION_SCAN_COUNT` pages,
+  from cursor `0` back to cursor `0`, and deletes nothing. A record is live when
+  its score is above the reap's `now` — the same `now` for every page, never
+  re-read, and no instance's wall clock takes part in the decision. No reply
+  grows with the index: an instance holds one page of other instances' records
+  at a time.
+- **Nothing is applied until the last page is read.** Two records of one pair
+  that land on different pages still give one leave.
 
 <a id="redis-minimum-version"></a>
 
@@ -1781,9 +1802,9 @@ no instance's wall clock takes part in the decision.
 > one unreleased cycle the driver also _read_ the previous layout
 > (`{prefix}:revoked` plus per-target markers) so a revocation written by a
 > not-yet-upgraded instance was still honoured. Nothing ever wrote that layout
-> in a published version, so `listRevoked` is now a single `EVAL` again — one
-> round trip whatever the number of revocations, rather than one plus one per
-> legacy member. If a real Redis still holds `{prefix}:revoked` or any
+> in a published version, so the re-check no longer spends one command per
+> legacy member: since #359 it is one reap plus pages — never one command per
+> member. If a real Redis still holds `{prefix}:revoked` or any
 > `{prefix}:revoked:*` marker, **delete them by hand**: the index SET has no TTL
 > and nothing reads it.
 
@@ -1799,6 +1820,15 @@ recovered only once. The reconnect trigger is additive: an integrator whose
 subscriber does not expose a reconnect hook falls back to the periodic pass
 alone, unchanged.
 
+**One pass at a time** (#359). A driver runs one revocation pass at a time,
+whichever trigger asked. The periodic timer is armed from the **end** of the
+pass that consumed it, so a slow pass delays the next one rather than running
+beside it. A reconnect — or its retry — that arrives while a pass is running is
+not dropped: however many arrive, **one** trailing pass follows the running one.
+The manager also runs one re-check at a time, whoever calls it — the driver's
+pass or the re-check a lapsed instance runs before it re-asserts its slots — so
+a pair one re-check left is never kicked again by another's older view.
+
 **What happens when a re-check FAILS is not the same for both.** The WARN names
 which trigger it was, because the two want different responses:
 
@@ -1810,18 +1840,36 @@ which trigger it was, because the two want different responses:
 The retry does not retry itself: a broker that keeps refusing costs one extra
 round-trip per outage, not a loop.
 
+A failed pass is one that did not read the whole index: a page read or the reap
+refused, a reply that is not the shape expected, or a driver whose `close()` has
+begun. It applies **nothing** — not even the matches of pages already read — and
+never reads as "nobody is revoked". One more line can appear on a pass that
+**succeeded**:
+
+| Line                                                                                        | What it means                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `the revocation index returned pairs that are not revocations … Pairs skipped this pass: N` | The index held N entries whose score is not whole epoch seconds, and they were skipped; every other record was applied. Logged once per pass while they remain. If N covers every record, the broker formats scores differently from Redis and **no revocation is being enforced** |
+
 **The re-check runs concurrently with delivery, and that is the shipped
 contract.** The subscribe socket's read loop is started before the reconnect
 handler is invoked, so a message can be delivered while the re-check is still in
-flight — a window of roughly one round-trip on the Redis command connection,
-after each socket fault. A connection revoked during that window can receive
+flight — a window of one revocation pass on the Redis command connection, after
+each socket fault. A connection revoked during that window can receive
 broadcasts until the re-check lands.
 
 This is a deliberate trade, not an oversight. Firing the handler before delivery
 resumes would let an application-supplied handler gate **all** delivery for as
 long as it runs, turning a bounded authorization window into an unbounded
 availability one. The periodic pass bounds the exposure either way, which is why
-`reconcileIntervalMs` is an enforcement bound and should not be lengthened.
+`reconcileIntervalMs` is an enforcement bound and should not be lengthened. The
+bound also counts the time a pass takes, which grows with the index; its exact
+form, and when it holds, is stated once in the `onRevocationReconcile` JSDoc of
+[`packages/realtime/drivers/redis.ts`](../packages/realtime/drivers/redis.ts).
+
+**A mixed `0.3.0` / `0.4.0` fleet.** A `0.3.0` instance still reads the whole
+index in one reply, on its own command client, until it is upgraded — so a large
+index can still refuse that instance's client while the upgraded ones page
+through it.
 
 Two consequences worth stating plainly:
 
