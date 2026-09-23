@@ -2270,6 +2270,19 @@ before anything is written, published or delivered. The error reaches your
   channel a found row now throws too, as `PresenceMemberShapeError` — see
   item 11. Return an explicit member instead —
   `return row ? { id: row.id } : false`.
+- **An object that throws when inspected**
+  ([#353](https://github.com/locknessland/lockness-monorepo/issues/353)) — a
+  Proxy whose `getPrototypeOf` trap throws — now throws `AuthorizeResultError`
+  naming `uninspectable object`, where it used to throw the trap's own error. A
+  member whose `id` is a revoked Proxy now throws `PresenceMemberIdError` where
+  it used to throw a `TypeError`. A result whose `then` cannot be read still
+  rejects with the error that read raised, because `await` reads `then` before
+  Lockness holds the value: a revoked Proxy rejects with the engine's
+  `TypeError`, and a Proxy whose `get` trap throws, or an object whose `then`
+  getter throws, rejects with that trap's or getter's own error. The same goes
+  for a presence member whose `ownKeys` or `get` trap throws while `subscribe`
+  reads its `id` and `info`. None of these is wrapped in a Lockness error, and
+  nothing is written in any of these cases.
 
 `AuthorizeResultError` is exported from `@lockness/realtime`. See
 [What your authorizer may return](#what-your-authorizer-may-return).

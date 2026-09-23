@@ -219,7 +219,23 @@ Anything not listed is internal and free to change.
   cycle), and does not call #346's member-id predicate. `typeLabel` is the one
   place an offending value becomes a log-safe TYPE label; an error message never
   echoes the value. Witness: `authorize_result_347.test.ts`; battery
-  `tests/mutations/authorize_result_347.ts`.
+  `tests/mutations/authorize_result_347.ts`. **The classifiers are total**
+  ([#353](https://github.com/locknessland/lockness-monorepo/issues/353)):
+  `objectLabel` (`channel.ts`) is the one inspection beyond `typeof`, and it
+  runs `Array.isArray` and `instanceof` inside a try, because both throw on a
+  revoked Proxy. A value it cannot inspect is `'uninspectable object'`. **Never
+  make that label `'object'`**: `isAdmittingObject` asks
+  `objectLabel(...) === 'object'`, so the tidy "use `typeof`'s answer" edit
+  ADMITS the value (battery M3). `protocol.ts`'s wire predicates share
+  `isNonArrayObject` for the same reason, and `isPresenceMemberWire` keeps its
+  key and field reads in a try of their own: a LIVE Proxy's `ownKeys` or `get`
+  trap runs there, never in `isNonArrayObject`, and the departure handler must
+  not throw (battery M7–M9). A result whose `then` cannot be read never reaches
+  the classifier: `await` reads it first and rejects with that read's own error
+  (a revoked Proxy's `TypeError`, a trap's or getter's error), propagated
+  unchanged, and nothing is written. The "join without a member" invariant sits
+  above `#checkChannelCaps`, like every other refusal. Witness:
+  `manager_debt_353.test.ts`; battery `tests/mutations/manager_debt_353.ts`.
 - **A member is parsed once, by `admitPresenceMember` (`presence_member.ts`);
   never read `id`/`info` from the authorizer's object anywhere else, and never
   validate an in-memory copy**
@@ -661,7 +677,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-74 test files for 20 source files:
+75 test files for 20 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -697,6 +713,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/live_fake_conformance.test.ts`
 - `packages/realtime/tests/log_encoding_291.test.ts`
 - `packages/realtime/tests/manager.test.ts`
+- `packages/realtime/tests/manager_debt_353.test.ts`
 - `packages/realtime/tests/member_info_bound_326.test.ts`
 - `packages/realtime/tests/memory_driver.test.ts`
 - `packages/realtime/tests/mixed_fleet_332.test.ts`
@@ -738,7 +755,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-28 mutation batteries — **`deno test` does not run these.** Each is an
+29 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -751,6 +768,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/fake_redis_280.ts`
 - `packages/realtime/tests/mutations/live_conformance_285.ts`
 - `packages/realtime/tests/mutations/log_encoding_291.ts`
+- `packages/realtime/tests/mutations/manager_debt_353.ts`
 - `packages/realtime/tests/mutations/prefix_288.ts`
 - `packages/realtime/tests/mutations/presence_eviction_334.ts`
 - `packages/realtime/tests/mutations/presence_join_323.ts`
@@ -787,7 +805,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 74 test files directly —
+Then, specific to this package: run its 75 test files directly —
 
 ```bash
 deno test -A packages/realtime/
