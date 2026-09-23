@@ -117,16 +117,39 @@ function normalise(argv: string[], reply: RespReply): RespReply {
     // Redis does not specify SMEMBERS ordering, and a hash's field order
     // depends on its encoding — a broker with `hash-max-listpack-entries 0`
     // returns hashtable order and would diverge for a reason that has nothing
-    // to do with the fake. Sort those two, and only those two.
+    // to do with the fake. Sort those two, and one more: the items of an
+    // SSCAN reply whose cursor is `0` (#358), a set answered WHOLE, whose
+    // order Redis does not specify either. A page with a non-zero cursor is
+    // never sorted here — which members a page holds is the hashtable walk
+    // itself, and the full-iteration coverage case compares that as a union
+    // instead. This is the one place SCAN replies are compared across
+    // backends.
     if ((cmd === 'SMEMBERS' || cmd === 'HGETALL') && reply.type === 'array') {
-        return {
-            type: 'array',
-            value: [...reply.value].sort((a, b) =>
-                JSON.stringify(a) < JSON.stringify(b) ? -1 : 1
-            ),
+        return { type: 'array', value: sortedItems(reply.value) }
+    }
+    if (cmd === 'SSCAN' && reply.type === 'array') {
+        const [cursor, items] = reply.value
+        if (
+            cursor?.type === 'bulk' && cursor.value === '0' &&
+            items?.type === 'array'
+        ) {
+            return {
+                type: 'array',
+                value: [cursor, {
+                    type: 'array',
+                    value: sortedItems(items.value),
+                }],
+            }
         }
     }
     return reply
+}
+
+/** A reply's elements in a stable order, for the unordered replies above. */
+function sortedItems(items: readonly RespReply[]): RespReply[] {
+    return [...items].sort((a, b) =>
+        JSON.stringify(a) < JSON.stringify(b) ? -1 : 1
+    )
 }
 
 /**
@@ -382,7 +405,8 @@ const SEQUENCES: Sequence[] = [
         ],
     },
     {
-        name: 'SMEMBERS, which three production call sites depend on',
+        name:
+            'SMEMBERS, which one production call site depends on (the instance-set read)',
         steps: [
             { argv: ['SMEMBERS', K('absent-set')] },
             { argv: ['SADD', K('members'), 'only'] },
@@ -390,6 +414,31 @@ const SEQUENCES: Sequence[] = [
             { argv: ['SADD', K('members'), 'second', 'third'] },
             { argv: ['SMEMBERS', K('members')] },
             { argv: ['DEL', K('members')] },
+        ],
+    },
+    {
+        // The reply SHAPE of the sweep's owned-set read (#358): an absent key
+        // is `['0', []]`, and a set small enough for one reply is answered
+        // whole with cursor `0`. What a multi-page walk returns is the
+        // full-iteration coverage case below, compared as a union.
+        name: 'SSCAN, the sweep’s paged owned-set read (#358)',
+        steps: [
+            { argv: ['SSCAN', K('absent-scan'), '0', 'COUNT', '10'] },
+            { argv: ['SADD', K('scan'), 'channel-a 7', 'channel-b 8', 'c 9'] },
+            { argv: ['SSCAN', K('scan'), '0', 'COUNT', '10'] },
+            {
+                // A scan its caller does not bound is refused by the fake,
+                // never answered at a default — no driver sends it.
+                argv: ['SSCAN', K('scan'), '0'],
+                fakeRefuses: 'SSCAN without COUNT',
+            },
+            {
+                // MATCH filters the page: an ignored MATCH would hand the
+                // caller members a real broker does not.
+                argv: ['SSCAN', K('scan'), '0', 'MATCH', 'c*', 'COUNT', '10'],
+                fakeRefuses: "unmodelled SSCAN option 'MATCH'",
+            },
+            { argv: ['DEL', K('scan')] },
         ],
     },
     {
@@ -1746,6 +1795,80 @@ Deno.test({
                 await fake.command('HGET', hash, 'f'),
                 await live.command('HGET', hash, 'f'),
             )
+        } finally {
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})
+
+/**
+ * Walk `key` with `SSCAN … COUNT count` from cursor `0` back to `0`,
+ * answering the union of its pages and how many calls it took (#358).
+ */
+async function scanAll(
+    client: { command(...args: string[]): Promise<unknown> },
+    key: string,
+    count: string,
+): Promise<{ members: Set<string>; calls: number }> {
+    const members = new Set<string>()
+    let cursor = '0'
+    let calls = 0
+    do {
+        const reply = await client.command('SSCAN', key, cursor, 'COUNT', count)
+        calls++
+        const parts = (reply as { type?: string; value?: RespReply[] }).value
+        const [next, items] = parts ?? []
+        assert(
+            next?.type === 'bulk' && items?.type === 'array',
+            `an SSCAN reply is [cursor, array]: ${JSON.stringify(reply)}`,
+        )
+        for (const item of items.value) {
+            assert(item.type === 'bulk', JSON.stringify(item))
+            members.add(item.value)
+        }
+        cursor = next.value
+        assert(calls <= 1_000, 'the walk never came back to cursor 0')
+    } while (cursor !== '0')
+    return { members, calls }
+}
+
+Deno.test({
+    name:
+        '#358 WC a full SSCAN iteration returns every seeded member, on the fake and on the broker — which needed more than one call',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // The one SCAN guarantee the sweep relies on: a member present for
+        // the whole iteration is returned. Page CONTENTS are the hashtable
+        // walk and legitimately differ, so the comparison is the union. The
+        // seed has more than 128 entries (Redis's default
+        // `set-max-listpack-entries`), so the broker holds a real hashtable
+        // and pages it — asserted, or this would compare two whole replies.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        const key = K('wc358-owned')
+        const seeded = Array.from(
+            { length: 200 },
+            (_, i) => `presence-room-${i % 7} member-${i}`,
+        )
+        try {
+            await live.command('SADD', key, ...seeded)
+            await fake.command('SADD', key, ...seeded)
+            const onLive = await scanAll(live, key, '10')
+            const onFake = await scanAll(fake, key, '10')
+            const expected = [...seeded].sort()
+            assertEquals([...onLive.members].sort(), expected, 'broker union')
+            assertEquals([...onFake.members].sort(), expected, 'fake union')
+            assert(
+                onLive.calls > 1,
+                `the broker answered ${seeded.length} members in one call — ` +
+                    'it does not honour COUNT, so the page bound does not ' +
+                    'hold on it',
+            )
+            assert(onFake.calls > 1, 'the fake paged the set')
+            fake.assertNoRejections()
         } finally {
             await teardown(live, NS)
             await live.close()

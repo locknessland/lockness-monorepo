@@ -307,9 +307,11 @@ const RELEASE_MEMBER_SCRIPT: string = [
  *
  * Its liveness key existing means the instance renewed while being swept (a
  * lapse, not a crash): the reply is {@link REFUSED} and it stays registered.
- * Its owned set existing means it holds a slot it took after the sweep read
- * that set — a late hold: the reply is {@link KEPT}, it stays registered, and
- * the next pass releases that hold. Otherwise it leaves the instances set and
+ * Its owned set existing means the sweep's scan left an entry behind — a late
+ * hold that landed behind the scan's cursor (#358), or an entry the sweep
+ * cannot parse: the reply is {@link KEPT}, it stays registered (the sweep ends
+ * `kept`), and the next pass resumes it. This script, not the scan's control flow, is what keeps a
+ * half-swept instance registered. Otherwise it leaves the instances set and
  * the reply is 0. `EXISTS`, not `SCARD`: Redis deletes an emptied set.
  *
  * Both checks and the write are one step, so neither can go stale between a
@@ -917,6 +919,73 @@ function decodeDeregisterReply(reply: unknown): DeregisterOutcome {
 }
 
 /**
+ * A canonical SCAN-family cursor (#358 S1): `0`, or at most 20 decimal digits
+ * with no leading zero. Kept as a string — a cursor is opaque and may exceed
+ * 2^53.
+ */
+const SCAN_CURSOR = /^(0|[1-9][0-9]{0,19})$/
+
+/**
+ * The one message {@link decodeScanReply} throws (#358 FR-003, S2). It
+ * describes the shape it expected and names no command and no key; it never
+ * carries the reply, its type or its length — those bytes come from the broker
+ * and the message reaches a log line. Exported for the test suite only.
+ */
+export const SCAN_REPLY_REFUSED =
+    'realtime: a scan reply is not [cursor, array] — a canonical decimal ' +
+    'cursor of at most 20 digits followed by an array of items'
+
+/** One decoded page of a SCAN-family reply (#358). Internal. */
+export interface ScanPage {
+    /** The next cursor: `'0'` once the iteration is complete. */
+    readonly cursor: string
+    /** The page's items, still raw replies, each parsed by its caller. */
+    readonly items: readonly unknown[]
+}
+
+/**
+ * Decode a SCAN-family reply envelope (#358 FR-003, A4): a two-element array
+ * of a canonical cursor (a bulk string, `0` or up to 20 digits without a
+ * leading zero) and an array of items. Anything else throws
+ * {@link SCAN_REPLY_REFUSED}.
+ *
+ * **The single home of what a SCAN-family reply envelope means**, shaped
+ * command-neutral: the owned-set `SSCAN` is its first caller, and a later
+ * paged read reuses it rather than decoding its own. **Strict on purpose**: a
+ * missing cursor read as `undefined` never equals `'0'`, so the pass would
+ * never end; defaulted to `'0'`, it would end after one page. The cursor is
+ * never parsed as a number.
+ *
+ * Exported for the test suite only (like {@link decodeBeatReply}); `mod.ts`
+ * does not re-export it.
+ *
+ * @param reply - The `SSCAN` (or other SCAN-family) reply.
+ * @returns The next cursor and the page's raw items.
+ * @throws {Error} {@link SCAN_REPLY_REFUSED}, for any other shape.
+ * @example
+ * ```ts
+ * decodeScanReply({
+ *     type: 'array',
+ *     value: [{ type: 'bulk', value: '0' }, { type: 'array', value: [] }],
+ * }) // { cursor: '0', items: [] }
+ * ```
+ */
+export function decodeScanReply(reply: unknown): ScanPage {
+    const parts = asArray(reply)
+    if (parts?.length === 2) {
+        const cursor = asBulk(parts[0])
+        const items = asArray(parts[1])
+        if (
+            typeof cursor === 'string' && SCAN_CURSOR.test(cursor) &&
+            items !== undefined
+        ) {
+            return { cursor, items }
+        }
+    }
+    throw new Error(SCAN_REPLY_REFUSED)
+}
+
+/**
  * What one heartbeat's `SET <alive key> 1 EX <ttl> GET` reported (#349):
  * `continuous` — the key existed, so this renewal extended it; `lapsed` — the
  * key had expired or was deleted, so this write re-created it, and a peer may
@@ -965,12 +1034,18 @@ export function decodeBeatReply(reply: unknown): BeatOutcome {
 /**
  * How one instance's sweep stopped without throwing (#355) — which line the
  * Redis driver's sweep logs:
- * - `completed` — every owned entry released, then deregistered or kept by a
- *   late hold;
+ * - `completed` — one full scan of the owned set, then deregistered;
+ * - `kept` — one full scan, then the deregistration answered *kept*: the
+ *   owned set still holds an entry (a hold that landed behind the scan's
+ *   cursor, or one that does not parse), so the instance stays registered
+ *   and a later pass resumes it (#358);
  * - `closed` — cut short by `close()`;
  * - `renewed` — a release or the deregistration was refused.
+ *
+ * `kept` and `closed` leave work behind: their "released" line carries the
+ * *unfinished* suffix.
  */
-type SweepStop = 'completed' | 'closed' | 'renewed'
+type SweepStop = 'completed' | 'kept' | 'closed' | 'renewed'
 
 /** How one instance's sweep ended: a {@link SweepStop}, or the error it threw. */
 type SweepEnd = SweepStop | { readonly failed: unknown }
@@ -1102,6 +1177,29 @@ const MIN_CONTROL_SECRET_BYTES = 32
  * two slots from sharing one holders hash.
  */
 const OWNED_SEP = ' '
+
+/**
+ * The `COUNT` of every owned-set page the ghost sweep reads (#358) — the
+ * single home of the page size, and not configurable: no option, no
+ * environment variable. Exported for the test suite only; `mod.ts` does not
+ * re-export it.
+ *
+ * **The bound it buys.** An owned entry is at most a 200-byte channel, a space
+ * and a 600-byte member id (200 characters of UTF-8): about 812 wire bytes
+ * with its RESP framing. A hashtable-encoded set answers about `COUNT`
+ * members per call, plus the rest of the last bucket it visited, so one page
+ * stays around 100 KB of wire at maximum entry length (typically about 5 KB)
+ * against the command client's 32 MiB reply cap — and a survivor holds one
+ * page of a dead instance's owned set at a time.
+ *
+ * **It holds only while the broker honours `COUNT`** (S4). A listpack-encoded
+ * set is answered whole whatever `COUNT` says (by default at most 128 entries
+ * of at most 64 bytes, so harmless); an operator who raises
+ * `set-max-listpack-entries` into the tens of thousands, or a Redis-compatible
+ * server that answers `SSCAN` whole, reopens a large reply on that deployment.
+ * The #285 live conformance case asserts the broker pages.
+ */
+export const OWNED_SCAN_COUNT = 100
 
 /**
  * What an undecodable swept entry costs (#348), appended to the decoder's
@@ -2879,9 +2977,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * **It logs one line per instance, or none** (#355), counting from the
      * decoded outcomes: N = emptied + kept (holds actually removed), E =
      * emptied (departures announced); an *absent* release removed nothing.
-     * - `completed`, or `closed` (cut short by {@link close}), N > 0:
+     * - `completed`, `kept` or `closed` (cut short by {@link close}), N > 0:
      *   `released N hold(s) of dead instance <id> (E emptied their slot)` —
-     *   nothing at N = 0, so the count covers every hold removed;
+     *   nothing at N = 0, so the count covers every hold removed. On `kept`
+     *   and `closed`, which leave the instance registered with work behind,
+     *   the line ends `— unfinished: it stays registered and a later pass
+     *   resumes it` (#358); it gives no count of what remains;
      * - `renewed`: `instance <id> renewed its liveness while being swept …`;
      * - thrown: `sweep of dead instance <id> failed after N hold(s) released
      *   (E emptied): <error>`.
@@ -2916,9 +3017,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     `released (${emptied} emptied) before it did`,
             )
         } else if (released > 0) {
+            const unfinished = end === 'kept' || end === 'closed'
+                ? ' — unfinished: it stays registered and a later pass ' +
+                    'resumes it'
+                : ''
             console.warn(
                 `realtime: released ${released} hold(s) of dead instance ` +
-                    `${id} (${emptied} emptied their slot)`,
+                    `${id} (${emptied} emptied their slot)${unfinished}`,
             )
         }
     }
@@ -2929,6 +3034,19 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * reply is decoded, so a throw mid-sweep leaves the count of what was
      * already removed for {@link #sweepInstance}'s "failed" line.
      *
+     * **The owned set is read here and nowhere else, one page at a time**
+     * (#358): `SSCAN <owned key> <cursor> COUNT` {@link OWNED_SCAN_COUNT}, no
+     * other option, each page released by {@link #sweepPage} before the next
+     * is read. The scan is **one full iteration per pass**, ending only when
+     * the cursor comes back `'0'` — no budget, no resume state: the owned set
+     * shrinks under its own releases, and what is left is the next pass's
+     * work. No sweep reply grows with the owned set, and a survivor holds one
+     * page of it at a time. The one SCAN guarantee relied on: a member present
+     * for the whole iteration is returned at least once. A duplicate, or an
+     * entry another survivor already released, is an *absent* release; a
+     * member added mid-iteration may be missed, and the deregistration then
+     * answers *kept*.
+     *
      * **A sweep is a leave on the dead instance's behalf**: one
      * {@link RELEASE_MEMBER_SCRIPT} per owned entry, with `deadId` as the
      * releaser, so a slot another live instance still holds stays in the
@@ -2938,10 +3056,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * the room hears it once.
      *
      * **The owned set is never `DEL`eted.** Each release already removes its
-     * own entry; a hold that lands between the `SMEMBERS` below and the end of
-     * the sweep stays in the set, sweepable next time (S1c) — and keeps the
-     * instance registered, because {@link DEREGISTER_INSTANCE_SCRIPT} only
-     * deregisters an instance that owns nothing (#355 A4).
+     * own entry; a hold that lands behind the scan's cursor stays in the set,
+     * sweepable next time (S1c) — and keeps the instance registered, because
+     * {@link DEREGISTER_INSTANCE_SCRIPT} only deregisters an instance that
+     * owns nothing (#355 A4). That script decides; the control flow only
+     * asks.
      *
      * **Every write asks whether the instance is still dead, inside the
      * write** (#355). A *refused* release or deregistration means it renewed
@@ -2950,14 +3069,20 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * (re-holding it is #349).
      *
      * **Once {@link close} has begun it issues nothing more**: it checks
-     * before each release and before the deregistration — never between a
-     * release reply and the announcement, so an in-flight release's departure
-     * is still announced.
+     * before each page read, before each release and before the
+     * deregistration — never between a release reply and the announcement, so
+     * an in-flight release's departure is still announced. The check before a
+     * page read is what bounds `close()` through a run of pages that release
+     * nothing (empty pages, unparsable entries).
      *
      * Its exits, each one an end {@link #sweepInstance} logs from:
-     * - `closed` — `close()` began, at either check;
-     * - `renewed` — a release or the deregistration was refused;
-     * - `completed` — deregistered, or kept by a late hold (next pass);
+     * - `closed` — `close()` began: checked before each page read, before
+     *   each release ({@link #sweepPage}) and before the deregistration;
+     * - `renewed` — a release or the deregistration was refused; no further
+     *   page is read;
+     * - `completed` — one full scan, then deregistered;
+     * - `kept` — one full scan, then kept by a late or unparsable entry
+     *   (next pass);
      * - a throw — a round trip or a decoder failed.
      *
      * @param deadId - The instance whose liveness lapsed.
@@ -2970,11 +3095,68 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         deadId: string,
         count: SweepCount,
     ): Promise<SweepStop> {
-        const reply = await this.command.command(
-            'SMEMBERS',
-            this.ownedKey(deadId),
+        let cursor = '0'
+        do {
+            if (this.#closing) return 'closed'
+            const page = decodeScanReply(
+                await this.command.command(
+                    'SSCAN',
+                    this.ownedKey(deadId),
+                    cursor,
+                    'COUNT',
+                    String(OWNED_SCAN_COUNT),
+                ),
+            )
+            const end = await this.#sweepPage(deadId, page.items, count)
+            if (end !== 'swept') return end
+            cursor = page.cursor
+        } while (cursor !== '0')
+        if (this.#closing) return 'closed'
+        const deregistration = decodeDeregisterReply(
+            await this.command.command(
+                'EVAL',
+                DEREGISTER_INSTANCE_SCRIPT,
+                '3',
+                this.instancesKey,
+                this.aliveKey(deadId),
+                this.ownedKey(deadId),
+                deadId,
+            ),
         )
-        const owned = asArray(reply) ?? []
+        return deregistration === 'deregistered' ? 'completed' : deregistration
+    }
+
+    /**
+     * Release one page of a dead instance's owned set (#358): the per-entry
+     * body of the sweep, moved verbatim out of {@link #sweepOwned} so the page
+     * loop stays flat. One {@link RELEASE_MEMBER_SCRIPT} per parsable entry,
+     * counted into `count`, and each emptied slot handed to
+     * {@link #announceSwept} straight from its release reply.
+     *
+     * **A page read never sits between a release reply and its
+     * announcement** (#348 A1): the next page is read only after this
+     * returns, after the page's last announcement.
+     *
+     * Its declared return type makes a bare `return` a compile error (the
+     * #355 rule), so every exit says how the page ended:
+     * - `swept` — every entry of the page handled; the scan goes on;
+     * - `closed` — {@link close} began, checked before each release;
+     * - `renewed` — a release was refused: the instance is alive again, and
+     *   the scan stops at the first refusal.
+     *
+     * @param deadId - The instance whose liveness lapsed.
+     * @param owned - The page's raw owned entries, from
+     *   {@link decodeScanReply}.
+     * @param count - Incremented per hold removed (N) and per slot emptied (E).
+     * @returns How the page ended.
+     * @throws {Error} When a release round trip fails or its reply does not
+     *   decode.
+     */
+    async #sweepPage(
+        deadId: string,
+        owned: readonly unknown[],
+        count: SweepCount,
+    ): Promise<'swept' | 'closed' | 'renewed'> {
         for (const raw of owned) {
             const entry = asBulk(raw)
             if (!entry) continue
@@ -2996,24 +3178,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             count.emptied++
             await this.#announceSwept(channel, field, outcome.entry)
         }
-        if (this.#closing) return 'closed'
-        const deregistration = decodeDeregisterReply(
-            await this.command.command(
-                'EVAL',
-                DEREGISTER_INSTANCE_SCRIPT,
-                '3',
-                this.instancesKey,
-                this.aliveKey(deadId),
-                this.ownedKey(deadId),
-                deadId,
-            ),
-        )
-        return deregistration === 'renewed' ? 'renewed' : 'completed'
+        return 'swept'
     }
 
     /**
      * Report one slot a sweep release emptied to the departure handler
-     * ({@link onRosterDeparture}) — its only caller is {@link #sweepOwned},
+     * ({@link onRosterDeparture}) — its only caller is {@link #sweepPage},
      * which makes this the only path to the handler (#348).
      *
      * **What it reports is checked here, where the slot is known** (#348 A2,

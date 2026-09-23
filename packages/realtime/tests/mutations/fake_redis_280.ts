@@ -237,6 +237,53 @@ const MUTATIONS: Mutation[] = [
         killedBy: 'the arms with no options refuse extra arguments',
     },
     {
+        // (#358 F1) An SSCAN with no COUNT answered at Redis's default of 10:
+        // a page its caller does not bound, which is the defect #358 closes.
+        label: 'SSCAN accepts a missing COUNT again',
+        file: FAKE,
+        edits: [[
+            "                if (count === undefined) {\n                    this.#reject(\n                        'FakeRedis: SSCAN without COUNT",
+            "                count ??= 10\n                if (false) {\n                    this.#reject(\n                        'FakeRedis: SSCAN without COUNT",
+        ]],
+        killedBy: '#358 WC SSCAN refuses a missing COUNT',
+    },
+    {
+        // (#358 F2) MATCH silently ignored — the #276 shape: the caller
+        // believes the page is filtered, and the fake hands it every member.
+        label: 'SSCAN accepts MATCH again',
+        file: FAKE,
+        edits: [[
+            "                    if (option !== 'COUNT') {",
+            "                    if (option === 'MATCH') continue\n                    if (option !== 'COUNT') {",
+        ]],
+        // The witness's "any option but COUNT" clause — its missing-COUNT
+        // clause is F1's.
+        killedBy: '#358 WC SSCAN refuses a missing COUNT, any option but COUNT',
+    },
+    {
+        // (#358 F3) A cursor this fake never issued answered as a plausible
+        // `[0, []]` — an empty, finished iteration — so a test driving the
+        // scan with a made-up cursor reads "nothing left" instead of failing.
+        label: 'the scan core answers a cursor past its table again',
+        file: FAKE,
+        edits: [[
+            '        if (from >= SCAN_TABLE_SLOTS) {\n',
+            '        if (false) {\n',
+        ]],
+        killedBy: '#358 WC SSCAN refuses a missing cursor and a cursor past',
+    },
+    {
+        // (#358 F4) A per-key ceiling only: a caller that moves to a fresh
+        // key on every call never trips it, and hangs instead of failing.
+        label: 'the scan core loses its cumulative call ceiling',
+        file: FAKE,
+        edits: [[
+            ' || this.#scanTotal > SCAN_CALLS_TOTAL) {',
+            ') {',
+        ]],
+        killedBy: '#358 the scan core refuses past its cumulative call ceiling',
+    },
+    {
         label:
             'a refusal stops being recorded, so a swallowed throw goes silent',
         file: FAKE,

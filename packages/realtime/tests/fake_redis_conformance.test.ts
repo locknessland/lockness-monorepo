@@ -15,7 +15,7 @@
  * @module @lockness/realtime/tests/fake_redis_conformance
  */
 
-import { assertEquals, assertThrows } from '@std/assert'
+import { assert, assertEquals, assertRejects, assertThrows } from '@std/assert'
 import { FakeRedis, serializedCommands } from './fake_redis.ts'
 
 const int = (value: number) => ({ type: 'integer', value })
@@ -652,4 +652,229 @@ Deno.test('#348 whenIssued resolves on the matching command being ISSUED, before
     assertEquals(await other, int(1))
     assertEquals(await second, bulk('v'))
     assertEquals(started, ['HSET', 'EXISTS', 'HGET'])
+})
+
+// --- #358: SSCAN and the scan core --------------------------------------------
+
+/** An `SSCAN` reply as the fake returns it: `[cursor, [member, ...]]`. */
+type ScanReply = {
+    type: 'array'
+    value: [{ value: string }, { value: { value: string }[] }]
+}
+
+/** One `SSCAN key cursor COUNT count` call: its next cursor and members. */
+async function sscan(
+    r: FakeRedis,
+    key: string,
+    cursor: string,
+    count: string,
+): Promise<{ cursor: string; members: string[] }> {
+    const reply = await r.command(
+        'SSCAN',
+        key,
+        cursor,
+        'COUNT',
+        count,
+    ) as ScanReply
+    return {
+        cursor: reply.value[0].value,
+        members: reply.value[1].value.map((m) => m.value),
+    }
+}
+
+Deno.test('#358 WC SSCAN refuses a missing COUNT, any option but COUNT, and a non-canonical cursor — into the ledger', async () => {
+    // The #280 rule: an option the fake does not model is REFUSED, never
+    // ignored. MATCH filters the page, so an ignored MATCH hands the sweep
+    // members a real broker would not; a missing COUNT is a scan whose page
+    // its caller does not bound — the very defect #358 closes.
+    const r = new FakeRedis()
+    await r.command('SADD', 'set', 'a', 'b')
+    const refused: [string[], string][] = [
+        [['SSCAN', 'set', '0'], 'SSCAN without COUNT'],
+        [
+            ['SSCAN', 'set', '0', 'MATCH', '*', 'COUNT', '10'],
+            "unmodelled SSCAN option 'MATCH'",
+        ],
+        [
+            ['SSCAN', 'set', '0', 'COUNT', '10', 'MATCH', '*'],
+            "unmodelled SSCAN option 'MATCH'",
+        ],
+        [
+            ['SSCAN', 'set', '0', 'COUNT', '10', 'NOVALUES', 'x'],
+            "unmodelled SSCAN option 'NOVALUES'",
+        ],
+        [
+            ['SSCAN', 'set', '0', 'TYPE', 'string', 'COUNT', '10'],
+            "unmodelled SSCAN option 'TYPE'",
+        ],
+        [['SSCAN', 'set', '00', 'COUNT', '10'], 'is not canonical decimal'],
+        [['SSCAN', 'set', '01', 'COUNT', '10'], 'is not canonical decimal'],
+        [['SSCAN', 'set', 'x1', 'COUNT', '10'], 'is not canonical decimal'],
+        [['SSCAN', 'set', '', 'COUNT', '10'], 'is not canonical decimal'],
+        [
+            ['SSCAN', 'set', '1'.repeat(21), 'COUNT', '10'],
+            'is not canonical decimal',
+        ],
+        [['SSCAN', 'set', '0', 'COUNT', '0'], 'COUNT must be a positive'],
+        [['SSCAN', 'set', '0', 'COUNT', '-5'], 'COUNT must be a positive'],
+        [['SSCAN', 'set', '0', 'COUNT'], 'COUNT must be a positive'],
+        [
+            ['SSCAN', 'set', '0', 'COUNT', '10', 'COUNT', '10'],
+            'SSCAN given COUNT twice',
+        ],
+    ]
+    for (const [argv, reason] of refused) {
+        assertThrows(() => run(r, ...argv), Error, reason, argv.join(' '))
+    }
+    // Every refusal reached the ledger, so a driver that swallows one still
+    // fails its teardown.
+    assertThrows(
+        () => r.assertNoRejections(),
+        Error,
+        `refused ${refused.length} command(s)`,
+    )
+})
+
+Deno.test('#358 SSCAN answers a set of at most COUNT whole at cursor 0, and an absent key as [0, []]', async () => {
+    const r = new FakeRedis()
+    assertEquals(await sscan(r, 'absent', '0', '10'), {
+        cursor: '0',
+        members: [],
+    })
+    await r.command('SADD', 'set', 'a', 'b', 'c')
+    assertEquals(await sscan(r, 'set', '0', '3'), {
+        cursor: '0',
+        members: ['a', 'b', 'c'],
+    })
+    r.assertNoRejections()
+})
+
+Deno.test('#358 SSCAN walks a larger set by stable slots: each member once per iteration, and a removal shifts nothing', async () => {
+    const r = new FakeRedis()
+    const seeded = Array.from({ length: 300 }, (_, i) => `m${i}`)
+    await r.command('SADD', 'set', ...seeded)
+
+    // One whole iteration: pages in slot order from the cursor, each member
+    // exactly once, an empty page with a non-zero cursor, cursor 0 at the end.
+    const seen: string[] = []
+    let cursor = '0'
+    let calls = 0
+    let emptyMidway = false
+    do {
+        const page = await sscan(r, 'set', cursor, '10')
+        calls++
+        for (const m of page.members) {
+            assert(
+                FakeRedis.scanSlot(m) >= Number(cursor),
+                `${m} lies at or ahead of cursor ${cursor}`,
+            )
+        }
+        if (page.members.length === 0 && page.cursor !== '0') {
+            emptyMidway = true
+        }
+        seen.push(...page.members)
+        cursor = page.cursor
+    } while (cursor !== '0')
+    assert(calls > 1, 'a set larger than COUNT is paged')
+    assert(emptyMidway, 'a sparse window answers an empty page, not the end')
+    assertEquals(seen.length, seeded.length, 'no member returned twice')
+    assertEquals([...seen].sort(), [...seeded].sort())
+
+    // A removal mid-iteration moves nobody: the rest of the walk returns
+    // exactly the members whose slots it had not visited yet.
+    const first = await sscan(r, 'set', '0', '100')
+    const next = Number(first.cursor)
+    const behind = seeded.filter((m) => FakeRedis.scanSlot(m) < next)
+    const ahead = seeded.filter((m) => FakeRedis.scanSlot(m) >= next)
+    assertEquals([...first.members].sort(), [...behind].sort())
+    await r.command('SREM', 'set', ahead[0], behind[0])
+    const rest: string[] = []
+    cursor = first.cursor
+    do {
+        const page = await sscan(r, 'set', cursor, '100')
+        rest.push(...page.members)
+        cursor = page.cursor
+    } while (cursor !== '0')
+    assertEquals([...rest].sort(), ahead.slice(1).sort())
+    r.assertNoRejections()
+})
+
+Deno.test('#358 the scan core refuses past its per-key call ceiling, so a scan that never advances fails instead of hanging', async () => {
+    const r = new FakeRedis()
+    await r.command(
+        'SADD',
+        'set',
+        ...Array.from({ length: 20 }, (_, i) => `m${i}`),
+    )
+    // A caller that restarts at cursor 0 on every call never ends an
+    // iteration, so only a ceiling on calls — not on one iteration — stops it.
+    let refusedAt = 0
+    for (let call = 1; call <= 2_000 && refusedAt === 0; call++) {
+        try {
+            await sscan(r, 'set', '0', '1')
+        } catch (error) {
+            refusedAt = call
+            assert(
+                error instanceof Error &&
+                    error.message.includes('scan call ceiling'),
+                String(error),
+            )
+        }
+    }
+    assertEquals(refusedAt, 1_001, 'refused on the first call past 1,000')
+    assertThrows(() => r.assertNoRejections(), Error, 'scan call ceiling')
+})
+
+Deno.test('#358 the scan core refuses past its cumulative call ceiling, across keys, so a caller that moves to a fresh key per call still fails', async () => {
+    const r = new FakeRedis()
+    const keys = Array.from({ length: 11 }, (_, i) => `set-${i}`)
+    for (const key of keys) await r.command('SADD', key, 'm')
+    // Ten keys at 1,000 calls each: every call within its key's ceiling, and
+    // 10,000 in all — the cumulative ceiling exactly, not past it.
+    for (const key of keys.slice(0, 10)) {
+        for (let call = 0; call < 1_000; call++) {
+            await sscan(r, key, '0', '1')
+        }
+    }
+    r.assertNoRejections()
+    // The 10,001st call is the first on the eleventh key: only the
+    // cumulative ceiling can refuse it.
+    await assertRejects(
+        () => sscan(r, keys[10], '0', '1'),
+        Error,
+        '(1 on this key, 10001 in all)',
+    )
+    assertThrows(() => r.assertNoRejections(), Error, 'scan call ceiling')
+})
+
+Deno.test('#358 WC SSCAN refuses a missing cursor and a cursor past the slot table — into the ledger', async () => {
+    // Real Redis requires the cursor, and accepts any number as one; this fake
+    // refuses a cursor past its table because it never issued one, so a test
+    // that drives it with a made-up cursor fails instead of reading a
+    // plausible `[0, []]` — an empty, finished iteration.
+    const r = new FakeRedis()
+    await r.command('SADD', 'set', 'a', 'b')
+    const refused: [string[], string][] = [
+        [['SSCAN'], 'SSCAN takes key and cursor, got 0'],
+        [['SSCAN', 'set'], 'SSCAN takes key and cursor, got 1'],
+        [
+            ['SSCAN', 'set', '1024', 'COUNT', '10'],
+            'lies past the 1024-slot table',
+        ],
+        [
+            ['SSCAN', 'set', '99999', 'COUNT', '10'],
+            'lies past the 1024-slot table',
+        ],
+    ]
+    for (const [argv, reason] of refused) {
+        assertThrows(() => run(r, ...argv), Error, reason, argv.join(' '))
+    }
+    assertThrows(
+        () => r.assertNoRejections(),
+        Error,
+        `refused ${refused.length} command(s)`,
+    )
+    // The last slot is still a cursor the fake can have issued.
+    const reply = await r.command('SSCAN', 'set', '1023', 'COUNT', '1')
+    assertEquals((reply as { type: string }).type, 'array')
 })

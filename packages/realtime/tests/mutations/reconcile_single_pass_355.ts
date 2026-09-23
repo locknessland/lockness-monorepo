@@ -5,10 +5,11 @@
  *
  * The remedy spreads its decisions over a handful of homes in
  * `drivers/redis.ts`: `#armReconcile` (the one arming site), `close()` (the
- * stop / drop / await order), the three `#closing` checks, the two scripts
- * (the in-write liveness check, deregistration only while dead AND owning
- * nothing), the decoders, and `#sweepInstance`'s count and per-instance
- * catch. Each row below drops one clause a refactor could drop while the rest
+ * stop / drop / await order), the `#closing` checks (three at #355; #358
+ * added a fourth, before each page read, which its own battery covers), the
+ * two scripts (the in-write liveness check, deregistration only while dead
+ * AND owning nothing), the decoders, and `#sweepInstance`'s count and
+ * per-instance catch. Each row below drops one clause a refactor could drop while the rest
  * of the suite stays green.
  *
  * - M1 the sweep back on a `setInterval`: passes pile up on a slow broker.
@@ -23,7 +24,9 @@
  *   owned-set condition (A4): a late hold orphaned.
  * - M11 `close()` does not await the pass.
  * - M12a / b / c the `#closing` check dropped at the top of the loop body /
- *   before each release / before the deregistration.
+ *   before each release / before the deregistration. (The fourth, before each
+ *   page read, is `sweep_paging_358` M6; M12b anchors on the check plus the
+ *   release, since the check line alone now appears twice at 12 spaces.)
  * - M13 `#armReconcile`'s closing check dropped (A2, S2).
  * - M14 `#ensureSweepStarted` arms the heartbeat while closing.
  * - M15 `revocationHandler` dropped after the await instead of before (A1).
@@ -343,9 +346,14 @@ const MUTATIONS: Mutation[] = [
         file: REDIS,
         // Re-anchored by the #355 review: the closing checks now return
         // 'closed', and the one log site is what would drop the line.
+        // Re-written for #358: the branch now picks the *unfinished* suffix
+        // with `end === 'kept' || end === 'closed'`, so a guard that NARROWS
+        // `end` (the old `end === 'completed'`) no longer type-checks and the
+        // row went DEAD. `String(end)` drops the line on the close() path
+        // without narrowing; the anchor line is unchanged.
         edits: [[
             '        } else if (released > 0) {\n',
-            "        } else if (released > 0 && end === 'completed') {\n",
+            "        } else if (released > 0 && String(end) !== 'closed') {\n",
         ]],
         killedBy: '#355 W4 (vii)',
     },

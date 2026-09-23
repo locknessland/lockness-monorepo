@@ -238,7 +238,7 @@ Deno.test('#355 W1 a slow broker gets one pass, not a pile-up: one owned-set rea
         // B holds something, so its reconcile pass runs.
         await b.holdMember(OTHER, { id: 9 })
         const slow = serial.hold((args) =>
-            args[0] === 'SMEMBERS' && args[1] === OWNED_KEY(DEAD)
+            args[0] === 'SSCAN' && args[1] === OWNED_KEY(DEAD)
         )
         await time.tickAsync(1_000)
         await slow.reached
@@ -250,7 +250,7 @@ Deno.test('#355 W1 a slow broker gets one pass, not a pile-up: one owned-set rea
 
         const issued = (cmd: string, key: string) =>
             sent.filter((a) => a[0] === cmd && a[1] === key).length
-        assertEquals(issued('SMEMBERS', OWNED_KEY(DEAD)), 1)
+        assertEquals(issued('SSCAN', OWNED_KEY(DEAD)), 1)
         assertEquals(
             issued('SMEMBERS', INSTANCES_KEY),
             1,
@@ -433,7 +433,7 @@ Deno.test('#355 W4 (iii) close() mid-sweep: a second dead instance is never read
         assertEquals(
             sent.filter((a) =>
                 (a[0] === 'EXISTS' && a[1] === ALIVE_KEY(DEAD2)) ||
-                (a[0] === 'SMEMBERS' && a[1] === OWNED_KEY(DEAD2))
+                (a[0] === 'SSCAN' && a[1] === OWNED_KEY(DEAD2))
             ),
             [],
             'no EXISTS and no owned-set read for the next instance',
@@ -581,9 +581,11 @@ Deno.test('#355 W4 (vii) a sweep cut short by close() still counts what it remov
         await closing
         await settle()
 
+        // A `closed` end at N = 1 leaves work behind: unfinished (#358).
         assertEquals(warnings.having(RELEASED), [
             `realtime: released 1 hold(s) of dead instance ${DEAD} ` +
-            '(1 emptied their slot)',
+            '(1 emptied their slot) — unfinished: it stays registered and a ' +
+            'later pass resumes it',
         ])
         assertEquals(await registered(redis, DEAD), true, 'not deregistered')
     } finally {
@@ -610,9 +612,11 @@ Deno.test('#355 W4 (vii) a sweep cut short by close() still counts what it remov
         await closing
         await settle()
 
+        // A `closed` end at N = 1 leaves work behind: unfinished (#358).
         assertEquals(warnings2.having(RELEASED), [
             `realtime: released 1 hold(s) of dead instance ${DEAD} ` +
-            '(1 emptied their slot)',
+            '(1 emptied their slot) — unfinished: it stays registered and a ' +
+            'later pass resumes it',
         ])
     } finally {
         warnings2.restore()
@@ -631,7 +635,7 @@ Deno.test('#355 W4 (vii) a sweep cut short by close() still counts what it remov
         await plantHold(redis3, '7')
         await b3.holdMember(OTHER, { id: 9 })
         const read = port3.serial.hold((args) =>
-            args[0] === 'SMEMBERS' && args[1] === OWNED_KEY(DEAD)
+            args[0] === 'SSCAN' && args[1] === OWNED_KEY(DEAD)
         )
         await time3.tickAsync(1_000)
         await read.reached
@@ -820,7 +824,7 @@ Deno.test('#355 W7 the first dead instance’s owned set cannot be read: one "fa
     let refused = 0
     const flaky: CommandFn = (...args) => {
         if (
-            args[0] === 'SMEMBERS' && args[1] === OWNED_KEY(DEAD) &&
+            args[0] === 'SSCAN' && args[1] === OWNED_KEY(DEAD) &&
             refused === 0
         ) {
             refused++

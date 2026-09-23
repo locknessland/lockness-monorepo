@@ -45,7 +45,9 @@ export interface PortRecording {
  *
  * A function receives the argv, so a test can vary a reply without the double
  * acquiring state. Anything unlisted answers `null`, which every driver read
- * path treats as "absent".
+ * path treats as "absent" — except the sweep's owned-set `SSCAN` (#358), whose
+ * decoder throws on `null`. No test sweeps through these ports, so none lists
+ * `SSCAN`; one that does must answer a `[cursor, array]` page.
  */
 export type CannedReplies = Record<
     string,

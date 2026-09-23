@@ -245,8 +245,9 @@ const MUTATIONS: Mutation[] = [
         expectSurvival:
             'Equivalent since #355. `close()` now awaits the pass in flight ' +
             'before it drops the handler; the pass stops at its next write ' +
-            'once `#closing` is set (before each release, before the ' +
-            'deregistration, before the next instance), and `#armReconcile` ' +
+            'once `#closing` is set (before each page read and each ' +
+            'release, before the deregistration, before the next instance), ' +
+            'and `#armReconcile` ' +
             'never arms while closing — so once `close()` resolves nothing ' +
             'can call the departure handler, dropped or not. Falsified by a ' +
             'second sweep entry point that neither awaits `#reconcilePass` ' +

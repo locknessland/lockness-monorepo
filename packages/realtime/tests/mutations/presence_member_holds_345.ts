@@ -14,11 +14,14 @@
  * - The hold script's clauses: the holders `HSET` and the instance
  *   registration (`SADD instances`, S1b).
  * - The sweep's: it releases with `deadId` through the same script, and it
- *   never `DEL`s the owned set (S1c). Its three rows were re-anchored for
+ *   never `DEL`s the owned set, so a hold landing between its owned-set read
+ *   and its end stays sweepable (S1c). Its three rows were re-anchored for
  *   #355, whose sweep asks for the liveness check and deregisters through a
  *   script instead of a raw `SREM`; each was re-proven live. The #355
  *   review moved the sweep's writes into `#sweepOwned`, one indent
- *   shallower: all three re-anchored again and re-proven live.
+ *   shallower: all three re-anchored again and re-proven live. #358 moved
+ *   the per-entry body verbatim into `#sweepPage`, at the same indentation,
+ *   so no anchor moved; the S1c row's `killedBy` follows the renamed test.
  * - The key layout: the holders key names the slot, not just the channel.
  * - The decoder: 1 → true, 0 → false, anything else throws (FR-004a).
  *
@@ -182,10 +185,10 @@ const MUTATIONS: Mutation[] = [
             "        await this.command.command('DEL', this.ownedKey(deadId))\n" +
             '        const deregistration = decodeDeregisterReply(\n',
         ]],
-        // A hold landing between the sweep's SMEMBERS and its end loses its
+        // A hold landing between the sweep's owned-set read and its end loses its
         // owned entry, and the next sweep can no longer reach it.
         killedBy:
-            "#345 S1c a hold landing between a sweep's SMEMBERS and its end stays in the owned set",
+            "#345 S1c a hold landing between a sweep's owned-set read and its end stays in the owned set",
     },
     // ── the decoder ────────────────────────────────────────────────────────
     {

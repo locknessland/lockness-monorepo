@@ -15,6 +15,10 @@
  * the SET of revoked ids could not see a wrong clock source, because membership
  * is identical either way while every expiry is wrong.
  *
+ * One row guards a model instead of restoring a past bug: #358 L1, a scan core
+ * that skips a member present for the whole iteration — the one SCAN guarantee
+ * the ghost sweep relies on, checked against the broker by #358 WC's union.
+ *
  * **Requires a live broker.** Without one the suite is `ignored`, which the
  * harness reads as green — so every row would "survive" and the file would
  * report a catastrophe that is really just a missing service. It refuses to
@@ -138,6 +142,19 @@ const MUTATIONS: Mutation[] = [
             'return result[Number(index)]',
         ]],
         killedBy: 'the revocation scripts agree',
+    },
+    {
+        // (#358 L1) The scan core skips the member in each page's first slot:
+        // an off-by-one that breaks the one SCAN guarantee the sweep relies
+        // on — a member present for the whole iteration is returned — while
+        // every page still looks well formed.
+        label: 'the fake scan core skips a member present throughout',
+        file: FAKE,
+        edits: [[
+            '            .filter(({ slot }) => slot >= from && slot < to)\n',
+            '            .filter(({ slot }) => slot > from && slot < to)\n',
+        ]],
+        killedBy: '#358 WC a full SSCAN iteration',
     },
 ]
 

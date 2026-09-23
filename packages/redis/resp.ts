@@ -102,10 +102,16 @@ const MAX_LINE_BYTES = 64 * 1024
  * measured at 81.5 MB of heap, a 20.4x amplification. A nested `*` header then
  * buys a fresh element budget.
  *
- * 32 MiB is above any legitimate reply this client issues (the largest is a
- * roster read). Sized in WIRE bytes, which is the unit the check can enforce —
- * but the hazard is heap, and at the amplification measured above that is on the
- * order of hundreds of MiB per concurrent reply. On a small container, lower it.
+ * **The rule for every consumer: a reply that grows with a collection must be
+ * bounded by its caller** — paged (a SCAN-family read with a `COUNT`), or
+ * bounded inside the script that builds it. This cap is a **backstop, not a
+ * budget to plan against**: crossing it costs the consumer the whole socket and
+ * every command queued behind it, not one refused reply. Each consumer documents
+ * its own bounds at the bounding site; this comment lists none of them (#358).
+ *
+ * Sized in WIRE bytes, which is the unit the check can enforce — but the hazard
+ * is heap, and at the amplification measured above that is on the order of
+ * hundreds of MiB per concurrent reply. On a small container, lower it.
  */
 const MAX_REPLY_BYTES = 32 * 1024 * 1024
 

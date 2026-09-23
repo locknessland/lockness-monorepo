@@ -5,10 +5,48 @@
  * `PUBLISH`, the roster hash (`HSET`/`HDEL`/`HGETALL`, `HLEN`/`HMGET`/
  * `HRANDFIELD … WITHVALUES` for the bounded read, #341, and `HGET` for the
  * roster release, #345), the owned/instances sets
- * (`SADD`/`SREM`/`SMEMBERS`/`DEL`) and the liveness string (`SET … EX`/`EXISTS`)
+ * (`SADD`/`SREM`/`SMEMBERS`/`DEL`, and `SSCAN … COUNT` for the sweep's paged
+ * owned-set read, #358) and the liveness string (`SET … EX`/`EXISTS`)
  * — returning `RespReply`-shaped values so the driver's real reply-narrowing
  * runs unchanged. Pub/sub fan-out is synchronous, like the existing
  * `driver_redis.test.ts` fake bus.
+ *
+ * **The scan model** (#358). `SSCAN key cursor COUNT n` is answered by one
+ * private scan core (member list, cursor and `COUNT` in, one page out), which
+ * a later SCAN-family arm reuses rather than walking its own way:
+ * - **Refused, never ignored**: a missing `COUNT`, any option but `COUNT`
+ *   (`MATCH` among them — it filters the page, so ignoring it hands the caller
+ *   members a real broker would not), a cursor that is not canonical decimal
+ *   (`/^(0|[1-9][0-9]{0,19})$/`), a cursor past the slot table (never one this
+ *   fake issued), and a `COUNT` that is not a positive integer.
+ * - **A set of at most `COUNT` members, asked at cursor `0`, is answered whole
+ *   with cursor `0`.** Every sweep test whose owned set fits one page still
+ *   issues exactly one owned-set read. **Deliberate divergence**: Redis answers
+ *   whole only for a listpack-encoded set (by default at most 128 entries of at
+ *   most 64 bytes), so this fake pages sets of 101–128 short entries that Redis
+ *   would answer whole at `COUNT 100`. The fake is the stricter of the two.
+ * - **A larger set is walked over a fixed virtual table of
+ *   {@link SCAN_TABLE_SLOTS} slots.** A member's slot is a hash of the member
+ *   ({@link FakeRedis.scanSlot}), so a removal never shifts another member;
+ *   each call visits `COUNT` slots from the cursor and returns their members;
+ *   the next cursor is the next unvisited slot, or `0` past the end. Empty
+ *   pages with a non-zero cursor therefore happen, and a member present for
+ *   the whole iteration is returned **exactly once**. A test places a member
+ *   ahead of or behind a cursor with `FakeRedis.scanSlot`, and predicts the
+ *   walk's order with `FakeRedis.scanOrder` — the one ordering the core sorts
+ *   by, slot then byte order.
+ * - **Not modelled**: duplicates (a real broker may return a member twice
+ *   across a rehash) and the rehash itself — the table never resizes. #358's
+ *   W3 proves duplicates are safe with two sweepers instead.
+ * - **A call ceiling, per key and cumulative**: more than
+ *   {@link SCAN_CALLS_PER_KEY} scan calls on one key, or
+ *   {@link SCAN_CALLS_TOTAL} on one fake, is a ledger rejection that throws,
+ *   so a loop that stops advancing fails instead of hanging. A per-iteration
+ *   ceiling could not catch a caller that restarts at cursor `0` every call.
+ *   Sizing: the longest legitimate iteration is the #285 coverage case at
+ *   `COUNT 10`, `ceil(1024 / 10)` = 103 calls, and the busiest witness
+ *   (#358 W6) runs a few iterations of `ceil(1024 / 100)` = 11 — both far
+ *   under 1,000 per key, and no test file sweeps ten such keys.
  *
  * **One clock and one expiry registry** (#280). Every arm reads `#now()`, which
  * {@link FakeRedis.setTime} overrides, and every TTL lives in `#keyExpiry` in
@@ -34,9 +72,10 @@
  * **`setTime()` now reaches the liveness key.** Unifying the clock means a
  * test that moves the fake clock by hundreds of seconds expires the driver's
  * `SET … EX` alive key too, where before it never expired inside a test.
- * Nothing depends on that today — `#reconcile` runs on a real `setInterval`
- * that does not fire inside a sub-millisecond test — but a test that later
- * gains a reconcile tick will see instances swept that used to read as alive.
+ * The reconcile pass runs on a self-re-arming `setTimeout` (#355), armed again
+ * only when a pass settles, so it does not fire inside a sub-millisecond test
+ * on the real clock — but a test that drives it with `FakeTime` and also moves
+ * the fake Redis clock will see instances swept that used to read as alive.
  * Stated here rather than left to be discovered.
  *
  * A test helper — never imported by production code.
@@ -113,6 +152,26 @@ function globToRegExp(glob: string): RegExp {
 }
 
 /**
+ * The slots of the scan core's fixed virtual table (#358): a power of two, as
+ * a real hash table's size is, and large enough that a 307-member owned set
+ * (#358 W1) spans many `COUNT 100` pages. It never resizes, so there is no
+ * rehash to model.
+ */
+const SCAN_TABLE_SLOTS = 1024
+
+/**
+ * Scan calls one key may receive before the fake refuses the next (#358). See
+ * the header's scan model for the sizing.
+ */
+const SCAN_CALLS_PER_KEY = 1_000
+
+/** Scan calls one fake may receive, across every key, before it refuses. */
+const SCAN_CALLS_TOTAL = 10_000
+
+/** A canonical scan cursor: `0`, or up to 20 digits with no leading zero. */
+const SCAN_CURSOR = /^(0|[1-9][0-9]{0,19})$/
+
+/**
  * An in-memory Redis double: shared by several driver instances in one test so
  * their rosters and control bus are genuinely cross-instance.
  */
@@ -160,6 +219,109 @@ export class FakeRedis {
      */
     readonly #rejections: string[] = []
     readonly #subs: Array<{ re: RegExp; handler: Handler }> = []
+    /** Scan calls per key, for the per-key ceiling (#358). */
+    readonly #scanCalls = new Map<string, number>()
+    /** Scan calls across every key, for the cumulative ceiling (#358). */
+    #scanTotal = 0
+
+    /**
+     * The slot of the scan core's virtual table that `member` lives in (#358):
+     * FNV-1a over its UTF-8 bytes, modulo the table size. Deterministic and
+     * member-derived, so removing one member never moves another, and a test
+     * can place a member ahead of a cursor (`scanSlot(m) >= cursor`) or behind
+     * it. Command-neutral: every scan arm walks the same slots.
+     *
+     * @param member - The member, byte for byte as stored.
+     * @returns Its slot, in `[0, table size)`.
+     * @example
+     * ```typescript
+     * const behind = FakeRedis.scanSlot(`presence-room 7`) < Number(cursor)
+     * ```
+     */
+    static scanSlot(member: string): number {
+        let hash = 0x811c9dc5
+        for (const byte of new TextEncoder().encode(member)) {
+            hash ^= byte
+            hash = Math.imul(hash, 0x01000193)
+        }
+        return (hash >>> 0) % SCAN_TABLE_SLOTS
+    }
+
+    /**
+     * The order the scan core visits members in (#358): by
+     * {@link FakeRedis.scanSlot}, then byte order within a slot. The scan core
+     * sorts every page with it, so a test that predicts the walk sorts with
+     * this rather than restating the tie-break — the two cannot drift.
+     *
+     * @param a - A member, byte for byte as stored.
+     * @param b - Another member.
+     * @returns Negative when `a` is visited first, positive when `b` is, 0
+     *   when they are the same member.
+     * @example
+     * ```typescript
+     * const walk = [...members].sort(FakeRedis.scanOrder)
+     * ```
+     */
+    static scanOrder(a: string, b: string): number {
+        return FakeRedis.scanSlot(a) - FakeRedis.scanSlot(b) ||
+            (a < b ? -1 : a > b ? 1 : 0)
+    }
+
+    /**
+     * The private scan core (#358): one page of `members` from `cursor`,
+     * visiting `count` slots. Every scan arm is a caller; none walks its own.
+     *
+     * At cursor `0` a collection of at most `count` members is answered whole
+     * with cursor `0` (the listpack shape, stricter than Redis — see the
+     * header). Otherwise the page is the members whose slot lies in
+     * `[cursor, cursor + count)`, in slot order, and the next cursor is
+     * `cursor + count`, or `0` once that passes the table.
+     *
+     * @param key - The key scanned, for the per-key ceiling.
+     * @param members - The collection's members at the time of the call.
+     * @param cursor - A canonical cursor, already checked by the arm.
+     * @param count - Slots to visit, a positive integer checked by the arm.
+     * @returns The next cursor and the page's members.
+     * @throws Through the ledger, past either call ceiling or for a cursor
+     *   past the table.
+     */
+    #scan(
+        key: string,
+        members: readonly string[],
+        cursor: string,
+        count: number,
+    ): { cursor: string; members: string[] } {
+        const calls = (this.#scanCalls.get(key) ?? 0) + 1
+        this.#scanCalls.set(key, calls)
+        this.#scanTotal++
+        if (calls > SCAN_CALLS_PER_KEY || this.#scanTotal > SCAN_CALLS_TOTAL) {
+            this.#reject(
+                `FakeRedis: scan call ceiling passed (${calls} on this key, ` +
+                    `${this.#scanTotal} in all) — a scan that never ` +
+                    'advances its cursor',
+            )
+        }
+        const from = Number(cursor)
+        if (from >= SCAN_TABLE_SLOTS) {
+            this.#reject(
+                `FakeRedis: scan cursor ${cursor} lies past the ` +
+                    `${SCAN_TABLE_SLOTS}-slot table — never one this fake issued`,
+            )
+        }
+        if (from === 0 && members.length <= count) {
+            return { cursor: '0', members: [...members] }
+        }
+        const to = from + count
+        const page = members
+            .map((member) => ({ member, slot: FakeRedis.scanSlot(member) }))
+            .filter(({ slot }) => slot >= from && slot < to)
+            .map(({ member }) => member)
+            .sort(FakeRedis.scanOrder)
+        return {
+            cursor: to >= SCAN_TABLE_SLOTS ? '0' : String(to),
+            members: page,
+        }
+    }
 
     /** The command client each driver publishes and stores state through. */
     readonly command = (...args: string[]): Promise<unknown> =>
@@ -767,6 +929,70 @@ export class FakeRedis {
                         type: 'bulk' as const,
                         value: m,
                     })),
+                }
+            }
+            case 'SSCAN': {
+                // SSCAN key cursor COUNT n (#358) — the one form the sweep
+                // issues. The scan core does the walking; this arm only
+                // refuses what it does not model. MATCH filters the page and
+                // NOVALUES is not a set option: ignoring either hands the
+                // caller a page a real broker would not send.
+                const [key, cursor, ...opts] = rest
+                if (key === undefined || cursor === undefined) {
+                    this.#reject(
+                        `FakeRedis: SSCAN takes key and cursor, got ${rest.length}`,
+                    )
+                }
+                if (!SCAN_CURSOR.test(cursor)) {
+                    this.#reject(
+                        `FakeRedis: SSCAN cursor '${cursor}' is not canonical ` +
+                            'decimal',
+                    )
+                }
+                let count: number | undefined
+                for (let i = 0; i < opts.length; i += 2) {
+                    const option = opts[i].toUpperCase()
+                    const value = opts[i + 1]
+                    if (option !== 'COUNT') {
+                        this.#reject(
+                            `FakeRedis: unmodelled SSCAN option '${opts[i]}'`,
+                        )
+                    }
+                    if (count !== undefined) {
+                        this.#reject('FakeRedis: SSCAN given COUNT twice')
+                    }
+                    if (value === undefined || !/^[1-9][0-9]*$/.test(value)) {
+                        this.#reject(
+                            'FakeRedis: SSCAN COUNT must be a positive ' +
+                                `integer, got '${value}'`,
+                        )
+                    }
+                    count = Number(value)
+                }
+                if (count === undefined) {
+                    this.#reject(
+                        'FakeRedis: SSCAN without COUNT — every scan this ' +
+                            'fake models bounds its page',
+                    )
+                }
+                const page = this.#scan(
+                    key,
+                    [...(this.#sets.get(key) ?? [])],
+                    cursor,
+                    count,
+                )
+                return {
+                    type: 'array',
+                    value: [
+                        { type: 'bulk', value: page.cursor },
+                        {
+                            type: 'array',
+                            value: page.members.map((m): Reply => ({
+                                type: 'bulk',
+                                value: m,
+                            })),
+                        },
+                    ],
                 }
             }
             case 'DEL': {

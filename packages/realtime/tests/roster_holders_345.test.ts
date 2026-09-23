@@ -274,7 +274,7 @@ Deno.test('#345 W4 two interleaved sweeps of A change nothing further — 7 is s
         await inv.check('after B and C swept A')
 
         const sweepsOfA = redis.commandLog().filter(([cmd, key]) =>
-            cmd === 'SMEMBERS' && key === OWNED_KEY(idOf(a))
+            cmd === 'SSCAN' && key === OWNED_KEY(idOf(a))
         ).length
         assert(
             sweepsOfA >= 2,
@@ -686,7 +686,7 @@ Deno.test('#345 S1b a hold by an instance whose registration never landed regist
     }
 })
 
-Deno.test("#345 S1c a hold landing between a sweep's SMEMBERS and its end stays in the owned set", async () => {
+Deno.test("#345 S1c a hold landing between a sweep's owned-set read and its end stays in the owned set", async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     const a = driver(redis)
@@ -697,7 +697,7 @@ Deno.test("#345 S1c a hold landing between a sweep's SMEMBERS and its end stays 
     const intercepting: CommandFn = async (...args) => {
         const reply = await redis.command(...args)
         if (
-            args[0] === 'SMEMBERS' && args[1] === OWNED_KEY(idOf(a)) &&
+            args[0] === 'SSCAN' && args[1] === OWNED_KEY(idOf(a)) &&
             holdDuringSweep
         ) {
             const hold = holdDuringSweep
