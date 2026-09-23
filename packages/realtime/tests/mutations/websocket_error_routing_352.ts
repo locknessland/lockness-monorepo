@@ -101,10 +101,10 @@ const MUTATIONS: Mutation[] = [
         label: 'M5 — the no-hook default sink demoted below console.error',
         file: WEBSOCKET,
         edits: [[
-            '            console.error(\n' +
-            '                `realtime: unhandled websocket error: ',
-            '            console.debug(\n' +
-            '                `realtime: unhandled websocket error: ',
+            '        console.error(\n' +
+            '            `realtime: unhandled websocket error: ',
+            '        console.debug(\n' +
+            '            `realtime: unhandled websocket error: ',
         ]],
         // Witness: `exactly one console.error line` — none reaches it.
         killedBy: 'private-orders: with no onError hook',
