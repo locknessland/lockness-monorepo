@@ -26,7 +26,11 @@ import {
     assertStringIncludes,
 } from '@std/assert'
 import { toFileUrl } from '@std/path'
-import { assertSafeToStart, reclaimStaleLock } from './harness.ts'
+import {
+    assertSafeToStart,
+    gitEnvFromCwd,
+    reclaimStaleLock,
+} from './harness.ts'
 
 /** A pid that is certainly not running: the kernel refuses to allocate it. */
 const DEAD_PID = 2 ** 22
@@ -119,6 +123,8 @@ async function git(cwd: string, ...args: string[]): Promise<void> {
     const run = await new Deno.Command('git', {
         args,
         cwd,
+        clearEnv: true,
+        env: gitEnvFromCwd(),
         stdout: 'piped',
         stderr: 'piped',
     }).output()
@@ -299,5 +305,23 @@ Deno.test('#356 a lock naming no usable pid over a modified file does NOT get th
             )
             assertEquals((await Deno.stat(repo.lock)).isFile, true)
         })
+    }
+})
+
+Deno.test('#356 a git fixture and probe ignore an inherited GIT_DIR, as under a worktree hook', async () => {
+    // A git hook exports GIT_DIR to every child. Before the fix this fixture
+    // committed onto the pushing worktree's HEAD instead of its own repo.
+    const prior = Deno.env.get('GIT_DIR')
+    Deno.env.set('GIT_DIR', `${await Deno.makeTempDir()}/not-a-repo`)
+    try {
+        await withRepo(async ({ subject, lock }) => {
+            await writeLock(lock, DEAD_PID)
+            const decision = await reclaimStaleLock(lock, subject)
+            assertEquals(decision.outcome, 'reclaimed', decision.reason)
+            assertEquals(decision.subject, 'pristine')
+        })
+    } finally {
+        if (prior === undefined) Deno.env.delete('GIT_DIR')
+        else Deno.env.set('GIT_DIR', prior)
     }
 })

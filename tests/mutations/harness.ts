@@ -169,6 +169,30 @@ async function processIsAlive(pid: number): Promise<boolean> {
 }
 
 /**
+ * The environment for a `git` run that must find its repository from its `cwd`.
+ *
+ * A git hook exports `GIT_DIR` to its children, and in a linked worktree
+ * `GIT_INDEX_FILE` and more. A `git` spawned under the pre-push hook then
+ * answers about the pushing repository whatever its `cwd` is: a probe reports
+ * the wrong file's state, and a fixture's `git commit` lands on the pushing
+ * worktree's HEAD. Every `GIT_` variable is dropped, so `cwd` alone decides.
+ *
+ * @returns This process's environment without its `GIT_` variables.
+ *
+ * @example
+ * ```ts
+ * new Deno.Command('git', { args, cwd, clearEnv: true, env: gitEnvFromCwd() })
+ * ```
+ */
+export function gitEnvFromCwd(): Record<string, string> {
+    return Object.fromEntries(
+        Object.entries(Deno.env.toObject()).filter(([key]) =>
+            !key.startsWith('GIT_')
+        ),
+    )
+}
+
+/**
  * Ask git whether `path` is unchanged.
  *
  * Run from the file's own directory: from anywhere else a path outside the
@@ -185,6 +209,8 @@ async function probeSubject(
         const run = await new Deno.Command('git', {
             args: ['status', '--porcelain', '--', path],
             cwd: dirname(path),
+            clearEnv: true,
+            env: gitEnvFromCwd(),
             stdout: 'piped',
             stderr: 'piped',
         }).output()
