@@ -34,15 +34,29 @@ import {
 } from './protocol.ts'
 
 /**
+ * The sentence every member error ends with (#357).
+ *
+ * Since #357 an object result is admitted as a member on EVERY channel kind, so
+ * these errors now reach applications whose private-channel authorizer returned
+ * a lookup (a Deno KV entry, a pg `QueryResult`, a row) where it meant "allow".
+ * On a private channel the member is discarded, and the fix there is almost
+ * never to shape one — it is to return a boolean. The hint says so without
+ * teaching {@link admitPresenceMember} anything about channels: the errors stay
+ * kind-agnostic, and the sentence has one home.
+ */
+const PRIVATE_CHANNEL_HINT =
+    'On a `private-*` channel no member is used: return `true` to admit (#357).'
+
+/**
  * A presence member whose serialized form is over the byte ceiling, or cannot
  * be serialized at all (#326).
  *
- * `ChannelManager.subscribe` raises it on a presence channel when the pair
- * `{ id, info }` read from the member `authorize()` returned serializes past
- * `maxPresenceMemberBytes`, or when `JSON.stringify` throws on it (a cycle, a
- * bigint, a throwing `toJSON` in `info`) — then the size is reported as
- * `Infinity`. It is raised after the id check and before the caps and every
- * write, so a refusal leaves nothing behind.
+ * `ChannelManager.subscribe` raises it on a private or a presence channel
+ * (#357) when the pair `{ id, info }` read from the object `authorize()`
+ * returned serializes past `maxPresenceMemberBytes`, or when `JSON.stringify`
+ * throws on it (a cycle, a bigint, a throwing `toJSON` in `info`) — then the
+ * size is reported as `Infinity`. It is raised after the id check and before
+ * the caps and every write, so a refusal leaves nothing behind.
  *
  * @example
  * ```ts
@@ -80,7 +94,8 @@ export class PresenceMemberSizeError extends Error {
                 'is dropped for being oversized, leaving a member present in ' +
                 'the room and invisible to every other instance. Shrink ' +
                 '`member.info`, or raise maxPresenceMemberBytes AND the ' +
-                "driver's control.maxPayloadBytes together.",
+                "driver's control.maxPayloadBytes together. " +
+                PRIVATE_CHANNEL_HINT,
         )
     }
 }
@@ -89,12 +104,12 @@ export class PresenceMemberSizeError extends Error {
  * A presence member id the roster and the control plane cannot carry (#306,
  * #346).
  *
- * `ChannelManager.subscribe` raises it on a presence channel when the member
- * `authorize()` returned has an id that is not a string or a finite number
- * (#346), or whose string form is empty or over {@link MAX_NAME_LENGTH}
- * characters (#306). It is raised after the authorizer result is classified
- * (#347) and before the size check, the caps, and every write and publish, so
- * a refusal leaves nothing behind.
+ * `ChannelManager.subscribe` raises it on a private or a presence channel
+ * (#357) when the object `authorize()` returned has an id that is not a string
+ * or a finite number (#346), or whose string form is empty or over
+ * {@link MAX_NAME_LENGTH} characters (#306). It is raised after the authorizer
+ * result is classified (#347) and before the size check, the caps, and every
+ * write and publish, so a refusal leaves nothing behind.
  *
  * **A throw, not `{ ok: false }`.** `{ ok: false }` means "not authorized"
  * (#331); a malformed id is a defect in the application's authorizer, and read
@@ -136,7 +151,7 @@ export class PresenceMemberIdError extends Error {
                 'and an oversized one is written there BEFORE the control ' +
                 'frame that announces it is refused for size. Deny in ' +
                 'authorize() when the id is absent, and send a 64-bit key as ' +
-                'a string.',
+                `a string. ${PRIVATE_CHANNEL_HINT}`,
         )
     }
 }
@@ -145,12 +160,16 @@ export class PresenceMemberIdError extends Error {
  * A presence member that is not exactly `{ id, info? }` with a JSON-object
  * `info` (#350).
  *
- * `ChannelManager.subscribe` raises it on a presence channel, before anything
- * is written, published or delivered, when the object `authorize()` returned:
+ * `ChannelManager.subscribe` raises it on a private or a presence channel
+ * (#357), before anything is written, published or delivered, when the object
+ * `authorize()` returned:
  *
  * - has an own enumerable key other than `id` and `info` — a raw database row
  *   is the usual cause, and before #350 every one of its columns reached the
- *   room; or
+ *   room. On a private channel it is usually a lookup wrapper returned where
+ *   a boolean was meant: a Deno KV `{ key, value, versionstamp }` or a pg
+ *   `QueryResult`, which admitted there before #357 even when it found
+ *   nothing; or
  * - has an `info` whose JSON form is not an object — `null`, an array, a
  *   `Date` (which serializes to a string), or a `toJSON` returning one. Every
  *   peer's ingest drops such a member, so admitted it would be visible on this
@@ -229,7 +248,8 @@ function describeExtraKeys(keys: readonly string[]): string {
         'reaches every subscriber of the room, so a raw database row would ' +
         'ship every column; it is refused before anything is written. ' +
         'Return `{ id, info }` and declare in `info` what the room may see, ' +
-        'e.g. `{ id: row.id, info: { name: row.displayName } }`.'
+        'e.g. `{ id: row.id, info: { name: row.displayName } }`. ' +
+        PRIVATE_CHANNEL_HINT
 }
 
 /**
@@ -244,7 +264,8 @@ function describeInfoType(label: string): string {
         '(#350). Every other instance drops a member whose `info` is not an ' +
         'object, so it would join here and be invisible everywhere else. A ' +
         '`Date` serializes to a string; wrap it, e.g. ' +
-        '`info: { since: date.toISOString() }`, or omit `info`.'
+        '`info: { since: date.toISOString() }`, or omit `info`. ' +
+        PRIVATE_CHANNEL_HINT
 }
 
 /**
@@ -260,7 +281,8 @@ function describeDroppedInfo(label: string): string {
         'nothing (#350). JSON drops a function, a symbol, and anything whose ' +
         '`toJSON` returns `undefined`, so the member would join as a bare ' +
         '`{ id }` and its `info` would be lost without an error; it is ' +
-        'refused instead. Declare a JSON object, or omit `info`.'
+        'refused instead. Declare a JSON object, or omit `info`. ' +
+        PRIVATE_CHANNEL_HINT
 }
 
 /**
@@ -443,8 +465,11 @@ export function freezePresenceMember(member: PresenceMember): PresenceMember {
  * What it does NOT decide: what the application puts INSIDE `info`.
  * `info: row` still ships the row; Lockness guarantees the envelope only.
  *
- * @param candidate - The object `authorize()` returned (or the framework's
- *   `{ id: connection.id }` for `true`). Untrusted; each field is read once.
+ * @param candidate - The object `authorize()` returned, on a private channel
+ *   as on a presence one (#357) — or the framework's `{ id: connection.id }`
+ *   for `true` on a presence channel. Untrusted; each field is read once.
+ *   The function knows nothing of channels: a private channel discards what
+ *   it returns.
  * @param maxBytes - The serialized-size ceiling, `maxPresenceMemberBytes`.
  * @returns A fresh, JSON-shaped, deep-frozen member sharing no reference
  *   with `candidate` (#354).

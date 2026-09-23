@@ -9,7 +9,9 @@
  * is `return (await db.select()...)[0]`, which TypeScript does not catch.
  *
  * The contract is now three values: `true` and a non-array object admit,
- * `false` denies, and anything else throws `AuthorizeResultError`. It is a
+ * `false` denies, and anything else throws `AuthorizeResultError`. Since #357
+ * the object must be a `PresenceMember` on every channel kind —
+ * `authorize_result_357.test.ts` pins that half. It is a
  * throw and not `{ ok: false }` because `{ ok: false }` means one thing — "not
  * authorized" (#331) — and a missing `return` is a bug, not a policy. Folding
  * it into a deny would turn it into an undiagnosable deny-all.
@@ -338,7 +340,7 @@ Deno.test('#347 fake Redis: an admitted private subscribe publishes no control f
 
 // --- What admits, and what denies ------------------------------------------
 
-Deno.test('#347 private `true` and a non-array object both admit', async () => {
+Deno.test('#347 private `true` and a PresenceMember both admit', async () => {
     for (const value of [true, { id: 'u1' }]) {
         const m = new ChannelManager<User>({
             driver: new MemoryBroadcastDriver(),

@@ -331,7 +331,8 @@ for (const kind of KINDS) {
                     'column; it is refused before anything is written. ' +
                     'Return `{ id, info }` and declare in `info` what the ' +
                     'room may see, e.g. `{ id: row.id, info: { name: ' +
-                    'row.displayName } }`.',
+                    'row.displayName } }`. On a `private-*` channel no ' +
+                    'member is used: return `true` to admit (#357).',
                 'the extra key is named, and its value is not',
             )
             assert(

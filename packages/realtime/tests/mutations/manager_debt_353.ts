@@ -58,9 +58,12 @@ const MUTATIONS: Mutation[] = [
         edits: [
             // The precondition: the admission's result is dropped, so a
             // presence join reaches the invariant without a member.
+            // RE-ANCHORED by #357: the presence seat now reads the result of
+            // the every-kind admission above it. The source moved; the
+            // precondition is the same.
             [
-                '                member = admitPresenceMember(\n',
-                '                admitPresenceMember(\n',
+                '                member = returned ?? admitPresenceMember(\n',
+                '                void returned\n                admitPresenceMember(\n',
             ],
             [INVARIANT, ''],
             [

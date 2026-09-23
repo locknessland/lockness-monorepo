@@ -816,7 +816,9 @@ export interface ChannelManagerOptions<Identity = unknown> {
      * A positive integer, validated at construction. Enforced at the admission
      * boundary — an oversized member is refused with
      * {@link PresenceMemberSizeError} before any local join, roster write or
-     * announcement exists, so a refusal leaves nothing behind.
+     * announcement exists, so a refusal leaves nothing behind. It bounds an
+     * object result on a private channel too (#357), which runs the same
+     * admission and discards the member.
      *
      * **Reconcile it with the driver's `control.maxPayloadBytes`** whenever you
      * change either: a member larger than the control ceiling can be written to
@@ -1270,16 +1272,21 @@ export class ChannelManager<Identity = unknown> {
      *   nothing is written, published or delivered; on a channel already held
      *   it removes nothing (#331).
      * @throws {ChannelNameError} If `channel` is not a usable channel name.
-     * @throws {PresenceMemberShapeError} If a presence member has an own key
+     * @throws {PresenceMemberShapeError} If an object result has an own key
      *   other than `id` and `info`, or an `info` that does not serialize to
      *   a JSON object — one that serializes to nothing (a function, a
-     *   symbol) included (#350). The member the room receives is exactly the
-     *   JSON round trip of `{ id, info }`, read once from the authorizer's
-     *   object — never that object, and never any other key of it.
-     * @throws {PresenceMemberIdError} If a presence member's id is not a string
-     *   or a finite number (#346), or is empty or too long (#306).
-     * @throws {PresenceMemberSizeError} If a presence member serializes past
-     *   the configured byte bound (#326).
+     *   symbol) included (#350). **On a private channel too** (#357): an
+     *   object admits only as a `PresenceMember` on every kind, so a lookup
+     *   wrapper such as a Deno KV entry or a pg `QueryResult` is refused here
+     *   instead of admitted; a private channel then discards the member. The
+     *   member a presence room receives is exactly the JSON round trip of
+     *   `{ id, info }`, read once from the authorizer's object — never that
+     *   object, and never any other key of it.
+     * @throws {PresenceMemberIdError} If an object result's id is not a string
+     *   or a finite number (#346), or is empty or too long (#306) — on either
+     *   channel kind (#357); `{}` is the usual private-channel cause.
+     * @throws {PresenceMemberSizeError} If an object result serializes past
+     *   the configured byte bound (#326), on either channel kind (#357).
      * @throws {ChannelLimitError} If the join would take this instance or this
      *   connection past a watched-channel cap, or past the share reserved for
      *   connections with no identity. Raised only AFTER authorization, so an
@@ -1289,8 +1296,9 @@ export class ChannelManager<Identity = unknown> {
      *   propagated unchanged — Lockness wraps only a result it can read. That
      *   includes an error raised while `await` reads the result's `then` (a
      *   revoked Proxy's `TypeError`, a throwing `get` trap or `then` getter)
-     *   and an error a presence member's own `ownKeys` or `get` trap throws
-     *   during the one read of its `id` and `info` (#353). All of them
+     *   and an error an object result's own `ownKeys` or `get` trap throws
+     *   during the one read of its `id` and `info`, on either channel kind
+     *   (#353, #357). All of them
      *   propagate before anything is written, published or delivered.
      * @throws If the authoritative roster refuses a presence join. The
      *   rejection is propagated, and the instance is left as it was: no
@@ -1370,7 +1378,7 @@ export class ChannelManager<Identity = unknown> {
             // id check, the size check, the caps and every write (#347). The
             // authorizer is application code and the type does not reach it:
             // `(await select())[0]`, an `any` row or plain JS hand this any
-            // value. Only `true` or an object admits and only `false` denies;
+            // value. Only `true` or a member admits and only `false` denies;
             // anything else is a defect, thrown rather than folded into
             // `{ ok: false }` (#331 gives that one meaning), and refused before
             // anything exists to undo. On a channel already held it throws
@@ -1380,17 +1388,32 @@ export class ChannelManager<Identity = unknown> {
                 throw new AuthorizeResultError(channel, verdict.type)
             }
             if (verdict.verdict === 'deny') return { ok: false }
+            // An object result is admitted as a PresenceMember on EVERY kind
+            // (#357). On a private channel it used to admit for being an
+            // object at all — and a lookup that found nothing usually is one:
+            // a Deno KV `{ key, value: null, versionstamp: null }`, a pg
+            // `QueryResult` with `rows: []`, `{}`. One rule, one home, and the
+            // same outcome for a value on `private-X` as on `presence-X`.
+            //
+            // THE ONE READ of the authorizer's object (#350): its keys, its
+            // `id` and its `info` are each read once, and what comes back is
+            // the JSON round trip of `{ id, info }`. BEFORE the member
+            // invariant, the caps and every write (#306, #326): refusing after
+            // the roster write is a partial write, not a refusal. Stays
+            // synchronous — nothing may be awaited between the verdict and
+            // `#checkChannelCaps` (#323/#327).
+            const returned = verdict.member === undefined
+                ? undefined
+                : admitPresenceMember(
+                    verdict.member,
+                    this.#maxPresenceMemberBytes,
+                )
+            // The kind decides only what the admitted member is FOR: presence
+            // seats it (or the connection id, for `true`); private discards it
+            // — a frozen copy (#354) that nothing holds.
             if (kind === 'presence') {
-                // THE ONE READ of the authorizer's object (#350): its keys,
-                // its `id` and its `info` are each read once, and what comes
-                // back is the JSON round trip of `{ id, info }` — the only
-                // member stored, held, snapshotted or announced from here on.
-                // BEFORE the caps and every write (#306, #326): refusing after
-                // the roster write is a partial write, not a refusal. Stays
-                // synchronous — nothing may be awaited between the verdict and
-                // `#checkChannelCaps` (#323/#327).
-                member = admitPresenceMember(
-                    verdict.member ?? { id: connection.id },
+                member = returned ?? admitPresenceMember(
+                    { id: connection.id },
                     this.#maxPresenceMemberBytes,
                 )
             }
@@ -1400,7 +1423,7 @@ export class ChannelManager<Identity = unknown> {
         // `kind === 'presence' && member`, and a falsy "member" such as `0`
         // fell through to `#joinLocal`: delivery with no roster entry, an
         // invisible listener. Every presence admission now carries a member
-        // (the one `admitPresenceMember` call above), so reaching here
+        // (the `admitPresenceMember` admission above), so reaching here
         // without one is a bug in this method, and it must not degrade into
         // that listener. Checked HERE, above the caps and `connections.set`
         // (#353): it is a refusal like the others, and a refusal after the

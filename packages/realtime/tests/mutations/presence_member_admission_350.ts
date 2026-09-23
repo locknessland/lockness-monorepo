@@ -51,12 +51,26 @@ const SUITES = [
 
 const DRAFT =
     '        text = JSON.stringify(info === undefined ? { id } : { id, info })\n'
-const ADMISSION_CALL = '                member = admitPresenceMember(\n' +
-    '                    verdict.member ?? { id: connection.id },\n' +
+// RE-ANCHORED by #357: the object result is admitted on EVERY kind before
+// the presence branch, and `true`'s `{ id: connection.id }` inside it, so
+// taking the admission out of `subscribe` is two edits now. The source
+// moved; the guard remains.
+const ADMISSION_CALL =
+    '            const returned = verdict.member === undefined\n' +
+    '                ? undefined\n' +
+    '                : admitPresenceMember(\n' +
+    '                    verdict.member,\n' +
+    '                    this.#maxPresenceMemberBytes,\n' +
+    '                )\n'
+const RAW_RETURNED =
+    '            const returned = verdict.member as PresenceMember | undefined\n'
+const SEAT_CALL =
+    '                member = returned ?? admitPresenceMember(\n' +
+    '                    { id: connection.id },\n' +
     '                    this.#maxPresenceMemberBytes,\n' +
     '                )\n'
 const RAW_MEMBER =
-    '                member = (verdict.member ?? { id: connection.id }) as PresenceMember\n'
+    '                member = returned ?? { id: connection.id }\n'
 
 const MUTATIONS: Mutation[] = [
     {
@@ -167,7 +181,8 @@ const MUTATIONS: Mutation[] = [
         label: 'M10 — admission below #checkChannelCaps / connections.set',
         file: MANAGER,
         edits: [
-            [ADMISSION_CALL, RAW_MEMBER],
+            [ADMISSION_CALL, RAW_RETURNED],
+            [SEAT_CALL, RAW_MEMBER],
             [
                 '            connection.identity !== null,\n' +
                 '        )\n' +

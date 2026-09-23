@@ -86,12 +86,25 @@ const MUTATIONS: Mutation[] = [
             [
                 // RE-ANCHORED by #350: the admission is one call now, so
                 // the row takes it out of `subscribe` (the member stays
-                // the raw candidate) and runs it just before the write.
-                '                member = admitPresenceMember(\n' +
-                '                    verdict.member ?? { id: connection.id },\n' +
+                // the raw candidate) and runs it once the write committed.
+                // RE-ANCHORED by #357: the object result is admitted on
+                // EVERY kind before the presence branch, and `true`'s
+                // `{ id: connection.id }` inside it — so the row takes out
+                // both calls. The source moved; the guard remains.
+                '            const returned = verdict.member === undefined\n' +
+                '                ? undefined\n' +
+                '                : admitPresenceMember(\n' +
+                '                    verdict.member,\n' +
                 '                    this.#maxPresenceMemberBytes,\n' +
                 '                )\n',
-                '                member = (verdict.member ?? { id: connection.id }) as PresenceMember\n',
+                '            const returned = verdict.member as PresenceMember | undefined\n',
+            ],
+            [
+                '                member = returned ?? admitPresenceMember(\n' +
+                '                    { id: connection.id },\n' +
+                '                    this.#maxPresenceMemberBytes,\n' +
+                '                )\n',
+                '                member = returned ?? { id: connection.id }\n',
             ],
             [
                 // RE-ANCHORED TWICE. #328 moved the roster write out of
@@ -104,11 +117,26 @@ const MUTATIONS: Mutation[] = [
                 // changes, and a blanket re-edit of the row would break the
                 // half that was still correct.
                 // RE-ANCHORED a THIRD time by #344: the join's write returns
-                // nothing now, and the 16-space call is a substring of the
-                // 20-space reclaim call below it, so the anchor carries its
-                // `try {` line to match exactly once.
-                '            try {\n                await this.#syncRosterMember(channel, origin)\n',
-                '            try {\n                admitPresenceMember(member, this.#maxPresenceMemberBytes)\n                await this.#syncRosterMember(channel, origin)\n',
+                // nothing now.
+                // RE-PLACED by the #357 review: the admission used to be
+                // inserted BEFORE `await this.#syncRosterMember` — after the
+                // local join but ahead of the authoritative write, so the row
+                // did not mutate what its label names. It now lands after the
+                // whole write-and-compensate block, where the write has
+                // committed and no compensation runs: the witness reads the
+                // hold and the join frame in its log, not a hold-and-release
+                // cleanup. The anchor carries the block's closing lines to
+                // match exactly once — the closing read is also the re-join's
+                // exit.
+                '                throw error\n' +
+                '            }\n' +
+                '        }\n' +
+                '        return await this.#closingRead(channel, connection.id)\n',
+                '                throw error\n' +
+                '            }\n' +
+                '        }\n' +
+                '        admitPresenceMember(member, this.#maxPresenceMemberBytes)\n' +
+                '        return await this.#closingRead(channel, connection.id)\n',
             ],
         ],
         // RED since #312, and the path is worth keeping. It survived here for

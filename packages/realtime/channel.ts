@@ -161,10 +161,15 @@ export interface PresenceSnapshot {
  * processes, where a denial-driven removal would survive nothing.
  *
  * **The admission rule is enforced at runtime, not only by this type** (#347).
- * `true` or a non-null, non-array object admits; `false` denies; ANY other
- * value — `undefined`, `null`, `0`, `''`, `'yes'`, `1`, an array, a boxed
- * primitive, an object that throws when inspected (#353) — makes `subscribe`
- * throw `AuthorizeResultError`. The type cannot
+ * `true` or a `PresenceMember` admits; `false` denies; `undefined`, `null`,
+ * `0`, `''`, `'yes'`, `1`, an array, a boxed primitive and an object that
+ * throws when inspected (#353) make `subscribe` throw `AuthorizeResultError`.
+ * Any other object is admitted **only as a member, on every channel kind**
+ * (#357): anything but `{ id, info? }` with a valid `id` — a Deno KV entry, a
+ * pg `QueryResult`, `{}`, a raw row — throws `PresenceMemberShapeError`,
+ * `PresenceMemberIdError` or `PresenceMemberSizeError`, and a private channel
+ * discards the member it admits. So one authorizer serves both kinds with the
+ * same outcome. The type cannot
  * stop those on its own: `(await select())[0]` under the default
  * `noUncheckedIndexedAccess: false`, an `any`-typed query row, a cast or a
  * plain-JS app all reach the manager with a value this union does not name.
@@ -180,7 +185,9 @@ export type AuthorizeResult = boolean | PresenceMember
  * - `deny` — the authorizer returned exactly `false`: a policy decision.
  * - `admit` — `true` (`member` is `undefined`) or an object (`member` is it,
  *   UNCHECKED: typed `object`, not `PresenceMember`, because only
- *   `admitPresenceMember` may turn it into one — #350).
+ *   `admitPresenceMember` may turn it into one — #350). `subscribe` runs that
+ *   admission on every channel kind (#357), so an object admits only if it is
+ *   a member; this verdict is the classification, not the last word.
  * - `invalid` — anything else, a defect in the authorizer. `type` is the
  *   value's type label only; the value itself is never carried, because it is
  *   application data and the label ends up in a log.
@@ -200,8 +207,10 @@ export type AuthorizeVerdict =
  * refusal is never a partial write.
  *
  * An admitting object's FIELDS are not checked here — `admitPresenceMember`
- * owns that (#306, #326, #346, #350), and a private channel reads no member
- * at all.
+ * owns that (#306, #326, #346, #350), and `subscribe` runs it on EVERY channel
+ * kind (#357): a private channel checks the member exactly as a presence one
+ * does, then discards it. This function takes no `kind` on purpose — the rule
+ * about the value has one home, and it is not here.
  * The rule is "an object", not "a plain object": a class-instance member is
  * legitimate. Arrays and boxed primitives are objects to `typeof` and are
  * refused all the same; `[]` is what an empty query result looks like.
@@ -343,14 +352,17 @@ export function typeLabel(value: unknown): string {
  * - `false` to deny — `subscribe` answers `{ ok: false }`.
  * - `true` to allow. On a presence channel the member is then
  *   `{ id: connection.id }`.
- * - A {@link PresenceMember} object to allow a presence channel as that member
- *   (a private channel accepts one too, and ignores it).
+ * - A {@link PresenceMember} object to allow a presence channel as that member.
+ *   A private channel accepts one too: it runs the same member check, then
+ *   discards the member (#357). Any other object — a Deno KV entry, a pg
+ *   `QueryResult`, `{}`, a row — throws a member error on EITHER kind; on a
+ *   private channel, answer with a boolean (`return entry.value !== null`).
  *
  * Anything else — `undefined` from a missing `return`, `null` or `undefined`
  * from an empty query, `0`, `''`, `'yes'`, `1`, an array — makes `subscribe`
  * throw `AuthorizeResultError`. Write `return row ? { id: row.id } : false`,
- * never the raw row: on a presence channel it throws
- * `PresenceMemberShapeError` (#350), and an absent one throws either way.
+ * never the raw row: it throws `PresenceMemberShapeError` on either kind
+ * (#350, #357), and an absent one throws `AuthorizeResultError`.
  * `?? false` closes the gap where a value may be absent.
  *
  * **What reaches the room is exactly `{ id, info? }`** (#350): the pair is
