@@ -13,7 +13,7 @@ commit on main
    │
    ├─ /specnaut tag-version   → deno task bump <version>, then an annotated tag v<version>
    │
-   ├─ /specnaut release-version → GitHub Release attached to that tag
+   ├─ /ship step 3            → draft Release → composed body; publishing the draft is the consent-gated act
    │
    └─ release: published      → .github/workflows/publish.yml → deno publish
 ```
@@ -62,9 +62,11 @@ Why lockstep, and not per-package semver:
 The cost is real and worth naming: `@lockness/mail` goes `0.2.0 → 0.3.0` with no
 changes, so **per-package semver carries no information**. The resolution is to
 read the version at _framework_ level — one number is one framework release, a
-breaking change anywhere is major for everyone, and the changelog lives at the
-root with per-package sections. Do not try to give each package an honest semver
-story while they share a number; that is the category error, not the lockstep.
+breaking change anywhere is major for everyone, and every release lists its
+breaking changes in one place, its GitHub Release (see
+[Release history](#release-history)). Do not try to give each package an honest
+semver story while they share a number; that is the category error, not the
+lockstep.
 
 Revisit only when a package gains an independent consumer base. None has one.
 
@@ -137,8 +139,50 @@ references — are only possible there.
 
 Versions `0.1.x` up to and including **`0.1.30`** were published from the
 retired repository. Numbering continues from there — `0.2.0` is the first
-release cut from `locknessland/lockness-monorepo`. Release notes should say so,
-so the JSR version history stays readable across the migration.
+release cut from `locknessland/lockness-monorepo`. Every Release body says so in
+its first line, which `deno task release:notes` emits, so the JSR version
+history stays readable across the migration.
+
+## Release history
+
+**The GitHub Release for tag `v<X.Y.Z>` is the framework's one changelog.**
+There is no `CHANGELOG.md`, at the root or in any package. The Release is the
+home because it exists for every version by construction — publishing it is what
+triggers `publish.yml` — and because shipped code and docs already point there:
+`@lockness/upgrade` prints the Releases list, and the README and the docs index
+link it. A second file would be a second copy, free to drift from the first.
+
+**A breaking change is recorded once, in the guide of the package that owns it,
+in the same PR as the change.** It is a `### N.` item under
+`## Upgrading to v<X.Y.Z>`, where `X.Y.Z` is the next unreleased version. The
+heading is level 2 and its text is exactly that form; a heading that reads like
+one without being it (`## Upgrading to 0.4.0`, `## Upgrade to v0.4.0`) is
+refused. The item is not hand-written into the Release, not copied into a README
+or an `AGENTS.md`, and a `!` commit marker is not the record.
+
+**A released section is frozen.** Once `v<X.Y.Z>` is tagged, its section never
+gains a title: the Release that shipped did not list it, so an item added
+afterwards reaches no reader. Retitling counts as adding. Pruning, removing a
+title, fixing prose and moving the guide all pass.
+`deno task release:notes
+--check` enforces this before every tag.
+
+**Links are pinned to the tag.** Each guide in a Release is linked at
+`blob/v<X.Y.Z>/…`, so a reader lands on the instructions that shipped with that
+version, not on whatever `main` says today.
+
+**The body is composed, not written.** The breaking-change index is derived from
+the guides at the tag, the notes are the only hand-written part, and the
+generated commit log passes through untouched. The order itself belongs to
+[`scripts/release_notes.ts`](../scripts/release_notes.ts). The reason is that
+the index was once typed by hand at the moment of the irreversible publish, and
+it diverged: v0.3.0's Release listed five breaking changes where its guide
+recorded two. Nothing that can be derived is typed at that moment any more.
+
+**What this does not catch.** A breaking change with no guide item is still
+missed — unless a commit in the release range marks it (`type!:` or a
+`BREAKING CHANGE` footer), in which case the Release refuses to say "no breaking
+change is recorded". An unmarked, unrecorded change ships unlisted.
 
 ## Before any release
 

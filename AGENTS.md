@@ -190,11 +190,12 @@ Two skills own the mechanics that sit either side of those workflows:
   parallel reviews over a diff, and push behind the full gate. It is the only
   home of the gate definition and the recurring-failure playbooks. Skill at
   `.claude/skills/git/SKILL.md`.
-- **`/ship`** — release the framework. Owns no procedure: it delegates to
-  `/git push`, `/specnaut tag-version` and `/specnaut release-version`, and
-  holds the standing decisions — why versioning is lockstep, and why a JSR
-  publish needs the user's explicit consent every single time. Skill at
-  `.claude/skills/ship/SKILL.md`.
+- **`/ship`** — release the framework. A release is cut **only** through it: it
+  owns the step order and the one consent act, and delegates each step's
+  mechanics to the tool that already owns it. `/specnaut release-version` and
+  `release-github.sh` are never run on their own. It also holds the standing
+  decisions — why versioning is lockstep, and why a JSR publish needs the user's
+  explicit consent every single time. Skill at `.claude/skills/ship/SKILL.md`.
 
 Two complementary workflows coexist:
 
