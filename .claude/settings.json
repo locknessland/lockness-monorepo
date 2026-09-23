@@ -1,4 +1,11 @@
 {
+  "permissions": {
+    "ask": [
+      "Bash(gh release edit *--draft*)",
+      "Bash(gh release create *)",
+      "Bash(gh run rerun *)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

@@ -44,11 +44,13 @@ Runs on `release: published`. Steps:
 > Both workflows use `deno-version: v2.x`. Bump with caution — pin a specific
 > minor if you need stability.
 
-## Release pipeline — automated via Specnaut
+## Release pipeline — through `/ship`
 
-The full chain from "I want to ship" to "JSR has new packages" is two slash
-commands. No manual `deno task bump`, no manual `gh release create`. CI does the
-publish.
+A release runs through `/ship` (`.claude/skills/ship/SKILL.md`), which owns the
+step order; its step 3 is the one publish act. `/specnaut release-version` and
+`release-github.sh` are never run on their own. No manual `deno task bump`, no
+manual `gh release create`. CI does the publish. The diagram below shows the
+mechanics each step delegates to, not a second procedure.
 
 ```
 /specnaut tag-version [--bump major|minor|patch]
@@ -64,17 +66,12 @@ publish.
          ├─ git tag -a vX.Y.Z -m "Release vX.Y.Z ..."
          └─ git push origin <branch> && git push origin vX.Y.Z
 
-/specnaut release-version
-   └─ .specnaut/scripts/release/release-github.sh
-         ├─ baseline = previous DEPLOYED tag (skips tags w/o release)
-         ├─ categorized notes from Conventional-Commits buckets
-         └─ gh release create vX.Y.Z --notes-file -
-              └─ event: release: published
-                   └─ .github/workflows/publish.yml
-                         ├─ deno fmt --check
-                         ├─ deno lint
-                         ├─ deno task test -A
-                         └─ deno publish                ← JSR
+/ship step 3 → publish selected → release: published
+   └─ .github/workflows/publish.yml
+         ├─ deno fmt --check
+         ├─ deno lint
+         ├─ deno task test -A
+         └─ deno publish                ← JSR
 ```
 
 Default `--bump patch`. `bump-native.ts` reads the current version from
@@ -93,13 +90,14 @@ release mechanism predates the migration.
 | Path                                                | Owner of...                                                                   |
 | --------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `.specnaut/scripts/release/tag.sh`                  | bump → commit → tag → push orchestration (Lockness-customized SemVer mode)    |
-| `.specnaut/scripts/release/release-github.sh`       | categorized release notes + `gh release create`                               |
+| `.specnaut/scripts/release/release-github.sh`       | draft Release + generated log; invoked only by `/ship` step 3(a)              |
+| `scripts/release_notes.ts`                          | `deno task release:notes` — upgrade-guide check, Release body composition     |
 | `scripts/bump-native.ts`                            | **the** version rewrite — `deno bump-version --workspace`, plus the root's own `version` (#324) |
 | `scripts/bump.ts`                                   | `deno task bump:legacy` — arbitrary version jumps; exports `updateRootJsonc`   |
 | `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
 | `.github/workflows/test.yml`                        | PR gate: fmt/lint/check/test                                                  |
 | `.claude/skills/specnaut/phases/tag-version.md`     | `/specnaut tag-version` skill contract                                        |
-| `.claude/skills/specnaut/phases/release-version.md` | `/specnaut release-version` skill contract                                    |
+| `.claude/skills/specnaut/phases/release-version.md` | `/specnaut release-version` skill contract (vendored; never run on its own here) |
 
 ## Invariants
 
@@ -124,7 +122,7 @@ release mechanism predates the migration.
 | `tag.sh` exits "working tree has uncommitted changes"     | Dirty tree (often deno-fmt hook output)                                    | `git status --short`; commit or `git stash`                                         |
 | `tag.sh` exits "tag already exists — refusing to clobber" | Same version tagged before, **or** the bump moved the members and left the root behind — the #324 shape, which this guard is the only thing that catches | `cat deno.jsonc \| grep '"version"'` vs `git tag --list 'v*' \| sort -V \| tail`, then compare against any `packages/*/deno.json` — if they disagree, the root was not written |
 | `tag.sh` exits "deno task bump produced no file changes"  | the bump ran but couldn't find the version field, or is already at target  | Re-run `deno task bump --patch` manually and inspect                                |
-| `publish.yml` doesn't trigger                             | Release not in "published" state (still draft), or workflow file edited    | GitHub UI → Releases → confirm not draft; check `on: release: types: [published]`   |
+| `publish.yml` doesn't trigger                             | Release not in "published" state (still draft), or workflow file edited    | `gh release view vX.Y.Z --json isDraft`; check `on: release: types: [published]`. A draft is promoted only by `/ship` step 3(e) — never from the GitHub UI |
 | `publish.yml` runs but `deno publish` fails on auth       | Trusted publishing not configured, or `id-token: write` permission missing | `.github/workflows/publish.yml` permissions block; JSR package "Trusted publishers" |
 | `publish.yml` fails on `deno fmt --check`                 | Drift slipped past local hook                                              | Run `deno fmt` locally on the bump commit, force-push not possible — open a new tag |
 
