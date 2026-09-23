@@ -162,7 +162,10 @@ Anything not listed is internal and free to change.
   `MAX_LINE_BYTES` (one line), `MAX_REPLY_BYTES` (the total). The first two
   bound the parts and not the sum, which is how a multi-bulk of legal elements
   aggregated without limit. A bound riding on a deadline gets weaker every time
-  the deadline grows, and nothing says so.
+  the deadline grows, and nothing says so. `MAX_REPLY_BYTES` is a backstop, not
+  a budget: its JSDoc states the rule that a reply growing with a collection is
+  bounded by its caller (paged, or bounded in its script), and each consumer
+  keeps its own inventory — `realtime`'s is in its `AGENTS.md`.
 - **The dial is bounded, and it has to be raced.** Neither `Deno.connect` nor
   `Deno.connectTls` takes a deadline or an abort signal, so `#dial` races the
   open against a timer and abandons the loser — closing whatever socket

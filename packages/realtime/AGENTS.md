@@ -450,7 +450,7 @@ Anything not listed is internal and free to change.
   owner read from TypeScript races another instance's hold, and truthiness would
   announce from an error reply. **The sweep is a release with `deadId`** — the
   same script — and its reply is **not** ignored: `#announceSwept` (called only
-  from the sweep's `#sweepOwned`) is the only caller of the departure handler,
+  from the sweep's `#sweepPage`) is the only caller of the departure handler,
   and calls it before its first await; it drops (one WARN, channel only) an
   entry whose channel is not a valid name, that does not decode, or whose member
   id is not its slot, and hands the rest to the manager with no I/O await in
@@ -472,17 +472,66 @@ Anything not listed is internal and free to change.
   `#release`; the sweeper's own key would refuse every sweep release), and
   `DEREGISTER_INSTANCE_SCRIPT`, which deregisters only while the instance is
   dead **and** owns nothing. A leave passes `'0'`; a TypeScript `EXISTS` before
-  a write races the renewal. `#sweepOwned` counts N = emptied + kept and E =
-  emptied and returns how the sweep ended; `#sweepInstance` holds the one
-  per-instance `catch` and the ONE log site, one line per instance — "released"
-  (N > 0, also when `close()` cut the sweep short), "renewed" (a refused reply:
-  stop that instance, no deregistration) or "failed" (its own `catch`: no
-  deregistration, the pass goes on). `close()` drops the revocation handler,
-  THEN awaits `#reconcilePass`, THEN drops the departure handler; the pass reads
-  `#closing` only at the top of each instance, before each release and before
-  the deregistration — never between a release reply and the handler. Witness:
-  `reconcile_single_pass_355.test.ts`; battery
-  `tests/mutations/reconcile_single_pass_355.ts`.
+  a write races the renewal. `#sweepPage` counts N = emptied + kept and E =
+  emptied, per release; `#sweepOwned` returns how the sweep ended;
+  `#sweepInstance` holds the one per-instance `catch` and the ONE log site, one
+  line per instance — "released" (N > 0, also when `close()` cut the sweep
+  short), "renewed" (a refused reply: stop that instance, no deregistration) or
+  "failed" (its own `catch`: no deregistration, the pass goes on). `close()`
+  drops the revocation handler, THEN awaits `#reconcilePass`, THEN drops the
+  departure handler; the pass reads `#closing` at **four** points and nowhere
+  else — the top of each instance (`#reconcile`), before each page read and
+  before the deregistration (`#sweepOwned`, the page-read check since #358),
+  before each release (`#sweepPage`) — never between a release reply and the
+  handler. A "released" line on a `kept` or `closed` end at N > 0 carries the
+  _unfinished_ suffix (#358). Witness: `reconcile_single_pass_355.test.ts`;
+  battery `tests/mutations/reconcile_single_pass_355.ts`.
+- **The owned set is read in ONE place, in bounded pages**
+  ([#358](https://github.com/locknessland/lockness-monorepo/issues/358),
+  [ADR 008](../../docs/adr/008-realtime-sweep-reads-owned-set-in-pages.md)).
+  `#sweepOwned`'s `SSCAN <owned key> <cursor> COUNT OWNED_SCAN_COUNT` — no
+  option but `COUNT`, the page size a module constant that is not configurable —
+  is the only read of an owned set. Never an `SMEMBERS` / `SRANDMEMBER` / `SPOP`
+  of it, a second `SSCAN` site, a read inside a Lua script, or a literal
+  `'100'`. The scan is **one full iteration per pass**, ending only when the
+  cursor returns `'0'`: no page or entry budget, no cursor kept in memory or in
+  Redis, and an empty page with a non-zero cursor does not end it.
+  `decodeScanReply` is the one SCAN-envelope decoder (strict canonical cursor,
+  one constant message, `SCAN_REPLY_REFUSED`); a later paged read reuses it.
+  - **No page read sits between a release reply and its announcement** (#348
+    A1): `#sweepPage` holds the per-entry loop moved verbatim, and the next
+    `SSCAN` is issued only after the page's last `#announceSwept`. Never
+    prefetch a page, and never collect announcements to make after the loop.
+    Keep that loop at 8 / 12 spaces with its names: nine battery rows anchor on
+    it.
+  - **One SCAN guarantee is relied on, and two scripts cover the rest.** A
+    member present for the whole iteration is returned at least once. A
+    duplicate, or an entry another survivor already released, is an _absent_
+    release (`RELEASE_MEMBER_SCRIPT`'s atomic read-and-delete — no TypeScript
+    "seen" set); a member added mid-iteration may be missed, and
+    `DEREGISTER_INSTANCE_SCRIPT` then answers _kept_ (`SweepStop` `'kept'`), so
+    the instance stays registered for the next pass. No TS flag, `SCARD` or page
+    count gates the deregistration.
+  - **A multi-page test waits for the pass with FakeTime's drain** — the home of
+    this rule. After the tick that fires the pass, `await time.runMicrotasks()`
+    (or `tickAsync(0)`): it runs real macrotasks, so a 300-entry sweep finishes
+    inside it. Never a fixed count of microtasks (it reads a half-finished pass
+    as finished), never a new per-file `settle()` copy, and `close()` only where
+    `close()` is the subject — it sets `#closing` first and truncates the pass.
+    FakeRedis's scan core pages anything over `COUNT` members, places members by
+    `FakeRedis.scanSlot`, and refuses past a per-key and cumulative call
+    ceiling, so a scan that never advances fails instead of hanging. Witness:
+    `sweep_paging_358.test.ts`; battery `tests/mutations/sweep_paging_358.ts`.
+- **Every realtime reply that grows with a collection has a named bound** — the
+  inventory for `MAX_REPLY_BYTES`'s rule (`@lockness/redis`, `resp.ts`: the
+  caller bounds the reply; the cap is a backstop that costs the whole socket).
+  Keep this list here and nowhere else; add a row before adding such a read.
+  - roster read → `READ_ROSTER_SCRIPT` (bounded inside the script, #341);
+  - a dead instance's owned set → `OWNED_SCAN_COUNT` (paged, #358);
+  - the instance set (`SMEMBERS` in `#reconcile`) → unbounded, small by
+    construction (one entry per running instance);
+  - the revocation index → `LIST_REVOKED_SCRIPT` → **unbounded**, tracked as
+    [#359](https://github.com/locknessland/lockness-monorepo/issues/359).
 - **A lapsed-but-alive instance re-asserts its slots, and the pieces live in
   fixed homes**
   ([#349](https://github.com/locknessland/lockness-monorepo/issues/349),
@@ -789,7 +838,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-79 test files for 21 source files:
+80 test files for 21 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -869,9 +918,10 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/roster_read_barrier_333.test.ts`
 - `packages/realtime/tests/roster_window_341.test.ts`
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
+- `packages/realtime/tests/sweep_paging_358.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-32 mutation batteries — **`deno test` does not run these.** Each is an
+33 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -907,6 +957,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/roster_sync_330.ts`
 - `packages/realtime/tests/mutations/self_skip_310.ts`
 - `packages/realtime/tests/mutations/subscription_identity_315.ts`
+- `packages/realtime/tests/mutations/sweep_paging_358.ts`
 - `packages/realtime/tests/mutations/sweep_parse_316.ts`
 - `packages/realtime/tests/mutations/websocket_error_routing_352.ts`
 
@@ -924,7 +975,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 79 test files directly —
+Then, specific to this package: run its 80 test files directly —
 
 ```bash
 deno test -A packages/realtime/

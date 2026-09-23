@@ -1373,6 +1373,16 @@ per entry, exactly the release a leave runs, on the dead instance's behalf — s
 a crash leaves no permanent ghosts and never removes a member a live instance
 still holds.
 
+**The owned set is read in pages**
+([#358](https://github.com/locknessland/lockness-monorepo/issues/358), ADR 008):
+`SSCAN … COUNT 100`, each page released before the next is read, one full scan
+per instance per pass. No reply grows with the number of holds the dead instance
+had, so an instance that crashed holding tens of thousands of slots is swept in
+one pass without a reply over the command client's cap — and without costing the
+surviving instance its connection. A hold the dead instance's owned set gains
+behind the scan's position is left for the next pass, and the instance stays
+registered until then.
+
 **One pass at a time, and only while the target is dead**
 ([#355](https://github.com/locknessland/lockness-monorepo/issues/355), ADR 006).
 An instance never has two reconcile passes in flight: the next one is scheduled
@@ -1386,11 +1396,11 @@ mid-sweep stays reachable by the next pass.
 
 The sweep logs at most **one WARN per swept instance**:
 
-| Line                                                                                                                        | Means                                                                                                                                                                                                                 |
-| :-------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `released N hold(s) of dead instance <id> (E emptied their slot)`                                                           | N holds were actually removed; E of them emptied their slot and were announced `left` (the rest are still held by a live instance). Also logged when `close()` cut the sweep short after removing some. None at N = 0 |
-| `instance <id> renewed its liveness while being swept — a lapse, not a crash; N hold(s) released (E emptied) before it did` | The instance is alive again: its sweep stopped, it stays registered, and what was released before the renewal stays released                                                                                          |
-| `sweep of dead instance <id> failed after N hold(s) released (E emptied): <error>`                                          | That instance could not be swept (its owned set could not be read, the broker failed): it stays registered and is retried next pass, and the other dead instances are still swept in the same pass                    |
+| Line                                                                                                                        | Means                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| :-------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `released N hold(s) of dead instance <id> (E emptied their slot)`                                                           | N holds were actually removed; E of them emptied their slot and were announced `left` (the rest are still held by a live instance). None at N = 0. The line ends `— unfinished: it stays registered and a later pass resumes it` when work is left behind: `close()` cut the sweep short, or its owned set still held an entry after the full scan (a hold that landed behind the scan, or one the sweep cannot parse) |
+| `instance <id> renewed its liveness while being swept — a lapse, not a crash; N hold(s) released (E emptied) before it did` | The instance is alive again: its sweep stopped, it stays registered, and what was released before the renewal stays released                                                                                                                                                                                                                                                                                           |
+| `sweep of dead instance <id> failed after N hold(s) released (E emptied): <error>`                                          | That instance could not be swept (a page of its owned set could not be read, the broker failed): it stays registered and is retried next pass, and the other dead instances are still swept in the same pass                                                                                                                                                                                                           |
 
 A sweep that removed nothing — every entry already released by another sweeper —
 logs nothing.
@@ -1424,7 +1434,10 @@ the departed entry to whichever sweep runs it first.
   `0.3.0` sweeper announces nothing, and a crashed `0.3.0` instance wrote no
   holders entry to announce from: during a mixed-version deploy expect at most
   one `left`, not exactly one. A `0.3.0` sweeper also has no liveness check: it
-  keeps releasing an instance that renewed, and deregisters it regardless.
+  keeps releasing an instance that renewed, and deregisters it regardless. And a
+  `0.3.0` sweeper still reads a dead instance's whole owned set in one reply:
+  past the reply cap it fails that sweep every pass and costs its own command
+  client the connection.
 - **The bytes are the broker's.** The announced entry is read back from Redis.
   An entry whose member id is not the slot it was stored under, or whose channel
   is not a valid name, is dropped with one WARN naming the channel only.
@@ -1466,10 +1479,12 @@ live instance never reclaims its own holds. Consequences worth holding on to:
     member) slots the instance holds, plus one `PUBLISH` per member that comes
     back. Once it holds anything, **every failed beat costs one full re-assert**
     on the next successful one, with no frame — a broker backoff that fails
-    beats ([#358](https://github.com/locknessland/lockness-monorepo/issues/358))
-    costs each surviving instance its K holds per recovery. The upgrade path, if
-    that ever shows: suspect a lapse only when the next successful reply arrives
-    at least one TTL after the last successful beat was issued.
+    beats costs each surviving instance its K holds per recovery (an owned-set
+    read past the reply cap was one such backoff, on every pass, until
+    [#358](https://github.com/locknessland/lockness-monorepo/issues/358) paged
+    it). The upgrade path, if that ever shows: suspect a lapse only when the
+    next successful reply arrives at least one TTL after the last successful
+    beat was issued.
   - **A foreign value at the alive key no longer heals.** A non-string written
     there by another client makes `SET … GET` answer `WRONGTYPE` without
     overwriting it, so every beat fails until the key is removed; deleting the

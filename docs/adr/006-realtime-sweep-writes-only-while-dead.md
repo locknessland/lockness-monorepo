@@ -1,8 +1,9 @@
 # ADR 006 — One sweep pass at a time, and a sweep writes only while its target is dead
 
 **Status:** Accepted, amended by
-[ADR 007](007-realtime-lapsed-instance-reasserts.md) (§5) **Date:** 2026-09-23
-**Owner:** architect **Amends:**
+[ADR 007](007-realtime-lapsed-instance-reasserts.md) (§5) and
+[ADR 008](008-realtime-sweep-reads-owned-set-in-pages.md) (§2, §5, §6) **Date:**
+2026-09-23 **Owner:** architect **Amends:**
 [ADR 004](004-realtime-roster-slots-held-per-instance.md) §2, §5 and
 [ADR 005](005-realtime-swept-departures-announced.md) §2, §5 **Affects:**
 `packages/realtime/drivers/redis.ts`, `docs/realtime.md`,
@@ -60,6 +61,12 @@ instance, before each release, before the deregistration — and never between a
 release reply and the departure handler, so an in-flight release's departure is
 still announced (ADR 005's order is unchanged).
 
+> **Amended by [ADR 008](008-realtime-sweep-reads-owned-set-in-pages.md)
+> (2026-09-23).** The owned set is read in `SSCAN` pages, and the pass reads
+> `#closing` at **four** points: the top of each instance, **before each page
+> read**, before each release, and before the deregistration. A page read never
+> sits between a release reply and the departure handler either.
+
 ### A sweep writes only while its target is dead — decided inside the write
 
 `RELEASE_MEMBER_SCRIPT` gains `KEYS[4]`, the **releaser's** liveness key, and
@@ -109,6 +116,15 @@ line or write a second: exactly one WARN per swept instance, or none:
 - **failed** — anything thrown while sweeping that instance, caught by a
   per-instance `catch`: no deregistration, retried next pass, and the pass goes
   on to the next instance.
+
+> **Amended by [ADR 008](008-realtime-sweep-reads-owned-set-in-pages.md)
+> (2026-09-23).** The ends are four: `completed` now means **deregistered**
+> only, and **`kept`** is new — one full scan, then the deregistration answered
+> _kept_ (a hold that landed behind the scan's cursor, or an unparsable entry).
+> On a `kept` or `closed` end with N > 0 the "released" line ends
+> `— unfinished: it stays registered and a later pass resumes it`; `completed`
+> has no suffix, and N = 0 stays silent on every end. "failed" may now follow a
+> page read.
 
 ---
 
@@ -161,8 +177,12 @@ line or write a second: exactly one WARN per swept instance, or none:
   every pass and never deregistered.
 - **Mixed `0.3.0` / `0.4.0` fleet.** A `0.3.0` sweeper has no liveness check,
   releases a renewed instance's holds and deregisters with a raw `SREM`.
-- **An owned set too large for one reply** is never swept; an SSCAN-budgeted
-  sweep is filed separately.
+- ~~**An owned set too large for one reply** is never swept; an SSCAN-budgeted
+  sweep is filed separately.~~ **Closed by
+  [ADR 008](008-realtime-sweep-reads-owned-set-in-pages.md)**
+  ([#358](https://github.com/locknessland/lockness-monorepo/issues/358)): the
+  owned set is read in bounded `SSCAN` pages, one full iteration per pass, with
+  no budget.
 - **Re-holding a lapsed instance's swept slots** is
   [#349](https://github.com/locknessland/lockness-monorepo/issues/349).
 
@@ -182,3 +202,8 @@ caller, the callback it arms.** A sweep write is authorised only inside its own
 script, by the target's liveness key (and, for the deregistration, its owned
 set) — never by a read that precedes it. A release or deregistration reply means
 only what its decoder says.
+
+> **Amended by [ADR 008](008-realtime-sweep-reads-owned-set-in-pages.md)
+> (2026-09-23).** And the owned set is read only by `#sweepOwned`'s `SSCAN`,
+> with `COUNT` set to `OWNED_SCAN_COUNT` and no other option: no sweep read
+> grows with the owned set.
