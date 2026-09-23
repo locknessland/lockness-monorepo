@@ -200,8 +200,9 @@ member no `joined` was sent for. **A crash is the second cause**: an instance
 that committed a hold and died before announcing it leaves a slot the ghost
 sweep later empties, and that sweep announces a `left` for a member nobody was
 told had arrived (see [the ghost sweep](#the-authoritative-presence-roster)).
-Treat an unknown `left` as a no-op. A connection never receives `joined` for its
-own member id.
+Treat an unknown `left` as a no-op. A connection never receives `joined` **or
+`left`** for its own member id
+([#349](https://github.com/locknessland/lockness-monorepo/issues/349)).
 
 **A `joined` frame on any OTHER instance reflects an announcement, not a roster
 read.** Cross-instance presence travels the control plane, and a receiving
@@ -613,6 +614,8 @@ driver.onControlRefused((refusal: ControlRefusal) => {
 
 `ControlRefusal` is exported from `@lockness/realtime`, and `onControlRefused`
 is optional on `BroadcastDriver` — a custom driver that omits it is unaffected.
+The Redis driver's `close()` drops the handler: a closed driver reports nothing
+([#349](https://github.com/locknessland/lockness-monorepo/issues/349)).
 
 The two reasons have different fixes — shrink the member, or configure a control
 secret — which is why `reason` is an enum rather than a message. A handler that
@@ -1442,16 +1445,41 @@ live instance never reclaims its own holds. Consequences worth holding on to:
   entry, so a hold landing mid-sweep stays sweepable.
 - An owned entry the sweep cannot parse keeps its dead instance registered —
   re-read every pass, never removed.
-- The sweep is a **crash** recovery mechanism. It is not a repair for a
-  divergence on a running instance, and nothing should be designed to lean on it
-  as one. An instance whose heartbeat lapsed while it stayed up loses the holds
-  a peer's sweep released **before it renewed** (the sweep stops there), which
-  announces them `left` to the room — that member's own open tabs on the lapsed
-  instance included; a later hold for that member is a real arrival and
-  announces one `joined`, which those tabs do not receive (it excludes their
-  member id), and a leave before any such hold sends nothing (it holds nothing
-  to release). That lapsed-alive residue is tracked in
-  [#349](https://github.com/locknessland/lockness-monorepo/issues/349).
+- The sweep is a **crash** recovery mechanism. An instance whose heartbeat
+  lapsed while it stayed up — a stalled event loop, a long GC pause, a partition
+  to Redis — loses the holds a peer's sweep released **before it renewed** (the
+  sweep stops there), and the room hears those members `left`. **The lapsed
+  instance repairs itself**
+  ([#349](https://github.com/locknessland/lockness-monorepo/issues/349),
+  [ADR 007](adr/007-realtime-lapsed-instance-reasserts.md)): its heartbeat's
+  liveness write is `SET … EX … GET`, whose nil reply says the key had lapsed,
+  and once it has held anything that reply — or any successful beat after a
+  failed one — makes it re-check durable revocations, then write every local
+  slot again, one at a time. A swept member comes back with one `joined`; a
+  member nobody swept, or one another instance still holds, costs no frame. A
+  member revoked during the lapse stays out. The member's own tabs hear neither
+  the `left` nor the `joined` (no connection hears presence about its own member
+  id).
+  - **Latency.** One heartbeat interval after the instance can reach the broker
+    again, plus one revocation re-check, plus the re-assert's own writes.
+  - **Cost.** K hold `EVAL`s, where K is the number of distinct (channel,
+    member) slots the instance holds, plus one `PUBLISH` per member that comes
+    back. Once it holds anything, **every failed beat costs one full re-assert**
+    on the next successful one, with no frame — a broker backoff that fails
+    beats ([#358](https://github.com/locknessland/lockness-monorepo/issues/358))
+    costs each surviving instance its K holds per recovery. The upgrade path, if
+    that ever shows: suspect a lapse only when the next successful reply arrives
+    at least one TTL after the last successful beat was issued.
+  - **A foreign value at the alive key no longer heals.** A non-string written
+    there by another client makes `SET … GET` answer `WRONGTYPE` without
+    overwriting it, so every beat fails until the key is removed; deleting the
+    alive key forces a re-assert.
+  - **Shutting down.** `close()` stops a re-assert before its next slot and
+    waits for the slot in flight: at most one slot write plus what is queued
+    ahead of it, or the revocation re-check in flight — 30 s per command at
+    `fromConfig`'s timeout.
+  - An instance that **stays** stalled stays missing: from the fleet's side, it
+    is down.
 
 Tune the sweep with the `presence` option:
 
@@ -1576,6 +1604,36 @@ and over the control plane, through the same path as a leave. The contract:
   your release must be announced after this `left`, not before.
 
 A driver without the method keeps a silent sweep; nothing else changes.
+
+**Reporting that your own holds may be gone — optional.** A driver whose holds a
+peer can release while this process is still alive (the Redis driver's liveness
+key lapses, and a peer's sweep takes it for a crash) implements
+`onRosterLapse(handler)`
+([#349](https://github.com/locknessland/lockness-monorepo/issues/349)). The
+manager registers it at construction, only when the driver owns a roster, and
+its handler re-checks durable revocations, then writes every local slot again
+through its normal write path — announcing only what `holdMember` reports
+`arrived`. The contract:
+
+- **Call it only after this process has issued a hold**, when you find its holds
+  may have been released on its behalf. Never await it from the path that
+  detected the lapse: K slot writes queued there would cause the next one.
+- **At most one run in flight.** Lapses reported during a run coalesce into
+  exactly one trailing run. A run that throws or rejects is logged once, and the
+  next detection retries it — there is no timer.
+- **The handler takes an `AbortSignal`.** Abort it when you shut down, then wait
+  for the run in flight before you close your connections; the manager stops
+  between two slots.
+
+A driver without the method keeps today's behaviour: a swept process's members
+stay missing until their next write.
+
+**Every optional hook shares one lifecycle.** `onControlRefused`,
+`onRevocationReconcile`, `onRosterDeparture` and `onRosterLapse` have **one
+owner per driver**: registering again replaces the handler, and the driver's own
+shutdown drops it — a shut-down driver calls nothing. `onControl` is the
+exception: its lifetime is its subscription. The Redis driver's `close()`
+therefore drops the refusal handler too, since #349.
 
 **Members are read-only on both sides of the seam**
 ([#354](https://github.com/locknessland/lockness-monorepo/issues/354)). The
@@ -1946,16 +2004,17 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Nine breaking changes — the driver revocation seam, the presence snapshot a
+Ten breaking changes — the driver revocation seam, the presence snapshot a
 subscribe returns, the driver roster seam, presence frames announced per member
 rather than per connection, an authorizer result outside its contract now
 throwing, a presence member id that is not a string or a finite number now
 throwing, a presence member that is not exactly `{ id, info }` now throwing,
-presence members now read-only, and an object result on a private channel now
-checked as a presence member — two widened return types, one new control kind,
-and one additive wire field. **No migration step, and one new Redis key
-family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11, 12 and 13 —
-and item 7 if you wrote your own driver.
+presence members now read-only, an object result on a private channel now
+checked as a presence member, and no connection receiving `joined` or `left` for
+its own member id — two widened return types, one new control kind, and one
+additive wire field. **No migration step, and one new Redis key family.** Before
+you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13 and 14 — and item 7 if
+you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2485,6 +2544,29 @@ return result.rowCount > 0 // pg
 ```
 
 See [What your authorizer may return](#what-your-authorizer-may-return).
+
+### 14. A connection never receives `joined` or `left` for its own member id
+
+**Before**, a `left` excluded nobody
+([#349](https://github.com/locknessland/lockness-monorepo/issues/349)). Only
+`joined` skipped the connections of the member it named. When a Redis instance's
+liveness lapsed while it stayed up, a peer's ghost sweep announced that
+instance's members `left` — and the members' own open tabs received it. The
+`joined` that followed skipped those same tabs, so they saw themselves leave and
+never come back, until they resubscribed.
+
+**After**, no presence frame reaches a connection whose own member id it names:
+not a `joined`, not a `left`, locally or relayed from another instance. The
+lapsed instance also puts its members back itself (see
+[the ghost sweep](#the-authoritative-presence-roster)).
+
+In a consistent roster nothing changes: a `left` is announced only when no
+process holds the member, and a connection of that member still open means one
+does. You lose a frame only where the old one was wrong. A revocation is
+unaffected: the revoked connection is still told with an `unsubscribed` frame,
+or its socket is closed.
+
+No wire change, and no migration step.
 
 ## Upgrading to v0.3.0
 

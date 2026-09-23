@@ -1,8 +1,9 @@
 # ADR 005 — A slot the ghost sweep empties is announced as left, by the manager, exactly once
 
 **Status:** Accepted, amended by
-[ADR 006](006-realtime-sweep-writes-only-while-dead.md) (§2, §5) **Date:**
-2026-09-23 **Owner:** architect **Amends:**
+[ADR 006](006-realtime-sweep-writes-only-while-dead.md) (§2, §5) and
+[ADR 007](007-realtime-lapsed-instance-reasserts.md) (§5) **Date:** 2026-09-23
+**Owner:** architect **Amends:**
 [ADR 004](004-realtime-roster-slots-held-per-instance.md) §2, §5, §6
 **Affects:** `packages/realtime/driver.ts`, `packages/realtime/protocol.ts`,
 `packages/realtime/manager.ts`, `packages/realtime/drivers/redis.ts`,
@@ -182,6 +183,12 @@ does not implement the callback keeps today's silent sweep.
 > (2026-09-23).** Overlapping passes are **closed**: a driver runs one pass at a
 > time. The lapsed-but-alive bullet is **narrowed** — a renewal stops the sweep
 > of that instance — and the crash latency grows by one pass duration.
+
+> **Amended by [ADR 007](007-realtime-lapsed-instance-reasserts.md)
+> (2026-09-23).** The lapsed-but-alive bullet is **closed**: the instance
+> notices its lapse on its next successful renewal and re-asserts its slots,
+> each swept member announced by one `joined`; no connection receives a presence
+> frame about its own member id, so its own tabs hear neither.
 
 - **Redis Cluster**, and **frame order across publishers**, as in ADR 004.
 

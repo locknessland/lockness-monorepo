@@ -1,6 +1,8 @@
 # ADR 006 — One sweep pass at a time, and a sweep writes only while its target is dead
 
-**Status:** Accepted **Date:** 2026-09-23 **Owner:** architect **Amends:**
+**Status:** Accepted, amended by
+[ADR 007](007-realtime-lapsed-instance-reasserts.md) (§5) **Date:** 2026-09-23
+**Owner:** architect **Amends:**
 [ADR 004](004-realtime-roster-slots-held-per-instance.md) §2, §5 and
 [ADR 005](005-realtime-swept-departures-announced.md) §2, §5 **Affects:**
 `packages/realtime/drivers/redis.ts`, `docs/realtime.md`,
@@ -163,6 +165,13 @@ line or write a second: exactly one WARN per swept instance, or none:
   sweep is filed separately.
 - **Re-holding a lapsed instance's swept slots** is
   [#349](https://github.com/locknessland/lockness-monorepo/issues/349).
+
+> **Amended by [ADR 007](007-realtime-lapsed-instance-reasserts.md)
+> (2026-09-23).** Re-holding is **solved**: the heartbeat's `SET … GET` reports
+> the lapse, and the lapsed instance re-asserts its slots itself. `close()` now
+> also closes that lapse run — right after the timers, synchronously — and
+> awaits it after the pass, on its own line, before it drops the departure and
+> the refusal handlers.
 
 ---
 

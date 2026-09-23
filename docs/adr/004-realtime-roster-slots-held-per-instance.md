@@ -2,7 +2,8 @@
 
 **Status:** Accepted, amended by
 [ADR 005](005-realtime-swept-departures-announced.md) (§2, §5, §6) and
-[ADR 006](006-realtime-sweep-writes-only-while-dead.md) (§2, §5) **Date:**
+[ADR 006](006-realtime-sweep-writes-only-while-dead.md) (§2, §5) and
+[ADR 007](007-realtime-lapsed-instance-reasserts.md) (§2, §5) **Date:**
 2026-09-15 **Owner:** architect **Amends:**
 [ADR 003](003-realtime-roster-write-ownership.md) §3, §6, §7 **Affects:**
 `packages/realtime/driver.ts`, `packages/realtime/manager.ts`,
@@ -115,6 +116,13 @@ slot's serial tail (ADR 003, unchanged). It now holds or releases, and on
   receive side's `presence-join` arm both ask it, so a connection that claimed
   the member on another instance is excluded too. `left` excludes nobody.
 
+> **Amended by [ADR 007](007-realtime-lapsed-instance-reasserts.md)
+> (2026-09-23).** No self-frames, `left` included:
+> `emitPresence(channel, frame)` excludes every local connection of the frame's
+> member id for **both** actions, on the local emit and on both receive-side
+> arms. The `exceptMemberId` option is gone — the exclusion is the emit's own,
+> and no caller can drop it.
+
 ### What makes `joined` / `left` truthful
 
 **A member id unique per identity.** The roster keys slots by `String(id)`, so
@@ -197,6 +205,13 @@ inside the #323 rollback instead of at construction.
 > keeps its instance registered and the next pass releases it. The
 > lapsed-instance bullet is **narrowed**: a release on its behalf is refused
 > once it renews, so it loses only the holds swept before its renewal.
+
+> **Amended by [ADR 007](007-realtime-lapsed-instance-reasserts.md)
+> (2026-09-23).** The lapsed-instance bullet is **closed**: the heartbeat's
+> `SET … GET` reports the lapse, and the instance re-asserts every local slot
+> within one heartbeat interval (after re-checking durable revocations), so a
+> swept member returns with one `joined`. Its own tabs receive neither the
+> `left` nor the `joined`.
 
 - **A lost release reply** skips the `left`, with no retry.
 - **A lost hold reply after commit** (#323): the rollback's release reports

@@ -185,12 +185,19 @@ Anything not listed is internal and free to change.
   (#330). Three details a tidy-up breaks: **the WARN is never rethrown** — a
   throw inside the tail rejects another call's write and rolls back a committed
   hold — and carries only channel, action and error, never the member id or
-  `info`; **`joined` excludes by member id** (`emitPresence`'s `exceptMemberId`,
-  asked by both the announcer and the `presence-join` arm), because excluding
-  only `origin.clientId` sends a second tab, or a remote claimer, `joined` for
-  itself; **`left` excludes nobody**. Witness:
-  `presence_member_transitions_344.test.ts`; battery
-  `tests/mutations/presence_member_transitions_344.ts`.
+  `info`; **no connection hears presence about its own member id** — `joined`
+  AND `left` (#349, ADR 007). The exclusion lives in
+  `emitPresence(channel,
+  frame)` itself, read from `presence` at emit time,
+  with **no option**: the old `exceptMemberId` is gone, so no call site passes
+  it and none can forget it. Do not reintroduce an `except` argument, exclude at
+  the call sites, condition it on `action`, or narrow it to `origin.clientId` —
+  that sends a second tab, a remote claimer, or a lapsed instance's own tabs a
+  frame about themselves. In a consistent roster a `left` excludes nobody
+  anyway. Witnesses: `presence_member_transitions_344.test.ts` (W9),
+  `lapse_rehold_349.test.ts` (W3, W3b); battery
+  `tests/mutations/presence_member_transitions_344.ts`, and
+  `tests/mutations/lapse_rehold_349.ts` M8 / M12.
 - **`PresenceMember` is bounded at ADMISSION, and the bound cannot move to the
   publish**
   ([#326](https://github.com/locknessland/lockness-monorepo/issues/326)). The
@@ -476,6 +483,51 @@ Anything not listed is internal and free to change.
   the deregistration — never between a release reply and the handler. Witness:
   `reconcile_single_pass_355.test.ts`; battery
   `tests/mutations/reconcile_single_pass_355.ts`.
+- **A lapsed-but-alive instance re-asserts its slots, and the pieces live in
+  fixed homes**
+  ([#349](https://github.com/locknessland/lockness-monorepo/issues/349),
+  [ADR 007](../../docs/adr/007-realtime-lapsed-instance-reasserts.md)).
+  - **The lapse bit is the renewal's own reply.** `#heartbeat` writes
+    `SET … EX … GET`; a nil means the key was re-created. `decodeBeatReply` is
+    the one reader (nil → lapsed, bulk → continuous, else a constant throw), and
+    it runs **inside** the `SET`'s `try` — moved after it, a refused reply
+    escapes an interval callback and `holdMember`'s boot beat. The `catch` keeps
+    its two lines (#355 M20's anchor).
+  - **The hold gate is read at the tail.** `#holdIssued` is set only in
+    `holdMember`, just before its `EVAL`, after the boot beat, never cleared;
+    the tail reads it once both writes are done. Not at `holdMember`'s entry
+    (the boot nil would count), not "skip the first beat", not read when the
+    beat is issued (a hold that overtook the boot `SET` and was swept is
+    missed). `#lapseSuspected` carries a failed beat, or a failed run, to the
+    next successful beat; a failed `SADD` sets nothing.
+  - **`LapseRun` (`drivers/lapse_run.ts`) owns when the handler runs**: never
+    awaited by the beat, one run in flight plus exactly one trailing run, none
+    once closed, a run never throws (one WARN plus `onFailure`). Do not await it
+    from the heartbeat, add a retry timer, or inline the scheduling in the
+    driver. `close()` calls `this.#lapse.close()` right after the timers and
+    `await stopped` on its own line after the sweep pass — never `Promise.all`,
+    and never between `revocationHandler = undefined` and its comment (#355
+    M15's anchor).
+  - **Revocations are re-checked first.** `#reassertRoster` starts with
+    `reconcileRevocations()`; a failure is one WARN and the re-assert goes on —
+    it never joins the run's rejection, or a broken store re-asserts every beat.
+    Inside `reconcileRevocations`, each revocation is applied in its own `try`:
+    one that throws is one WARN naming no target, never the end of the pass — or
+    it would starve every revocation listed behind it, pass after pass.
+    `close()` waits for this re-check too when it is the run's step in flight.
+  - **One slot at a time, through `#syncRosterMember`.** Never `Promise.all` (K
+    writes in front of the next heartbeat cause the next lapse), never
+    `roster.holdMember` directly (a leave queued on the slot is overtaken), and
+    never an announcement of its own: `#announcePresence` keeps its **two**
+    callers, and the hold's `arrived` decides the frame. Every slot is tried
+    before the one aggregate rejection. The slots are a **snapshot** taken
+    before the first write: a walk over the live `presence` map would write
+    every join that lands during the run, and under steady joins never end.
+  - **The hook rule.** `onRosterLapse` is the fifth optional hook; the shared
+    lifecycle is stated once on `BroadcastDriver`. A sixth hook needs a payload
+    **and** a delivery contract that differ from every existing one. Witnesses:
+    `lapse_rehold_349.test.ts`, `lapse_run_349.test.ts`; battery
+    `tests/mutations/lapse_rehold_349.ts`.
 - **`heartbeatIntervalMs` and `livenessTtlSeconds` are ONE setting with two
   numbers.** The heartbeat is what keeps this instance's `{prefix}:alive:<id>`
   key alive, and that key's TTL is `livenessTtlSeconds`. Beat slower than the
@@ -737,7 +789,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-77 test files for 20 source files:
+79 test files for 21 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -770,6 +822,8 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/fake_redis_conformance.test.ts`
 - `packages/realtime/tests/handler.test.ts`
 - `packages/realtime/tests/identity.test.ts`
+- `packages/realtime/tests/lapse_rehold_349.test.ts`
+- `packages/realtime/tests/lapse_run_349.test.ts`
 - `packages/realtime/tests/leave_outcome_332.test.ts`
 - `packages/realtime/tests/live_fake_conformance.test.ts`
 - `packages/realtime/tests/log_encoding_291.test.ts`
@@ -817,7 +871,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-31 mutation batteries — **`deno test` does not run these.** Each is an
+32 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -829,6 +883,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/channel_revoke_332.ts`
 - `packages/realtime/tests/mutations/connection_id_304.ts`
 - `packages/realtime/tests/mutations/fake_redis_280.ts`
+- `packages/realtime/tests/mutations/lapse_rehold_349.ts`
 - `packages/realtime/tests/mutations/live_conformance_285.ts`
 - `packages/realtime/tests/mutations/log_encoding_291.ts`
 - `packages/realtime/tests/mutations/manager_debt_353.ts`
@@ -869,7 +924,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 77 test files directly —
+Then, specific to this package: run its 79 test files directly —
 
 ```bash
 deno test -A packages/realtime/
