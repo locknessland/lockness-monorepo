@@ -394,6 +394,9 @@ export interface BroadcastDriver {
      * **Replaces the pre-`0.4.0` add method**, whose old name a `ChannelManager`
      * refuses at construction if a driver still offers it.
      *
+     * `member` is deep-frozen (#354): to store extra fields beside it, build a
+     * new object rather than writing to it.
+     *
      * @param channel - The presence channel.
      * @param member - The client-visible member this process holds the slot as.
      * @returns Whether this hold filled an empty slot.
@@ -435,6 +438,12 @@ export interface BroadcastDriver {
      * Nothing can enforce this through the types: a driver that reads the whole
      * room and slices it satisfies the signature and reintroduces the
      * per-subscribe cost this method exists to bound.
+     *
+     * **The members are handed out uncopied** (#354): to the application, and
+     * to every caller sharing one read. Return members that nothing mutates
+     * afterwards — the bundled drivers return deep-frozen ones. A driver that
+     * decodes its own members instead of storing the frozen object
+     * `holdMember` received should freeze what it returns.
      *
      * @param channel - The presence channel.
      * @param limit - The most members to return; a positive integer.

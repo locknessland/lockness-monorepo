@@ -65,6 +65,7 @@ import {
     isValidName,
 } from '../protocol.ts'
 import { sameMemberId } from '../presence_snapshot.ts'
+import { freezePresenceMember } from '../presence_member.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
 import { type PresenceMember, typeLabel } from '../channel.ts'
 import type { RealtimeControlConfig } from '../types.ts'
@@ -1802,6 +1803,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * A fresh `{ id, info }` object is built rather than returning
      * `entry.member` as parsed, so nothing else stored beside the member — the
      * `owner`, or a field a future write adds — can reach a snapshot (S4).
+     * It is deep-frozen before it is returned (#354): this is one of the
+     * package's three mint sites, and the member is shared by every caller
+     * of one barrier read.
      *
      * **The one decode of a roster entry**, for the roster read and for the
      * member a swept departure announces (#348). Its WARN names the channel
@@ -1853,9 +1857,14 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 )
                 return undefined
             }
-            return member.info === undefined
-                ? { id: member.id }
-                : { id: member.id, info: member.info }
+            // Deep-frozen where it is minted (#354): one read is shared by
+            // every caller of the #333 barrier, and a departure is handed
+            // to the application's encoder.
+            return freezePresenceMember(
+                member.info === undefined
+                    ? { id: member.id }
+                    : { id: member.id, info: member.info },
+            )
         } catch {
             // A FIXED reason, never the parser's message (#348 S2): V8's
             // `SyntaxError` quotes the input, and the input is the entry —
@@ -2218,8 +2227,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     /**
      * Decode a control-topic payload, verify its authenticity MAC and routing
      * names, and drop self-loopback. Returns the manager-facing
-     * {@link ControlMessage} only when every check passes; otherwise `undefined`
-     * (logged at WARN — never obeyed, never thrown).
+     * {@link ControlMessage} only when every check passes, its `member`
+     * deep-frozen (#354, a mint site); otherwise `undefined` (logged at WARN —
+     * never obeyed, never thrown).
      */
     #verifyAndDecode(payload: string): ControlMessage | undefined {
         if (!this.secret) {
@@ -2341,7 +2351,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             kind: wire.kind,
             target: wire.target,
             channel: wire.channel,
-            member: wire.member,
+            // Frozen only now (#354), after the MAC, the replay window and
+            // the shape gate: a dropped frame costs no walk, and the MAC's
+            // canonical bytes never depended on it.
+            member: wire.member && freezePresenceMember(wire.member),
             revocationId: wire.revocationId,
         }
     }

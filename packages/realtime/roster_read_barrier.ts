@@ -187,7 +187,8 @@ export class RosterReadBarrier {
      * arrived. The members themselves are deliberately **not** cloned: a
      * per-caller deep copy restores the per-caller `O(room)` cost this class
      * exists to remove, in CPU instead of bytes. `PresenceMember` is a value
-     * object and the framework never mutates one.
+     * object and nothing can mutate one: it is deep-frozen where it is minted
+     * (#354).
      *
      * @param channel - The presence channel to read the roster of.
      * @param selfId - The caller's member id, fetched by the read that answers

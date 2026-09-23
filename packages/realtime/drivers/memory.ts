@@ -63,6 +63,10 @@ export class MemoryBroadcastDriver implements BroadcastDriver {
      * One process is the only possible holder, so the slot is filled iff it
      * was empty before this call; holding it again replaces the entry.
      *
+     * Stores the manager's admitted member BY REFERENCE, and `readRoster`
+     * hands that same object out — correct only because it is deep-frozen
+     * where it was minted (#354), so no reader can change it for the others.
+     *
      * @param channel - The presence channel.
      * @param member - The client-visible member to hold the slot as.
      * @returns `arrived: true` iff the slot was empty before this hold.
@@ -94,7 +98,8 @@ export class MemoryBroadcastDriver implements BroadcastDriver {
      * Walks at most `limit` entries in join order — the same order this driver
      * has always reported — and never copies the whole room. `total` is the
      * map's size and `selves` are direct lookups, all within one synchronous
-     * call, so the three describe one instant.
+     * call, so the three describe one instant. The arrays are fresh; the
+     * members in them are the stored, deep-frozen objects (#354).
      *
      * @param channel - The presence channel.
      * @param limit - The most members to return; a positive integer.

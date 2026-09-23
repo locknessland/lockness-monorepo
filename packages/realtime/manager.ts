@@ -1188,7 +1188,10 @@ export class ChannelManager<Identity = unknown> {
      *   bounded `here` snapshot: at most `maxPresenceSnapshotMembers` members
      *   with the joiner's own among them, the roster's `total`, and whether
      *   that roster is every instance's or only this one's — see
-     *   {@link SubscribeResult}.
+     *   {@link SubscribeResult}. The members are deep-frozen (#354) and may be
+     *   the very objects other callers receive: copy one before changing it
+     *   (`{ ...m, info: { ...m.info, extra } }` or `structuredClone(m)`). A
+     *   write throws `TypeError`. `here` and its `members` array are yours.
      * @throws {ConnectionIdError} If `connection.id` is outside the supported
      *   charset. That is a caller bug, not an authorization outcome — a denied
      *   subscribe answers `{ ok: false }`, and folding the two together would
@@ -2079,7 +2082,8 @@ export class ChannelManager<Identity = unknown> {
      * window to every caller sharing a read; without this copy they would share
      * a mutable `members` list. The members inside it are still shared by
      * reference, and deliberately so — a per-caller deep copy would restore a
-     * per-caller cost, in CPU instead of bytes.
+     * per-caller cost, in CPU instead of bytes — which is safe because every
+     * member is deep-frozen where it is minted (#354).
      *
      * @param channel - The presence channel.
      * @param selfId - The caller's member id for the read to fetch, if any.

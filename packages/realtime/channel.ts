@@ -34,6 +34,24 @@ export function channelKind(name: string): ChannelKind {
 /**
  * A presence channel member's public identity, shared only with authorized
  * members of that channel.
+ *
+ * **An immutable value** (#354). Every `PresenceMember` the framework hands
+ * out — in a `subscribe` snapshot's `here.members`, in the frames a custom
+ * `encode` receives, and to a driver's `holdMember` — is deep-frozen where it
+ * was minted, and the same object may be handed to several callers at once.
+ * A write throws `TypeError` (ES modules are strict), and `id` / `info` are
+ * `readonly`, so a direct write is also a compile error. Copy before
+ * decorating; the copy is yours:
+ *
+ * ```ts
+ * const view = here.members.map((m) => ({
+ *     ...m,
+ *     info: { ...m.info, isYou: m.id === me },
+ * }))
+ * ```
+ *
+ * Do not compare members by identity to detect a change: two snapshots may
+ * hold the same object on one driver and fresh ones on another.
  */
 export interface PresenceMember {
     /**
@@ -68,9 +86,12 @@ export interface PresenceMember {
      * in the hash while the frame announcing it is dropped with a warning and
      * `subscribe` still answers `{ ok: true }`.
      */
-    id: string | number
-    /** Optional public info shown to other members. */
-    info?: Record<string, unknown>
+    readonly id: string | number
+    /**
+     * Optional public info shown to other members. Deep-frozen, like the
+     * member (#354): spread it into a new object to add a field.
+     */
+    readonly info?: Readonly<Record<string, unknown>>
 }
 
 /**

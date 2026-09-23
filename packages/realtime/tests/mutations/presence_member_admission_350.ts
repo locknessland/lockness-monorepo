@@ -62,8 +62,10 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M1 — the raw candidate is returned (the #350 defect)',
         file: MEMBER,
+        // #354 moved the anchor: the return now freezes the parsed copy. The
+        // source moved, the guard remains — the raw candidate still ships.
         edits: [[
-            '    return admitted\n}',
+            '    return freezePresenceMember(admitted)\n}',
             '    return candidate as PresenceMember\n}',
         ]],
         killedBy: '#350 (b) memory: a member whose toJSON',
@@ -122,8 +124,8 @@ const MUTATIONS: Mutation[] = [
                 '    if (info !== undefined && (admitted as PresenceMember).info === undefined) {\n',
             ],
             [
-                '    return admitted\n}',
-                '    return admitted as PresenceMember\n}',
+                '    return freezePresenceMember(admitted)\n}',
+                '    return freezePresenceMember(admitted as PresenceMember)\n}',
             ],
         ],
         killedBy: '#350 (d) refused info: null',

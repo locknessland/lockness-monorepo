@@ -16,6 +16,11 @@
  * every peer's frame ingest runs, on the same representation — and it is the
  * only member the manager ever stores, holds, snapshots or announces.
  *
+ * **That member is an immutable value** (#354): {@link freezePresenceMember}
+ * deep-freezes it where it is minted, so it can be shared by reference —
+ * with every snapshot, every encoder and every caller of one roster read —
+ * without any of them being able to change it for the others.
+ *
  * @module @lockness/realtime/presence_member
  */
 
@@ -344,6 +349,59 @@ function assertUsableMemberId(id: unknown): asserts id is string | number {
 }
 
 /**
+ * Deep-freeze a freshly minted presence member in place, and return it (#354).
+ *
+ * **Why frozen, not copied.** A member is shared by reference after it is
+ * minted: the manager's local map, the memory driver's roster, every `here`
+ * snapshot, the frames the application's `encode` receives, and — through the
+ * #333 barrier — every caller sharing one roster read. Before #354 any of them
+ * could write through that sharing into presence state or into another
+ * caller's reply. Copying per caller would close it at a per-caller cost —
+ * K members per subscribe frame, re-joins included — which is exactly what
+ * the barrier and `rosterSnapshot` exist to refuse. Freezing costs one walk per
+ * mint, and makes the sharing safe.
+ *
+ * **Called at the package's three mint sites and nowhere else**: the return of
+ * {@link admitPresenceMember}, and on the Redis driver the roster decode
+ * (`#parseRosterValue`) and the control-frame ingest (`#verifyAndDecode`).
+ * Freezing at an exit instead would run per caller, and would freeze objects a
+ * third-party driver still owns.
+ *
+ * **Why the walk is iterative.** A recursive freeze overflows the stack near
+ * 16 000 levels, while `JSON.parse` accepts far deeper input. The default
+ * bounds keep a member well above that, but an operator can raise them and a
+ * roster entry at rest is bounded only by RESP, so the walk keeps an explicit
+ * stack and cannot throw a `RangeError`.
+ *
+ * **Precondition: `member` is a fresh `JSON.parse` tree** — no cycle, no node
+ * shared with anything else. That is why there is no `Object.isFrozen`
+ * short-circuit (it is sound only for a node already known to be DEEPLY
+ * frozen) and no visited set. Package-internal — not exported from `mod.ts`.
+ *
+ * @param member - A member just parsed from JSON.
+ * @returns The same reference, with every object and array reachable through
+ *   own keys frozen.
+ *
+ * @example
+ * ```ts
+ * const member = freezePresenceMember(JSON.parse(text))
+ * Object.isFrozen(member.info) // true
+ * ```
+ */
+export function freezePresenceMember(member: PresenceMember): PresenceMember {
+    const pending: object[] = [member]
+    for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
+        // `Object.keys` covers an array's indices too, so arrays are walked.
+        for (const key of Object.keys(node)) {
+            const child: unknown = (node as Record<string, unknown>)[key]
+            if (typeof child === 'object' && child !== null) pending.push(child)
+        }
+        Object.freeze(node)
+    }
+    return member
+}
+
+/**
  * Turn the object an authorizer returned into the presence member the room
  * receives: exactly the JSON round trip of `{ id, info? }` (#350).
  *
@@ -367,7 +425,9 @@ function assertUsableMemberId(id: unknown): asserts id is string | number {
  *    parsed copy serialized to nothing — a function, a symbol, a `toJSON`
  *    returning `undefined` — and throws {@link PresenceMemberShapeError}
  *    naming the supplied `info`'s type. Refused, never admitted as `{ id }`.
- * 7. The parsed copy is returned.
+ * 7. The parsed copy is deep-frozen by {@link freezePresenceMember} and
+ *    returned (#354): it is shared by reference from here on, so nothing
+ *    may write to it — not the manager, not a driver, not the application.
  *
  * **Why parse, not check in place.** A getter, a Proxy trap or a nested
  * `toJSON` can answer every later read differently from the one a check saw,
@@ -386,7 +446,8 @@ function assertUsableMemberId(id: unknown): asserts id is string | number {
  * @param candidate - The object `authorize()` returned (or the framework's
  *   `{ id: connection.id }` for `true`). Untrusted; each field is read once.
  * @param maxBytes - The serialized-size ceiling, `maxPresenceMemberBytes`.
- * @returns A fresh, JSON-shaped member sharing no reference with `candidate`.
+ * @returns A fresh, JSON-shaped, deep-frozen member sharing no reference
+ *   with `candidate` (#354).
  * @throws {PresenceMemberShapeError} On an own key beside `id`/`info`, an
  *   `info` whose JSON form is not an object, or an `info` that serializes to
  *   nothing (a function, a symbol, a `toJSON` returning `undefined`).
@@ -398,7 +459,7 @@ function assertUsableMemberId(id: unknown): asserts id is string | number {
  * @example
  * ```ts
  * admitPresenceMember({ id: 7, info: { name: 'Ada' } }, 4096)
- * // → { id: 7, info: { name: 'Ada' } }, a new object
+ * // → { id: 7, info: { name: 'Ada' } }, a new, deep-frozen object
  * admitPresenceMember({ id: 7, email: 'a@b.c' }, 4096)
  * // throws PresenceMemberShapeError naming "email"
  * ```
@@ -444,5 +505,5 @@ export function admitPresenceMember(
     if (info !== undefined && admitted.info === undefined) {
         throw new PresenceMemberShapeError({ droppedInfoType: typeof info })
     }
-    return admitted
+    return freezePresenceMember(admitted)
 }
