@@ -31,9 +31,10 @@
  *   under the harness's lock on `channel.ts` — and count as killed only when
  *   `deno check` of the suite fails with TS2578 on the row's own directive.
  * - An interrupted type row (SIGINT, SIGTERM or SIGHUP) restores
- *   `channel.ts`. A SIGKILL cannot: it leaves the mutant and the lock behind,
- *   and the next run refuses — naming the `git checkout` that fixes it —
- *   rather than snapshot the mutant as the pristine source.
+ *   `channel.ts`, through the harness's `MutantGuard` (lifted there by #356).
+ *   A SIGKILL cannot: it leaves the mutant and the lock behind, and the next
+ *   run refuses — naming the `git checkout` that fixes it — rather than
+ *   snapshot the mutant as the pristine source.
  *
  * Every row was proven LIVE by the harness run that recorded it: the mutant ran
  * and turned its named witness red.
@@ -47,8 +48,8 @@
 
 import {
     assertSafeToStart,
+    MutantGuard,
     type Mutation,
-    reclaimStaleLock,
     runBattery,
 } from '@mutations/harness.ts'
 
@@ -200,69 +201,22 @@ async function check(): Promise<{ code: number; out: string }> {
 }
 
 /**
- * Refuse, naming the fix, when a killed run left `channel.ts` mutated.
- *
- * A SIGKILL mid-row runs neither the restore nor the lock's disposal. The
- * harness then declines to reclaim the lock because the file is not pristine
- * — correctly — but its refusal reads as "another battery holds the lock",
- * which sends the reader looking for a process that does not exist. The
- * battery cannot tell a leftover mutant from the developer's own uncommitted
- * edit, so it restores nothing: it stops and says which command does.
- *
- * @throws {Error} If the lock's owner is gone and `channel.ts` is modified.
- */
-async function refuseLeftoverMutant(): Promise<void> {
-    const lock = `${CHANNEL.pathname}.mutation-lock`
-    const decision = await reclaimStaleLock(lock, CHANNEL.pathname)
-    if (decision.outcome === 'reclaimed') {
-        console.warn(
-            `mutation harness: reclaimed a stale lock — ${lock}, held by pid ` +
-                `${decision.pid}, which is gone.`,
-        )
-    }
-    // `unsafe` with no pid is an unreadable lock, not a modified file: the
-    // harness's own refusal names that one correctly.
-    if (decision.outcome !== 'unsafe' || decision.pid === undefined) return
-    throw new Error(
-        `a killed #354 run (pid ${decision.pid}) left ${lock} behind, and ` +
-            'channel.ts is modified.\n\nIf the change is a leftover type-row ' +
-            'mutant (a `readonly` missing from PresenceMember), restore it and ' +
-            'drop the lock:\n\n' +
-            '    git checkout -- packages/realtime/channel.ts\n' +
-            `    rm ${lock}\n\n` +
-            'If it is your own work, commit or stash it first. Nothing was ' +
-            'mutated by this run.',
-    )
-}
-
-/**
- * The type-level rows, under the harness's lock on channel.ts (which also
- * re-proves the suite green before anything is mutated).
+ * The type-level rows, under the harness's lock on channel.ts and its
+ * {@link MutantGuard}: the lock re-proves the suite green and refuses a
+ * killed run's leftover mutant, naming the `git checkout` that restores it;
+ * the guard restores on SIGINT, SIGTERM and SIGHUP, and is disposed — its
+ * listeners removed — before `runBattery` installs its own. The guard is
+ * declared after the lock, so it is disposed first; and should its restore
+ * fail, the lock is kept, because `channel.ts` no longer holds what it was
+ * locked on.
  *
  * @returns The number of rows that did not die as recorded.
  */
 async function runTypeRows(): Promise<number> {
-    await refuseLeftoverMutant()
     using _lock = await assertSafeToStart(SUITES, [CHANNEL])
+    using guard = new MutantGuard()
     const original = await Deno.readTextFile(CHANNEL)
-    const restore = () => Deno.writeTextFileSync(CHANNEL, original)
-    // Removed before `runBattery` starts: listeners run in registration order,
-    // and a stale one exiting first would skip the harness's own restore.
-    // SIGHUP too: closing the terminal a battery runs in is the common way to
-    // lose one, and its default action is to exit without the restore.
-    const onSignal = () => {
-        restore()
-        Deno.exit(130)
-    }
-    const signals = ['SIGINT', 'SIGTERM', 'SIGHUP'] as const
-    for (const signal of signals) Deno.addSignalListener(signal, onSignal)
-    try {
-        return await typeRows(original, restore)
-    } finally {
-        for (const signal of signals) {
-            Deno.removeSignalListener(signal, onSignal)
-        }
-    }
+    return await typeRows(original, guard)
 }
 
 /**
@@ -284,12 +238,12 @@ function killedBy(out: string, witness: string): boolean {
  * Apply each type-level row to `channel.ts`, check, and restore.
  *
  * @param original - The pristine source.
- * @param restore - Writes `original` back.
+ * @param guard - Writes each mutant and restores it, synchronously.
  * @returns The number of rows that did not die as recorded.
  */
 async function typeRows(
     original: string,
-    restore: () => void,
+    guard: MutantGuard,
 ): Promise<number> {
     let unexpected = 0
     const baseline = await check()
@@ -310,12 +264,10 @@ async function typeRows(
         }
         let result: { code: number; out: string }
         try {
-            // Synchronous, like the restore: a signal landing mid-write cannot
-            // interleave with it and leave a half-written mutant behind.
-            Deno.writeTextFileSync(CHANNEL, original.replace(from, to))
+            guard.mutate(CHANNEL, original, original.replace(from, to))
             result = await check()
         } finally {
-            restore()
+            guard.restore(CHANNEL)
         }
         if (result.code !== 0 && killedBy(result.out, row.witness)) {
             console.log(`KILLED       ${row.label} (TS2578, row (k))`)

@@ -224,10 +224,19 @@ if (import.meta.main) {
     }
 
     await lock()
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-        Deno.addSignalListener(signal, () => {
-            void unlock()
-            Deno.exit(130)
+    // The harness's convention (#356): a handled signal exits 128 + signo, and
+    // the lock is removed SYNCHRONOUSLY — an async remove raced `Deno.exit`
+    // and could leave the lock the next run refuses on.
+    const SIGNALS = { SIGHUP: 1, SIGINT: 2, SIGTERM: 15 } as const
+    for (const [signal, signo] of Object.entries(SIGNALS)) {
+        Deno.addSignalListener(signal as Deno.Signal, () => {
+            try {
+                Deno.removeSync(LOCK)
+            } catch {
+                // Already gone, or unremovable — the next run's stale-lock
+                // reclaim (#320) handles what is left.
+            }
+            Deno.exit(128 + signo)
         })
     }
 
