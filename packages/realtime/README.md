@@ -160,6 +160,13 @@ app.get(
   room larger than K, different per subscribe) and an authorizer returning
   `true` lets one identity take many slots. `members` and `rosterSource` were
   removed in 0.4.0.
+- **Presence members are read-only** — every `PresenceMember` the framework
+  hands out (in `here`, in the frames a custom `encode` receives, to a driver)
+  is deep-frozen where it is minted and may be shared with other callers, so a
+  write throws `TypeError`; `id` and `info` are `readonly`. `here` and
+  `here.members` are yours. Copy before decorating:
+  `{ ...m, info: { ...m.info, isYou: m.id === me } }` or `structuredClone(m)`
+  ([#354](https://github.com/locknessland/lockness-monorepo/issues/354)).
 - **Presence is announced per member, and a slot is held per instance** — a
   member's first connection anywhere sends one `joined`, its last one `left` (a
   crashed instance's members leave silently until

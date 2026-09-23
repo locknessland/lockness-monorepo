@@ -241,6 +241,26 @@ Anything not listed is internal and free to change.
   `presence_member.ts`, not in the orchestrator. Witness:
   `presence_member_admission_350.test.ts`; battery
   `tests/mutations/presence_member_admission_350.ts`.
+- **A `PresenceMember` is deep-frozen where it is minted (`admitPresenceMember`,
+  `#parseRosterValue`, `#verifyAndDecode`) and nowhere else**
+  ([#354](https://github.com/locknessland/lockness-monorepo/issues/354)).
+  `freezePresenceMember` (`presence_member.ts`; package-internal — not exported
+  from `mod.ts`) walks with an explicit stack — a recursive walk overflows near
+  16 000 levels — and has no `Object.isFrozen` short-circuit. Members are then
+  shared BY REFERENCE (local map, memory roster, every snapshot, `encode`, every
+  caller of one barrier read), and that is safe only because they are frozen.
+  Three edits look reasonable and are wrong:
+  - **Never add a per-caller copy in `#closingRead`**: that is the per-caller
+    cost #333/#341 exist to refuse, in CPU instead of bytes.
+  - **Never freeze at the exit**: it runs per caller, is unsound for objects a
+    third-party driver still owns, and misses `encode` and `holdMember`.
+  - **Never drop the Redis freeze because "Redis returns fresh objects"**: they
+    are fresh per read, but shared by every caller in a barrier batch.
+
+  `here` and `here.members` stay the caller's and are never frozen (battery M7).
+  Witness: `presence_member_frozen_354.test.ts`; battery
+  `tests/mutations/presence_member_frozen_354.ts`, whose type-level rows T1/T2
+  run `deno check` because a non-compiling mutant is DEAD to `runBattery`.
 - **A wire presence member is one predicate, `isPresenceMemberWire` in
   `protocol.ts`**
   ([#348](https://github.com/locknessland/lockness-monorepo/issues/348), made
@@ -641,7 +661,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-73 test files for 20 source files:
+74 test files for 20 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -690,6 +710,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_join_rosterless_342.test.ts`
 - `packages/realtime/tests/presence_local_member_343.test.ts`
 - `packages/realtime/tests/presence_member_admission_350.test.ts`
+- `packages/realtime/tests/presence_member_frozen_354.test.ts`
 - `packages/realtime/tests/presence_member_id.test.ts`
 - `packages/realtime/tests/presence_member_id_type_346.test.ts`
 - `packages/realtime/tests/presence_member_transitions_344.test.ts`
@@ -717,7 +738,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-27 mutation batteries — **`deno test` does not run these.** Each is an
+28 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -736,6 +757,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_local_member_343.ts`
 - `packages/realtime/tests/mutations/presence_member_306.ts`
 - `packages/realtime/tests/mutations/presence_member_admission_350.ts`
+- `packages/realtime/tests/mutations/presence_member_frozen_354.ts`
 - `packages/realtime/tests/mutations/presence_member_holds_345.ts`
 - `packages/realtime/tests/mutations/presence_member_transitions_344.ts`
 - `packages/realtime/tests/mutations/presence_member_type_346.ts`
@@ -765,7 +787,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 73 test files directly —
+Then, specific to this package: run its 74 test files directly —
 
 ```bash
 deno test -A packages/realtime/

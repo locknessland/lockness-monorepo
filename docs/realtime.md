@@ -1308,6 +1308,28 @@ if (here) {
 }
 ```
 
+**The members in `here` are read-only; `here` and its array are yours**
+([#354](https://github.com/locknessland/lockness-monorepo/issues/354)). Every
+`PresenceMember` the framework hands out is deep-frozen where it was minted, and
+the same object may be in another caller's snapshot at the same moment — that
+sharing is what keeps a roster read's cost per read rather than per caller
+(#333). A write to a member throws `TypeError`, and `id` / `info` are `readonly`
+in the types. Sort, filter or push on `here.members` freely. To decorate a
+member, copy it first:
+
+```ts
+const view = here.members.map((m) => ({
+    ...m,
+    info: { ...m.info, isYou: m.id === me },
+}))
+// or: structuredClone(m), which returns a writable deep copy
+```
+
+Do not use object identity to detect a change: on the memory driver, a
+roster-less driver and the local fallback two snapshots can hold the same object
+(`===`), while on Redis every read returns fresh ones. The members a custom
+`encode` receives in a presence frame are frozen too.
+
 A leave — `unsubscribe`, `disconnect`, or a socket close — releases this
 instance's hold on the member's slot once its last local connection for that
 member is gone. If that empties the slot, one `left` fans to every instance; if
@@ -1498,6 +1520,17 @@ and over the control plane, through the same path as a leave. The contract:
   your release must be announced after this `left`, not before.
 
 A driver without the method keeps a silent sweep; nothing else changes.
+
+**Members are read-only on both sides of the seam**
+([#354](https://github.com/locknessland/lockness-monorepo/issues/354)). The
+member `holdMember` receives is deep-frozen: to store extra fields beside it,
+build a new object — a write to it throws. What `readRoster` returns is handed
+to the application, and to every caller sharing one read, **without being
+copied**, so return members that nothing mutates afterwards. The bundled drivers
+return deep-frozen ones. The manager does not freeze a driver's output: a driver
+that decodes its own members instead of storing the object `holdMember` gave it
+should freeze what it returns, or its callers can write into each other's
+snapshots — and into its own state, if it returns objects it keeps.
 
 The manager decides everything else: K, the self rule, and how concurrent reads
 share. The Redis driver's read is one `EVAL` of `HLEN`,
@@ -1857,14 +1890,15 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Seven breaking changes — the driver revocation seam, the presence snapshot a
+Eight breaking changes — the driver revocation seam, the presence snapshot a
 subscribe returns, the driver roster seam, presence frames announced per member
 rather than per connection, an authorizer result outside its contract now
 throwing, a presence member id that is not a string or a finite number now
-throwing, and a presence member that is not exactly `{ id, info }` now throwing
-— two widened return types, one new control kind, and one additive wire field.
-**No migration step, and one new Redis key family.** Before you deploy, read
-items 1, 3, 5, 6, 8, 9, 10 and 11 — and item 7 if you wrote your own driver.
+throwing, a presence member that is not exactly `{ id, info }` now throwing, and
+presence members now read-only — two widened return types, one new control kind,
+and one additive wire field. **No migration step, and one new Redis key
+family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11 and 12 — and
+item 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2305,6 +2339,44 @@ return row ? { id: row.id, info: { name: row.displayName } } : false
 
 `PresenceMemberShapeError` is exported from `@lockness/realtime`. See
 [What reaches the room](#what-reaches-the-room-exactly--id-info-).
+
+### 12. Presence members are read-only
+
+**Before**
+([#354](https://github.com/locknessland/lockness-monorepo/issues/354)):
+
+- On the memory driver, a roster-less driver and the `source: 'local'` fallback,
+  a member in `here` was the stored presence entry. A write to it changed every
+  later `here` and the `left` frame on that instance, and never reached other
+  instances.
+- On Redis, subscribers whose reads were shared received the same member
+  objects, so one caller's write appeared in another caller's reply.
+- A custom `encode` could change stored state through `frame.member`.
+
+**After**:
+
+- Every `PresenceMember` the framework hands out is deep-frozen: in `here`, in
+  the frames your `encode` receives, and in what a driver receives. A write
+  throws `TypeError`, because ES modules are strict.
+- `PresenceMember.id` and `.info` are `readonly`, so a direct write is also a
+  compile error.
+- `here` and `here.members` are still yours to change — sort, filter, push.
+- An encoder that writes to `frame.member` now throws: on a local announcement
+  that is the existing WARN and a lost local frame.
+
+Copy before decorating:
+
+```ts
+here.members.map((m) => ({ ...m, info: { ...m.info, isYou: m.id === me } }))
+// or structuredClone(m)
+```
+
+**If you wrote your own driver:** `holdMember` now receives a frozen member, so
+build a new object for what you store. `readRoster` should return members that
+nothing mutates afterwards. See
+[Writing a presence driver](#writing-a-presence-driver).
+
+No wire change, and no migration step.
 
 ## Upgrading to v0.3.0
 
