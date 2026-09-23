@@ -467,49 +467,180 @@ Deno.test('#345 FR-004a a hold reply other than the integer 0 or 1 throws', asyn
     }
 })
 
-Deno.test('#348 FR-004a a release reply other than 0 or a released entry throws', async () => {
-    // Since #348 the release script replies with the released holder's entry
-    // when the slot is gone, and 0 otherwise. The pre-#348 integer 1, a nil,
-    // an array and an empty bulk are none of those: each must fail loudly
-    // rather than read as a departure the manager would announce.
+/** A marker a decoder's error message must never carry (#355 S4). */
+const MARKER = 'reply-bytes-marker'
+
+/**
+ * Replies neither script ever produces. The pre-#348 integer 1 above all: a
+ * new code must never reuse it, or this row would silently reverse.
+ */
+const ODD_REPLIES: readonly unknown[] = [
+    { type: 'integer', value: 1 },
+    { type: 'nil' },
+    { type: 'array', value: [] },
+    { type: 'bulk', value: '' },
+    { type: 'array', value: [{ type: 'bulk', value: MARKER }] },
+]
+
+Deno.test('#355 WD a release reply is one of four outcomes, a deregistration reply one of three, and anything else throws a message that never carries the reply', async () => {
+    // Since #355 the release script answers emptied (the released entry),
+    // kept, absent (0) or refused, and the deregistration script
+    // deregistered (0), renewed or kept. The codes are private to the driver
+    // and never spelled here: each reply below is produced by the real
+    // script on the fake, which is also what proves it decodes.
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
+    const warn = console.warn
+    const warnings: string[] = []
+    console.warn = (...parts: unknown[]) => void warnings.push(parts.join(' '))
     try {
-        for (
-            const reply of [
-                { type: 'integer', value: 1 },
-                { type: 'nil' },
-                { type: 'array', value: [] },
-                { type: 'bulk', value: '' },
-            ]
-        ) {
+        // Emptied, kept and absent, through a leave.
+        const a = driver(redis)
+        const b = driver(redis)
+        try {
+            await a.holdMember(CHANNEL, member(7, 'from-A'))
+            await b.holdMember(CHANNEL, member(7, 'from-B'))
+            assertEquals(await a.releaseMember(CHANNEL, 7), { gone: false })
+            assertEquals(await a.releaseMember(CHANNEL, 7), { gone: false })
+            assertEquals(await b.releaseMember(CHANNEL, 7), { gone: true })
+        } finally {
+            await a.close()
+            await b.close()
+        }
+
+        // Refused, through a sweep: only a sweep asks for the liveness
+        // check. The swept instance renews right after the sweep read it as
+        // lapsed, so the release that follows is refused and changes nothing.
+        const renewing = 'instance-renewing'
+        const aliveKey = `${PREFIX}__alive:${renewing}`
+        const entry = JSON.stringify({ member: { id: 5 }, owner: renewing })
+        await redis.command('HSET', HOLDERS_KEY(CHANNEL, 5), renewing, entry)
+        await redis.command('HSET', PRESENCE_KEY(CHANNEL), '5', entry)
+        await redis.command('SADD', OWNED_KEY(renewing), `${CHANNEL} 5`)
+        await redis.command('SADD', INSTANCES_KEY, renewing)
+        const releases: unknown[] = []
+        const port: CommandFn = async (...args) => {
+            const reply = await redis.command(...args)
+            if (args[0] === 'EXISTS' && args[1] === aliveKey) {
+                await redis.command('SET', aliveKey, '1', 'EX', '30')
+            }
+            if (
+                args[0] === 'EVAL' && args.includes(HOLDERS_KEY(CHANNEL, 5))
+            ) {
+                releases.push(reply)
+            }
+            return reply
+        }
+        const sweeper = driver(redis, port)
+        try {
+            await sweeper.holdMember(OTHER, member(9, 'sweeper'))
+            await lapse(time)
+        } finally {
+            await sweeper.close()
+        }
+        assertEquals(releases.length, 1, 'precondition: the sweep released')
+        assertEquals(
+            warnings.filter((w) => w.includes(renewing)),
+            [
+                `realtime: instance ${renewing} renewed its liveness while ` +
+                'being swept — a lapse, not a crash; 0 hold(s) released ' +
+                '(0 emptied) before it did',
+            ],
+            'refused on its first release: one "renewed" line at N = 0, and ' +
+                'no "released" or "failed" line',
+        )
+        assertEquals(
+            await redis.command('HGET', HOLDERS_KEY(CHANNEL, 5), renewing),
+            { type: 'bulk', value: entry },
+            'a refused release changes nothing',
+        )
+        // A refused reply reaching a leave is a defect, not a "not gone".
+        const refused = releases[0]
+        const leave = driver(
+            redis,
+            (...args) =>
+                args[0] === 'EVAL'
+                    ? Promise.resolve(refused)
+                    : redis.command(...args),
+        )
+        try {
+            await assertRejects(
+                () => leave.releaseMember(CHANNEL, 5),
+                Error,
+                'a leave never asks for the liveness check',
+            )
+        } finally {
+            await leave.close()
+        }
+
+        // Anything else a release answers throws, and says only what it
+        // accepts — never the reply.
+        for (const reply of ODD_REPLIES) {
             const odd: CommandFn = (...args) =>
                 args[0] === 'EVAL'
                     ? Promise.resolve(reply)
                     : redis.command(...args)
-            const a = driver(redis, odd)
+            const c = driver(redis, odd)
             try {
-                await assertRejects(
-                    () => a.releaseMember(CHANNEL, 7),
+                const error = await assertRejects(
+                    () => c.releaseMember(CHANNEL, 7),
                     Error,
-                    'other than 0 or a released entry',
+                    'none of its four replies',
                 )
+                assert(!error.message.includes(MARKER), error.message)
             } finally {
-                await a.close()
+                await c.close()
             }
         }
-        // And the two replies it does produce.
-        const a = driver(redis)
-        try {
-            await a.holdMember(CHANNEL, member(7, 'seven'))
-            assertEquals(await a.releaseMember(CHANNEL, 7), { gone: true })
-            assertEquals(await a.releaseMember(CHANNEL, 7), { gone: false })
-        } finally {
-            await a.close()
+    } finally {
+        console.warn = warn
+        time.restore()
+        redis.assertNoRejections()
+    }
+})
+
+Deno.test('#355 WD a deregistration reply other than its three fails that sweep alone: one "failed" line without the reply, and no deregistration', async () => {
+    const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
+    try {
+        for (const reply of ODD_REPLIES) {
+            const redis = new FakeRedis()
+            const gone = 'instance-gone'
+            // Registered, lapsed, owning nothing: straight to deregistration.
+            await redis.command('SADD', INSTANCES_KEY, gone)
+            const odd: CommandFn = (...args) =>
+                args[0] === 'EVAL' && args[3] === INSTANCES_KEY
+                    ? Promise.resolve(reply)
+                    : redis.command(...args)
+            const b = driver(redis, odd)
+            const warn = console.warn
+            const warnings: string[] = []
+            console.warn = (...parts: unknown[]) =>
+                void warnings.push(parts.join(' '))
+            try {
+                await b.holdMember(OTHER, member(9, 'from-B'))
+                await lapse(time)
+            } finally {
+                console.warn = warn
+                await b.close()
+            }
+            const failed = warnings.filter((w) =>
+                w.includes(`sweep of dead instance ${gone} failed`)
+            )
+            assertEquals(failed.length, 1, JSON.stringify(reply))
+            assert(failed[0].includes('none of its three replies'), failed[0])
+            assert(!failed[0].includes(MARKER), failed[0])
+            const instances = await redis.command(
+                'SMEMBERS',
+                INSTANCES_KEY,
+            ) as { value: { value: string }[] }
+            assert(
+                instances.value.some((m) => m.value === gone),
+                'an undecodable deregistration reply deregisters nothing',
+            )
+            redis.assertNoRejections()
         }
     } finally {
         time.restore()
-        redis.assertNoRejections()
     }
 })
 

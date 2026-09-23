@@ -14,7 +14,11 @@
  * - The hold script's clauses: the holders `HSET` and the instance
  *   registration (`SADD instances`, S1b).
  * - The sweep's: it releases with `deadId` through the same script, and it
- *   never `DEL`s the owned set (S1c).
+ *   never `DEL`s the owned set (S1c). Its three rows were re-anchored for
+ *   #355, whose sweep asks for the liveness check and deregisters through a
+ *   script instead of a raw `SREM`; each was re-proven live. The #355
+ *   review moved the sweep's writes into `#sweepOwned`, one indent
+ *   shallower: all three re-anchored again and re-proven live.
  * - The key layout: the holders key names the slot, not just the channel.
  * - The decoder: 1 → true, 0 → false, anything else throws (FR-004a).
  *
@@ -37,6 +41,14 @@ const REDIS = new URL('../../drivers/redis.ts', import.meta.url)
 const SUITES = [
     new URL('../roster_holders_345.test.ts', import.meta.url).pathname,
 ]
+
+/** The ghost sweep's one release call (#355: it asks for the liveness check). */
+const SWEEP_RELEASE = '            const outcome = await this.#release(\n' +
+    '                channel,\n' +
+    '                field,\n' +
+    '                deadId,\n' +
+    '                true,\n' +
+    '            )\n'
 
 const MUTATIONS: Mutation[] = [
     // ── the release script ─────────────────────────────────────────────────
@@ -129,12 +141,13 @@ const MUTATIONS: Mutation[] = [
     {
         label: '#345 the sweep goes back to a raw presence HDEL',
         file: REDIS,
-        // Re-anchored for #348: the sweep keeps the release's reply as
-        // `released`; the raw `HDEL` has none, so the mutant reports nothing.
+        // Re-anchored for #348, then #355: the sweep keeps the release's
+        // decoded outcome; the raw `HDEL` has none, so the mutant reads it as
+        // *absent* and reports nothing.
         edits: [[
-            '            const released = await this.#release(channel, field, deadId)\n',
+            SWEEP_RELEASE,
             "            await this.command.command('HDEL', this.presenceKey(channel), field)\n" +
-            '            const released: string | undefined = undefined\n',
+            "            const outcome = { kind: 'absent' } as ReleaseOutcome\n",
         ]],
         // The original #345 defect on the crash path: B keeps holding 7, the
         // sweep of A deletes it anyway.
@@ -144,21 +157,30 @@ const MUTATIONS: Mutation[] = [
         label:
             "#345 the sweep releases with its OWN id instead of the dead one's",
         file: REDIS,
+        // Re-anchored for #355: the sweep's release call now also asks for the
+        // liveness check, and `KEYS[4]` follows the releaser — so releasing as
+        // itself, the live sweeper is refused and releases nothing.
         edits: [[
-            '            const released = await this.#release(channel, field, deadId)\n',
-            '            const released = await this.#release(channel, field, this.instanceId)\n',
+            SWEEP_RELEASE,
+            SWEEP_RELEASE.replace(
+                '                deadId,\n',
+                '                this.instanceId,\n',
+            ),
         ]],
-        // B's sweep of A drops B's own hold, and A's stays: the slot then
-        // outlives the instance that was declared dead, or vanishes under B.
-        killedBy: '#345 W2',
+        // B's sweep of A never releases A's hold: a crashed holder's slot
+        // outlives the instance declared dead.
+        killedBy:
+            '#345 W7 a 0.3.0 field with no holders hash is still reclaimed',
     },
     {
         label: "#345 the sweep DELs the dead instance's owned set again",
         file: REDIS,
+        // Re-anchored for #355: the raw `SREM` it sat before is now the
+        // deregistration script; the `DEL` goes in front of that call.
         edits: [[
-            "        await this.command.command('SREM', this.instancesKey, deadId)\n",
+            '        const deregistration = decodeDeregisterReply(\n',
             "        await this.command.command('DEL', this.ownedKey(deadId))\n" +
-            "        await this.command.command('SREM', this.instancesKey, deadId)\n",
+            '        const deregistration = decodeDeregisterReply(\n',
         ]],
         // A hold landing between the sweep's SMEMBERS and its end loses its
         // owned entry, and the next sweep can no longer reach it.

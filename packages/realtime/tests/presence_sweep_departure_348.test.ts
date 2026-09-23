@@ -709,13 +709,10 @@ Deno.test('#348 S2 readRoster: a malformed entry is skipped with a WARN that nev
 
 // --- A6: the departure handler's lifecycle -------------------------------------
 
-Deno.test('#348 A6 the departure handler: a second registration replaces the first, and close() drops it even mid-sweep', async () => {
+Deno.test('#348 A6 the departure handler: a second registration replaces the first, and a closed driver reports no departure', async () => {
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-23T10:00:00Z'))
-    // One exchange at a time, so the second sweep's release can be held in
-    // flight while `close()` lands.
-    const serial = serializedCommands(redis.command)
-    const b = redisDriver(redis, serial.command)
+    const b = redisDriver(redis)
     const seam: BroadcastDriver = b
     const calls: string[] = []
     seam.onRosterDeparture?.(({ member }) => void calls.push(`h1 ${member.id}`))
@@ -731,28 +728,15 @@ Deno.test('#348 A6 the departure handler: a second registration replaces the fir
             'ONE handler: the second registration replaced the first',
         )
 
-        // A second dead instance's hold, and a close() that lands while the
-        // sweep's release of it is in flight — the handler is read after the
-        // reply. Another instance, so no straggling pass over the first one
-        // can take it out of the instances set before it is swept.
-        const secondDead = 'instance-dead-2'
-        await plantHold(redis, CHANNEL, '8', entry(8), secondDead)
-        const release = serial.hold((args) =>
-            args[0] === 'EVAL' && args.includes(OWNED_KEY(secondDead))
-        )
-        const swept = time.tickAsync(1_000)
-        await release.reached
+        // A closed driver reports no departure. Whether close() DROPS the
+        // handler is not observable here, and the title does not claim it:
+        // no pass runs after close() resolves, so the drop is equivalent
+        // (battery M12, expectSurvival). The mid-sweep case — a
+        // release in flight when close() lands — is #355's W4 (i): close()
+        // now waits for that release, and its departure IS announced.
         await b.close()
-        release.release()
-        await swept
-        await settle()
-
-        assertEquals(
-            await redis.command('HGET', PRESENCE_KEY(CHANNEL), '8'),
-            { type: 'nil' },
-            'precondition: the in-flight release committed, so its reply was ' +
-                'the entry — a departure a live handler would have received',
-        )
+        await plantHold(redis, CHANNEL, '8', entry(8), 'instance-dead-2')
+        await lapse(time)
         assertEquals(calls, ['h2 7'], 'a closed driver reports no departure')
     } finally {
         await b.close()
@@ -779,12 +763,14 @@ Deno.test('#348 W8 a hold committed right behind the sweep release — left, the
         await a.driver.close()
 
         // The sweep's release of A's 7 names A's owned set; B's own hold of 7
-        // is the only 4-key script touching 7's holders.
+        // is the only script naming B's owned set and 7's holders. Keyed on
+        // the owned set, not on the key count: since #355 the release
+        // declares four keys too.
         const release = serial.hold((args) =>
             args[0] === 'EVAL' && args.includes(OWNED_KEY(a.id))
         )
         const holdIssued = serial.whenIssued((args) =>
-            args[0] === 'EVAL' && args[2] === '4' &&
+            args[0] === 'EVAL' && args.includes(OWNED_KEY(b.id)) &&
             args.includes(HOLDERS_KEY(CHANNEL, 7))
         )
         const lapsed = lapse(time)

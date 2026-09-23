@@ -214,9 +214,9 @@ const CANNED = {
     ZRANGEBYSCORE: { type: 'array', value: [] },
     // Keyed on the DECLARED KEY COUNT (`EVAL <script> <numkeys> …`), never on
     // the script text — a reply chosen by searching the source breaks on a
-    // reformat Lua cannot see. The hold script declares 4 keys and the release
-    // script 3 (#345, FR-004a); both answer the integer their strict decoder
-    // accepts. Every 1-key script — the roster read (#341) and the revocation
+    // reformat Lua cannot see. The hold and release scripts declare 4 keys
+    // and the deregistration script 3 (#345, #355); all three accept the
+    // integer 0 through their strict decoders. Every 1-key script — the roster read (#341) and the revocation
     // mark and list — gets the roster read's `{ HLEN, sample, selves }` shape,
     // in which the revocation list finds no bulk member.
     EVAL: (args: string[]) =>

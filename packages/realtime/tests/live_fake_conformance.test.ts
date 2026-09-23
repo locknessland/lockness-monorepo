@@ -30,9 +30,10 @@ import {
     preflight,
     runNamespace,
     teardown,
+    waitFor,
 } from '../../redis/tests/live_broker.ts'
 import { FakeRedis } from './fake_redis.ts'
-import { RedisBroadcastDriver } from '../drivers/redis.ts'
+import { KEPT, RedisBroadcastDriver, REFUSED } from '../drivers/redis.ts'
 import { ChannelManager } from '../manager.ts'
 import { MAX_ROSTER_READ_SELF_IDS, type Revocation } from '../driver.ts'
 
@@ -1277,9 +1278,9 @@ async function observeReleases(
     const port = {
         command: async (...args: string[]) => {
             const reply = await inner.command(...args)
-            // Only the release script issues an `SREM` on the owned set; the
-            // hold script `SADD`s.
-            if (args[0] === 'EVAL' && args[1].includes("'SREM'")) {
+            // The release script, by its liveness ask — since #355 the
+            // deregistration script `SREM`s too, so `'SREM'` no longer names it.
+            if (isReleaseEval(args)) {
                 releases.push(reply as RespReply)
             }
             return reply
@@ -1291,7 +1292,7 @@ async function observeReleases(
     try {
         await a.holdMember(CH, { id: 7, info: { from: 'A' } })
         await b.holdMember(CH, { id: 7, info: { from: 'B' } })
-        await b.releaseMember(CH, 7) // a holder remains → 0
+        await b.releaseMember(CH, 7) // a holder remains → KEPT (#355)
         const remaining = await inner.command('HGETALL', holders) as RespReply
         assert(
             remaining.type === 'array' && remaining.value.length === 2,
@@ -1319,19 +1320,19 @@ function assertReleaseReplies(
     assertEquals(
         seen.releases,
         [
-            { type: 'integer', value: 0 },
+            { type: 'integer', value: KEPT },
             seen.stored,
             { type: 'integer', value: 0 },
         ],
-        `${backend}: 0 while a holder remains, the released entry byte for ` +
-            'byte when the slot empties, 0 for a non-holder',
+        `${backend}: KEPT while a holder remains (#355), the released entry ` +
+            'byte for byte when the slot empties, 0 for a non-holder',
     )
 }
 
 // The fake half needs no broker, so it runs on every `deno task test`: the
 // sweep's departure is only as good as the fake's release reply, and a gated
 // row left that unguarded wherever no broker is configured.
-Deno.test('#348 FR-010 the release reply is the released entry when the slot empties, integer 0 otherwise, on the fake', async () => {
+Deno.test('#348 FR-010 the release reply is the released entry when the slot empties, KEPT while a holder remains, 0 for a non-holder, on the fake', async () => {
     const fake = new FakeRedis()
     assertReleaseReplies(
         'fake',
@@ -1342,7 +1343,7 @@ Deno.test('#348 FR-010 the release reply is the released entry when the slot emp
 
 Deno.test({
     name:
-        '#348 FR-010 the release reply is the released entry when the slot empties, integer 0 otherwise, and the fake agrees with the broker',
+        '#348 FR-010 the release reply is the released entry when the slot empties, KEPT while a holder remains, 0 for a non-holder, and the fake agrees with the broker',
     ignore: !LIVE_BROKER,
     async fn() {
         const config = brokerConfig()
@@ -1364,6 +1365,277 @@ Deno.test({
                 onFake.releases.map((r) => r.type),
                 onLive.releases.map((r) => r.type),
                 'the fake and the broker disagreed on the reply kinds',
+            )
+            fake.assertNoRejections()
+        } finally {
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})
+
+// --- #355 WC: the sweep's four release replies and three deregistration replies
+
+/** The release script on the wire: the only one that asks for the liveness check. */
+const isReleaseEval = (args: string[]) =>
+    args[0] === 'EVAL' && args[1].includes("ARGV[4] == '1'")
+
+/** The deregistration script on the wire: the only one that tests the owned set. */
+const isDeregisterEval = (args: string[]) =>
+    args[0] === 'EVAL' &&
+    args[1].includes("local owns = redis.call('EXISTS', KEYS[3])")
+
+/** One #355 WC scenario: what the dead instance owns, and what lands mid-sweep. */
+interface SweepScenario {
+    name: string
+    /** Slots the dead instance holds ALONE — each release empties it. */
+    alone: string[]
+    /** Slots the dead instance holds together with the live sweeper — kept. */
+    shared: string[]
+    /** Owned entries whose hold is already gone — absent. */
+    absent: string[]
+    /** A broker write issued just before the first `EVAL` of that script. */
+    before?: {
+        script: 'release' | 'deregister'
+        write: 'renew' | 'late-hold'
+    }
+    /** Which reply ends the sweep: the first refused release, or the deregistration. */
+    endsOn: 'release' | 'deregister'
+}
+
+/**
+ * Plant a dead instance's holds on `inner`, let a live driver sweep it on the
+ * real clock, and collect every release and deregistration reply (#355 WC).
+ *
+ * The scripts stay private to the driver: they are recognised on the wire and
+ * their replies are what is pinned, on each backend. A renewal or a late hold
+ * is staged as a raw broker write issued just BEFORE the named script's first
+ * `EVAL`, so the script sees it — the in-write check is what is exercised.
+ */
+async function observeSweep(
+    inner: { command: (...args: string[]) => Promise<unknown> },
+    prefix: string,
+    scenario: SweepScenario,
+): Promise<{ releases: RespReply[]; deregistrations: RespReply[] }> {
+    const CH = 'presence-room'
+    const DEAD = 'instance-dead'
+    const presence = `${prefix}__presence:${CH}`
+    const owned = `${prefix}__owned:${DEAD}`
+    const alive = `${prefix}__alive:${DEAD}`
+    const instances = `${prefix}__instances`
+    const plant = async (field: string, withHold: boolean) => {
+        if (withHold) {
+            const value = JSON.stringify({
+                member: { id: Number(field) },
+                owner: DEAD,
+            })
+            await inner.command(
+                'HSET',
+                `${prefix}__holders:${CH} ${field}`,
+                DEAD,
+                value,
+            )
+            await inner.command('HSET', presence, field, value)
+        }
+        await inner.command('SADD', owned, `${CH} ${field}`)
+        await inner.command('SADD', instances, DEAD)
+    }
+    for (const field of [...scenario.alone, ...scenario.shared]) {
+        await plant(field, true)
+    }
+    for (const field of scenario.absent) await plant(field, false)
+
+    const releases: RespReply[] = []
+    const deregistrations: RespReply[] = []
+    let staged = false
+    // Recording stops at the reply that ends the scenario. The sweeper runs on
+    // the real clock, and its next pass (50 ms later) may start before the
+    // wait below notices the end: without this, a pass sweeping the late hold
+    // appended its own replies, and the result depended on the scheduler.
+    let ended = false
+    const port = {
+        command: async (...args: string[]) => {
+            const script = ended
+                ? undefined
+                : isReleaseEval(args)
+                ? 'release'
+                : isDeregisterEval(args)
+                ? 'deregister'
+                : undefined
+            if (script && !staged && scenario.before?.script === script) {
+                staged = true
+                if (scenario.before.write === 'renew') {
+                    await inner.command('SET', alive, '1', 'EX', '30')
+                } else {
+                    await inner.command('SADD', owned, `${CH} 99`)
+                }
+            }
+            const reply = await inner.command(...args)
+            if (script === 'release') releases.push(reply as RespReply)
+            if (script === 'deregister') {
+                deregistrations.push(reply as RespReply)
+            }
+            if (script === scenario.endsOn) ended = true
+            return reply
+        },
+    }
+    const nothing = { psubscribe: () => {} }
+    const sweeper = new RedisBroadcastDriver(port as RedisClient, nothing, {
+        prefix,
+        presence: {
+            livenessTtlSeconds: 1,
+            heartbeatIntervalMs: 250,
+            reconcileIntervalMs: 50,
+        },
+    })
+    const warn = console.warn
+    console.warn = () => {}
+    try {
+        // A shared slot is the sweeper's too; otherwise any hold starts its pass.
+        for (const field of scenario.shared) {
+            await sweeper.holdMember(CH, { id: Number(field) })
+        }
+        if (scenario.shared.length === 0) {
+            await sweeper.holdMember('presence-other', { id: 9 })
+        }
+        await waitFor(
+            () => ended,
+            `${prefix}: ${scenario.name} — the sweep never reached its end`,
+        )
+    } finally {
+        await sweeper.close()
+        console.warn = warn
+    }
+    return { releases, deregistrations }
+}
+
+/** The #355 WC scenarios, and the replies each one must produce. */
+const SWEEP_SCENARIOS: {
+    scenario: SweepScenario
+    /** Release replies, as kinds, order-free (the owned set is unordered). */
+    releases: string[]
+    deregistrations: RespReply[]
+}[] = [
+    {
+        scenario: {
+            name: 'emptied + kept + absent, then deregistered',
+            alone: ['7'],
+            shared: ['8'],
+            absent: ['6'],
+            endsOn: 'deregister',
+        },
+        releases: ['bulk', `integer:${KEPT}`, 'integer:0'],
+        deregistrations: [{ type: 'integer', value: 0 }],
+    },
+    {
+        scenario: {
+            name: 'a renewal before the release: refused',
+            alone: ['7'],
+            shared: [],
+            absent: [],
+            before: { script: 'release', write: 'renew' },
+            endsOn: 'release',
+        },
+        releases: [`integer:${REFUSED}`],
+        deregistrations: [],
+    },
+    {
+        scenario: {
+            name: 'a renewal before the deregistration: renewed',
+            alone: ['7'],
+            shared: [],
+            absent: [],
+            before: { script: 'deregister', write: 'renew' },
+            endsOn: 'deregister',
+        },
+        releases: ['bulk'],
+        deregistrations: [{ type: 'integer', value: REFUSED }],
+    },
+    {
+        scenario: {
+            name: 'a late hold before the deregistration: kept',
+            alone: ['7'],
+            shared: [],
+            absent: [],
+            before: { script: 'deregister', write: 'late-hold' },
+            endsOn: 'deregister',
+        },
+        releases: ['bulk'],
+        deregistrations: [{ type: 'integer', value: KEPT }],
+    },
+]
+
+/** A release reply as a comparable kind: `bulk`, or `integer:<n>`. */
+function replyKind(reply: RespReply): string {
+    if (reply.type === 'integer') return `integer:${reply.value}`
+    if (reply.type === 'bulk' && reply.value.length > 0) return 'bulk'
+    return `unexpected:${reply.type}`
+}
+
+/** Run every WC scenario on one backend and assert its replies. */
+async function assertSweepReplies(
+    backend: string,
+    inner: { command: (...args: string[]) => Promise<unknown> },
+    prefix: string,
+): Promise<string[][]> {
+    const kinds: string[][] = []
+    for (const [index, expected] of SWEEP_SCENARIOS.entries()) {
+        const { scenario, releases, deregistrations } = expected
+        // One namespace per scenario, by index: a prefix is at most 64 bytes.
+        const seen = await observeSweep(inner, `${prefix}${index}`, scenario)
+        const got = seen.releases.map(replyKind).sort()
+        assertEquals(
+            got,
+            [...releases].sort(),
+            `${backend}: ${scenario.name} — release replies`,
+        )
+        assertEquals(
+            seen.deregistrations,
+            deregistrations,
+            `${backend}: ${scenario.name} — deregistration replies`,
+        )
+        kinds.push([...got, ...seen.deregistrations.map(replyKind)])
+    }
+    return kinds
+}
+
+// The fake half needs no broker and runs on every `deno task test`, like the
+// FR-010 row above: the sweep's count and its "renewed" line are only as good
+// as the fake's replies.
+Deno.test('#355 WC the four release replies and three deregistration replies of a sweep, on the fake', async () => {
+    const fake = new FakeRedis()
+    await assertSweepReplies(
+        'fake',
+        { command: fake.command },
+        'wc355-fake-',
+    )
+    fake.assertNoRejections()
+})
+
+Deno.test({
+    name:
+        '#355 WC the four release replies and three deregistration replies of a sweep, and the fake agrees with the broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        try {
+            const onLive = await assertSweepReplies(
+                'broker',
+                live,
+                `${NS}-wc355-live-`,
+            )
+            const onFake = await assertSweepReplies(
+                'fake',
+                { command: fake.command },
+                `${NS}-wc355-fake-`,
+            )
+            assertEquals(
+                onFake,
+                onLive,
+                'the fake and the broker disagreed on a sweep reply',
             )
             fake.assertNoRejections()
         } finally {

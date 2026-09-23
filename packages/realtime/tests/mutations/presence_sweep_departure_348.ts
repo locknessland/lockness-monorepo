@@ -10,7 +10,8 @@
  * single-instance suite stays green.
  *
  * - M1 the sweep discards the release's reply: the #348 defect itself.
- * - M2 the script replies with the entry even while a holder remains.
+ * - M2 the kept reply carries the entry: a departure announced while a holder
+ *   remains.
  * - M3 `releaseMember` reports a departure too: a second `left`.
  * - M4 the departure is decided from reads BEFORE the release: two sweepers
  *   both see the entry and both announce.
@@ -28,13 +29,28 @@
  * - M11 a registration appends instead of replacing: a manager built twice on
  *   one driver announces every swept departure twice (A6).
  * - M12 `close()` keeps the handler: a sweep in flight when the driver closes
- *   still reports its departure (A6).
+ *   still reports its departure (A6). Equivalent since #355 (see the row).
  * - M13 the member rule's key check back to a COUNT (`<= 2`), the #348
  *   original: a driver-reported `{ id, smuggled }` passes the manager's
  *   departure check and the room hears `smuggled` in a `left` frame (S3).
  *
  * Every row was proven LIVE by the harness run that recorded it: the mutant ran
  * and turned its named witness red.
+ *
+ * **#355 re-anchored five rows and retired one kill.** M1 and M4 (the sweep's
+ * release call), M2 (the script's tail now answers KEPT — the row became "the
+ * kept reply answers the entry"), M3 (`releaseMember` maps a decoded outcome)
+ * and M7 (the decoder's bulk branch builds the *emptied* outcome) were
+ * repaired and re-proven live. M12 became `expectSurvival`: `close()` now
+ * waits for the pass, which stops on `#closing`, so no departure can reach a
+ * handler after it resolves — the reason on the row says what would falsify
+ * that.
+ *
+ * **The #355 review re-anchored four more.** The sweep's writes moved into
+ * `#sweepOwned` and the announcement into `#announceSwept`, which calls the
+ * handler before its first await: M1 and M4 (the release call), M9 (the
+ * handler call) and M10 (the slot-binding check) follow them, each re-proven
+ * live, M9 still killed by W8.
  *
  * ```bash
  * deno task mutate presence_sweep_departure_348
@@ -52,12 +68,19 @@ const MANAGER = new URL('../../manager.ts', import.meta.url)
 const SUITES = [
     new URL('../presence_sweep_departure_348.test.ts', import.meta.url)
         .pathname,
-    // M7's witness: the release decoder's FR-004a row.
+    // M7's witness: the release decoder's row, #348 FR-004a, now #355 WD.
     new URL('../roster_holders_345.test.ts', import.meta.url).pathname,
 ]
 
-const RELEASE_CALL =
-    '            const released = await this.#release(channel, field, deadId)\n'
+// The sweep's one release call. Re-anchored for #355: it passes the liveness
+// ask and answers a decoded `ReleaseOutcome`, not the raw entry — and, since
+// the #355 review, it sits in `#sweepOwned`, one indent shallower.
+const RELEASE_CALL = '            const outcome = await this.#release(\n' +
+    '                channel,\n' +
+    '                field,\n' +
+    '                deadId,\n' +
+    '                true,\n' +
+    '            )\n'
 
 const ANNOUNCE_DEPARTURE =
     "        return this.#announcePresence('left', channel, member, channel)\n"
@@ -66,21 +89,30 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M1 — the sweep discards the release reply (the #348 defect)',
         file: REDIS,
+        // Re-anchored for #355: the reply is still taken (the count needs
+        // it), but an emptied slot's entry is thrown away — the #348 defect.
         edits: [[
             RELEASE_CALL,
-            '            await this.#release(channel, field, deadId)\n' +
-            '            const released: string | undefined = undefined\n',
+            '            const reply = await this.#release(channel, field, deadId, true)\n' +
+            "            const outcome = (reply.kind === 'emptied'\n" +
+            "                ? { kind: 'kept' }\n" +
+            '                : reply) as ReleaseOutcome\n',
         ]],
         killedBy: '#348 W1',
     },
     {
-        label: "M2 — the script's final `return 0` answers the entry",
+        label: 'M2 — the kept reply answers the entry',
         file: REDIS,
+        // Re-anchored for #355: the script's tail no longer answers 0 while a
+        // holder remains, it answers KEPT — rewritten as that reply carrying
+        // the releaser's entry instead.
         edits: [[
-            '    "  redis.call(\'HSET\', KEYS[1], ARGV[1], promoted[2])",\n' +
+            "    'if mine == false then',\n" +
+            "    '  return 0',\n" +
             "    'end',\n" +
-            "    'return 0',\n",
-            '    "  redis.call(\'HSET\', KEYS[1], ARGV[1], promoted[2])",\n' +
+            '    `return ${KEPT}`,\n',
+            "    'if mine == false then',\n" +
+            "    '  return 0',\n" +
             "    'end',\n" +
             "    'return mine',\n",
         ]],
@@ -90,27 +122,34 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M3 — releaseMember also reports a departure',
         file: REDIS,
+        // Re-anchored for #355: `releaseMember` maps a decoded outcome.
         edits: [[
-            '        return { gone: released !== undefined }\n',
-            '        const member = this.#parseRosterValue(channel, released)\n' +
-            '        if (member) {\n' +
-            '            await this.#departureHandler?.({ channel, member })\n' +
+            "        return { gone: outcome.kind === 'emptied' }\n",
+            "        if (outcome.kind === 'emptied') {\n" +
+            '            const member = this.#parseRosterValue(channel, outcome.entry)\n' +
+            '            if (member) {\n' +
+            '                await this.#departureHandler?.({ channel, member })\n' +
+            '            }\n' +
             '        }\n' +
-            '        return { gone: released !== undefined }\n',
+            "        return { gone: outcome.kind === 'emptied' }\n",
         ]],
         killedBy: '#348 W6',
     },
     {
         label: 'M4 — the departure decided from reads before the release',
         file: REDIS,
+        // Re-anchored for #355: the reads decide the outcome; the release's
+        // own reply is ignored.
         edits: [[
             RELEASE_CALL,
             '            const peek = asBulk(await this.command.command(\n' +
             "                'HGET', this.holdersKey(channel, field), deadId))\n" +
-            '            const count = asInteger(await this.command.command(\n' +
+            '            const holders = asInteger(await this.command.command(\n' +
             "                'HLEN', this.holdersKey(channel, field)))\n" +
-            '            await this.#release(channel, field, deadId)\n' +
-            '            const released = count === 1 ? peek : undefined\n',
+            '            await this.#release(channel, field, deadId, true)\n' +
+            '            const outcome = (holders === 1 && peek\n' +
+            "                ? { kind: 'emptied', entry: peek }\n" +
+            "                : { kind: 'kept' }) as ReleaseOutcome\n",
         ]],
         // Right on one sweep; two interleaved sweeps both read the entry
         // before either release, and both announce it.
@@ -139,12 +178,13 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M7 — the release decoder accepts any bulk, the empty one too',
         file: REDIS,
+        // Re-anchored for #355: the decoder's bulk branch now builds the
+        // *emptied* outcome, and the #348 FR-004a test became #355 WD.
         edits: [[
-            '    if (entry) return entry\n',
-            '    if (entry !== undefined) return entry\n',
+            "    if (entry) return { kind: 'emptied', entry }\n",
+            "    if (entry !== undefined) return { kind: 'emptied', entry }\n",
         ]],
-        killedBy:
-            '#348 FR-004a a release reply other than 0 or a released entry throws',
+        killedBy: '#355 WD a release reply is one of four outcomes',
     },
     {
         label: "M8 — the departure is chained on the slot's roster tail",
@@ -163,9 +203,9 @@ const MUTATIONS: Mutation[] = [
         label: 'M9 — one more command exchange awaited before the handler',
         file: REDIS,
         edits: [[
-            '                await handler({ channel, member })\n',
-            "                await this.command.command('EXISTS', this.instancesKey)\n" +
-            '                await handler({ channel, member })\n',
+            '            await handler({ channel, member })\n',
+            "            await this.command.command('EXISTS', this.instancesKey)\n" +
+            '            await handler({ channel, member })\n',
         ]],
         killedBy: '#348 W8',
     },
@@ -173,8 +213,8 @@ const MUTATIONS: Mutation[] = [
         label: 'M10 — the slot-binding check dropped',
         file: REDIS,
         edits: [[
-            '            if (!sameMemberId(member.id, field)) {\n',
-            '            if (member.id === undefined) {\n',
+            '        if (!sameMemberId(member.id, field)) {\n',
+            '        if (member.id === undefined) {\n',
         ]],
         killedBy: '#348 W7 an entry whose member id is not its slot',
     },
@@ -202,6 +242,17 @@ const MUTATIONS: Mutation[] = [
             '        // A closed driver reports no departure either (#348).\n',
         ]],
         killedBy: '#348 A6 the departure handler',
+        expectSurvival:
+            'Equivalent since #355. `close()` now awaits the pass in flight ' +
+            'before it drops the handler; the pass stops at its next write ' +
+            'once `#closing` is set (before each release, before the ' +
+            'deregistration, before the next instance), and `#armReconcile` ' +
+            'never arms while closing — so once `close()` resolves nothing ' +
+            'can call the departure handler, dropped or not. Falsified by a ' +
+            'second sweep entry point that neither awaits `#reconcilePass` ' +
+            'nor reads `#closing` (a reconnect-triggered pass, say), or by ' +
+            'a `#closing` check that moves between a release reply and the ' +
+            'handler call.',
     },
     {
         label: 'M13 — the member key rule back to a count: { id, smuggled } ' +

@@ -202,18 +202,50 @@ const HOLD_MEMBER_SCRIPT: string = [
 ].join('\n')
 
 /**
+ * The *kept* reply code (#355): the release dropped a hold the releaser had,
+ * and other holders keep the slot. Also what {@link DEREGISTER_INSTANCE_SCRIPT}
+ * answers when the instance still owns a hold.
+ *
+ * **The single spelling of the code**: interpolated into both scripts and
+ * read by both decoders. Never `1` — that is a pre-#348 release reply, pinned
+ * as one that must throw — and never negative.
+ *
+ * Exported for the test suite only, so no test spells the literal; `mod.ts`
+ * does not re-export it, and it is not part of the package's API.
+ */
+export const KEPT = 2
+
+/**
+ * The *refused* reply code (#355): the write was asked on another process's
+ * behalf, and that process's liveness key exists — it is alive, so nothing
+ * was written. Shared by both scripts, with the same meaning in each. Never
+ * `1`, never negative; exported for the test suite only — see {@link KEPT}.
+ */
+export const REFUSED = 3
+
+/**
  * Release one instance's hold on a roster slot — ONE operation, three
  * structures (#345). The leave AND the ghost sweep run it; there is no second
  * release path.
+ *
+ * **A sweep writes only while its target is dead, and that is decided HERE,
+ * inside the write (#355, ADR 006).** With `ARGV[4] == '1'` — the release is on
+ * another process's behalf — its first statements read the releaser's
+ * liveness key, `KEYS[4]`, and answer {@link REFUSED} before any read or
+ * write when it exists. A TypeScript `EXISTS` before the `EVAL` would race:
+ * the instance can renew between the two. A leave passes `'0'` and is never
+ * refused.
  *
  * It drops the releaser's holders entry and owned entry, then: if no holder is
  * left, deletes the presence field and returns **the releaser's own entry**
  * **only if the releaser held it** (the script's `mine == false` test answers
  * 0) — a non-holder emptying a legacy or already-emptied slot is not a
- * departure. If holders remain, the field stays and the reply is 0; and when
- * the shown entry was the releaser's (`shown == mine`), one remaining holder's
- * entry is copied in, so the shown `info` never belongs to a departed holder.
- * Releasing a holder whose entry is not shown leaves the field unchanged.
+ * departure. If holders remain, the field stays; and when the shown entry was
+ * the releaser's (`shown == mine`), one remaining holder's entry is copied in,
+ * so the shown `info` never belongs to a departed holder. Releasing a holder
+ * whose entry is not shown leaves the field unchanged. The reply is then
+ * {@link KEPT} if the releaser held the slot, else 0 — tested AFTER the
+ * promotion, so a non-holder's release still restores a missing shown field.
  *
  * **Whether the slot is gone, and which entry left, is decided HERE and
  * nowhere else (#348).** The entry IS the gone bit: a leave reads only that it
@@ -229,11 +261,22 @@ const HOLD_MEMBER_SCRIPT: string = [
  * presence hash exists anywhere else in this driver.
  *
  * `KEYS[1]` presence hash · `KEYS[2]` holders hash · `KEYS[3]` the releaser's
- * owned set · `ARGV[1]` field · `ARGV[2]` releaser instance id ·
- * `ARGV[3]` owned entry. Returns the released entry as a bulk string (gone) or
- * integer 0 — decoded by {@link decodeReleaseReply}.
+ * owned set · `KEYS[4]` the releaser's liveness key · `ARGV[1]` field ·
+ * `ARGV[2]` releaser instance id · `ARGV[3]` owned entry · `ARGV[4]` `'1'`
+ * to ask for the liveness check, `'0'` otherwise.
+ *
+ * Four replies, decoded by {@link decodeReleaseReply} and nowhere else: the
+ * released entry as a non-empty bulk string (**emptied**), {@link KEPT}
+ * (**kept**), 0 (**absent** — the releaser held nothing there) or
+ * {@link REFUSED} (**refused**).
  */
 const RELEASE_MEMBER_SCRIPT: string = [
+    "if ARGV[4] == '1' then",
+    "  local alive = redis.call('EXISTS', KEYS[4])",
+    '  if alive == 1 then',
+    `    return ${REFUSED}`,
+    '  end',
+    'end',
     "local mine = redis.call('HGET', KEYS[2], ARGV[2])",
     "local shown = redis.call('HGET', KEYS[1], ARGV[1])",
     "redis.call('HDEL', KEYS[2], ARGV[2])",
@@ -250,7 +293,43 @@ const RELEASE_MEMBER_SCRIPT: string = [
     "  local promoted = redis.call('HRANDFIELD', KEYS[2], 1, 'WITHVALUES')",
     "  redis.call('HSET', KEYS[1], ARGV[1], promoted[2])",
     'end',
-    'return 0',
+    'if mine == false then',
+    '  return 0',
+    'end',
+    `return ${KEPT}`,
+].join('\n')
+
+/**
+ * Deregister a swept instance — only while it is **dead and owns nothing**
+ * (#355, audit A4, ADR 006). The ghost sweep's last write; there is no raw `SREM` of
+ * the instances set anywhere in this driver.
+ *
+ * Its liveness key existing means the instance renewed while being swept (a
+ * lapse, not a crash): the reply is {@link REFUSED} and it stays registered.
+ * Its owned set existing means it holds a slot it took after the sweep read
+ * that set — a late hold: the reply is {@link KEPT}, it stays registered, and
+ * the next pass releases that hold. Otherwise it leaves the instances set and
+ * the reply is 0. `EXISTS`, not `SCARD`: Redis deletes an emptied set.
+ *
+ * Both checks and the write are one step, so neither can go stale between a
+ * read and the `SREM` — which is what orphaned a late hold before (ADR 004
+ * §5).
+ *
+ * `KEYS[1]` instances set · `KEYS[2]` the instance's liveness key ·
+ * `KEYS[3]` its owned set · `ARGV[1]` its instance id. Decoded by
+ * {@link decodeDeregisterReply}.
+ */
+const DEREGISTER_INSTANCE_SCRIPT: string = [
+    "local alive = redis.call('EXISTS', KEYS[2])",
+    'if alive == 1 then',
+    `  return ${REFUSED}`,
+    'end',
+    "local owns = redis.call('EXISTS', KEYS[3])",
+    'if owns == 0 then',
+    "  redis.call('SREM', KEYS[1], ARGV[1])",
+    '  return 0',
+    'end',
+    `return ${KEPT}`,
 ].join('\n')
 
 /**
@@ -759,29 +838,102 @@ function decodeHoldReply(reply: unknown): boolean {
 }
 
 /**
- * Decode a {@link RELEASE_MEMBER_SCRIPT} reply: integer 0 is `undefined` (the
- * slot is not gone), a non-empty bulk string is the released holder's entry
- * (gone), and anything else throws (#348, FR-004a).
+ * What one {@link RELEASE_MEMBER_SCRIPT} run did (#355). Internal: a leave's
+ * public answer is still only `gone` ({@link RosterRelease}).
  *
- * **The single home of what a release reply means.** There is no third
- * answer: an integer 1 is a pre-#348 script, a nil or an array is not this
- * script at all, and an empty bulk is an entry no hold ever writes. Truthiness
- * would read any of them as a departure, and a leave announces its `left`
- * — and a sweep announces the entry itself — from this value.
+ * - `emptied` — the releaser held the slot and was its last holder; `entry`
+ *   is its entry, the member that left.
+ * - `kept` — the releaser held the slot; other holders keep it.
+ * - `absent` — the releaser held nothing there (already released).
+ * - `refused` — asked on another process's behalf while that process is
+ *   alive; nothing was written.
+ */
+type ReleaseOutcome =
+    | { readonly kind: 'emptied'; readonly entry: string }
+    | { readonly kind: 'kept' }
+    | { readonly kind: 'absent' }
+    | { readonly kind: 'refused' }
+
+/**
+ * Decode a {@link RELEASE_MEMBER_SCRIPT} reply into its {@link ReleaseOutcome}:
+ * a non-empty bulk string is **emptied** (the released holder's entry),
+ * {@link KEPT} **kept**, 0 **absent**, {@link REFUSED} **refused**, and
+ * anything else throws (#348 FR-004a, #355).
+ *
+ * **The single home of what a release reply means.** An integer 1 is a
+ * pre-#348 script, a nil or an array is not this script at all, and an empty
+ * bulk is an entry no hold ever writes. Truthiness would read any of them as a
+ * departure, and a leave announces its `left` — and a sweep announces the
+ * entry itself — from this value.
+ *
+ * **The error message is constant**: it names what is accepted and never the
+ * reply, its type or its length — the reply's bytes come from the broker and
+ * the message reaches a log line (S4).
  *
  * @param reply - The `EVAL` reply.
- * @returns The released entry when the release emptied the slot, else
- *   `undefined`.
- * @throws {Error} If the reply is neither the integer 0 nor a non-empty bulk.
+ * @returns What the release did.
+ * @throws {Error} If the reply is none of the four.
  */
-function decodeReleaseReply(reply: unknown): string | undefined {
-    if (asInteger(reply) === 0) return undefined
+function decodeReleaseReply(reply: unknown): ReleaseOutcome {
+    const code = asInteger(reply)
+    if (code === 0) return { kind: 'absent' }
+    if (code === KEPT) return { kind: 'kept' }
+    if (code === REFUSED) return { kind: 'refused' }
     const entry = asBulk(reply)
-    if (entry) return entry
+    if (entry) return { kind: 'emptied', entry }
     throw new Error(
-        'realtime: the release script answered something other than 0 or a ' +
-            'released entry',
+        'realtime: the release script answered none of its four replies — a ' +
+            `released entry, 0 (absent), ${KEPT} (kept) or ${REFUSED} (refused)`,
     )
+}
+
+/** What one {@link DEREGISTER_INSTANCE_SCRIPT} run did (#355). Internal. */
+type DeregisterOutcome = 'deregistered' | 'renewed' | 'kept'
+
+/**
+ * Decode a {@link DEREGISTER_INSTANCE_SCRIPT} reply: 0 is **deregistered**,
+ * {@link REFUSED} **renewed** (the instance is alive again), {@link KEPT}
+ * **kept** (it owns a late hold, left for the next pass), and anything else
+ * throws (#355).
+ *
+ * **The single home of what a deregistration reply means.** Its error
+ * message is constant, like {@link decodeReleaseReply}'s: it never carries
+ * the reply.
+ *
+ * @param reply - The `EVAL` reply.
+ * @returns What the deregistration did.
+ * @throws {Error} If the reply is none of the three.
+ */
+function decodeDeregisterReply(reply: unknown): DeregisterOutcome {
+    const code = asInteger(reply)
+    if (code === 0) return 'deregistered'
+    if (code === REFUSED) return 'renewed'
+    if (code === KEPT) return 'kept'
+    throw new Error(
+        'realtime: the deregistration script answered none of its three ' +
+            `replies — 0 (deregistered), ${REFUSED} (renewed) or ${KEPT} (kept)`,
+    )
+}
+
+/**
+ * How one instance's sweep stopped without throwing (#355) — which line the
+ * Redis driver's sweep logs:
+ * - `completed` — every owned entry released, then deregistered or kept by a
+ *   late hold;
+ * - `closed` — cut short by `close()`;
+ * - `renewed` — a release or the deregistration was refused.
+ */
+type SweepStop = 'completed' | 'closed' | 'renewed'
+
+/** How one instance's sweep ended: a {@link SweepStop}, or the error it threw. */
+type SweepEnd = SweepStop | { readonly failed: unknown }
+
+/** What one instance's sweep has removed so far: the N and E of its line. */
+interface SweepCount {
+    /** Holds removed — emptied + kept (N). */
+    released: number
+    /** Slots emptied, each a departure announced (E). */
+    emptied: number
 }
 
 /** A stored roster entry: the client-visible member + its internal owner (FR-018). */
@@ -990,7 +1142,22 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     /** #318 — notified whenever a control frame is declined. */
     private controlRefusedHandler?: (refusal: ControlRefusal) => void
     private heartbeatTimer?: ReturnType<typeof setInterval>
-    private reconcileTimer?: ReturnType<typeof setInterval>
+    /**
+     * The ONE pending ghost-sweep timer (#355): a one-shot timeout armed by
+     * {@link #armReconcile} and nowhere else, never an interval.
+     */
+    private reconcileTimer?: ReturnType<typeof setTimeout>
+    /**
+     * The ghost-sweep pass in flight, if any (#355). Stored and cleared by
+     * {@link #armReconcile} alone; {@link close} awaits it.
+     */
+    #reconcilePass?: Promise<void>
+    /**
+     * Set by {@link close}, never cleared (#355). Read synchronously by
+     * {@link #armReconcile} and {@link #ensureSweepStarted} before arming a
+     * timer.
+     */
+    #closing = false
     private revocationTimer?: ReturnType<typeof setInterval>
     /**
      * The ONE retry a failed seam-triggered reconcile gets (#308).
@@ -1012,7 +1179,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     /**
      * The owning instance's departure announcer (#348), registered by the
      * manager via {@link onRosterDeparture}. ONE handler: re-registration
-     * replaces it and {@link close} drops it. Only {@link #sweepInstance}
+     * replaces it and {@link close} drops it. Only {@link #announceSwept}
      * calls it.
      */
     #departureHandler?: (departure: RosterDeparture) => void | Promise<void>
@@ -1649,22 +1816,34 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * its caller announces `gone` itself, and a report here would be a second
      * `left`.
      *
+     * **The public answer is `gone` only** (#355): `emptied` is `true`,
+     * `kept` and `absent` are `false`. A leave never asks for the liveness
+     * check, so a `refused` reply is a defect and throws rather than reading
+     * as "not gone".
+     *
      * @param channel - The presence channel.
      * @param memberId - The id of the member whose slot this instance releases.
      * @returns `gone: true` iff this instance held the slot and none is left.
-     * @throws {Error} If the broker fails, or the script's reply is neither 0
-     *   nor a released entry.
+     * @throws {Error} If the broker fails, the script's reply is none of its
+     *   four, or it is `refused`.
      */
     async releaseMember(
         channel: string,
         memberId: string | number,
     ): Promise<RosterRelease> {
-        const released = await this.#release(
+        const outcome = await this.#release(
             channel,
             String(memberId),
             this.instanceId,
+            false,
         )
-        return { gone: released !== undefined }
+        if (outcome.kind === 'refused') {
+            throw new Error(
+                'realtime: a leave was refused by the release script, but a ' +
+                    'leave never asks for the liveness check',
+            )
+        }
+        return { gone: outcome.kind === 'emptied' }
     }
 
     /**
@@ -1672,29 +1851,38 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * — this instance on a leave, a dead instance on a sweep. One path, so a
      * leave and a sweep cannot disagree about what releasing means.
      *
+     * The liveness check is asked for EXPLICITLY (#355): only
+     * {@link #sweepOwned} passes `true`. It is never derived from
+     * `releaserId !== this.instanceId`, and the key it checks is always
+     * `releaserId`'s own, built here and nowhere else — the sweeper's key
+     * would refuse every sweep release forever.
+     *
      * @param channel - The presence channel.
      * @param field - The slot's member id, as a string.
      * @param releaserId - The instance whose hold is dropped.
-     * @returns The releaser's entry when the release emptied a slot the
-     *   releaser held, else `undefined` (see {@link decodeReleaseReply}).
-     * @throws {Error} If the broker fails, or the reply is neither 0 nor a
-     *   released entry.
+     * @param onBehalf - `true` for a release on another process's behalf,
+     *   which the script refuses while that process is alive.
+     * @returns What the release did (see {@link decodeReleaseReply}).
+     * @throws {Error} If the broker fails, or the reply is none of the four.
      */
     async #release(
         channel: string,
         field: string,
         releaserId: string,
-    ): Promise<string | undefined> {
+        onBehalf: boolean,
+    ): Promise<ReleaseOutcome> {
         const reply = await this.command.command(
             'EVAL',
             RELEASE_MEMBER_SCRIPT,
-            '3',
+            '4',
             this.presenceKey(channel),
             this.holdersKey(channel, field),
             this.ownedKey(releaserId),
+            this.aliveKey(releaserId),
             field,
             releaserId,
             `${channel}${OWNED_SEP}${field}`,
+            onBehalf ? '1' : '0',
         )
         return decodeReleaseReply(reply)
     }
@@ -2119,8 +2307,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         if (this.revocationTimer !== undefined) {
             clearInterval(this.revocationTimer)
         }
-        // The callback RETURNS its promise so a FakeTime `tickAsync` awaits the
-        // full re-check round-trip (the same discipline as the sweep timers).
+        // A FakeTime `tickAsync` fires this callback and does NOT await the
+        // promise it returns: a test drains the re-check round trip itself.
         this.revocationTimer = setInterval(
             () => this.#runRevocationReconcile(),
             this.reconcileIntervalMs,
@@ -2175,6 +2363,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 }`,
             )
             if (trigger !== 'reconnect') return
+            // Nor once close() has begun (#355): a run already in flight when
+            // close() started would arm a timer that outlives the driver.
+            if (this.#closing) return
             // ONE retry, and only one. Chaining would turn a broker that keeps
             // failing into a hot loop against the command socket, which is the
             // opposite of what a bounded enforcement window needs.
@@ -2363,34 +2554,80 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * Start the instance-liveness heartbeat and the ghost-sweep reconcile pass
      * once, the first time this instance touches the roster. Idempotent; the
      * timers are cleared by {@link close}.
+     *
+     * **Neither timer is armed once {@link close} has begun** (#355): the boot
+     * heartbeat is awaited, and `close()` can run during it. The heartbeat's
+     * check sits here; the sweep's sits only inside {@link #armReconcile}, its
+     * one arming site, which this calls unconditionally.
+     *
+     * **The heartbeat stays an unguarded `setInterval`** (#355 disposition):
+     * a guard or a re-arm would turn one slow renewal into a missed one — a
+     * lapse — while an overlapping beat is a harmless repeat renewal.
      */
     async #ensureSweepStarted(): Promise<void> {
         if (this.sweepStarted) return
         this.sweepStarted = true
         await this.#heartbeat()
-        // Refresh our own liveness key so a live instance is never swept. The
-        // callbacks RETURN their promise (rather than voiding it) so a FakeTime
-        // `tickAsync` awaits the full round-trip — the sweep's own error handling
-        // still swallows nothing (both log at WARN).
-        this.heartbeatTimer = setInterval(
-            () => this.#heartbeat(),
-            this.heartbeatIntervalMs,
-        )
+        // The heartbeat's closing check. The sweep has none here: it is armed
+        // only through #armReconcile, whose own check is its one home.
+        if (!this.#closing) {
+            // Refresh our own liveness key so a live instance is never swept.
+            // A FakeTime `tickAsync` fires this callback and does NOT await
+            // the promise it returns — a test drains the round trip itself.
+            // Its error handling swallows nothing (it logs at WARN).
+            this.heartbeatTimer = setInterval(
+                () => this.#heartbeat(),
+                this.heartbeatIntervalMs,
+            )
+        }
         // Sweep the members of any instance whose liveness key has expired.
-        this.reconcileTimer = setInterval(
-            () => this.#reconcile(),
-            this.reconcileIntervalMs,
-        )
+        this.#armReconcile()
     }
 
-    /** Register this instance and refresh its liveness key (TTL heartbeat). */
+    /**
+     * Arm the next ghost-sweep pass — **the single arming site of the sweep
+     * timer, and the reason a driver never has two passes in flight** (#355,
+     * ADR 006).
+     *
+     * One `setTimeout`, never a `setInterval`: its callback stores the pass in
+     * `#reconcilePass`, runs {@link #reconcile}, and re-arms from the pass's
+     * `finally`, so the next interval starts when this pass ends, whether it
+     * succeeded or not. A pass slower than the interval therefore delays the
+     * next one instead of running beside it. The ghost sweep is
+     * level-triggered — every pass re-reads the instance set and each liveness
+     * key — so a pass that did not run loses nothing, and no trailing pass is
+     * queued.
+     *
+     * Returns without arming while {@link close} is in progress: this check,
+     * here and not at a call site, is what keeps a pass finishing during
+     * `close()` from arming another.
+     *
+     * A FakeTime `tickAsync(k × interval)` fires the callback once and does not
+     * await its promise, so it runs ONE pass, not k.
+     */
+    #armReconcile(): void {
+        if (this.#closing) return
+        this.reconcileTimer = setTimeout(() => {
+            this.reconcileTimer = undefined
+            this.#reconcilePass = this.#reconcile().finally(() => {
+                this.#reconcilePass = undefined
+                this.#armReconcile()
+            })
+        }, this.reconcileIntervalMs)
+    }
+
+    /**
+     * Refresh this instance's liveness key, then register it (TTL heartbeat).
+     *
+     * **The liveness key is written FIRST** (#355, A4): registered with no
+     * liveness key, this instance is exactly what a peer's sweep takes for
+     * dead. The registration is still attempted when that write failed (#310:
+     * an instance whose `SET` fails stays registered, and never sweeps
+     * itself). One WARN per failed beat, however many of its writes failed.
+     */
     async #heartbeat(): Promise<void> {
+        let failure: { readonly error: unknown } | undefined
         try {
-            await this.command.command(
-                'SADD',
-                this.instancesKey,
-                this.instanceId,
-            )
             await this.command.command(
                 'SET',
                 this.aliveKey(this.instanceId),
@@ -2399,9 +2636,21 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 String(this.livenessTtlSeconds),
             )
         } catch (error) {
+            failure = { error }
+        }
+        try {
+            await this.command.command(
+                'SADD',
+                this.instancesKey,
+                this.instanceId,
+            )
+        } catch (error) {
+            failure ??= { error }
+        }
+        if (failure) {
             console.warn(
                 `realtime: instance-liveness heartbeat failed: ${
-                    renderError(error)
+                    renderError(failure.error)
                 }`,
             )
         }
@@ -2411,6 +2660,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * Release the roster holds of every instance whose liveness key has expired
      * (Q1/FR-008, #345), so a crashed instance leaves no permanent ghost members
      * and never removes a member a live instance still holds.
+     *
+     * Its one caller is the callback {@link #armReconcile} arms (#355). The
+     * `EXISTS` here only SELECTS candidates; it never authorises a write —
+     * each sweep write re-checks liveness inside its own script.
+     *
+     * **It stops at the top of an instance once {@link close} has begun**,
+     * before that instance's `EXISTS`: no further instance is read. Its catch
+     * covers the instance-set read and the `EXISTS` only; one instance's sweep
+     * failing is contained in {@link #sweepInstance}, so it never stops the
+     * others.
      */
     async #reconcile(): Promise<void> {
         try {
@@ -2420,6 +2679,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             )
             const ids = asArray(reply) ?? []
             for (const raw of ids) {
+                if (this.#closing) return
                 const id = asBulk(raw)
                 if (!id || id === this.instanceId) continue
                 const alive = asInteger(
@@ -2464,17 +2724,157 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
-     * Release every hold of a dead instance, report each slot that release
-     * emptied, then forget the instance (#345, #348).
+     * Sweep one dead instance: release every hold it owns, report each slot a
+     * release emptied, then forget the instance (#345, #348, #355) — and log
+     * what that did, in ONE place.
+     *
+     * The writes are {@link #sweepOwned}'s; this method owns the two things
+     * that must hold however those writes end:
+     *
+     * **One instance's failure ends only that instance's sweep** (#355 A3).
+     * The catch below contains a throw from any of its writes: one "failed"
+     * line, no deregistration (the instance is retried next pass), and the
+     * pass goes on to the next instance.
+     *
+     * **It logs one line per instance, or none** (#355), counting from the
+     * decoded outcomes: N = emptied + kept (holds actually removed), E =
+     * emptied (departures announced); an *absent* release removed nothing.
+     * - `completed`, or `closed` (cut short by {@link close}), N > 0:
+     *   `released N hold(s) of dead instance <id> (E emptied their slot)` —
+     *   nothing at N = 0, so the count covers every hold removed;
+     * - `renewed`: `instance <id> renewed its liveness while being swept …`;
+     * - thrown: `sweep of dead instance <id> failed after N hold(s) released
+     *   (E emptied): <error>`.
+     *
+     * **Every exit reaches the one log site below**: {@link #sweepOwned}
+     * returns how the sweep ended — its return type makes a bare `return`
+     * a compile error — and a throw becomes the `failed` end here, so an exit
+     * added later can neither skip the line nor write a second one.
+     *
+     * @param deadId - The instance whose liveness lapsed.
+     */
+    async #sweepInstance(deadId: string): Promise<void> {
+        const count: SweepCount = { released: 0, emptied: 0 }
+        let end: SweepEnd
+        try {
+            end = await this.#sweepOwned(deadId, count)
+        } catch (error) {
+            end = { failed: error }
+        }
+        const id = safeForLog(deadId)
+        const { released, emptied } = count
+        if (typeof end === 'object') {
+            console.warn(
+                `realtime: sweep of dead instance ${id} failed after ` +
+                    `${released} hold(s) released (${emptied} emptied): ` +
+                    renderError(end.failed),
+            )
+        } else if (end === 'renewed') {
+            console.warn(
+                `realtime: instance ${id} renewed its liveness while being ` +
+                    `swept — a lapse, not a crash; ${released} hold(s) ` +
+                    `released (${emptied} emptied) before it did`,
+            )
+        } else if (released > 0) {
+            console.warn(
+                `realtime: released ${released} hold(s) of dead instance ` +
+                    `${id} (${emptied} emptied their slot)`,
+            )
+        }
+    }
+
+    /**
+     * The writes of one instance's sweep: one release per owned entry, then
+     * the deregistration (#345, #348, #355). It counts into `count` as each
+     * reply is decoded, so a throw mid-sweep leaves the count of what was
+     * already removed for {@link #sweepInstance}'s "failed" line.
      *
      * **A sweep is a leave on the dead instance's behalf**: one
      * {@link RELEASE_MEMBER_SCRIPT} per owned entry, with `deadId` as the
      * releaser, so a slot another live instance still holds stays in the
      * roster. **When the release empties the slot, its reply is the dead
-     * holder's entry**, and this is the only caller of the departure handler
-     * ({@link onRosterDeparture}): the manager announces the member as `left`.
-     * Of two instances sweeping the same dead one, only the first release gets
-     * the entry, so the room hears it once.
+     * holder's entry**, handed to {@link #announceSwept}. Of two instances
+     * sweeping the same dead one, only the first release gets the entry, so
+     * the room hears it once.
+     *
+     * **The owned set is never `DEL`eted.** Each release already removes its
+     * own entry; a hold that lands between the `SMEMBERS` below and the end of
+     * the sweep stays in the set, sweepable next time (S1c) — and keeps the
+     * instance registered, because {@link DEREGISTER_INSTANCE_SCRIPT} only
+     * deregisters an instance that owns nothing (#355 A4).
+     *
+     * **Every write asks whether the instance is still dead, inside the
+     * write** (#355). A *refused* release or deregistration means it renewed
+     * mid-sweep — a lapse, not a crash: the sweep stops there, with no further
+     * release and no deregistration. What it released before stays released
+     * (re-holding it is #349).
+     *
+     * **Once {@link close} has begun it issues nothing more**: it checks
+     * before each release and before the deregistration — never between a
+     * release reply and the announcement, so an in-flight release's departure
+     * is still announced.
+     *
+     * Its exits, each one an end {@link #sweepInstance} logs from:
+     * - `closed` — `close()` began, at either check;
+     * - `renewed` — a release or the deregistration was refused;
+     * - `completed` — deregistered, or kept by a late hold (next pass);
+     * - a throw — a round trip or a decoder failed.
+     *
+     * @param deadId - The instance whose liveness lapsed.
+     * @param count - Incremented per hold removed (N) and per slot emptied (E).
+     * @returns How the sweep ended, when it did not throw.
+     * @throws {Error} When a broker round trip fails or a reply does not
+     *   decode.
+     */
+    async #sweepOwned(
+        deadId: string,
+        count: SweepCount,
+    ): Promise<SweepStop> {
+        const reply = await this.command.command(
+            'SMEMBERS',
+            this.ownedKey(deadId),
+        )
+        const owned = asArray(reply) ?? []
+        for (const raw of owned) {
+            const entry = asBulk(raw)
+            if (!entry) continue
+            const sep = entry.indexOf(OWNED_SEP)
+            if (sep < 0) continue
+            const channel = entry.slice(0, sep)
+            const field = entry.slice(sep + 1)
+            if (this.#closing) return 'closed'
+            const outcome = await this.#release(
+                channel,
+                field,
+                deadId,
+                true,
+            )
+            if (outcome.kind === 'refused') return 'renewed'
+            if (outcome.kind === 'absent') continue
+            count.released++
+            if (outcome.kind === 'kept') continue
+            count.emptied++
+            await this.#announceSwept(channel, field, outcome.entry)
+        }
+        if (this.#closing) return 'closed'
+        const deregistration = decodeDeregisterReply(
+            await this.command.command(
+                'EVAL',
+                DEREGISTER_INSTANCE_SCRIPT,
+                '3',
+                this.instancesKey,
+                this.aliveKey(deadId),
+                this.ownedKey(deadId),
+                deadId,
+            ),
+        )
+        return deregistration === 'renewed' ? 'renewed' : 'completed'
+    }
+
+    /**
+     * Report one slot a sweep release emptied to the departure handler
+     * ({@link onRosterDeparture}) — its only caller is {@link #sweepOwned},
+     * which makes this the only path to the handler (#348).
      *
      * **What it reports is checked here, where the slot is known** (#348 A2,
      * S1). An entry is dropped — one WARN naming the channel only, no report,
@@ -2484,79 +2884,65 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * the report becomes a MAC-signed `presence-leave`. A throwing handler is
      * the same one WARN, and the sweep goes on.
      *
-     * **No I/O await between the release reply and the handler call** (A1):
-     * the command client runs one exchange at a time, so a hold of this slot
-     * issued mid-sweep has not had its reply yet, and the `left` goes out
-     * before its `joined`. An await here would hand that order to the race.
+     * **The handler is called before this method's first await** (#348 A1),
+     * and its caller invokes this straight from the release reply: no I/O
+     * await separates the reply from the handler call. The command client runs
+     * one exchange at a time, so a hold of this slot issued mid-sweep has not
+     * had its reply yet, and the `left` goes out before its `joined`. An await
+     * here would hand that order to the race.
      *
-     * **The owned set is never `DEL`eted.** Each release already removes its own
-     * entry; a hold that lands between the `SMEMBERS` below and the end of the
-     * sweep stays in the set, sweepable next time (S1c).
+     * Never throws: every failure is one WARN.
      *
-     * @param deadId - The instance whose liveness lapsed.
+     * @param channel - The channel of the emptied slot, as its owned entry
+     *   names it.
+     * @param field - The slot's member id, as its owned entry names it.
+     * @param entry - The release reply: the dead holder's roster entry.
      */
-    async #sweepInstance(deadId: string): Promise<void> {
-        const reply = await this.command.command(
-            'SMEMBERS',
-            this.ownedKey(deadId),
-        )
-        const owned = asArray(reply) ?? []
-        let swept = 0
-        for (const raw of owned) {
-            const entry = asBulk(raw)
-            if (!entry) continue
-            const sep = entry.indexOf(OWNED_SEP)
-            if (sep < 0) continue
-            const channel = entry.slice(0, sep)
-            const field = entry.slice(sep + 1)
-            const released = await this.#release(channel, field, deadId)
-            swept++
-            const handler = this.#departureHandler
-            if (released === undefined || !handler) continue
-            const dropped = () =>
-                console.warn(
-                    `realtime: a member swept from ${
-                        safeForLog(channel)
-                    } was not announced as left — its roster entry is not ` +
-                        'a departure this sweep can report. The release is ' +
-                        'committed; clients heal on resubscribe.',
-                )
-            if (!isValidName(channel)) {
-                dropped()
-                continue
-            }
-            // An entry that does not decode is logged by its decoder, told
-            // what the skip cost here: still one WARN per dropped entry.
-            const member = this.#parseRosterValue(
-                channel,
-                released,
-                SWEPT_ENTRY_NOT_ANNOUNCED,
+    async #announceSwept(
+        channel: string,
+        field: string,
+        entry: string,
+    ): Promise<void> {
+        const handler = this.#departureHandler
+        if (!handler) return
+        const dropped = () =>
+            console.warn(
+                `realtime: a member swept from ${
+                    safeForLog(channel)
+                } was not announced as left — its roster entry is ` +
+                    'not a departure this sweep can report. The ' +
+                    'release is committed; clients heal on ' +
+                    'resubscribe.',
             )
-            if (!member) continue
-            if (!sameMemberId(member.id, field)) {
-                dropped()
-                continue
-            }
-            try {
-                await handler({ channel, member })
-            } catch {
-                // DELIBERATELY drops the error (#348 plan §11, S2): a
-                // handler's message may carry the entry, and the entry is
-                // application data — so neither the member nor the error.
-                console.warn(
-                    `realtime: the roster departure handler failed for a ` +
-                        `member swept from ${
-                            safeForLog(channel)
-                        } — the release is committed and the sweep goes on`,
-                )
-            }
+        if (!isValidName(channel)) {
+            dropped()
+            return
         }
-        await this.command.command('SREM', this.instancesKey, deadId)
-        console.warn(
-            `realtime: released ${swept} hold(s) of dead instance ${
-                safeForLog(deadId)
-            }`,
+        // An entry that does not decode is logged by its decoder, told what
+        // the skip cost here: still one WARN per dropped entry.
+        const member = this.#parseRosterValue(
+            channel,
+            entry,
+            SWEPT_ENTRY_NOT_ANNOUNCED,
         )
+        if (!member) return
+        if (!sameMemberId(member.id, field)) {
+            dropped()
+            return
+        }
+        try {
+            await handler({ channel, member })
+        } catch {
+            // DELIBERATELY drops the error (#348 plan §11, S2): a handler's
+            // message may carry the entry, and the entry is application data
+            // — so neither the member nor the error.
+            console.warn(
+                `realtime: the roster departure handler failed for a ` +
+                    `member swept from ${
+                        safeForLog(channel)
+                    } — the release is committed and the sweep goes on`,
+            )
+        }
     }
 
     /**
@@ -2571,7 +2957,19 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * revokes nothing (FR-007). It also drops the departure handler
      * ({@link onRosterDeparture}), on both construction paths.
      *
-     * @returns Resolves once every owned connection is closed.
+     * **It waits for a ghost-sweep pass in flight** (#355), in this order:
+     * mark the driver closing, clear every timer, drop the revocation handler
+     * — synchronously, so a reconnect during the wait runs nothing and arms no
+     * retry — then await the pass, then drop the departure handler, then close
+     * the owned connections. The pass stops at its next write, so what it
+     * already released still has its departure announced, and once this
+     * resolves the driver issues no sweep command. The wait is bounded by the
+     * command client: up to two broker round trips plus one departure-handler
+     * call (about a minute at `fromConfig`'s 30 s command timeout). A
+     * heartbeat command already in flight is not awaited.
+     *
+     * @returns Resolves once the sweep pass in flight has stopped and every
+     *   owned connection is closed.
      * @example
      * ```ts
      * const driver = RedisBroadcastDriver.fromConfig({ hostname: 'localhost' })
@@ -2579,12 +2977,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * ```
      */
     async close(): Promise<void> {
+        this.#closing = true
         if (this.heartbeatTimer !== undefined) {
             clearInterval(this.heartbeatTimer)
             this.heartbeatTimer = undefined
         }
         if (this.reconcileTimer !== undefined) {
-            clearInterval(this.reconcileTimer)
+            clearTimeout(this.reconcileTimer)
             this.reconcileTimer = undefined
         }
         if (this.revocationTimer !== undefined) {
@@ -2599,8 +2998,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // the injected-port path `owned` is empty, so the subscriber outlives
         // this driver and can still fire. Dropping the handler makes
         // `#runRevocationReconcile`'s existing guard the ONE gate that quiesces
-        // both triggers on both construction paths.
+        // both triggers on both construction paths. BEFORE the wait below
+        // (#355 A1): a reconnect while the pass finishes must run nothing.
         this.revocationHandler = undefined
+        // The pass stops at its next write once `#closing` is set; a release
+        // already in flight still reports its departure, so the handler is
+        // dropped only AFTER it.
+        await this.#reconcilePass
         // A closed driver reports no departure either (#348).
         this.#departureHandler = undefined
         for (const resource of this.owned) {

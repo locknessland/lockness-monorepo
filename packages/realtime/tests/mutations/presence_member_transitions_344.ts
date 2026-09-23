@@ -191,6 +191,9 @@ const TRANSITION_ROWS: Mutation[] = [
         // empties, and a non-holder's `mine` is Lua `false` — a nil reply —
         // so the mutant now dies because `decodeReleaseReply` throws on nil:
         // the non-holder's release rejects instead of reporting nothing.
+        // Re-proven live for #355: the decoder now names four replies
+        // (emptied, KEPT, 0, REFUSED) and a nil is still none of them, so it
+        // still throws — the anchor survived, the code under it changed.
         killedBy: '#344 W11 FakeRedis: the six contract rows',
     },
     {
