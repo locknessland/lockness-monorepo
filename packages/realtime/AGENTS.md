@@ -429,22 +429,53 @@ Anything not listed is internal and free to change.
   only when no holder is left, and copies another holder's entry in only when
   the shown one was the releaser's (or when neither exists: a non-holder's
   release restores a missing field). **`arrived` and `gone` are decided inside
-  those scripts** and decoded by two strict decoders: `decodeHoldReply` (1 / 0 /
-  throw) and `decodeReleaseReply` (the released entry / 0 / throw — the release
-  answers **the releaser's stored entry** when it empties a slot the releaser
-  held, #348). An `HLEN` or owner read from TypeScript races another instance's
-  hold, and truthiness would announce from an error reply. **The sweep is a
-  release with `deadId`** — the same script — and its reply is **not** ignored:
-  `#sweepInstance` is the only caller of the departure handler, drops (one WARN,
-  channel only) an entry whose channel is not a valid name, that does not
-  decode, or whose member id is not its slot, and hands the rest to the manager
-  with no I/O await in between. `releaseMember` never reports one (a second
-  `left`). It never `DEL`s the owned set, or a hold landing mid-sweep becomes
-  unreachable. Three edits look harmless and bring #345 back: a raw presence
-  `HDEL` anywhere, an `EXPIRE` on the holders hash, and passing
-  `this.instanceId` to the sweep's release. Witness:
-  `roster_holders_345.test.ts`; battery
+  those scripts** and decoded by strict decoders: `decodeHoldReply` (1 / 0 /
+  throw) and `decodeReleaseReply`, which since #355 names **four** replies — the
+  released entry (**emptied**, #348), `KEPT` (**kept**: other holders keep the
+  slot), 0 (**absent**) and `REFUSED` (**refused**) — into an unexported
+  `ReleaseOutcome`, and throws on anything else. The deregistration has its own
+  decoder, `decodeDeregisterReply`: 0 / `REFUSED` (renewed) / `KEPT` (a late
+  hold) / throw. **Two decoders, seven replies, one spelling each**: `KEPT = 2`
+  and `REFUSED = 3` are named constants in `drivers/redis.ts` (exported for the
+  tests, not from `mod.ts`), interpolated into both scripts. Never reuse `1` —
+  it is a pre-#348 release reply that must still throw — and never let a
+  decoder's error message carry the reply (constant messages, S4). An `HLEN` or
+  owner read from TypeScript races another instance's hold, and truthiness would
+  announce from an error reply. **The sweep is a release with `deadId`** — the
+  same script — and its reply is **not** ignored: `#announceSwept` (called only
+  from the sweep's `#sweepOwned`) is the only caller of the departure handler,
+  and calls it before its first await; it drops (one WARN, channel only) an
+  entry whose channel is not a valid name, that does not decode, or whose member
+  id is not its slot, and hands the rest to the manager with no I/O await in
+  between. `releaseMember` never reports one (a second `left`). It never `DEL`s
+  the owned set, or a hold landing mid-sweep becomes unreachable. Three edits
+  look harmless and bring #345 back: a raw presence `HDEL` anywhere, an `EXPIRE`
+  on the holders hash, and passing `this.instanceId` to the sweep's release.
+  Witness: `roster_holders_345.test.ts`; battery
   `tests/mutations/presence_member_holds_345.ts`.
+- **One sweep pass at a time, and a sweep writes only while its target is dead**
+  ([#355](https://github.com/locknessland/lockness-monorepo/issues/355), ADR
+  006). `#armReconcile` is the ONLY place the sweep timer is armed — one
+  `setTimeout`, re-armed from the pass's `finally`, never while closing — and
+  `#reconcile` has one caller, the callback it arms. Do not put the sweep back
+  on a `setInterval`, add an in-flight flag, or call `#reconcile` from anywhere
+  else. The `EXISTS` in `#reconcile` only **selects** candidates: each sweep
+  write re-checks liveness **inside its script** — the release with
+  `ARGV[4] = '1'` and `KEYS[4]` = the **releaser's** liveness key (built only in
+  `#release`; the sweeper's own key would refuse every sweep release), and
+  `DEREGISTER_INSTANCE_SCRIPT`, which deregisters only while the instance is
+  dead **and** owns nothing. A leave passes `'0'`; a TypeScript `EXISTS` before
+  a write races the renewal. `#sweepOwned` counts N = emptied + kept and E =
+  emptied and returns how the sweep ended; `#sweepInstance` holds the one
+  per-instance `catch` and the ONE log site, one line per instance — "released"
+  (N > 0, also when `close()` cut the sweep short), "renewed" (a refused reply:
+  stop that instance, no deregistration) or "failed" (its own `catch`: no
+  deregistration, the pass goes on). `close()` drops the revocation handler,
+  THEN awaits `#reconcilePass`, THEN drops the departure handler; the pass reads
+  `#closing` only at the top of each instance, before each release and before
+  the deregistration — never between a release reply and the handler. Witness:
+  `reconcile_single_pass_355.test.ts`; battery
+  `tests/mutations/reconcile_single_pass_355.ts`.
 - **`heartbeatIntervalMs` and `livenessTtlSeconds` are ONE setting with two
   numbers.** The heartbeat is what keeps this instance's `{prefix}:alive:<id>`
   key alive, and that key's TTL is `livenessTtlSeconds`. Beat slower than the
@@ -454,6 +485,11 @@ Anything not listed is internal and free to change.
   above half the TTL
   ([#293](https://github.com/locknessland/lockness-monorepo/issues/293)); two
   beats per window, because one lands on the boundary and races the expiry.
+  **`#heartbeat` writes the liveness key BEFORE `SADD instances`** (#355), and
+  still attempts the `SADD` when the `SET` failed: registered with no liveness
+  key, an instance is exactly what a peer's sweep takes for dead, while a failed
+  `SET` must still leave it registered (#310's scenario). The heartbeat stays an
+  unguarded `setInterval` — a guard would turn one slow renewal into a lapse.
 - **Refusing a bad state can move a mutant FURTHER from killable — and
   "unreachable" is a claim about the CONFIGURATION, not about the guard.** #293
   was filed expecting its guard to make the `id === this.instanceId` self-skip a
@@ -470,11 +506,13 @@ Anything not listed is internal and free to change.
   `#heartbeat` catches and logs at WARN, so it keeps accepting joins and writing
   rosters while its own key expires underneath it. `withFaultyInstance`
   (`tests/live_realtime.ts`) injects exactly that and nothing else; the battery
-  is `tests/mutations/self_skip_310.ts`, and it SURVIVES against the suite
-  without that scenario. The self-skip would have stayed either way — a guard
-  unreachable from every valid configuration is the desired state, not a
-  redundancy to delete — but unreachability is no longer the reason for leaving
-  it untested.
+  is `tests/mutations/self_skip_310.ts`, and its one row is KILLED by that
+  scenario — re-proven after #355 reordered `#heartbeat`. It needs a live broker
+  and refuses to start without one: the suite it mutates would be ignored, which
+  the harness would read as a survivor. The self-skip would have stayed either
+  way — a guard unreachable from every valid configuration is the desired state,
+  not a redundancy to delete — but unreachability is no longer the reason for
+  leaving it untested.
 
 - **The watched-channel caps REFUSE, and the reservation is not the cap.**
   `#checkChannelCaps` throws `ChannelLimitError` before any membership mutation
@@ -699,7 +737,7 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-76 test files for 20 source files:
+77 test files for 20 source files:
 
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
@@ -763,6 +801,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/presence_sweep.test.ts`
 - `packages/realtime/tests/presence_sweep_departure_348.test.ts`
 - `packages/realtime/tests/protocol.test.ts`
+- `packages/realtime/tests/reconcile_single_pass_355.test.ts`
 - `packages/realtime/tests/redis_broker_integration.test.ts`
 - `packages/realtime/tests/revocation_atomicity.test.ts`
 - `packages/realtime/tests/revocation_clear_race_337.test.ts`
@@ -778,7 +817,7 @@ Anything not listed is internal and free to change.
 - `packages/realtime/tests/subscribe_unsubscribe_race_330.test.ts`
 - `packages/realtime/tests/websocket.test.ts`
 
-30 mutation batteries — **`deno test` does not run these.** Each is an
+31 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -806,6 +845,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_read_bound_341.ts`
 - `packages/realtime/tests/mutations/presence_snapshot_339.ts`
 - `packages/realtime/tests/mutations/presence_sweep_departure_348.ts`
+- `packages/realtime/tests/mutations/reconcile_single_pass_355.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
 - `packages/realtime/tests/mutations/revoke_channel_idless_340.ts`
 - `packages/realtime/tests/mutations/roster_read_barrier_333.ts`
@@ -829,7 +869,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 76 test files directly —
+Then, specific to this package: run its 77 test files directly —
 
 ```bash
 deno test -A packages/realtime/

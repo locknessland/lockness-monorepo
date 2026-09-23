@@ -1,7 +1,8 @@
 # ADR 004 — Roster slots are held per instance, and the holder that fills or empties one announces it
 
 **Status:** Accepted, amended by
-[ADR 005](005-realtime-swept-departures-announced.md) (§2, §5, §6) **Date:**
+[ADR 005](005-realtime-swept-departures-announced.md) (§2, §5, §6) and
+[ADR 006](006-realtime-sweep-writes-only-while-dead.md) (§2, §5) **Date:**
 2026-09-15 **Owner:** architect **Amends:**
 [ADR 003](003-realtime-roster-write-ownership.md) §3, §6, §7 **Affects:**
 `packages/realtime/driver.ts`, `packages/realtime/manager.ts`,
@@ -81,6 +82,13 @@ Each slot has `<prefix>__holders:<channel> <id>`, mapping
 > is **no longer ignored** — each entry it gets back is reported, through the
 > driver's optional `onRosterDeparture` callback, as a departure the manager
 > announces as `left`.
+
+> **Amended by [ADR 006](006-realtime-sweep-writes-only-while-dead.md)
+> (2026-09-23).** The release takes a fourth key, the releaser's liveness key,
+> and on a sweep (`ARGV[4] = '1'`) answers **refused** before any write while
+> that key exists. Its replies are four — the entry, `KEPT`, `0`, `REFUSED`. The
+> sweep no longer ends with a raw `SREM`: it deregisters through a script that
+> requires the instance to be dead **and** own nothing. One pass runs at a time.
 
 The memory driver has one process: `arrived = !has`, `gone = delete`. A
 roster-less driver gets its bits from the manager's private `#heldSlots`,
@@ -182,6 +190,13 @@ inside the #323 rollback instead of at construction.
 > (2026-09-23).** "Sweep removals announce nothing" is no longer a residue: a
 > slot the sweep empties is announced as `left`, exactly once across sweepers.
 > The lapsed-instance bullet above is rewritten accordingly.
+
+> **Amended by [ADR 006](006-realtime-sweep-writes-only-while-dead.md)
+> (2026-09-23).** The "hold racing the sweep's final instance deregistration"
+> case is **closed**: deregistration requires an empty owned set, so a late hold
+> keeps its instance registered and the next pass releases it. The
+> lapsed-instance bullet is **narrowed**: a release on its behalf is refused
+> once it renews, so it loses only the holds swept before its renewal.
 
 - **A lost release reply** skips the `left`, with no retry.
 - **A lost hold reply after commit** (#323): the rollback's release reports

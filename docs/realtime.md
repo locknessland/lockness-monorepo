@@ -1370,6 +1370,28 @@ per entry, exactly the release a leave runs, on the dead instance's behalf — s
 a crash leaves no permanent ghosts and never removes a member a live instance
 still holds.
 
+**One pass at a time, and only while the target is dead**
+([#355](https://github.com/locknessland/lockness-monorepo/issues/355), ADR 006).
+An instance never has two reconcile passes in flight: the next one is scheduled
+`reconcileIntervalMs` after the current one **ends**, so a slow broker delays
+the sweep rather than piling passes onto it. Every sweep write re-checks, inside
+the write itself, that the instance it sweeps is still dead: if its liveness key
+came back — it had only lapsed, not crashed — the release is refused and the
+sweep of that instance stops, keeping every hold not yet released. An instance
+is deregistered only while it is dead **and** holds nothing, so a hold it takes
+mid-sweep stays reachable by the next pass.
+
+The sweep logs at most **one WARN per swept instance**:
+
+| Line                                                                                                                        | Means                                                                                                                                                                                                                 |
+| :-------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `released N hold(s) of dead instance <id> (E emptied their slot)`                                                           | N holds were actually removed; E of them emptied their slot and were announced `left` (the rest are still held by a live instance). Also logged when `close()` cut the sweep short after removing some. None at N = 0 |
+| `instance <id> renewed its liveness while being swept — a lapse, not a crash; N hold(s) released (E emptied) before it did` | The instance is alive again: its sweep stopped, it stays registered, and what was released before the renewal stays released                                                                                          |
+| `sweep of dead instance <id> failed after N hold(s) released (E emptied): <error>`                                          | That instance could not be swept (its owned set could not be read, the broker failed): it stays registered and is retried next pass, and the other dead instances are still swept in the same pass                    |
+
+A sweep that removed nothing — every entry already released by another sweeper —
+logs nothing.
+
 **What the room receives after a crash**
 ([#348](https://github.com/locknessland/lockness-monorepo/issues/348)). When a
 sweep's release empties a slot — the dead instance was that member's last holder
@@ -1381,8 +1403,14 @@ instances sweeping the same dead one produce **one** `left`: the release hands
 the departed entry to whichever sweep runs it first.
 
 - **Latency.** The `left` arrives up to the liveness TTL plus the reconcile
-  interval after the crash — about 25 s with the defaults below. Tighten both
-  options to shorten it; the heartbeat must stay well inside the TTL.
+  interval **plus one pass** after the crash — about 25 s with the defaults
+  below, on a healthy broker. Tighten both options to shorten it; the heartbeat
+  must stay well inside the TTL.
+- **Shutting down mid-sweep.** `close()` waits for a pass in flight: the pass
+  stops at its next write, and a release already sent still has its departure
+  announced. The wait is bounded by the command client — up to two broker round
+  trips plus one departure-handler call, about a minute at `fromConfig`'s 30 s
+  command timeout.
 - **A large crash is a burst.** Each such member costs the sweeping instance one
   release `EVAL` and one `PUBLISH` on its shared command connection, so its
   other commands queue behind them. Past a peer's per-origin share of the replay
@@ -1392,7 +1420,8 @@ the departed entry to whichever sweep runs it first.
   fails, after the release, nobody announces — clients heal on resubscribe. A
   `0.3.0` sweeper announces nothing, and a crashed `0.3.0` instance wrote no
   holders entry to announce from: during a mixed-version deploy expect at most
-  one `left`, not exactly one.
+  one `left`, not exactly one. A `0.3.0` sweeper also has no liveness check: it
+  keeps releasing an instance that renewed, and deregisters it regardless.
 - **The bytes are the broker's.** The announced entry is read back from Redis.
   An entry whose member id is not the slot it was stored under, or whose channel
   is not a valid name, is dropped with one WARN naming the channel only.
@@ -1411,14 +1440,17 @@ live instance never reclaims its own holds. Consequences worth holding on to:
   can no longer delete a member somebody else holds.
 - The sweep never deletes the owned set wholesale: each release removes its own
   entry, so a hold landing mid-sweep stays sweepable.
+- An owned entry the sweep cannot parse keeps its dead instance registered —
+  re-read every pass, never removed.
 - The sweep is a **crash** recovery mechanism. It is not a repair for a
   divergence on a running instance, and nothing should be designed to lean on it
-  as one. An instance whose heartbeat lapsed while it stayed up loses its holds
-  to a peer's sweep, which announces them `left` to the room — that member's own
-  open tabs on the lapsed instance included; a later hold for that member is a
-  real arrival and announces one `joined`, which those tabs do not receive (it
-  excludes their member id), and a leave before any such hold sends nothing (it
-  holds nothing to release). That lapsed-alive residue is tracked in
+  as one. An instance whose heartbeat lapsed while it stayed up loses the holds
+  a peer's sweep released **before it renewed** (the sweep stops there), which
+  announces them `left` to the room — that member's own open tabs on the lapsed
+  instance included; a later hold for that member is a real arrival and
+  announces one `joined`, which those tabs do not receive (it excludes their
+  member id), and a leave before any such hold sends nothing (it holds nothing
+  to release). That lapsed-alive residue is tracked in
   [#349](https://github.com/locknessland/lockness-monorepo/issues/349).
 
 Tune the sweep with the `presence` option:

@@ -1,6 +1,8 @@
 # ADR 005 — A slot the ghost sweep empties is announced as left, by the manager, exactly once
 
-**Status:** Accepted **Date:** 2026-09-23 **Owner:** architect **Amends:**
+**Status:** Accepted, amended by
+[ADR 006](006-realtime-sweep-writes-only-while-dead.md) (§2, §5) **Date:**
+2026-09-23 **Owner:** architect **Amends:**
 [ADR 004](004-realtime-roster-slots-held-per-instance.md) §2, §5, §6
 **Affects:** `packages/realtime/driver.ts`, `packages/realtime/protocol.ts`,
 `packages/realtime/manager.ts`, `packages/realtime/drivers/redis.ts`,
@@ -47,6 +49,12 @@ is hold-only.
 alone: the read and the delete of the dead holder's entry are one step, so of
 two sweeps of one dead instance only the first release gets the entry.
 
+> **Amended by [ADR 006](006-realtime-sweep-writes-only-while-dead.md)
+> (2026-09-23).** "Integer `0` otherwise" is now three replies: `KEPT` (the
+> releaser held the slot and others keep it), `0` (it held nothing there) and
+> `REFUSED` (a sweep release while the target is alive — nothing written).
+> `releaseMember` still answers only `gone`, and throws on `REFUSED`.
+
 ### The seam: one optional callback
 
 `BroadcastDriver` gains
@@ -60,12 +68,13 @@ roster**.
 
 ### The sweep reports, and checks what it reports
 
-`#sweepInstance` is the only caller of the handler. For each entry a release
-returned, it drops — one WARN naming the channel only, no report, the release
-still committed — an entry whose owned-entry channel is not a valid name, whose
-value does not decode, or **whose member id is not the slot it was released
-from**. Otherwise it calls the handler, awaited one at a time; a throw is the
-same one WARN and the sweep goes on.
+The sweep is the only caller of the handler (since the #355 review, through
+`#announceSwept`, which calls it before its first await). For each entry a
+release returned, it drops — one WARN naming the channel only, no report, the
+release still committed — an entry whose owned-entry channel is not a valid
+name, whose value does not decode, or **whose member id is not the slot it was
+released from**. Otherwise it calls the handler, awaited one at a time; a throw
+is the same one WARN and the sweep goes on.
 
 **A swept `presence-leave` carries broker-sourced bytes.** The entry comes out
 of Redis and the sweeper signs it into a MAC-valid control frame. The channel
@@ -168,6 +177,12 @@ does not implement the callback keeps today's silent sweep.
   driver is trusted code, and it already feeds `onControl`.
 - **Overlapping reconcile passes** double the sweep's work; exactly-once still
   holds.
+
+> **Amended by [ADR 006](006-realtime-sweep-writes-only-while-dead.md)
+> (2026-09-23).** Overlapping passes are **closed**: a driver runs one pass at a
+> time. The lapsed-but-alive bullet is **narrowed** — a renewal stops the sweep
+> of that instance — and the crash latency grows by one pass duration.
+
 - **Redis Cluster**, and **frame order across publishers**, as in ADR 004.
 
 ---
