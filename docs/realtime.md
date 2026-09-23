@@ -2067,17 +2067,19 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Ten breaking changes — the driver revocation seam, the presence snapshot a
-subscribe returns, the driver roster seam, presence frames announced per member
-rather than per connection, an authorizer result outside its contract now
-throwing, a presence member id that is not a string or a finite number now
-throwing, a presence member that is not exactly `{ id, info }` now throwing,
-presence members now read-only, an object result on a private channel now
-checked as a presence member, and no connection receiving `joined` or `left` for
-its own member id — two widened return types, one new control kind, and one
-additive wire field. **No migration step, and one new Redis key family.** Before
-you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13 and 14 — and item 7 if
-you wrote your own driver.
+Sixteen items. Eleven are breaking changes — the driver revocation seam, the
+presence snapshot a subscribe returns, the driver roster seam, presence frames
+announced per member rather than per connection, an authorizer result outside
+its contract now throwing, a presence member id that is not a string or a finite
+number now throwing, a presence member that is not exactly `{ id, info }` now
+throwing, presence members now read-only, an object result on a private channel
+now checked as a presence member, no connection receiving `joined` or `left` for
+its own member id, and a presence member over its byte bound now throwing — plus
+two widened return types, one new control kind, one additive wire field and one
+additive getter. Item 16 changes no behaviour: it corrects earlier guidance.
+**No migration step, and one new Redis key family.** Before you deploy, read
+items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15 and 16 — and items 2 and 7 if you
+wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2631,12 +2633,32 @@ or its socket is closed.
 
 No wire change, and no migration step.
 
-## Upgrading to v0.3.0
+### 15. `PresenceMember` is bounded, and an oversized one now throws
 
-Two behaviour changes in `@lockness/realtime`. Neither needs a data migration;
-both can be met before you deploy.
+`PresenceMember.info` was bounded by nothing. `subscribe` now throws
+`PresenceMemberSizeError` when the whole serialized member exceeds
+`maxPresenceMemberBytes` (**4096 bytes** by default) — see
+[`PresenceMember.info` is bounded](#presencememberinfo-is-bounded-and-the-bound-is-checked-at-admission).
 
-### 0. Read this even if you change nothing
+**Before deploying**, ask what your `authorize()` puts in `info`. A deployment
+that returns a display name and an avatar URL is nowhere near the bound. One
+that returns a whole profile document, a base64 avatar, or anything an end user
+can grow without limit, has joins that will now throw where they previously
+succeeded — and, before this release, succeeded while being invisible to every
+other instance, which is the defect the bound closes.
+
+Two smaller changes ride with it:
+
+1. **The driver's oversize control publish now rejects** instead of warning and
+   returning. `unsubscribe` and `evict` await `publishControl` and previously
+   could not learn their frame was never sent. The presence-join path still
+   catches and warns, deliberately: with the admission bound in place, the only
+   failures left there are transient ones the roster survives.
+2. **`maxPresenceMemberBytes` and `control.maxPayloadBytes` move together.**
+   Raising the member bound without raising the control ceiling on every
+   instance admits members that cannot be announced.
+
+### 16. Read this even if you change nothing
 
 **The guidance about where a per-call budget belongs was wrong and has been
 corrected.** If you followed it and put a rate limit in your `authorize`
@@ -2649,6 +2671,11 @@ budget you believe you have is smaller than you believe — see
 `ChannelManager` also gained one read-only getter, `maxChannelsPerConnection`,
 which reports the **effective** cap rather than the default constant. Additive
 only.
+
+## Upgrading to v0.3.0
+
+Two behaviour changes in `@lockness/realtime`. Neither needs a data migration;
+both can be met before you deploy.
 
 ### 1. The watched-channel caps now refuse
 
@@ -2673,31 +2700,6 @@ the options that move them.
 `ChannelLimitError.scope` is typed `string`, not a union — an exhaustive
 `switch` will not compile against it, by design. Compare against
 `CHANNEL_LIMIT_SCOPES` and handle an unrecognised value generically.
-
-### 3. `PresenceMember` is bounded, and an oversized one now throws
-
-`PresenceMember.info` was bounded by nothing. `subscribe` now throws
-`PresenceMemberSizeError` when the whole serialized member exceeds
-`maxPresenceMemberBytes` (**4096 bytes** by default) — see
-[`PresenceMember.info` is bounded](#presencememberinfo-is-bounded-and-the-bound-is-checked-at-admission).
-
-**Before deploying**, ask what your `authorize()` puts in `info`. A deployment
-that returns a display name and an avatar URL is nowhere near the bound. One
-that returns a whole profile document, a base64 avatar, or anything an end user
-can grow without limit, has joins that will now throw where they previously
-succeeded — and, before this release, succeeded while being invisible to every
-other instance, which is the defect the bound closes.
-
-Two smaller changes ride with it:
-
-1. **The driver's oversize control publish now rejects** instead of warning and
-   returning. `unsubscribe` and `evict` await `publishControl` and previously
-   could not learn their frame was never sent. The presence-join path still
-   catches and warns, deliberately: with the admission bound in place, the only
-   failures left there are transient ones the roster survives.
-2. **`maxPresenceMemberBytes` and `control.maxPayloadBytes` move together.**
-   Raising the member bound without raising the control ceiling on every
-   instance admits members that cannot be announced.
 
 ### 2. The legacy revocation read is gone
 
