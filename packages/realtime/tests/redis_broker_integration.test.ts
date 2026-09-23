@@ -986,6 +986,93 @@ integrationTest(
     },
 )
 
+/**
+ * How many heartbeat intervals a healed instance has to put a swept member
+ * back (#349 SC-001), counted in the cadence the scenario configures rather
+ * than written as a wall-clock figure.
+ *
+ * SC-001 is one interval (the next beat), plus the revocation re-check, plus
+ * the re-assert — four round trips on the one command client, behind whatever
+ * beats queue with them. The latency itself is pinned exactly under FakeTime
+ * (`lapse_rehold_349.test.ts` W1 and W1b); this live run proves the mechanism
+ * on a real broker, so its bound only has to fail LOUDLY when no repair
+ * comes, and nothing else could bring 7 back — a7 sends nothing, and no other
+ * instance holds it. Eight intervals, where a healthy run measures about one (248–271 ms over five idle-broker runs):
+ * a loaded broker or runner stays inside it, a missing repair never does.
+ */
+const LAPSE_REASSERT_INTERVALS = 8
+/** {@link LAPSE_REASSERT_INTERVALS}, in the scenario's own heartbeat cadence. */
+const LAPSE_REASSERT_BOUND_MS = SWEEP_HEARTBEAT_MS * LAPSE_REASSERT_INTERVALS
+
+integrationTest(
+    '#349 W1: a lapsed-but-alive instance puts its swept member back once its liveness writes heal',
+    async (namespace, reader) => {
+        // A is the faulty instance and B a normal peer on the same namespace
+        // and control secret, nested inside A's body. `withFaultyInstance`
+        // stays single-instance, as #310 needs; the peer is what sweeps A.
+        const options = {
+            reconcileIntervalMs: SWEEP_RECONCILE_MS,
+            livenessTtlSeconds: SWEEP_LIVENESS_SECONDS,
+            heartbeatIntervalMs: SWEEP_HEARTBEAT_MS,
+            secret: controlSecret(),
+        }
+        await withFaultyInstance(
+            namespace,
+            async (a, fault) => {
+                await withInstances(
+                    1,
+                    namespace,
+                    async ([b]) => {
+                        await b.manager.subscribe(
+                            connection('b-observer', { id: 1, name: 'Ada' }),
+                            'presence-ops',
+                        )
+                        await a.manager.subscribe(
+                            connection('a7', { id: 7, name: 'Boris' }),
+                            'presence-ops',
+                        )
+                        await waitFor(
+                            async () =>
+                                (await reader.roster(namespace, 'presence-ops'))
+                                    .size === 2,
+                            'both members to reach the authoritative roster',
+                        )
+
+                        fault.breakLivenessWrites()
+                        await waitFor(
+                            async () =>
+                                !(await reader.roster(
+                                    namespace,
+                                    'presence-ops',
+                                )).has('7'),
+                            'B to sweep the lapsed instance’s member',
+                            SWEEP_TIMEOUT_MS,
+                        )
+                        assert(
+                            fault.refused() > 0,
+                            'the lapse came from refused liveness writes',
+                        )
+
+                        fault.healLivenessWrites()
+                        await waitFor(
+                            async () =>
+                                (await reader.roster(namespace, 'presence-ops'))
+                                    .has('7'),
+                            'the healed instance to re-assert its member ' +
+                                `within ${LAPSE_REASSERT_INTERVALS} heartbeat ` +
+                                `intervals (${LAPSE_REASSERT_BOUND_MS} ms) — ` +
+                                'no repair came',
+                            LAPSE_REASSERT_BOUND_MS,
+                        )
+                    },
+                    options,
+                )
+            },
+            options,
+        )
+    },
+)
+
 integrationTest(
     "US1/#288: a deployment does NOT receive a NESTED deployment's frames, on a REAL broker",
     async (namespace, reader) => {

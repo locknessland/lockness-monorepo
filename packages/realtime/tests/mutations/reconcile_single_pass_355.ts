@@ -93,14 +93,20 @@ const CLOSING_BEFORE_DEREGISTRATION =
     '        const deregistration = decodeDeregisterReply(\n'
 
 // `#heartbeat`'s two writes, in their decided order: liveness key, then
-// registration.
-const BEAT_SET = '            await this.command.command(\n' +
+// registration. Re-anchored for #349: the liveness write became
+// `SET … EX … GET`, its reply is kept, and it is decoded inside the same
+// `try` — so the block that M19 moves is the call AND its decode.
+const BEAT_SET = '            const reply = await this.command.command(\n' +
     "                'SET',\n" +
     '                this.aliveKey(this.instanceId),\n' +
     "                '1',\n" +
     "                'EX',\n" +
     '                String(this.livenessTtlSeconds),\n' +
-    '            )\n'
+    "                'GET',\n" +
+    '            )\n' +
+    '            // Decoded INSIDE the try (#349 S1): a reply it refuses is one\n' +
+    '            // failed beat, never a rejection escaping an interval callback.\n' +
+    '            outcome = decodeBeatReply(reply)\n'
 const BEAT_SADD = '            await this.command.command(\n' +
     "                'SADD',\n" +
     '                this.instancesKey,\n' +
@@ -351,6 +357,8 @@ const MUTATIONS: Mutation[] = [
             BEAT_SET + BEAT_BETWEEN + BEAT_SADD,
             BEAT_SADD + BEAT_BETWEEN + BEAT_SET,
         ]],
+        // Re-anchored for #349 (BEAT_SET above); the mutation and its
+        // witness are unchanged.
         killedBy: '#355 W8',
     },
     {
@@ -363,6 +371,9 @@ const MUTATIONS: Mutation[] = [
                 '        if (!failure) try {\n',
             ),
         ]],
+        // Re-proven live for #349: the anchor is intact (FR-001 kept the
+        // SET's catch to its two lines), but the `try` above it now also
+        // decodes the reply.
         killedBy: '#355 W8',
     },
     {

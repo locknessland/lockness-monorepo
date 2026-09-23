@@ -63,12 +63,13 @@ const SECRET = 's'.repeat(32)
  * One sampled pair is the 6-byte field plus the stored entry
  * `{"member":<4 096>,"owner":"<36>"}` — 4 154 bytes — so 4 160; K of them is
  * 416 000. The joiner's own entry from `HMGET` adds 4 154 (a field is not
- * echoed there). The `OK` of the instance-liveness `SET` adds 2. Nothing else
- * the subscribe issues replies with a payload.
+ * echoed there). The instance-liveness `SET … GET` answers nil on its first
+ * write, which carries no payload (#349; its `OK` added 2 before). Nothing
+ * else the subscribe issues replies with a payload.
  */
-const PINNED_DEFAULT_BYTES = 420_156
-/** The same arithmetic at K = 10: 41 600 + 4 154 + 2. */
-const PINNED_K10_BYTES = 45_756
+const PINNED_DEFAULT_BYTES = 420_154
+/** The same arithmetic at K = 10: 41 600 + 4 154. */
+const PINNED_K10_BYTES = 45_754
 
 /** A fixed-width member id: `u00001` … `u10000`. */
 const idOf = (n: number) => `u${String(n).padStart(5, '0')}`

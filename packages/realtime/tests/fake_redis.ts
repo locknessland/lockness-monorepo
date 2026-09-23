@@ -779,13 +779,23 @@ export class FakeRedis {
                 return { type: 'integer', value: removed }
             }
             case 'SET': {
-                // SET key value [EX seconds] — every other option is REJECTED.
-                // Silently ignoring NX is the shape that made an inert guard
-                // look like a working one: the caller believes it wrote only if
-                // the key was absent, and the fake wrote unconditionally.
+                // SET key value [EX seconds] [GET] — every other option is
+                // REJECTED. Silently ignoring NX is the shape that made an
+                // inert guard look like a working one: the caller believes it
+                // wrote only if the key was absent, and the fake wrote
+                // unconditionally.
                 const [key, value, ...opts] = rest
                 let expireAt: number | undefined
+                let get = false
                 for (let i = 0; i < opts.length; i++) {
+                    // GET (#349): the reply becomes the value the key held
+                    // before this write, or nil — the heartbeat's lapse bit.
+                    // Once, in any position.
+                    if (opts[i].toUpperCase() === 'GET') {
+                        if (get) this.#reject('FakeRedis: SET given GET twice')
+                        get = true
+                        continue
+                    }
                     if (opts[i].toUpperCase() !== 'EX') {
                         this.#reject(
                             `FakeRedis: unmodelled SET option '${opts[i]}' — ` +
@@ -812,13 +822,31 @@ export class FakeRedis {
                     }
                     expireAt = this.#now() + seconds
                 }
+                // The previous value is read AFTER the expiry check and BEFORE
+                // the write: an expired key answers nil, as on the broker. A
+                // key of another type is refused (WRONGTYPE) and, unlike a
+                // plain SET, left as it was.
+                let previous: Reply | undefined
+                if (get) {
+                    const exists = this.#keyExists(key)
+                    if (exists && !this.#strings.has(key)) {
+                        this.#reject(
+                            'WRONGTYPE Operation against a key holding the ' +
+                                'wrong kind of value',
+                        )
+                    }
+                    const held = exists ? this.#strings.get(key) : undefined
+                    previous = held === undefined
+                        ? { type: 'nil' }
+                        : { type: 'bulk', value: held }
+                }
                 this.#strings.set(key, value)
                 // A plain SET CLEARS any existing TTL, as Redis does. With one
                 // registry that has to be said rather than falling out of an
                 // `expireAt: undefined` overwrite.
                 if (expireAt === undefined) this.#keyExpiry.delete(key)
                 else this.#keyExpiry.set(key, expireAt)
-                return { type: 'simple', value: 'OK' }
+                return previous ?? { type: 'simple', value: 'OK' }
             }
             case 'EXISTS': {
                 // EXISTS key [key ...] -> a COUNT, and across every type. It

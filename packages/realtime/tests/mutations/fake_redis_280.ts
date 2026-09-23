@@ -41,7 +41,22 @@ const MUTATIONS: Mutation[] = [
         label: 'SET accepts an unmodelled option again',
         file: FAKE,
         edits: [["if (opts[i].toUpperCase() !== 'EX') {", 'if (false) {']],
+        // Re-proven live for #349: the anchor is intact, but `GET` is now
+        // modelled on the branch above it and left this witness's list.
         killedBy: 'SET rejects an option it does not model',
+    },
+    {
+        label: 'SET … GET answers OK',
+        file: FAKE,
+        edits: [[
+            "                return previous ?? { type: 'simple', value: 'OK' }",
+            "                return { type: 'simple', value: 'OK' }",
+        ]],
+        // (#349) The shape a `GET` accepted as a no-op would have. The
+        // heartbeat reads its lapse bit from the nil, and an `OK` is neither a
+        // nil nor a bulk: every beat on the fake would fail to decode, and a
+        // lapse would read as a failed beat.
+        killedBy: '#349 WC SET … GET answers the previous string',
     },
     {
         label: 'SET stops checking its EX argument',
@@ -50,6 +65,8 @@ const MUTATIONS: Mutation[] = [
             "                    if (\n                        raw === undefined || raw === '' ||\n                        !Number.isFinite(seconds)\n                    ) {",
             '                    if (false) {',
         ]],
+        // Re-proven live for #349: the anchor is intact; the arm now also
+        // parses `GET` in the same loop.
         killedBy: 'SET refuses an EX with a missing or unparseable value',
     },
     {
@@ -59,6 +76,8 @@ const MUTATIONS: Mutation[] = [
             'if (expireAt === undefined) this.#keyExpiry.delete(key)\n                else this.#keyExpiry.set(key, expireAt)',
             'if (expireAt !== undefined) this.#keyExpiry.set(key, expireAt)',
         ]],
+        // Re-proven live for #349: the anchor is intact; the arm now reads
+        // the previous value (for `GET`) just above it.
         killedBy: 'a plain SET clears an existing TTL',
     },
     {

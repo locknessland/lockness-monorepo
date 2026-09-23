@@ -368,6 +368,24 @@ export interface RosterDeparture {
  * them keeps single-process behaviour, and the manager reaches them only behind
  * one feature-detect guard (A5). Use {@link PresenceCapableDriver} for the
  * narrowed shape once that guard has confirmed them present.
+ *
+ * **The notification hooks share one lifecycle** (#349, ADR 007) —
+ * {@link onControlRefused}, {@link onRevocationReconcile},
+ * {@link onRosterDeparture} and {@link onRosterLapse}:
+ *
+ * - **one owner per driver**: a second registration replaces the first;
+ * - **one handler** per hook, never a list;
+ * - **the driver's own shutdown drops it**, so a shut-down driver calls
+ *   nothing. This interface declares no `close()`; each driver's own shutdown
+ *   is where the drop happens.
+ *
+ * {@link onControl} is the one exception: its lifetime is its subscription.
+ *
+ * **The rule for a sixth hook.** A new driver-to-owner notification becomes a
+ * new hook only if its payload **and** its delivery contract differ from every
+ * existing one; otherwise it extends one. The per-hook bookkeeping is
+ * consolidated only once a **second** production driver implements three or
+ * more of these hooks — not before.
  */
 export interface BroadcastDriver {
     /**
@@ -551,6 +569,10 @@ export interface BroadcastDriver {
      * It reports; it does not decide. #312 settled that a refusal never rolls
      * back the roster write, and this seam does not reopen that.
      *
+     * Its registration follows the hooks' shared lifecycle
+     * ({@link BroadcastDriver}): one handler, replaced on re-registration,
+     * dropped by the driver's own shutdown.
+     *
      * @param handler - Called with each refusal, before `publishControl`
      *   returns. A throwing handler is contained and logged; it never becomes
      *   the caller's problem.
@@ -563,6 +585,9 @@ export interface BroadcastDriver {
      * recovering a revoke whose control frame was lost while the owning socket
      * was between reconnects. Bounds exposure to a lost revoke at ~one
      * reconcile interval.
+     *
+     * Its registration follows the hooks' shared lifecycle
+     * ({@link BroadcastDriver}).
      *
      * @param handler - Called with no arguments on each reconcile tick.
      */
@@ -578,8 +603,8 @@ export interface BroadcastDriver {
      * second `left`. A driver may not report a departure the roster did not
      * record — the manager announces it to every subscriber of the channel.
      *
-     * **One handler.** Registering again replaces the previous one, and
-     * closing the driver drops it, so a closed driver reports nothing.
+     * Its registration follows the hooks' shared lifecycle
+     * ({@link BroadcastDriver}): a closed driver reports nothing.
      *
      * The driver awaits the handler, one departure at a time, and contains a
      * throw as a WARN; the release that produced the departure stays
@@ -596,6 +621,52 @@ export interface BroadcastDriver {
      */
     onRosterDeparture?(
         handler: (departure: RosterDeparture) => void | Promise<void>,
+    ): void
+    /**
+     * OPTIONAL (#349). Register the handler the driver calls when this
+     * process's roster holds may have been released **on its behalf** — on
+     * Redis, when the heartbeat finds that this instance's liveness key had
+     * lapsed, so a peer's ghost sweep may have taken it for dead. The owner
+     * should write its holds again through its normal write path; the manager
+     * re-checks its durable revocations, then re-holds every local slot one
+     * at a time, announcing only what a hold says arrived.
+     *
+     * **Delivery contract.** The driver never awaits the handler from the
+     * path that detected the lapse (a heartbeat that waited behind every slot
+     * write would cause the next lapse). At most one run is in flight, and
+     * however many lapses arrive during a run, exactly one trailing run
+     * follows it. A run that throws or rejects is one WARN on the driver's
+     * side, and the next successful detection runs it again; the handler need
+     * not retry. A driver may call it when no hold was actually released: the
+     * re-write must be idempotent, and a hold that finds its slot held
+     * announces nothing.
+     *
+     * **Why an `AbortSignal`.** A run writes K slots, and the driver's
+     * shutdown must not wait for all of them nor let a write be issued after
+     * it resolves. The driver aborts the signal when it shuts down, and the
+     * handler checks it before each write; the shutdown then waits for the
+     * one write in flight, or for whatever the handler awaits before its
+     * first write (the manager's revocation re-check).
+     *
+     * Only an owner with a roster registers it. A driver without the notion
+     * of liveness omits it. Its registration follows the hooks' shared
+     * lifecycle ({@link BroadcastDriver}); the shutdown that drops it first
+     * aborts the signal and waits for the run in flight.
+     *
+     * @param handler - Called with a signal the driver aborts on shutdown.
+     *
+     * @example
+     * ```ts
+     * driver.onRosterLapse?.(async (signal) => {
+     *     for (const slot of localSlots()) {
+     *         if (signal.aborted) return
+     *         await rewrite(slot)
+     *     }
+     * })
+     * ```
+     */
+    onRosterLapse?(
+        handler: (signal: AbortSignal) => void | Promise<void>,
     ): void
     /**
      * OPTIONAL (#295). Declare that this instance now hosts `channel`, so the

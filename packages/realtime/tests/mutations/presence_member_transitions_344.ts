@@ -21,8 +21,9 @@
  * - M11 makes an overtaken join announce `joined` for the member its own
  *   leave removed; M12 announces the origin's entry instead of the one the
  *   roster holds.
- * - M7 and the `handleControl` row narrow `joined`'s exclusion back to one
- *   connection, locally and on the receiving instance.
+ * - M7 and the `handleControl` row, which narrowed `joined`'s exclusion back
+ *   to one connection locally and on the receiving instance, are retired:
+ *   see below.
  * - M9 stops refusing a driver that still offers `addMember` / `removeMember`.
  *
  * **Retired rows carried here** (`docs/testing.md`, subsumption):
@@ -49,7 +50,16 @@
  *   successor is M11, not M2.
  * - `presence_join_323.ts` "the newcomer is no longer excluded from its own
  *   join" mutated `{ except: connection.id }` in `subscribe`; that call site is
- *   gone and its successor is M7.
+ *   gone and its successor was M7 — now `lapse_rehold_349.ts` M12, below.
+ * - **This battery's own M7** ("`joined` excludes only the origin
+ *   connection") **and its `handleControl` row** ("`handleControl` re-emits
+ *   a remote `joined` without exceptMemberId") are subsumed into
+ *   `lapse_rehold_349.ts` **M12** ("the self-exclusion dropped from
+ *   emitPresence"). Both mutated the `exceptMemberId` option, which #349
+ *   removed: the exclusion is now `emitPresence`'s own, for `joined` and
+ *   `left`, and no caller passes or can drop it. M12 carries both reasons
+ *   verbatim and still dies to #344 W9 and #344 W9 remote, the two witnesses
+ *   these rows named.
  *
  * Rows are grouped by the ONE test file each dies to, and each group runs only
  * that file. Every row was proven LIVE by the harness run that recorded it:
@@ -205,36 +215,11 @@ const TRANSITION_ROWS: Mutation[] = [
             "            this.emitPresence(channel, { type: 'presence', channel, action: 'left', member })\n",
         ]],
         // The per-connection announcement, restored at the call site the
-        // queue replaced.
+        // queue replaced. Re-proven live for #349: the injected call still
+        // compiles against `emitPresence(channel, frame)`, whose exclusion
+        // now covers `left` too.
         killedBy:
             '#344 W1–W3 memory: closing one of two tabs announces nothing',
-    },
-    {
-        label: '#344 M7 `joined` excludes only the origin connection',
-        file: MANAGER,
-        edits: [
-            [
-                '        options: { exceptMemberId?: string | number } = {},\n',
-                '        options: { exceptMemberId?: string | number; except?: string } = {},\n',
-            ],
-            [
-                '            if (excluded !== undefined) {\n',
-                '            if (options.except !== undefined && clientId === options.except) continue\n' +
-                '            if (excluded !== undefined) {\n',
-            ],
-            [
-                "                action === 'joined' ? { exceptMemberId: member.id } : {},\n",
-                "                action === 'joined' ? { except: target } : {},\n",
-            ],
-        ],
-        // SUCCESSOR to `presence_join_323.ts` "the newcomer is no longer
-        // excluded from its own join", whose reason was: "The exclusion used to
-        // be a consequence of WHERE the call sat. This row is why it is now an
-        // argument: with the call below `#joinLocal`, dropping `except` puts
-        // the joiner in its own announcement, and nothing about the statement
-        // order would tell you." Since #344 the argument is the member id: the
-        // origin connection alone is not enough when two tabs race.
-        killedBy: '#344 W9 two tabs of member 7 racing its arrival',
     },
     {
         label: '#344 M8 a publish failure is rethrown out of the queue',
@@ -265,7 +250,8 @@ const TRANSITION_ROWS: Mutation[] = [
         ]],
         // FR-010's pre-review shape: one `try` around both halves, so the
         // application's codec refusing a frame for this instance's sockets
-        // silenced every other instance too.
+        // silenced every other instance too. Re-proven live for #349: the
+        // local emit it guards lost its options argument.
         killedBy:
             '#344 W10 an encode that refuses the local joined frame: one WARN, no rethrow, and the presence-join is still published',
     },
@@ -305,19 +291,6 @@ const TRANSITION_ROWS: Mutation[] = [
         ]],
         killedBy:
             '#344 W1–W3 memory: two tabs as one member announce ONE joined',
-    },
-    {
-        label:
-            '#344 handleControl re-emits a remote `joined` without exceptMemberId',
-        file: MANAGER,
-        edits: [[
-            '                    }, { exceptMemberId: control.member.id })\n',
-            '                    })\n',
-        ]],
-        // A tab of member 7 on B receives B's re-emit of A's `presence-join`
-        // for itself.
-        killedBy:
-            "#344 W9 remote: a tab of member 7 on B never receives B's re-emit",
     },
 ]
 

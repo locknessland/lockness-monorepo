@@ -76,7 +76,9 @@ Deno.test('#280 SET rejects an option it does not model', async () => {
     const r = new FakeRedis()
     // Silently ignoring NX is the exact shape that made an inert guard look
     // like a working one: the caller believes it wrote only if absent.
-    for (const opts of [['NX'], ['XX'], ['KEEPTTL'], ['PX', '100'], ['GET']]) {
+    // `GET` left this list with #349: it is modelled now (see the WC test
+    // below), because the heartbeat reads the lapse bit from it.
+    for (const opts of [['NX'], ['XX'], ['KEEPTTL'], ['PX', '100']]) {
         assertThrows(
             () => run(r, 'SET', 'k', 'v', ...opts),
             Error,
@@ -88,6 +90,67 @@ Deno.test('#280 SET rejects an option it does not model', async () => {
     assertEquals(await r.command('SET', 'k', 'v', 'EX', '30'), {
         type: 'simple',
         value: 'OK',
+    })
+})
+
+Deno.test('#349 WC SET … GET answers the previous string, or nil when absent or expired', async () => {
+    // Real Redis (>= 6.2): `SET key value [EX s] GET` writes, and answers the
+    // value the key held BEFORE the write — nil when there was none. The
+    // heartbeat reads its lapse bit from exactly that nil (#349 FR-001), so an
+    // arm that answered `OK`, or read the previous value after the expiry was
+    // ignored, would hide or invent every lapse.
+    const r = new FakeRedis()
+    r.setTime(1_000)
+    assertEquals(
+        await r.command('SET', 'k', 'v', 'EX', '30', 'GET'),
+        { type: 'nil' },
+        'absent',
+    )
+    assertEquals(
+        await r.command('SET', 'k', 'v', 'EX', '30', 'GET'),
+        { type: 'bulk', value: 'v' },
+        'present',
+    )
+    // GET may sit anywhere among the options.
+    assertEquals(
+        await r.command('SET', 'k', 'w', 'GET', 'EX', '30'),
+        { type: 'bulk', value: 'v' },
+        'reordered',
+    )
+    // The write itself still happened, with its TTL.
+    assertEquals(await r.command('EXISTS', 'k'), int(1))
+    assertEquals(r.expiryOf('k'), 1_030)
+
+    // Expired: the previous value is gone BEFORE the write reads it.
+    r.setTime(1_031)
+    assertEquals(
+        await r.command('SET', 'k', 'x', 'EX', '30', 'GET'),
+        { type: 'nil' },
+        'expired',
+    )
+    assertEquals(r.expiryOf('k'), 1_061)
+})
+
+Deno.test('#349 WC SET refuses GET twice, and GET over a key of another type', async () => {
+    const r = new FakeRedis()
+    // GET twice: a declared gap — a real broker accepts it, the fake refuses
+    // rather than guess (the live WC test pins both halves).
+    assertThrows(
+        () => run(r, 'SET', 'k', 'v', 'GET', 'EX', '30', 'GET'),
+        Error,
+        'SET given GET twice',
+    )
+    // The broker answers WRONGTYPE, and — unlike a plain SET — does not
+    // overwrite the key (#349 S4).
+    await r.command('HSET', 'h', 'f', 'v')
+    assertThrows(
+        () => run(r, 'SET', 'h', 'v', 'EX', '30', 'GET'),
+        Error,
+        'WRONGTYPE',
+    )
+    assertEquals(await r.command('HGET', 'h', 'f'), {
+        type: 'bulk',
+        value: 'v',
     })
 })
 

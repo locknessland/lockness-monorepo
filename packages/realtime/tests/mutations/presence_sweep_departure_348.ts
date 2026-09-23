@@ -252,7 +252,10 @@ const MUTATIONS: Mutation[] = [
             'second sweep entry point that neither awaits `#reconcilePass` ' +
             'nor reads `#closing` (a reconnect-triggered pass, say), or by ' +
             'a `#closing` check that moves between a release reply and the ' +
-            'handler call.',
+            'handler call. Since #349 `close()` also closes the lapse run ' +
+            'and awaits it before it drops handlers; a lapse run writes ' +
+            "holds through the owner's slot tails and never calls the " +
+            'departure handler, so it adds no caller.',
     },
     {
         label: 'M13 — the member key rule back to a count: { id, smuggled } ' +

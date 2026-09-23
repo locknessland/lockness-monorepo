@@ -1644,3 +1644,111 @@ Deno.test({
         }
     },
 })
+
+/**
+ * Run `argv` on `client`, answering its reply or the message it was refused
+ * with — so a step both sides refuse compares as agreement rather than
+ * escaping the loop (#349).
+ */
+async function replyOrRefusal(
+    client: { command(...args: string[]): Promise<unknown> },
+    argv: string[],
+): Promise<{ reply: unknown } | { refused: string }> {
+    try {
+        return { reply: await client.command(...argv) }
+    } catch (error) {
+        return {
+            refused: error instanceof Error ? error.message : String(error),
+        }
+    }
+}
+
+Deno.test({
+    name:
+        '#349 WC SET … EX … GET answers nil, then the previous string, and refuses a hash — the fake agrees with the broker',
+    ignore: !LIVE_BROKER,
+    async fn() {
+        // The heartbeat reads its lapse bit from this reply (#349 FR-001).
+        // Not a SEQUENCES entry: `GET` over a hash is refused by BOTH sides
+        // (WRONGTYPE), and that runner asserts the broker ACCEPTS every
+        // declared gap. Here the agreement asserted is the refusal itself.
+        // The expired-key step lives in the fake-only WC test: a live broker
+        // cannot be made to wait without a real sleep.
+        const config = brokerConfig()
+        await preflight(config)
+        const live = new RedisClient(config)
+        const fake = new FakeRedis()
+        const key = K('wc349-alive')
+        const hash = K('wc349-hash')
+        try {
+            const accepted: string[][] = [
+                ['SET', key, '1', 'EX', '30', 'GET'],
+                ['SET', key, '1', 'EX', '30', 'GET'],
+                ['SET', key, '2', 'GET', 'EX', '30'],
+                ['EXISTS', key],
+            ]
+            // The fake's clock is pinned, so its TTL is exact; the broker's
+            // runs, so its TTL may already read one second less.
+            fake.setTime(1_000)
+            for (const argv of accepted) {
+                const real = await replyOrRefusal(live, argv)
+                const faked = await replyOrRefusal(fake, argv)
+                assert('reply' in real, `broker refused ${argv.join(' ')}`)
+                assertEquals(faked, real, argv.join(' '))
+                if (!argv.includes('EX')) continue
+                // `GET` must not cost the write its TTL, on either side: a
+                // liveness key written without one would never lapse, and no
+                // peer would ever sweep a crashed instance.
+                const ttl = await live.command('TTL', key) as {
+                    type?: unknown
+                    value?: unknown
+                }
+                assert(
+                    ttl.type === 'integer' &&
+                        (ttl.value === 30 || ttl.value === 29),
+                    `the broker kept EX 30 after ${argv.join(' ')}: ${
+                        JSON.stringify(ttl)
+                    }`,
+                )
+                assertEquals(
+                    fake.expiryOf(key),
+                    1_030,
+                    `the fake kept EX 30 after ${argv.join(' ')}`,
+                )
+            }
+            // A DECLARED GAP, and the last step on its key: the broker
+            // accepts a repeated `GET`, the fake refuses it rather than
+            // guessing what a second one means. No driver sends it.
+            const twice = ['SET', key, '3', 'GET', 'EX', '30', 'GET']
+            assert('reply' in await replyOrRefusal(live, twice))
+            const fakeTwice = await replyOrRefusal(fake, twice)
+            assert(
+                'refused' in fakeTwice &&
+                    fakeTwice.refused.includes('SET given GET twice'),
+                'the fake accepted GET twice',
+            )
+            // Refused by BOTH, and the hash is left as it was (#349 S4).
+            await live.command('HSET', hash, 'f', 'v')
+            await fake.command('HSET', hash, 'f', 'v')
+            const overHash = ['SET', hash, 'v', 'EX', '30', 'GET']
+            const real = await replyOrRefusal(live, overHash)
+            const faked = await replyOrRefusal(fake, overHash)
+            assert(
+                'refused' in real && real.refused.includes('WRONGTYPE'),
+                'the broker accepted GET over a hash',
+            )
+            assert(
+                'refused' in faked && faked.refused.includes('WRONGTYPE'),
+                'the fake accepted GET over a hash',
+            )
+            // WRONGTYPE left the hash as it was, on both.
+            assertEquals(
+                await fake.command('HGET', hash, 'f'),
+                await live.command('HGET', hash, 'f'),
+            )
+        } finally {
+            await teardown(live, NS)
+            await live.close()
+        }
+    },
+})

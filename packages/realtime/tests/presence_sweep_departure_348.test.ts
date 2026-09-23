@@ -461,9 +461,10 @@ Deno.test('#348 W5 A lapses while alive — one left, then nothing on its releas
         await settle()
 
         // A stops beating but its process, its manager and its sockets stay
-        // up — a lapsed liveness key, not a crash. a7 itself also receives the
-        // swept `left` (it excludes nobody) and will not receive the `joined`
-        // below (it excludes member 7): #349 owns that lapsed-alive residue.
+        // up — a lapsed liveness key, not a crash. `close()` also stops A's
+        // lapse re-assert (#349), so nothing puts 7 back here. a7 itself hears
+        // neither the swept `left` nor the `joined` below: no connection
+        // receives a frame about its own member id (#349).
         await a.driver.close()
         await lapse(time)
         assertEquals(
@@ -776,7 +777,8 @@ Deno.test('#348 W8 a hold committed right behind the sweep release — left, the
         const lapsed = lapse(time)
         await release.reached
         // The sweep's release has committed; its reply is not back yet.
-        const join = b.manager.subscribe(conn('b7', 7, 'Ada'), CHANNEL)
+        const b7 = conn('b7', 7, 'Ada')
+        const join = b.manager.subscribe(b7, CHANNEL)
         await holdIssued
         // The margin here is microtask ordering on the serialized wrapper,
         // not wall-clock time. The queued hold cannot start until this reply
@@ -803,10 +805,11 @@ Deno.test('#348 W8 a hold committed right behind the sweep release — left, the
             ['presence-join', 'presence-leave', 'presence-join'],
             'and in that order on the bus',
         )
-        // What 7's OWN connection on B receives: the swept `left` for itself
-        // (a `left` excludes nobody), and no `joined` (a `joined` excludes
-        // every local connection of member 7). Its `here` is correct. The
-        // lapsed-alive residue this belongs to is #349's.
+        // 7's OWN connection on B, claimed while the sweep's release was in
+        // flight, hears neither the swept `left` nor the `joined`: no
+        // connection receives a frame about its own member id (#349 W3b).
+        // Its `here` is correct.
+        assertEquals(actions(b7, 7), [], "7's own tab hears nothing about 7")
     } finally {
         await a.driver.close()
         await b.driver.close()

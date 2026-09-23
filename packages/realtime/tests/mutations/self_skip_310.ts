@@ -26,6 +26,11 @@
  * fails, so the faulty instance stays registered exactly as this scenario
  * needs — and the row is still killed.
  *
+ * **Re-proven live for #349**, which turned the liveness write into
+ * `SET … EX … GET`: it is still a `SET` on the alive key, so
+ * `withFaultyInstance`'s matcher still injects the fault, and the row is still
+ * killed.
+ *
  * **Requires a live broker.** Without one the suite it mutates is `ignored`,
  * which the harness reads as green — so the row would report SURVIVED and
  * re-record row 7 as equivalent for the second time, on no evidence. It refuses

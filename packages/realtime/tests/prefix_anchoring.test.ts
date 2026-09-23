@@ -235,6 +235,9 @@ const CANNED = {
             { type: 'bulk', value: '0' },
         ],
     },
+    // The heartbeat's `SET … GET` (#349) decodes a nil or a bulk and refuses
+    // the default `null`, which would turn every beat into a WARN.
+    SET: { type: 'nil' },
 }
 
 /**

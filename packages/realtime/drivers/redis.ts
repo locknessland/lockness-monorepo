@@ -67,6 +67,7 @@ import {
 import { sameMemberId } from '../presence_snapshot.ts'
 import { freezePresenceMember } from '../presence_member.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
+import { LapseRun } from './lapse_run.ts'
 import { type PresenceMember, typeLabel } from '../channel.ts'
 import type { RealtimeControlConfig } from '../types.ts'
 import { renderError, safeForLog } from '@lockness/contract'
@@ -916,6 +917,52 @@ function decodeDeregisterReply(reply: unknown): DeregisterOutcome {
 }
 
 /**
+ * What one heartbeat's `SET <alive key> 1 EX <ttl> GET` reported (#349):
+ * `continuous` — the key existed, so this renewal extended it; `lapsed` — the
+ * key had expired or was deleted, so this write re-created it, and a peer may
+ * have swept this instance's holds meanwhile.
+ */
+export type BeatOutcome = 'lapsed' | 'continuous'
+
+/**
+ * Decode a heartbeat liveness-write reply (#349 FR-002): a nil is
+ * **lapsed**, any bulk string (the previous value, whatever it is) is
+ * **continuous**, and anything else throws.
+ *
+ * **The single home of what a beat reply means**, and called only inside
+ * {@link RedisBroadcastDriver}'s heartbeat, inside the `try` around its `SET`,
+ * so a throw here is one failed beat and never escapes. A simple `OK` is a
+ * `SET` without `GET` — not this command — and reading it (or a `null`, or
+ * truthiness) as continuous would hide every lapse.
+ *
+ * **The error message is constant**: it names what is accepted and never the
+ * reply, its type or its length (#355 S4). Exported for the tests, not from
+ * `mod.ts`.
+ *
+ * @param reply - The `SET … GET` reply.
+ * @returns Whether the key was re-created by this write.
+ * @throws {Error} If the reply is neither a nil nor a bulk string.
+ * @example
+ * ```ts
+ * decodeBeatReply({ type: 'nil' }) // 'lapsed'
+ * ```
+ */
+export function decodeBeatReply(reply: unknown): BeatOutcome {
+    if (
+        typeof reply === 'object' && reply !== null &&
+        (reply as { type?: unknown }).type === 'nil'
+    ) {
+        return 'lapsed'
+    }
+    if (asBulk(reply) !== undefined) return 'continuous'
+    throw new Error(
+        'realtime: the liveness write answered neither a nil (the key was ' +
+            're-created) nor a bulk string (its previous value) — is SET … GET ' +
+            'supported by this broker?',
+    )
+}
+
+/**
  * How one instance's sweep stopped without throwing (#355) — which line the
  * Redis driver's sweep logs:
  * - `completed` — every owned entry released, then deregistered or kept by a
@@ -1183,6 +1230,29 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * calls it.
      */
     #departureHandler?: (departure: RosterDeparture) => void | Promise<void>
+    /**
+     * When the owner's lapse handler runs, and how it stops (#349): the
+     * handler registered through {@link onRosterLapse}, one run in flight, one
+     * trailing run, the abort. A failed run marks the lapse suspected, so the
+     * next successful heartbeat runs it again. Closed by {@link close}.
+     */
+    #lapse = new LapseRun(() => {
+        this.#lapseSuspected = true
+    })
+    /**
+     * Set once this driver has issued a hold's `EVAL` (#349), never cleared.
+     * Written only by {@link holdMember}, read only by {@link #heartbeat}'s
+     * tail: before any hold, a nil or a failed beat carries no lapse, because
+     * nothing of this instance's can have been swept.
+     */
+    #holdIssued = false
+    /**
+     * A beat failed, or a lapse run failed, after a hold was issued (#349): a
+     * lapse may have gone unseen, so the next successful beat runs the lapse
+     * handler whatever its reply says. Written by {@link #heartbeat}'s tail
+     * and by {@link #lapse}'s failure callback; consumed only by the tail.
+     */
+    #lapseSuspected = false
     /**
      * Resources this driver constructed itself (via {@link fromConfig}) and is
      * therefore responsible for closing. Empty when the ports were injected — a
@@ -1777,6 +1847,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * instance, with `member` as its entry, and start the instance-liveness
      * heartbeat if it is not already running. See {@link HOLD_MEMBER_SCRIPT}.
      *
+     * **It arms lapse detection** (#349): just before its `EVAL`, after the
+     * boot beat, it records that a hold was issued. From then on a nil or a
+     * failed heartbeat may mean this instance's holds were swept; before it,
+     * neither carries a lapse, because nothing could have been swept.
+     *
      * @param channel - The presence channel.
      * @param member - The client-visible member this instance holds the slot as.
      * @returns `arrived: true` iff no instance held the slot before.
@@ -1789,6 +1864,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         await this.#ensureSweepStarted()
         const entry: RosterEntry = { member, owner: this.instanceId }
         const field = String(member.id)
+        // Set synchronously, just before the EVAL and after the boot beat
+        // (#349 FR-003): from here on, a nil or a failed beat may mean this
+        // hold was swept. Never at the method's entry — the boot beat's nil
+        // would then count, before anything could have been swept.
+        this.#holdIssued = true
         // ONE operation (#323, #345). The sweep start above is deliberately
         // outside it — it is this instance's liveness, not this member's hold.
         const reply = await this.command.command(
@@ -2624,17 +2704,30 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * dead. The registration is still attempted when that write failed (#310:
      * an instance whose `SET` fails stays registered, and never sweeps
      * itself). One WARN per failed beat, however many of its writes failed.
+     *
+     * **It also detects a lapse** (#349). The write is `SET … EX … GET`, whose
+     * nil reply says the key had expired and this write re-created it — a
+     * peer may have swept this instance's holds meanwhile. Once a hold has
+     * been issued, a lapsed reply (or any successful beat after a failed one)
+     * triggers the lapse handler registered through {@link onRosterLapse},
+     * without awaiting it. The reply is decoded by {@link decodeBeatReply}
+     * inside the write's `try`.
      */
     async #heartbeat(): Promise<void> {
         let failure: { readonly error: unknown } | undefined
+        let outcome: BeatOutcome | undefined
         try {
-            await this.command.command(
+            const reply = await this.command.command(
                 'SET',
                 this.aliveKey(this.instanceId),
                 '1',
                 'EX',
                 String(this.livenessTtlSeconds),
+                'GET',
             )
+            // Decoded INSIDE the try (#349 S1): a reply it refuses is one
+            // failed beat, never a rejection escaping an interval callback.
+            outcome = decodeBeatReply(reply)
         } catch (error) {
             failure = { error }
         }
@@ -2653,6 +2746,18 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     renderError(failure.error)
                 }`,
             )
+        }
+        // The lapse decision, once, reading `#holdIssued` NOW (#349 FR-004,
+        // A4): read when the beat was issued, it would miss a hold that
+        // overtook this beat's SET on a port that does not serialize. A failed
+        // SADD decides nothing — only the liveness write's outcome does.
+        if (!this.#holdIssued) return
+        if (outcome === undefined) {
+            this.#lapseSuspected = true
+        } else if (outcome === 'lapsed' || this.#lapseSuspected) {
+            this.#lapseSuspected = false
+            // Never awaited: the heartbeat must not wait behind K slot writes.
+            this.#lapse.trigger()
         }
     }
 
@@ -2721,6 +2826,41 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         handler: (departure: RosterDeparture) => void | Promise<void>,
     ): void {
         this.#departureHandler = handler
+    }
+
+    /**
+     * OPTIONAL (#349). Register the handler this driver calls when its
+     * heartbeat finds that this instance's liveness key had lapsed — its holds
+     * may have been swept on its behalf, so the owner should write them again
+     * through its normal write path. See
+     * {@link BroadcastDriver.onRosterLapse} for the contract.
+     *
+     * One handler: registering again replaces it, and {@link close} aborts its
+     * signal, waits for a run in flight, then drops it. Only after this
+     * instance has issued a hold, never awaited by the heartbeat, one run at a
+     * time plus one trailing run, and a failed run is one WARN and retried by
+     * the next successful heartbeat.
+     *
+     * @param handler - Called with a signal aborted by {@link close}.
+     *
+     * @example
+     * ```ts
+     * // Re-hold through the owner's OWN write path — the one its joins and
+     * // leaves use, which reads the desired state when the write runs and
+     * // orders it with a concurrent leave. Calling `holdMember` over a list of
+     * // slots would re-hold a member who left during the run.
+     * driver.onRosterLapse(async (signal) => {
+     *     for (const slot of localSlots()) {
+     *         if (signal.aborted) return
+     *         await writeSlot(slot) // the owner's serialized slot writer
+     *     }
+     * })
+     * ```
+     */
+    onRosterLapse(
+        handler: (signal: AbortSignal) => void | Promise<void>,
+    ): void {
+        this.#lapse.register(handler)
     }
 
     /**
@@ -2968,6 +3108,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * call (about a minute at `fromConfig`'s 30 s command timeout). A
      * heartbeat command already in flight is not awaited.
      *
+     * **It also stops the lapse run** (#349): right after the timers it
+     * closes {@link onRosterLapse}'s run and aborts its signal, synchronously,
+     * so a beat reply arriving later starts nothing; after the sweep pass it
+     * waits for the run in flight. That wait is at most one slot write plus
+     * whatever is queued ahead of it on that slot, or the revocation re-check
+     * in flight (the run's first step, which the signal cannot cut short) —
+     * at most 30 s per command on the built-in client, unbounded on an
+     * injected port whose commands never settle. It then drops the departure handler and the
+     * {@link onControlRefused} handler, and closes the owned connections.
+     *
      * @returns Resolves once the sweep pass in flight has stopped and every
      *   owned connection is closed.
      * @example
@@ -2994,6 +3144,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             clearTimeout(this.revocationRetryTimer)
             this.revocationRetryTimer = undefined
         }
+        // Closed and aborted synchronously (#349): a beat reply arriving from
+        // here on starts no run, and a re-assert in flight stops before its
+        // next slot. Awaited only after the sweep pass, on its own line.
+        const stopped = this.#lapse.close()
         // Clearing the timer is not enough for the RECONNECT trigger (#271): on
         // the injected-port path `owned` is empty, so the subscriber outlives
         // this driver and can still fire. Dropping the handler makes
@@ -3005,8 +3159,13 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // already in flight still reports its departure, so the handler is
         // dropped only AFTER it.
         await this.#reconcilePass
+        // The slot write in flight settles before the ports can close (#349).
+        await stopped
         // A closed driver reports no departure either (#348).
         this.#departureHandler = undefined
+        // Nor a refusal (#349 FR-006a): every hook this driver holds is
+        // dropped by its own shutdown.
+        this.controlRefusedHandler = undefined
         for (const resource of this.owned) {
             await resource.close()
         }

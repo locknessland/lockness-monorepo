@@ -63,6 +63,12 @@ const MUTATIONS: Mutation[] = [
         // a member the roster never received. Note the mutant announces TWICE
         // on a clean join, which is harmless here — the row is killed by the
         // FAILING join, where the original emit is never reached.
+        // Re-proven live for #349: the injected `emitPresence(channel, frame)`
+        // still compiles against the option-less signature. The joiner hears
+        // nothing from it, but NOT by the member-id exclusion: the injected
+        // emit runs before `members.set` and `#joinLocal`, so the joiner has
+        // no presence entry to match and is not yet in the channel's
+        // subscriber set at all.
         killedBy: 'a rejected roster write announces NOTHING',
     },
     // ── RETIRED by #344, with the reason, rather than deleted ──────────────
