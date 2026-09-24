@@ -1,0 +1,10 @@
+# gitleaks fingerprints of reviewed false positives (commit:file:rule:line).
+# Suppress one finding at a time, never a whole path. Each entry below is
+# documentation sample text, not a credential (#390):
+# - .github/rules/**: lines copied verbatim from the public Hono docs
+#   (an example JWT and an example env file).
+# - packages/mail/llms.txt: a sequential placeholder API key in a docs example.
+8ecb9177c2e90fb85990eb9bada45b154a823a21:.github/rules/getting-started/cloudflare-workers.md:generic-api-key:332
+8ecb9177c2e90fb85990eb9bada45b154a823a21:.github/rules/helpers/jwt.md:generic-api-key:115
+8ecb9177c2e90fb85990eb9bada45b154a823a21:.github/rules/helpers/jwt.md:jwt:116
+371607f29c7c7b0102f1239a1a59a39995671e8a:packages/mail/llms.txt:generic-api-key:256
