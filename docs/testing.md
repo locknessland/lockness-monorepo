@@ -632,8 +632,10 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
   the test opens. Use `deno task test:leaks` (`--trace-leaks`) to locate a
   leak's origin.
 - **Synthetic credentials only.** Fixtures use placeholder secrets and
-  connection strings — never a real password, token or DSN. The pre-commit
-  secret scan is the backstop, not the policy.
+  connection strings — never a real password, token or DSN. The CI secret scan
+  (`.github/workflows/secret-scan.yml`, gitleaks over the full history) is the
+  backstop, not the policy. It runs on push and pull request, not at commit
+  time.
 - **Mock at the seam.** Prefer an injected fake (a command-runner, a
   seeder-loader, a fake connection) over reaching into internals; the code under
   test should expose the seam.
