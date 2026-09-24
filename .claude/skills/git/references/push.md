@@ -2,41 +2,24 @@
 
 Read this before any push, including one that looks routine.
 
-## The gate, in order
+## The gate
 
-Run from the repository root. **Every step must be able to fail** — never pipe a
-gate command into something that swallows its exit code, and never append
-`|| true`.
+Run from the repository root:
 
 ```bash
-deno fmt --check                 # 1
-deno lint                        # 2
-deno check                       # 3
-deno task deps:analyze           # 4
-deno task agents:brief --check   # 5
-deno task test                   # 6
+deno task gate
 ```
 
-What each one actually catches — this matters, because a step whose purpose you
-cannot state is a step you will skip under pressure:
+The step list lives in one place, the `gate` task in `deno.jsonc`. The
+pre-push hook runs that same task, so there is no second copy here to drift.
+Read the task for the steps; do not re-type them by hand, and do not skip one
+because the diff "is only docs". A docs-only diff can still stale a generated
+block.
 
-| # | Step | Catches |
-| :- | :--- | :------ |
-| 1 | `fmt --check` | Formatting drift. **Must be `--check`.** Plain `deno fmt` reformats the tree and exits 0, so it can never fail — that bug sat in CI and in the pre-commit hook. |
-| 2 | `lint` | Lint rules, including `no-explicit-any` in exported APIs. |
-| 3 | `check` | Type errors across the whole workspace. |
-| 4 | `deps:analyze` | New import cycles; an import not declared in its own package's `deno.json` (which resolves in the workspace and breaks for a JSR consumer); an edge outside `deps.policy.jsonc`. |
-| 5 | `agents:brief --check` | A package brief whose generated blocks no longer match the code. |
-| 6 | `test` | The suite. |
-
-Steps 4 and 5 are cheap and catch classes of damage the other four cannot see at
-all. Do not drop them because the diff "is only docs" — a docs-only diff can
-still stale a generated block.
-
-**CI runs a seventh step the pre-push hook does not**: `deno task publish:check`,
-which copies each package outside the workspace and type-checks it alone. It is
-kept out of the hook because it needs the network; it is in `test.yml` and again
-in `publish.yml` right before `deno publish`.
+**The gate must be able to fail.** Never pipe it into something that swallows
+its exit code, and never append `|| true`. Judge it by its exit status, never by
+printed text: `publish:check` prints its success line before it can still exit
+1.
 
 ### Reading a GitHub Actions run
 
@@ -100,7 +83,8 @@ out", which reads like success. Run the files instead.
 
 ### The pre-push hook
 
-`deno task hooks:install` writes `.git/hooks/pre-push`, which runs the gate. It
+`deno task hooks:install` writes `.git/hooks/pre-push`, which runs
+`deno task gate`. It
 is the last thing between a broken tree and origin.
 
 **Never `git push --no-verify.`** If the hook is in the way, the answer is to fix
@@ -110,7 +94,7 @@ what it found. If it is genuinely wrong, fix the hook in its own `ci:` commit.
 
 1. Pre-flight (`scripts/preflight.sh`). Exit 1 → stop and surface.
 2. Commit what belongs, one category per commit.
-3. Run the gate. Read the last line of each step.
+3. Run the gate (`deno task gate`). Judge it by its exit status.
 4. Push.
 
 Never run the gate on a dirty tree and then commit — you will have tested

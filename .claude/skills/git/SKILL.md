@@ -70,8 +70,8 @@ runs. Read the one you need; do not load them all.
 
 - **`references/commit-convention.md`** — the message format, the one-category
   rule and how to check it, and the trailers.
-- **`references/push.md`** — the gate, in order, with what each step actually
-  catches; and the recurring failures with their recovery. **Read it before any
+- **`references/push.md`** — how to run the gate (`deno task gate`) and judge
+  it; and the recurring failures with their recovery. **Read it before any
   push**, even one that looks routine.
 
 ## `/git review` — scoped, parallel, on the diff
