@@ -160,6 +160,11 @@ against. `realtime`'s inventory of such replies, and the bound of each, lives in
   in the same pass. Revisit when a pass takes longer than the liveness TTL — but
   **no instrument measures pass duration today**, so nothing would report that
   trigger firing; adding the measurement is the first step of any revisit.
+  _Update (#360, 2026-09-24): the measurement exists — the Redis driver's
+  `onPassComplete` reports each sweep's duration and pages, recorded as the
+  `lockness.realtime.pass.*` histograms listed in
+  [Framework instruments](../observability-and-crypto.md#framework-instruments)
+  ([ADR 012](012-measurements-reach-the-app-through-a-seam.md))._
 - **Overlap across survivors.** Two survivors sweeping the same instance both
   page and `EVAL` every entry; exactly-once still holds.
 - **Unparsable entries.** They keep the instance registered, and every pass

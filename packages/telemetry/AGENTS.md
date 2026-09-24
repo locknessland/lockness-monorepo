@@ -42,10 +42,10 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                         |
-| :-------- | :-------------------------------------------------------------- |
-| function  | `buildAttributes`, `telemetryMiddleware`, `toRecordedException` |
-| typeAlias | `AttributeValue`                                                |
+| Kind      | Exports                                                                     |
+| :-------- | :-------------------------------------------------------------------------- |
+| function  | `buildAttributes`, `getMeter`, `telemetryMiddleware`, `toRecordedException` |
+| typeAlias | `AttributeValue`                                                            |
 
 Anything not listed is internal and free to change.
 
@@ -57,6 +57,10 @@ Anything not listed is internal and free to change.
   (redaction).
 - `middleware.ts` — `telemetryMiddleware` (the per-request child span +
   counter).
+- `meter.ts` — `getMeter`, the one route to the OpenTelemetry meter, for the
+  middleware and for applications recording a package's seam (ADR 012). The
+  instrument names live in `docs/observability-and-crypto.md` § Framework
+  instruments, never in code.
 - `mod.ts` — the barrel.
 - Soft-loaded by `packages/core/kernel/bootstrap/steps/telemetry.ts`.
 
@@ -71,9 +75,10 @@ Anything not listed is internal and free to change.
 
 <!-- generated:tests -->
 
-2 test files for 3 source files:
+3 test files for 4 source files:
 
 - `packages/telemetry/tests/attributes.test.ts`
+- `packages/telemetry/tests/meter.test.ts`
 - `packages/telemetry/tests/middleware.test.ts`
 
 <!-- /generated:tests -->
@@ -90,7 +95,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 2 test files directly —
+Then, specific to this package: run its 3 test files directly —
 
 ```bash
 deno test -A packages/telemetry/

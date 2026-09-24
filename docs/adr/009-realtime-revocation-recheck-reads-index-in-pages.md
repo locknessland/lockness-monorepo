@@ -175,6 +175,10 @@ and is not restated here.
 - **A slow-pass WARN.** A continuous quantity reported as a threshold line that
   fires on every pass at scale, and a clock read on paths tests drive with
   `FakeTime`. Its home is a pass-duration metric for both ADR 006 passes (#360).
+  _Update (#360, 2026-09-24): that metric exists, and the driver still never
+  judges a pass — see
+  [Framework instruments](../observability-and-crypto.md#framework-instruments)
+  and [ADR 012](012-measurements-reach-the-app-through-a-seam.md)._
 - **A per-pass page budget with a resume cursor.** State that must agree with an
   index that changes under it, to solve a delay nobody has measured.
 - **Throwing on a malformed pair.** A planted `+inf` member is never reaped, so
@@ -218,6 +222,10 @@ and is not restated here.
   above 10% of `reconcileIntervalMs` — **cannot be observed** until the
   pass-duration metric exists, tracked as
   [#360 — Realtime: expose a pass-duration metric (duration, pages) for the Redis driver's ghost sweep and revocation re-check](https://github.com/locknessland/lockness-monorepo/issues/360).
+  _Update (#360, 2026-09-24): the trigger is now observable, as the
+  `lockness.realtime.pass.duration` histogram with
+  `lockness.realtime.pass.kind = revocation`, listed in
+  [Framework instruments](../observability-and-crypto.md#framework-instruments)._
 
 ---
 

@@ -664,16 +664,23 @@ on:
 
 ```ts
 import type { ControlRefusal } from '@lockness/realtime'
+import { getMeter } from '@lockness/telemetry'
+
+// Your application's own counter: name it in your own namespace.
+const refused = getMeter('my-app').createCounter('my_app.control_refused')
 
 driver.onControlRefused((refusal: ControlRefusal) => {
     // reason — 'oversize' | 'no-secret'
     // kind, channel, and for an oversize refusal: bytes and limit
-    metrics.increment('realtime.control_refused', {
+    refused.add(1, {
         reason: refusal.reason,
         channel: refusal.channel ?? '-',
     })
 })
 ```
+
+`getMeter` returns the no-op meter while `OTEL_DENO` is unset (see
+[Observability](observability-and-crypto.md#opentelemetry)).
 
 `ControlRefusal` is exported from `@lockness/realtime`, and `onControlRefused`
 is optional on `BroadcastDriver` — a custom driver that omits it is unaffected.
@@ -1740,7 +1747,10 @@ stay missing until their next write.
 owner per driver**: registering again replaces the handler, and the driver's own
 shutdown drops it — a shut-down driver calls nothing. `onControl` is the
 exception: its lifetime is its subscription. The Redis driver's `close()`
-therefore drops the refusal handler too, since #349.
+therefore drops the refusal handler too, since #349. The Redis driver's
+`onPassComplete` ([measuring the passes](#measuring-passes)) shares the same
+lifecycle; it is Redis-only, not a `BroadcastDriver` member, because the memory
+driver runs no background pass.
 
 **Members are read-only on both sides of the seam**
 ([#354](https://github.com/locknessland/lockness-monorepo/issues/354)). The
@@ -1968,6 +1978,22 @@ injected command port must settle every command, as the `RedisCommandClient`
 JSDoc in the same file states; one that never settles stalls the re-check, which
 is then reported, not recovered.
 
+<a id="measuring-passes"></a>**Measuring the passes** (#360). Register
+`driver.onPassComplete(handler)` on the Redis driver and it hands you one frozen
+`PassSample` per completed ghost sweep and revocation pass: which pass, what
+triggered it, how it ended, how long it took and how many pages it read. What
+each field means is stated once, in the `PassSample` JSDoc of
+[`packages/realtime/drivers/redis.ts`](../packages/realtime/drivers/redis.ts);
+the instrument names and the recipe that forwards samples to OpenTelemetry live
+in [Framework instruments](observability-and-crypto.md#framework-instruments).
+`durationMs` is the whole pass, apply and tail wait included, so it is not
+comparable to the round-trip-only term of the bound above. A pass that stalls
+records nothing — the sample is taken at its end, and for the revocation pass
+the enforcement deadline is what reports a stall. Samples are not buffered: a
+pass that ends with no handler registered reports to no one. The driver records
+and never judges; alerting on the ADR 008 and ADR 009 revisit triggers is the
+backend's job ([ADR 012](adr/012-measurements-reach-the-app-through-a-seam.md)).
+
 **A mixed `0.3.0` / `0.4.0` fleet.** A `0.3.0` instance still reads the whole
 index in one reply, on its own command client, until it is upgraded — so a large
 index can still refuse that instance's client while the upgraded ones page
@@ -2169,7 +2195,7 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Eighteen items. Thirteen are breaking changes — the driver revocation seam, the
+Nineteen items. Thirteen are breaking changes — the driver revocation seam, the
 presence snapshot a subscribe returns, the driver roster seam, presence frames
 announced per member rather than per connection, an authorizer result outside
 its contract now throwing, a presence member id that is not a string or a finite
@@ -2180,9 +2206,11 @@ its own member id, a presence member over its byte bound now throwing, a
 disconnected connection now refused at admission, and a Redis revocation timing
 the driver cannot enforce now refused at boot — plus two widened return types,
 one new control kind, one additive wire field and one additive getter. Item 16
-changes no behaviour: it corrects earlier guidance. **No migration step, and one
+changes no behaviour: it corrects earlier guidance. Item 19 is observable, not
+breaking: a malformed sweep reply now logs a WARN. **No migration step, and one
 new Redis key family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11,
-12, 13, 14, 15, 16, 17 and 18 — and items 2 and 7 if you wrote your own driver.
+12, 13, 14, 15, 16, 17, 18 and 19 — and items 2 and 7 if you wrote your own
+driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2868,6 +2896,24 @@ Two more changes ride with it:
    clock steps a full TTL. A healthy deployment never sees it.
 
 No wire change, and no migration step.
+
+### 19. A malformed `SMEMBERS` or `EXISTS` reply now fails the ghost sweep with a WARN
+
+**Before**, the Redis driver's ghost sweep read its broker replies leniently
+([#360](https://github.com/locknessland/lockness-monorepo/issues/360)). An
+instance-set `SMEMBERS` reply that was not an array was read as an empty
+instance set, so the sweep swept nothing. A liveness `EXISTS` reply that was not
+an integer was read as "alive", so a dead instance was never swept. Both were
+silent.
+
+**After**, either reply is refused: the pass stops with one
+`realtime: roster reconcile failed` WARN, and reports `failed` to an
+`onPassComplete` handler ([measuring the passes](#measuring-passes)). The next
+pass runs on its usual interval. A broker that answers as Redis does never sees
+it.
+
+Not breaking: no configuration or code change is needed. No wire change, and no
+migration step.
 
 ## Upgrading to v0.3.0
 

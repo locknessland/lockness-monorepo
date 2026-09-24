@@ -23,6 +23,10 @@ environment.
   signed-URL signatures). Exceptions are recorded redacted (no stack, no
   credential-bearing message).
 - A **request counter** (`lockness.http.server.requests`) by route.
+- **`getMeter(name)`** — the one route to the OpenTelemetry meter, the no-op
+  meter while `OTEL_DENO` is unset. An application uses it to record what a
+  Lockness package hands it through a seam; see
+  [Framework instruments](../../docs/observability-and-crypto.md#framework-instruments).
 
 Deno's built-in OTel already provides HTTP server spans and server metrics; this
 package adds the framework-level enrichment on top.

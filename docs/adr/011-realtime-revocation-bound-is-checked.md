@@ -163,4 +163,7 @@ docs state the TTL is assumed uniform across the fleet. Rejected remedies:
 - ADR [009](009-realtime-revocation-recheck-reads-index-in-pages.md) §2, the
   paged read this watches, is unchanged.
 - ADR [006](006-realtime-sweep-writes-only-while-dead.md), one pass at a time.
-- #360 consumes the pass clock, the pass record and the outcome.
+- #360 consumes the pass clock, the pass record and the outcome. _Update (#360,
+  2026-09-24): the pass record gains `pages`, its one mutable member, and the
+  outcome alias becomes `PassOutcome`, shared with the ghost sweep — see
+  [ADR 012](012-measurements-reach-the-app-through-a-seam.md)._

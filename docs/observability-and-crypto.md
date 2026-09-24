@@ -98,3 +98,101 @@ the matched route **pattern** (`/verify/:id`, never resolved values) and method,
 nested under Deno's built-in HTTP server span, plus a request counter. The
 framework ships no exporter or SDK — the app points
 `OTEL_EXPORTER_OTLP_ENDPOINT` at its own backend.
+
+### Framework instruments
+
+**The one list of every instrument name, kind, unit, attribute and bucket
+boundary Lockness uses.** Code and other docs link here rather than naming an
+instrument themselves. A package that measures something hands the value to the
+application through a seam, and the application records it on a meter from
+`getMeter` ([ADR 012](adr/012-measurements-reach-the-app-through-a-seam.md)).
+
+| Instrument                        | Kind      | Unit     | Recorded value                 | Recorded by                    |
+| :-------------------------------- | :-------- | :------- | :----------------------------- | :----------------------------- |
+| `lockness.http.server.requests`   | counter   | —        | `1` per request                | `telemetryMiddleware`          |
+| `lockness.realtime.pass.duration` | histogram | `s`      | `PassSample.durationMs / 1000` | the application (recipe below) |
+| `lockness.realtime.pass.pages`    | histogram | `{page}` | `PassSample.pages`             | the application (recipe below) |
+
+- **`lockness.http.server.requests`** carries `http.route`, the matched route
+  pattern.
+- **Both `lockness.realtime.pass.*` histograms** carry three attributes, taken
+  from the Redis realtime driver's `PassSample`:
+  - `lockness.realtime.pass.kind` — `sweep` or `revocation` (`PassSample.pass`);
+  - `lockness.realtime.pass.trigger` — `timer`, `reconnect` or
+    `reconnect-retry`;
+  - `lockness.realtime.pass.outcome` — `ok` or `failed`. What `ok` promises, and
+    what it does not, is defined once, on `PassSample.outcome` in
+    `packages/realtime/drivers/redis.ts`.
+
+  At most 12 combinations exist, whatever the fleet size.
+- **Explicit bucket boundaries**, passed as `advice.explicitBucketBoundaries`:
+  - `lockness.realtime.pass.duration`, in seconds:
+    `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60`. The range
+    covers ADR 009's revisit trigger (a revocation pass above 10% of a 10 s
+    interval, 1 s) and ADR 008's (a sweep longer than the liveness TTL).
+  - `lockness.realtime.pass.pages`: `1, 2, 5, 10, 20, 50, 100, 200, 500, 1000`.
+
+#### Recipe: the realtime pass histograms
+
+`RedisBroadcastDriver.onPassComplete` hands the application one sample per
+completed ghost sweep and revocation pass. Forward it to the two histograms:
+
+```typescript
+import { getMeter } from '@lockness/telemetry'
+import type { PassSample, RedisBroadcastDriver } from '@lockness/realtime'
+
+export function recordRealtimePasses(driver: RedisBroadcastDriver): void {
+    const meter = getMeter('my-app')
+    const duration = meter.createHistogram('lockness.realtime.pass.duration', {
+        unit: 's',
+        description: 'How long one realtime background pass took.',
+        advice: {
+            explicitBucketBoundaries: [
+                0.005,
+                0.01,
+                0.025,
+                0.05,
+                0.1,
+                0.25,
+                0.5,
+                1,
+                2.5,
+                5,
+                10,
+                30,
+                60,
+            ],
+        },
+    })
+    const pages = meter.createHistogram('lockness.realtime.pass.pages', {
+        unit: '{page}',
+        description: 'How many pages one realtime background pass read.',
+        advice: {
+            explicitBucketBoundaries: [
+                1,
+                2,
+                5,
+                10,
+                20,
+                50,
+                100,
+                200,
+                500,
+                1000,
+            ],
+        },
+    })
+    driver.onPassComplete((sample: PassSample) => {
+        const attributes = {
+            'lockness.realtime.pass.kind': sample.pass,
+            'lockness.realtime.pass.trigger': sample.trigger,
+            'lockness.realtime.pass.outcome': sample.outcome,
+        }
+        duration.record(sample.durationMs / 1000, attributes)
+        pages.record(sample.pages, attributes)
+    })
+}
+```
+
+The sample keeps milliseconds; the recipe converts to seconds. With `OTEL_DENO`
+unset, `getMeter` returns the no-op meter and the handler records nothing.

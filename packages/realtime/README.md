@@ -244,6 +244,10 @@ app.get(
   whenever the driver declines to publish a control frame, so an oversized
   presence member is something you can alert on rather than a WARN on one
   instance. See [realtime.md](../../docs/realtime.md).
+- **Pass measurements** — the Redis driver's `onPassComplete(handler)` hands you
+  one frozen `PassSample` per completed ghost sweep and revocation pass: its
+  trigger, outcome, duration and pages. Forward it to your metrics with
+  [the OpenTelemetry recipe](../../docs/observability-and-crypto.md#framework-instruments).
 - **A broadcaster** that satisfies `@lockness/notification`'s `BroadcasterLike`
   — real-time is a drop-in notifications broadcast transport.
 - **A JSON wire protocol** + an optional browser client helper.
