@@ -49,38 +49,8 @@ deno fmt --check
 echo "✅ Pre-commit checks passed!"
 `,
     'pre-push': `#!/bin/bash
-# Pre-push: the full quality gate. Last thing between a broken tree and origin.
-#
-# Steps 4 and 5 are cheap and catch classes of damage the others cannot see:
-# a new import cycle, an import missing from its own package's deno.json (which
-# resolves inside the workspace and breaks for a JSR consumer), and a package
-# brief whose generated blocks no longer match the code.
-set -e
-
-echo "🚀 Running pre-push checks..."
-
-echo "  ✓ Formatting..."
-deno fmt --check
-
-echo "  ✓ Linting..."
-deno lint
-
-echo "  ✓ Type checking..."
-deno check
-
-echo "  ✓ Dependency integrity..."
-deno task deps:analyze
-
-echo "  ✓ Agent briefs..."
-deno task agents:brief --check
-
-echo "  ✓ Module docs coverage..."
-deno task docs:coverage
-
-echo "  ✓ Running tests..."
-deno task test
-
-echo "✅ Pre-push checks passed!"
+# Pre-push: runs \`deno task gate\`, the quality gate defined in deno.jsonc.
+exec deno task gate
 `,
 }
 
@@ -116,6 +86,4 @@ for (const [name, content] of Object.entries(hooks)) {
 console.log('\n🎉 Git hooks installed successfully!')
 console.log('\nHooks installed:')
 console.log('  • pre-commit: typecheck, lint, fmt staged files (re-staged)')
-console.log(
-    '  • pre-push: fmt, lint, check, deps:analyze, agents:brief, docs:coverage, test',
-)
+console.log('  • pre-push: deno task gate')
