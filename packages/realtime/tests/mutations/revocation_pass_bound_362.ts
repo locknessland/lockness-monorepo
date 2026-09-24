@@ -351,8 +351,13 @@ const MUTATIONS: Mutation[] = [
         label: "N33 an unrecorded outcome defaults to 'ok'",
         file: REDIS,
         edits: [[
-            "        let outcome: RevocationPassOutcome = 'failed'\n",
-            "        let outcome: RevocationPassOutcome = 'ok'\n",
+            // Re-anchored for #360: the alias became `PassOutcome`, and the
+            // sweep's start site has the same line at 12 spaces — which
+            // contains this one — so the anchor carries the record line above.
+            '        this.#revocationPass = pass\n' +
+            "        let outcome: PassOutcome = 'failed'\n",
+            '        this.#revocationPass = pass\n' +
+            "        let outcome: PassOutcome = 'ok'\n",
         ]],
         killedBy: '#362 D8 (ii)',
     },

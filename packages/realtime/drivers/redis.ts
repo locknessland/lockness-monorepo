@@ -1036,6 +1036,73 @@ export function decodeScanReply(reply: unknown): ScanPage {
 }
 
 /**
+ * The one message {@link decodeMembersReply} throws (#360 S2). It names the
+ * shape it expected and never carries the reply. Exported for the test suite
+ * only.
+ */
+export const MEMBERS_REPLY_REFUSED =
+    'realtime: the instance-set read did not answer an array of members'
+
+/**
+ * Decode the ghost sweep's `SMEMBERS <instances key>` reply (#360 S2): an
+ * array of raw members, each parsed by the caller. Anything else throws
+ * {@link MEMBERS_REPLY_REFUSED}.
+ *
+ * **Strict on purpose**: read leniently, a reply that is not an array was an
+ * empty instance set, so the sweep silently swept nothing, pass after pass.
+ * A throw fails the pass instead, with one WARN.
+ *
+ * Exported for the test suite only; `mod.ts` does not re-export it.
+ *
+ * @param reply - The `SMEMBERS` reply.
+ * @returns The raw members.
+ * @throws {Error} {@link MEMBERS_REPLY_REFUSED}, for any other shape.
+ * @example
+ * ```ts
+ * decodeMembersReply({ type: 'array', value: [{ type: 'bulk', value: 'a' }] })
+ * // [{ type: 'bulk', value: 'a' }]
+ * ```
+ */
+export function decodeMembersReply(reply: unknown): readonly unknown[] {
+    const members = asArray(reply)
+    if (members !== undefined) return members
+    throw new Error(MEMBERS_REPLY_REFUSED)
+}
+
+/**
+ * The one message {@link decodeExistsReply} throws (#360 S2). It names the
+ * shape it expected and never carries the reply. Exported for the test suite
+ * only.
+ */
+export const EXISTS_REPLY_REFUSED =
+    'realtime: a liveness probe did not answer the integer 0 or 1'
+
+/**
+ * Decode a liveness probe's `EXISTS <alive key>` reply (#360 S2): the integer
+ * `0` (the instance is dead) or `1` (it is alive). Anything else throws
+ * {@link EXISTS_REPLY_REFUSED}.
+ *
+ * **Strict on purpose**: read leniently, a reply that is not an integer was
+ * "alive", so a dead instance was never swept. A throw fails the pass
+ * instead, with one WARN.
+ *
+ * Exported for the test suite only; `mod.ts` does not re-export it.
+ *
+ * @param reply - The `EXISTS` reply.
+ * @returns `0` or `1`.
+ * @throws {Error} {@link EXISTS_REPLY_REFUSED}, for any other reply.
+ * @example
+ * ```ts
+ * decodeExistsReply({ type: 'integer', value: 0 }) // 0
+ * ```
+ */
+export function decodeExistsReply(reply: unknown): 0 | 1 {
+    const alive = asInteger(reply)
+    if (alive === 0 || alive === 1) return alive
+    throw new Error(EXISTS_REPLY_REFUSED)
+}
+
+/**
  * What epoch seconds look like on the wire (#359 FR-002, A12) — the ONE
  * grammar for both the reap's `t` and every revocation score: `0`, or at most
  * 15 decimal digits with no leading zero, so `Number` reads it exactly. Not
@@ -1177,6 +1244,36 @@ export const REVOCATION_PAIRS_SKIPPED =
     'pass:'
 
 /**
+ * The words that start the one WARN written when an
+ * {@link RedisBroadcastDriver.onPassComplete} handler throws, or the promise
+ * it returned rejects (#360) — followed by the rendered failure. The pass
+ * itself is unaffected. Exported for the test suite only.
+ */
+export const PASS_SAMPLE_FAILED =
+    'realtime: an onPassComplete handler failed (#360); the pass itself is ' +
+    'unaffected:'
+
+/**
+ * The marker that starts the one ERROR line written when the
+ * {@link PASS_SAMPLE_FAILED} WARN could not be, because `console.warn` threw
+ * (#360). The line carries both halves, the handler's failure and the sink's,
+ * each rendered; the marker is the fixed prefix, so an error text cannot forge
+ * it (#369). Exported for the test suite only.
+ */
+export const PASS_SAMPLE_LOG_FAILED =
+    'realtime: a pass-sample failure could not be logged (#360):'
+
+/**
+ * The marker that starts the one ERROR line written when a rejection reaches
+ * the end of the ghost-sweep chain (#360): a log sink threw inside the sweep,
+ * so the pass rejected. The rejection is rendered after it; the marker is the
+ * fixed prefix, so an error text cannot forge it (#369). Exported for the test
+ * suite only.
+ */
+export const SWEEP_LOG_FAILED =
+    'realtime: a ghost-sweep log line could not be written (#360):'
+
+/**
  * What one heartbeat's `SET <alive key> 1 EX <ttl> GET` reported (#349):
  * `continuous` — the key existed, so this renewal extended it; `lapsed` — the
  * key had expired or was deleted, so this write re-created it, and a peer may
@@ -1315,12 +1412,96 @@ const DEFAULT_RECONCILE_INTERVAL_MS = 10_000
 const RECONCILE_RETRY_MS = 1_000
 const DEFAULT_REVOCATION_TTL_SECONDS = 300
 /**
- * How one revocation pass ended (#362), as `#runRevocationReconcile`
- * declares it: `ok` — the handler resolved, so the enumeration completed
- * (not that every record was applied); `failed` — it threw; `closed` — no
- * handler was registered, which happens only after `close()` dropped it.
+ * What one completed background pass of the Redis driver reports to the
+ * handler registered through {@link RedisBroadcastDriver.onPassComplete}
+ * (#360): which pass it was, what started it, how it ended, how long it took
+ * and how many pages it read. Handed over frozen, once per completed pass.
+ *
+ * **The one home of what each field means.** Documentation elsewhere links
+ * here rather than restating it. The instrument names an application records
+ * these under live in `docs/observability-and-crypto.md` § Framework
+ * instruments.
+ *
+ * A pass that never completes — a command that never settles — reports
+ * nothing, because the sample is taken at the pass's end. For the revocation
+ * pass, the enforcement deadline (#362) is what reports a stall.
  */
-type RevocationPassOutcome = 'ok' | 'failed' | 'closed'
+export interface PassSample {
+    /**
+     * Which background pass: `sweep` — the ghost sweep, which releases the
+     * presence holds of instances whose liveness lapsed; `revocation` — the
+     * revocation re-check, which applies revocations whose control frame was
+     * lost.
+     */
+    readonly pass: 'sweep' | 'revocation'
+    /**
+     * What started the pass: `timer` — the periodic timer; `reconnect` — the
+     * subscribe socket's reconnect seam; `reconnect-retry` — the one retry a
+     * failed reconnect pass gets. Always `timer` for the sweep.
+     */
+    readonly trigger: 'timer' | 'reconnect' | 'reconnect-retry'
+    /**
+     * How the pass ended.
+     *
+     * `ok` means **the enumeration completed — not that every record was
+     * applied**. A failure confined to one record (one dead instance's
+     * release, one revocation's apply) is reported only as its own named WARN,
+     * and the pass is still `ok`; no sample counts such failures.
+     *
+     * `failed` means the pass itself stopped. For the sweep: the instance-set
+     * read or a liveness probe threw, or answered a reply that does not
+     * decode. For the revocation pass: the re-check handler threw — a reap or
+     * a page read failed or did not decode. A pass that rejected before its
+     * outcome was recorded (a log sink threw inside it) is `failed` too.
+     */
+    readonly outcome: 'ok' | 'failed'
+    /**
+     * How long the pass took, in milliseconds, on the driver's monotonic pass
+     * clock — never the wall clock — and never negative.
+     *
+     * It is **the whole pass**: every round trip, and for the revocation pass
+     * also the apply and any wait on the manager's serial tail. It is
+     * therefore at least, and not comparable to, the round-trip-only `P` the
+     * revocation enforcement bound is stated in — see the bound's one home,
+     * {@link RedisBroadcastDriver.onRevocationReconcile}.
+     */
+    readonly durationMs: number
+    /**
+     * How many pages the pass read: each one a decoded reply of a paged read.
+     * A page that failed to decode is not counted.
+     *
+     * - `sweep`: the `SSCAN` pages of the owned sets of every dead instance
+     *   swept in this pass, summed. The unpaged instance-set read (`SMEMBERS`)
+     *   and each liveness probe (`EXISTS`) are timed but not counted. `0` when
+     *   no instance was dead.
+     * - `revocation`: the `ZSCAN` pages of the revocation index that
+     *   {@link RedisBroadcastDriver.listRevocations} read while this pass was
+     *   in flight — including a call that ran on the manager's serial tail
+     *   ahead of this pass's own handler, whose time is in `durationMs` too.
+     */
+    readonly pages: number
+}
+/**
+ * How one background pass ended (#362; widened to the ghost sweep by #360):
+ * the public {@link PassSample} outcome, plus `closed`, which never leaves
+ * the driver and is never reported.
+ *
+ * - The revocation pass, as `#runRevocationReconcile` declares it: `ok` —
+ *   the handler resolved, so the enumeration completed (not that every
+ *   record was applied); `failed` — it threw; `closed` — no handler was
+ *   registered, which happens only after `close()` dropped it.
+ * - The ghost sweep, as `#reconcile` declares it: `ok` — every registered
+ *   instance was read, a failure confined to one instance's sweep included;
+ *   `failed` — the instance-set read or a liveness probe threw, or answered
+ *   a reply that does not decode; `closed` — the loop stopped at an
+ *   instance because `close()` had begun.
+ *
+ * **Unrecorded means `failed`, for both passes** — this is the one home of
+ * that rule. Each start site declares its outcome `failed` before the pass
+ * runs, and only a pass that settles records another, so a pass that
+ * rejects (a log sink threw inside it, #349) is reported as failed.
+ */
+type PassOutcome = PassSample['outcome'] | 'closed'
 /**
  * The largest delay one `setTimeout` can hold, in milliseconds (#362): the
  * largest signed 32-bit integer.
@@ -1518,15 +1699,18 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      */
     private revocationTimer?: ReturnType<typeof setTimeout>
     /**
-     * The revocation pass in flight, if any (#359): its trigger and its start
-     * on {@link #passClock} (#362). Stored and cleared by
-     * {@link #startRevocationPass} alone. No promise is kept, because nothing
-     * awaits a pass; the enforcement deadline reads this record when it
-     * expires, to name the pass that has not settled.
+     * The revocation pass in flight, if any (#359): its trigger, its start on
+     * {@link #passClock} (#362), and the `ZSCAN` pages
+     * {@link listRevocations} has read for it so far (#360) — `pages` is its
+     * one mutable member. Stored and cleared by {@link #startRevocationPass}
+     * alone, which builds it once, at the start. No promise is kept, because
+     * nothing awaits a pass; the enforcement deadline reads this record when
+     * it expires, to name the pass that has not settled.
      */
     #revocationPass?: {
         readonly trigger: 'timer' | 'reconnect' | 'reconnect-retry'
         readonly startedAt: number
+        pages: number
     }
     /**
      * The one trailing pass a reconnect or retry recorded while a pass was in
@@ -1566,6 +1750,23 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * broker-clock check. A pass that throws mid-enumeration leaves it alone.
      */
     #lastReadAt?: number
+    /**
+     * The one handler completed passes report to (#360), registered through
+     * {@link onPassComplete}. Re-registration replaces it. It is read when a
+     * pass ENDS, never captured at its start, and {@link close} drops it —
+     * though what decides that a closing driver reports nothing is the
+     * `#closing` gate, not this drop.
+     */
+    #passCompleteHandler?: (sample: PassSample) => void
+    /**
+     * The ghost sweep in flight, if any (#360): its start on
+     * {@link #passClock}, and the `SSCAN` pages {@link #sweepOwned} has read
+     * for it so far across every dead instance. A Temporary Field — set only
+     * while a sweep is in flight — kept for parity with
+     * {@link #revocationPass}, so both passes count pages the same way.
+     * Stored and cleared by {@link #armReconcile} alone.
+     */
+    #sweepPass?: { readonly startedAt: number; pages: number }
     /**
      * The owning instance's departure announcer (#348), registered by the
      * manager via {@link onRosterDeparture}. ONE handler: re-registration
@@ -1823,9 +2024,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
 
     /**
      * The pass clock (#362): the ONE monotonic reading intervals are measured
-     * on — a revocation pass's start and end, and the enforcement deadline's
-     * `now`. Not {@link now}: that is the control-frame stamp clock, an epoch
-     * reading, and a wall-clock step would corrupt an interval measured on it.
+     * on — a revocation pass's start and end, a ghost sweep's start and end
+     * (#360), and the enforcement deadline's `now`. Not {@link now}: that is
+     * the control-frame stamp clock, an epoch reading, and a wall-clock step
+     * would corrupt an interval measured on it.
      */
     #passClock(): number {
         return performance.now()
@@ -2183,6 +2385,120 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             console.warn(
                 'realtime: an onControlRefused handler threw; the refusal ' +
                     `itself is unaffected: ${renderError(error)}`,
+            )
+        }
+    }
+
+    /**
+     * Register the handler each completed background pass reports to (#360):
+     * one frozen {@link PassSample} per ghost sweep and per revocation
+     * re-check, taken at the pass's end — the value an application forwards
+     * to its metrics backend. The driver records it and never judges it: no
+     * threshold, no slow-pass log.
+     *
+     * **One handler**: registering again replaces it. The handler registered
+     * when a pass ENDS is the one called, so a handler registered mid-pass
+     * receives that pass's sample. {@link close} drops it, and nothing is
+     * delivered once `close()` has begun. Samples are not buffered: a pass
+     * that ends with no handler registered builds nothing and reports to no
+     * one.
+     *
+     * **It is never awaited, and it cannot break a pass.** A throw, or a
+     * returned promise that rejects, is one WARN ({@link PASS_SAMPLE_FAILED});
+     * a returned promise that never settles holds nothing. The next pass runs
+     * either way.
+     *
+     * Redis-only: the memory driver runs no background pass, so this is not a
+     * {@link BroadcastDriver} member.
+     *
+     * @param handler - Called once per completed pass, with its sample.
+     * @example
+     * ```ts
+     * const failures = { sweep: 0, revocation: 0 }
+     * driver.onPassComplete((sample) => {
+     *     if (sample.outcome === 'failed') failures[sample.pass]++
+     * })
+     * ```
+     */
+    onPassComplete(handler: (sample: PassSample) => void): void {
+        this.#passCompleteHandler = handler
+    }
+
+    /**
+     * Build one {@link PassSample} and hand it to the registered handler —
+     * **the one place a sample is made** (#360).
+     *
+     * **One sample per completed pass, taken at the pass's one end site and
+     * nowhere else.** This method has exactly two callers, and each is its
+     * pass's one end site: the revocation pass's `finally` in
+     * {@link #startRevocationPass}, after the enforcement-deadline call, and
+     * the ghost sweep's `finally` in {@link #armReconcile}, after the re-arm.
+     * **Every argument comes from the start site's closure** — never from
+     * {@link #revocationPass} or {@link #sweepPass}: the revocation end site
+     * starts a trailing pass before it samples, and the field then holds the
+     * trailing pass, not the one that ended.
+     *
+     * In order: nothing once {@link close} has begun — the one asker of that
+     * rule for samples; nothing for a `closed` pass, or with no handler
+     * registered, before anything is built; then one frozen sample, its
+     * duration clamped at 0, handed to the handler **without awaiting it**.
+     * The call and the adoption of what it returned share one `try`: a
+     * synchronous throw (including one from adopting a hostile returned
+     * promise) and a rejection are each one WARN ({@link #warnPassSample}). A
+     * returned thenable is adopted once, through `Promise.resolve`, so it
+     * rejects at most once; one that never settles holds nothing.
+     *
+     * @param pass - Which pass ended.
+     * @param trigger - What started it.
+     * @param outcome - How it ended.
+     * @param startedAt - Its start, on {@link #passClock}.
+     * @param endedAt - Its end, on {@link #passClock}.
+     * @param pages - The pages it read.
+     */
+    #emitPassSample(
+        pass: PassSample['pass'],
+        trigger: PassSample['trigger'],
+        outcome: PassOutcome,
+        startedAt: number,
+        endedAt: number,
+        pages: number,
+    ): void {
+        if (this.#closing) return
+        const handler = this.#passCompleteHandler
+        if (outcome === 'closed' || handler === undefined) return
+        const sample: PassSample = Object.freeze({
+            pass,
+            trigger,
+            outcome,
+            durationMs: Math.max(0, endedAt - startedAt),
+            pages,
+        })
+        try {
+            const returned: unknown = handler(sample)
+            Promise.resolve(returned).then(
+                undefined,
+                (failure: unknown) => this.#warnPassSample(failure),
+            )
+        } catch (failure) {
+            this.#warnPassSample(failure)
+        }
+    }
+
+    /**
+     * Write the one {@link PASS_SAMPLE_FAILED} WARN for a handler that failed,
+     * in the #369 shape: when `console.warn` itself throws, one
+     * {@link PASS_SAMPLE_LOG_FAILED} ERROR line carries both halves instead,
+     * so the failure never escapes into a pass.
+     *
+     * @param failure - What the handler threw, or rejected with.
+     */
+    #warnPassSample(failure: unknown): void {
+        try {
+            console.warn(`${PASS_SAMPLE_FAILED} ${renderError(failure)}`)
+        } catch (sink) {
+            console.error(
+                `${PASS_SAMPLE_LOG_FAILED} ${renderError(failure)}; ` +
+                    `sink failure: ${renderError(sink)}`,
             )
         }
     }
@@ -2716,6 +3032,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * records nothing. The enforcement deadline compares consecutive reap
      * times to notice the broker's clock stepping a full TTL.
      *
+     * **Each decoded page counts into the revocation pass in flight**, if
+     * there is one (#360), and nowhere else: a call made while no pass runs
+     * counts nowhere. {@link PassSample}'s `pages` says what a page is.
+     *
      * @param owns - Which targets to keep, asked once per decoded record,
      *   synchronously; a throw fails the pass. Omitted, every record is kept.
      * @returns The live revocations `owns` keeps, each member once.
@@ -2752,6 +3072,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     String(REVOCATION_SCAN_COUNT),
                 ),
             )
+            if (this.#revocationPass) this.#revocationPass.pages++
             skipped += page.skipped
             for (const entry of page.entries) {
                 if (!(entry.score > t)) continue
@@ -2956,6 +3277,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * counts as failed, and the chain's last handler writes one marked ERROR
      * line instead of letting the rejection escape (#369).
      *
+     * **The end site's final step is the pass sample** (#360), after the
+     * deadline call: {@link #emitPassSample} says where a sample is taken and
+     * what it is built from. The start's record also carries the pass's page
+     * count, which {@link listRevocations} increments.
+     *
      * @param trigger - What asked for the pass.
      */
     #startRevocationPass(
@@ -2969,8 +3295,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             return
         }
         const startedAt = this.#passClock()
-        this.#revocationPass = { trigger, startedAt }
-        let outcome: RevocationPassOutcome = 'failed'
+        const pass = { trigger, startedAt, pages: 0 }
+        this.#revocationPass = pass
+        let outcome: PassOutcome = 'failed'
         this.#runRevocationReconcile(trigger)
             .then((ended) => void (outcome = ended))
             .finally(() => {
@@ -2987,6 +3314,14 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                         this.#lastReadAt,
                     )
                 }
+                this.#emitPassSample(
+                    'revocation',
+                    trigger,
+                    outcome,
+                    startedAt,
+                    endedAt,
+                    pass.pages,
+                )
             })
             .catch((error: unknown) => {
                 // #369: nothing escapes the pass chain. A rejection reaches
@@ -3025,7 +3360,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      */
     async #runRevocationReconcile(
         trigger: 'timer' | 'reconnect' | 'reconnect-retry' = 'timer',
-    ): Promise<RevocationPassOutcome> {
+    ): Promise<PassOutcome> {
         if (!this.revocationHandler) return 'closed'
         try {
             await this.revocationHandler()
@@ -3279,15 +3614,47 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      *
      * A FakeTime `tickAsync(k × interval)` fires the callback once and does not
      * await its promise, so it runs ONE pass, not k.
+     *
+     * **The callback is also the sweep's one start site and one end site for
+     * its pass sample** (#360). The start reads {@link #passClock} and stores
+     * the pass's record in {@link #sweepPass}; the end reads the pass clock
+     * FIRST, frees the pass, re-arms, clears the record, and LAST hands the
+     * sample to {@link #emitPassSample}, which says where a sample is taken and
+     * what it is built from. An outcome {@link #reconcile} never recorded (the
+     * pass rejected) counts as failed, and the chain's last handler writes one
+     * marked ERROR line ({@link SWEEP_LOG_FAILED}) instead of letting the
+     * rejection escape (#369) — so `#reconcilePass`, which {@link close}
+     * awaits, never rejects.
      */
     #armReconcile(): void {
         if (this.#closing) return
         this.reconcileTimer = setTimeout(() => {
             this.reconcileTimer = undefined
-            this.#reconcilePass = this.#reconcile().finally(() => {
-                this.#reconcilePass = undefined
-                this.#armReconcile()
-            })
+            const pass = { startedAt: this.#passClock(), pages: 0 }
+            this.#sweepPass = pass
+            let outcome: PassOutcome = 'failed'
+            this.#reconcilePass = this.#reconcile()
+                .then((ended) => void (outcome = ended))
+                .finally(() => {
+                    const endedAt = this.#passClock()
+                    this.#reconcilePass = undefined
+                    this.#armReconcile()
+                    this.#sweepPass = undefined
+                    this.#emitPassSample(
+                        'sweep',
+                        'timer',
+                        outcome,
+                        pass.startedAt,
+                        endedAt,
+                        pass.pages,
+                    )
+                })
+                .catch((error: unknown) => {
+                    // #360 A1, the #369 rule: nothing escapes the sweep chain.
+                    // A rejection reaches here only when a log sink threw
+                    // inside the pass; the marker is the fixed prefix.
+                    console.error(`${SWEEP_LOG_FAILED} ${renderError(error)}`)
+                })
         }, this.reconcileIntervalMs)
     }
 
@@ -3367,22 +3734,30 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      *
      * **It stops at the top of an instance once {@link close} has begun**,
      * before that instance's `EXISTS`: no further instance is read. Its catch
-     * covers the instance-set read and the `EXISTS` only; one instance's sweep
+     * covers the instance-set read and the `EXISTS` only — a reply either one
+     * answers that does not decode ({@link decodeMembersReply},
+     * {@link decodeExistsReply}) is a throw there too (#360 S2), never read as
+     * "no instances" or as "alive"; one instance's sweep
      * failing is contained in {@link #sweepInstance}, so it never stops the
      * others.
+     *
+     * @returns How the pass ended (#360, {@link PassOutcome}): `failed` from
+     *   its catch — the one WARN is written first; `closed` from the loop's
+     *   closing check; `ok` once every instance was read, a failure contained
+     *   in {@link #sweepInstance} included.
      */
-    async #reconcile(): Promise<void> {
+    async #reconcile(): Promise<PassOutcome> {
         try {
             const reply = await this.command.command(
                 'SMEMBERS',
                 this.instancesKey,
             )
-            const ids = asArray(reply) ?? []
+            const ids = decodeMembersReply(reply)
             for (const raw of ids) {
-                if (this.#closing) return
+                if (this.#closing) return 'closed'
                 const id = asBulk(raw)
                 if (!id || id === this.instanceId) continue
-                const alive = asInteger(
+                const alive = decodeExistsReply(
                     await this.command.command('EXISTS', this.aliveKey(id)),
                 )
                 if (alive === 0) await this.#sweepInstance(id)
@@ -3391,10 +3766,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             console.warn(
                 `realtime: roster reconcile failed: ${renderError(error)}`,
             )
+            return 'failed'
         }
         // The durable revocation re-check runs on its OWN dedicated timer
         // (see {@link onRevocationReconcile}), NOT here — it must fire for a
         // presence-free deployment that never starts this ghost-sweep pass.
+        return 'ok'
     }
 
     /**
@@ -3538,7 +3915,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * the cursor comes back `'0'` — no budget, no resume state: the owned set
      * shrinks under its own releases, and what is left is the next pass's
      * work. No sweep reply grows with the owned set, and a survivor holds one
-     * page of it at a time. The one SCAN guarantee relied on: a member present
+     * page of it at a time. Each decoded page counts into the sweep in flight
+     * ({@link #sweepPass}, #360); {@link PassSample}'s `pages` says what a page
+     * is. The one SCAN guarantee relied on: a member present
      * for the whole iteration is returned at least once. A duplicate, or an
      * entry another survivor already released, is an *absent* release; a
      * member added mid-iteration may be missed, and the deregistration then
@@ -3604,6 +3983,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     String(OWNED_SCAN_COUNT),
                 ),
             )
+            if (this.#sweepPass) this.#sweepPass.pages++
             const end = await this.#sweepPage(deadId, page.items, count)
             if (end !== 'swept') return end
             cursor = page.cursor
@@ -3855,6 +4235,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // Nor a refusal (#349 FR-006a): every hook this driver holds is
         // dropped by its own shutdown.
         this.controlRefusedHandler = undefined
+        // Nor a pass sample (#360) — hygiene: the `#closing` gate in
+        // `#emitPassSample` is what decides.
+        this.#passCompleteHandler = undefined
         for (const resource of this.owned) {
             await resource.close()
         }

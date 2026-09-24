@@ -60,6 +60,7 @@ export type {
 export { MAX_ROSTER_READ_SELF_IDS } from './driver.ts'
 export { MemoryBroadcastDriver } from './drivers/memory.ts'
 export {
+    type PassSample,
     type RedisBroadcastConnectionConfig,
     RedisBroadcastDriver,
     type RedisBroadcastDriverOptions,

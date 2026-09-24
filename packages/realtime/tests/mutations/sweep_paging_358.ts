@@ -68,6 +68,9 @@ const PAGE_LOOP = "        let cursor = '0'\n" +
     '                    String(OWNED_SCAN_COUNT),\n' +
     '                ),\n' +
     '            )\n' +
+    // Re-anchored for #360: the page increment lands inside the loop. M1's
+    // replacement drops it, so the sweep also reports zero pages.
+    '            if (this.#sweepPass) this.#sweepPass.pages++\n' +
     '            const end = await this.#sweepPage(deadId, page.items, count)\n' +
     "            if (end !== 'swept') return end\n" +
     '            cursor = page.cursor\n' +

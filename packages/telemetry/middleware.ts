@@ -12,9 +12,10 @@
  * @since 0.2.1
  */
 
-import { metrics, SpanStatusCode, trace } from '@opentelemetry/api'
+import { SpanStatusCode, trace } from '@opentelemetry/api'
 import type { Context, MiddlewareHandler, Next } from '@lockness/hono'
 import { buildAttributes, toRecordedException } from './attributes.ts'
+import { getMeter } from './meter.ts'
 
 const TRACER_NAME = '@lockness/telemetry'
 
@@ -30,7 +31,7 @@ const TRACER_NAME = '@lockness/telemetry'
  */
 export function telemetryMiddleware(): MiddlewareHandler {
     const tracer = trace.getTracer(TRACER_NAME)
-    const meter = metrics.getMeter(TRACER_NAME)
+    const meter = getMeter(TRACER_NAME)
     const requests = meter.createCounter('lockness.http.server.requests', {
         description: 'Requests handled, by matched route.',
     })

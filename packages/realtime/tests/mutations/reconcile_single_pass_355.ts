@@ -66,13 +66,39 @@ const SUITES = [
         .pathname,
 ]
 
-const ARM_TIMER = '        this.reconcileTimer = setTimeout(() => {\n' +
+// Re-anchored for #360: the callback became the sweep's start and end site
+// for its pass sample — the pass record at the start; the pass clock read
+// first, the re-arm, and the sample last in the `finally`; and a final
+// `.catch` for a log sink that threw (A1). M1 and M2 keep their mutants.
+const ARM_TIMER_HEAD = '        this.reconcileTimer = setTimeout(() => {\n' +
     '            this.reconcileTimer = undefined\n' +
-    '            this.#reconcilePass = this.#reconcile().finally(() => {\n' +
-    '                this.#reconcilePass = undefined\n' +
-    '                this.#armReconcile()\n' +
-    '            })\n' +
+    '            const pass = { startedAt: this.#passClock(), pages: 0 }\n' +
+    '            this.#sweepPass = pass\n' +
+    "            let outcome: PassOutcome = 'failed'\n" +
+    '            this.#reconcilePass = this.#reconcile()\n' +
+    '                .then((ended) => void (outcome = ended))\n' +
+    '                .finally(() => {\n' +
+    '                    const endedAt = this.#passClock()\n' +
+    '                    this.#reconcilePass = undefined\n'
+const ARM_TIMER_REARM = '                    this.#armReconcile()\n'
+const ARM_TIMER_TAIL = '                    this.#sweepPass = undefined\n' +
+    '                    this.#emitPassSample(\n' +
+    "                        'sweep',\n" +
+    "                        'timer',\n" +
+    '                        outcome,\n' +
+    '                        pass.startedAt,\n' +
+    '                        endedAt,\n' +
+    '                        pass.pages,\n' +
+    '                    )\n' +
+    '                })\n' +
+    '                .catch((error: unknown) => {\n' +
+    '                    // #360 A1, the #369 rule: nothing escapes the sweep chain.\n' +
+    '                    // A rejection reaches here only when a log sink threw\n' +
+    '                    // inside the pass; the marker is the fixed prefix.\n' +
+    '                    console.error(`${SWEEP_LOG_FAILED} ${renderError(error)}`)\n' +
+    '                })\n' +
     '        }, this.reconcileIntervalMs)\n'
+const ARM_TIMER = ARM_TIMER_HEAD + ARM_TIMER_REARM + ARM_TIMER_TAIL
 
 // Re-anchored by the #355 review: the sweep's writes moved from
 // `#sweepInstance`'s try into `#sweepOwned`, one indent shallower, and every
@@ -126,8 +152,10 @@ const MUTATIONS: Mutation[] = [
         file: REDIS,
         edits: [[
             ARM_TIMER,
+            // `.then` keeps `#reconcilePass: Promise<void>` type-checking now
+            // that `#reconcile` returns its outcome (#360).
             '        this.reconcileTimer = setInterval(() => {\n' +
-            '            this.#reconcilePass = this.#reconcile()\n' +
+            '            this.#reconcilePass = this.#reconcile().then(() => {})\n' +
             '        }, this.reconcileIntervalMs)\n',
         ]],
         killedBy: '#355 W1',
@@ -136,15 +164,8 @@ const MUTATIONS: Mutation[] = [
         label: "M2 — the re-arm moved into #reconcile's try, after the loop",
         file: REDIS,
         edits: [
-            [
-                ARM_TIMER,
-                '        this.reconcileTimer = setTimeout(() => {\n' +
-                '            this.reconcileTimer = undefined\n' +
-                '            this.#reconcilePass = this.#reconcile().finally(() => {\n' +
-                '                this.#reconcilePass = undefined\n' +
-                '            })\n' +
-                '        }, this.reconcileIntervalMs)\n',
-            ],
+            // Only the re-arm goes; the sample and the `.catch` stay (#360).
+            [ARM_TIMER, ARM_TIMER_HEAD + ARM_TIMER_TAIL],
             [
                 '                if (alive === 0) await this.#sweepInstance(id)\n' +
                 '            }\n',
@@ -255,8 +276,9 @@ const MUTATIONS: Mutation[] = [
         label: 'M12a — no closing check at the top of the loop body',
         file: REDIS,
         edits: [[
+            // Re-anchored for #360: the check now returns the pass outcome.
             '            for (const raw of ids) {\n' +
-            '                if (this.#closing) return\n',
+            "                if (this.#closing) return 'closed'\n",
             '            for (const raw of ids) {\n',
         ]],
         killedBy: '#355 W4 (iii)',
