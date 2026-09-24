@@ -271,3 +271,39 @@ Deno.test('cookie revocation - destroy() suppresses the trailing re-seal (no log
         'no fresh session cookie was written after destroy',
     )
 })
+
+Deno.test('cookie revocation - without absoluteLifetime, destroy fails loud and writes no entry', async () => {
+    // The core boot gate refuses `revocation` without `absoluteLifetime`; a
+    // caller that bypasses it (a direct `configureSession`) must get an error,
+    // not a revocation entry with a NaN TTL — the store would drop it silently
+    // and the "revoked" cookie would keep authenticating.
+    const ttls: number[] = []
+    const store: RevocationStore = {
+        isRevoked: () => Promise.resolve(false),
+        revoke: (_jti, ttl) => {
+            ttls.push(ttl)
+            return Promise.resolve()
+        },
+        revokeUser: () => Promise.resolve(),
+        userRevokedSince: () => Promise.resolve(null),
+        close: () => Promise.resolve(),
+    }
+    const sealed = await seal(KEY, { user: 'frank' }, 3600, {
+        iat: Math.floor(Date.now() / 1000),
+        jti: 'f'.repeat(32),
+    })
+    const ctx = await contextWith(`rev_session=${encodeURIComponent(sealed)}`)
+    const uncapped: SessionConfig = {
+        ...REV_CONFIG,
+        absoluteLifetime: undefined,
+    }
+    const driver = new CookieSessionDriver(ctx, uncapped, store)
+
+    assertEquals(await driver.read('x'), { user: 'frank' })
+    await assertRejects(
+        () => driver.destroy('x'),
+        Error,
+        'session revocation requires absoluteLifetime',
+    )
+    assertEquals(ttls, [], 'no revocation entry was written without a horizon')
+})
