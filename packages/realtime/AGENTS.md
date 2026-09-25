@@ -975,7 +975,7 @@ field means.
 
 <!-- generated:tests -->
 
-88 test files for 24 source files:
+89 test files for 24 source files:
 
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
@@ -1003,6 +1003,7 @@ field means.
 - `packages/realtime/tests/driver_redis.test.ts`
 - `packages/realtime/tests/driver_redis_live.test.ts`
 - `packages/realtime/tests/emit_isolation_323.test.ts`
+- `packages/realtime/tests/escaping_sinks_395.test.ts`
 - `packages/realtime/tests/events_bridge.test.ts`
 - `packages/realtime/tests/eviction_control.test.ts`
 - `packages/realtime/tests/eviction_durable.test.ts`
@@ -1066,7 +1067,7 @@ field means.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-40 mutation batteries — **`deno test` does not run these.** Each is an
+41 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1079,6 +1080,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/channel_revoke_332.ts`
 - `packages/realtime/tests/mutations/connection_id_304.ts`
 - `packages/realtime/tests/mutations/disconnect_admission_361.ts`
+- `packages/realtime/tests/mutations/escaping_sinks_395.ts`
 - `packages/realtime/tests/mutations/fake_redis_280.ts`
 - `packages/realtime/tests/mutations/lapse_rehold_349.ts`
 - `packages/realtime/tests/mutations/live_conformance_285.ts`
@@ -1126,7 +1128,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 88 test files directly —
+Then, specific to this package: run its 89 test files directly —
 
 ```bash
 deno test -A packages/realtime/
