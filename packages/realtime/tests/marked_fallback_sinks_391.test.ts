@@ -40,7 +40,11 @@ import { EnforcementDeadline } from '../drivers/enforcement_deadline.ts'
 import type { BroadcastDriver, ControlMessage } from '../driver.ts'
 import type { Connection, WebSocketHooks, WSContext } from '../types.ts'
 import { type CommandFn, FakeRedis } from './fake_redis.ts'
-import { settle, watchingEscapes } from './escape_watcher.ts'
+import {
+    everyChannelThrows,
+    settle,
+    watchingEscapes,
+} from './escape_watcher.ts'
 
 interface User {
     id: number
@@ -66,35 +70,6 @@ interface SinkRow {
     name: string
     /** Build the fixture. Runs with the real log channels. */
     arm: () => Promise<Armed>
-}
-
-/**
- * Make `console.warn`, `console.error` and `Deno.stderr.writeSync` all throw,
- * counting the `console.error` attempts. Restored on scope exit.
- */
-function everyChannelThrows() {
-    const realWarn = console.warn
-    const realError = console.error
-    const realWrite = Deno.stderr.writeSync
-    let errorCalls = 0
-    console.warn = () => {
-        throw new Error('warn sink down (#391)')
-    }
-    console.error = () => {
-        errorCalls++
-        throw new Error('error sink down (#391)')
-    }
-    Deno.stderr.writeSync = () => {
-        throw new Error('stderr down (#391)')
-    }
-    return {
-        errorCalls: () => errorCalls,
-        [Symbol.dispose]: () => {
-            console.warn = realWarn
-            console.error = realError
-            Deno.stderr.writeSync = realWrite
-        },
-    }
 }
 
 /** A socket context that accepts every frame and every close. */

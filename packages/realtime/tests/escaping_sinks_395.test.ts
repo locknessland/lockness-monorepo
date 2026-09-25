@@ -1,0 +1,291 @@
+/**
+ * @fileoverview #395 — four `console.*` calls that no caller awaits no longer
+ * turn a throwing log sink into an unhandled rejection.
+ *
+ * #391 made seven marked-fallback sinks safe. The #395 audit confirmed four
+ * more log lines on a path nobody awaits: when the sink throws there, the
+ * throw becomes a rejection with no handler, and on Deno an unhandled
+ * rejection terminates the process.
+ *
+ * - E1 `LapseRun.#invoke`'s WARN: `trigger()` never awaits the run.
+ * - E2 the same site, reached end to end: the manager's `#reassertRoster`
+ *   WARN throws, so the lapse handler rejects into E1's site. Fixing that
+ *   site contains it; the row shows the escape passes through it.
+ * - E3, E4 the manager's default `onPublishError`: `broadcast` discards the
+ *   publish promise (E3), and calls the sink inline on a synchronous throw
+ *   (E4).
+ * - E5 the Redis driver's control-subscription `.catch`, whose promise is
+ *   `void`ed.
+ * - E6 the Redis heartbeat's WARN, run from a `setInterval` callback that
+ *   discards the promise.
+ *
+ * **One table, one row per path.** Each row drives a real path with
+ * `console.warn`, `console.error` AND `Deno.stderr.writeSync` all throwing,
+ * then asserts that nothing throws synchronously, that no rejection reaches
+ * the runtime, and that the `console.error` stub was reached, so the row got
+ * to the fallback rather than passing because nothing failed.
+ *
+ * Red on `8a7600d3` (before #395): all six rows, on `no rejection reaches the
+ * runtime`, except E4, which throws out of `broadcast` itself (`no synchronous
+ * throw`). E2's escaped rejection was thrown at `lapse_run.ts:102`.
+ *
+ * @module @lockness/realtime/tests/escaping_sinks_395
+ */
+
+import { assert, assertEquals } from '@std/assert'
+import { FakeTime } from '@std/testing/time'
+import { ChannelManager } from '../manager.ts'
+import { RedisBroadcastDriver } from '../drivers/redis.ts'
+import { LapseRun } from '../drivers/lapse_run.ts'
+import type { BroadcastDriver } from '../driver.ts'
+import type { PresenceMember } from '../channel.ts'
+import type { Connection } from '../types.ts'
+import { type CommandFn, FakeRedis } from './fake_redis.ts'
+import {
+    everyChannelThrows,
+    settle,
+    watchingEscapes,
+} from './escape_watcher.ts'
+
+interface User {
+    id: number
+}
+
+const START = new Date('2026-09-25T10:00:00Z')
+const PREFIX = 'app:rt'
+const ALIVE_PREFIX = `${PREFIX}__alive:`
+const REVOCATIONS_KEY = `${PREFIX}__revocations`
+/** The heartbeat interval every Redis row runs on, in milliseconds. */
+const BEAT = 500
+
+/** A row, armed: what drives it to its sink, and what tears it down. */
+interface Armed {
+    /** Drive the sink. Runs with every log channel throwing. */
+    fire: () => Promise<void>
+    /** Tear the fixture down, after the channels are restored. */
+    dispose: () => Promise<void>
+}
+
+/** One path to a sink: its name, and how to build a fixture that reaches it. */
+interface SinkRow {
+    name: string
+    /** Build the fixture. Runs with the real log channels. */
+    arm: () => Promise<Armed>
+}
+
+/** A Redis driver over `command`, beating every {@link BEAT} ms. */
+function redisDriver(
+    redis: FakeRedis,
+    command: CommandFn,
+    subscriber: ConstructorParameters<typeof RedisBroadcastDriver>[1] = redis
+        .subscriberFor(),
+): RedisBroadcastDriver {
+    return new RedisBroadcastDriver({ command }, subscriber, {
+        prefix: PREFIX,
+        // A secret, so a presence frame is published rather than refused
+        // with a WARN that would only add noise to the arm.
+        control: { secret: 'deployment-secret-with-enough-entropy' },
+        revocationTtlSeconds: 10,
+        presence: {
+            livenessTtlSeconds: 2,
+            heartbeatIntervalMs: BEAT,
+            reconcileIntervalMs: 1_000,
+        },
+    })
+}
+
+/** Advance FakeTime by one beat in 50 ms steps, draining after each. */
+async function oneBeat(time: FakeTime): Promise<void> {
+    for (let left = BEAT; left > 0; left -= 50) {
+        await time.tickAsync(50)
+        await time.runMicrotasks()
+    }
+}
+
+/** A manager over a driver whose `publish` fails as `publish` says. */
+function publishRow(publish: BroadcastDriver['publish']): Promise<Armed> {
+    // No onPublishError supplied: the framework's own default is under test.
+    const manager = new ChannelManager<User>({
+        driver: { publish, onMessage: () => {} },
+    })
+    return Promise.resolve({
+        fire: () => {
+            manager.broadcast('news', 'e', {})
+            return Promise.resolve()
+        },
+        dispose: () => Promise.resolve(),
+    })
+}
+
+/**
+ * A manager over a real Redis driver, one presence member held. `fire` makes
+ * the next liveness `SET` answer nil (a lapse: the key was re-created) and
+ * refuses the next revocation read, so the re-assert's revocation re-check
+ * fails and its WARN — `#reassertRoster`'s own — is the one that throws.
+ */
+async function reassertRow(): Promise<Armed> {
+    const time = new FakeTime(START)
+    const redis = new FakeRedis()
+    let lapseOnce = false
+    let refuseReadOnce = false
+    const command: CommandFn = (...args) => {
+        if (
+            refuseReadOnce && args[0] === 'EVAL' &&
+            args.includes(REVOCATIONS_KEY)
+        ) {
+            refuseReadOnce = false
+            return Promise.reject(new Error('revocation read refused (#395)'))
+        }
+        if (
+            lapseOnce && args[0] === 'SET' &&
+            (args[1]?.startsWith(ALIVE_PREFIX) ?? false)
+        ) {
+            lapseOnce = false
+            return redis.command(...args).then(() => ({ type: 'nil' }))
+        }
+        return redis.command(...args)
+    }
+    const driver = redisDriver(redis, command)
+    const manager = new ChannelManager<User>({
+        driver,
+        authorize: (user): PresenceMember | false =>
+            user ? { id: user.id, info: {} } : false,
+    })
+    const member = {
+        id: 'c1',
+        identity: { id: 7 },
+        metadata: {},
+        send: () => {},
+        close: () => {},
+    } as unknown as Connection<User>
+    assertEquals((await manager.subscribe(member, 'presence-room')).ok, true)
+    await time.runMicrotasks()
+    return {
+        fire: async () => {
+            lapseOnce = true
+            refuseReadOnce = true
+            await oneBeat(time)
+        },
+        dispose: async () => {
+            try {
+                await driver.close()
+            } finally {
+                time.restore()
+            }
+        },
+    }
+}
+
+const SINKS: SinkRow[] = [
+    {
+        name: "LapseRun.#invoke's WARN (the handler rejects)",
+        arm: () => {
+            const lapse = new LapseRun(() => {})
+            lapse.register(() =>
+                Promise.reject(new Error('re-assert failed (#395)'))
+            )
+            return Promise.resolve({
+                fire: () => {
+                    lapse.trigger()
+                    return Promise.resolve()
+                },
+                dispose: () => lapse.close(),
+            })
+        },
+    },
+    {
+        name: "the manager's #reassertRoster WARN, reaching LapseRun.#invoke",
+        arm: reassertRow,
+    },
+    {
+        name: 'the default onPublishError (the publish rejects)',
+        arm: () =>
+            publishRow(() =>
+                Promise.reject(new Error('publish refused (#395)'))
+            ),
+    },
+    {
+        name: 'the default onPublishError (the publish throws)',
+        arm: () =>
+            publishRow(() => {
+                throw new Error('publish refused (#395)')
+            }),
+    },
+    {
+        name: 'the redis control subscription (subscribeOne rejects)',
+        arm: () => {
+            const redis = new FakeRedis()
+            const inner = redis.subscriberFor()
+            const driver = redisDriver(redis, redis.command, {
+                psubscribe: inner.psubscribe,
+                subscribeOne: () =>
+                    Promise.reject(new Error('subscribe refused (#395)')),
+                unsubscribeOne: () => {},
+            })
+            return Promise.resolve({
+                fire: () => {
+                    driver.onControl(() => {})
+                    return Promise.resolve()
+                },
+                dispose: () => driver.close(),
+            })
+        },
+    },
+    {
+        name: "the redis heartbeat's WARN (the liveness write is refused)",
+        arm: async () => {
+            const time = new FakeTime(START)
+            const redis = new FakeRedis()
+            let refusing = false
+            const command: CommandFn = (...args) =>
+                refusing && args[0] === 'SET' &&
+                    (args[1]?.startsWith(ALIVE_PREFIX) ?? false)
+                    ? Promise.reject(new Error('liveness refused (#395)'))
+                    : redis.command(...args)
+            const driver = redisDriver(redis, command)
+            // A hold starts the heartbeat's interval.
+            await driver.holdMember('presence-other', { id: 9 })
+            return {
+                fire: async () => {
+                    refusing = true
+                    await oneBeat(time)
+                },
+                dispose: async () => {
+                    try {
+                        await driver.close()
+                    } finally {
+                        time.restore()
+                    }
+                },
+            }
+        },
+    },
+]
+
+for (const [index, row] of SINKS.entries()) {
+    Deno.test(`#395 E${index + 1} ${row.name}: every channel throwing, nothing escapes`, async () => {
+        await watchingEscapes(async (escaped) => {
+            const armed = await row.arm()
+            let thrown: unknown = undefined
+            let errorCalls = 0
+            try {
+                using channels = everyChannelThrows()
+                try {
+                    await armed.fire()
+                    await settle()
+                } catch (error) {
+                    thrown = error
+                }
+                errorCalls = channels.errorCalls()
+            } finally {
+                await armed.dispose()
+            }
+            assertEquals(thrown, undefined, 'no synchronous throw')
+            assertEquals(escaped, [], 'no rejection reaches the runtime')
+            assert(
+                errorCalls >= 1,
+                'the console.error stub was reached: the fallback ran',
+            )
+        })
+    })
+}

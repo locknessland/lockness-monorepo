@@ -1,6 +1,6 @@
 /**
- * @fileoverview The `unhandledrejection` watcher the containment witnesses
- * share (#376, #391).
+ * @fileoverview The `unhandledrejection` watcher, and the every-channel-throws
+ * console, that the containment witnesses share (#376, #391, #395).
  *
  * On Deno an unhandled rejection terminates the process, so a witness that
  * let one through would kill the runner instead of failing by name. The
@@ -49,5 +49,46 @@ export async function watchingEscapes(
         await body(escaped)
     } finally {
         globalThis.removeEventListener('unhandledrejection', listener)
+    }
+}
+
+/** Every log channel refusing, as {@link everyChannelThrows} installs it. */
+export interface ThrowingChannels extends Disposable {
+    /** How many times `console.error` was attempted. */
+    errorCalls(): number
+    /** Each attempted `console.error` line, its parts joined by a space. */
+    errorLines(): readonly string[]
+}
+
+/**
+ * Make `console.warn`, `console.error` and `Deno.stderr.writeSync` all throw,
+ * recording each `console.error` attempt before it throws — so a witness can
+ * tell the fallback it reached from one it did not. Restored on scope exit.
+ *
+ * @returns The recorder; dispose it (`using`) to restore the channels.
+ */
+export function everyChannelThrows(): ThrowingChannels {
+    const realWarn = console.warn
+    const realError = console.error
+    const realWrite = Deno.stderr.writeSync
+    const lines: string[] = []
+    console.warn = () => {
+        throw new Error('warn sink down')
+    }
+    console.error = (...parts: unknown[]) => {
+        lines.push(parts.map(String).join(' '))
+        throw new Error('error sink down')
+    }
+    Deno.stderr.writeSync = () => {
+        throw new Error('stderr down')
+    }
+    return {
+        errorCalls: () => lines.length,
+        errorLines: () => lines,
+        [Symbol.dispose]: () => {
+            console.warn = realWarn
+            console.error = realError
+            Deno.stderr.writeSync = realWrite
+        },
     }
 }
