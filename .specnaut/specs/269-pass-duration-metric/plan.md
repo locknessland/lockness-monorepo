@@ -589,6 +589,17 @@ space. `REVOCATION_SCAN_COUNT` and `OWNED_SCAN_COUNT` are both 100 (`:201`, `:14
 - `close()` not dropping the handler: the `#closing` gate decides.
 - A sample built with no handler registered: this cannot be observed.
 - `getMeter` ignoring its `name`: the no-op provider cannot see it.
+- **`endedAt` read before the rest of the `finally` block's housekeeping**
+  (revocation `#startRevocationPass`'s `.finally`, sweep `#armReconcile`'s
+  `.finally`; #386 item 8). Every statement between the read and its use
+  (`#emitPassSample`'s call) is synchronous and touches no clock — resetting a
+  field, re-arming a timer, taking a rerun — so under FakeTime, where
+  `performance.now` only moves when a witness steps it, a mutant that moves
+  the read later in that same synchronous stretch returns the identical
+  value. A mutant that moved it past a statement able to throw would be a
+  different mutant (an ordering-vs-exception one), not this rule, and none of
+  `#armReconcile`, `#startRevocationPass`(rerun) or the field resets can
+  throw.
 
 **Blast radius: existing battery rows.** Counted on `main` at `f697c100`.
 
