@@ -32,7 +32,7 @@ jobs:
             - name: Type check
               run: deno check
 
-            # 4. Cycles, declaration drift, tier policy
+            # 4. Cycles and tier policy. Declarations are step 7's job.
             - name: Dependency integrity
               run: deno task deps:analyze
 

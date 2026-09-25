@@ -48,29 +48,14 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-deno-
 
-            - name: Lint
-              run: deno lint
-
-            - name: Type check
-              run: deno check
-
-            - name: Check formatting
-              run: deno fmt --check
-
-            - name: Dependency integrity
-              run: deno task deps:analyze
-
-            - name: Agent briefs up to date
-              run: deno task agents:brief --check
-
-            - name: Module docs coverage
-              run: deno task docs:coverage
-
-            - name: Published-shape resolution
-              run: deno task publish:check
-
-            - name: Run tests (with leak tracing)
-              run: deno task test:leaks
+            # The same versioned gate the pre-push hook runs (#388): the
+            # ordered step list lives in scripts/gate.ts only, so CI cannot
+            # drift from the local gate. `--leaks` runs the suite with
+            # --trace-leaks; every other step is identical. In Actions the
+            # runner folds each step into its own log group and names the
+            # failing one in an ::error:: annotation.
+            - name: Quality gate
+              run: deno task gate --leaks
 
     live-redis:
         name: Live Redis integration
