@@ -353,7 +353,7 @@ roster release rejects, or a `Connection.close` that throws; never a stubbed `un
 | # | Setup → assertion |
 | :--- | :--- |
 | T1 (red) | manager over an in-memory revocation store listing, for local sockets, 2 connection revocations and 1 channel pair with 2 ids → `reconcileRevocations()` resolves `{ attempted: 3, failed: 0 }`. Today it resolves `undefined` |
-| T2 (red) | as T1, the pair's roster release rejects once → `{ attempted: 3, failed: 1 }`, both connection revocations applied; **the next call** resolves `{ attempted: 3, failed: 0 }` (the pair is `'not-subscribed'`) |
+| T2 (red) | as T1, the pair's roster release rejects once → `{ attempted: 3, failed: 1 }`, both connection revocations applied; **the next call** resolves `{ attempted: 1, failed: 0 }` (the pair is `'not-subscribed'`, and the two connection records are foreign once their sockets were torn down; corrected at implementation, 2026-09-25) |
 | T3 (red) | one connection revocation whose `disconnect` rejects (its release rejects) → `{ attempted: 1, failed: 1 }`, the socket closed 4403 anyway; the next call resolves `{ attempted: 0, failed: 0 }` (the record is now foreign) |
 | T4 (red) | `console.warn` throws inside `#applyRevocation`'s catch → the wrapper counts it: `failed: 1`, and the next revocation is still applied |
 | T5 (pin) | 2 foreign records and 1 local → `attempted: 1` |
@@ -369,7 +369,7 @@ roster release rejects, or a `Connection.close` that throws; never a stubbed `un
 | R6 (pin) | as R4, every pass clean except the one starting at 3 s → no line in 30 s |
 | R7 (pin) | as R4, handler resolves `undefined` → no line in 30 s (today's behaviour) |
 | R8 (red) | the R4 line contains `without failures` and `last clean pass's start`; a `STALLED` line (a page held past TTL, no pass ended since the last clean one) contains the same premise |
-| R9 (red) | as R4, but each pass's handler is held 600 ms, so a pass is in flight at 10 s → the line is **`MISSED`**, never `STALLED` |
+| R9 (red) | as R4, but each pass's handler is held 700 ms, so a pass is in flight at 10 s (600 ms leaves none in flight then; corrected at implementation, 2026-09-25) → the line is **`MISSED`**, never `STALLED` |
 | S1 (red) | two dead instances, the first's `#sweepOwned` throws → the sweep sample has `attempts: 2`, `failures: 1`, `outcome: 'ok'`. S1b: the same with `console.warn` throwing → still `failures: 1` |
 | S2 (red) | no dead instance → `attempts: 0`, `failures: 0` |
 | S3 (red) | a dead instance that renews itself mid-sweep → `attempts: 1`, `failures: 0` |

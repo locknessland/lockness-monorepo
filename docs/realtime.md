@@ -2250,7 +2250,7 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Twenty-three items. Sixteen are breaking changes — the driver revocation seam,
+Twenty-three items. Seventeen are breaking changes — the driver revocation seam,
 the presence snapshot a subscribe returns, the driver roster seam, presence
 frames announced per member rather than per connection, an authorizer result
 outside its contract now throwing, a presence member id that is not a string or
@@ -2260,12 +2260,13 @@ a private channel now checked as a presence member, no connection receiving
 `joined` or `left` for its own member id, a presence member over its byte bound
 now throwing, a disconnected connection now refused at admission, a Redis
 revocation timing the driver cannot enforce now refused at boot, `subscribe` now
-requiring `register`, an id held by a live connection now refused, and a refused
-socket no longer getting your `onClose` — plus two widened return types, one new
-control kind, one additive wire field and one additive getter. Item 16 changes
-no behaviour: it corrects earlier guidance. Item 19 is observable, not breaking:
-a malformed sweep reply now logs a WARN. Item 23 is observable, not breaking: a
-revocation pass with a failed apply no longer re-arms the enforcement deadline.
+requiring `register`, an id held by a live connection now refused, a refused
+socket no longer getting your `onClose`, and a revocation re-check handler type
+a driver's narrowly typed slot no longer holds — plus two widened return types,
+one new control kind, one additive wire field and one additive getter. Item 16
+changes no behaviour: it corrects earlier guidance. Item 19 is observable, not
+breaking: a malformed sweep reply now logs a WARN. Item 23 also changes what the
+deadline reports: a revocation pass with a failed apply no longer re-arms it.
 **No migration step, and one new Redis key family.** Before you deploy, read
 items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22 and
 23 — and items 2 and 7 if you wrote your own driver.
@@ -3119,14 +3120,20 @@ apply and no malformed tally.
   or `failed` above `attempted`). Such a pass reports no counts and does not
   re-arm. A handler that resolves nothing, or a value that is not tally-shaped,
   is unchanged.
-- **Additive**: `RevocationTally` is exported, the hook's handler type widens to
+- **Additive for callers**: `RevocationTally` is exported, the hook's handler
+  type widens to
   `() => RevocationTally | void | Promise<RevocationTally | void>` (a `void`
   handler still conforms), and `PassSample` gains optional `attempts` and
   `failures`. Record them with the
   [pass-instrument recipe](observability-and-crypto.md#framework-instruments),
   and alert on the rate of `failures`.
+- **Breaking for a driver that stores the handler.** If you wrote your own
+  `BroadcastDriver` and keep the `onRevocationReconcile` handler in a slot typed
+  `() => void | Promise<void>`, that assignment no longer compiles. Widen the
+  slot to `() => unknown` (or to the hook's own handler type). Call it with no
+  argument, as before; reporting the tally it resolves is optional.
 
-No wire change and no migration step. If `MISSED` starts appearing, the WARNs
+No wire change and no data migration. If `MISSED` starts appearing, the WARNs
 before it name the revocation that keeps failing.
 
 ## Upgrading to v0.3.0
