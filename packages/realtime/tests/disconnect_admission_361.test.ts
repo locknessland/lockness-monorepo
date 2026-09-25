@@ -592,6 +592,31 @@ Deno.test('#361 W6 (i) a failed unwatch leaves no presence ghost, and the rest o
     assertEquals(driver.holds, holdsBefore, 'the lapse re-holds nothing')
 })
 
+Deno.test('#372 a rejecting unwatchChannel fires exactly once — the retry moved into @lockness/redis, not the manager', async () => {
+    // Companion to #372's redis-side fix, on the SAME harness: a rejecting
+    // `unwatchChannel` still leaves `ChannelManager` alone. The redis-side
+    // disposition explicitly rejected an owed-unwatch retry living here
+    // (option 3) because it would duplicate a retry/backoff policy
+    // `@lockness/redis` already owns and exercises for every other write on
+    // that connection. This pins the absence: one call in, one rejection out,
+    // no re-issue.
+    const E = new Error('unwatch failed')
+    const driver = new RejectingUnwatchDriver('news', E)
+    const manager = managerOver(driver, new SpyAuthorizer())
+    const c1 = conn('c1', 1)
+    manager.register(c1)
+    assert((await manager.subscribe(c1, 'news')).ok)
+
+    assertStrictEquals(await settled(manager.unsubscribe('c1', 'news')), E)
+
+    assertEquals(
+        driver.unwatched.filter((c) => c === 'news').length,
+        1,
+        'unwatchChannel must be asked exactly once — a manager-level retry ' +
+            'would duplicate the recovery the transport connection now owns',
+    )
+})
+
 Deno.test('#361 W6 (ii) disconnect: an unwatch rejecting with undefined still rejects the disconnect', async () => {
     const driver = new RejectingUnwatchDriver(ROOM, undefined)
     const manager = managerOver(driver, new SpyAuthorizer())
