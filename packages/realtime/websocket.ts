@@ -13,8 +13,23 @@
 import type { Context, MiddlewareHandler } from '@lockness/hono'
 import { upgradeWebSocket } from '@lockness/hono/deno'
 import type { WSEvents } from '@lockness/hono/network'
-import { renderError } from '@lockness/contract'
 import type { Connection, Socket, WebSocketHooks } from './types.ts'
+import { writeMarkedFallback } from './marked_fallback.ts'
+
+/**
+ * The marker that starts the DEFAULT websocket error line: an error reached
+ * `reportError` and the application registered no `onError` hook. The error
+ * is rendered after it. Exported for the test suite only — not re-exported
+ * from `mod.ts`.
+ */
+export const UNHANDLED_WEBSOCKET_ERROR = 'realtime: unhandled websocket error:'
+
+/**
+ * The marker that starts the #369 fallback line: the application's `onError`
+ * hook threw or rejected. Both failures are rendered after it.
+ */
+const HOOK_FAILED_TOO =
+    'realtime: unhandled websocket error (the onError hook failed too):'
 
 /** Options for {@link createWebSocketHandler}. */
 export interface WebSocketHandlerOptions<Identity = unknown> {
@@ -187,11 +202,13 @@ export function buildEvents<Identity = unknown>(
                 // a marker written after it could be forged by a client that
                 // puts the same words in a frame. Both halves are rendered, so
                 // neither can break the line or smuggle control characters.
-                console.error(
-                    'realtime: unhandled websocket error ' +
-                        `(the onError hook failed too): ${renderError(error)}` +
-                        `; hook failure: ${renderError(failure)}`,
-                )
+                //
+                // The line itself never throws either (#391): a console that
+                // refuses it falls back to stderr, then to nothing.
+                writeMarkedFallback(HOOK_FAILED_TOO, error, {
+                    label: 'hook failure',
+                    error: failure,
+                })
             }
             // Handled — by the hook, or by the fallback line above. Never
             // both lines, and never the default line after a working hook.
@@ -214,9 +231,9 @@ export function buildEvents<Identity = unknown>(
         // application sees in order to fix a problem that exists only at the
         // log. Measured: rendering here escapes an injected newline and a
         // U+202E override alike.
-        console.error(
-            `realtime: unhandled websocket error: ${renderError(error)}`,
-        )
+        //
+        // And it never throws past itself (#391): the caller `void`s it.
+        writeMarkedFallback(UNHANDLED_WEBSOCKET_ERROR, error)
     }
     const guard = async (
         conn: Connection<Identity>,

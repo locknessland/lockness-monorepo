@@ -67,6 +67,7 @@ import {
 import { sameMemberId } from '../presence_snapshot.ts'
 import { freezePresenceMember } from '../presence_member.ts'
 import { ControlReplayWindow } from '../control_replay_window.ts'
+import { writeMarkedFallback } from '../marked_fallback.ts'
 import { LapseRun } from './lapse_run.ts'
 import {
     EnforcementDeadline,
@@ -2488,7 +2489,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * Write the one {@link PASS_SAMPLE_FAILED} WARN for a handler that failed,
      * in the #369 shape: when `console.warn` itself throws, one
      * {@link PASS_SAMPLE_LOG_FAILED} ERROR line carries both halves instead,
-     * so the failure never escapes into a pass.
+     * so the failure never escapes into a pass — and that line never throws
+     * past itself either (#391).
      *
      * @param failure - What the handler threw, or rejected with.
      */
@@ -2496,10 +2498,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         try {
             console.warn(`${PASS_SAMPLE_FAILED} ${renderError(failure)}`)
         } catch (sink) {
-            console.error(
-                `${PASS_SAMPLE_LOG_FAILED} ${renderError(failure)}; ` +
-                    `sink failure: ${renderError(sink)}`,
-            )
+            writeMarkedFallback(PASS_SAMPLE_LOG_FAILED, failure, {
+                label: 'sink failure',
+                error: sink,
+            })
         }
     }
 
@@ -3326,8 +3328,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             .catch((error: unknown) => {
                 // #369: nothing escapes the pass chain. A rejection reaches
                 // here only when a log sink itself threw (#349); the marker
-                // is the fixed prefix, the rejection is rendered.
-                console.error(`${REVOCATION_LOG_FAILED} ${renderError(error)}`)
+                // is the fixed prefix, the rejection is rendered, and the
+                // line never throws past itself either (#391).
+                writeMarkedFallback(REVOCATION_LOG_FAILED, error)
             })
     }
 
@@ -3652,8 +3655,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 .catch((error: unknown) => {
                     // #360 A1, the #369 rule: nothing escapes the sweep chain.
                     // A rejection reaches here only when a log sink threw
-                    // inside the pass; the marker is the fixed prefix.
-                    console.error(`${SWEEP_LOG_FAILED} ${renderError(error)}`)
+                    // inside the pass; the marker is the fixed prefix, and
+                    // the line never throws past itself either (#391).
+                    writeMarkedFallback(SWEEP_LOG_FAILED, error)
                 })
         }, this.reconcileIntervalMs)
     }

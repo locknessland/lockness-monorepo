@@ -27,12 +27,12 @@
  * **How it writes.** In its own timer callback, never from the driver's pass
  * end site, and in the #369 shape: a `console.warn` that throws becomes one
  * marked `console.error` line, the marker in the fixed prefix and both halves
- * rendered.
+ * rendered — written by `writeMarkedFallback`, which never throws (#391).
  *
  * @module @lockness/realtime/drivers/enforcement_deadline
  */
 
-import { renderError } from '@lockness/contract'
+import { writeMarkedFallback } from '../marked_fallback.ts'
 
 /**
  * The WARN written when the deadline expires with a pass still in flight. It
@@ -246,17 +246,18 @@ export class EnforcementDeadline {
     }
 
     /**
-     * Write one line in the #369 shape: the sink never throws past itself.
-     * The marker is the fixed prefix; both halves are rendered.
+     * Write one line in the #369 shape: the sink never throws past itself,
+     * and neither does its marked fallback (#391). The marker is the fixed
+     * prefix; both halves are rendered.
      */
     #write(text: string): void {
         try {
             console.warn(text)
         } catch (failure) {
-            console.error(
-                `${REVOCATION_LOG_FAILED} ${renderError(text)}; ` +
-                    `sink failure: ${renderError(failure)}`,
-            )
+            writeMarkedFallback(REVOCATION_LOG_FAILED, text, {
+                label: 'sink failure',
+                error: failure,
+            })
         }
     }
 

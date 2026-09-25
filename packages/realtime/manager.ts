@@ -14,6 +14,7 @@
 import { renderError, safeForLog } from '@lockness/contract'
 import { isPresenceMemberWire, isValidName } from './protocol.ts'
 import { admitPresenceMember } from './presence_member.ts'
+import { writeMarkedFallback } from './marked_fallback.ts'
 
 /**
  * The DEFAULT per-instance watched-channel cap (#295/FR-017, #322).
@@ -3261,11 +3262,9 @@ export class ChannelManager<Identity = unknown> {
     #dispatchRevocation(
         revocation: ConnectionRevocation | ChannelRevocationGroup,
     ): void {
-        this.#applyRevocation(revocation).catch((error: unknown) => {
-            console.error(
-                `${REVOCATION_APPLY_LOG_FAILED} ${renderError(error)}`,
-            )
-        })
+        this.#applyRevocation(revocation).catch((error: unknown) =>
+            writeMarkedFallback(REVOCATION_APPLY_LOG_FAILED, error)
+        )
     }
 
     /**
