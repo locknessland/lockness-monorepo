@@ -40,6 +40,8 @@
  * one anchors on a neighbouring line as well. N1, N2 and N10 were re-anchored
  * on the new method name, N8 and N9 on the widened clause 2 (#363), and N12 on
  * `onClose`'s object-form `disconnect(conn)`; their killers are unchanged.
+ * N12's anchor and its replacement carry #404's open/close pairing, so the
+ * mutant still changes only the order it names.
  * Every `killedBy` ends in a space, so `W1 ` is not a prefix of `W10`–`W13`.
  *
  * Every row was proven LIVE by the harness run that recorded it: the mutant
@@ -93,7 +95,12 @@ const LEAVE = '        let left = false\n' +
 const ON_CLOSE_BODY = '                let appFailed = false\n' +
     '                let appError: unknown\n' +
     '                try {\n' +
-    '                    await userHooks.onClose?.(conn, code, reason)\n' +
+    '                    // Once per opened socket (#404): never for one `register`\n' +
+    '                    // refused, never twice. An evicted socket was opened, so\n' +
+    '                    // it still gets its hook — ownership is not the question.\n' +
+    '                    if (opened.delete(conn)) {\n' +
+    '                        await userHooks.onClose?.(conn, code, reason)\n' +
+    '                    }\n' +
     '                } catch (error) {\n' +
     '                    appFailed = true\n' +
     '                    appError = error\n' +
@@ -247,7 +254,9 @@ const MUTATIONS: Mutation[] = [
         file: MANAGER,
         edits: [[
             ON_CLOSE_BODY,
-            '                await userHooks.onClose?.(conn, code, reason)\n' +
+            '                if (opened.delete(conn)) {\n' +
+            '                    await userHooks.onClose?.(conn, code, reason)\n' +
+            '                }\n' +
             '                await this.disconnect(conn)\n',
         ]],
         killedBy: '#361 W12 (i) ',
