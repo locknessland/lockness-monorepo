@@ -32,15 +32,33 @@ export const NAME_PATTERN = /^[A-Za-z0-9._:-]{1,64}$/
 /** The most retries a schedule may declare. */
 export const MAX_RETRIES = 10
 
+/** What {@link flatten} logs for a rejection value `String()` cannot render. */
+const UNPRINTABLE = '<unprintable>'
+
 /**
  * An error reduced to its name and message, the way `task_runner.ts` logs one.
  *
  * A lock adapter may reject with anything, and the raw object must never reach
  * a log line: a driver error's stack or `cause` can carry a connection string.
+ *
+ * **Total — it never throws.** It runs inside a `catch` in the run's `finally`,
+ * so a throw here would escape the run and turn a successful task into a
+ * rejected one. `String()` itself throws on a value with no usable `toString`
+ * (`Object.create(null)`, a throwing `toString`), hence the guard.
  */
 function flatten(caught: unknown): { name: string; message: string } {
-    const error = caught instanceof Error ? caught : new Error(String(caught))
-    return { name: error.name, message: error.message }
+    if (caught instanceof Error) {
+        return { name: caught.name, message: caught.message }
+    }
+    let message: string
+    try {
+        message = String(caught)
+    } catch (_unprintable) {
+        // Not swallowed: the placeholder IS the report of this failure, and it
+        // reaches the log line the caller is about to write.
+        message = UNPRINTABLE
+    }
+    return { name: 'Error', message }
 }
 
 /** One registered task, as the scheduler holds it. */
