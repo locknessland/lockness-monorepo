@@ -67,8 +67,10 @@ begun — so a re-registration or a registration after `close()` announces
 nothing. It is `async`, with the command awaited inside its `try`, so a port
 that throws synchronously is caught like a rejection and registration still
 completes. A failure writes one WARN and is **retried**: 1 s, doubling, capped
-at `reconcileIntervalMs`, until an announce succeeds, a reap completes (it wrote
-the entry itself), or `close()` begins; `close()` clears the timer.
+at `reconcileIntervalMs`, until an announce succeeds, a revocation pass
+completes its whole enumeration (its reap wrote the entry; a pass that fails
+after its reap does not count), or `close()` begins; `close()` clears the timer.
+Every failed attempt writes its own WARN.
 
 ### Its read, and the fail-closed rule
 
@@ -153,9 +155,13 @@ and moves only where it is computed:
 
 ## 4. What this does not solve
 
-- **The mixed-release gap.** Until every **writer** runs this release, an old
-  writer's records live for its own TTL. Nothing is worse than before: an old
-  reap deletes only what has expired and never touches the floor.
+- **The mixed-release gap, on both sides.** Until every **writer** runs this
+  release, an old writer's records live for its own TTL. And until every
+  **reader** runs it, an old reader never announces or refreshes a floor entry,
+  so its TTL is not on the floor and new writers do not lengthen records for it:
+  an old reader with a long interval is exactly as exposed as before. Nothing is
+  worse than before: an old reap deletes only what has expired and never touches
+  the floor.
 - **The first-write race.** A mark in the round trip before a new reader's
   announce lands, or during its retry after a failure, uses the old floor. The
   retry's first step is under 2 s.

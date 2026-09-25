@@ -1668,15 +1668,17 @@ statement of both relations; other sections link here.
 live TTL**
 ([#380](https://github.com/locknessland/lockness-monorepo/issues/380)). Each
 Redis instance keeps an entry for its own TTL in a small broker key,
-`<prefix>__revocation-floor`, refreshed by every revocation pass. A durable
-revocation record is then kept for the longest TTL among the instances that have
-run a pass within their own TTL — so one instance configured with a shorter TTL
-can no longer shorten the records a longer-interval peer still needs, and
-lowering one instance's TTL no longer shortens records while a longer-TTL peer
-is running. When that key cannot be read, a record is kept for the maximum TTL
-(2 147 483 s) instead, with one WARN. The design, and what it does not cover,
-are in [ADR 013](adr/013-realtime-revocation-ttl-floor.md). This paragraph is
-the one operator statement of it; other sections link here.
+`<prefix>__revocation-floor`: it writes the entry once at startup, when its
+revocation re-check is first registered (the announce, retried until it lands),
+and refreshes it on every revocation pass. A durable revocation record is then
+kept for the longest TTL among the instances that have announced or run a pass
+within their own TTL — so one instance configured with a shorter TTL can no
+longer shorten the records a longer-interval peer still needs, and lowering one
+instance's TTL no longer shortens records while a longer-TTL peer is running.
+When that key cannot be read, a record is kept for the maximum TTL (2 147 483 s)
+instead, with one WARN. The design, and what it does not cover, are in
+[ADR 013](adr/013-realtime-revocation-ttl-floor.md). This paragraph is the one
+operator statement of it; other sections link here.
 
 <a id="what-the-roster-asks-of-redis"></a>
 
@@ -3178,16 +3180,20 @@ observe:
 - **One more read per revocation.** `markRevocation` reads that key before it
   writes the record; revocation passes refresh it with no extra round trip, and
   each instance writes it once at startup.
-- **Three new WARNs**: the startup write failed (it is retried within seconds);
-  the key held members that are not a TTL (a count, never the content); the key
-  could not be read.
+- **Three new WARNs**: the startup write failed (it is retried after 1 s, then 2
+  s, doubling up to `reconcileIntervalMs`, and **every failed attempt logs its
+  own WARN** until one lands, a revocation pass completes, or the driver closes
+  — so a broker that refuses it keeps logging at that pace); the key held
+  members that are not a TTL (a count, never the content); the key could not be
+  read.
 - **A key that cannot be read fails closed.** The record is kept for the maximum
   TTL, about 24.8 days, rather than a shorter one. That grows the revocation
   index until such records are applied or expire; marks are rare, and a
   channel-scoped record is cleared once its owner applies it.
 - **Protection starts once every instance runs this release.** An older writer's
-  records still live for its own TTL, exactly as before, and an older reap never
-  removes anything live.
+  records still live for its own TTL, exactly as before; an older reader never
+  puts its TTL on the floor, so records are not lengthened for it; and an older
+  reap never removes anything live.
 
 No wire change, and no migration step.
 

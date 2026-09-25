@@ -3706,13 +3706,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * `catch` as one that rejects, and {@link onRevocationReconcile} — which
      * `void`s it — still registers its reconnect trigger.
      *
-     * **A failure is retried** (S1): one WARN through {@link #warnFloor},
-     * then one unref'd timer ({@link #announceRetry}) re-sends the idempotent
-     * announce after `backoffMs`, doubling each time and capped at
-     * `reconcileIntervalMs`. The retry stops at the first successful
-     * announce, once a reap has completed (it wrote the entry itself), or
-     * once {@link close} has begun — asked before every re-arm and again when
-     * the timer fires (the #355 gate).
+     * **A failure is retried** (S1): one WARN through {@link #warnFloor} —
+     * for every failed attempt, retries included — then one unref'd timer
+     * ({@link #announceRetry}) re-sends the idempotent announce after
+     * `backoffMs`, doubling each time and capped at `reconcileIntervalMs`.
+     * The retry stops at the first successful announce, once a revocation
+     * pass has completed its whole enumeration ({@link #lastReadAt} is set;
+     * its reap wrote the entry, while a pass that fails after its reap does
+     * not stop the retry), or once {@link close} has begun — asked before
+     * every re-arm and again when the timer fires (the #355 gate).
      *
      * @param backoffMs - The delay before the retry a failure arms.
      * @returns Resolves once this attempt has settled; never rejects.
