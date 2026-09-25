@@ -3,18 +3,20 @@
  * @fileoverview Dependency integrity checker for the Lockness monorepo.
  *
  * Builds the **real** `@lockness/* → @lockness/*` graph from `deno info --json`
- * — the module graph Deno itself resolves — and runs three checks against it:
+ * — the module graph Deno itself resolves — and runs two checks against it:
  *
  * | Check | Question it answers |
  * | :---- | :------------------ |
  * | **A. Cycles** | Does any import cycle exist between packages? |
- * | **B. Declaration drift** | Does every real import appear in its own `deno.json`? |
  * | **C. Tier policy** | Does every edge respect `deps.policy.jsonc`? |
  *
- * Check B is what keeps published packages resolvable: inside the workspace a
- * bare `@lockness/x` specifier resolves by workspace member *name*, so an
- * undeclared import works locally and fails for a JSR consumer with
- * `TS2307: Import "@lockness/x" not a dependency and not in import map`.
+ * **This script does not check that imports are declared.** It once had a
+ * check B for that, and it was removed (#388): it read an import-map alias's
+ * *value* as a declaration while Deno resolves by *key*, and it only saw
+ * `@lockness/*` imports. `deno task publish:check` is the one owner of
+ * declaration integrity — it resolves every package alone, outside the
+ * workspace, where an undeclared import of any kind fails. The letters A and C
+ * are kept so old logs and docs still line up.
  *
  * **Soft edges cannot be parsed.** `tryImportOptionalPackage('@lockness/drizzle')`
  * passes the specifier as a *string argument*, so it never appears in any module
@@ -66,8 +68,6 @@ interface KnownCycle {
 interface PackageInfo {
     name: string
     version: string
-    /** Bare `@lockness/*` names declared in this package's own `imports`. */
-    declared: Set<string>
     /** Entry points from `exports`, repo-relative. */
     entries: string[]
 }
@@ -152,23 +152,9 @@ async function readPackages(): Promise<Map<string, PackageInfo>> {
         }
 
         const config = JSON.parse(raw)
-        const declared = new Set<string>()
-        // Two spellings count as declared: the direct key `@lockness/x`, and an
-        // alias whose value points at the package (`"hono": "jsr:@lockness/hono"`).
-        for (const [key, value] of Object.entries(config.imports ?? {})) {
-            if (key.startsWith('@lockness/')) {
-                declared.add(key.slice('@lockness/'.length))
-                continue
-            }
-            if (typeof value !== 'string') continue
-            const alias = value.match(/(?:jsr|npm):@lockness\/([a-z0-9-]+)/)
-            if (alias !== null) declared.add(alias[1])
-        }
-
         packages.set(entry.name, {
             name: entry.name,
             version: config.version ?? '0.0.0',
-            declared,
             entries: await sourceFiles(join(PACKAGES_DIR, entry.name)),
         })
     }
@@ -394,28 +380,6 @@ function partitionCycles(
 }
 
 /**
- * Check B — every real import must be declared by the package that makes it.
- *
- * @param edges - The static edges (soft edges are excluded by construction).
- * @param packages - The workspace packages.
- * @returns One finding per undeclared edge, deduplicated by `from → to`.
- */
-function findDrift(
-    edges: Edge[],
-    packages: Map<string, PackageInfo>,
-): Edge[] {
-    const findings = new Map<string, Edge>()
-    for (const edge of edges) {
-        if (edge.kind === 'soft') continue
-        const pkg = packages.get(edge.from)
-        if (pkg === undefined || pkg.declared.has(edge.to)) continue
-        const key = `${edge.from}>${edge.to}`
-        if (!findings.has(key)) findings.set(key, edge)
-    }
-    return [...findings.values()]
-}
-
-/**
  * Check C — every edge must be permitted by the policy.
  *
  * A `soft` edge is checked against `soft`; every other kind against `allow`.
@@ -592,7 +556,6 @@ async function main(): Promise<void> {
             packages: [...packages.values()].map((p) => ({
                 name: p.name,
                 version: p.version,
-                declared: [...p.declared].sort(),
                 entries: p.entries,
             })),
             edges: staticEdges,
@@ -678,25 +641,6 @@ async function main(): Promise<void> {
         console.log(
             '      Making any of those a value import turns this into a real cycle.',
         )
-    }
-
-    // ---- Check B: declaration drift --------------------------------------
-    const drift = findDrift(staticEdges, packages)
-    if (drift.length > 0) {
-        failed = true
-        console.error(
-            `\n❌ B. ${drift.length} import(s) not declared in the importing package's deno.json.`,
-        )
-        console.error(
-            '   These resolve inside the workspace but break for a JSR consumer.',
-        )
-        for (const edge of drift) {
-            console.error(
-                `   ${edge.from} → ${edge.to}   (${edge.at})`,
-            )
-        }
-    } else {
-        console.log('✅ B. Every import is declared by its own package')
     }
 
     // ---- Check C: tier policy --------------------------------------------

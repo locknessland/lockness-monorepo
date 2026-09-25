@@ -40,7 +40,7 @@ interface Edge {
 
 /** The analyser's `--json` payload. */
 interface Graph {
-    packages: { name: string; version: string; declared: string[] }[]
+    packages: { name: string; version: string }[]
     edges: Edge[]
     soft: Edge[]
     policy: {
@@ -310,8 +310,7 @@ async function renderBlocks(name: string, graph: Graph): Promise<Blocks> {
         'The framework-wide gate, from the repository root:',
         '',
         '```bash',
-        'deno fmt && deno lint && deno check && deno task test',
-        'deno task deps:analyze     # cycles, declaration drift, tier policy',
+        'deno task gate             # the full gate, as the pre-push hook runs it',
         "deno task agents:brief     # refresh this file's generated blocks",
         '```',
         '',
