@@ -64,7 +64,7 @@ const MUTATIONS: Mutation[] = [
                 '                if (control.channel === undefined) return\n',
             ],
             [
-                '                void this.#applyRevocation({\n' +
+                '                this.#dispatchRevocation({\n' +
                 '                    target: control.target,\n' +
                 '                    channel: control.channel,\n' +
                 '                    ids: [control.revocationId],\n' +
@@ -72,7 +72,7 @@ const MUTATIONS: Mutation[] = [
                 '                if (!this.connections.has(control.target)) {\n' +
                 '                    return\n' +
                 '                }\n' +
-                '                void this.#applyRevocation({\n' +
+                '                this.#dispatchRevocation({\n' +
                 '                    target: control.target,\n' +
                 '                    channel: control.channel,\n' +
                 '                    ids: [control.revocationId],\n' +

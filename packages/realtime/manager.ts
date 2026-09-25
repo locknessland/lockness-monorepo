@@ -76,6 +76,17 @@ export const MAX_PRESENCE_MEMBER_BYTES = 4 * 1024
 export const MAX_PRESENCE_SNAPSHOT_MEMBERS = 100
 
 /**
+ * The marker that starts the one ERROR line written when a control-frame
+ * revocation's own WARN could not be (#376): a `console.warn` that throws
+ * inside the apply's catch, so the fire-and-forget apply rejected. The
+ * rejection is rendered after it; the marker is the fixed prefix, so an error
+ * text cannot forge it (#369). Exported for the test suite only — not
+ * re-exported from `mod.ts`.
+ */
+export const REVOCATION_APPLY_LOG_FAILED =
+    'realtime: a control-frame revocation log line could not be written (#376):'
+
+/**
  * Refuse a cap that is not a positive integer, at construction.
  *
  * @param option - The option's name, so the message names what to fix.
@@ -3200,7 +3211,10 @@ export class ChannelManager<Identity = unknown> {
      *
      * Contained, never re-thrown: a control frame is dispatched fire-and-forget
      * and the reconcile is invoked by the driver's timer, so neither has anyone
-     * to receive a rejection (FR-019).
+     * to receive a rejection (FR-019). The one thing it cannot contain is its
+     * own WARN throwing; each caller ends that — the control frame through
+     * {@link #dispatchRevocation} (#376), the reconcile inside its own `try`
+     * (#349).
      *
      * @param revocation - A whole-connection revocation, or every channel
      *   revocation of one pair, to apply to a socket this instance owns.
@@ -3224,6 +3238,34 @@ export class ChannelManager<Identity = unknown> {
                 } failed: ${renderError(error)}`,
             )
         }
+    }
+
+    /**
+     * Apply a revocation from a control frame, **fire-and-forget and fully
+     * contained** (#376) — the only way the control-frame switch reaches
+     * {@link #applyRevocation}.
+     *
+     * The apply contains every failure but its own WARN: a `console.warn` that
+     * throws inside its catch (a patched console, a logger transport refusing
+     * the line) rejects the apply. The switch has no caller to hand that
+     * rejection to, and on Deno an unhandled rejection terminates the process —
+     * reachable by any peer that publishes an `evict` or `revoke-channel`
+     * frame. So the chain ends here, in the #369 shape: one marked ERROR line
+     * ({@link REVOCATION_APPLY_LOG_FAILED}), never a re-throw. The marker is the
+     * fixed prefix and the rejection is rendered, so its text can neither
+     * forge the marker nor break the line.
+     *
+     * @param revocation - The revocation the frame names, for a socket this
+     *   instance owns.
+     */
+    #dispatchRevocation(
+        revocation: ConnectionRevocation | ChannelRevocationGroup,
+    ): void {
+        this.#applyRevocation(revocation).catch((error: unknown) => {
+            console.error(
+                `${REVOCATION_APPLY_LOG_FAILED} ${renderError(error)}`,
+            )
+        })
     }
 
     /**
@@ -3505,9 +3547,9 @@ export class ChannelManager<Identity = unknown> {
                 // instance leaves it to the owner (which fans any `left` here
                 // via a `presence-leave`). The revoke is async; its awaits
                 // settle in microtasks, and it logs on failure — never a silent
-                // catch.
+                // catch. Dispatched through the one contained entry (#376).
                 if (this.connections.has(control.target)) {
-                    void this.#applyRevocation({ target: control.target })
+                    this.#dispatchRevocation({ target: control.target })
                 }
                 return
             case 'revoke-channel':
@@ -3540,7 +3582,7 @@ export class ChannelManager<Identity = unknown> {
                     )
                     return
                 }
-                void this.#applyRevocation({
+                this.#dispatchRevocation({
                     target: control.target,
                     channel: control.channel,
                     ids: [control.revocationId],
