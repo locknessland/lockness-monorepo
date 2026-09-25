@@ -988,7 +988,7 @@ field means.
 
 <!-- generated:tests -->
 
-89 test files for 24 source files:
+90 test files for 24 source files:
 
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
@@ -1081,7 +1081,7 @@ field means.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-41 mutation batteries — **`deno test` does not run these.** Each is an
+42 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1143,7 +1143,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 89 test files directly —
+Then, specific to this package: run its 90 test files directly —
 
 ```bash
 deno test -A packages/realtime/
