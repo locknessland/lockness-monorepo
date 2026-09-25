@@ -4,8 +4,9 @@
 [#370](https://github.com/locknessland/lockness-monorepo/issues/370) and
 [#363](https://github.com/locknessland/lockness-monorepo/issues/363), 2026-09-25
 (§7); [#404](https://github.com/locknessland/lockness-monorepo/issues/404),
-2026-09-25 (§7, the `onClose` pairing) **Affects:**
-`packages/realtime/manager.ts`, `packages/realtime/mod.ts`,
+2026-09-25 (§7, the `onClose` pairing);
+[#372](https://github.com/locknessland/lockness-monorepo/issues/372), 2026-09-26
+(§5) **Affects:** `packages/realtime/manager.ts`, `packages/realtime/mod.ts`,
 `packages/realtime/types.ts`, `docs/realtime.md`, `packages/realtime/AGENTS.md`
 
 ---
@@ -207,8 +208,15 @@ duty in `register`'s JSDoc, and the user-facing statement in `docs/realtime.md`
   propagates, and is filed separately.
 - **A failed roster release during a teardown** can leave the driver-side hold;
   local state is clean and the failure is re-thrown.
-- **A failed unwatch** leaves a broker subscription with no local member, which
-  the next reconnect's re-issue heals.
+- ~~**A failed unwatch** leaves a broker subscription with no local member,
+  which the next reconnect's re-issue heals.~~ **Resolved by
+  [#372](https://github.com/locknessland/lockness-monorepo/issues/372):** a
+  failed unsubscribe **write** now discards and reconnects the Redis subscribe
+  socket directly, in `@lockness/redis`, instead of depending on an unrelated
+  later fault to trigger that reconnect — the same treatment every other write
+  on that connection already gets. A lost `+punsubscribe` **acknowledgement**
+  (the write landed, the broker's reply didn't) is a different failure mode and
+  is untouched.
 
 ---
 

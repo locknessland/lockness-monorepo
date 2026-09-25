@@ -3235,6 +3235,29 @@ s) pass. The fix is to lower the interval.
 
 No wire change, and no migration step.
 
+### 27. A failed `unwatchChannel` now discards and reconnects the Redis subscribe socket
+
+**Before**, a rejected `PUNSUBSCRIBE`/`UNSUBSCRIBE` write on the Redis subscribe
+connection was the one write path that left its socket alone
+([#372](https://github.com/locknessland/lockness-monorepo/issues/372)) — every
+other write on that connection (a `PSUBSCRIBE`, the keepalive `PING`) already
+discarded and reconnected on failure. A write **timeout** in particular left the
+read loop healthy, so nothing else ever reconnected, and the un-discarded socket
+could carry a partial frame that silently desynced every later write for every
+other channel this connection hosted.
+
+**After**, the same treatment every other write already gets: the socket is
+discarded and a reconnect scheduled, which re-issues only the patterns still
+wanted — never the one just unwatched. `unwatchChannel`'s own contract is
+unchanged: it still resolves once the frame is on the wire, or rejects, and
+never retries the unwatch itself. What is now observable is the recovery: a
+`[redis-subscribe] … retrying …` WARN where none was logged before, and a brief
+reconnect that deafens every channel this connection hosts — the same cost this
+connection already pays on any other write failure, traded for a partial desync
+that used to have no bound at all.
+
+No wire change, and no migration step.
+
 ## Upgrading to v0.3.0
 
 Two behaviour changes in `@lockness/realtime`. Neither needs a data migration;
