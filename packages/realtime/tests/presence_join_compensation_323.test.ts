@@ -26,7 +26,7 @@
  */
 
 import { assert, assertEquals } from '@std/assert'
-import { ChannelManager } from '../manager.ts'
+import { ChannelManager, ConnectionNotRegisteredError } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
@@ -124,7 +124,14 @@ function faultyRoster() {
 const authorize = (identity: User | null): PresenceMember | false =>
     identity ? { id: identity.id } : false
 
-/** Drive a join that is going to fail, and hand back the rejection. */
+/**
+ * Drive a join that is going to fail, and hand back the rejection.
+ *
+ * A lifecycle refusal is re-thrown, never handed back: a connection nobody
+ * registered is refused before the join this file is about ever runs (#370),
+ * and returning that refusal would let every "the join must reject" pass
+ * without the roster write having been attempted at all.
+ */
 async function failingJoin(
     m: ChannelManager<User>,
     c: Connection<User>,
@@ -133,6 +140,7 @@ async function failingJoin(
         await m.subscribe(c, CHANNEL)
         return null
     } catch (error) {
+        if (error instanceof ConnectionNotRegisteredError) throw error
         return error
     }
 }
@@ -146,6 +154,7 @@ Deno.test('#323/SC-001 a rejected roster write announces NOTHING', async () => {
 
     state.rejectAdds = true
     const newcomer = conn('c2', 2)
+    m.register(newcomer)
     assert(await failingJoin(m, newcomer) !== null, 'the join must reject')
 
     assertEquals(
@@ -165,6 +174,7 @@ Deno.test('#323/FR-002 a rejected roster write leaves no local residue', async (
 
     state.rejectAdds = true
     const newcomer = conn('c2', 2)
+    m.register(newcomer)
     await failingJoin(m, newcomer)
     state.rejectAdds = false
 
@@ -209,6 +219,7 @@ Deno.test('#323/SC-004 a failed first join releases the channel subscription', a
     // must give it back, or the instance hosts a channel with no members.
     state.rejectAdds = true
     const first = conn('c1', 1)
+    m.register(first)
     assert(await failingJoin(m, first) !== null, 'the join must reject')
 
     assertEquals(
@@ -377,6 +388,8 @@ Deno.test('#323 a failed FIRST join best-effort removes a write that may have la
     }
 
     const newcomer = conn('c1', 1)
+
+    m.register(newcomer)
     assert(await failingJoin(m, newcomer) !== null, 'the join must reject')
 
     assertEquals(
@@ -404,7 +417,9 @@ Deno.test('#323 a failed join into an OCCUPIED channel leaves the incumbent alon
     await m.subscribe(incumbent, CHANNEL)
 
     state.rejectAdds = true
-    assert(await failingJoin(m, conn('c2', 2)) !== null, 'the join must reject')
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    assert(await failingJoin(m, c2) !== null, 'the join must reject')
 
     assertEquals(
         [...watched],

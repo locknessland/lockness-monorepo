@@ -165,6 +165,7 @@ async function managerRow(): Promise<Armed> {
         send: () => {},
         close: () => {},
     } as unknown as Connection<User>
+    manager.register(victim)
     assertEquals((await manager.subscribe(victim, 'private-room')).ok, true)
     assert(deliver !== undefined, 'the control seam was registered')
     const send = deliver
