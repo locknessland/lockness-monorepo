@@ -19,8 +19,9 @@
  * - `console.warn` and `console.error` are captured, a line counts when it
  *   STARTS with one of the named markers, and `console.warn` can be made to
  *   throw;
- * - an `unhandledrejection` listener records what escapes, as a backstop to
- *   the sanitizer, so an escape is an assertion rather than a crashed file.
+ * - the shared `unhandledrejection` watcher (`watchingEscapes`, #374) records
+ *   what escapes, as a backstop to the sanitizer, so an escape is an assertion
+ *   rather than a crashed file.
  *
  * **Page counts are read from the fake, never hard-coded** (plan D12): the
  * fake honours `COUNT` on `ZSCAN` and `SSCAN` by walking a fixed 1 024-slot
@@ -53,6 +54,7 @@ import {
     serializedCommands,
 } from './fake_redis.ts'
 import { isReap as isReapOf } from './revocation_wire.ts'
+import { watchingEscapes } from './escape_watcher.ts'
 
 /**
  * The real `setTimeout`, captured before any FakeTime exists: P9 drains on it,
@@ -286,50 +288,33 @@ function captureLogs() {
     }
 }
 
-/**
- * Record every unhandled rejection instead of letting it take the file down,
- * so an escape fails the witness that caused it, by name.
- */
-function guardRejections() {
-    const escaped: unknown[] = []
-    const listener = (event: PromiseRejectionEvent) => {
-        event.preventDefault()
-        escaped.push(event.reason)
-    }
-    globalThis.addEventListener('unhandledrejection', listener)
-    return {
-        escaped,
-        restore: () =>
-            globalThis.removeEventListener('unhandledrejection', listener),
-    }
-}
-
 /** Everything a witness runs under. */
 interface Harness {
     readonly time: FakeTime
     readonly clock: ReturnType<typeof stubPerformanceNow>
     readonly logs: ReturnType<typeof captureLogs>
-    readonly rejections: ReturnType<typeof guardRejections>
+    /** Every rejection that escaped, from the shared watcher (#374). */
+    readonly escaped: unknown[]
 }
 
 /**
  * Run `body` under FakeTime at `START`, with `performance.now` on the fake
- * clock, the console captured and unhandled rejections recorded; all of it
- * is restored afterwards.
+ * clock, the console captured and unhandled rejections recorded by the shared
+ * {@link watchingEscapes}; all of it is restored afterwards.
  */
 async function withClock(body: (h: Harness) => Promise<void>): Promise<void> {
-    const time = new FakeTime(START)
-    const clock = stubPerformanceNow(time)
-    const logs = captureLogs()
-    const rejections = guardRejections()
-    try {
-        await body({ time, clock, logs, rejections })
-    } finally {
-        rejections.restore()
-        logs.restore()
-        clock.restore()
-        time.restore()
-    }
+    await watchingEscapes(async (escaped) => {
+        const time = new FakeTime(START)
+        const clock = stubPerformanceNow(time)
+        const logs = captureLogs()
+        try {
+            await body({ time, clock, logs, escaped })
+        } finally {
+            logs.restore()
+            clock.restore()
+            time.restore()
+        }
+    })
 }
 
 /**
@@ -716,7 +701,7 @@ Deno.test('#360 P4 (iv) (b) an EXISTS reply that is not an integer fails the swe
 })
 
 Deno.test('#360 P12 (i) a revocation pass that rejects records failed, and #362 writes its marked line', async () => {
-    await withClock(async ({ time, logs, rejections }) => {
+    await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.record()
         f.driver.onRevocationReconcile(() => {
@@ -726,7 +711,7 @@ Deno.test('#360 P12 (i) a revocation pass that rejects records failed, and #362 
         await advance(time, INTERVAL)
         logs.failWarn(false)
         await settle()
-        assertEquals(rejections.escaped, [])
+        assertEquals(escaped, [])
         assertEquals(f.samples.map(shape), [{
             pass: 'revocation',
             trigger: 'timer',
@@ -781,7 +766,7 @@ Deno.test('#360 P7 (ii) close() during a sweep: no sample, then or later', async
 })
 
 Deno.test('#360 P8 (i) a throwing handler is one WARN per pass, and both loops go on', async () => {
-    await withClock(async ({ time, logs, rejections }) => {
+    await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
             f.samples.push(s)
@@ -797,13 +782,13 @@ Deno.test('#360 P8 (i) a throwing handler is one WARN per pass, and both loops g
         assertEquals(lines.length, f.samples.length, 'one WARN per pass')
         assertStringIncludes(lines[0], 'handler down')
         assertEquals(logs.marked(), [])
-        assertEquals(rejections.escaped, [])
+        assertEquals(escaped, [])
         await f.driver.close()
     })
 })
 
 Deno.test('#360 P8 (ii) a handler whose promise rejects is one WARN per pass, and nothing escapes', async () => {
-    await withClock(async ({ time, logs, rejections }) => {
+    await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
             f.samples.push(s)
@@ -819,13 +804,13 @@ Deno.test('#360 P8 (ii) a handler whose promise rejects is one WARN per pass, an
         assertEquals(lines.length, f.samples.length, 'one WARN per pass')
         assertStringIncludes(lines[0], 'handler rejected')
         assertEquals(logs.marked(), [], 'no rejection reaches a pass chain')
-        assertEquals(rejections.escaped, [])
+        assertEquals(escaped, [])
         await f.driver.close()
     })
 })
 
 Deno.test('#360 P8 (iii) a throwing handler while console.warn throws is one marked ERROR per pass, and the sweep re-arms', async () => {
-    await withClock(async ({ time, logs, rejections }) => {
+    await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
             f.samples.push(s)
@@ -837,7 +822,7 @@ Deno.test('#360 P8 (iii) a throwing handler while console.warn throws is one mar
         await advance(time, 3 * INTERVAL)
         logs.failWarn(false)
         await settle()
-        assertEquals(rejections.escaped, [])
+        assertEquals(escaped, [])
         assert(f.sweeps().length >= 2, 'the sweep loop re-arms')
         const lines = logs.errored(PASS_SAMPLE_LOG_FAILED)
         assertEquals(lines.length, f.samples.length, 'one line per pass')
@@ -874,7 +859,7 @@ Deno.test('#360 P8 (iv) a handler that never settles holds nothing: close() reso
 })
 
 Deno.test('#360 P8 (v) (i) a returned promise whose constructor getter throws is one WARN', async () => {
-    await withClock(async ({ time, logs, rejections }) => {
+    await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
             f.samples.push(s)
@@ -894,13 +879,13 @@ Deno.test('#360 P8 (v) (i) a returned promise whose constructor getter throws is
         assertEquals(lines.length, 1)
         assertStringIncludes(lines[0], 'hostile constructor')
         assertEquals(logs.marked(), [])
-        assertEquals(rejections.escaped, [])
+        assertEquals(escaped, [])
         await f.driver.close()
     })
 })
 
 Deno.test('#360 P8 (v) (ii) a thenable that rejects three times is ONE WARN', async () => {
-    await withClock(async ({ time, logs, rejections }) => {
+    await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.driver.onPassComplete((s) => {
             f.samples.push(s)
@@ -917,13 +902,13 @@ Deno.test('#360 P8 (v) (ii) a thenable that rejects three times is ONE WARN', as
         await settle()
         assertEquals(f.samples.length, 1)
         assertEquals(logs.warned(PASS_SAMPLE_FAILED).length, 1)
-        assertEquals(rejections.escaped, [])
+        assertEquals(escaped, [])
         await f.driver.close()
     })
 })
 
 Deno.test('#360 P12 (ii) a ghost released while console.warn throws: failed, one marked line, and the loop goes on', async () => {
-    await withClock(async ({ time, logs, rejections }) => {
+    await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         f.record()
         await f.startSweep()
@@ -932,7 +917,7 @@ Deno.test('#360 P12 (ii) a ghost released while console.warn throws: failed, one
         await advance(time, INTERVAL)
         logs.failWarn(false)
         await settle()
-        assertEquals(rejections.escaped, [], 'nothing escapes the sweep')
+        assertEquals(escaped, [], 'nothing escapes the sweep')
         assertEquals(f.sweeps().map(shape), [{
             pass: 'sweep',
             trigger: 'timer',
@@ -953,7 +938,7 @@ Deno.test('#360 P12 (ii) a ghost released while console.warn throws: failed, one
 // ---------------------------------------------------------------------------
 
 Deno.test('#360 P11 no handler: both loops run five passes, and no pass-sample line is written', async () => {
-    await withClock(async ({ time, logs, rejections }) => {
+    await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
         await f.startSweep()
         f.listen()
@@ -971,7 +956,7 @@ Deno.test('#360 P11 no handler: both loops run five passes, and no pass-sample l
             assertEquals(logs.warned(marker), [])
             assertEquals(logs.errored(marker), [])
         }
-        assertEquals(rejections.escaped, [])
+        assertEquals(escaped, [])
         await f.driver.close()
         f.redis.assertNoRejections()
     })

@@ -16,9 +16,9 @@
  * so an application `onError` that itself threw or rejected escaped from every
  * path the sink serves.
  *
- * Every row watches for an escape with an `unhandledrejection` listener that
- * records the reason and `preventDefault()`s it — so a regression FAILS the
- * row rather than killing the test runner — and is removed in a `finally`.
+ * Every row watches for an escape under the shared `watchingEscapes` (#374),
+ * which records the reason and `preventDefault()`s it — so a regression FAILS
+ * the row rather than killing the test runner — and is removed in a `finally`.
  *
  * @module @lockness/realtime/tests/websocket_close_guard_369
  */
@@ -33,6 +33,7 @@ import {
 } from '../mod.ts'
 import { buildEvents } from '../websocket.ts'
 import type { Connection, WebSocketHooks, WSContext } from '../types.ts'
+import { settle, watchingEscapes } from './escape_watcher.ts'
 
 interface User {
     id: number
@@ -54,34 +55,6 @@ function fakeSocket() {
         },
     } satisfies Pick<WSContext, 'send' | 'close'>
     return { sent, closes, ...methods }
-}
-
-/** Let every un-awaited promise chain in `buildEvents` run to completion. */
-async function settle(): Promise<void> {
-    for (let i = 0; i < 5; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 0))
-    }
-}
-
-/**
- * Run `body` while recording every rejection that reaches the runtime
- * unhandled. Each is `preventDefault()`ed so the row fails on its assertion
- * instead of the runner dying; the listener is removed whatever happens.
- */
-async function watchingEscapes(
-    body: (escaped: unknown[]) => Promise<void>,
-): Promise<void> {
-    const escaped: unknown[] = []
-    const listener = (event: PromiseRejectionEvent) => {
-        event.preventDefault()
-        escaped.push(event.reason)
-    }
-    globalThis.addEventListener('unhandledrejection', listener)
-    try {
-        await body(escaped)
-    } finally {
-        globalThis.removeEventListener('unhandledrejection', listener)
-    }
 }
 
 /** Capture `console.error` lines for the duration of `body`. */

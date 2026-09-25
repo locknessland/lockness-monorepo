@@ -17,6 +17,7 @@
 
 import { assert, assertEquals } from '@std/assert'
 import { LapseRun } from '../drivers/lapse_run.ts'
+import { watchingEscapes } from './escape_watcher.ts'
 
 /** Run the microtask queue out. */
 async function settle(times = 50): Promise<void> {
@@ -44,30 +45,6 @@ function gatedHandler() {
         signals,
         calls: () => signals.length,
         releaseNext: () => releases.shift()?.(),
-    }
-}
-
-/** Record every rejection nobody handled, until `restore()`. */
-function watchUnhandled() {
-    const escaped: unknown[] = []
-    const listener = (event: PromiseRejectionEvent) => {
-        escaped.push(event.reason)
-        event.preventDefault()
-    }
-    globalThis.addEventListener('unhandledrejection', listener)
-    return {
-        escaped,
-        /**
-         * Remove the listener ONE MACROTASK later. A rejection nobody handled
-         * is dispatched only after the microtask queue drains; removed in the
-         * same turn as a failing assertion, the listener is gone before the
-         * event arrives, and the rejection takes the whole file down as an
-         * `(uncaught error)` instead of failing this test by name.
-         */
-        restore: async () => {
-            await new Promise((resolve) => setTimeout(resolve, 0))
-            globalThis.removeEventListener('unhandledrejection', listener)
-        },
     }
 }
 
@@ -147,57 +124,57 @@ Deno.test('#349 W14 trigger() after close() never calls the handler', async () =
 })
 
 Deno.test('#349 WS2 a handler that throws synchronously: one WARN, onFailure once, nothing escapes', async () => {
-    const unhandled = watchUnhandled()
-    const warnings = captureWarnings()
-    let failures = 0
-    try {
-        const run = new LapseRun(() => void failures++)
-        run.register(() => {
-            throw new Error('slot write refused')
-        })
-        run.trigger()
-        await settle()
-        assertEquals(warnings.lines.length, 1, 'exactly one WARN')
-        assert(warnings.lines[0].includes(RUN_FAILED), warnings.lines[0])
-        assert(
-            warnings.lines[0].includes('slot write refused'),
-            'the WARN renders the error',
-        )
-        assertEquals(failures, 1, 'onFailure called once')
+    await watchingEscapes(async (escaped) => {
+        const warnings = captureWarnings()
+        let failures = 0
+        try {
+            const run = new LapseRun(() => void failures++)
+            run.register(() => {
+                throw new Error('slot write refused')
+            })
+            run.trigger()
+            await settle()
+            assertEquals(warnings.lines.length, 1, 'exactly one WARN')
+            assert(warnings.lines[0].includes(RUN_FAILED), warnings.lines[0])
+            assert(
+                warnings.lines[0].includes('slot write refused'),
+                'the WARN renders the error',
+            )
+            assertEquals(failures, 1, 'onFailure called once')
 
-        // The failed run is over: a later lapse runs again.
-        run.trigger()
-        await settle()
-        assertEquals(failures, 2)
-        await run.close()
-        // A macrotask, so an unhandled rejection would have been dispatched.
-        await new Promise((resolve) => setTimeout(resolve, 0))
-        assertEquals(unhandled.escaped, [], 'nothing escaped')
-    } finally {
-        warnings.restore()
-        await unhandled.restore()
-    }
+            // The failed run is over: a later lapse runs again.
+            run.trigger()
+            await settle()
+            assertEquals(failures, 2)
+            await run.close()
+            // A macrotask, so an unhandled rejection would have been dispatched.
+            await new Promise((resolve) => setTimeout(resolve, 0))
+            assertEquals(escaped, [], 'nothing escaped')
+        } finally {
+            warnings.restore()
+        }
+    })
 })
 
 Deno.test('#349 a rejecting handler: one WARN and onFailure', async () => {
-    const unhandled = watchUnhandled()
-    const warnings = captureWarnings()
-    let failures = 0
-    try {
-        const run = new LapseRun(() => void failures++)
-        run.register(() => Promise.reject(new Error('2 slot(s) failed')))
-        run.trigger()
-        await settle()
-        assertEquals(warnings.lines.length, 1)
-        assert(warnings.lines[0].includes(RUN_FAILED))
-        assertEquals(failures, 1)
-        await run.close()
-        await new Promise((resolve) => setTimeout(resolve, 0))
-        assertEquals(unhandled.escaped, [])
-    } finally {
-        warnings.restore()
-        await unhandled.restore()
-    }
+    await watchingEscapes(async (escaped) => {
+        const warnings = captureWarnings()
+        let failures = 0
+        try {
+            const run = new LapseRun(() => void failures++)
+            run.register(() => Promise.reject(new Error('2 slot(s) failed')))
+            run.trigger()
+            await settle()
+            assertEquals(warnings.lines.length, 1)
+            assert(warnings.lines[0].includes(RUN_FAILED))
+            assertEquals(failures, 1)
+            await run.close()
+            await new Promise((resolve) => setTimeout(resolve, 0))
+            assertEquals(escaped, [])
+        } finally {
+            warnings.restore()
+        }
+    })
 })
 
 Deno.test('#349 a successful run calls no onFailure and logs nothing', async () => {

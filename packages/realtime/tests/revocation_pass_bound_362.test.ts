@@ -55,6 +55,7 @@ import {
     serializedCommands,
 } from './fake_redis.ts'
 import { isReap as isReapOf } from './revocation_wire.ts'
+import { watchingEscapes } from './escape_watcher.ts'
 
 /**
  * The real `setTimeout`, captured before any FakeTime exists. D6 drains on it
@@ -698,37 +699,32 @@ Deno.test('#362 D8 (i) a throwing console.warn at the fire becomes one marked ER
 Deno.test('#362 D8 (ii) a rejecting pass chain is one marked ERROR line, and the passes and the deadline go on', async () => {
     await withClock(async (time, logs) => {
         const { driver } = instance({ interval: 1_000 })
-        const escaped: unknown[] = []
-        const onUnhandled = (event: PromiseRejectionEvent) => {
-            event.preventDefault()
-            escaped.push(event.reason)
-        }
-        globalThis.addEventListener('unhandledrejection', onUnhandled)
         try {
-            let calls = 0
-            driver.onRevocationReconcile(() => {
-                calls++
-                return Promise.reject(new Error('handler down (#362)'))
-            })
-            logs.failWarn(true)
-            try {
+            await watchingEscapes(async (escaped) => {
+                let calls = 0
+                driver.onRevocationReconcile(() => {
+                    calls++
+                    return Promise.reject(new Error('handler down (#362)'))
+                })
+                logs.failWarn(true)
+                try {
+                    await advance(time, 1_000)
+                    await time.runMicrotasks()
+                } finally {
+                    logs.failWarn(false)
+                }
+                assertEquals(escaped, [], 'no rejection escapes the pass chain')
+                const marked = logs.marked()
+                assertEquals(marked.length, 1)
+                assertStringIncludes(marked[0], 'warn sink down')
                 await advance(time, 1_000)
-                await time.runMicrotasks()
-            } finally {
-                logs.failWarn(false)
-            }
-            assertEquals(escaped, [], 'no rejection escapes the pass chain')
-            const marked = logs.marked()
-            assertEquals(marked.length, 1)
-            assertStringIncludes(marked[0], 'warn sink down')
-            await advance(time, 1_000)
-            assertEquals(calls, 2, 'the next timer pass runs')
-            await advance(time, 7_999)
-            assertEquals(logs.deadlineLines().length, 0)
-            await advance(time, 1)
-            assertEquals(logs.count(REVOCATION_DEADLINE_MISSED), 1)
+                assertEquals(calls, 2, 'the next timer pass runs')
+                await advance(time, 7_999)
+                assertEquals(logs.deadlineLines().length, 0)
+                await advance(time, 1)
+                assertEquals(logs.count(REVOCATION_DEADLINE_MISSED), 1)
+            })
         } finally {
-            globalThis.removeEventListener('unhandledrejection', onUnhandled)
             await driver.close()
         }
     })

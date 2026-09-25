@@ -68,6 +68,7 @@ import {
     serializedCommands,
 } from './fake_redis.ts'
 import { asWindow } from './roster_window_double.ts'
+import { watchingEscapes } from './escape_watcher.ts'
 
 const PREFIX = 'app:rt'
 const CHANNEL = 'presence-room'
@@ -1637,42 +1638,37 @@ Deno.test('#349 WS1 a SET answered OK, then an integer — one WARN per beat, no
     const fa = faulty(redis.command)
     const a = instance(redis, { command: fa.command })
     const warnings = captureWarnings()
-    const escaped: unknown[] = []
-    const onUnhandled = (event: PromiseRejectionEvent) => {
-        escaped.push(event.reason)
-        event.preventDefault()
-    }
-    globalThis.addEventListener('unhandledrejection', onUnhandled)
     const beats = () => redis.commandLog().filter(isAliveSet).length
     try {
-        fa.answerAliveWith({ type: 'simple', value: 'OK' })
-        const a7 = conn('a7', 7, 'Ada')
-        a.manager.register(a7)
-        await a.manager.subscribe(a7, CHANNEL)
-        await advance(time, 1_000)
-        fa.answerAliveWith({ type: 'integer', value: 1 })
-        await advance(time, 1_000)
+        await watchingEscapes(async (escaped) => {
+            fa.answerAliveWith({ type: 'simple', value: 'OK' })
+            const a7 = conn('a7', 7, 'Ada')
+            a.manager.register(a7)
+            await a.manager.subscribe(a7, CHANNEL)
+            await advance(time, 1_000)
+            fa.answerAliveWith({ type: 'integer', value: 1 })
+            await advance(time, 1_000)
 
-        assertEquals(beats(), 5, 'the boot beat and four interval beats')
-        assertEquals(
-            warnings.having(BEAT_FAILED).length,
-            beats(),
-            'one WARN per beat',
-        )
-        assertEquals(
-            holdCount(redis, a.id, 7),
-            1,
-            'no run on an undecodable beat',
-        )
-        assertEquals(escaped, [], 'no rejection escaped')
+            assertEquals(beats(), 5, 'the boot beat and four interval beats')
+            assertEquals(
+                warnings.having(BEAT_FAILED).length,
+                beats(),
+                'one WARN per beat',
+            )
+            assertEquals(
+                holdCount(redis, a.id, 7),
+                1,
+                'no run on an undecodable beat',
+            )
+            assertEquals(escaped, [], 'no rejection escaped')
 
-        // The beats after the hold made the lapse suspected: the first
-        // decodable beat re-asserts.
-        fa.answerAliveWith(undefined)
-        await advance(time, 500)
-        assertEquals(holdCount(redis, a.id, 7), 2)
+            // The beats after the hold made the lapse suspected: the first
+            // decodable beat re-asserts.
+            fa.answerAliveWith(undefined)
+            await advance(time, 500)
+            assertEquals(holdCount(redis, a.id, 7), 2)
+        })
     } finally {
-        globalThis.removeEventListener('unhandledrejection', onUnhandled)
         warnings.restore()
         await a.driver.close()
         time.restore()
