@@ -5,9 +5,9 @@
 # entry may chain with `&&`. An absent file or an empty tier is a no-op, not a
 # failure.
 #
-# These tiers differ by FREQUENCY, not thoroughness. Nothing here runs in CI —
-# `.github/workflows/test.yml` and the git hooks are unchanged and remain the
-# real gate before a push.
+# These tiers differ by FREQUENCY, not thoroughness. `fast_gate` is a speed
+# subset of the real gate, not a copy of it; `full_gate` IS the real gate —
+# `deno task gate`, which the pre-push hook and CI run too.
 
 # After every child commit inside an epic. Kept to what is fast and offline:
 # roughly a second, no network. These three catch the overwhelming majority of
@@ -15,17 +15,10 @@
 fast_gate:
   - deno fmt --check && deno lint && deno check
 
-# Once, before the epic merges. Adds the three checks that need the network or
-# a full workspace walk, and the suite.
-#
-#   deps:analyze     re-runs `deno info` over every package
-#   agents:brief     regenerates and compares every package brief
-#   publish:check    copies all 27 packages out of the workspace, hits JSR
-#
-# Running those after each child would cost far more than they catch there.
+# Once, before the epic merges: the project's one versioned gate, the same task
+# the pre-push hook and CI run. Its step list lives in `scripts/gate.ts` only —
+# a copy here drifted (#388). It adds the checks that need the network or a
+# full workspace walk, and the suite; running those after each child would cost
+# far more than they catch there.
 full_gate:
-  - deno fmt --check && deno lint && deno check
-  - deno task deps:analyze
-  - deno task agents:brief --check
-  - deno task publish:check
-  - deno task test
+  - deno task gate

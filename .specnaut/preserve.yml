@@ -32,5 +32,10 @@ preserved:
   - .claude/skills/specnaut/phases/tag-version.md
   - .specnaut/scripts/release/tag.sh
 
+  # full_gate delegates to `deno task gate`, the project's one versioned gate
+  # (#388). Upstream's template lists the steps by hand, which is the copy that
+  # drifted; taking it would reintroduce a second gate definition.
+  - .specnaut/gates.yml
+
   # Locally edited in 1cae2e2 (removed the specnaut-review auto-invoke alias).
   - .claude/skills/using-specnaut/SKILL.md
