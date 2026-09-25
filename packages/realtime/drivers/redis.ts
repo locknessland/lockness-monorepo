@@ -601,6 +601,9 @@ export interface RedisSubscriber {
      * on the wire and left in the re-issue set comes back on the next fault,
      * and a fault is the worst moment to discover it.
      *
+     * A rejection is expected to discard and reconnect the underlying socket
+     * (#372) — the implementation owns that recovery, never the caller.
+     *
      * @param pattern - The pattern to stop receiving.
      * @returns Resolves once the frame is on the wire.
      */
@@ -2700,6 +2703,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
 
     /**
      * Stop receiving `channel`'s events (#295).
+     *
+     * A rejection here discards and reconnects the socket; the orphan clears
+     * on that reconnect's re-issue (#372).
      *
      * @param channel - The channel this instance has stopped hosting.
      * @returns Resolves once the unsubscribe frame is on the wire.
