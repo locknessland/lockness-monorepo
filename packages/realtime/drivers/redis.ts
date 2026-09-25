@@ -1275,6 +1275,30 @@ export function decodeRevocationPage(reply: unknown): RevocationPage {
 }
 
 /**
+ * The one message {@link decodeRevocationFloor} throws (#380): the floor read
+ * did not answer an array of bulk strings. Constant; it never carries the
+ * reply. Exported for the test suite only.
+ */
+export const REVOCATION_FLOOR_REFUSED =
+    'realtime: the revocation floor read did not answer an array of bulk ' +
+    'strings'
+
+/**
+ * Decode the revocation floor read (#380). SKELETON — returns the own TTL.
+ *
+ * @param reply - The `ZRANGEBYSCORE <floor> -inf +inf` reply.
+ * @param ownTtl - This driver's own `revocationTtlSeconds`.
+ * @returns The effective TTL and the count of skipped members.
+ */
+export function decodeRevocationFloor(
+    reply: unknown,
+    ownTtl: number,
+): { ttl: number; skipped: number } {
+    void reply
+    return { ttl: ownTtl, skipped: 0 }
+}
+
+/**
  * What a revocation pass throws once {@link RedisBroadcastDriver.close} has
  * begun (#359): it stops before its next reap or page read, and a closing
  * pass never answers `[]`, which would read as "nobody is revoked". Exported
@@ -1363,6 +1387,45 @@ export const CONTROL_SUBSCRIBE_LOG_FAILED =
  */
 export const HEARTBEAT_LOG_FAILED =
     'realtime: a heartbeat failure could not be logged (#395):'
+
+/**
+ * The words that start the one WARN written when the floor announce failed
+ * (#380) — followed by the rendered failure. The announce is retried; the
+ * revocation pass writes the same entry on its next reap. Exported for the
+ * test suite only.
+ */
+export const REVOCATION_FLOOR_ANNOUNCE_FAILED =
+    'realtime: the revocation floor announce failed (#380); it is retried, ' +
+    'and the next revocation pass writes the entry anyway:'
+
+/**
+ * The words of the one WARN a mark writes, after its `EVAL`, when the floor
+ * held members that are not a TTL in seconds (#380) — followed by the count,
+ * never by a member. Exported for the test suite only.
+ */
+export const REVOCATION_FLOOR_SKIPPED =
+    'realtime: the revocation floor held members that are not a TTL in ' +
+    'seconds and they were skipped; the record was written anyway. Members ' +
+    'skipped:'
+
+/**
+ * The words that start the one WARN a mark writes, after its `EVAL`, when the
+ * floor could not be read (#380) — followed by the rendered failure. The
+ * record was written at the maximum TTL instead (fail closed). Exported for
+ * the test suite only.
+ */
+export const REVOCATION_FLOOR_READ_FAILED =
+    'realtime: the revocation floor could not be read (#380); the record was ' +
+    'written at the maximum TTL instead:'
+
+/**
+ * The marker that starts the one ERROR line written when a floor WARN could
+ * not be, because `console.warn` threw (#380). The line carries the WARN and
+ * the sink's failure, each rendered; the marker is the fixed prefix, so an
+ * error text cannot forge it (#369). Exported for the test suite only.
+ */
+export const REVOCATION_FLOOR_LOG_FAILED =
+    'realtime: a revocation floor WARN could not be logged (#380):'
 
 /**
  * What one heartbeat's `SET <alive key> 1 EX <ttl> GET` reported (#349):
@@ -1657,6 +1720,20 @@ type PassOutcome = PassSample['outcome'] | 'closed'
  * whose deadline could not fit one timer, rather than chunking the wait.
  */
 const MAX_TIMER_MS = 2 ** 31 - 1
+/**
+ * The largest `revocationTtlSeconds` a driver accepts, and the ceiling of every
+ * revocation lifetime it writes (#362, #380): the whole seconds one
+ * `setTimeout` can hold ({@link MAX_TIMER_MS}), about 24.8 days.
+ *
+ * **The one home of that ceiling.** The constructor's range guard refuses a TTL
+ * above it; {@link decodeRevocationFloor} clamps every floor member to it; and
+ * a mark whose floor read fails writes its record at exactly this lifetime
+ * (fail closed). Exported for the test suite only; `mod.ts` does not re-export
+ * it.
+ */
+export const MAX_REVOCATION_TTL_SECONDS: number = Math.floor(
+    MAX_TIMER_MS / 1000,
+)
 /**
  * How long after issue a control frame may still be obeyed (#272). See
  * `RealtimeControlConfig.windowMs` for why 30s and what widening it costs.
@@ -2072,13 +2149,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // a whole number of seconds whose deadline fits ONE timer
         // (`MAX_TIMER_MS`); the interval's own ceiling follows from the
         // relation. A fractional interval stays legal.
-        const maxRevocationTtlSeconds = Math.floor(MAX_TIMER_MS / 1000)
         if (
             !Number.isFinite(this.reconcileIntervalMs) ||
             this.reconcileIntervalMs < 1 ||
             !Number.isSafeInteger(this.revocationTtlSeconds) ||
             this.revocationTtlSeconds < 1 ||
-            this.revocationTtlSeconds > maxRevocationTtlSeconds
+            this.revocationTtlSeconds > MAX_REVOCATION_TTL_SECONDS
         ) {
             throw new Error(
                 'realtime: presence.reconcileIntervalMs or ' +
@@ -2087,7 +2163,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     `and revocationTtlSeconds=${this.revocationTtlSeconds}s. ` +
                     'The interval must be a finite number of at least 1 ms, ' +
                     'and the TTL a whole number of seconds from 1 to ' +
-                    `${maxRevocationTtlSeconds}. An interval out of range ` +
+                    `${MAX_REVOCATION_TTL_SECONDS}. An interval out of range ` +
                     'fires at once, so both the revocation pass and the ghost ' +
                     'sweep re-arm back to back against the broker.',
             )
