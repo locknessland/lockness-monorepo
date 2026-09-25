@@ -3346,16 +3346,27 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      */
     async markRevocation(revocation: Revocation): Promise<void> {
         const member = this.#encodeRevocation(revocation)
-        const floor = decodeRevocationFloor(
-            await this.command.command(
-                'ZRANGEBYSCORE',
-                this.revocationFloorKey,
-                '-inf',
-                '+inf',
-            ),
-            this.revocationTtlSeconds,
-        )
-        const eff = floor.ttl
+        let eff = MAX_REVOCATION_TTL_SECONDS
+        let skipped = 0
+        let unreadable: { error: unknown } | undefined
+        try {
+            const floor = decodeRevocationFloor(
+                await this.command.command(
+                    'ZRANGEBYSCORE',
+                    this.revocationFloorKey,
+                    '-inf',
+                    '+inf',
+                ),
+                this.revocationTtlSeconds,
+            )
+            eff = floor.ttl
+            skipped = floor.skipped
+        } catch (error) {
+            // Fail CLOSED (#380 S3): a floor that cannot be read never fails
+            // the mark and never shortens the record — it is kept for the
+            // longest lifetime instead, and one WARN says so after the write.
+            unreadable = { error }
+        }
         await this.command.command(
             'EVAL',
             MARK_REVOKED_SCRIPT,
@@ -3365,6 +3376,36 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             member,
             String(eff + INDEX_TTL_SLACK_SECONDS),
         )
+        if (unreadable !== undefined) {
+            this.#warnFloor(
+                `${REVOCATION_FLOOR_READ_FAILED} ${
+                    renderError(unreadable.error)
+                }`,
+            )
+        }
+        if (skipped > 0) {
+            this.#warnFloor(`${REVOCATION_FLOOR_SKIPPED} ${skipped}`)
+        }
+    }
+
+    /**
+     * Write one revocation-floor WARN (#380), in the #391 shape: when
+     * `console.warn` itself throws, one {@link REVOCATION_FLOOR_LOG_FAILED}
+     * ERROR line carries both halves instead. It never throws, so a log sink
+     * can never fail a mark whose record is already written, nor escape the
+     * announce, which no caller awaits.
+     *
+     * @param line - The whole WARN line, constant first.
+     */
+    #warnFloor(line: string): void {
+        try {
+            console.warn(line)
+        } catch (sink) {
+            writeMarkedFallback(REVOCATION_FLOOR_LOG_FAILED, line, {
+                label: 'sink failure',
+                error: sink,
+            })
+        }
     }
 
     /**
