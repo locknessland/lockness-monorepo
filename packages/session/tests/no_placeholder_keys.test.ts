@@ -10,11 +10,13 @@
  */
 
 import { assert, assertEquals, assertRejects } from '@std/assert'
-import { dirname } from '@std/path'
+import { dirname, fromFileUrl } from '@std/path'
 import { gitEnvFromCwd } from '../../../tests/mutations/harness.ts'
 import { REJECTED } from '../secret.ts'
 
-const ROOT = new URL('../../../', import.meta.url).pathname
+// `fromFileUrl`, not `URL.pathname`: the latter keeps percent-encoding, so a
+// checkout under a path with a space would never match git's own spelling of it.
+const ROOT = fromFileUrl(new URL('../../../', import.meta.url))
 
 /**
  * Files allowed to contain a placeholder, and why.
@@ -70,7 +72,7 @@ async function trackedFiles(
 
     if (!success) {
         const reason = new TextDecoder().decode(stderr).trim()
-            .replaceAll(root.replace(/\/$/, ''), '.')
+            .replaceAll(root.replace(/[\\/]$/, ''), '.')
         throw new Error(`git ls-files exited ${code}: ${reason}`)
     }
 
@@ -139,7 +141,11 @@ Deno.test('the reject list is not silently emptied', () => {
 async function isolatedDir(): Promise<
     { dir: string; env: Record<string, string> } & AsyncDisposable
 > {
-    const dir = await Deno.realPath(await Deno.makeTempDir())
+    // A space in the name, so the relativization is proven on a path that
+    // percent-encoding would have spelled differently.
+    const dir = await Deno.realPath(
+        await Deno.makeTempDir({ prefix: 'placeholder scan ' }),
+    )
     return {
         dir,
         // `LC_ALL=C` pins git's wording, which the witness below reads.
@@ -162,8 +168,22 @@ Deno.test('a git that cannot list the tree fails the scan instead of passing it'
         Error,
         'git ls-files exited',
     )
-    // git's own reason is carried, and no absolute path rides along with it.
+    // git's own reason is carried with the error.
     assert(error.message.includes('not a git repository'), error.message)
+})
+
+Deno.test('a git failure naming an absolute path reports it relative to the root', async () => {
+    await using sandbox = await isolatedDir()
+    // An inherited `GIT_DIR` pointing at no repository — the #356 situation —
+    // is a failure git reports by echoing the path it was given, absolute.
+    const env = { ...sandbox.env, GIT_DIR: `${sandbox.dir}/missing` }
+
+    const error = await assertRejects(
+        () => trackedFiles(sandbox.dir, env),
+        Error,
+        'git ls-files exited',
+    )
+    assert(error.message.includes('./missing'), error.message)
     assert(!error.message.includes(sandbox.dir), error.message)
 })
 

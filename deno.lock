@@ -4789,7 +4789,8 @@
           "jsr:@lockness/hono@0.3",
           "jsr:@lockness/redis@0.3",
           "jsr:@std/assert@1",
-          "jsr:@std/crypto@1"
+          "jsr:@std/crypto@1",
+          "jsr:@std/path@1"
         ]
       },
       "packages/socialite": {
