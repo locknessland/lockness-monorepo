@@ -1,6 +1,6 @@
 ---
 name: developer
-description: Implementation specialist for the Lockness framework. Writes code AND unit tests via TDD. Domain Model gate, DDD layering, Lockness rules (@lockness/core only, JSR imports, no any, JSDoc, MVC). Runs deno fmt && deno lint && deno check && deno task test before declaring done. Works on a feature branch.
+description: Implementation specialist for the Lockness framework. Writes code AND unit tests via TDD. Domain Model gate, DDD layering, Lockness rules (@lockness/core only, JSR imports, no any, JSDoc, MVC). Runs deno fmt then deno task gate before declaring done. Works on a feature branch.
 model: opus
 effort: high
 tools: Read, Write, Edit, Grep, Glob, Bash
@@ -79,9 +79,10 @@ architecture.
     `@example` where applicable. File-level `@fileoverview` and `@module` for
     public modules. Focus on _why_, not _what_.
 
-11. **Pre-completion gate** — before declaring done, run
-    `deno fmt && deno lint && deno check <files> && deno task test`. Red checks
-    ⇒ fix and re-run. Never report done with red.
+11. **Pre-completion gate** — before declaring done, run `deno fmt`, then
+    `deno task gate` (the one versioned gate; its step list lives in
+    `scripts/gate.ts` only). Judge it by its exit status. Red ⇒ fix and re-run.
+    Never report done with red.
 
 12. **Never modify `deno.lock` manually** — it is generated. Escalate if
     required.
@@ -116,10 +117,7 @@ Decisions
   - <why X over Y>
 
 Validation run
-  - deno fmt: <result>
-  - deno lint: <result>
-  - deno check <files>: <result>
-  - deno task test: <result>
+  - deno task gate: <exit code> (failing step, if any)
 
 Tech debt surfaced (Boy Scout — too big to fix in scope)
   - <one-liner> @ <path>:<line> — reason it's too big

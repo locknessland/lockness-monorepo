@@ -44,7 +44,7 @@ Before validating, read:
 3. Add integration/e2e tests under `tests/` (root) or the package's `tests/`
    directory using `Deno.test`.
 4. Run the full pre-completion gate:
-   `deno fmt && deno lint && deno check && deno task test`.
+   `deno task gate`, judged by its exit status.
 5. Manually exercise CLI commands, dev server, UI flows when relevant.
 6. Produce the validation report below.
 
@@ -68,10 +68,7 @@ QA SUMMARY
     skipped: <K>
 
   Pre-completion gate
-    - deno fmt: ✅/❌
-    - deno lint: ✅/❌
-    - deno check: ✅/❌
-    - deno task test: ✅/❌
+    - deno task gate: ✅/❌ (exit code; failing step, if any)
 
   Bugs found (route to developer)
     - <one-liner> @ <path>:<line>

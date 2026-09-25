@@ -208,6 +208,10 @@ manifest lies about what it needs, and check C cannot be trusted if check B is
 soft. Cost is one line per package. Roll out warn-only for one PR to size the
 fix, then flip to error in the same week — not "eventually".
 
+> **Superseded in mechanism by the #388 amendment to §5.2.** The decision stands
+> — an undeclared dependency is an error — but check B no longer exists.
+> `deno task publish:check` enforces it, failing closed.
+
 ### D3 — Tier policy in `deps.policy.jsonc` at repo root
 
 | Rejected                                    | Why                                                                                                                                                                   |

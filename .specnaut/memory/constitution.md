@@ -16,10 +16,9 @@ review.
 3. **No `any` in exported APIs.** Use `unknown` + type guards.
 4. **Tailwind v4 CSS-variable syntax.** Parentheses for variables
    (`bg-(--var)`), brackets only for literal values (`px-[0.75rem]`).
-5. **Pre-completion gate.**
-   `deno fmt && deno lint && deno check <files> &&
-   deno task test` must be
-   green before declaring done.
+5. **Pre-completion gate.** `deno fmt`, then `deno task gate` — the one
+   versioned gate, whose step list lives in `scripts/gate.ts` only — must exit
+   0 before declaring done.
 6. **Never modify `deno.lock` manually.** It is generated.
 7. **JSDoc on every public API** (description, `@param`, `@returns`, `@throws`,
    `@example` where applicable; file-level `@fileoverview` and `@module` on
