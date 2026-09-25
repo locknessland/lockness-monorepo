@@ -32,7 +32,10 @@ export const HOOK_MARKER =
  */
 const LEGACY_OPENINGS = [
     '#!/bin/bash\n# Pre-commit: type-check, lint, and format THE STAGED FILES',
+    // #385 onwards, until the marker.
     '#!/bin/bash\n# Pre-push: runs `deno task gate`',
+    // Before #385, when the hook listed the gate steps itself.
+    '#!/bin/bash\n# Pre-push: the full quality gate.',
 ]
 
 /** The hook scripts, by hook name. */
@@ -168,6 +171,29 @@ export function isLocknessHook(content: string): boolean {
 }
 
 /**
+ * Read a hook that may not exist yet.
+ *
+ * Only "not there" means absent. Any other failure — a hook that is writable
+ * but unreadable, a directory in its place — is thrown: treating it as absent
+ * would overwrite exactly the hook the foreign-hook guard exists to protect.
+ *
+ * @param hookPath - The hook's path.
+ * @returns Its content, or `null` when no file exists there.
+ * @throws {Error} On any read failure other than `NotFound`.
+ */
+async function readExistingHook(hookPath: string): Promise<string | null> {
+    try {
+        return await Deno.readTextFile(hookPath)
+    } catch (error) {
+        if (error instanceof Deno.errors.NotFound) return null
+        throw new Error(
+            `cannot read the existing hook ${hookPath} (${error}); ` +
+                'refusing to overwrite what cannot be inspected. Nothing was written.',
+        )
+    }
+}
+
+/**
  * Write every hook into `hooksDir` and make it executable.
  * Nothing is written unless every hook can be: a hook that exists and was not
  * written by this installer makes the whole install refuse, so a foreign hook
@@ -175,7 +201,8 @@ export function isLocknessHook(content: string): boolean {
  *
  * @param hooksDir - The directory from {@link resolveHooksDir}.
  * @returns The paths written, in hook order.
- * @throws {Error} When an existing hook was not written by this installer.
+ * @throws {Error} When an existing hook was not written by this installer, or
+ *   cannot be read.
  * @example
  * ```ts
  * await installHooks(await resolveHooksDir(Deno.cwd()))
@@ -187,7 +214,7 @@ export async function installHooks(hooksDir: string): Promise<string[]> {
     const foreign: string[] = []
     for (const name of Object.keys(hooks)) {
         const hookPath = join(hooksDir, name)
-        const existing = await Deno.readTextFile(hookPath).catch(() => null)
+        const existing = await readExistingHook(hookPath)
         if (existing !== null && !isLocknessHook(existing)) {
             foreign.push(hookPath)
         }
