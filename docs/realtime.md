@@ -551,12 +551,17 @@ miss:
 **If you wire your own transport without `handlerHooks`**, one gap is yours to
 close: never run application code for a socket whose `register` was refused — in
 particular never call `unsubscribe(conn.id, …)` for it, which acts on the id and
-so on whoever holds it. `handlerHooks` closes that gap for you: its `onMessage`
-runs your hook only for the socket that owns its id, and **your `onClose` runs
-exactly once for each socket whose `onOpen` ran — evicted ones included, refused
-ones never.** If your transport reuses ids, an evicted socket's id may already
-be someone else's, so still never act on `conn.id` there. Why the manager
-enforces these rules the way it does is
+so on whoever holds it. `handlerHooks` closes that gap for your `onMessage` and
+`onClose`: `onMessage` runs your hook only for the socket that owns its id, and
+**your `onClose` runs exactly once for each socket whose `onOpen` ran — evicted
+ones included, refused ones never.** "Ran" means the framework admitted the
+socket and called your hook: an `onOpen` of yours that throws, or that closes
+the socket itself, still gets its `onClose`. So a counter kept across the two
+must be incremented **first**, as the first line of `onOpen`, or it can drop
+below zero. If your transport reuses ids, an evicted socket's id may already be
+someone else's, so still never act on `conn.id` there. Your `onError` still
+hears a refused socket, by design — it reports; it must not act on the id
+either. Why the manager enforces these rules the way it does is
 [ADR 010](adr/010-realtime-disconnect-retires-the-connection-object.md).
 
 **Your ids owe it two rules.** `manager.evict(id)` names a connection id in a
@@ -3052,7 +3057,26 @@ keep in `onOpen` / `onClose` was decremented for a socket it never counted.
 **After**, your `onClose` runs exactly once for each socket whose `onOpen` ran —
 evicted ones included, refused ones never. A second close of the same socket
 runs it no more. The framework still disconnects on every close, and your
-`onError` still hears a refused socket.
+`onError` still hears a refused socket, by design.
+
+**An `onOpen` of yours that throws, or that closes the socket itself, still gets
+its `onClose`**: the framework admitted the socket before your hook ran. Keep a
+counter safe by incrementing it first:
+
+```ts
+const hooks = manager.handlerHooks({
+    onOpen: (conn) => {
+        open.set(key(conn), (open.get(key(conn)) ?? 0) + 1) // first line
+        if (overLimit(conn)) conn.close(4429, 'too many sockets') // then decide
+    },
+    onClose: (conn) => {
+        open.set(key(conn), (open.get(key(conn)) ?? 1) - 1) // always paired
+    },
+})
+```
+
+An increment placed after a check that throws or closes is skipped, while the
+decrement still runs — and the count goes below zero.
 
 If your transport reuses ids, an evicted socket's id may already be someone
 else's, so still never act on `conn.id` in `onClose`. Apps on `handlerHooks`

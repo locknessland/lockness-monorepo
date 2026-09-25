@@ -1337,9 +1337,12 @@ export class ChannelManager<Identity = unknown> {
      * **Your `onClose` runs exactly once for each socket whose `onOpen` ran**
      * (#404) — evicted ones included, refused ones never. If your transport
      * reuses ids, an evicted socket's id may already be someone else's, so
-     * still never act on `conn.id` there. The pairing is a weak set of the
-     * admitted objects, cleared on close; it answers "did this socket open?"
-     * and never "who owns this id?".
+     * still never act on `conn.id` there. An `onOpen` of yours that throws,
+     * or that closes the socket itself, still gets its `onClose`, so a
+     * counter kept across the two must be incremented first. The pairing is a
+     * weak set of the admitted objects, cleared on close; it answers "did
+     * this socket open?" and never "who owns this id?". `onError` still hears
+     * a refused socket, by design.
      *
      * **`onMessage` runs the app's hook only for the socket that owns its id**
      * (#363). A frame from a socket `onOpen` refused, or from one already torn
@@ -1385,7 +1388,8 @@ export class ChannelManager<Identity = unknown> {
                 }
                 // After the register succeeded, before the app's hook: a
                 // refused socket never reaches this line, so it never gets
-                // the app's onClose either.
+                // the app's onClose either — and an app onOpen that throws
+                // or closes the socket still gets its onClose (#404 W4).
                 opened.add(conn)
                 return userHooks.onOpen?.(conn)
             },

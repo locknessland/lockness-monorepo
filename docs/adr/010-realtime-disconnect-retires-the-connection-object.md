@@ -3,7 +3,9 @@
 **Status:** Accepted **Date:** 2026-09-23 **Owner:** architect **Amended by:**
 [#370](https://github.com/locknessland/lockness-monorepo/issues/370) and
 [#363](https://github.com/locknessland/lockness-monorepo/issues/363), 2026-09-25
-(§7) **Affects:** `packages/realtime/manager.ts`, `packages/realtime/mod.ts`,
+(§7); [#404](https://github.com/locknessland/lockness-monorepo/issues/404),
+2026-09-25 (§7, the `onClose` pairing) **Affects:**
+`packages/realtime/manager.ts`, `packages/realtime/mod.ts`,
 `packages/realtime/types.ts`, `docs/realtime.md`, `packages/realtime/AGENTS.md`
 
 ---
@@ -125,6 +127,9 @@ and the record clear under it — records a failure with a flag beside the value
 `handlerHooks.onClose` runs the application's `onClose`, then `disconnect`
 whatever that hook did. The application's error is re-thrown first; a teardown
 failure after it is a WARN.
+
+> **Amended by #404 (§7).** The application's `onClose` now runs only for a
+> socket whose `onOpen` ran, and once; `disconnect` still runs on every close.
 
 ---
 
@@ -349,21 +354,23 @@ keeps its owner gate, and `onError` stays ungated.
 
 **Rejected, with their costs:**
 
-- **(b) A public `owns(conn)`, or a flag on the connection.** A new public API
-  whose natural use is the wrong question: ownership drops the hook for every
-  evicted socket. A flag on the app's own `Connection` object is writable by the
-  app and becomes a second source of truth beside `connections`.
-- **(c) Skip the hook for non-owners** (`#isOwner` as the gate). An evicted
+- **(404-a) A public `owns(conn)`, or a flag on the connection.** A new public
+  API whose natural use is the wrong question: ownership drops the hook for
+  every evicted socket. A flag on the app's own `Connection` object is writable
+  by the app and becomes a second source of truth beside `connections`.
+- **(404-b) Skip the hook for non-owners** (`#isOwner` as the gate). An evicted
   socket no longer owns its id, so it loses its close hook: the per-identity
   counter is incremented on open and never decremented. This is the battery's
   M2, killed by the evicted-socket witness.
-- **`#isOwner || #retired.has(conn)`.** It restores the evicted socket, but a
-  closed socket stays retired, so a second close runs the hook again; and it
-  makes two admission stores answer a lifecycle question, adding an asker the
+- **(404-c) `#isOwner || #retired.has(conn)`.** It restores the evicted socket,
+  but a closed socket stays retired, so a second close runs the hook again; and
+  it makes two admission stores answer a lifecycle question, adding an asker the
   owner rule does not list.
 
 **What it does not solve:** an evicted socket whose id was re-registered still
 runs the hook, and an id-form verb there hits the new holder (#392); a custom
-transport that does not use `handlerHooks`; an `onOpen` of the app's that throws
-still gets `onClose`, because the socket was admitted; a transport that calls
-`onOpen` twice for one object.
+transport that does not use `handlerHooks`; a transport that calls `onOpen`
+twice for one object. By design, an app `onOpen` that throws or closes the
+socket itself still gets `onClose` — the socket was admitted — so an app counter
+must increment first; `docs/realtime.md` shows the pattern. `onError` still
+hears a refused socket.
