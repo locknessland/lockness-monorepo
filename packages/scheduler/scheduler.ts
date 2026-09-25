@@ -42,23 +42,28 @@ const UNPRINTABLE = '<unprintable>'
  * a log line: a driver error's stack or `cause` can carry a connection string.
  *
  * **Total — it never throws.** It runs inside a `catch` in the run's `finally`,
- * so a throw here would escape the run and turn a successful task into a
- * rejected one. `String()` itself throws on a value with no usable `toString`
- * (`Object.create(null)`, a throwing `toString`), hence the guard.
+ * and on the cron path the run is `void`ed, so a throw here is an unhandled
+ * rejection that kills the process. Every read of the value is hostile input:
+ * `instanceof` runs a Proxy's `getPrototypeOf` trap and throws on a revoked
+ * Proxy, `name` and `message` may be throwing getters or non-strings, and
+ * `String()` throws on a value with no usable `toString`. All of it sits in one
+ * `try`, and anything unexpected becomes the {@link UNPRINTABLE} placeholder.
  */
 function flatten(caught: unknown): { name: string; message: string } {
-    if (caught instanceof Error) {
-        return { name: caught.name, message: caught.message }
-    }
-    let message: string
     try {
-        message = String(caught)
-    } catch (_unprintable) {
+        if (!(caught instanceof Error)) {
+            return { name: 'Error', message: String(caught) }
+        }
+        const { name, message } = caught
+        if (typeof name === 'string' && typeof message === 'string') {
+            return { name, message }
+        }
+        return { name: 'Error', message: UNPRINTABLE }
+    } catch (_hostile) {
         // Not swallowed: the placeholder IS the report of this failure, and it
         // reaches the log line the caller is about to write.
-        message = UNPRINTABLE
+        return { name: 'Error', message: UNPRINTABLE }
     }
-    return { name: 'Error', message }
 }
 
 /** One registered task, as the scheduler holds it. */
