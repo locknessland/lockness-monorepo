@@ -5,15 +5,19 @@
  *
  * The remedy's decisions live in these homes (plan §5), all in `manager.ts`:
  * `#retired` and its one writer at `disconnect`'s entry; `#assertAdmissible`,
- * its one reader, with two clauses and two classes; the three askers
- * (`register` first, `subscribe` before its authorizer and after the result is
- * classified); `unsubscribe`'s forget-before-leave and its release on a failed
- * leave; the flag collectors; and `handlerHooks.onClose`.
+ * its one reader, with two clauses and two classes; its askers (`register`
+ * directly and first; `subscribe` through `#assertBound`, before its
+ * authorizer and after the result is classified — #370); `unsubscribe`'s
+ * forget-before-leave and its release on a failed leave; the flag collectors;
+ * and `handlerHooks.onClose`.
  *
  * - N1 the post-check removed.
  * - N2 the pre-check removed — only the authorizer's call count sees it.
  * - N3 the retirement moved from `disconnect`'s entry into its `finally`.
- * - N4 the post-check moved below `connections.set`: a zombie is registered.
+ * - N4 the post-check moved below `#checkChannelCaps` (#370 D3): a retired
+ *   connection on a full instance hears the cap's refusal instead of its own.
+ *   Rewritten when `subscribe`'s implicit binding was deleted, which took the
+ *   old anchor with it; killed by `#361 W13`, the pin added for it.
  * - N5 `register`'s check removed.
  * - N6 `unsubscribe`'s forget moved back after the awaited leave — killed by
  *   W9, the racing subscribe. The plan named W6 too, but the leave's failure
@@ -30,9 +34,13 @@
  * - N13b `#revokeChannelLocal`'s clear collector back to
  *   `clearError === undefined`, its returned flag dropped.
  *
- * **Anchors.** `this.#assertAdmissible(connection)` appears three times, so
- * every row that touches one anchors on a neighbouring line as well. Every
- * `killedBy` ends in a space, so `W1 ` is not a prefix of `W10`–`W12`.
+ * **Anchors.** Since #370 `subscribe` asks `#assertBound(connection)` at both
+ * of its checks, and `#assertAdmissible(connection)` is asked by `register` and
+ * by `#assertBound` itself — each call appears twice, so every row that touches
+ * one anchors on a neighbouring line as well. N1, N2 and N10 were re-anchored
+ * on the new method name, N8 and N9 on the widened clause 2 (#363), and N12 on
+ * `onClose`'s object-form `disconnect(conn)`; their killers are unchanged.
+ * Every `killedBy` ends in a space, so `W1 ` is not a prefix of `W10`–`W13`.
  *
  * Every row was proven LIVE by the harness run that recorded it: the mutant
  * ran and turned its named witness red (`KILLED`, attributed).
@@ -55,16 +63,16 @@ const SUITES = [
 const POST_CHECK =
     '        // The post-check (#361): the disconnect may have begun while the\n' +
     "        // authorizer ran. No await from here to the join's adds.\n" +
-    '        this.#assertAdmissible(connection)\n' +
+    '        this.#assertBound(connection)\n' +
     '\n' +
     '        // BEFORE any membership mutation'
 
 /** The same, without the check. */
 const NO_POST_CHECK = '        // BEFORE any membership mutation'
 
-/** The per-connection registration, then the line after it. */
-const CONNECTIONS_SET =
-    '        this.connections.set(connection.id, connection)\n' +
+/** The cap check, then the line after it (#370: the post-check sits above). */
+const CAPS = '            connection.identity !== null,\n' +
+    '        )\n' +
     '\n' +
     '        // `member` is set on a presence admission'
 
@@ -91,7 +99,7 @@ const ON_CLOSE_BODY = '                let appFailed = false\n' +
     '                    appError = error\n' +
     '                }\n' +
     '                try {\n' +
-    '                    await this.disconnect(conn.id)\n' +
+    '                    await this.disconnect(conn)\n' +
     '                } catch (error) {\n' +
     '                    if (!appFailed) throw error\n' +
     '                    console.warn(\n' +
@@ -116,7 +124,7 @@ const MUTATIONS: Mutation[] = [
         file: MANAGER,
         edits: [[
             '        const kind = channelKind(channel)\n' +
-            '        this.#assertAdmissible(connection)\n',
+            '        this.#assertBound(connection)\n',
             '        const kind = channelKind(channel)\n',
         ]],
         killedBy: '#361 W4 ',
@@ -136,19 +144,20 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#361 W1 ',
     },
     {
-        label: 'N4 — the post-check moved below connections.set',
+        label: 'N4 — the post-check moved below #checkChannelCaps',
         file: MANAGER,
         edits: [
             [POST_CHECK, NO_POST_CHECK],
             [
-                CONNECTIONS_SET,
-                '        this.connections.set(connection.id, connection)\n' +
-                '        this.#assertAdmissible(connection)\n' +
+                CAPS,
+                '            connection.identity !== null,\n' +
+                '        )\n' +
+                '        this.#assertBound(connection)\n' +
                 '\n' +
                 '        // `member` is set on a presence admission',
             ],
         ],
-        killedBy: '#361 W3 (i) ',
+        killedBy: '#361 W13 ',
     },
     {
         label: "N5 — register's check removed",
@@ -187,8 +196,8 @@ const MUTATIONS: Mutation[] = [
         file: MANAGER,
         edits: [[
             '        const bound = this.connections.get(connection.id)\n' +
-            '        if (bound !== undefined && this.#retired.has(bound)) {\n' +
-            '            throw new ConnectionIdInUseError(connection.id)\n' +
+            '        if (bound !== undefined && bound !== connection) {\n' +
+            '            throw new ConnectionIdInUseError()\n' +
             '        }\n',
             '',
         ]],
@@ -199,7 +208,7 @@ const MUTATIONS: Mutation[] = [
             'N9 — the split collapsed: clause 2 throws ConnectionDisconnectedError',
         file: MANAGER,
         edits: [[
-            '            throw new ConnectionIdInUseError(connection.id)\n',
+            '            throw new ConnectionIdInUseError()\n',
             '            throw new ConnectionDisconnectedError(connection.id)\n',
         ]],
         killedBy: '#361 W8 ',
@@ -214,7 +223,7 @@ const MUTATIONS: Mutation[] = [
                 '                : false\n',
                 '                ? await this.authorize(connection.identity, channel)\n' +
                 '                : false\n' +
-                '            this.#assertAdmissible(connection)\n',
+                '            this.#assertBound(connection)\n',
             ],
         ],
         killedBy: '#361 W3 (ii) ',
@@ -239,7 +248,7 @@ const MUTATIONS: Mutation[] = [
         edits: [[
             ON_CLOSE_BODY,
             '                await userHooks.onClose?.(conn, code, reason)\n' +
-            '                await this.disconnect(conn.id)\n',
+            '                await this.disconnect(conn)\n',
         ]],
         killedBy: '#361 W12 (i) ',
     },

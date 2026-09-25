@@ -4,7 +4,7 @@
  * invariant precedes every write.
  *
  * Each row puts back one way the fix can be undone: the invariant moved back
- * below `connections.set` (M1), the classifier's catch rethrowing (M2), the
+ * below `#checkChannelCaps` (M1), the classifier's catch rethrowing (M2), the
  * uninspectable label collapsed to `'object'` — the tidy "use `typeof`'s
  * answer" edit, which ADMITS the value (M3), the wire predicate's catch
  * answering `true` (M4), its `Array.isArray` moved back outside the try (M5),
@@ -53,7 +53,7 @@ const INVARIANT =
 const MUTATIONS: Mutation[] = [
     {
         label:
-            'M1 — the member invariant back BELOW `connections.set` (forced to fire)',
+            'M1 — the member invariant back BELOW `#checkChannelCaps` (forced to fire)',
         file: MANAGER,
         edits: [
             // The precondition: the admission's result is dropped, so a
@@ -66,10 +66,14 @@ const MUTATIONS: Mutation[] = [
                 '                void returned\n                admitPresenceMember(\n',
             ],
             [INVARIANT, ''],
+            // RE-ANCHORED by #370: the `connections` write below the caps is
+            // gone, so the invariant goes back below the caps check itself.
             [
-                '        this.connections.set(connection.id, connection)\n\n' +
+                '            connection.identity !== null,\n' +
+                '        )\n\n' +
                 '        // `member` is set on a presence admission',
-                '        this.connections.set(connection.id, connection)\n' +
+                '            connection.identity !== null,\n' +
+                '        )\n' +
                 INVARIANT +
                 '\n        // `member` is set on a presence admission',
             ],

@@ -6,7 +6,7 @@
  * `result === false` gate (M1), each of the three clauses of "an admitting
  * object" (M2, M3, M6), the refusal folded into a deny (M4), the Laravel
  * truthiness rule the maintainer declined (M5), the classification moved behind
- * the caps and the `connections` write (M7), and the value echoed into the
+ * the caps check (M7; its `connections` write went with #370), and the value echoed into the
  * message (M8). Every row must die on a `#347` test naming
  * `AuthorizeResultError` or the type-label wording.
  *
@@ -112,8 +112,9 @@ const MUTATIONS: Mutation[] = [
             'private-orders: an authorizer returning new Boolean(false) throws',
     },
     {
-        label:
-            'M7 — the caps and the `connections` write moved ahead of the classification',
+        // RE-ANCHORED by #370: `subscribe` no longer writes `connections`, so
+        // the anchor is the caps check alone. Its killer is unchanged.
+        label: 'M7 — the caps moved ahead of the classification',
         file: MANAGER,
         edits: [
             [
@@ -121,8 +122,7 @@ const MUTATIONS: Mutation[] = [
                 '            channel,\n' +
                 '            connection.id,\n' +
                 '            connection.identity !== null,\n' +
-                '        )\n' +
-                '        this.connections.set(connection.id, connection)\n',
+                '        )\n',
                 '',
             ],
             [
@@ -133,7 +133,6 @@ const MUTATIONS: Mutation[] = [
                 '            connection.id,\n' +
                 '            connection.identity !== null,\n' +
                 '        )\n' +
-                '        this.connections.set(connection.id, connection)\n' +
                 '        let member: PresenceMember | undefined\n' +
                 "        if (kind !== 'public') {\n",
             ],

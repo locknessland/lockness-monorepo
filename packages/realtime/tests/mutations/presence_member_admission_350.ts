@@ -20,8 +20,9 @@
  * - M8 the roster read's `info` check removed: a non-object `info` is read
  *   back.
  * - M9 the shape error echoes a value beside its key.
- * - M10 admission moved below `#checkChannelCaps` / `connections.set`: a full
- *   connection hears `ChannelLimitError`, and a refusal is a partial write.
+ * - M10 admission moved below `#checkChannelCaps`: a full connection hears
+ *   `ChannelLimitError`, and a refusal is a partial write. Re-anchored by
+ *   #370, which deleted the `connections` write below the caps.
  * - M11 the non-object-`info` refusal echoes the parsed value after its
  *   message: every wording assertion still passes, so only a row whose `info`
  *   carries the sentinel can see it.
@@ -178,7 +179,7 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#350 (a) memory',
     },
     {
-        label: 'M10 — admission below #checkChannelCaps / connections.set',
+        label: 'M10 — admission below #checkChannelCaps',
         file: MANAGER,
         edits: [
             [ADMISSION_CALL, RAW_RETURNED],
@@ -186,13 +187,15 @@ const MUTATIONS: Mutation[] = [
             [
                 '            connection.identity !== null,\n' +
                 '        )\n' +
-                '        this.connections.set(connection.id, connection)\n',
+                '\n' +
+                '        // `member` is set',
                 '            connection.identity !== null,\n' +
                 '        )\n' +
-                '        this.connections.set(connection.id, connection)\n' +
                 '        if (member !== undefined) {\n' +
                 '            member = admitPresenceMember(member, this.#maxPresenceMemberBytes)\n' +
-                '        }\n',
+                '        }\n' +
+                '\n' +
+                '        // `member` is set',
             ],
         ],
         killedBy: '#350 (g)',

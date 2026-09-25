@@ -16,9 +16,10 @@
  *   channels.
  * - M4 a non-member object on private folded into `{ ok: false }` — #347's
  *   rejected silent deny, which hides the authorizer's defect.
- * - M5 the private admission moved below `#checkChannelCaps` /
- *   `connections.set` — a full connection hears `ChannelLimitError`, and a
- *   refusal is a partial write.
+ * - M5 the private admission moved below `#checkChannelCaps` — a full
+ *   connection hears `ChannelLimitError`, and a refusal is a partial write.
+ *   Re-anchored by #370, which deleted the `connections` write below the
+ *   caps.
  * - M6 `PRIVATE_CHANNEL_HINT` dropped — the member errors stop telling a
  *   private-channel authorizer to return a boolean.
  * - M7 the seat's condition widened to `kind === 'presence' || returned !==
@@ -62,10 +63,13 @@ const SEAT = '                member = returned ?? admitPresenceMember(\n' +
     '                    this.#maxPresenceMemberBytes,\n' +
     '                )\n'
 
-/** The end of the caps check and the `connections` write. */
-const CONNECTIONS_WRITE = '            connection.identity !== null,\n' +
-    '        )\n' +
-    '        this.connections.set(connection.id, connection)\n'
+/**
+ * The end of the caps check, then the blank line and the comment below it —
+ * RE-ANCHORED by #370, which deleted the `connections` write that sat here.
+ */
+const CAPS_END = '            connection.identity !== null,\n' +
+    '        )\n'
+const BELOW_CAPS = '\n        // `member` is set'
 
 const MUTATIONS: Mutation[] = [
     {
@@ -142,8 +146,7 @@ const MUTATIONS: Mutation[] = [
             '#357 (a) memory private-orders: a Deno KV miss entry throws PresenceMemberShapeError',
     },
     {
-        label:
-            'M5 — the private admission below #checkChannelCaps / connections.set',
+        label: 'M5 — the private admission below #checkChannelCaps',
         file: MANAGER,
         edits: [
             [
@@ -161,11 +164,12 @@ const MUTATIONS: Mutation[] = [
                 '                : undefined\n',
             ],
             [
-                CONNECTIONS_WRITE,
-                CONNECTIONS_WRITE +
+                CAPS_END + BELOW_CAPS,
+                CAPS_END +
                 '        if (deferred !== undefined) {\n' +
                 '            admitPresenceMember(deferred, this.#maxPresenceMemberBytes)\n' +
-                '        }\n',
+                '        }\n' +
+                BELOW_CAPS,
             ],
         ],
         killedBy:
