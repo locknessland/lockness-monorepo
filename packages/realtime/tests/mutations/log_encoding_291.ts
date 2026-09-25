@@ -114,9 +114,11 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'the websocket default sink back to passing the error object',
         file: SOCKET,
+        // Re-anchored by #391: the default line is written through
+        // `writeMarkedFallback`; the mutant puts the object form back.
         edits: [[
-            '`realtime: unhandled websocket error: ${renderError(error)}`,',
-            "'realtime: unhandled websocket error',\n                error,",
+            '        writeMarkedFallback(UNHANDLED_WEBSOCKET_ERROR, error)\n',
+            "        console.error('realtime: unhandled websocket error', error)\n",
         ]],
         killedBy: 'the default websocket error sink renders the error',
     },

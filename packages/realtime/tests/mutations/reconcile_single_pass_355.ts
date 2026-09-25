@@ -94,8 +94,9 @@ const ARM_TIMER_TAIL = '                    this.#sweepPass = undefined\n' +
     '                .catch((error: unknown) => {\n' +
     '                    // #360 A1, the #369 rule: nothing escapes the sweep chain.\n' +
     '                    // A rejection reaches here only when a log sink threw\n' +
-    '                    // inside the pass; the marker is the fixed prefix.\n' +
-    '                    console.error(`${SWEEP_LOG_FAILED} ${renderError(error)}`)\n' +
+    '                    // inside the pass; the marker is the fixed prefix, and\n' +
+    '                    // the line never throws past itself either (#391).\n' +
+    '                    writeMarkedFallback(SWEEP_LOG_FAILED, error)\n' +
     '                })\n' +
     '        }, this.reconcileIntervalMs)\n'
 const ARM_TIMER = ARM_TIMER_HEAD + ARM_TIMER_REARM + ARM_TIMER_TAIL

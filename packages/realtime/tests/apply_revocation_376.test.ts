@@ -33,40 +33,13 @@ import { ChannelManager, REVOCATION_APPLY_LOG_FAILED } from '../manager.ts'
 import type { BroadcastDriver, ControlMessage } from '../driver.ts'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
 import type { Connection } from '../types.ts'
+import { settle, watchingEscapes } from './escape_watcher.ts'
 
 interface User {
     id: number
 }
 
 const ROOM = 'private-room'
-
-/** One real macrotask per round: a rejection's event is dispatched after it. */
-async function settle(): Promise<void> {
-    for (let i = 0; i < 5; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 0))
-    }
-}
-
-/**
- * Run `body` while recording every rejection that reaches the runtime
- * unhandled. Each is `preventDefault()`ed so the row fails on its assertion
- * instead of the runner dying; the listener is removed whatever happens.
- */
-async function watchingEscapes(
-    body: (escaped: unknown[]) => Promise<void>,
-): Promise<void> {
-    const escaped: unknown[] = []
-    const listener = (event: PromiseRejectionEvent) => {
-        event.preventDefault()
-        escaped.push(event.reason)
-    }
-    globalThis.addEventListener('unhandledrejection', listener)
-    try {
-        await body(escaped)
-    } finally {
-        globalThis.removeEventListener('unhandledrejection', listener)
-    }
-}
 
 /**
  * Replace `console.warn` with a sink that THROWS (counting every attempt, so a

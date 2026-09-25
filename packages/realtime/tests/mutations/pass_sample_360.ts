@@ -109,10 +109,10 @@ const CALL = '        try {\n' +
 const WARN_BODY = '        try {\n' +
     '            console.warn(`${PASS_SAMPLE_FAILED} ${renderError(failure)}`)\n' +
     '        } catch (sink) {\n' +
-    '            console.error(\n' +
-    '                `${PASS_SAMPLE_LOG_FAILED} ${renderError(failure)}; ` +\n' +
-    '                    `sink failure: ${renderError(sink)}`,\n' +
-    '            )\n' +
+    '            writeMarkedFallback(PASS_SAMPLE_LOG_FAILED, failure, {\n' +
+    "                label: 'sink failure',\n" +
+    '                error: sink,\n' +
+    '            })\n' +
     '        }\n'
 const BARE_WARN =
     '        console.warn(`${PASS_SAMPLE_FAILED} ${renderError(failure)}`)\n'
@@ -122,8 +122,9 @@ const SWEEP_CATCH = '                })\n' +
     '                .catch((error: unknown) => {\n' +
     '                    // #360 A1, the #369 rule: nothing escapes the sweep chain.\n' +
     '                    // A rejection reaches here only when a log sink threw\n' +
-    '                    // inside the pass; the marker is the fixed prefix.\n' +
-    '                    console.error(`${SWEEP_LOG_FAILED} ${renderError(error)}`)\n' +
+    '                    // inside the pass; the marker is the fixed prefix, and\n' +
+    '                    // the line never throws past itself either (#391).\n' +
+    '                    writeMarkedFallback(SWEEP_LOG_FAILED, error)\n' +
     '                })\n'
 
 /** The revocation end site's sample, with its arguments replaced. */

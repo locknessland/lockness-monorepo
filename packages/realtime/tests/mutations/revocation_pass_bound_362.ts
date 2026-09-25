@@ -298,10 +298,10 @@ const MUTATIONS: Mutation[] = [
             '        try {\n' +
             '            console.warn(text)\n' +
             '        } catch (failure) {\n' +
-            '            console.error(\n' +
-            '                `${REVOCATION_LOG_FAILED} ${renderError(text)}; ` +\n' +
-            '                    `sink failure: ${renderError(failure)}`,\n' +
-            '            )\n' +
+            '            writeMarkedFallback(REVOCATION_LOG_FAILED, text, {\n' +
+            "                label: 'sink failure',\n" +
+            '                error: failure,\n' +
+            '            })\n' +
             '        }\n',
             '        console.warn(text)\n',
         ]],
@@ -315,8 +315,9 @@ const MUTATIONS: Mutation[] = [
             '            .catch((error: unknown) => {\n' +
             '                // #369: nothing escapes the pass chain. A rejection reaches\n' +
             '                // here only when a log sink itself threw (#349); the marker\n' +
-            '                // is the fixed prefix, the rejection is rendered.\n' +
-            '                console.error(`${REVOCATION_LOG_FAILED} ${renderError(error)}`)\n' +
+            '                // is the fixed prefix, the rejection is rendered, and the\n' +
+            '                // line never throws past itself either (#391).\n' +
+            '                writeMarkedFallback(REVOCATION_LOG_FAILED, error)\n' +
             '            })\n',
             '            })\n',
         ]],

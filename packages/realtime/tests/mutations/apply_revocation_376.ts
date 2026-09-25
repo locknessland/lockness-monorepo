@@ -41,6 +41,8 @@
 import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const MANAGER = new URL('../../manager.ts', import.meta.url)
+/** Where the marked line is rendered since #391 — M2 mutates it there. */
+const MARKED_FALLBACK = new URL('../../marked_fallback.ts', import.meta.url)
 const SUITES = [
     new URL('../apply_revocation_376.test.ts', import.meta.url).pathname,
 ]
@@ -50,11 +52,9 @@ const MUTATIONS: Mutation[] = [
         label: 'M1 — the control-frame dispatch back to a bare void, no catch',
         file: MANAGER,
         edits: [[
-            '        this.#applyRevocation(revocation).catch((error: unknown) => {\n' +
-            '            console.error(\n' +
-            '                `${REVOCATION_APPLY_LOG_FAILED} ${renderError(error)}`,\n' +
-            '            )\n' +
-            '        })\n',
+            '        this.#applyRevocation(revocation).catch((error: unknown) =>\n' +
+            '            writeMarkedFallback(REVOCATION_APPLY_LOG_FAILED, error)\n' +
+            '        )\n',
             '        void this.#applyRevocation(revocation)\n',
         ]],
         // Witness: `no rejection reaches the runtime` — the throwing WARN
@@ -64,10 +64,12 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: 'M2 — the rejection interpolated raw, not rendered',
-        file: MANAGER,
+        // Re-anchored by #391: the line is built by `writeMarkedFallback`,
+        // so the subject's rendering is mutated in its one home.
+        file: MARKED_FALLBACK,
         edits: [[
-            '`${REVOCATION_APPLY_LOG_FAILED} ${renderError(error)}`',
-            '`${REVOCATION_APPLY_LOG_FAILED} ${String(error)}`',
+            '${marker} ${renderError(subject)}',
+            '${marker} ${String(subject)}',
         ]],
         // Witness: `no raw "\r" survives` — String() keeps the CR/LF.
         killedBy: '#376 W3 the sink failure is rendered, not interpolated raw',

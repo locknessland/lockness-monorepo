@@ -100,11 +100,11 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M5 — the no-hook default sink demoted below console.error',
         file: WEBSOCKET,
+        // Re-anchored by #391: the default line is written through
+        // `writeMarkedFallback`; the demotion puts a `console.debug` back.
         edits: [[
-            '        console.error(\n' +
-            '            `realtime: unhandled websocket error: ',
-            '        console.debug(\n' +
-            '            `realtime: unhandled websocket error: ',
+            '        writeMarkedFallback(UNHANDLED_WEBSOCKET_ERROR, error)\n',
+            '        console.debug(`${UNHANDLED_WEBSOCKET_ERROR} ${error}`)\n',
         ]],
         // Witness: `exactly one console.error line` — none reaches it.
         killedBy: 'private-orders: with no onError hook',

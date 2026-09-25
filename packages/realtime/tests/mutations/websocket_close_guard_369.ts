@@ -46,6 +46,8 @@
 import { type Mutation, runBattery } from '@mutations/harness.ts'
 
 const WEBSOCKET = new URL('../../websocket.ts', import.meta.url)
+/** Where the marked line is rendered since #391 — M3 mutates it there. */
+const MARKED_FALLBACK = new URL('../../marked_fallback.ts', import.meta.url)
 const SUITES = [
     new URL('../websocket_close_guard_369.test.ts', import.meta.url).pathname,
 ]
@@ -82,10 +84,12 @@ const MUTATIONS: Mutation[] = [
     },
     {
         label: 'M3 — the hook failure interpolated raw, not rendered',
-        file: WEBSOCKET,
+        // Re-anchored by #391: the line is built by `writeMarkedFallback`,
+        // so the second half's rendering is mutated in its one home.
+        file: MARKED_FALLBACK,
         edits: [[
-            '${renderError(failure)}',
-            '${String(failure)}',
+            '${renderError(failure.error)}',
+            '${String(failure.error)}',
         ]],
         // Witness: `no raw "\r" survives` — String() keeps the CR/LF.
         killedBy: '#369 W3 the hook failure is encoded like the original error',
