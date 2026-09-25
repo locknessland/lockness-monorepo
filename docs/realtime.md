@@ -1626,6 +1626,8 @@ RedisBroadcastDriver.fromConfig(config, {
 })
 ```
 
+<a id="heartbeat-timing"></a>
+
 **The first two are one setting with two numbers.** The heartbeat is what keeps
 this instance's own liveness key alive, and that key's TTL is
 `livenessTtlSeconds` — so the constructor **refuses** a configuration where
@@ -1643,6 +1645,16 @@ leave three beats per window.
 Tightening `livenessTtlSeconds` therefore means revisiting `heartbeatIntervalMs`
 in the same edit: dropping the TTL to `5` while leaving the heartbeat at `5000`
 now throws at construction rather than degrading silently in production.
+
+**The interval also has a ceiling: 2 147 483 647 ms**, about 24.8 days, the
+longest delay one timer can hold
+([#381](https://github.com/locknessland/lockness-monorepo/issues/381)). The
+relation above bounds the interval only by the TTL, and `livenessTtlSeconds` has
+no upper bound, so a large TTL used to admit a longer interval. A longer delay
+does not wait longer: Deno fires it after 1 ms, and the heartbeat then renewed
+the liveness key every millisecond against the broker. The constructor
+**refuses** an interval above the ceiling, naming the interval, the TTL and the
+ceiling; lower the interval.
 
 <a id="revocation-timing"></a>
 
@@ -2268,7 +2280,7 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Twenty-four items. Seventeen are breaking changes — the driver revocation seam,
+Twenty-five items. Eighteen are breaking changes — the driver revocation seam,
 the presence snapshot a subscribe returns, the driver roster seam, presence
 frames announced per member rather than per connection, an authorizer result
 outside its contract now throwing, a presence member id that is not a string or
@@ -2279,16 +2291,17 @@ a private channel now checked as a presence member, no connection receiving
 now throwing, a disconnected connection now refused at admission, a Redis
 revocation timing the driver cannot enforce now refused at boot, `subscribe` now
 requiring `register`, an id held by a live connection now refused, a refused
-socket no longer getting your `onClose`, and a revocation re-check handler type
-a driver's narrowly typed slot no longer holds — plus two widened return types,
-one new control kind, one additive wire field and one additive getter. Item 16
-changes no behaviour: it corrects earlier guidance. Items 19 and 24 are
-observable, not breaking: a malformed sweep reply now logs a WARN, and a
-revocation record now lives up to the fleet's longest live TTL. Item 23 also
-changes what the deadline reports: a revocation pass with a failed apply no
-longer re-arms it. **No migration step, and two new Redis keys.** Before you
-deploy, read items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-21, 22, 23 and 24 — and items 2 and 7 if you wrote your own driver.
+socket no longer getting your `onClose`, a revocation re-check handler type a
+driver's narrowly typed slot no longer holds, and a Redis heartbeat interval no
+timer can hold now refused at boot — plus two widened return types, one new
+control kind, one additive wire field and one additive getter. Item 16 changes
+no behaviour: it corrects earlier guidance. Items 19 and 24 are observable, not
+breaking: a malformed sweep reply now logs a WARN, and a revocation record now
+lives up to the fleet's longest live TTL. Item 23 also changes what the deadline
+reports: a revocation pass with a failed apply no longer re-arms it. **No
+migration step, and two new Redis keys.** Before you deploy, read items 1, 3, 5,
+6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 and 25 — and
+items 2 and 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -3194,6 +3207,22 @@ observe:
   records still live for its own TTL, exactly as before; an older reader never
   puts its TTL on the floor, so records are not lengthened for it; and an older
   reap never removes anything live.
+
+No wire change, and no migration step.
+
+### 25. A Redis heartbeat interval no timer can hold refuses to boot
+
+**Before**, `presence.heartbeatIntervalMs` was bounded only by half of
+`presence.livenessTtlSeconds × 1000`
+([#381](https://github.com/locknessland/lockness-monorepo/issues/381)), and the
+TTL has no upper bound. A large TTL admitted an interval above 2 147 483 647 ms.
+Deno replaces such a delay with 1 ms, so the heartbeat renewed the instance's
+liveness key every millisecond, with only a `TimeoutOverflowWarning` on stderr.
+
+**After**, `new RedisBroadcastDriver` and `fromConfig` throw for an interval
+above that ceiling. The rule is stated once, in
+[the heartbeat timing](#heartbeat-timing); the defaults (`5000` ms against `15`
+s) pass. The fix is to lower the interval.
 
 No wire change, and no migration step.
 

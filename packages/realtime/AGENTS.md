@@ -727,11 +727,17 @@ of what the re-check's counts mean.
   above half the TTL
   ([#293](https://github.com/locknessland/lockness-monorepo/issues/293)); two
   beats per window, because one lands on the boundary and races the expiry.
-  **`#heartbeat` writes the liveness key BEFORE `SADD instances`** (#355), and
-  still attempts the `SADD` when the `SET` failed: registered with no liveness
-  key, an instance is exactly what a peer's sweep takes for dead, while a failed
-  `SET` must still leave it registered (#310's scenario). The heartbeat stays an
-  unguarded `setInterval` — a guard would turn one slow renewal into a lapse.
+  **That relation is not a ceiling**: the TTL has no upper bound, so the
+  constructor also refuses an interval above `MAX_TIMER_MS`, which Deno would
+  fire after 1 ms
+  ([#381](https://github.com/locknessland/lockness-monorepo/issues/381)). Never
+  add a second timer literal; witness `heartbeat_ceiling_381.test.ts`, battery
+  `tests/mutations/heartbeat_ceiling_381.ts`. **`#heartbeat` writes the liveness
+  key BEFORE `SADD instances`** (#355), and still attempts the `SADD` when the
+  `SET` failed: registered with no liveness key, an instance is exactly what a
+  peer's sweep takes for dead, while a failed `SET` must still leave it
+  registered (#310's scenario). The heartbeat stays an unguarded `setInterval` —
+  a guard would turn one slow renewal into a lapse.
 - **Refusing a bad state can move a mutant FURTHER from killable — and
   "unreachable" is a claim about the CONFIGURATION, not about the guard.** #293
   was filed expecting its guard to make the `id === this.instanceId` self-skip a
