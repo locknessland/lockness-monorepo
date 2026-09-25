@@ -2016,20 +2016,28 @@ form, and when it holds, is stated once in the `onRevocationReconcile` JSDoc of
 [`packages/realtime/drivers/redis.ts`](../packages/realtime/drivers/redis.ts).
 Since #362 the bound is checked at boot (see
 [the revocation timing](#revocation-timing)) and watched at runtime: one WARN
-per episode — `STALLED`, `MISSED` or `SKEWED` — when no pass completes within
-`revocationTtlSeconds` of the last success's start. `revocationTtlSeconds` is
-assumed **uniform across the fleet**: a record lives for its writer's TTL, so a
-peer configured with a shorter one writes records this instance's checks do not
-cover (ADR [011](adr/011-realtime-revocation-bound-is-checked.md) §5). An
-injected command port must settle every command, as the `RedisCommandClient`
-JSDoc in the same file states; one that never settles stalls the re-check, which
-is then reported, not recovered.
+per episode — `STALLED`, `MISSED` or `SKEWED` — when no pass completes without
+failures within `revocationTtlSeconds` of the last clean pass's start. A **clean
+pass** is one whose re-check reported no failed apply and no malformed tally
+(#384); every other pass that ends leaves the deadline armed, and tells it so
+(`passEnded`), so an expiry after it is `MISSED` — see
+[item 23](#23-only-a-clean-revocation-pass-re-arms-the-deadline).
+`revocationTtlSeconds` is assumed **uniform across the fleet**: a record lives
+for its writer's TTL, so a peer configured with a shorter one writes records
+this instance's checks do not cover (ADR
+[011](adr/011-realtime-revocation-bound-is-checked.md) §5). An injected command
+port must settle every command, as the `RedisCommandClient` JSDoc in the same
+file states; one that never settles stalls the re-check, which is then reported,
+not recovered.
 
 <a id="measuring-passes"></a>**Measuring the passes** (#360). Register
 `driver.onPassComplete(handler)` on the Redis driver and it hands you one frozen
 `PassSample` per completed ghost sweep and revocation pass: which pass, what
-triggered it, how it ended, how long it took and how many pages it read. What
-each field means is stated once, in the `PassSample` JSDoc of
+triggered it, how it ended, how long it took, how many pages it read, and —
+since #384 — how many units it attempted and how many failed (`attempts`,
+`failures`; a revocation sample carries them when its re-check reported a
+`RevocationTally`). An `ok` pass can still carry failures. What each field means
+is stated once, in the `PassSample` JSDoc of
 [`packages/realtime/drivers/redis.ts`](../packages/realtime/drivers/redis.ts);
 the instrument names and the recipe that forwards samples to OpenTelemetry live
 in [Framework instruments](observability-and-crypto.md#framework-instruments).
@@ -2242,24 +2250,25 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Twenty-two items. Sixteen are breaking changes — the driver revocation seam, the
-presence snapshot a subscribe returns, the driver roster seam, presence frames
-announced per member rather than per connection, an authorizer result outside
-its contract now throwing, a presence member id that is not a string or a finite
-number now throwing, a presence member that is not exactly `{ id, info }` now
-throwing, presence members now read-only, an object result on a private channel
-now checked as a presence member, no connection receiving `joined` or `left` for
-its own member id, a presence member over its byte bound now throwing, a
-disconnected connection now refused at admission, a Redis revocation timing the
-driver cannot enforce now refused at boot, `subscribe` now requiring `register`,
-an id held by a live connection now refused, and a refused socket no longer
-getting your `onClose` — plus two widened return types, one new control kind,
-one additive wire field and one additive getter. Item 16 changes no behaviour:
-it corrects earlier guidance. Item 19 is observable, not breaking: a malformed
-sweep reply now logs a WARN. **No migration step, and one new Redis key
-family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14,
-15, 16, 17, 18, 19, 20, 21 and 22 — and items 2 and 7 if you wrote your own
-driver.
+Twenty-three items. Sixteen are breaking changes — the driver revocation seam,
+the presence snapshot a subscribe returns, the driver roster seam, presence
+frames announced per member rather than per connection, an authorizer result
+outside its contract now throwing, a presence member id that is not a string or
+a finite number now throwing, a presence member that is not exactly
+`{ id, info }` now throwing, presence members now read-only, an object result on
+a private channel now checked as a presence member, no connection receiving
+`joined` or `left` for its own member id, a presence member over its byte bound
+now throwing, a disconnected connection now refused at admission, a Redis
+revocation timing the driver cannot enforce now refused at boot, `subscribe` now
+requiring `register`, an id held by a live connection now refused, and a refused
+socket no longer getting your `onClose` — plus two widened return types, one new
+control kind, one additive wire field and one additive getter. Item 16 changes
+no behaviour: it corrects earlier guidance. Item 19 is observable, not breaking:
+a malformed sweep reply now logs a WARN. Item 23 is observable, not breaking: a
+revocation pass with a failed apply no longer re-arms the enforcement deadline.
+**No migration step, and one new Redis key family.** Before you deploy, read
+items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22 and
+23 — and items 2 and 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -3081,6 +3090,44 @@ decrement still runs — and the count goes below zero.
 If your transport reuses ids, an evicted socket's id may already be someone
 else's, so still never act on `conn.id` in `onClose`. Apps on `handlerHooks`
 with framework ids see no change. No wire change, and no migration step.
+
+### 23. Only a clean revocation pass re-arms the deadline
+
+**Before**, the Redis revocation deadline
+([#362](https://github.com/locknessland/lockness-monorepo/issues/362)) re-armed
+on every pass whose enumeration completed, however many of its revocations
+failed to apply
+([#384](https://github.com/locknessland/lockness-monorepo/issues/384)). A
+revoked socket whose `Connection.close` throws stays open and owned, and fails
+on every pass — yet each pass re-armed the deadline, and the record was reaped
+at its TTL with nothing but one WARN per pass to show for it.
+
+**After**, only a **clean** pass re-arms it: its re-check reported no failed
+apply and no malformed tally.
+
+- **A failure on every pass writes `MISSED`** one TTL after the last clean
+  pass's start — once per episode. An expiry after a pass that was not clean is
+  `MISSED`, never `STALLED`, even while a pass is in flight. Both lines now read
+  "no revocation pass completed without failures within revocationTtlSeconds of
+  the last clean pass's start".
+- **A one-off failure costs margin, not a line.** The built-in apply failures
+  happen once — the next pass finds nothing left to apply — so a single failed
+  pass between clean ones writes nothing.
+- **`REVOCATION_TALLY_MALFORMED` is new**: one WARN per pass for an
+  `onRevocationReconcile` handler that resolves a value claiming to be a
+  `RevocationTally` with bad counts (one missing, not a safe integer, negative,
+  or `failed` above `attempted`). Such a pass reports no counts and does not
+  re-arm. A handler that resolves nothing, or a value that is not tally-shaped,
+  is unchanged.
+- **Additive**: `RevocationTally` is exported, the hook's handler type widens to
+  `() => RevocationTally | void | Promise<RevocationTally | void>` (a `void`
+  handler still conforms), and `PassSample` gains optional `attempts` and
+  `failures`. Record them with the
+  [pass-instrument recipe](observability-and-crypto.md#framework-instruments),
+  and alert on the rate of `failures`.
+
+No wire change and no migration step. If `MISSED` starts appearing, the WARNs
+before it name the revocation that keeps failing.
 
 ## Upgrading to v0.3.0
 

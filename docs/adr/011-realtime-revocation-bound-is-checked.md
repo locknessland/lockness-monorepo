@@ -66,11 +66,20 @@ misconfiguration, not a degradation.
 timer. The guarantee is broken exactly when no pass has completed within one TTL
 of the **start** of the last success — a record written just after that start
 may be missed behind its cursor and must be applied by the next pass — so a
-success re-arms it `ttl − (end − start)` from its end. A failed pass leaves it
-alone. It moves at three sites and `close()`, named in the
-`#startRevocationPass` JSDoc: the first registration arms it, the start records
-the pass, and the end re-arms it last, for an `ok` pass while `close()` has not
-begun.
+success re-arms it `ttl − (end − start)` from its end. A pass that is not clean
+leaves it alone, and tells it so (`passEnded`). It moves at three sites and
+`close()`, named in the `#startRevocationPass` JSDoc: the first registration
+arms it, the start records the pass, and the end, last, while `close()` has not
+begun, re-arms it for a clean pass and calls `passEnded()` for any other.
+
+**Since #384 a success is a clean pass**: `ok`, and its re-check reported no
+failed apply and no malformed tally (a handler that reports nothing counts as no
+failure). The re-check resolves a `RevocationTally` — whose JSDoc, in
+`packages/realtime/driver.ts`, is the one home of what its counts mean — and the
+pass's end site decides clean; the deadline never judges a pass. An expiry after
+`passEnded()` writes `MISSED` even while a pass is in flight: the window was
+broken by passes that ended, not by the one still running, so the command port
+is not blamed.
 
 When it expires it writes one line and never re-arms itself: `STALLED` naming
 the pass in flight (its trigger and age) when one is, `MISSED` otherwise. An
@@ -125,10 +134,50 @@ which happens only when a log sink itself threw (#349).
 - **A generic deadline runner, or an export from `mod.ts`.** One consumer;
   `lapse_run.ts` set the concrete, internal precedent.
 
+Rejected by #384, when a pass with a failure stopped counting as a success:
+
+- **A `failed` outcome when every record fails.** It conflates an unreadable
+  store with a refused apply, runs the #308 retry for a pass that read fine, and
+  hides every partial failure.
+- **A counter argument passed to the handler.** Third-party drivers call
+  `handler()` with no argument, so the counts would silently never arrive.
+- **Inferring failures from `clearRevocation`.** Incomplete — a connection
+  revocation is never cleared — and a clear failure is not an apply failure.
+- **A hedged `STALLED` text**, or **a filter in the `inFlight` closure**, for an
+  expiry during a healthy pass after passes with failures. The first blames the
+  port with a caveat; the second makes the deadline read pass state it does not
+  own. `passEnded()` records the fact, verdict-free.
+- **A silent "no tally" for every bad value.** A tally-shaped value with bad
+  counts would then re-arm the deadline.
+- **A WARN for every value that is not `undefined`.** A handler that compiles as
+  `() => void` can still resolve a stray value, which is not a breach; only a
+  tally-shaped value with bad counts WARNs.
+- **A malformed tally that still re-arms.** A handler whose counts no one can
+  trust must not keep the guarantee looking kept.
+
 ## 4. What this does not solve
 
-- **`ok` means the enumeration completed**, not that every record was applied. A
-  record whose apply always throws expires with only its #349 WARN.
+- **A failure is counted, not prevented** (#384). The built-in apply failures
+  happen **once** by design — a leave drops the membership, and `disconnect`
+  forgets the connection, before the only awaits that can throw — so the next
+  pass finds the pair `'not-subscribed'` or the record foreign, and the failure
+  costs one pass of margin. **The failure that repeats is the hard-close**: a
+  `Connection.close` that throws leaves the socket open and owned, every pass
+  fails on it, and the deadline now writes `MISSED` one TTL after the last clean
+  pass instead of re-arming every pass. What is left:
+  - **the lapse run's re-check** (#349) resolves a tally that is discarded, so
+    its failures stay their WARNs;
+  - **"failure" means the apply threw**, not that the socket stayed subscribed:
+    an apply that resolves without effect counts as done;
+  - **clear failures** are not counted; the record is re-applied until its TTL;
+  - **a handler that resolves nothing** (or a value that is not tally-shaped)
+    gets no counts and the pre-#384 deadline;
+  - **a stall after a non-clean pass reads `MISSED`**, not `STALLED`: one
+    episode is one line;
+  - **a failing record whose client moves between instances** on every interval
+    never breaks one instance's window, so no deadline fires anywhere; the rate
+    of `failures` is the signal (ADR
+    [012](012-measurements-reach-the-app-through-a-seam.md) §5).
 - **The broker-clock check** sees only what `listRevocations` reads: a
   third-party handler that never calls it gets the local check only. `TIME` has
   a one-second granularity; a backward step is harmless (records live longer).

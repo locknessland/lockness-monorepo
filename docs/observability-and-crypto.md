@@ -107,16 +107,18 @@ instrument themselves. A package that measures something hands the value to the
 application through a seam, and the application records it on a meter from
 `getMeter` ([ADR 012](adr/012-measurements-reach-the-app-through-a-seam.md)).
 
-| Instrument                        | Kind      | Unit     | Recorded value                 | Recorded by                    |
-| :-------------------------------- | :-------- | :------- | :----------------------------- | :----------------------------- |
-| `lockness.http.server.requests`   | counter   | —        | `1` per request                | `telemetryMiddleware`          |
-| `lockness.realtime.pass.duration` | histogram | `s`      | `PassSample.durationMs / 1000` | the application (recipe below) |
-| `lockness.realtime.pass.pages`    | histogram | `{page}` | `PassSample.pages`             | the application (recipe below) |
+| Instrument                        | Kind      | Unit        | Recorded value                 | Recorded by                    |
+| :-------------------------------- | :-------- | :---------- | :----------------------------- | :----------------------------- |
+| `lockness.http.server.requests`   | counter   | —           | `1` per request                | `telemetryMiddleware`          |
+| `lockness.realtime.pass.duration` | histogram | `s`         | `PassSample.durationMs / 1000` | the application (recipe below) |
+| `lockness.realtime.pass.pages`    | histogram | `{page}`    | `PassSample.pages`             | the application (recipe below) |
+| `lockness.realtime.pass.attempts` | counter   | `{attempt}` | `PassSample.attempts`          | the application (recipe below) |
+| `lockness.realtime.pass.failures` | counter   | `{failure}` | `PassSample.failures`          | the application (recipe below) |
 
 - **`lockness.http.server.requests`** carries `http.route`, the matched route
   pattern.
-- **Both `lockness.realtime.pass.*` histograms** carry three attributes, taken
-  from the Redis realtime driver's `PassSample`:
+- **All four `lockness.realtime.pass.*` instruments** carry the same three
+  attributes, taken from the Redis realtime driver's `PassSample`:
   - `lockness.realtime.pass.kind` — `sweep` or `revocation` (`PassSample.pass`);
   - `lockness.realtime.pass.trigger` — `timer`, `reconnect` or
     `reconnect-retry`;
@@ -125,6 +127,11 @@ application through a seam, and the application records it on a meter from
     `packages/realtime/drivers/redis.ts`.
 
   At most 12 combinations exist, whatever the fleet size.
+- **The two counters are added to only when the sample carries counts**
+  (`sample.failures !== undefined`): every sweep sample does, and a revocation
+  sample does when its re-check reported a tally (#384). What an attempt and a
+  failure are, per pass, is defined once, on `PassSample.attempts` and
+  `PassSample.failures`.
 - **Explicit bucket boundaries**, passed as `advice.explicitBucketBoundaries`:
   - `lockness.realtime.pass.duration`, in seconds:
     `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60`. The range
@@ -132,10 +139,11 @@ application through a seam, and the application records it on a meter from
     interval, 1 s) and ADR 008's (a sweep longer than the liveness TTL).
   - `lockness.realtime.pass.pages`: `1, 2, 5, 10, 20, 50, 100, 200, 500, 1000`.
 
-#### Recipe: the realtime pass histograms
+#### Recipe: the realtime pass instruments
 
 `RedisBroadcastDriver.onPassComplete` hands the application one sample per
-completed ghost sweep and revocation pass. Forward it to the two histograms:
+completed ghost sweep and revocation pass. Forward it to the two histograms and
+the two counters:
 
 ```typescript
 import { getMeter } from '@lockness/telemetry'
@@ -182,6 +190,14 @@ export function recordRealtimePasses(driver: RedisBroadcastDriver): void {
             ],
         },
     })
+    const attempts = meter.createCounter('lockness.realtime.pass.attempts', {
+        unit: '{attempt}',
+        description: 'How many units one realtime background pass attempted.',
+    })
+    const failures = meter.createCounter('lockness.realtime.pass.failures', {
+        unit: '{failure}',
+        description: 'How many units one realtime background pass failed.',
+    })
     driver.onPassComplete((sample: PassSample) => {
         const attributes = {
             'lockness.realtime.pass.kind': sample.pass,
@@ -190,9 +206,20 @@ export function recordRealtimePasses(driver: RedisBroadcastDriver): void {
         }
         duration.record(sample.durationMs / 1000, attributes)
         pages.record(sample.pages, attributes)
+        if (sample.failures !== undefined) {
+            attempts.add(sample.attempts ?? 0, attributes)
+            failures.add(sample.failures, attributes)
+        }
     })
 }
 ```
+
+**Alert on the rate of `lockness.realtime.pass.failures`**, summed across the
+fleet, not only on the revocation deadline's WARNs. The deadline is
+per-instance: a failing revocation whose client reconnects to another instance
+on every interval never breaks one instance's window, so no deadline fires
+anywhere, and a steady failure rate is the only signal that sees it
+([ADR 012](adr/012-measurements-reach-the-app-through-a-seam.md) §5, item 9).
 
 The sample keeps milliseconds; the recipe converts to seconds. With `OTEL_DENO`
 unset, `getMeter` returns the no-op meter and the handler records nothing.

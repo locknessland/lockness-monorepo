@@ -253,7 +253,8 @@ app.get(
   instance. See [realtime.md](../../docs/realtime.md).
 - **Pass measurements** — the Redis driver's `onPassComplete(handler)` hands you
   one frozen `PassSample` per completed ghost sweep and revocation pass: its
-  trigger, outcome, duration and pages. Forward it to your metrics with
+  trigger, outcome, duration and pages, and how many units it attempted and how
+  many failed (`attempts`, `failures`). Forward it to your metrics with
   [the OpenTelemetry recipe](../../docs/observability-and-crypto.md#framework-instruments).
 - **A broadcaster** that satisfies `@lockness/notification`'s `BroadcasterLike`
   — real-time is a drop-in notifications broadcast transport.

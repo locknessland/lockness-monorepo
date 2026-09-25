@@ -51,13 +51,13 @@ application installs it, or the feature stays off.
 
 <!-- generated:surface -->
 
-| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| :-------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `AuthorizeResultError`, `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionDisconnectedError`, `ConnectionIdError`, `ConnectionIdInUseError`, `ConnectionNotRegisteredError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberShapeError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                           |
-| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PassSample`, `PresenceCapableDriver`, `PresenceMember`, `PresenceSnapshot`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `RosterDeparture`, `RosterHold`, `RosterRelease`, `RosterWindow`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
-| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                                                                                          |
-| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_PRESENCE_MEMBER_BYTES`, `MAX_PRESENCE_SNAPSHOT_MEMBERS`, `MAX_ROSTER_READ_SELF_IDS`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                                                                                                    |
+| Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| class     | `AuthorizeResultError`, `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionDisconnectedError`, `ConnectionIdError`, `ConnectionIdInUseError`, `ConnectionNotRegisteredError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberShapeError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                              |
+| function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PassSample`, `PresenceCapableDriver`, `PresenceMember`, `PresenceSnapshot`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `RevocationTally`, `RosterDeparture`, `RosterHold`, `RosterRelease`, `RosterWindow`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
+| typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                                                                                                             |
+| variable  | `CHANNEL_LIMIT_SCOPES`, `MAX_CHANNELS_PER_CONNECTION`, `MAX_FRAME_BYTES`, `MAX_NAME_LENGTH`, `MAX_PRESENCE_MEMBER_BYTES`, `MAX_PRESENCE_SNAPSHOT_MEMBERS`, `MAX_ROSTER_READ_SELF_IDS`, `MAX_WATCHED_CHANNELS`                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 Anything not listed is internal and free to change.
 
@@ -86,8 +86,10 @@ Anything not listed is internal and free to change.
 sample per completed pass, taken at its two end sites — the revocation pass's
 `finally` in `#startRevocationPass`, after the deadline call, and the ghost
 sweep's `finally` in `#armReconcile`, after the re-arm. `#emitPassSample`'s
-JSDoc is the one home of that rule; `PassSample`'s is the one home of what each
-field means.
+JSDoc is the one home of that rule — the counts included (#384): `attempts` and
+`failures` come from the start site's record, never from a field. `PassSample`'s
+is the one home of what each field means; `RevocationTally`'s, in `driver.ts`,
+of what the re-check's counts mean.
 
 ## Pitfalls
 
@@ -102,6 +104,14 @@ field means.
   `performance.now()`**: both passes are timed on `#passClock()`. Instrument
   names never appear in code — they live in `docs/observability-and-crypto.md` §
   Framework instruments.
+- **"Clean" is decided at the revocation end site and nowhere else**
+  ([#384](https://github.com/locknessland/lockness-monorepo/issues/384)). Never
+  decide it in `EnforcementDeadline` (it only learns `passSucceeded` or the
+  verdict-free `passEnded`), **never WARN on a value that is not tally-shaped**
+  (a `() => void` handler can resolve a stray value), and **never let a
+  malformed tally re-arm the deadline**. `decodeRevocationTally` is the one
+  decoder and never throws; `REVOCATION_TALLY_MALFORMED` is written only in
+  `#runRevocationReconcile`, before the end site can start a trailing pass.
 
 - **The Redis revocation pass is bounded, and the bound is checked**
   ([#362](https://github.com/locknessland/lockness-monorepo/issues/362), ADR
@@ -1080,6 +1090,7 @@ field means.
 - `packages/realtime/tests/revocation_pass_bound_362.test.ts`
 - `packages/realtime/tests/revocation_retry.test.ts`
 - `packages/realtime/tests/revocation_seam_332.test.ts`
+- `packages/realtime/tests/revocation_tally_384.test.ts`
 - `packages/realtime/tests/revoke_channel_idless_340.test.ts`
 - `packages/realtime/tests/roster_atomicity_323.test.ts`
 - `packages/realtime/tests/roster_control_atomicity.test.ts`
@@ -1131,6 +1142,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/revocation_paging_359.ts`
 - `packages/realtime/tests/mutations/revocation_pass_bound_362.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
+- `packages/realtime/tests/mutations/revocation_tally_384.ts`
 - `packages/realtime/tests/mutations/revoke_channel_idless_340.ts`
 - `packages/realtime/tests/mutations/roster_read_barrier_333.ts`
 - `packages/realtime/tests/mutations/roster_sync_330.ts`

@@ -65,6 +65,12 @@ shape, so it never breaks what it observes; a closed producer reports nothing.
 - **A meter port injected into the driver.** An options-shape change on every
   driver, a mock meter in every test, and still the names in library code; the
   seam gives the same reach with one method and no option.
+- **A manager-side seam, or a new hook, for the per-unit counts** (#384). Two
+  samples an operator must join, and the enforcement deadline could see neither.
+  The counts ride the revocation re-check's resolved value instead.
+- **A counter argument passed to the re-check handler** (#384). Third-party
+  drivers call `handler()` with no argument, so the counts would silently never
+  arrive.
 
 ## 4. The first instance — the realtime passes
 
@@ -74,7 +80,8 @@ shape, so it never breaks what it observes; a closed producer reports nothing.
   duration on the monotonic pass clock of ADR
   [011](011-realtime-revocation-bound-is-checked.md), and its pages. What each
   field means is stated once, on the type in
-  `packages/realtime/drivers/redis.ts`.
+  `packages/realtime/drivers/redis.ts`. Since #384 it also counts the units the
+  pass attempted and how many failed.
 - **One sample per completed pass**, taken at the pass's one end site from its
   start site's closure.
 - **Off `BroadcastDriver`**: the memory driver runs no background pass, so the
@@ -100,8 +107,19 @@ one-pass-at-a-time rule this measures.
    before it.
 7. **The revisit triggers become observable, not acted upon.** Neither ADR 008's
    nor ADR 009's escalation is implemented.
-8. **`ok` does not mean every record was applied.** No sample counts per-record
-   failures; those remain their named WARNs.
+8. **A failure is what threw, per unit** (#384). A sample counts how many units
+   its pass attempted and how many failed (`attempts`, `failures`); what a unit
+   and a failure are — and what a failure does **not** mean: an apply that
+   resolved without effect, a record that could not be cleared, a sweep cut
+   short or renewed — is stated once, on `PassSample`. A revocation sample
+   carries no counts when its handler reported none.
+9. **A failure that moves between instances trips no deadline** (#384). A
+   failing record whose client reconnects to another instance on every interval
+   never breaks one instance's window, so no per-instance deadline fires. The
+   rate of `failures` across the fleet is the signal
+   ([the recipe](../observability-and-crypto.md#framework-instruments) alerts on
+   it); the only full fix is a durable per-record failure streak, a
+   record-format change.
 
 ## 6. Related
 
