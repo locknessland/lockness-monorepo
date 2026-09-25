@@ -26,7 +26,7 @@ the wrapper without `--draft`, which publishes on the spot, before anyone has
 seen the body.
 
 `/ship` exists to run the steps in the right order, once, and to hold the
-standing decisions so they are not re-litigated every release.
+standing decision on consent so it is not re-litigated every release.
 
 ## ⛔ Before anything: publishing is irreversible and public
 

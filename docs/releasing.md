@@ -208,11 +208,13 @@ none creates, edits or publishes a Release.
 
    ```bash
    repo=locknessland/lockness-monorepo
+   out='<export-dir>' # replace with a directory outside the working tree
+   mkdir -p "$out"
    gh release list --repo "$repo" --limit 1000 --json tagName --jq '.[].tagName' |
      while read -r tag; do
        gh release view "$tag" --repo "$repo" \
          --json tagName,name,body,publishedAt,isDraft,isPrerelease \
-         > "<export-dir>/$tag.json"
+         > "$out/$tag.json"
      done
    ```
 
@@ -223,8 +225,14 @@ none creates, edits or publishes a Release.
 
 3. **Keep the export alongside the tags, then restore it on the new host** — one
    Release per exported tag, its body copied verbatim, created only once that
-   tag exists there. Publishing a Release triggers `publish.yml`, so the restore
-   happens before that workflow is enabled on the new host, or as drafts.
+   tag exists there.
+
+   **Publishing a Release triggers the JSR publish workflow (`publish.yml`).**
+   It checks out the Release's tag and publishes to JSR, outside `/ship`'s
+   consent. Restoring as drafts only postpones that trigger: a restored draft
+   must never be promoted while `publish.yml` is enabled. The safe path is to
+   disable the publish workflow on the new host before restoring, or to restore
+   the bodies as plain text or an archive rather than as Releases.
 
 ## Before any release
 
