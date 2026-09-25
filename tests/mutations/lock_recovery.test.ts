@@ -118,13 +118,24 @@ interface Repo {
     lock: string
 }
 
-/** Run `git` in `cwd`, throwing with its stderr when it fails. */
+/**
+ * Run `git` in `cwd`, throwing with its stderr when it fails.
+ *
+ * Hermetic: the machine's system and global git config are ignored, so a
+ * throwaway repository behaves the same wherever the suite runs. Only the
+ * fixture opts out — the harness probe runs against the real working tree and
+ * may need the global config (`safe.directory`, for one).
+ */
 async function git(cwd: string, ...args: string[]): Promise<void> {
     const run = await new Deno.Command('git', {
         args,
         cwd,
         clearEnv: true,
-        env: gitEnvFromCwd(),
+        env: {
+            ...gitEnvFromCwd(),
+            GIT_CONFIG_NOSYSTEM: '1',
+            GIT_CONFIG_GLOBAL: '/dev/null',
+        },
         stdout: 'piped',
         stderr: 'piped',
     }).output()
@@ -311,8 +322,11 @@ Deno.test('#356 a lock naming no usable pid over a modified file does NOT get th
 Deno.test('#356 a git fixture and probe ignore an inherited GIT_DIR, as under a worktree hook', async () => {
     // A git hook exports GIT_DIR to every child. Before the fix this fixture
     // committed onto the pushing worktree's HEAD instead of its own repo.
+    // Deno.env.set is process-wide: this is only safe because test files run
+    // one at a time (`deno task test` is `deno test -A`, without `--parallel`).
     const prior = Deno.env.get('GIT_DIR')
-    Deno.env.set('GIT_DIR', `${await Deno.makeTempDir()}/not-a-repo`)
+    const host = await Deno.makeTempDir({ prefix: 'lockness-356-gitdir-' })
+    Deno.env.set('GIT_DIR', `${host}/not-a-repo`)
     try {
         await withRepo(async ({ subject, lock }) => {
             await writeLock(lock, DEAD_PID)
@@ -323,5 +337,30 @@ Deno.test('#356 a git fixture and probe ignore an inherited GIT_DIR, as under a 
     } finally {
         if (prior === undefined) Deno.env.delete('GIT_DIR')
         else Deno.env.set('GIT_DIR', prior)
+        await Deno.remove(host, { recursive: true })
+    }
+})
+
+Deno.test('#377 a git fixture ignores the global git config of the machine running it', async () => {
+    // A global excludes file that ignores the subject makes `git add` refuse
+    // it: a fixture reading global config would pass on one machine and fail
+    // on another. Deno.env.set is process-wide, safe only because test files
+    // run one at a time (`deno task test` has no `--parallel`).
+    const home = await Deno.makeTempDir({ prefix: 'lockness-377-home-' })
+    const prior = Deno.env.get('HOME')
+    try {
+        await Deno.writeTextFile(`${home}/ignore`, 'subject.ts\n')
+        await Deno.writeTextFile(
+            `${home}/.gitconfig`,
+            `[core]\n\texcludesFile = ${home}/ignore\n`,
+        )
+        Deno.env.set('HOME', home)
+        await withRepo(async ({ subject }) => {
+            assertEquals(await Deno.readTextFile(subject), PRISTINE)
+        })
+    } finally {
+        if (prior === undefined) Deno.env.delete('HOME')
+        else Deno.env.set('HOME', prior)
+        await Deno.remove(home, { recursive: true })
     }
 })
