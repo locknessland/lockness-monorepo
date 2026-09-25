@@ -46,7 +46,9 @@ const SUITES = [
 
 const RELATION =
     '        if (this.reconcileIntervalMs * 2 > this.revocationTtlSeconds * 1000) {\n'
-const END_GATE = "                if (outcome === 'ok' && !this.#closing) {\n"
+// Re-anchored for #384: the gate reads the end site's clean-pass condition,
+// which `outcome === 'ok'` joined. N11, N13 and N15 keep their meaning over it.
+const END_GATE = '                if (clean && !this.#closing) {\n'
 const FIRST_GATE = '        if (first && !this.#closing) {\n'
 const SKEW_TEST = '            readAt - previous >= this.#ttlMs / 1000\n'
 
@@ -164,7 +166,7 @@ const MUTATIONS: Mutation[] = [
         file: REDIS,
         edits: [[
             END_GATE,
-            "                if (outcome === 'ok' && !this.#closing && false) {\n",
+            '                if (clean && !this.#closing && false) {\n',
         ]],
         killedBy: '#362 D3 ',
     },
@@ -184,7 +186,7 @@ const MUTATIONS: Mutation[] = [
     {
         label: "N15 the end site's #closing gate dropped",
         file: REDIS,
-        edits: [[END_GATE, "                if (outcome === 'ok') {\n"]],
+        edits: [[END_GATE, '                if (clean) {\n']],
         killedBy: '#362 D5 (i)',
     },
     {

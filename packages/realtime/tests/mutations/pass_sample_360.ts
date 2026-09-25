@@ -62,7 +62,10 @@ const SWEEP_PAGE = '            if (this.#sweepPass) this.#sweepPass.pages++\n'
 const HANDLER_FIELD =
     '    #passCompleteHandler?: (sample: PassSample) => void\n'
 
-/** The revocation end site's sample, from the start site's closure. */
+/**
+ * The revocation end site's sample, from the start site's closure.
+ * Re-anchored for #384: the call also passes the record's counts.
+ */
 const REVOCATION_EMIT = '                this.#emitPassSample(\n' +
     "                    'revocation',\n" +
     '                    trigger,\n' +
@@ -70,9 +73,14 @@ const REVOCATION_EMIT = '                this.#emitPassSample(\n' +
     '                    startedAt,\n' +
     '                    endedAt,\n' +
     '                    pass.pages,\n' +
+    '                    pass.attempts,\n' +
+    '                    pass.failures,\n' +
     '                )\n'
 
-/** The sweep's `finally`, in its decided order. */
+/**
+ * The sweep's `finally`, in its decided order. Re-anchored for #384: the call
+ * also passes the record's counts.
+ */
 const SWEEP_FINALLY =
     '                    const endedAt = this.#passClock()\n' +
     '                    this.#reconcilePass = undefined\n' +
@@ -85,6 +93,8 @@ const SWEEP_FINALLY =
     '                        pass.startedAt,\n' +
     '                        endedAt,\n' +
     '                        pass.pages,\n' +
+    '                        pass.attempts,\n' +
+    '                        pass.failures,\n' +
     '                    )\n'
 
 /** The gate and the handler read, at the top of `#emitPassSample`. */
@@ -136,6 +146,8 @@ const revocationEmit = (trigger: string, outcome: string, pages: string) =>
     '                    startedAt,\n' +
     '                    endedAt,\n' +
     `                    ${pages},\n` +
+    '                    pass.attempts,\n' +
+    '                    pass.failures,\n' +
     '                )\n'
 
 const MUTATIONS: Mutation[] = [
@@ -279,9 +291,14 @@ const MUTATIONS: Mutation[] = [
     {
         label: "M14 — the sweep's start read on the epoch clock",
         file: REDIS,
+        // Re-anchored for #384: the record literal also carries the counts.
         edits: [[
-            '            const pass = { startedAt: this.#passClock(), pages: 0 }\n',
-            '            const pass = { startedAt: this.now(), pages: 0 }\n',
+            '                startedAt: this.#passClock(),\n' +
+            '                pages: 0,\n' +
+            '                attempts: 0,\n',
+            '                startedAt: this.now(),\n' +
+            '                pages: 0,\n' +
+            '                attempts: 0,\n',
         ]],
         killedBy: '#360 P9 (sweep)',
     },
@@ -350,6 +367,8 @@ const MUTATIONS: Mutation[] = [
                 '                        pass.startedAt,\n' +
                 '                        endedAt,\n' +
                 '                        pass.pages,\n' +
+                '                        pass.attempts,\n' +
+                '                        pass.failures,\n' +
                 '                    )\n' +
                 '                    this.#armReconcile()\n',
             ],

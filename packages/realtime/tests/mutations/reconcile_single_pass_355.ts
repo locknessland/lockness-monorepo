@@ -70,9 +70,15 @@ const SUITES = [
 // for its pass sample — the pass record at the start; the pass clock read
 // first, the re-arm, and the sample last in the `finally`; and a final
 // `.catch` for a log sink that threw (A1). M1 and M2 keep their mutants.
+// Re-anchored for #384: the record and the sample carry the sweep's counts.
 const ARM_TIMER_HEAD = '        this.reconcileTimer = setTimeout(() => {\n' +
     '            this.reconcileTimer = undefined\n' +
-    '            const pass = { startedAt: this.#passClock(), pages: 0 }\n' +
+    '            const pass = {\n' +
+    '                startedAt: this.#passClock(),\n' +
+    '                pages: 0,\n' +
+    '                attempts: 0,\n' +
+    '                failures: 0,\n' +
+    '            }\n' +
     '            this.#sweepPass = pass\n' +
     "            let outcome: PassOutcome = 'failed'\n" +
     '            this.#reconcilePass = this.#reconcile()\n' +
@@ -89,6 +95,8 @@ const ARM_TIMER_TAIL = '                    this.#sweepPass = undefined\n' +
     '                        pass.startedAt,\n' +
     '                        endedAt,\n' +
     '                        pass.pages,\n' +
+    '                        pass.attempts,\n' +
+    '                        pass.failures,\n' +
     '                    )\n' +
     '                })\n' +
     '                .catch((error: unknown) => {\n' +
