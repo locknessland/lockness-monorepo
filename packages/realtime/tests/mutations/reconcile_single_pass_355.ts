@@ -276,9 +276,24 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#355 W6b',
     },
     {
+        // Re-anchored for #368: `await this.#reconcilePass` is now one
+        // argument to `awaitCloseDrain`, not its own line. "Does not await
+        // the pass" is the same mutant on the new shape: the pass argument
+        // reads as already-settled.
         label: 'M11 — close() does not await the pass',
         file: REDIS,
-        edits: [['        await this.#reconcilePass\n', '']],
+        edits: [[
+            '        const pending = await awaitCloseDrain(\n' +
+            '            budgetMs,\n' +
+            '            this.#reconcilePass,\n' +
+            '            stopped,\n' +
+            '        )\n',
+            '        const pending = await awaitCloseDrain(\n' +
+            '            budgetMs,\n' +
+            '            undefined,\n' +
+            '            stopped,\n' +
+            '        )\n',
+        ]],
         killedBy: '#355 W4 (i)',
     },
     {
@@ -333,6 +348,10 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#355 W4 (v)',
     },
     {
+        // Re-anchored for #368: the drop now sits before the single
+        // `awaitCloseDrain` call, not before a standalone
+        // `await this.#reconcilePass`. Moved to AFTER that call instead of
+        // before it — same defect, new shape.
         label: 'M15 — revocationHandler dropped after the await',
         file: REDIS,
         edits: [
@@ -342,8 +361,16 @@ const MUTATIONS: Mutation[] = [
                 '        // The pass stops at its next write',
             ],
             [
-                '        await this.#reconcilePass\n',
-                '        await this.#reconcilePass\n' +
+                '        const pending = await awaitCloseDrain(\n' +
+                '            budgetMs,\n' +
+                '            this.#reconcilePass,\n' +
+                '            stopped,\n' +
+                '        )\n',
+                '        const pending = await awaitCloseDrain(\n' +
+                '            budgetMs,\n' +
+                '            this.#reconcilePass,\n' +
+                '            stopped,\n' +
+                '        )\n' +
                 '        this.revocationHandler = undefined\n',
             ],
         ],

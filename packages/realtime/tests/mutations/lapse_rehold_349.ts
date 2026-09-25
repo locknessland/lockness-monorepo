@@ -401,15 +401,30 @@ const REHOLD_ROWS: Mutation[] = [
         killedBy: '#349 W11b close()',
     },
     {
+        // Re-anchored for #368: the two awaits `await this.#reconcilePass`
+        // and `await stopped` are now one `awaitCloseDrain(budgetMs,
+        // this.#reconcilePass, stopped)` call, so "the abort only after the
+        // sweep pass's await" is now a mutation on WHEN `this.#lapse.close()`
+        // itself runs — deferred to chain off `this.#reconcilePass`, instead
+        // of the eager call `stopped` still names.
         label:
             "M25 — close() aborts the lapse run only after the sweep pass's await",
         file: REDIS,
         edits: [
             ['        const stopped = this.#lapse.close()\n', ''],
             [
-                '        await this.#reconcilePass\n',
-                '        await this.#reconcilePass\n' +
-                '        const stopped = this.#lapse.close()\n',
+                '        const pending = await awaitCloseDrain(\n' +
+                '            budgetMs,\n' +
+                '            this.#reconcilePass,\n' +
+                '            stopped,\n' +
+                '        )\n',
+                '        const pending = await awaitCloseDrain(\n' +
+                '            budgetMs,\n' +
+                '            this.#reconcilePass,\n' +
+                '            (this.#reconcilePass ?? Promise.resolve()).then(\n' +
+                '                () => this.#lapse.close(),\n' +
+                '            ),\n' +
+                '        )\n',
             ],
         ],
         // The pass is held on its SMEMBERS: during that wait the re-assert,
@@ -417,9 +432,23 @@ const REHOLD_ROWS: Mutation[] = [
         killedBy: '#349 W11b (ii)',
     },
     {
+        // Re-anchored for #368: see M25's note. "Does not wait for the run
+        // in flight" is now the third argument to `awaitCloseDrain` reading
+        // as already-settled, never the real `stopped`.
         label: 'M26 — close() does not wait for the run in flight',
         file: REDIS,
-        edits: [['        await stopped\n', '        void stopped\n']],
+        edits: [[
+            '        const pending = await awaitCloseDrain(\n' +
+            '            budgetMs,\n' +
+            '            this.#reconcilePass,\n' +
+            '            stopped,\n' +
+            '        )\n',
+            '        const pending = await awaitCloseDrain(\n' +
+            '            budgetMs,\n' +
+            '            this.#reconcilePass,\n' +
+            '            Promise.resolve(),\n' +
+            '        )\n',
+        ]],
         // close() resolves while slot 7's write is still in flight.
         killedBy: '#349 W11b close()',
     },
