@@ -2611,15 +2611,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * returned thenable is adopted once, through `Promise.resolve`, so it
      * rejects at most once; one that never settles holds nothing.
      *
-     * @param pass - Which pass ended.
-     * @param trigger - What started it.
-     * @param outcome - How it ended.
-     * @param startedAt - Its start, on {@link #passClock}.
      * **The counts ride the same rule** (#384): `attempts` and `failures` come
      * from the start site's record, never from a field, and the sample
      * carries both keys only when both are defined — otherwise neither, not
      * `undefined` values. What they mean is {@link PassSample}'s to say.
      *
+     * @param pass - Which pass ended.
+     * @param trigger - What started it.
+     * @param outcome - How it ended.
+     * @param startedAt - Its start, on {@link #passClock}.
      * @param endedAt - Its end, on {@link #passClock}.
      * @param pages - The pages it read.
      * @param attempts - The units it attempted, when known.
@@ -3463,9 +3463,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * re-arms; **every other settled pass** — `failed`, or `ok` with a
      * failure or a malformed tally — calls `passEnded()`, which re-arms
      * nothing and makes an expiry after it `MISSED`. A `closed` pass, or any
-     * pass once `close()` began, calls neither. {@link close} clears it. **The deadline never frees the slot**:
-     * a pass whose command never settles holds it forever, and is reported,
-     * not abandoned. An outcome that is never recorded (the pass rejected)
+     * pass once `close()` began, calls neither. {@link close} clears it.
+     * **The deadline never frees the slot**: a pass whose command never
+     * settles holds it forever, and is reported, not abandoned. An outcome that is never recorded (the pass rejected)
      * counts as failed, and the chain's last handler writes one marked ERROR
      * line instead of letting the rejection escape (#369).
      *
@@ -3490,7 +3490,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         const pass: RevocationPassRecord = { trigger, startedAt, pages: 0 }
         this.#revocationPass = pass
         let outcome: PassOutcome = 'failed'
-        this.#runRevocationReconcile(trigger)
+        this.#runRevocationReconcile(trigger, pass)
             .then((ended) => void (outcome = ended))
             .finally(() => {
                 const endedAt = this.#passClock()
@@ -3508,7 +3508,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                         endedAt,
                         this.#lastReadAt,
                     )
-                } else if (!this.#closing) {
+                } else if (outcome !== 'closed' && !this.#closing) {
                     this.#deadline.passEnded()
                 }
                 this.#emitPassSample(
@@ -3554,17 +3554,22 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * @param trigger - What ran this pass. `reconnect` is the only one that
      *   earns a retry, and `reconnect-retry` is that retry, which does not
      *   retry itself.
+     * @param pass - This pass's record, from {@link #startRevocationPass}'s
+     *   closure: where a valid tally's counts, or a malformed tally's mark,
+     *   are written (#384). Handed in rather than read from
+     *   {@link #revocationPass}, which by the time the handler resolves is
+     *   the right record only by the end site's ordering.
      * @returns How the pass ended (#362): `ok` once the handler resolved,
      *   `failed` on every path out of its failure, and `closed` when no
      *   handler is registered — only after {@link close} dropped it.
      */
     async #runRevocationReconcile(
         trigger: 'timer' | 'reconnect' | 'reconnect-retry' = 'timer',
+        pass?: RevocationPassRecord,
     ): Promise<PassOutcome> {
         if (!this.revocationHandler) return 'closed'
         try {
             const tally = decodeRevocationTally(await this.revocationHandler())
-            const pass = this.#revocationPass
             if (tally === 'malformed') {
                 if (pass) pass.malformed = true
                 this.#warnMalformedTally(trigger)

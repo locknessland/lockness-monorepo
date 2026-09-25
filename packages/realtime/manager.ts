@@ -3598,12 +3598,14 @@ export class ChannelManager<Identity = unknown> {
             try {
                 if (!await this.#applyRevocation(revocation)) failed++
             } catch (error) {
+                // Counted BEFORE the WARN, as the sweep counts: a sink that
+                // throws cannot skip it.
+                failed++
                 console.warn(
                     'realtime: a durable revocation could not be applied — ' +
                         'the reconcile goes on with the next one: ' +
                         renderError(error),
                 )
-                failed++
             }
         }
         // The driver is ASKED which targets are local, so it can drop foreign
