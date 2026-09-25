@@ -1,6 +1,6 @@
 /**
  * @fileoverview The `unhandledrejection` watcher, and the every-channel-throws
- * console, that the containment witnesses share (#376, #391, #395).
+ * console, that the containment witnesses share (#374, #376, #391, #395).
  *
  * On Deno an unhandled rejection terminates the process, so a witness that
  * let one through would kill the runner instead of failing by name. The
@@ -9,6 +9,8 @@
  *
  * @module @lockness/realtime/tests/escape_watcher
  */
+
+import { AssertionError } from '@std/assert'
 
 /**
  * The real `setTimeout`, captured at module load — before any witness installs
@@ -30,11 +32,41 @@ export async function settle(): Promise<void> {
 
 /**
  * Run `body` while recording every rejection that reaches the runtime
- * unhandled. Each is `preventDefault()`ed so the row fails on its assertion
- * instead of the runner dying; the listener is removed whatever happens.
+ * unhandled — the one `unhandledrejection` watcher this package's tests share
+ * (#374). Its contract, which no caller re-derives:
+ *
+ * - **preventDefault.** Every escape is `preventDefault()`ed, so on Deno, which
+ *   terminates the process on an unhandled rejection, a regression fails the
+ *   row on its assertion instead of killing the runner.
+ * - **record.** Every escape's reason is pushed onto the live `escaped` list
+ *   `body` receives, in dispatch order, for the row to assert on.
+ * - **removed in `finally`, one macrotask late.** The listener is removed
+ *   whatever happens, but only after one real macrotask. A rejection nobody
+ *   handled is dispatched once the microtask queue drains; removed in the same
+ *   turn as a failing assertion, the listener would be gone before the event
+ *   arrived, and the file would die as an `(uncaught error)` rather than fail
+ *   that row by name. The macrotask is real (captured at module load), so it
+ *   runs under FakeTime too.
+ * - **a late escape fails.** An escape that lands during that macrotask, after
+ *   `body` returned normally, was never asserted on; the watcher throws an
+ *   `AssertionError` naming it rather than swallow it. When `body` threw, its
+ *   error is the one reported.
+ *
+ * A row that deliberately needs a different shape — its own listener, say, to
+ * witness this helper — installs one and says why in a comment.
  *
  * @param body - The witness; it receives the live list of escaped reasons.
  * @returns A promise that settles as `body` does.
+ * @throws {AssertionError} When a rejection escaped after `body` returned.
+ *
+ * @example
+ * ```ts
+ * await watchingEscapes(async (escaped) => {
+ *     fireAndForget()
+ *     await settle()
+ *     assertEquals(escaped, [], 'no rejection escaped')
+ * })
+ * ```
  */
 export async function watchingEscapes(
     body: (escaped: unknown[]) => Promise<void>,
@@ -45,10 +77,20 @@ export async function watchingEscapes(
         escaped.push(event.reason)
     }
     globalThis.addEventListener('unhandledrejection', listener)
+    let asserted: number
     try {
         await body(escaped)
+        asserted = escaped.length
     } finally {
+        await new Promise((resolve) => REAL_SET_TIMEOUT(resolve, 0))
         globalThis.removeEventListener('unhandledrejection', listener)
+    }
+    const late = escaped.slice(asserted)
+    if (late.length > 0) {
+        throw new AssertionError(
+            `${late.length} rejection(s) escaped after the witness returned: ` +
+                late.map(String).join('; '),
+        )
     }
 }
 
