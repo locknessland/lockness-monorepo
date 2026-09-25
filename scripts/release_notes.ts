@@ -20,9 +20,11 @@
  *   whole Release body to stdout: the continuity line, the breaking-change
  *   index, the hand-written notes, then stdin byte for byte.
  *
- * Exit codes: `0` emitted or checked; `1` content refused; `2` usage error or
- * a missing tag. On any non-zero exit stdout is empty, so a caller can never
- * paste half a body. Every path on stderr is repo-relative.
+ * Exit codes: `0` emitted or checked; `1` content refused; `2` usage error, a
+ * missing tag, or output that could not be written. On a refusal stdout is
+ * empty; when stdout itself breaks mid-body the exit is 2, so a caller that
+ * judges the exit status can never paste half a body. Every path on stderr is
+ * repo-relative.
  *
  * Runs with `--allow-read --allow-run=git`: it reads files and git objects,
  * never the network, and never writes a file.
@@ -241,7 +243,7 @@ export function parseUpgradeSections(text: string, path: string): ParsedGuide {
     const nearMisses: HeadingAt[] = []
     const emptySections: HeadingAt[] = []
     let fence: Fence | null = null
-    let paragraph: { line: number; text: string } | null = null
+    let paragraph: Paragraph | null = null
     let current: (HeadingAt & { version: string; titles: string[] }) | null =
         null
 
@@ -264,12 +266,7 @@ export function parseUpgradeSections(text: string, path: string): ParsedGuide {
             return
         }
 
-        const setext = paragraph && SETEXT_UNDERLINE.test(line)
-            ? paragraph
-            : null
-        const heading = setext
-            ? { level: line.trim()[0] === '=' ? 1 : 2, text: setext.text }
-            : atxHeading(line)
+        const heading = readHeading(line, paragraph, index + 1)
         if (!heading) {
             paragraph = nextParagraph(paragraph, line, index + 1)
             return
@@ -277,23 +274,11 @@ export function parseUpgradeSections(text: string, path: string): ParsedGuide {
         paragraph = null
         if (heading.level <= 2) closeSection()
 
-        // Only an ATX level-2 heading can open a section; a setext one that
-        // reads like it is a near-miss, like any other variant.
-        const exact = !setext && heading.level === 2
-            ? EXACT_HEADING.exec(heading.text)
-            : null
-        if (exact) {
-            current = {
-                path,
-                line: index + 1,
-                heading: line.trim(),
-                version: exact[1],
-                titles: [],
-            }
-        } else if (setext && NEAR_MISS.test(heading.text)) {
-            nearMisses.push({ path, line: setext.line, heading: setext.text })
+        const at = { path, line: heading.line, heading: heading.shown }
+        if (heading.opens) {
+            current = { ...at, version: heading.opens, titles: [] }
         } else if (NEAR_MISS.test(heading.text)) {
-            nearMisses.push({ path, line: index + 1, heading: line.trim() })
+            nearMisses.push(at)
         } else if (current && heading.level === 3) {
             current.titles.push(heading.text)
         }
@@ -517,6 +502,70 @@ export async function main(args: string[], io: MainIo): Promise<RunResult> {
             stdout: '',
             stderr: relativize([...log, ...stop.lines], roots),
         }
+    }
+}
+
+/** A byte sink that may write only part of what it is given. */
+export interface Writable {
+    /**
+     * Writes a prefix of `bytes`.
+     *
+     * @param bytes The bytes to write.
+     * @returns How many bytes were written.
+     */
+    write(bytes: Uint8Array): Promise<number>
+}
+
+/** Where {@linkcode writeResult} prints: the process streams, or a test's. */
+export interface OutputStreams {
+    /** Receives the Release body. */
+    readonly stdout: Writable
+    /** Receives the diagnostics. */
+    readonly stderr: Writable
+}
+
+/**
+ * Prints a {@linkcode RunResult} — stderr first, then stdout — and returns the
+ * exit code to use.
+ *
+ * Writing is held to the same rule as {@linkcode main}: a failure is exit 2
+ * with the error's name only, never a stack and never a path. The common case
+ * is a closed pipe, when whoever reads stdout exits before the body is
+ * written; a caller that sees exit 2 knows the body it holds is incomplete.
+ *
+ * @param result What {@linkcode main} returned.
+ * @param streams Where to print it.
+ * @returns `result.code` when every byte was written, `2` otherwise.
+ * @throws When stderr itself cannot be written, so that the failure cannot be
+ *   reported either; the rejection is left to the runtime.
+ *
+ * @example
+ * ```ts
+ * const result = await main(Deno.args, { cwd: Deno.cwd() })
+ * Deno.exit(await writeResult(result, { stdout: Deno.stdout, stderr: Deno.stderr }))
+ * ```
+ */
+export async function writeResult(
+    result: RunResult,
+    streams: OutputStreams,
+): Promise<0 | 1 | 2> {
+    try {
+        if (result.stderr !== '') {
+            await writeAll(streams.stderr, `${result.stderr}\n`)
+        }
+        await writeAll(streams.stdout, result.stdout)
+        return result.code
+    } catch (error) {
+        // The error's message may name an absolute path, so only its name is
+        // reported. If stderr is what failed, this write fails too and the
+        // rejection escapes: there is nowhere left to report it.
+        await writeAll(
+            streams.stderr,
+            `release:notes: cannot write the output (${
+                error instanceof Error ? error.name : 'unknown error'
+            }); what was written is incomplete\n`,
+        )
+        return 2
     }
 }
 
@@ -860,21 +909,72 @@ const THEMATIC_BREAK = /^ {0,3}([-*_])([ \t]*\1){2,}[ \t]*$/
 /** A line that interrupts a paragraph and cannot carry a setext underline. */
 const NOT_PARAGRAPH = /^ {0,3}([-*+][ \t]|\d{1,9}[.)][ \t]|>|<|\|)|^ {4}/
 
+/** The open paragraph: its first line, and its lines joined by spaces. */
+interface Paragraph {
+    readonly line: number
+    readonly text: string
+}
+
 /**
  * Tracks the paragraph a later setext underline would turn into a heading.
  * A blank line, a list item, a quote, a table row, HTML or indented code ends
  * it; any other text line starts or continues it.
  */
 function nextParagraph(
-    paragraph: { line: number; text: string } | null,
+    paragraph: Paragraph | null,
     line: string,
     lineNumber: number,
-): { line: number; text: string } | null {
+): Paragraph | null {
     if (line.trim() === '' || NOT_PARAGRAPH.test(line)) return null
     if (SETEXT_UNDERLINE.test(line) || THEMATIC_BREAK.test(line)) return null
     return paragraph
         ? { line: paragraph.line, text: `${paragraph.text} ${line.trim()}` }
         : { line: lineNumber, text: line.trim() }
+}
+
+/** A heading, as {@linkcode parseUpgradeSections} reports and classifies it. */
+interface Heading {
+    readonly level: number
+    /** The text the regexes judge: markers and closing `#`s stripped. */
+    readonly text: string
+    /** The 1-based line a finding points at. */
+    readonly line: number
+    /** What a finding prints: the trimmed ATX line, or the setext text. */
+    readonly shown: string
+    /** The version of the section this heading opens, or `null`. */
+    readonly opens: string | null
+}
+
+/**
+ * The heading `line` completes, if any. A setext underline turns the open
+ * paragraph into a heading reported at the paragraph's first line; otherwise
+ * the line itself may be an ATX heading.
+ */
+function readHeading(
+    line: string,
+    paragraph: Paragraph | null,
+    lineNumber: number,
+): Heading | null {
+    if (paragraph && SETEXT_UNDERLINE.test(line)) {
+        return {
+            level: line.trim()[0] === '=' ? 1 : 2,
+            text: paragraph.text,
+            line: paragraph.line,
+            shown: paragraph.text,
+            // Only an ATX level-2 heading can open a section; a setext one
+            // that reads like it is a near-miss, like any other variant.
+            opens: null,
+        }
+    }
+    const atx = atxHeading(line)
+    if (!atx) return null
+    const exact = atx.level === 2 ? EXACT_HEADING.exec(atx.text) : null
+    return {
+        ...atx,
+        line: lineNumber,
+        shown: line.trim(),
+        opens: exact?.[1] ?? null,
+    }
 }
 
 function atxHeading(line: string): { level: number; text: string } | null {
@@ -916,10 +1016,7 @@ function relativize(
     return text
 }
 
-async function writeAll(
-    stream: { write(bytes: Uint8Array): Promise<number> },
-    text: string,
-): Promise<void> {
+async function writeAll(stream: Writable, text: string): Promise<void> {
     let bytes = new TextEncoder().encode(text)
     while (bytes.length > 0) bytes = bytes.subarray(await stream.write(bytes))
 }
@@ -929,7 +1026,7 @@ if (import.meta.main) {
         cwd: Deno.cwd(),
         stdin: () => new Response(Deno.stdin.readable).text(),
     })
-    if (result.stderr !== '') await writeAll(Deno.stderr, `${result.stderr}\n`)
-    await writeAll(Deno.stdout, result.stdout)
-    Deno.exit(result.code)
+    Deno.exit(
+        await writeResult(result, { stdout: Deno.stdout, stderr: Deno.stderr }),
+    )
 }
