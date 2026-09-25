@@ -66,7 +66,9 @@ Deno.test('US4: a disconnect on the owning instance fans a `left` to presence su
     const b = instance(redis)
     try {
         const w = fakeConn('w', { id: 10, name: 'Wendy' }) // watcher on A
+        a.manager.register(w)
         const x = fakeConn('x', { id: 1, name: 'Xavier' }) // member on B
+        b.manager.register(x)
         await a.manager.subscribe(w, 'presence-lobby')
         await b.manager.subscribe(x, 'presence-lobby')
 

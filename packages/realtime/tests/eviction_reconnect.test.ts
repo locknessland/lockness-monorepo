@@ -86,6 +86,7 @@ Deno.test('SC-001: an evict missed while the socket was deaf is recovered at rec
     const b = instance(redis)
     try {
         const x = fakeConn('x', { id: 1, name: 'Xavier' })
+        b.manager.register(x)
         await b.manager.subscribe(x, 'presence-lobby')
 
         // An evict is issued elsewhere and durably recorded; B's subscribe

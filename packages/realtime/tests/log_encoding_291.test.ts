@@ -457,6 +457,7 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
             authorize: () => joins++ === 0 ? { ...member, id: 'u0' } : member,
         })
         const deaf = fakeConn('deaf')
+        m.register(deaf)
         deaf.send = () => {
             throw new TypeError('socket is closing')
         }
@@ -465,7 +466,9 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
         assertRosterRead(rosterReadsBefore)
 
         using captured = captureConsole()
-        await m.subscribe(fakeConn('newcomer'), 'presence-room')
+        const newcomer = fakeConn('newcomer')
+        m.register(newcomer)
+        await m.subscribe(newcomer, 'presence-room')
         const line = captured.lines.map((l) => l.text).join('\n')
         assertStringIncludes(line, 'presence-room')
         assert(
@@ -492,7 +495,9 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
         })
         using captured = captureConsole()
         const rosterReadsBefore = rosterReadCount()
-        const result = await m.subscribe(fakeConn('c1'), 'presence-room')
+        const c1 = fakeConn('c1')
+        m.register(c1)
+        const result = await m.subscribe(c1, 'presence-room')
         assertRosterRead(rosterReadsBefore)
         assertEquals(result.ok, true, 'the join still commits')
         const line = captured.lines.map((l) => l.text).join('\n')
@@ -520,7 +525,9 @@ Deno.test('#323 the presence WARNs name the channel and NOTHING from the member'
         })
         using captured = captureConsole()
         const rosterReadsBefore = rosterReadCount()
-        const result = await m.subscribe(fakeConn('c1'), 'presence-room')
+        const c1 = fakeConn('c1')
+        m.register(c1)
+        const result = await m.subscribe(c1, 'presence-room')
         // 'local' below is the FALLBACK, not a roster-less driver: the read ran.
         assertRosterRead(rosterReadsBefore)
         assertEquals(result.here?.source, 'local')

@@ -296,7 +296,9 @@ for (const src of SOURCES) {
                 authorize,
             })
             const a = conn('a', JOINER)
+            m.register(a)
             const b = conn('b', 2)
+            m.register(b)
             await capturingWarns(async () => {
                 const hereA = hereOf(await m.subscribe(a, ROOM))
                 assertEquals(
@@ -334,8 +336,10 @@ Deno.test('#354 (b) memory: a direct write to a snapshot member throws TypeError
         driver: new MemoryBroadcastDriver(),
         authorize,
     })
+    const a = conn('a', JOINER)
+    m.register(a)
     const member = memberOf(
-        hereOf(await m.subscribe(conn('a', JOINER), ROOM)),
+        hereOf(await m.subscribe(a, ROOM)),
         JOINER,
     )
     assertThrows(() => {
@@ -373,6 +377,7 @@ async function encodingRoom(tamper: (member: PresenceMember) => void) {
         encode,
     })
     const b = conn('b', 2)
+    m.register(b)
     await m.subscribe(b, ROOM)
     return {
         m,
@@ -385,9 +390,13 @@ Deno.test('#354 (e) custom encode: a Reflect.set on frame.member leaves the next
     const room = await encodingRoom((member) =>
         void Reflect.set(member.info ?? {}, 'name', 'X')
     )
-    await room.m.subscribe(conn('a', JOINER), ROOM)
+    const a = conn('a', JOINER)
+    room.m.register(a)
+    await room.m.subscribe(a, ROOM)
     room.disarm()
-    const here = hereOf(await room.m.subscribe(conn('c', 3), ROOM))
+    const c = conn('c', 3)
+    room.m.register(c)
+    const here = hereOf(await room.m.subscribe(c, ROOM))
     assertEquals(memberOf(here, JOINER), ORIGINAL)
 })
 
@@ -399,7 +408,9 @@ Deno.test("#354 (e) custom encode: a direct write to frame.member throws into #3
         w.includes('was not announced to local subscribers') &&
         w.includes('TypeError')
     const { warns } = await capturingWarns(async (warns) => {
-        await room.m.subscribe(conn('a', JOINER), ROOM)
+        const a = conn('a', JOINER)
+        room.m.register(a)
+        await room.m.subscribe(a, ROOM)
         await until(
             () => warns.some(isLocalWarn),
             "#344's local WARN for the encoder's TypeError",
@@ -410,7 +421,9 @@ Deno.test("#354 (e) custom encode: a direct write to frame.member throws into #3
         `the encoder's throw is #344's local WARN, got: ${warns.join(' | ')}`,
     )
     room.disarm()
-    const here = hereOf(await room.m.subscribe(conn('c', 3), ROOM))
+    const c = conn('c', 3)
+    room.m.register(c)
+    const here = hereOf(await room.m.subscribe(c, ROOM))
     assertEquals(memberOf(here, JOINER), ORIGINAL)
 })
 
@@ -437,11 +450,19 @@ Deno.test("#354 (f) Redis shared read: a Reflect.set on y's seed member leaves z
     const driver = redisDriver(redis)
     const m = new ChannelManager<User>({ driver, authorize })
     try {
-        await m.subscribe(conn('seed', JOINER), ROOM)
+        const seed = conn('seed', JOINER)
+        m.register(seed)
+        await m.subscribe(seed, ROOM)
+        const x = conn('x', 10)
+        m.register(x)
+        const yConn = conn('y', 11)
+        m.register(yConn)
+        const zConn = conn('z', 12)
+        m.register(zConn)
         const [, y, z] = (await Promise.all([
-            m.subscribe(conn('x', 10), ROOM),
-            m.subscribe(conn('y', 11), ROOM),
-            m.subscribe(conn('z', 12), ROOM),
+            m.subscribe(x, ROOM),
+            m.subscribe(yConn, ROOM),
+            m.subscribe(zConn, ROOM),
         ])).map(hereOf)
         const ySeed = memberOf(y, JOINER)
         const zSeed = memberOf(z, JOINER)
@@ -463,8 +484,12 @@ Deno.test('#354 (f) Redis readRoster: every node of members and selves is frozen
     const driver = redisDriver(redis)
     const m = new ChannelManager<User>({ driver, authorize })
     try {
-        await m.subscribe(conn('a', JOINER), ROOM)
-        await m.subscribe(conn('b', 2), ROOM)
+        const a = conn('a', JOINER)
+        m.register(a)
+        await m.subscribe(a, ROOM)
+        const b = conn('b', 2)
+        m.register(b)
+        await m.subscribe(b, ROOM)
         const window = await driver.readRoster(ROOM, 100, [JOINER])
         assertEquals(window.members.length, 2, 'precondition: both are read')
         assertEquals(window.selves, [ORIGINAL], 'precondition: self is read')
@@ -492,8 +517,12 @@ Deno.test("#354 (f) Redis sweep: the member a swept departure announces is deep-
     const a = new ChannelManager<User>({ driver: crashed, authorize })
     const b = new ChannelManager<User>({ driver: sweeper, authorize })
     try {
-        await b.subscribe(conn('observer', 2), ROOM)
-        await a.subscribe(conn('a', JOINER), ROOM)
+        const observer = conn('observer', 2)
+        b.register(observer)
+        await b.subscribe(observer, ROOM)
+        const aConn = conn('a', JOINER)
+        a.register(aConn)
+        await a.subscribe(aConn, ROOM)
         await crashed.close()
         await untilFaked(
             time,
@@ -533,8 +562,12 @@ Deno.test("#354 (g) Redis ingest: a peer's presence-join member reaches encode w
         },
     })
     try {
-        await b.subscribe(conn('observer', 2), ROOM)
-        await a.subscribe(conn('a', JOINER), ROOM)
+        const observer = conn('observer', 2)
+        b.register(observer)
+        await b.subscribe(observer, ROOM)
+        const aConn = conn('a', JOINER)
+        a.register(aConn)
+        await a.subscribe(aConn, ROOM)
         await until(() => seen.length > 0, "B's re-emit of A's join")
         assertEquals(seen, [ORIGINAL], 'precondition: B re-emitted the join')
         assert(Object.isFrozen(seen[0]), 'the member is frozen')
@@ -602,8 +635,12 @@ Deno.test("#354 (i) here and here.members stay the caller's: not frozen, and sor
         driver: new MemoryBroadcastDriver(),
         authorize,
     })
-    await m.subscribe(conn('b', 2), ROOM)
-    const here = hereOf(await m.subscribe(conn('a', JOINER), ROOM))
+    const b = conn('b', 2)
+    m.register(b)
+    await m.subscribe(b, ROOM)
+    const a = conn('a', JOINER)
+    m.register(a)
+    const here = hereOf(await m.subscribe(a, ROOM))
     assertFalse(Object.isFrozen(here), "the snapshot object is the caller's")
     assertFalse(Object.isFrozen(here.members), 'and so is its array')
     here.members.sort((l, r) => Number(l.id) - Number(r.id))
@@ -632,7 +669,9 @@ Deno.test('#354 (i) freezing changes no byte: the subscribed and here frames enc
         driver: new MemoryBroadcastDriver(),
         authorize,
     })
-    const here = hereOf(await m.subscribe(conn('a', JOINER), ROOM))
+    const a = conn('a', JOINER)
+    m.register(a)
+    const here = hereOf(await m.subscribe(a, ROOM))
     const member = '{"id":1,"info":{"name":"Ada","tags":["a"]}}'
     assertEquals(
         encodeServerMessage({

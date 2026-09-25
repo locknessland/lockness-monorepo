@@ -279,6 +279,7 @@ Deno.test('#359 R1 307 live records, five for B: one drained pass applies all fi
     try {
         const c = ['c1', 'c2', 'c3', 'c4', 'c5'].map((id) => conn(id))
         for (const x of c) {
+            b.manager.register(x)
             assert((await b.manager.subscribe(x, ROOM)).ok)
             assert((await b.manager.subscribe(x, OTHER)).ok)
         }
@@ -387,7 +388,9 @@ Deno.test('#359 R3 (a, b) the pass judges every page against the reap’s one no
     const warnings = captureWarnings()
     try {
         const c1 = conn('c1')
+        b.manager.register(c1)
         const c2 = conn('c2')
+        b.manager.register(c2)
         assert((await b.manager.subscribe(c1, ROOM)).ok)
         assert((await b.manager.subscribe(c2, ROOM)).ok)
         await plant(redis, 'c1', NOW + 10)
@@ -424,7 +427,9 @@ for (const skewMs of [3_600_000, -3_600_000]) {
         const warnings = captureWarnings()
         try {
             const c1 = conn('c1')
+            b.manager.register(c1)
             const c2 = conn('c2')
+            b.manager.register(c2)
             assert((await b.manager.subscribe(c1, ROOM)).ok)
             assert((await b.manager.subscribe(c2, ROOM)).ok)
             await plant(redis, 'c1', NOW + 10)
@@ -456,6 +461,7 @@ Deno.test('#359 R4 undecodable members across pages survive every pass and are n
     const warnings = captureWarnings()
     try {
         const c1 = conn('c1')
+        b.manager.register(c1)
         assert((await b.manager.subscribe(c1, ROOM)).ok)
         const undecodable = [
             ...inSlots((i) => `c1 ${ROOM}-${i}`, 0, 100, 3),
@@ -501,6 +507,7 @@ Deno.test('#359 R5 two records of one local pair on different pages: one leave, 
     const warnings = captureWarnings()
     try {
         const c1 = conn('c1')
+        b.manager.register(c1)
         assert((await b.manager.subscribe(c1, ROOM)).ok)
         const [early] = inSlots((i) => scoped('c1', ROOM, `a${i}`), 0, 100, 1)
         const [late] = inSlots((i) => scoped('c1', ROOM, `b${i}`), 600, 700, 1)
@@ -538,7 +545,9 @@ Deno.test('#359 R6 a record written between two pages: ahead of the cursor, appl
     const warnings = captureWarnings()
     try {
         const c1 = conn('c1')
+        b.manager.register(c1)
         const c2 = conn('c2')
+        b.manager.register(c2)
         assert((await b.manager.subscribe(c1, ROOM)).ok)
         assert((await b.manager.subscribe(c2, ROOM)).ok)
         await plantForeign(redis, 150)
@@ -581,6 +590,7 @@ Deno.test('#359 R7 an empty page with a non-zero cursor does not end the pass', 
     const warnings = captureWarnings()
     try {
         const c1 = conn('c1')
+        b.manager.register(c1)
         assert((await b.manager.subscribe(c1, ROOM)).ok)
         await plantForeignIn(redis, 0, 100, 150)
         const [last] = inSlots((i) => scoped('c1', ROOM, `z${i}`), 950, 1024, 1)
@@ -612,7 +622,9 @@ Deno.test('#359 R11 a page read that fails applies NOTHING, page 1 included; the
     const warnings = captureWarnings()
     try {
         const c1 = conn('c1')
+        b.manager.register(c1)
         const c2 = conn('c2')
+        b.manager.register(c2)
         assert((await b.manager.subscribe(c1, ROOM)).ok)
         assert((await b.manager.subscribe(c2, ROOM)).ok)
         await plantForeign(redis, 150)
@@ -772,7 +784,9 @@ Deno.test('#359 R13 (b, c) the manager asks for exactly its local ids, and appli
     const warnings = captureWarnings()
     try {
         const c1 = conn('c1')
+        manager.register(c1)
         const c2 = conn('c2')
+        manager.register(c2)
         assert((await manager.subscribe(c1, ROOM)).ok)
         assert((await manager.subscribe(c2, ROOM)).ok)
         driver.revocations = [
@@ -813,6 +827,7 @@ Deno.test('#359 R15 a re-check run that rejects never stops the tail: its caller
     const warnings = captureWarnings()
     try {
         const c1 = conn('c1')
+        b.manager.register(c1)
         assert((await b.manager.subscribe(c1, ROOM)).ok)
         await plant(redis, 'c1')
         port.failOnce(isReap)
@@ -1065,7 +1080,9 @@ Deno.test('#359 R14 a lapse during a held apply queues its re-check behind the p
     const warnings = captureWarnings()
     try {
         const cx = conn('cx', 7)
+        a.manager.register(cx)
         const cy = conn('cy', 8)
+        a.manager.register(cy)
         assert((await a.manager.subscribe(cx, PRESENCE)).ok)
         assert((await a.manager.subscribe(cy, PRESENCE)).ok)
         await time.runMicrotasks()
@@ -1243,7 +1260,9 @@ Deno.test('#359 R12 through listRevocations: malformed pairs never stop the pass
     const warnings = captureWarnings()
     try {
         const c1 = conn('c1')
+        b.manager.register(c1)
         const c2 = conn('c2')
+        b.manager.register(c2)
         assert((await b.manager.subscribe(c1, ROOM)).ok)
         assert((await b.manager.subscribe(c2, ROOM)).ok)
         await plant(redis, 'c1')
@@ -1338,6 +1357,7 @@ Deno.test({
             const c2 = conn('c2')
             const c3 = conn('c3')
             for (const c of [c1, c2, c3]) {
+                manager.register(c)
                 assert((await manager.subscribe(c, ROOM)).ok)
             }
             const time = await live.command('TIME') as unknown as {

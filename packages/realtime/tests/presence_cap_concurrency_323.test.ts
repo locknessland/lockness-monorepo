@@ -125,15 +125,17 @@ Deno.test('#323/SC-007 K concurrent joins against ONE free slot admit exactly on
 
     // Fill two of three slots, sequentially — no contention yet.
     const resident = conn('resident', 1)
+    m.register(resident)
     await m.subscribe(resident, 'presence-a')
     await m.subscribe(resident, 'presence-b')
 
     // Now pipeline five joins to five DISTINCT new channels, exactly as an
     // unserialized onMessage delivers them. One slot is left.
-    const contenders = ['c', 'd', 'e', 'f', 'g'].map((suffix, i) => ({
-        channel: `presence-${suffix}`,
-        connection: conn(`client-${i}`, 10 + i),
-    }))
+    const contenders = ['c', 'd', 'e', 'f', 'g'].map((suffix, i) => {
+        const connection = conn(`client-${i}`, 10 + i)
+        m.register(connection)
+        return { channel: `presence-${suffix}`, connection }
+    })
     const settled = await Promise.allSettled(
         contenders.map(({ connection, channel }) =>
             m.subscribe(connection, channel)
@@ -169,6 +171,7 @@ Deno.test('#323/SC-007 the cap still admits up to its limit when uncontended', a
         anonymousHostingShare: 1,
     })
     const resident = conn('resident', 1)
+    m.register(resident)
     const rosterReadsBefore = rosterReadCount()
     for (const channel of ['presence-a', 'presence-b', 'presence-c']) {
         assertEquals((await m.subscribe(resident, channel)).ok, true)

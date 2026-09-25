@@ -118,11 +118,13 @@ Deno.test('#326 an oversized member is REFUSED, and leaves nothing behind', asyn
                 : false,
     })
     const observer = conn('c2', 2)
+    m.register(observer)
     await m.subscribe(observer, CHANNEL)
     const observerFrames = observer.received.length
     const controlFrames = control.length
 
     const cloaker = conn('c1', 1)
+    m.register(cloaker)
     await assertRejects(
         () => m.subscribe(cloaker, CHANNEL),
         PresenceMemberSizeError,
@@ -149,8 +151,10 @@ Deno.test('#326 an oversized member is REFUSED, and leaves nothing behind', asyn
     // And the room still works for everyone else — a bound that took the
     // channel down with the member would be a denial-of-service handed to the
     // party it was meant to stop.
+    const c3 = conn('c3', 3)
+    m.register(c3)
     assertEquals(
-        (await m.subscribe(conn('c3', 3), CHANNEL)).ok,
+        (await m.subscribe(c3, CHANNEL)).ok,
         true,
         'a within-bound member still joins after a refusal',
     )
@@ -164,8 +168,10 @@ Deno.test('#326 the refusal is a NAMED error a caller can act on', async () => {
             identity ? { id: identity.id, info: oversize() } : false,
     })
 
+    const c1 = conn('c1', 1)
+    m.register(c1)
     const error = await assertRejects(
-        () => m.subscribe(conn('c1', 1), CHANNEL),
+        () => m.subscribe(c1, CHANNEL),
         PresenceMemberSizeError,
     )
 
@@ -192,9 +198,11 @@ Deno.test('#326 a member within the bound joins and is announced unchanged', asy
         authorize: (identity) => identity ? { id: identity.id, info } : false,
     })
     const observer = conn('c2', 2)
+    m.register(observer)
     await m.subscribe(observer, CHANNEL)
 
     const joiner = conn('c1', 1)
+    m.register(joiner)
     const rosterReadsBefore = rosterReadCount()
     const result = await m.subscribe(joiner, CHANNEL)
     assertRosterRead(rosterReadsBefore)

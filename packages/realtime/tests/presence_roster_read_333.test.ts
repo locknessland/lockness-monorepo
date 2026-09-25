@@ -160,10 +160,11 @@ Deno.test('#333 K concurrent presence subscribes cost exactly two reads', async 
     const gate = gatedRosterDriver()
     const m = new ChannelManager<User>({ driver: gate.driver, authorize })
 
-    const joins = Array.from(
-        { length: 8 },
-        (_, i) => m.subscribe(conn(`c${i}`, i), ROOM),
-    )
+    const joins = Array.from({ length: 8 }, (_, i) => {
+        const c = conn(`c${i}`, i)
+        m.register(c)
+        return m.subscribe(c, ROOM)
+    })
     await drain()
 
     assertEquals(
@@ -217,13 +218,17 @@ Deno.test('#333 a joiner sees ITSELF in its own reply', async () => {
     const m = new ChannelManager<User>({ driver: gate.driver, authorize })
 
     // A commits, then issues read #0 — which snapshots the store holding only A.
-    const first = m.subscribe(conn('c1', 1), ROOM)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    const first = m.subscribe(c1, ROOM)
     await drain()
     assertEquals(gate.reads, 1, 'A issued the only read so far')
 
     // B commits while read #0 is in flight. Under a leading-edge single-flight
     // B would be handed read #0's answer, which predates B's own write.
-    const second = m.subscribe(conn('c2', 2), ROOM)
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    const second = m.subscribe(c2, ROOM)
     await drain()
     assertEquals(gate.reads, 1, 'B did not issue its own read — it is sharing')
 
@@ -260,9 +265,11 @@ Deno.test('#333 an unconcurrent join still reads at its own ask-time', async () 
     gate.openGate()
     const m = new ChannelManager<User>({ driver: gate.driver, authorize })
 
-    await m.subscribe(conn('c1', 1), ROOM)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    await m.subscribe(c1, ROOM)
     assertEquals(gate.reads, 1)
-    const rejoin = await m.subscribe(conn('c1', 1), ROOM)
+    const rejoin = await m.subscribe(c1, ROOM)
     assertEquals(gate.reads, 2, 'a re-join is its own read, as #327 leaves it')
     assertEquals(membersOf(rejoin).map((member) => member.id), [1])
 })
@@ -276,7 +283,9 @@ Deno.test('#333 distinct channels do not share a read, and leave nothing behind'
     const m = new ChannelManager<User>({ driver: gate.driver, authorize })
 
     for (let i = 0; i < 30; i++) {
-        await m.subscribe(conn(`c${i}`, i), `presence-room-${i}`)
+        const cN = conn(`c${i}`, i)
+        m.register(cN)
+        await m.subscribe(cN, `presence-room-${i}`)
     }
     assertEquals(gate.reads, 30, 'thirty rooms, thirty reads — none shared')
     await drain()
@@ -294,10 +303,16 @@ Deno.test('#333 every caller of a shared read gets its OWN array', async () => {
     const gate = gatedRosterDriver()
     const m = new ChannelManager<User>({ driver: gate.driver, authorize })
 
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    const c3 = conn('c3', 3)
+    m.register(c3)
     const joins = [
-        m.subscribe(conn('c1', 1), ROOM),
-        m.subscribe(conn('c2', 2), ROOM),
-        m.subscribe(conn('c3', 3), ROOM),
+        m.subscribe(c1, ROOM),
+        m.subscribe(c2, ROOM),
+        m.subscribe(c3, ROOM),
     ]
     await drain()
     gate.release()

@@ -123,7 +123,9 @@ Deno.test('#334 the channel entry is GONE once the last member leaves', async ()
     const { driver } = rosterDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const rosterReadsBefore = rosterReadCount()
-    await m.subscribe(conn('c1', 1), ROOM)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    await m.subscribe(c1, ROOM)
     assertRosterRead(rosterReadsBefore)
 
     assert(presenceOf(m).has(ROOM), 'the entry exists while the member is in')
@@ -146,8 +148,12 @@ Deno.test('#334 the entry SURVIVES while any member remains', async () => {
     // present — issuing a removal that evicts them from the cluster roster.
     const { driver } = rosterDriver()
     const m = new ChannelManager<User>({ driver, authorize })
-    await m.subscribe(conn('c1', 1), ROOM)
-    await m.subscribe(conn('c2', 2), ROOM)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    await m.subscribe(c1, ROOM)
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    await m.subscribe(c2, ROOM)
 
     assertEquals(await m.unsubscribe('c1', ROOM), 'left')
 
@@ -170,7 +176,9 @@ Deno.test('#334 the authoritative roster still receives the removal', async () =
     // the member in the cluster-wide roster for good.
     const { driver, roster, commands } = rosterDriver()
     const m = new ChannelManager<User>({ driver, authorize })
-    await m.subscribe(conn('c1', 1), ROOM)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    await m.subscribe(c1, ROOM)
     assertEquals([...(roster.get(ROOM)?.keys() ?? [])], ['1'])
 
     await m.unsubscribe('c1', ROOM)
@@ -199,9 +207,11 @@ Deno.test('#334 churn over unique names is cost-neutral at rest', async () => {
     const { driver } = rosterDriver()
     const m = new ChannelManager<User>({ driver, authorize })
 
+    const c1 = conn('c1', 1)
+    m.register(c1)
     for (let i = 0; i < 25; i++) {
         const channel = `presence-churn-${i}`
-        await m.subscribe(conn('c1', 1), channel)
+        await m.subscribe(c1, channel)
         await m.unsubscribe('c1', channel)
     }
 
@@ -224,7 +234,9 @@ Deno.test('#334 a rolled-back join does not strand the entry it created', async 
 
     let threw = false
     try {
-        await m.subscribe(conn('c1', 1), ROOM)
+        const c1 = conn('c1', 1)
+        m.register(c1)
+        await m.subscribe(c1, ROOM)
     } catch {
         threw = true
     }

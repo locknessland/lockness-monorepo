@@ -67,7 +67,9 @@ Deno.test('SC-002: roster is cross-instance authoritative and a join crosses ins
     const b = instance(redis)
     try {
         const x = fakeConn('x', { id: 1, name: 'Xavier' })
+        a.manager.register(x)
         const y = fakeConn('y', { id: 2, name: 'Yolanda' })
+        b.manager.register(y)
 
         // X joins on instance A (first member of the channel).
         const rx = await a.manager.subscribe(x, 'presence-lobby')
@@ -84,6 +86,7 @@ Deno.test('SC-002: roster is cross-instance authoritative and a join crosses ins
         // A third client joins on A; Y (on B) sees it — A → B direction, and A's
         // fresh snapshot lists every instance's members (X, Y, Z).
         const z = fakeConn('z', { id: 3, name: 'Zoe' })
+        a.manager.register(z)
         const rz = await a.manager.subscribe(z, 'presence-lobby')
         assertEquals(rz.here?.members.map((m) => m.id).sort(), [1, 2, 3])
         assert(joinedFor(y, 3), 'Y should have seen Z join across instances')

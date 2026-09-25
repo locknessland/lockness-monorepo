@@ -139,8 +139,10 @@ Deno.test('#339 the default ceiling is pinned: 100 members, 409 701 bytes, self 
     const room = roomOf250()
     const m = new ChannelManager<User>({ driver: room.driver, authorize })
 
+    const c251 = conn('c251', 251)
+    m.register(c251)
     const { result, calls } = await consoleCallsDuring(() =>
-        m.subscribe(conn('c251', 251), ROOM)
+        m.subscribe(c251, ROOM)
     )
     const here = hereOf(result)
 
@@ -185,7 +187,9 @@ Deno.test('#339 a configured bound is honoured: 10 members, 40 971 bytes', async
         maxPresenceSnapshotMembers: 10,
     })
 
-    const here = hereOf(await m.subscribe(conn('c251', 251), ROOM))
+    const c251 = conn('c251', 251)
+    m.register(c251)
+    const here = hereOf(await m.subscribe(c251, ROOM))
 
     assertEquals(here.total, 251)
     assertEquals(here.members.length, 10)
@@ -211,8 +215,12 @@ Deno.test('#339 a room within the bound is returned whole, in driver order', asy
     })
     // Id 2 joins BEFORE id 1, so driver order is not sorted order — a sort
     // anywhere on the fitting path turns [2, 1] into [1, 2] and is caught.
-    await m.subscribe(conn('c2', 2), ROOM)
-    const here = hereOf(await m.subscribe(conn('c1', 1), ROOM))
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    await m.subscribe(c2, ROOM)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    const here = hereOf(await m.subscribe(c1, ROOM))
 
     assertEquals(ids(here), [2, 1], 'unchanged, and not re-ordered')
     assertEquals(
@@ -229,12 +237,15 @@ Deno.test("#339 a re-join over the bound has the first join's shape", async () =
     const sent: string[] = []
     const m = new ChannelManager<User>({ driver: room.driver, authorize })
     const observer = conn('c1', 1, sent)
+    m.register(observer)
     await m.subscribe(observer, ROOM)
-    await m.subscribe(conn('c251', 251), ROOM)
+    const c251 = conn('c251', 251)
+    m.register(c251)
+    await m.subscribe(c251, ROOM)
     const writes = room.writes
     const frames = sent.length
 
-    const here = hereOf(await m.subscribe(conn('c251', 251), ROOM))
+    const here = hereOf(await m.subscribe(c251, ROOM))
 
     assertEquals(here.members.length, 100)
     assertEquals(here.total, 251)
@@ -270,9 +281,13 @@ Deno.test('#339 the local fallback is bounded by the same rule', async () => {
     let here: PresenceSnapshot
     try {
         for (let id = 1; id <= 11; id++) {
-            await m.subscribe(conn(`c${id}`, id), ROOM)
+            const cN = conn(`c${id}`, id)
+            m.register(cN)
+            await m.subscribe(cN, ROOM)
         }
-        here = hereOf(await m.subscribe(conn('c12', 12), ROOM))
+        const c12 = conn('c12', 12)
+        m.register(c12)
+        here = hereOf(await m.subscribe(c12, ROOM))
     } finally {
         console.warn = warn
     }
@@ -350,11 +365,17 @@ Deno.test('#339 joiners sharing one read each keep THEMSELVES, never each other'
         maxPresenceSnapshotMembers: 2,
     })
 
-    const a = m.subscribe(conn('cA', 1), ROOM)
+    const cA = conn('cA', 1)
+    m.register(cA)
+    const a = m.subscribe(cA, ROOM)
     await drain()
     assertEquals(gate.reads, 1, 'A issued read 1')
-    const b = m.subscribe(conn('cB', 2), ROOM)
-    const c = m.subscribe(conn('cC', 3), ROOM)
+    const cB = conn('cB', 2)
+    m.register(cB)
+    const b = m.subscribe(cB, ROOM)
+    const cC = conn('cC', 3)
+    m.register(cC)
+    const c = m.subscribe(cC, ROOM)
     await drain()
     assertEquals(gate.reads, 1, 'B and C are waiting on the barrier')
     gate.release()
@@ -392,7 +413,9 @@ Deno.test('#339 a join overtaken by its own leave, above the bound, keeps no sel
     for (let id = 1; id <= 250; id++) gate.seed(paddedMember(id))
     const m = new ChannelManager<User>({ driver: gate.driver, authorize })
 
-    const join = m.subscribe(conn('c251', 251), ROOM)
+    const c251 = conn('c251', 251)
+    m.register(c251)
+    const join = m.subscribe(c251, ROOM)
     await drain()
     assertEquals(gate.reads, 1, "the join's closing read is in flight")
     await m.unsubscribe('c251', ROOM)

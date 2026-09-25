@@ -81,6 +81,7 @@ Deno.test('SC-007: an evict lost while the owning socket was disconnected still 
     const b = instance(redis)
     try {
         const x = fakeConn('x', { id: 1, name: 'Xavier' })
+        b.manager.register(x)
         await b.manager.subscribe(x, 'presence-lobby')
         assert(
             (await b.driver.readRoster!('presence-lobby', 1_000, [])).members

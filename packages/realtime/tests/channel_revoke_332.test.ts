@@ -193,7 +193,9 @@ function twoInstances(options: { dropControl?: boolean } = {}) {
 Deno.test('#332 A revokes one room on a socket B owns — and B keeps the socket', async () => {
     const { a, b, roster } = twoInstances()
     const victim = conn('c1', 1)
+    b.register(victim)
     const observerOnA = conn('c2', 2)
+    a.register(observerOnA)
 
     // B owns the socket, in TWO channels. The second one is what proves the
     // revoke is scoped rather than merely quiet.
@@ -243,6 +245,7 @@ Deno.test('#332 A revokes one room on a socket B owns — and B keeps the socket
 Deno.test('#332 revoking a room this instance OWNS reports what it did', async () => {
     const { b } = twoInstances()
     const victim = conn('c1', 1)
+    b.register(victim)
     await b.subscribe(victim, ROOM)
 
     assertEquals(await b.revokeChannel('c1', ROOM), 'revoked')
@@ -267,6 +270,7 @@ Deno.test('#332 a revocation is NOT a ban — the client may re-subscribe', asyn
     // policy it cannot explain.
     const { b } = twoInstances()
     const victim = conn('c1', 1)
+    b.register(victim)
     await b.subscribe(victim, ROOM)
     await b.revokeChannel('c1', ROOM)
 
@@ -364,6 +368,7 @@ Deno.test('#332 a single-process driver revokes locally and reports honestly', a
             identity ? { id: identity.id } : false,
     })
     const victim = conn('c1', 1)
+    m.register(victim)
     await m.subscribe(victim, ROOM)
 
     assertEquals(await m.revokeChannel('c1', ROOM), 'revoked')
@@ -383,7 +388,9 @@ Deno.test('#332 a LOST control frame is recovered by the reconcile, exactly once
     // the test replaced.
     const { a, b, roster, index, tickB } = twoInstances({ dropControl: true })
     const victim = conn('c1', 1)
+    b.register(victim)
     const observerOnB = conn('c2', 2)
+    b.register(observerOnB)
     await b.subscribe(victim, ROOM)
     await b.subscribe(victim, OTHER)
     await b.subscribe(observerOnB, ROOM)
@@ -437,6 +444,7 @@ Deno.test('#332 a CONNECTION-scoped record still hard-closes — scope is dispat
     // scope added later cannot land in one and not the other.
     const { a, b, tickB } = twoInstances({ dropControl: true })
     const victim = conn('c1', 1)
+    b.register(victim)
     await b.subscribe(victim, ROOM)
 
     await a.evict('c1')
@@ -473,6 +481,7 @@ Deno.test('#332 durability failure never cancels the revocation, and is reported
             identity ? { id: identity.id } : false,
     })
     const victim = conn('c1', 1)
+    m.register(victim)
     await m.subscribe(victim, ROOM)
 
     const thrown = await assertRejects(() => m.revokeChannel('c1', ROOM))
@@ -521,6 +530,7 @@ Deno.test('#332 a failed CLEAR is reported to a caller and swallowed where there
             identity ? { id: identity.id } : false,
     })
     const direct = conn('c1', 1)
+    m.register(direct)
     await m.subscribe(direct, ROOM)
 
     const thrown = await assertRejects(() => m.revokeChannel('c1', ROOM))
@@ -530,6 +540,7 @@ Deno.test('#332 a failed CLEAR is reported to a caller and swallowed where there
     // still in `live` (the clear failed), a second connection holds the room,
     // and the tick must apply the leave and RESOLVE.
     const viaTick = conn('c9', 9)
+    m.register(viaTick)
     await m.subscribe(viaTick, ROOM)
     live.push({ target: 'c9', channel: ROOM, id: crypto.randomUUID() })
 
@@ -658,6 +669,7 @@ Deno.test('#332 a revoke-channel frame with NO channel is dropped, not widened',
             identity ? { id: identity.id } : false,
     })
     const victim = conn('c1', 1)
+    m.register(victim)
     await m.subscribe(victim, ROOM)
     // Narrowed, not optional-chained: `deliver?.(...)` on an unregistered
     // seam is a no-op that makes every assertion below pass for the wrong
@@ -728,6 +740,7 @@ Deno.test('#332 the reconcile applies a record ONLY to a socket this instance ow
             identity ? { id: identity.id } : false,
     })
     const owned = conn('c1', 1)
+    m.register(owned)
     await m.subscribe(owned, ROOM)
 
     await reconcile?.()

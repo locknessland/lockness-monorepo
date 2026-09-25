@@ -89,8 +89,11 @@ Deno.test('SC-003: an evict on a non-owning instance revokes the owning socket c
     try {
         // W watches presence on A; V watches on B; X holds its socket on B.
         const w = fakeConn('w', { id: 10, name: 'Wendy' })
+        a.manager.register(w)
         const v = fakeConn('v', { id: 20, name: 'Victor' })
+        b.manager.register(v)
         const x = fakeConn('x', { id: 1, name: 'Xavier' })
+        b.manager.register(x)
         await a.manager.subscribe(w, 'presence-lobby')
         await b.manager.subscribe(v, 'presence-lobby')
         await b.manager.subscribe(x, 'presence-lobby')

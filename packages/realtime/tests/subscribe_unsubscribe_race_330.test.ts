@@ -199,7 +199,9 @@ const keys = (roster: Map<string, Map<string, PresenceMember>>) => [
  */
 async function race(first: 'watchChannel' | 'unwatchChannel') {
     const r = rig()
-    const join = r.manager.subscribe(conn('c1', 1), CHANNEL).catch(() => {})
+    const c1 = conn('c1', 1)
+    r.manager.register(c1)
+    const join = r.manager.subscribe(c1, CHANNEL).catch(() => {})
     await settle()
     await r.g.open('authorize')
     const leave = r.manager.unsubscribe('c1', CHANNEL).catch(() => {})
@@ -245,7 +247,9 @@ Deno.test('#330 a superseded join announces nothing', async () => {
     // wins. That leaves the CONTROL frame as the observable, which is the right
     // one anyway: it is what the other instances would have been told.
     const r = rig()
-    const join = r.manager.subscribe(conn('c1', 1), CHANNEL).catch(() => {})
+    const c1 = conn('c1', 1)
+    r.manager.register(c1)
+    const join = r.manager.subscribe(c1, CHANNEL).catch(() => {})
     await settle()
     await r.g.open('authorize')
     const leave = r.manager.unsubscribe('c1', CHANNEL).catch(() => {})
@@ -272,7 +276,9 @@ Deno.test('#330 a stale removal cannot land on top of a fresh re-join', async ()
     // would have missed: leave, then re-subscribe. #327 and #331 make that
     // ordinary traffic — a reconnecting client does exactly this.
     const r = rig()
-    const first = r.manager.subscribe(conn('c1', 1), CHANNEL)
+    const c1 = conn('c1', 1)
+    r.manager.register(c1)
+    const first = r.manager.subscribe(c1, CHANNEL)
     await settle()
     await r.g.drain()
     await first
@@ -280,7 +286,7 @@ Deno.test('#330 a stale removal cannot land on top of a fresh re-join', async ()
 
     const leave = r.manager.unsubscribe('c1', CHANNEL).catch(() => {})
     await settle()
-    const rejoin = r.manager.subscribe(conn('c1', 1), CHANNEL).catch(() => {})
+    const rejoin = r.manager.subscribe(c1, CHANNEL).catch(() => {})
     await settle()
     await r.g.drain()
     await Promise.allSettled([leave, rejoin])
@@ -300,12 +306,16 @@ Deno.test('#330 two connections sharing one member id are ONE roster slot', asyn
     // devices on one account is the everyday shape of this.
     const r = rig(() => ({ id: 7 }))
     const rosterReadsBefore = rosterReadCount()
-    const a = r.manager.subscribe(conn('c1', 1), CHANNEL)
+    const c1 = conn('c1', 1)
+    r.manager.register(c1)
+    const a = r.manager.subscribe(c1, CHANNEL)
     await settle()
     await r.g.drain()
     await a
     assertRosterRead(rosterReadsBefore)
-    const b = r.manager.subscribe(conn('c2', 2), CHANNEL)
+    const c2 = conn('c2', 2)
+    r.manager.register(c2)
+    const b = r.manager.subscribe(c2, CHANNEL)
     await settle()
     await r.g.drain()
     await b

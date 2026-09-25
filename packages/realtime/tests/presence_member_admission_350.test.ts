@@ -207,6 +207,7 @@ async function makeRoom(
         const driver = counting(new MemoryBroadcastDriver(), count)
         const m = new ChannelManager<User>({ driver, authorize, ...options })
         const local = conn('obs-a', OBSERVER_A)
+        m.register(local)
         assertEquals((await m.subscribe(local, channel)).ok, true)
         const baseline = count.n
         const read = async () =>
@@ -237,7 +238,9 @@ async function makeRoom(
         new ChannelManager<User>({ driver, authorize, ...options })
     )
     const local = conn('obs-a', OBSERVER_A)
+    a.register(local)
     const peer = conn('obs-b', OBSERVER_B)
+    b.register(peer)
     assertEquals((await a.subscribe(local, channel)).ok, true)
     assertEquals((await b.subscribe(peer, channel)).ok, true)
     await settle()
@@ -298,10 +301,9 @@ async function assertNothingJoined(room: Room, memberId: string | number) {
     }
     // POSITIVE CONTROL, last: a valid join on the same room moves the counter.
     const before = room.writes()
-    const ok = await room.joinOn.subscribe(
-        conn('control', CONTROL),
-        room.channel,
-    )
+    const control = conn('control', CONTROL)
+    room.joinOn.register(control)
+    const ok = await room.joinOn.subscribe(control, room.channel)
     assertEquals(ok.ok, true, 'CONTROL: a valid member joins')
     assert(room.writes() > before, 'CONTROL: an admitted join moves writes()')
 }
@@ -365,6 +367,7 @@ for (const kind of KINDS) {
         const room = await makeRoom(kind, () => new LeakyMember())
         try {
             const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
             const result = await room.joinOn.subscribe(joiner, room.channel)
             assert(result.ok && result.here !== undefined)
             await settle()
@@ -434,10 +437,9 @@ for (const kind of KINDS) {
             () => flippingId(['ok', LONG_ID], reads),
         )
         try {
-            const result = await room.joinOn.subscribe(
-                conn('joiner', JOINER),
-                room.channel,
-            )
+            const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
+            const result = await room.joinOn.subscribe(joiner, room.channel)
             assert(result.ok && result.here !== undefined)
             await settle()
 
@@ -497,11 +499,10 @@ for (const kind of KINDS) {
         const reads = { n: 0 }
         const room = await makeRoom(kind, () => flippingId(['ok', null], reads))
         try {
+            const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
             assertEquals(
-                (await room.joinOn.subscribe(
-                    conn('joiner', JOINER),
-                    room.channel,
-                )).ok,
+                (await room.joinOn.subscribe(joiner, room.channel)).ok,
                 true,
             )
             await settle()
@@ -530,10 +531,9 @@ for (const kind of KINDS) {
             },
         }))
         try {
-            const result = await room.joinOn.subscribe(
-                conn('joiner', JOINER),
-                room.channel,
-            )
+            const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
+            const result = await room.joinOn.subscribe(joiner, room.channel)
             assert(result.ok && result.here !== undefined)
             await settle()
             const expected = { id: 'u1', info: { name: 'Ada' } }
@@ -610,10 +610,9 @@ for (const kind of KINDS) {
             info: flippingToJson(calls),
         }))
         try {
-            const result = await room.joinOn.subscribe(
-                conn('joiner', JOINER),
-                room.channel,
-            )
+            const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
+            const result = await room.joinOn.subscribe(joiner, room.channel)
             assert(result.ok && result.here !== undefined)
             await settle()
             const expected = { id: 'u1', info: { name: 'Ada' } }
@@ -672,11 +671,10 @@ for (const [name, candidate, wire] of AGREED) {
     Deno.test(`#350 (d) accepted ${name}: A's local joined, B's joined and B's roster read are the same JSON`, async () => {
         const room = await makeRoom('fake Redis', candidate)
         try {
+            const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
             assertEquals(
-                (await room.joinOn.subscribe(
-                    conn('joiner', JOINER),
-                    room.channel,
-                )).ok,
+                (await room.joinOn.subscribe(joiner, room.channel)).ok,
                 true,
             )
             await settle()
@@ -853,6 +851,7 @@ Deno.test('#350 (g) a full connection whose authorizer returns a raw row gets Pr
         })),
     })
     const c = conn('c1', JOINER)
+    m.register(c)
     assertEquals((await m.subscribe(c, 'news')).ok, true)
     // CONTROL: the cap really is full — a public join is refused by it.
     await assertRejects(() => m.subscribe(c, 'weather'), ChannelLimitError)
@@ -870,10 +869,9 @@ for (const kind of KINDS) {
     Deno.test(`#350 control ${kind}: authorize() returning true still admits as { id: connection.id }`, async () => {
         const room = await makeRoom(kind, () => true)
         try {
-            const result = await room.joinOn.subscribe(
-                conn('joiner', JOINER),
-                room.channel,
-            )
+            const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
+            const result = await room.joinOn.subscribe(joiner, room.channel)
             assert(result.ok && result.here !== undefined)
             await settle()
             assertEquals(

@@ -229,8 +229,11 @@ Deno.test('#348 W1 7 held only on A, A crashes, B sweeps — the observer on B r
     const b = instance(redis, 'B', log)
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
         assertEquals(actions(observer, 7), ['joined'], 'precondition')
 
@@ -274,9 +277,14 @@ Deno.test('#348 W2 7 held on A and B, A is swept — no left anywhere', async ()
     const b = instance(redis, 'B', log)
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
-        await b.manager.subscribe(conn('b7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
+        const b7 = conn('b7', 7, 'Ada')
+        b.manager.register(b7)
+        await b.manager.subscribe(b7, CHANNEL)
         await settle()
         const holderOf = (id: string) =>
             redis.command('HGET', HOLDERS_KEY(CHANNEL, 7), id)
@@ -338,10 +346,14 @@ Deno.test('#348 W3 B and C both sweep A — each observer receives exactly one l
     const c = instance(redis, 'C', log, { command: sentByC.command })
     try {
         const onB = conn('b-observer', 1)
+        b.manager.register(onB)
         const onC = conn('c-observer', 2)
+        c.manager.register(onC)
         await b.manager.subscribe(onB, CHANNEL)
         await c.manager.subscribe(onC, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
 
         await a.driver.close()
@@ -389,8 +401,11 @@ Deno.test('#348 W4 a driver without onRosterDeparture still builds, and its swee
     })
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
 
         await a.driver.close()
@@ -455,8 +470,10 @@ Deno.test('#348 W5 A lapses while alive — one left, then nothing on its releas
         )
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
         const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
         await a.manager.subscribe(a7, CHANNEL)
         await settle()
 
@@ -482,7 +499,9 @@ Deno.test('#348 W5 A lapses while alive — one left, then nothing on its releas
         )
         assertEquals(fromA(), ['presence-join'])
 
-        await a.manager.subscribe(conn('a7-again', 7, 'Ada'), CHANNEL)
+        const a7Again = conn('a7-again', 7, 'Ada')
+        a.manager.register(a7Again)
+        await a.manager.subscribe(a7Again, CHANNEL)
         await settle()
         assertEquals(
             actions(observer, 7),
@@ -513,8 +532,11 @@ Deno.test('#348 W6 an ordinary leave announces one left and never calls the depa
     })
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
 
         assertEquals(await a.manager.unsubscribe('a7', CHANNEL), 'left')
@@ -758,8 +780,11 @@ Deno.test('#348 W8 a hold committed right behind the sweep release — left, the
     const b = instance(redis, 'B', log, { command: serial.command })
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
         await a.driver.close()
 
@@ -778,6 +803,7 @@ Deno.test('#348 W8 a hold committed right behind the sweep release — left, the
         await release.reached
         // The sweep's release has committed; its reply is not back yet.
         const b7 = conn('b7', 7, 'Ada')
+        b.manager.register(b7)
         const join = b.manager.subscribe(b7, CHANNEL)
         await holdIssued
         // The margin here is microtask ordering on the serialized wrapper,
@@ -841,6 +867,7 @@ Deno.test('#348 S3 a malformed departure from a driver is dropped by the manager
     }
     const manager = new ChannelManager<User>({ driver, authorize })
     const observer = conn('observer', 1)
+    manager.register(observer)
     await manager.subscribe(observer, CHANNEL)
     assert(handler, 'precondition: a manager with a roster registers')
     const seen = observer.received.length

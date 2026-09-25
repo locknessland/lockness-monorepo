@@ -544,13 +544,17 @@ Deno.test('#353 a prototype-less authorizer result admits on both kinds, and its
                 driver: backend.driver,
                 authorize: answering(() => nullPrototypeMember(SUSPECT)),
             })
+            const c1 = conn('c1', SUSPECT)
+            m.register(c1)
             assertEquals(
-                (await m.subscribe(conn('c1', SUSPECT), PRIVATE)).ok,
+                (await m.subscribe(c1, PRIVATE)).ok,
                 true,
                 `${backendName}: private`,
             )
+            const c2 = conn('c2', SUSPECT)
+            m.register(c2)
             assertEquals(
-                (await m.subscribe(conn('c2', SUSPECT), PRESENCE)).ok,
+                (await m.subscribe(c2, PRESENCE)).ok,
                 true,
                 `${backendName}: presence`,
             )
@@ -632,6 +636,7 @@ Deno.test('#353 a departure a driver reports with a value it cannot inspect is d
         authorize: (user) => user ? { id: user.id } : false,
     })
     const observer = conn('observer', 1)
+    m.register(observer)
     await m.subscribe(observer, PRESENCE)
     assert(handler, 'precondition: a manager with a roster registers')
     const seen = observer.received.length
@@ -765,7 +770,9 @@ Deno.test('#353 whatever a presence subscribe throws, it throws before `connecti
     })
     let thrown: unknown = undefined
     try {
-        await m.subscribe(conn('c1', 1), PRESENCE)
+        const c1 = conn('c1', 1)
+        m.register(c1)
+        await m.subscribe(c1, PRESENCE)
     } catch (error) {
         thrown = error
     }

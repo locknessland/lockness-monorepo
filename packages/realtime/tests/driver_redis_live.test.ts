@@ -129,8 +129,11 @@ Deno.test("SC-001: a broadcast reaches an authorized subscriber on a second inst
     })
     try {
         const subA = fakeConn('a1', { id: 1 })
+        a.register(subA)
         const subB = fakeConn('b1', { id: 1 }) // authorized on B
+        b.register(subB)
         const notOnB = fakeConn('b2', { id: 2 }) // denied on B
+        b.register(notOnB)
 
         await a.subscribe(subA, 'private-room')
         assertEquals((await b.subscribe(subB, 'private-room')).ok, true)
@@ -182,6 +185,7 @@ Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded
     const warnings = await captureWarnings(async () => {
         try {
             const sub = fakeConn('c1', { id: 1 })
+            manager.register(sub)
             await manager.subscribe(sub, 'private-room')
             await waitFor(
                 () => psubscribeCount(server, PATTERN) >= 1,
@@ -250,7 +254,9 @@ Deno.test('FR-007: on the fromConfig path, close() leaves nothing that a later s
         driver.onRevocationReconcile(() => {
             reconciles++
         })
-        await manager.subscribe(fakeConn('a1', { id: 1 }), 'private-room')
+        const a1 = fakeConn('a1', { id: 1 })
+        manager.register(a1)
+        await manager.subscribe(a1, 'private-room')
         await waitFor(
             () => psubscribeCount(server, PATTERN) >= 1,
             'the real subscribe socket is up',

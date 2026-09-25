@@ -120,7 +120,9 @@ Deno.test('#331 a denied re-subscribe leaves delivery, roster and membership int
     const { state, authorize } = revocable()
     const m = new ChannelManager<User>({ driver, authorize })
     const holder = conn('c1', 1)
+    m.register(holder)
     const observer = conn('c2', 2)
+    m.register(observer)
     const rosterReadsBefore = rosterReadCount()
     await m.subscribe(holder, CHANNEL)
     assertRosterRead(rosterReadsBefore)
@@ -173,6 +175,7 @@ Deno.test('#331 a denial on a PRIVATE channel revokes nothing either', async () 
     const { state, authorize } = revocable()
     const m = new ChannelManager<User>({ driver, authorize })
     const holder = conn('c1', 1)
+    m.register(holder)
     await m.subscribe(holder, PRIVATE)
     const before = commands.length
 
@@ -201,7 +204,9 @@ Deno.test('#331 unsubscribe is what actually revokes', async () => {
     const { authorize } = revocable()
     const m = new ChannelManager<User>({ driver, authorize })
     const holder = conn('c1', 1)
+    m.register(holder)
     const observer = conn('c2', 2)
+    m.register(observer)
     await m.subscribe(holder, CHANNEL)
     await m.subscribe(observer, CHANNEL)
 

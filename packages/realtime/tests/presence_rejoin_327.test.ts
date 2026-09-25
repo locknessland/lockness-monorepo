@@ -122,7 +122,9 @@ Deno.test('#327 a re-join announces NOTHING and writes NOTHING', async () => {
     const { driver, calls } = countingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const holder = conn('c1', 1)
+    m.register(holder)
     const observer = conn('c2', 2)
+    m.register(observer)
     await m.subscribe(holder, CHANNEL)
     await m.subscribe(observer, CHANNEL)
 
@@ -167,7 +169,9 @@ Deno.test('#327 a re-join announces NOTHING and writes NOTHING', async () => {
     // arriving after the re-joins is a frame the re-joiner MUST still receive:
     // it proves the guard bought its silence by doing nothing, rather than by
     // breaking this connection's delivery.
-    await m.subscribe(conn('c9', 9), CHANNEL)
+    const c9 = conn('c9', 9)
+    m.register(c9)
+    await m.subscribe(c9, CHANNEL)
     assertEquals(
         holder.received.filter((f) => f.action === 'joined').length -
             holderFrames,
@@ -182,10 +186,14 @@ Deno.test('#327 a re-join still returns the authoritative roster', async () => {
     // must not be able to tell its re-join from a first join.
     const { driver } = countingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
-    await m.subscribe(conn('c1', 1), CHANNEL)
-    await m.subscribe(conn('c2', 2), CHANNEL)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    await m.subscribe(c1, CHANNEL)
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    await m.subscribe(c2, CHANNEL)
 
-    const again = await m.subscribe(conn('c1', 1), CHANNEL)
+    const again = await m.subscribe(c1, CHANNEL)
 
     assertEquals(again.ok, true, 'a re-join is never refused')
     // A WHOLE-ROOM assertion, and still correct under #339: the snapshot is
@@ -217,11 +225,13 @@ Deno.test('#327 K pipelined subscribe frames produce exactly ONE join', async ()
     const { driver, calls } = countingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const observer = conn('c2', 2)
+    m.register(observer)
     await m.subscribe(observer, CHANNEL)
     const before = { ...calls }
     const observerFrames = observer.received.length
 
     const joiner = conn('c1', 1)
+    m.register(joiner)
     const K = 8
     const results = await Promise.all(
         Array.from({ length: K }, () => m.subscribe(joiner, CHANNEL)),
@@ -263,7 +273,9 @@ Deno.test('#327 a re-join DISCARDS its payload rather than broadcasting an updat
             authorize(identity, channel, { seat: seatToHandOut }),
     })
     const holder = conn('c1', 1)
+    m.register(holder)
     const observer = conn('c2', 2)
+    m.register(observer)
     await m.subscribe(holder, CHANNEL)
     await m.subscribe(observer, CHANNEL)
     const before = { ...calls }
@@ -332,6 +344,7 @@ Deno.test('#327 a re-join degrades like a first join when the roster read fails'
     }
     const m = new ChannelManager<User>({ driver: failing, authorize })
     const holder = conn('c1', 1)
+    m.register(holder)
     await m.subscribe(holder, CHANNEL)
 
     const again = await m.subscribe(holder, CHANNEL)

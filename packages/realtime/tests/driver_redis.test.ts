@@ -120,7 +120,9 @@ Deno.test('SC-001: a broadcast on instance A reaches an authorized subscriber on
     const b = instance(bus, () => true)
 
     const subA = fakeConn('a1', { id: 1 })
+    a.register(subA)
     const subB = fakeConn('b1', { id: 2 })
+    b.register(subB)
     await a.subscribe(subA, 'private-room')
     await b.subscribe(subB, 'private-room')
 
@@ -139,7 +141,9 @@ Deno.test('SC-001a: the receiving instance re-applies local authorization (S6)',
     const b = instance(bus, () => false)
 
     const subA = fakeConn('a1', { id: 1 })
+    a.register(subA)
     const notOnB = fakeConn('b1', { id: 2 })
+    b.register(notOnB)
     await a.subscribe(subA, 'private-room')
     const okB = await b.subscribe(notOnB, 'private-room') // denied on B
     assertEquals(okB.ok, false)
@@ -154,6 +158,7 @@ Deno.test('cross-channel isolation: a broadcast to X is not delivered to a Y sub
     const bus = new FakeRedisBus()
     const a = instance(bus, () => true)
     const onY = fakeConn('y', { id: 3 })
+    a.register(onY)
     await a.subscribe(onY, 'private-y')
     a.broadcast('private-x', 'e', {})
     assertEquals(sentOf(onY).length, 0)

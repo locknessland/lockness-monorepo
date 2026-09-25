@@ -197,9 +197,14 @@ async function twoTabs(make: (published: ControlMessage[]) => BroadcastDriver) {
         authorize,
     })
     const observer = conn('c0', 1)
+    manager.register(observer)
     await manager.subscribe(observer, CHANNEL)
-    await manager.subscribe(conn('c1', 7), CHANNEL)
-    await manager.subscribe(conn('c2', 7), CHANNEL)
+    const c1 = conn('c1', 7)
+    manager.register(c1)
+    await manager.subscribe(c1, CHANNEL)
+    const c2 = conn('c2', 7)
+    manager.register(c2)
+    await manager.subscribe(c2, CHANNEL)
     return { manager, observer, published }
 }
 
@@ -270,8 +275,12 @@ Deno.test('#344 W5 member 7 on two instances: one presence-join; A leaving says 
     const a = redisInstance(redis, 'A', log)
     const b = redisInstance(redis, 'B', log)
     try {
-        await a.manager.subscribe(conn('a1', 7), CHANNEL)
-        await b.manager.subscribe(conn('b1', 7), CHANNEL)
+        const a1 = conn('a1', 7)
+        a.manager.register(a1)
+        await a.manager.subscribe(a1, CHANNEL)
+        const b1 = conn('b1', 7)
+        b.manager.register(b1)
+        await b.manager.subscribe(b1, CHANNEL)
         await settle()
         assertEquals(
             log.filter((c) => c.kind === 'presence-join').length,
@@ -311,7 +320,9 @@ Deno.test('#344 W6 a join overtaken by its own leave announces nothing — neith
         gated: ['authorize', 'watch', 'unwatch', 'hold', 'release'],
         publishControl: () => {},
     })
-    const join = r.manager.subscribe(conn('c1', 1), CHANNEL)
+    const c1 = conn('c1', 1)
+    r.manager.register(c1)
+    const join = r.manager.subscribe(c1, CHANNEL)
     await settle()
     await r.g.open('authorize')
     const leave = r.manager.unsubscribe('c1', CHANNEL)
@@ -344,7 +355,9 @@ Deno.test('#344 W7 a hold that lands before the leave announces joined, then lef
         gated: ['authorize', 'watch', 'unwatch', 'hold', 'release'],
         publishControl: () => {},
     })
-    const join = r.manager.subscribe(conn('c1', 1), CHANNEL)
+    const c1 = conn('c1', 1)
+    r.manager.register(c1)
+    const join = r.manager.subscribe(c1, CHANNEL)
     await settle()
     await r.g.open('authorize')
     await r.g.open('watch') // the join's hold is issued and suspended
@@ -370,7 +383,9 @@ Deno.test('#344 W7b a leave issued before the join held anything overtakes it, a
         gated: ['authorize', 'watch', 'unwatch', 'hold', 'release'],
         publishControl: () => {},
     })
-    const join = r.manager.subscribe(conn('c1', 1), CHANNEL)
+    const c1 = conn('c1', 1)
+    r.manager.register(c1)
+    const join = r.manager.subscribe(c1, CHANNEL)
     await settle()
     await r.g.open('authorize')
     const leave = r.manager.unsubscribe('c1', CHANNEL)
@@ -393,15 +408,20 @@ Deno.test('#344 W7b a leave issued before the join held anything overtakes it, a
 Deno.test("#344 W8 a join whose queued write finds the slot emptied sends the one left, from that join's write", async () => {
     const r = rig({ gated: ['hold', 'release'] })
     const observer = conn('c0', 1)
+    r.manager.register(observer)
     const first = r.manager.subscribe(observer, CHANNEL)
     await settle()
     await r.g.drain()
     await first
 
     // c1's hold of 7 is in flight; c2 claims 7 and its write queues behind it.
-    const c1Join = r.manager.subscribe(conn('c1', 7), CHANNEL)
+    const c1 = conn('c1', 7)
+    r.manager.register(c1)
+    const c1Join = r.manager.subscribe(c1, CHANNEL)
     await settle()
-    const c2Join = r.manager.subscribe(conn('c2', 7), CHANNEL)
+    const c2 = conn('c2', 7)
+    r.manager.register(c2)
+    const c2Join = r.manager.subscribe(c2, CHANNEL)
     await settle()
     // Both leave before either queued write has run.
     const c1Leave = r.manager.unsubscribe('c1', CHANNEL)
@@ -429,7 +449,9 @@ Deno.test("#344 W8 a join whose queued write finds the slot emptied sends the on
 Deno.test('#344 W9 two tabs of member 7 racing its arrival — neither receives joined for 7', async () => {
     const r = rig({ gated: ['hold'] })
     const c1 = conn('c1', 7)
+    r.manager.register(c1)
     const c2 = conn('c2', 7)
+    r.manager.register(c2)
     const j1 = r.manager.subscribe(c1, CHANNEL)
     await settle()
     const j2 = r.manager.subscribe(c2, CHANNEL)
@@ -466,6 +488,7 @@ Deno.test("#344 W9 remote: a tab of member 7 on B never receives B's re-emit of 
     const b = redisInstance(redis, 'B', log, gatedCommand)
     try {
         const onB = conn('b1', 7)
+        b.manager.register(onB)
         gateNextEval = true
         const joinB = b.manager.subscribe(onB, CHANNEL)
         await settle()
@@ -477,6 +500,7 @@ Deno.test("#344 W9 remote: a tab of member 7 on B never receives B's re-emit of 
         )
 
         const onA = conn('a1', 7)
+        a.manager.register(onA)
         await a.manager.subscribe(onA, CHANNEL)
         await settle()
         assert(
@@ -517,7 +541,9 @@ Deno.test('#344 W10 a failed presence-leave publish: unsubscribe resolves left, 
         }),
     })
     const manager = r.manager
-    await manager.subscribe(conn('c1', secretId), CHANNEL)
+    const c1 = conn('c1', secretId)
+    manager.register(c1)
+    await manager.subscribe(c1, CHANNEL)
 
     const warn = console.warn
     const warnings: string[] = []
@@ -573,14 +599,18 @@ Deno.test('#344 W10 an encode that refuses the local joined frame: one WARN, no 
             return text
         },
     })
-    await manager.subscribe(conn('c0', 1), CHANNEL)
+    const c0 = conn('c0', 1)
+    manager.register(c0)
+    await manager.subscribe(c0, CHANNEL)
 
     const warn = console.warn
     const warnings: string[] = []
     console.warn = (...parts: unknown[]) => void warnings.push(parts.join(' '))
     let outcome: unknown
     try {
-        outcome = await manager.subscribe(conn('c1', secretId), CHANNEL)
+        const c1 = conn('c1', secretId)
+        manager.register(c1)
+        outcome = await manager.subscribe(c1, CHANNEL)
     } catch (error) {
         outcome = error
     } finally {
@@ -625,10 +655,15 @@ Deno.test("#344 the arrival's joined carries the earliest local connection's ent
     const tab = (id: string, name: string): Recording =>
         Object.assign(conn(id, 7), { identity: { id: 7, tab: name } })
     const observer = conn('c0', 1)
+    r.manager.register(observer)
     await r.manager.subscribe(observer, CHANNEL)
-    await r.manager.subscribe(tab('c1', 'first'), CHANNEL)
+    const c1 = tab('c1', 'first')
+    r.manager.register(c1)
+    await r.manager.subscribe(c1, CHANNEL)
     r.roster.delete('7')
-    await r.manager.subscribe(tab('c2', 'second'), CHANNEL)
+    const c2 = tab('c2', 'second')
+    r.manager.register(c2)
+    await r.manager.subscribe(c2, CHANNEL)
 
     const joins = controls(r.published, 'presence-join', 7)
     assertEquals(joins.map((c) => c.target), ['c1', 'c2'])
@@ -652,7 +687,9 @@ Deno.test('#344 W10 (guard) a failed RELEASE still rejects unsubscribe', async (
             throw new Error('roster write refused')
         },
     })
-    await r.manager.subscribe(conn('c1', 7), CHANNEL)
+    const c1 = conn('c1', 7)
+    r.manager.register(c1)
+    await r.manager.subscribe(c1, CHANNEL)
     let rejected = false
     try {
         await r.manager.unsubscribe('c1', CHANNEL)

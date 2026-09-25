@@ -196,6 +196,7 @@ Deno.test('SC-008: end-to-end — a forged evict on the bus never closes an owne
     const manager = new ChannelManager<User>({ driver: b, authorize })
     try {
         const x = fakeConn('x', { id: 1, name: 'Xavier' })
+        manager.register(x)
         await manager.subscribe(x, 'presence-lobby')
 
         // A forged evict for X's socket, published straight onto the bus.

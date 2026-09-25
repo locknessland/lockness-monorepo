@@ -760,14 +760,17 @@ Deno.test('#345 manager: id 7 on two instances — A leaving and then dying neve
     const managerA = new ChannelManager<User>({ driver: driverA, authorize })
     const managerB = new ChannelManager<User>({ driver: driverB, authorize })
     try {
-        await managerA.subscribe(conn('a1', { id: 7, name: 'Ada' }), CHANNEL)
-        await managerB.subscribe(conn('b1', { id: 7, name: 'Ada' }), CHANNEL)
+        const a1 = conn('a1', { id: 7, name: 'Ada' })
+        managerA.register(a1)
+        await managerA.subscribe(a1, CHANNEL)
+        const b1 = conn('b1', { id: 7, name: 'Ada' })
+        managerB.register(b1)
+        await managerB.subscribe(b1, CHANNEL)
 
         assertEquals(await managerA.unsubscribe('a1', CHANNEL), 'left')
-        const joiner = await managerB.subscribe(
-            conn('b2', { id: 9, name: 'Bo' }),
-            CHANNEL,
-        )
+        const b2 = conn('b2', { id: 9, name: 'Bo' })
+        managerB.register(b2)
+        const joiner = await managerB.subscribe(b2, CHANNEL)
         assertEquals(
             joiner.here?.members.map((m) => m.id).sort(),
             [7, 9],
@@ -777,10 +780,9 @@ Deno.test('#345 manager: id 7 on two instances — A leaving and then dying neve
 
         await driverA.close()
         await lapse(time)
-        const late = await managerB.subscribe(
-            conn('b3', { id: 11, name: 'Cy' }),
-            CHANNEL,
-        )
+        const b3 = conn('b3', { id: 11, name: 'Cy' })
+        managerB.register(b3)
+        const late = await managerB.subscribe(b3, CHANNEL)
         assertEquals(
             late.here?.members.map((m) => m.id).sort((x, y) =>
                 Number(x) - Number(y)

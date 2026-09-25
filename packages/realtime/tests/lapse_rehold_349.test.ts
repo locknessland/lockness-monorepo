@@ -365,8 +365,12 @@ Deno.test('#349 W1 7 held only on A, A lapses and is swept — 7 is back in B’
     const a = instance(redis, { command: fa.command })
     const warnings = captureWarnings()
     try {
-        await b.manager.subscribe(conn('b-observer', 1), CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const bObserver = conn('b-observer', 1)
+        b.manager.register(bObserver)
+        await b.manager.subscribe(bObserver, CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
         assertEquals(await rosterIds(b.driver), [1, 7], 'precondition')
 
@@ -381,7 +385,9 @@ Deno.test('#349 W1 7 held only on A, A lapses and is swept — 7 is back in B’
             ONE_BEAT_MS,
         )
         assert(back, '7 is back in the authoritative roster within one beat')
-        const here = await b.manager.subscribe(conn('b-late', 2), CHANNEL)
+        const bLate = conn('b-late', 2)
+        b.manager.register(bLate)
+        const here = await b.manager.subscribe(bLate, CHANNEL)
         assert(
             here.here?.members.some((m) => m.id === 7),
             "7 is back in a new subscriber's here",
@@ -411,8 +417,12 @@ Deno.test('#349 W1b a stalled loop — no beat fails, the next SET … GET answe
     const a = instance(redis, { command: serial.command })
     const warnings = captureWarnings()
     try {
-        await b.manager.subscribe(conn('b-observer', 1), CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const bObserver = conn('b-observer', 1)
+        b.manager.register(bObserver)
+        await b.manager.subscribe(bObserver, CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
         assertEquals(await rosterIds(b.driver), [1, 7], 'precondition')
 
@@ -438,7 +448,9 @@ Deno.test('#349 W1b a stalled loop — no beat fails, the next SET … GET answe
             [],
             'no beat failed: the nil alone carried the lapse',
         )
-        const here = await b.manager.subscribe(conn('b-late', 2), CHANNEL)
+        const bLate = conn('b-late', 2)
+        b.manager.register(bLate)
+        const here = await b.manager.subscribe(bLate, CHANNEL)
         assert(
             here.here?.members.some((m) => m.id === 7),
             "7 is back in a new subscriber's here",
@@ -462,10 +474,14 @@ Deno.test('#349 W2 observers on B and C each receive exactly left, then joined, 
     const warnings = captureWarnings()
     try {
         const onB = conn('b-observer', 1)
+        b.manager.register(onB)
         const onC = conn('c-observer', 2)
+        c.manager.register(onC)
         await b.manager.subscribe(onB, CHANNEL)
         await c.manager.subscribe(onC, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
 
         fa.breakAlive()
@@ -497,9 +513,13 @@ Deno.test('#349 W3 7’s own tab on A hears nothing about 7; 8’s tab on A hear
     const a = instance(redis, { command: fa.command })
     const warnings = captureWarnings()
     try {
-        await b.manager.subscribe(conn('b-observer', 1), CHANNEL)
+        const bObserver = conn('b-observer', 1)
+        b.manager.register(bObserver)
+        await b.manager.subscribe(bObserver, CHANNEL)
         const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
         const a8 = conn('a8', 8, 'Boris')
+        a.manager.register(a8)
         await a.manager.subscribe(a7, CHANNEL)
         await a.manager.subscribe(a8, CHANNEL)
         await settle()
@@ -539,8 +559,11 @@ Deno.test('#349 W3b #348 W8’s race on the sweeper — 7’s new tab on B recei
     const b = instance(redis, { command: serial.command })
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
         await a.driver.close()
 
@@ -552,6 +575,7 @@ Deno.test('#349 W3b #348 W8’s race on the sweeper — 7’s new tab on B recei
         await release.reached
         // The sweep's release has committed; its reply is not back yet.
         const b7 = conn('b7', 7, 'Ada')
+        b.manager.register(b7)
         const join = b.manager.subscribe(b7, CHANNEL)
         await holdIssued
         release.release()
@@ -592,10 +616,15 @@ Deno.test('#349 W3c the exclusion is by member id, not by connection — 7’s s
     const a = instance(redis, { command: fa.command })
     const warnings = captureWarnings()
     try {
-        await b.manager.subscribe(conn('b-observer', 1), CHANNEL)
+        const bObserver = conn('b-observer', 1)
+        b.manager.register(bObserver)
+        await b.manager.subscribe(bObserver, CHANNEL)
         const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
         const a7b = conn('a7-second-tab', 7, 'Ada')
+        a.manager.register(a7b)
         const a8 = conn('a8', 8, 'Boris')
+        a.manager.register(a8)
         await a.manager.subscribe(a7, CHANNEL)
         await a.manager.subscribe(a7b, CHANNEL)
         await a.manager.subscribe(a8, CHANNEL)
@@ -639,9 +668,14 @@ Deno.test('#349 W4 8’s only tab closes while the re-assert is mid-flight — 8
     const warnings = captureWarnings()
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
-        await a.manager.subscribe(conn('a8', 8, 'Boris'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
+        const a8 = conn('a8', 8, 'Boris')
+        a.manager.register(a8)
+        await a.manager.subscribe(a8, CHANNEL)
         await settle()
 
         fa.breakAlive()
@@ -692,9 +726,13 @@ Deno.test('#349 W4b joins during the re-assert — each announces itself once, a
     const warnings = captureWarnings()
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
         const a8 = conn('a8', 8, 'Boris')
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        a.manager.register(a8)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await a.manager.subscribe(a8, CHANNEL)
         await settle()
 
@@ -710,9 +748,12 @@ Deno.test('#349 W4b joins during the re-assert — each announces itself once, a
         )
 
         const a8b = conn('a8-second-tab', 8, 'Boris')
+        a.manager.register(a8b)
         let joins = 0
         void a.manager.subscribe(a8b, CHANNEL).then(() => void joins++)
-        void a.manager.subscribe(conn('a9', 9, 'Cleo'), CHANNEL)
+        const a9 = conn('a9', 9, 'Cleo')
+        a.manager.register(a9)
+        void a.manager.subscribe(a9, CHANNEL)
             .then(() => void joins++)
         await settle()
         gate.release()
@@ -755,9 +796,14 @@ Deno.test('#349 W5 7 held on A and D; A swept → no frame; A re-asserts → A a
     const warnings = captureWarnings()
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
-        await d.manager.subscribe(conn('d7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
+        const d7 = conn('d7', 7, 'Ada')
+        d.manager.register(d7)
+        await d.manager.subscribe(d7, CHANNEL)
         await settle()
 
         fa.breakAlive()
@@ -795,8 +841,11 @@ Deno.test('#349 W6 A lapses and nobody sweeps it — the re-assert re-holds each
     const warnings = captureWarnings()
     try {
         const observer = conn('a-observer', 1)
+        a.manager.register(observer)
         await a.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
         const framesBefore = transitions(observer).length
         const publishedBefore = busPresence(redis).length
@@ -826,7 +875,9 @@ Deno.test('#349 W7 (i) the boot beat before any hold is not a lapse — one hold
     const time = new FakeTime(T0)
     const a = instance(redis)
     try {
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await advance(time, 2_000)
         assertEquals(holdCount(redis, a.id, 7), 1)
     } finally {
@@ -856,13 +907,18 @@ Deno.test('#349 W7 (ii) a hold that commits before a gated boot SET, and is swep
     const warnings = captureWarnings()
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
         // 7's join starts the boot beat, whose SET waits at the gate.
-        const join7 = a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        const join7 = a.manager.subscribe(a7, CHANNEL)
         await settle()
         // 8's hold does not wait for the boot beat: it commits, and registers
         // A, while A has no liveness key.
-        await a.manager.subscribe(conn('a8', 8, 'Boris'), CHANNEL)
+        const a8 = conn('a8', 8, 'Boris')
+        a.manager.register(a8)
+        await a.manager.subscribe(a8, CHANNEL)
         await settle()
         assertEquals(await rosterIds(b.driver), [1, 8], 'precondition')
 
@@ -904,15 +960,20 @@ Deno.test('#349 W7 (iii) two holds racing the boot beat on a serialized client �
     const a = instance(redis, { command: serial.command })
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
         // The boot beat's SET is in flight when the second hold is issued, so
         // that hold is queued ahead of the beat's SADD — and the beat's tail
         // sees a hold issued (A4). Its nil counts: one harmless re-assert.
         const bootSet = serial.hold(isAliveSet)
-        const join7 = a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        const join7 = a.manager.subscribe(a7, CHANNEL)
         await bootSet.reached
         const hold8 = serial.whenIssued(isHold(a.id, 8))
-        const join8 = a.manager.subscribe(conn('a8', 8, 'Boris'), CHANNEL)
+        const a8 = conn('a8', 8, 'Boris')
+        a.manager.register(a8)
+        const join8 = a.manager.subscribe(a8, CHANNEL)
         await hold8
         bootSet.release()
         // RACED against a FakeTime-bounded wait, never awaited bare: a beat
@@ -954,8 +1015,11 @@ Deno.test('#349 W8 a beat whose reply is lost after it committed starts no run; 
     const warnings = captureWarnings()
     try {
         const observer = conn('a-observer', 1)
+        a.manager.register(observer)
         await a.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
         const framesBefore = transitions(observer).length
 
@@ -995,8 +1059,11 @@ Deno.test('#349 W8b a failed SADD sets nothing — one WARN, and neither that be
     const warnings = captureWarnings()
     try {
         const observer = conn('a-observer', 1)
+        a.manager.register(observer)
         await a.manager.subscribe(observer, CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
         const framesBefore = transitions(observer).length
 
@@ -1032,7 +1099,9 @@ Deno.test('#349 W8c the suspicion is cleared when the run is triggered — the b
     const a = instance(redis, { command: fa.command })
     const warnings = captureWarnings()
     try {
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await settle()
 
         fa.once(isAliveSet, { kind: 'reject' })
@@ -1068,10 +1137,18 @@ Deno.test('#349 W9 one of three holds fails during a re-assert — the other two
     const a = instance(redis, { command: fa.command })
     const warnings = captureWarnings()
     try {
-        await b.manager.subscribe(conn('b-observer', 1), CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
-        await a.manager.subscribe(conn('a-sentinel', ID, INFO), CHANNEL)
-        await a.manager.subscribe(conn('a9', 9, 'Cleo'), CHANNEL)
+        const bObserver = conn('b-observer', 1)
+        b.manager.register(bObserver)
+        await b.manager.subscribe(bObserver, CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
+        const aSentinel = conn('a-sentinel', ID, INFO)
+        a.manager.register(aSentinel)
+        await a.manager.subscribe(aSentinel, CHANNEL)
+        const a9 = conn('a9', 9, 'Cleo')
+        a.manager.register(a9)
+        await a.manager.subscribe(a9, CHANNEL)
         await settle()
 
         fa.breakAlive()
@@ -1124,9 +1201,15 @@ Deno.test('#349 W11b close() during a re-assert stops it before the next slot, a
     const a = instance(redis, { command: serial.command })
     const warnings = captureWarnings()
     try {
-        await b.manager.subscribe(conn('b-observer', 1), CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
-        await a.manager.subscribe(conn('a8', 8, 'Boris'), CHANNEL)
+        const bObserver = conn('b-observer', 1)
+        b.manager.register(bObserver)
+        await b.manager.subscribe(bObserver, CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
+        const a8 = conn('a8', 8, 'Boris')
+        a.manager.register(a8)
+        await a.manager.subscribe(a8, CHANNEL)
         await settle()
 
         fa.breakAlive()
@@ -1219,9 +1302,15 @@ Deno.test('#349 W11b (ii) close() while a sweep pass is in flight stops the re-a
     // waiting on a held pass forever.
     const releases: Array<() => void> = []
     try {
-        await b.manager.subscribe(conn('b-observer', 1), CHANNEL)
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
-        await a.manager.subscribe(conn('a8', 8, 'Boris'), CHANNEL)
+        const bObserver = conn('b-observer', 1)
+        b.manager.register(bObserver)
+        await b.manager.subscribe(bObserver, CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
+        const a8 = conn('a8', 8, 'Boris')
+        a.manager.register(a8)
+        await a.manager.subscribe(a8, CHANNEL)
         await settle()
 
         fa.breakAlive()
@@ -1277,9 +1366,13 @@ Deno.test('#349 W13 K = 5 on a serialized client — a beat fired during the fir
     const ids = [11, 12, 13, 14, 15]
     const warnings = captureWarnings()
     try {
-        await b.manager.subscribe(conn('b-observer', 1), CHANNEL)
+        const bObserver = conn('b-observer', 1)
+        b.manager.register(bObserver)
+        await b.manager.subscribe(bObserver, CHANNEL)
         for (const id of ids) {
-            await a.manager.subscribe(conn(`a${id}`, id), CHANNEL)
+            const member = conn(`a${id}`, id)
+            a.manager.register(member)
+            await a.manager.subscribe(member, CHANNEL)
         }
         await settle()
 
@@ -1335,8 +1428,10 @@ Deno.test('#349 W15 a revokeChannel lost during A’s partition is applied befor
     const warnings = captureWarnings()
     try {
         const observer = conn('b-observer', 1)
+        b.manager.register(observer)
         await b.manager.subscribe(observer, CHANNEL)
         const c7 = conn('c7', 7, 'Ada')
+        a.manager.register(c7)
         await a.manager.subscribe(c7, CHANNEL)
         await settle()
 
@@ -1394,8 +1489,12 @@ Deno.test('#349 W15b the pre-re-assert revocation re-check fails once — one ma
     const a = instance(redis, { command: fa.command })
     const warnings = captureWarnings()
     try {
-        await b.manager.subscribe(conn('b-observer', 1), CHANNEL)
-        await a.manager.subscribe(conn(TARGET, ID, INFO), CHANNEL)
+        const bObserver = conn('b-observer', 1)
+        b.manager.register(bObserver)
+        await b.manager.subscribe(bObserver, CHANNEL)
+        const target = conn(TARGET, ID, INFO)
+        a.manager.register(target)
+        await a.manager.subscribe(target, CHANNEL)
         await settle()
 
         fa.breakAlive()
@@ -1493,6 +1592,8 @@ Deno.test('#349 W15c one revocation whose apply throws does not stop the ones af
         ...conn('c2', 8),
         close: (code?: number) => void closed.push(code ?? 0),
     }
+    manager.register(poisoned)
+    manager.register(healthy)
     await manager.subscribe(poisoned, CHANNEL)
     await manager.subscribe(healthy, CHANNEL)
     driver.revocations = [{ target: TARGET }, { target: 'c2' }]
@@ -1545,7 +1646,9 @@ Deno.test('#349 WS1 a SET answered OK, then an integer — one WARN per beat, no
     const beats = () => redis.commandLog().filter(isAliveSet).length
     try {
         fa.answerAliveWith({ type: 'simple', value: 'OK' })
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         await advance(time, 1_000)
         fa.answerAliveWith({ type: 'integer', value: 1 })
         await advance(time, 1_000)
@@ -1585,7 +1688,9 @@ Deno.test('#349 WS1 a failed boot beat before any hold makes nothing suspected',
     const warnings = captureWarnings()
     try {
         fa.answerAliveWith({ type: 'simple', value: 'OK' })
-        await a.manager.subscribe(conn('a7', 7, 'Ada'), CHANNEL)
+        const a7 = conn('a7', 7, 'Ada')
+        a.manager.register(a7)
+        await a.manager.subscribe(a7, CHANNEL)
         fa.answerAliveWith(undefined)
         await advance(time, 1_000)
         assertEquals(holdCount(redis, a.id, 7), 1, 'no run')
@@ -1741,8 +1846,11 @@ for (
         assertEquals('onRosterLapse' in driver, false, 'no hook')
         const manager = new ChannelManager<User>({ driver, authorize })
         const observer = conn('observer', 1)
+        manager.register(observer)
         const tab = conn('tab', 7)
+        manager.register(tab)
         const second = conn('tab-2', 7)
+        manager.register(second)
         await manager.subscribe(observer, CHANNEL)
         await manager.subscribe(tab, CHANNEL)
         await manager.subscribe(second, CHANNEL)

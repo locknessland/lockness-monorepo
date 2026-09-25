@@ -354,7 +354,9 @@ for (const [name, id] of ACCEPTED) {
             driver,
             authorize: () => ({ id }),
         })
-        assertEquals((await m.subscribe(conn('c1', 1), ROOM)).ok, true)
+        const c1 = conn('c1', 1)
+        m.register(c1)
+        assertEquals((await m.subscribe(c1, ROOM)).ok, true)
         assertEquals(
             (await driver.readRoster(ROOM, 1_000, [])).members.map((x) =>
                 String(x.id)
@@ -367,7 +369,9 @@ for (const [name, id] of ACCEPTED) {
 Deno.test('#346 (b) the framework path — authorize() returning true — joins as the connection id', async () => {
     const driver = new MemoryBroadcastDriver()
     const m = new ChannelManager<User>({ driver, authorize: () => true })
-    assertEquals((await m.subscribe(conn('c1', 1), ROOM)).ok, true)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    assertEquals((await m.subscribe(c1, ROOM)).ok, true)
     assertEquals(
         (await driver.readRoster(ROOM, 1_000, [])).members,
         [{ id: 'c1' }],
@@ -381,8 +385,12 @@ Deno.test('#346 (b) -0 and 0 are one member, as String(id) keys them', async () 
         driver,
         authorize: (identity) => ({ id: ids[identity!.id] }),
     })
-    await m.subscribe(conn('c0', 0), ROOM)
-    const result = await m.subscribe(conn('c1', 1), ROOM)
+    const c0 = conn('c0', 0)
+    m.register(c0)
+    await m.subscribe(c0, ROOM)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    const result = await m.subscribe(c1, ROOM)
     assert(result.ok && result.here !== undefined)
     assertEquals(result.here.total, 1)
 })
@@ -469,9 +477,12 @@ Deno.test('#346 (c) frame ingest: a numeric id joined on one instance is announc
         const onA = new ChannelManager<User>({ driver: a, authorize })
         const onB = new ChannelManager<User>({ driver: b, authorize })
         const observer = conn('observer', 2)
+        onB.register(observer)
         assertEquals((await onB.subscribe(observer, ROOM)).ok, true)
 
-        assertEquals((await onA.subscribe(conn('ada', 1), ROOM)).ok, true)
+        const ada = conn('ada', 1)
+        onA.register(ada)
+        assertEquals((await onA.subscribe(ada, ROOM)).ok, true)
         await settle()
 
         // `isPlainMember` on B is what admits the frame; it accepts exactly
@@ -493,9 +504,13 @@ Deno.test('#346 (c) roster read: a numeric id written by one instance is read by
         })
         const onA = new ChannelManager<User>({ driver: a, authorize })
         const onB = new ChannelManager<User>({ driver: b, authorize })
-        assertEquals((await onA.subscribe(conn('ada', 1), ROOM)).ok, true)
+        const ada = conn('ada', 1)
+        onA.register(ada)
+        assertEquals((await onA.subscribe(ada, ROOM)).ok, true)
 
-        const result = await onB.subscribe(conn('observer', 2), ROOM)
+        const observer = conn('observer', 2)
+        onB.register(observer)
+        const result = await onB.subscribe(observer, ROOM)
         assert(result.ok && result.here !== undefined)
         // `#parseRosterValue` is what admits the stored entry.
         assertEquals(
@@ -542,7 +557,9 @@ Deno.test('#346 (c) the join boundary, the frame ingest and the roster read acce
                 driver: new MemoryBroadcastDriver(),
                 authorize: returningId(() => id),
             })
-            const joins = await joinManager.subscribe(conn('c1', 1), channel)
+            const c1 = conn('c1', 1)
+            joinManager.register(c1)
+            const joins = await joinManager.subscribe(c1, channel)
                 .then(() => true, (error) => {
                     assert(error instanceof PresenceMemberIdError, `${error}`)
                     return false
@@ -581,8 +598,10 @@ Deno.test('#346 (d) the message names an object id by type and never echoes it',
         driver: new MemoryBroadcastDriver(),
         authorize: returningId(() => ({ email: 'sentinel-346@example.com' })),
     })
+    const c1 = conn('c1', 1)
+    m.register(c1)
     const error = await assertRejects(
-        () => m.subscribe(conn('c1', 1), ROOM),
+        () => m.subscribe(c1, ROOM),
         PresenceMemberIdError,
     )
     assert(

@@ -323,6 +323,7 @@ Deno.test('#332 a previous-release peer receiving the new kind does NOTHING', as
             identity ? { id: identity.id } : false,
     })
     const holder = conn('c1', 1)
+    m.register(holder)
     const rosterReadsBefore = rosterReadCount()
     await m.subscribe(holder, ROOM)
     assertRosterRead(rosterReadsBefore)

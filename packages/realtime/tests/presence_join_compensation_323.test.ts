@@ -141,6 +141,7 @@ Deno.test('#323/SC-001 a rejected roster write announces NOTHING', async () => {
     const { driver, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
+    m.register(watcher)
     assertEquals((await m.subscribe(watcher, CHANNEL)).ok, true)
 
     state.rejectAdds = true
@@ -159,6 +160,7 @@ Deno.test('#323/FR-002 a rejected roster write leaves no local residue', async (
     const { driver, roster, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
+    m.register(watcher)
     await m.subscribe(watcher, CHANNEL)
 
     state.rejectAdds = true
@@ -220,10 +222,12 @@ Deno.test('#323/SC-003 a failed join can be retried, and yields ONE member', asy
     const { driver, roster, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
+    m.register(watcher)
     await m.subscribe(watcher, CHANNEL)
 
     state.rejectAdds = true
     const newcomer = conn('c2', 2)
+    m.register(newcomer)
     await failingJoin(m, newcomer)
 
     state.rejectAdds = false
@@ -251,9 +255,11 @@ Deno.test('#323 the joiner never receives its own `joined`', async () => {
     const { driver } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const first = conn('c1', 1)
+    m.register(first)
     await m.subscribe(first, CHANNEL)
 
     const newcomer = conn('c2', 2)
+    m.register(newcomer)
     await m.subscribe(newcomer, CHANNEL)
 
     assertEquals(
@@ -272,6 +278,7 @@ Deno.test('#323/FR-005 a failed control publish loses the announcement, not the 
     const { driver, roster, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
+    m.register(watcher)
     await m.subscribe(watcher, CHANNEL)
 
     // The roster write has already committed by the time the control frame
@@ -279,6 +286,7 @@ Deno.test('#323/FR-005 a failed control publish loses the announcement, not the 
     // every other instance can see succeeded — the original defect, mirrored.
     state.rejectControl = true
     const newcomer = conn('c2', 2)
+    m.register(newcomer)
     const result = await m.subscribe(newcomer, CHANNEL)
 
     assertEquals(result.ok, true, 'the join committed and must report so')
@@ -298,6 +306,7 @@ Deno.test('#323/FR-006 a failed roster read degrades to the local view', async (
     const { driver, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const watcher = conn('c1', 1)
+    m.register(watcher)
     await m.subscribe(watcher, CHANNEL)
 
     // Everything committed — roster, local view, both announcements. Only the
@@ -306,6 +315,7 @@ Deno.test('#323/FR-006 a failed roster read degrades to the local view', async (
     // to compensate because there is nothing wrong.
     state.rejectList = true
     const newcomer = conn('c2', 2)
+    m.register(newcomer)
     const result = await m.subscribe(newcomer, CHANNEL)
 
     assertEquals(result.ok, true)
@@ -390,6 +400,7 @@ Deno.test('#323 a failed join into an OCCUPIED channel leaves the incumbent alon
     const { driver, watched, state } = faultyRoster()
     const m = new ChannelManager<User>({ driver, authorize })
     const incumbent = conn('c1', 1)
+    m.register(incumbent)
     await m.subscribe(incumbent, CHANNEL)
 
     state.rejectAdds = true
@@ -403,7 +414,9 @@ Deno.test('#323 a failed join into an OCCUPIED channel leaves the incumbent alon
 
     // And the incumbent is still a live subscriber: a later join reaches it.
     state.rejectAdds = false
-    await m.subscribe(conn('c3', 3), CHANNEL)
+    const c3 = conn('c3', 3)
+    m.register(c3)
+    await m.subscribe(c3, CHANNEL)
     assertEquals(
         joinedFor(incumbent, 3).length,
         1,

@@ -154,7 +154,9 @@ async function ingestOfOneSubscribe(
         })
         const joiner = idOf(size)
         counting = true
-        const here = hereOf(await m.subscribe(conn('c-joiner', joiner), ROOM))
+        const cJoiner = conn('c-joiner', joiner)
+        m.register(cJoiner)
+        const here = hereOf(await m.subscribe(cJoiner, ROOM))
         counting = false
         redis.assertNoRejections()
         return { bytes, here, joiner }
@@ -264,12 +266,18 @@ Deno.test('#341 B and C outside the window each keep their OWN self from one sha
         authorize: (identity) => identity ? { id: identity.id } : false,
         maxPresenceSnapshotMembers: 1,
     })
-    const a = m.subscribe(conn('ca', 'a'), ROOM)
+    const ca = conn('ca', 'a')
+    m.register(ca)
+    const a = m.subscribe(ca, ROOM)
     await turns()
     assertEquals(gate.reads.length, 1, 'A holds the one read in flight')
 
-    const b = m.subscribe(conn('cb', 'b'), ROOM)
-    const c = m.subscribe(conn('cc', 'c'), ROOM)
+    const cb = conn('cb', 'b')
+    m.register(cb)
+    const b = m.subscribe(cb, ROOM)
+    const cc = conn('cc', 'c')
+    m.register(cc)
+    const c = m.subscribe(cc, ROOM)
     await turns()
     assertEquals(gate.reads.length, 1, 'B and C queue; nothing else is issued')
 
@@ -298,7 +306,9 @@ Deno.test('#341 an unsubscribe during the gated read drops self from the reply',
         authorize: (identity) => identity ? { id: identity.id } : false,
         maxPresenceSnapshotMembers: 1,
     })
-    const a = m.subscribe(conn('ca', 'a'), ROOM)
+    const ca = conn('ca', 'a')
+    m.register(ca)
+    const a = m.subscribe(ca, ROOM)
     await turns()
     assertEquals(gate.reads.length, 1)
     assertEquals(gate.reads[0], ['a'], 'the read was asked for A — pre-await')
@@ -500,7 +510,9 @@ async function joinInOrder(
 ): Promise<PresenceSnapshot> {
     let here: PresenceSnapshot | undefined
     for (let i = 1; i <= n; i++) {
-        here = hereOf(await m.subscribe(conn(`c-${i}`, idOf(i)), ROOM))
+        const cN = conn(`c-${i}`, idOf(i))
+        m.register(cN)
+        here = hereOf(await m.subscribe(cN, ROOM))
     }
     assert(here !== undefined)
     return here
@@ -541,7 +553,9 @@ Deno.test('#341 a room at or below K comes back whole, in hash order, on Redis (
             driver,
             authorize: plainAuthorize,
         })
-        const here = hereOf(await m.subscribe(conn('c-5', idOf(5)), ROOM))
+        const c5 = conn('c-5', idOf(5))
+        m.register(c5)
+        const here = hereOf(await m.subscribe(c5, ROOM))
 
         const hash = await redis.command('HGETALL', PRESENCE_KEY)
         const fields = (hash as { value: { value: string }[] }).value

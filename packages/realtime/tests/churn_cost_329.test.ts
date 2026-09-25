@@ -225,6 +225,7 @@ const take = (cost: Cost): Cost => {
 Deno.test('#329 a presence churn PAIR, sole holder — the worst-case cell', async () => {
     const f = fleet()
     const c = conn('c1', 1)
+    f.local.register(c)
 
     assertEquals((await f.local.subscribe(c, 'presence-room')).ok, true)
     const join = take(f.cost)
@@ -278,11 +279,15 @@ Deno.test('#329 an ALREADY-HOSTED presence channel is the low end of the range',
     // which case it is in, which is exactly why the docs say to size on the
     // worst.
     const f = fleet()
-    await f.local.subscribe(conn('c0', 99), 'presence-room')
+    const c0 = conn('c0', 99)
+    f.local.register(c0)
+    await f.local.subscribe(c0, 'presence-room')
     take(f.cost)
 
+    const c1 = conn('c1', 1)
+    f.local.register(c1)
     assertEquals(
-        (await f.local.subscribe(conn('c1', 1), 'presence-room')).ok,
+        (await f.local.subscribe(c1, 'presence-room')).ok,
         true,
     )
     const join = take(f.cost)
@@ -298,6 +303,7 @@ Deno.test('#329 an ALREADY-HOSTED presence channel is the low end of the range',
 Deno.test('#329 a presence re-join is one authoritative READ, bounded since #341', async () => {
     const f = fleet()
     const c = conn('c1', 1)
+    f.local.register(c)
     await f.local.subscribe(c, 'presence-room')
     take(f.cost)
 
@@ -326,6 +332,7 @@ Deno.test('#329 a presence re-join is one authoritative READ, bounded since #341
 Deno.test('#329 a PRIVATE channel isolates the authorizer from the roster work', async () => {
     const f = fleet()
     const c = conn('c1', 1)
+    f.local.register(c)
 
     assertEquals((await f.local.subscribe(c, 'private-orders')).ok, true)
     const join = take(f.cost)
@@ -357,7 +364,9 @@ Deno.test('#329 a DENIED subscribe costs an authorizer call and nothing else —
     // which makes it a name-enumeration oracle as well as an amplifier.
     const f = fleet(true)
 
-    const result = await f.local.subscribe(conn('c1', 1), 'private-anything')
+    const c1 = conn('c1', 1)
+    f.local.register(c1)
+    const result = await f.local.subscribe(c1, 'private-anything')
 
     assertEquals(result.ok, false)
     assertEquals(take(f.cost), { ...zero(), authorizerCalls: 1 })
@@ -366,6 +375,7 @@ Deno.test('#329 a DENIED subscribe costs an authorizer call and nothing else —
 Deno.test('#329 a PUBLIC churn pair runs NO authorizer — the path the shipped advice cannot see', async () => {
     const f = fleet()
     const c = conn('c1', 1)
+    f.local.register(c)
 
     assertEquals((await f.local.subscribe(c, 'news')).ok, true)
     const join = take(f.cost)
@@ -384,7 +394,9 @@ Deno.test('#329 an unsubscribe this instance does not own costs ZERO', async () 
     // will add a caller to. `#leaveLocal` returns early and the presence
     // branch is gated on the member lookup.
     const f = fleet()
-    await f.local.subscribe(conn('c1', 1), 'presence-room')
+    const c1 = conn('c1', 1)
+    f.local.register(c1)
+    await f.local.subscribe(c1, 'presence-room')
     take(f.cost)
 
     await f.local.unsubscribe('c1', 'presence-room')

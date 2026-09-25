@@ -99,11 +99,27 @@ async function quietly<T>(work: () => Promise<T>): Promise<T> {
     }
 }
 
-/** Seed c1 (7, a), c3 (8), then return c2 (7, b)'s join snapshot. */
-async function seedTwoTabs(m: ChannelManager<User>): Promise<PresenceSnapshot> {
-    await m.subscribe(conn('c1', 7, 'a'), ROOM)
-    await m.subscribe(conn('c3', 8), ROOM)
-    return hereOf(await m.subscribe(conn('c2', 7, 'b'), ROOM))
+/** The seeded sockets, held so a later call on one reuses its object. */
+type Tabs = Record<'c1' | 'c2' | 'c3', Connection<User>>
+
+/**
+ * Seed c1 (7, a), c3 (8), then return c2 (7, b)'s join snapshot. Each socket
+ * is registered at its open and recorded in `tabs` when one is passed.
+ */
+async function seedTwoTabs(
+    m: ChannelManager<User>,
+    tabs?: Partial<Tabs>,
+): Promise<PresenceSnapshot> {
+    const c1 = conn('c1', 7, 'a')
+    m.register(c1)
+    await m.subscribe(c1, ROOM)
+    const c3 = conn('c3', 8)
+    m.register(c3)
+    await m.subscribe(c3, ROOM)
+    const c2 = conn('c2', 7, 'b')
+    m.register(c2)
+    if (tabs) Object.assign(tabs, { c1, c2, c3 })
+    return hereOf(await m.subscribe(c2, ROOM))
 }
 
 Deno.test('#343 the local fallback lists one entry per member', async () => {
@@ -141,9 +157,10 @@ Deno.test('#343 a roster-less driver lists one entry per member', async () => {
 Deno.test('#343 when the winning connection leaves, the next one speaks for the member', async () => {
     const run = async (driver: BroadcastDriver) => {
         const m = new ChannelManager<User>({ driver, authorize })
-        await seedTwoTabs(m)
+        const tabs: Partial<Tabs> = {}
+        await seedTwoTabs(m, tabs)
         await m.unsubscribe('c1', ROOM)
-        return hereOf(await m.subscribe(conn('c2', 7, 'b'), ROOM))
+        return hereOf(await m.subscribe(tabs.c2!, ROOM))
     }
 
     const authoritative = await run(new MemoryBroadcastDriver())
@@ -173,8 +190,12 @@ Deno.test('#343 ids 1 and "1" are one member on the local view', async () => {
     })
 
     const here = await quietly(async () => {
-        await m.subscribe(conn('c1', 1, 'a'), ROOM)
-        return hereOf(await m.subscribe(conn('c2', '1', 'b'), ROOM))
+        const c1 = conn('c1', 1, 'a')
+        m.register(c1)
+        await m.subscribe(c1, ROOM)
+        const c2 = conn('c2', '1', 'b')
+        m.register(c2)
+        return hereOf(await m.subscribe(c2, ROOM))
     })
 
     assertEquals(here.total, 1, 'the roster hash is keyed by String(id)')
@@ -189,8 +210,9 @@ Deno.test('#343 the bound cuts members, and `total` counts members', async () =>
     })
 
     const here = await quietly(async () => {
-        await seedTwoTabs(m)
-        return hereOf(await m.subscribe(conn('c3', 8), ROOM))
+        const tabs: Partial<Tabs> = {}
+        await seedTwoTabs(m, tabs)
+        return hereOf(await m.subscribe(tabs.c3!, ROOM))
     })
 
     assertEquals(ids(here), [8], 'self kept, looked up by connection id')
@@ -203,10 +225,18 @@ Deno.test('#343 join order is kept, not sorted, on the local view', async () => 
         authorize,
     })
 
-    await m.subscribe(conn('c9', 9), ROOM)
-    await m.subscribe(conn('c7a', 7, 'a'), ROOM)
-    await m.subscribe(conn('c8', 8), ROOM)
-    const here = hereOf(await m.subscribe(conn('c7b', 7, 'b'), ROOM))
+    const c9 = conn('c9', 9)
+    m.register(c9)
+    await m.subscribe(c9, ROOM)
+    const c7a = conn('c7a', 7, 'a')
+    m.register(c7a)
+    await m.subscribe(c7a, ROOM)
+    const c8 = conn('c8', 8)
+    m.register(c8)
+    await m.subscribe(c8, ROOM)
+    const c7b = conn('c7b', 7, 'b')
+    m.register(c7b)
+    const here = hereOf(await m.subscribe(c7b, ROOM))
 
     assertEquals(ids(here), [9, 7, 8], 'first-join order, member 7 once')
     assertEquals(here.total, 3)
@@ -223,9 +253,15 @@ Deno.test("#343 under the bound, self as a member's SECOND connection is kept on
     })
 
     const here = await quietly(async () => {
-        await m.subscribe(conn('c3', 8), ROOM)
-        await m.subscribe(conn('c1', 7, 'a'), ROOM)
-        return hereOf(await m.subscribe(conn('c2', 7, 'b'), ROOM))
+        const c3 = conn('c3', 8)
+        m.register(c3)
+        await m.subscribe(c3, ROOM)
+        const c1 = conn('c1', 7, 'a')
+        m.register(c1)
+        await m.subscribe(c1, ROOM)
+        const c2 = conn('c2', 7, 'b')
+        m.register(c2)
+        return hereOf(await m.subscribe(c2, ROOM))
     })
 
     assertEquals(ids(here), [7], 'self kept, and only once')

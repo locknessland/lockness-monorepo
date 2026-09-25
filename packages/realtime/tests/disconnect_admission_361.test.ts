@@ -405,7 +405,9 @@ Deno.test('#361 W1 window (a): a subscribe admitted while its disconnect is susp
     const spy = new SpyAuthorizer()
     const manager = managerOver(driver, spy)
     const o = conn('o', 2)
+    manager.register(o)
     const c1 = conn('c1', 1)
+    manager.register(c1)
     assert((await manager.subscribe(o, ROOM)).ok)
     assert((await manager.subscribe(c1, LOBBY)).ok)
 
@@ -436,6 +438,7 @@ Deno.test('#361 W2 caps and watch: a refused subscribe takes no slot and issues 
         maxChannelsPerConnection: 2,
     })
     const c1 = conn('c1', 1)
+    manager.register(c1)
     assert((await manager.subscribe(c1, LOBBY)).ok)
 
     spy.gateNext(PRIVATE)
@@ -451,6 +454,7 @@ Deno.test('#361 W2 caps and watch: a refused subscribe takes no slot and issues 
     assert(!driver.watched.includes(PRIVATE), 'the driver never watched it')
     assert(!state(manager).subscriptions.has(PRIVATE))
     const n = conn('n', 3)
+    manager.register(n)
     assert((await manager.subscribe(n, 'a')).ok)
     assert((await manager.subscribe(n, 'b')).ok, 'both slots are free')
 })
@@ -533,6 +537,7 @@ Deno.test('#361 W4 window (c): a subscribe after the disconnect settled is refus
             ConnectionDisconnectedError,
         )
         const b = conn('b', null)
+        manager.register(b)
         assertEquals(await manager.subscribe(b, 'feed'), { ok: true })
         assertEquals(manager.connectionCount, 1)
     }
@@ -551,6 +556,7 @@ Deno.test('#361 W5 register refuses a disconnected connection object, after and 
         const driver = new GatedUnwatchDriver()
         const manager = managerOver(driver, new SpyAuthorizer())
         const c1 = conn('c1', 1)
+        manager.register(c1)
         assert((await manager.subscribe(c1, LOBBY)).ok)
         const disconnecting = manager.disconnect('c1')
         await driver.unwatching
@@ -567,6 +573,7 @@ Deno.test('#361 W6 (i) a failed unwatch leaves no presence ghost, and the rest o
     const driver = new RejectingUnwatchDriver(ROOM, E)
     const manager = managerOver(driver, new SpyAuthorizer())
     const c1 = conn('c1', 1)
+    manager.register(c1)
     // In this order: the failing channel first, so `news` comes after it.
     assert((await manager.subscribe(c1, ROOM)).ok)
     assert((await manager.subscribe(c1, 'news')).ok)
@@ -588,6 +595,7 @@ Deno.test('#361 W6 (ii) disconnect: an unwatch rejecting with undefined still re
     const driver = new RejectingUnwatchDriver(ROOM, undefined)
     const manager = managerOver(driver, new SpyAuthorizer())
     const c1 = conn('c1', 1)
+    manager.register(c1)
     assert((await manager.subscribe(c1, ROOM)).ok)
     assert(await rejects(manager.disconnect('c1')), 'the failure is not lost')
     assert(!state(manager).presence.has(ROOM))
@@ -610,6 +618,7 @@ for (const [what, value] of FAILURES) {
         driver.markFails = true
         const manager = managerOver(driver, new SpyAuthorizer())
         const c2 = conn('c2', 2)
+        manager.register(c2)
         assert((await manager.subscribe(c2, ROOM)).ok)
         const warnings = captureWarnings()
         let outcome: unknown
@@ -629,6 +638,7 @@ for (const [what, value] of FAILURES) {
         driver.markFails = true
         const manager = managerOver(driver, new SpyAuthorizer())
         const c2 = conn('c2', 2)
+        manager.register(c2)
         assert((await manager.subscribe(c2, ROOM)).ok)
         const warnings = captureWarnings()
         let outcome: unknown
@@ -650,6 +660,7 @@ for (const [what, value] of FAILURES) {
         driver.clearFails = true
         const manager = managerOver(driver, new SpyAuthorizer())
         const c3 = conn('c3', 3)
+        manager.register(c3)
         assert((await manager.subscribe(c3, ROOM)).ok)
         const warnings = captureWarnings()
         let outcome: unknown
@@ -672,6 +683,7 @@ Deno.test('#361 W7 pin: a join that committed before the disconnect resolves ok,
     const driver = new GatedHoldDriver()
     const manager = managerOver(driver, new SpyAuthorizer())
     const c1 = conn('c1', 1)
+    manager.register(c1)
     const subscribing = manager.subscribe(c1, ROOM)
     await driver.holding // committed: caps passed, the join started
     const disconnecting = manager.disconnect('c1')
@@ -687,8 +699,10 @@ Deno.test('#361 W8 id reuse: a different object under a retiring id is refused, 
     const spy = new SpyAuthorizer()
     const manager = managerOver(driver, spy)
     const o = conn('o', 2)
+    manager.register(o)
     assert((await manager.subscribe(o, ROOM)).ok)
     const a = conn('c1', 1)
+    manager.register(a)
     assert((await manager.subscribe(a, LOBBY)).ok)
 
     const disconnecting = manager.disconnect('c1')
@@ -708,6 +722,7 @@ Deno.test('#361 W8 id reuse: a different object under a retiring id is refused, 
     manager.register(c)
     manager.broadcast(ROOM, 'ping', 1)
     const p = conn('p', 3)
+    manager.register(p)
     assert((await manager.subscribe(p, ROOM)).ok) // a presence change
     await tick()
     assertEquals(c.received, [], 'nothing from a room it was never admitted to')
@@ -726,6 +741,7 @@ Deno.test('#361 W9 a subscribe racing a suspended leave joins, instead of readin
     const driver = new GatedUnwatchDriver()
     const manager = managerOver(driver, new SpyAuthorizer())
     const c1 = conn('c1', 1)
+    manager.register(c1)
     assert((await manager.subscribe(c1, ROOM)).ok)
 
     const leaving = manager.unsubscribe('c1', ROOM)

@@ -102,9 +102,15 @@ function conn(id: string): Connection<null> {
 Deno.test('#295/FR-003: the watch fires on 0→1 and the unwatch on 1→0, and at no other time', async () => {
     const { driver, ops } = watchingDriver()
     const m = new ChannelManager({ driver })
-    await m.subscribe(conn('a'), 'news')
-    await m.subscribe(conn('b'), 'news')
-    await m.subscribe(conn('c'), 'sport')
+    const a = conn('a')
+    m.register(a)
+    await m.subscribe(a, 'news')
+    const b = conn('b')
+    m.register(b)
+    await m.subscribe(b, 'news')
+    const c = conn('c')
+    m.register(c)
+    await m.subscribe(c, 'sport')
     assertEquals(
         ops,
         ['watch:news', 'watch:sport'],
@@ -126,9 +132,13 @@ Deno.test('#295/FR-011: an emptied channel leaves no entry behind, so re-joining
     // already-hosted so the wire op never fires.
     const { driver, ops } = watchingDriver()
     const m = new ChannelManager({ driver })
-    await m.subscribe(conn('a'), 'news')
+    const a = conn('a')
+    m.register(a)
+    await m.subscribe(a, 'news')
     await m.unsubscribe('a', 'news')
-    await m.subscribe(conn('b'), 'news')
+    const b = conn('b')
+    m.register(b)
+    await m.subscribe(b, 'news')
     assertEquals(ops, ['watch:news', 'unwatch:news', 'watch:news'])
 })
 
@@ -139,9 +149,13 @@ Deno.test("#295/FR-012: disconnect unwatches THIS connection's channels, not eve
     // under the prefix) per disconnect.
     const { driver, ops } = watchingDriver()
     const m = new ChannelManager({ driver })
-    await m.subscribe(conn('a'), 'alpha')
-    await m.subscribe(conn('b'), 'beta')
-    await m.subscribe(conn('b'), 'gamma')
+    const a = conn('a')
+    m.register(a)
+    await m.subscribe(a, 'alpha')
+    const b = conn('b')
+    m.register(b)
+    await m.subscribe(b, 'beta')
+    await m.subscribe(b, 'gamma')
     ops.length = 0
     await m.disconnect('b')
     assertEquals(
@@ -164,7 +178,9 @@ Deno.test('#295/FR-002: a refused watch keeps the membership and warns', async (
         warnings.push(args.map(String).join(' '))
     }
     try {
-        const result = await m.subscribe(conn('a'), 'news')
+        const a = conn('a')
+        m.register(a)
+        const result = await m.subscribe(a, 'news')
         assertEquals(
             result,
             { ok: true },
@@ -189,7 +205,9 @@ Deno.test("#295/FR-025: a driver with watch and NO unwatch keeps today's behavio
     // replaces, and invisible because delivery stays correct.
     const { driver, ops } = halfCapableDriver()
     const m = new ChannelManager({ driver })
-    await m.subscribe(conn('a'), 'news')
+    const a = conn('a')
+    m.register(a)
+    await m.subscribe(a, 'news')
     await m.unsubscribe('a', 'news')
     assertEquals(ops, [], 'neither op fires: the pair is all-or-nothing')
 })
@@ -197,7 +215,9 @@ Deno.test("#295/FR-025: a driver with watch and NO unwatch keeps today's behavio
 Deno.test('#295: a driver with neither op is untouched — the memory driver stays single-glob', async () => {
     const plain: BroadcastDriver = { publish: () => {}, onMessage: () => {} }
     const m = new ChannelManager({ driver: plain })
-    const r = await m.subscribe(conn('a'), 'news')
+    const a = conn('a')
+    m.register(a)
+    const r = await m.subscribe(a, 'news')
     assertEquals(r, { ok: true })
     await m.disconnect('a')
 })
@@ -212,6 +232,7 @@ Deno.test('#322/SC-005: the per-connection cap REFUSES, and mutates nothing', as
     const { driver, ops } = watchingDriver()
     const m = new ChannelManager({ driver })
     const c = conn('greedy')
+    m.register(c)
     for (let i = 0; i < MAX_CHANNELS_PER_CONNECTION; i++) {
         assertEquals(await m.subscribe(c, `ch${i}`), { ok: true })
     }
@@ -266,6 +287,7 @@ Deno.test('#295/FR-017: a join that grows NO set is not charged against a cap', 
     const { driver } = watchingDriver()
     const m = new ChannelManager({ driver })
     const c = conn('a')
+    m.register(c)
     for (let i = 0; i < MAX_CHANNELS_PER_CONNECTION; i++) {
         await m.subscribe(c, `ch${i}`)
     }
@@ -274,7 +296,9 @@ Deno.test('#295/FR-017: a join that grows NO set is not charged against a cap', 
     assertEquals(await m.subscribe(c, 'ch0'), { ok: true })
     // And a SECOND connection joining an already-hosted channel adds no
     // subscription to the instance's set.
-    assertEquals(await m.subscribe(conn('b'), 'ch0'), { ok: true })
+    const b = conn('b')
+    m.register(b)
+    assertEquals(await m.subscribe(b, 'ch0'), { ok: true })
 })
 
 Deno.test('#295/FR-019: the delivered TOPIC decides the channel, never the watched one', async () => {
@@ -360,14 +384,18 @@ Deno.test('#322/SC-004: the INSTANCE cap is a distinct branch, and it refuses on
     const { driver, ops } = watchingDriver()
     const m = new ChannelManager({ driver })
     for (let i = 0; i < MAX_WATCHED_CHANNELS; i++) {
-        assertEquals(await m.subscribe(identified(`c${i}`), `ch${i}`), {
+        const cN = identified(`c${i}`)
+        m.register(cN)
+        assertEquals(await m.subscribe(cN, `ch${i}`), {
             ok: true,
         })
     }
     const watchesBefore = ops.length
 
+    const last = identified('last')
+    m.register(last)
     const error = await assertRejects(
-        () => m.subscribe(identified('last'), 'one-too-many'),
+        () => m.subscribe(last, 'one-too-many'),
         ChannelLimitError,
     )
     assertEquals(
@@ -390,14 +418,20 @@ Deno.test('#322/SC-006: at the INSTANCE cap, a join that grows no set is still a
     const { driver, ops } = watchingDriver()
     const m = new ChannelManager({ driver })
     for (let i = 0; i < MAX_WATCHED_CHANNELS; i++) {
-        await m.subscribe(identified(`c${i}`), `ch${i}`)
+        const cN = identified(`c${i}`)
+        m.register(cN)
+        await m.subscribe(cN, `ch${i}`)
     }
     const watchesBefore = ops.length
     // A brand-new connection on an ALREADY-hosted channel: the instance is at
     // its cap and this join costs the broker nothing.
-    assertEquals(await m.subscribe(identified('newcomer'), 'ch0'), { ok: true })
+    const newcomer = identified('newcomer')
+    m.register(newcomer)
+    assertEquals(await m.subscribe(newcomer, 'ch0'), { ok: true })
     // An anonymous one too — the reservation bounds 0 -> 1 transitions only.
-    assertEquals(await m.subscribe(conn('anon'), 'ch0'), { ok: true })
+    const anon = conn('anon')
+    m.register(anon)
+    assertEquals(await m.subscribe(anon, 'ch0'), { ok: true })
     assertEquals(
         ops.length,
         watchesBefore,
@@ -423,12 +457,16 @@ Deno.test('#322/SC-013: anonymous callers cannot spend the reserved share', asyn
     })
     // 0.8 x 10 = 8.
     for (let i = 0; i < 8; i++) {
-        assertEquals(await m.subscribe(conn(`anon${i}`), `ch${i}`), {
+        const anonN = conn(`anon${i}`)
+        m.register(anonN)
+        assertEquals(await m.subscribe(anonN, `ch${i}`), {
             ok: true,
         })
     }
+    const anonExtra = conn('anon-extra')
+    m.register(anonExtra)
     const error = await assertRejects(
-        () => m.subscribe(conn('anon-extra'), 'ch-new'),
+        () => m.subscribe(anonExtra, 'ch-new'),
         ChannelLimitError,
     )
     assertEquals(
@@ -439,11 +477,13 @@ Deno.test('#322/SC-013: anonymous callers cannot spend the reserved share', asyn
     )
     assertEquals(error.limit, 8, 'the reserved ceiling, not the instance cap')
     // The identified caller still gets through, which is the entire point.
-    assertEquals(await m.subscribe(identified('member'), 'ch-new'), {
+    const member = identified('member')
+    m.register(member)
+    assertEquals(await m.subscribe(member, 'ch-new'), {
         ok: true,
     })
     // And the anonymous caller may still JOIN what is already hosted.
-    assertEquals(await m.subscribe(conn('anon-extra'), 'ch-new'), { ok: true })
+    assertEquals(await m.subscribe(anonExtra, 'ch-new'), { ok: true })
 })
 
 Deno.test('#322/SC-014: anonymousHostingShare of 1 disables the reservation', async () => {
@@ -459,12 +499,16 @@ Deno.test('#322/SC-014: anonymousHostingShare of 1 disables the reservation', as
         anonymousHostingShare: 1,
     })
     for (let i = 0; i < 10; i++) {
-        assertEquals(await m.subscribe(conn(`anon${i}`), `ch${i}`), {
+        const anonN = conn(`anon${i}`)
+        m.register(anonN)
+        assertEquals(await m.subscribe(anonN, `ch${i}`), {
             ok: true,
         })
     }
+    const anonExtra = conn('anon-extra')
+    m.register(anonExtra)
     const error = await assertRejects(
-        () => m.subscribe(conn('anon-extra'), 'ch-new'),
+        () => m.subscribe(anonExtra, 'ch-new'),
         ChannelLimitError,
     )
     assertEquals(error.scope, 'instance', 'with no reservation it is the cap')
@@ -478,6 +522,7 @@ Deno.test('#322/SC-007: a raised cap admits what the default refuses', async () 
         maxChannelsPerConnection: MAX_CHANNELS_PER_CONNECTION + 5,
     })
     const c = identified('roomy')
+    m.register(c)
     for (let i = 0; i < MAX_CHANNELS_PER_CONNECTION + 5; i++) {
         assertEquals(await m.subscribe(c, `ch${i}`), { ok: true })
     }
@@ -626,7 +671,9 @@ Deno.test('#322/FR-007: the cap is checked AFTER authorization, never before', a
     })
     // Fill the instance to its cap with channels the authorizer allows.
     for (let i = 0; i < 4; i++) {
-        assertEquals(await m.subscribe(identified(`c${i}`), `private-ok${i}`), {
+        const cN = identified(`c${i}`)
+        m.register(cN)
+        assertEquals(await m.subscribe(cN, `private-ok${i}`), {
             ok: true,
         })
     }
@@ -635,16 +682,20 @@ Deno.test('#322/FR-007: the cap is checked AFTER authorization, never before', a
     // A DENIED subscribe on a full instance. Authorization runs first, so this
     // is `{ ok: false }` — not a throw, and not a hint that the instance is
     // full.
+    const denied = identified('denied')
+    m.register(denied)
     assertEquals(
-        await m.subscribe(identified('denied'), 'private-denied'),
+        await m.subscribe(denied, 'private-denied'),
         { ok: false },
         'a denied subscribe on a full instance leaked the cap breach — the ' +
             'check has moved above the authorizer',
     )
     // An ALLOWED subscribe on the same full instance still refuses, so the
     // assertion above is not passing merely because the cap is unreachable.
+    const allowed = identified('allowed')
+    m.register(allowed)
     await assertRejects(
-        () => m.subscribe(identified('allowed'), 'private-new'),
+        () => m.subscribe(allowed, 'private-new'),
         ChannelLimitError,
         undefined,
         'positive control: the instance really is at its cap',
@@ -680,14 +731,18 @@ Deno.test('#322/SC-004: a presence cap breach leaves the roster untouched', asyn
     })
     const rosterReadsBefore = rosterReadCount()
     for (let i = 0; i < 2; i++) {
-        await m.subscribe(identified(`p${i}`), `presence-room${i}`)
+        const pN = identified(`p${i}`)
+        m.register(pN)
+        await m.subscribe(pN, `presence-room${i}`)
     }
     assertRosterRead(rosterReadsBefore)
     const watchesBefore = ops.length
     const joinsBefore = [...joins]
 
+    const late = identified('late')
+    m.register(late)
     await assertRejects(
-        () => m.subscribe(identified('late'), 'presence-late'),
+        () => m.subscribe(late, 'presence-late'),
         ChannelLimitError,
     )
     assertEquals(joins, joinsBefore, 'the refused join reached the roster')
@@ -732,10 +787,14 @@ Deno.test('#322: the ceiling FLOORS a fractional product', async () => {
         anonymousHostingShare: 0.29,
     })
     for (let i = 0; i < 28; i++) {
-        assertEquals(await m.subscribe(conn(`a${i}`), `ch${i}`), { ok: true })
+        const aN = conn(`a${i}`)
+        m.register(aN)
+        assertEquals(await m.subscribe(aN, `ch${i}`), { ok: true })
     }
+    const a28 = conn('a28')
+    m.register(a28)
     const error = await assertRejects(
-        () => m.subscribe(conn('a28'), 'ch28'),
+        () => m.subscribe(a28, 'ch28'),
         ChannelLimitError,
     )
     assertEquals(

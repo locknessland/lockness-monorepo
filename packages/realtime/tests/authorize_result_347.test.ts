@@ -319,17 +319,23 @@ Deno.test('#347 fake Redis: an admitted private subscribe publishes no control f
             authorize: suspectAuthorizer(() => true),
         })
         const before = backend.controlPublishes() ?? 0
-        assertEquals((await m.subscribe(conn('c1', SUSPECT), PRIVATE)).ok, true)
+        const c1 = conn('c1', SUSPECT)
+        m.register(c1)
+        assertEquals((await m.subscribe(c1, PRIVATE)).ok, true)
+        const c2 = conn('c2', OBSERVER)
+        m.register(c2)
         assertEquals(
-            (await m.subscribe(conn('c2', OBSERVER), PRIVATE)).ok,
+            (await m.subscribe(c2, PRIVATE)).ok,
             true,
         )
         assertEquals(backend.controlPublishes(), before)
         // CONTROL: the same instrument, on the same backend, moves for a
         // presence join — the zero above is the private path's, not the
         // counter's.
+        const c3 = conn('c3', OBSERVER)
+        m.register(c3)
         assertEquals(
-            (await m.subscribe(conn('c3', OBSERVER), PRESENCE)).ok,
+            (await m.subscribe(c3, PRESENCE)).ok,
             true,
         )
         assertEquals(backend.controlPublishes(), before + 1)
@@ -347,6 +353,7 @@ Deno.test('#347 private `true` and a PresenceMember both admit', async () => {
             authorize: () => value,
         })
         const c = conn('c1', SUSPECT)
+        m.register(c)
         assertEquals((await m.subscribe(c, PRIVATE)).ok, true)
         m.broadcast(PRIVATE, 'evt', { n: 1 })
         await settle()
@@ -357,7 +364,9 @@ Deno.test('#347 private `true` and a PresenceMember both admit', async () => {
 Deno.test('#347 presence `true` joins as the connection id', async () => {
     const driver = new MemoryBroadcastDriver()
     const m = new ChannelManager<User>({ driver, authorize: () => true })
-    const result = await m.subscribe(conn('c1', SUSPECT), PRESENCE)
+    const c1 = conn('c1', SUSPECT)
+    m.register(c1)
+    const result = await m.subscribe(c1, PRESENCE)
     assertEquals(result.ok, true)
     assertEquals(await rosterIds(driver, PRESENCE), ['c1'])
 })
@@ -366,7 +375,9 @@ Deno.test('#347 presence `{ id, info }` joins as returned', async () => {
     const driver = new MemoryBroadcastDriver()
     const member: PresenceMember = { id: 7, info: { name: 'Ada' } }
     const m = new ChannelManager<User>({ driver, authorize: () => member })
-    assertEquals((await m.subscribe(conn('c1', SUSPECT), PRESENCE)).ok, true)
+    const c1 = conn('c1', SUSPECT)
+    m.register(c1)
+    assertEquals((await m.subscribe(c1, PRESENCE)).ok, true)
     assertEquals(
         (await driver.readRoster(PRESENCE, 1_000, [])).members,
         [member],
@@ -382,7 +393,9 @@ Deno.test('#347 presence: a class-instance member admits — the rule is "an obj
         driver,
         authorize: () => new Member(9),
     })
-    assertEquals((await m.subscribe(conn('c1', SUSPECT), PRESENCE)).ok, true)
+    const c1 = conn('c1', SUSPECT)
+    m.register(c1)
+    assertEquals((await m.subscribe(c1, PRESENCE)).ok, true)
     assertEquals(await rosterIds(driver, PRESENCE), [9])
 })
 
@@ -400,9 +413,11 @@ Deno.test('#347 `false` still denies with { ok: false }, on both kinds', async (
 
 Deno.test('#347 no authorizer still denies with { ok: false }', async () => {
     const m = new ChannelManager<User>({ driver: new MemoryBroadcastDriver() })
+    const c1 = conn('c1', SUSPECT)
+    m.register(c1)
     for (const channel of [PRIVATE, PRESENCE]) {
         assertEquals(
-            (await m.subscribe(conn('c1', SUSPECT), channel)).ok,
+            (await m.subscribe(c1, channel)).ok,
             false,
         )
     }
@@ -417,7 +432,9 @@ Deno.test('#347 a public channel never calls the authorizer, whatever it would r
             return undefined
         }) as unknown as Authorizer<User>,
     })
-    assertEquals((await m.subscribe(conn('c1', SUSPECT), 'news')).ok, true)
+    const c1 = conn('c1', SUSPECT)
+    m.register(c1)
+    assertEquals((await m.subscribe(c1, 'news')).ok, true)
     assertEquals(calls, 0)
 })
 
@@ -430,6 +447,7 @@ Deno.test('#347 the result is classified BEFORE the caps: a full connection gets
         authorize: suspectAuthorizer(() => undefined),
     })
     const c = conn('c1', SUSPECT)
+    m.register(c)
     assertEquals((await m.subscribe(c, 'news')).ok, true)
     // CONTROL: the cap really is full for this connection — a public join,
     // which runs no authorizer, is refused by the cap.
@@ -456,6 +474,7 @@ Deno.test('#347 a held presence subscription whose authorizer flips to undefined
                 : { id: identity?.id }) as unknown as Authorizer<User>,
     })
     const c = conn('c1', SUSPECT)
+    m.register(c)
     assertEquals((await m.subscribe(c, PRESENCE)).ok, true)
 
     state.broken = true
@@ -478,8 +497,10 @@ Deno.test('#347 the message names the type and the channel, and never echoes the
         driver: new MemoryBroadcastDriver(),
         authorize: suspectAuthorizer(() => 'sentinel-XYZ'),
     })
+    const c1 = conn('c1', SUSPECT)
+    m.register(c1)
     const error = await assertRejects(
-        () => m.subscribe(conn('c1', SUSPECT), PRIVATE),
+        () => m.subscribe(c1, PRIVATE),
         AuthorizeResultError,
     )
     assert(

@@ -84,8 +84,10 @@ Deno.test('#342 a roster-less first join announces joined exactly once', async (
     })
 
     const observer = conn('c0', 1)
+    manager.register(observer)
     await manager.subscribe(observer, CHANNEL)
     const newcomer = conn('c1', 2)
+    manager.register(newcomer)
     await manager.subscribe(newcomer, CHANNEL)
 
     const joined = presenceFrames(observer, 'joined')
@@ -153,7 +155,9 @@ Deno.test('#342 a roster-less join overtaken by an unsubscribe announces nothing
 
     // NOT `.catch(() => {})`: a join that threw after its claim would also
     // announce nothing, and swallowing it would read as a pass (#342 review).
-    const join = manager.subscribe(conn('c1', 1), CHANNEL)
+    const c1 = conn('c1', 1)
+    manager.register(c1)
+    const join = manager.subscribe(c1, CHANNEL)
     await settle()
     await open('authorize')
     const leave = manager.unsubscribe('c1', CHANNEL)

@@ -111,6 +111,7 @@ async function ownerOf(target: string, { unwatchFails = true } = {}) {
         authorize: () => true,
     })
     const victim = conn(target)
+    manager.register(victim)
     assertEquals((await manager.subscribe(victim, ROOM)).ok, true)
     // Narrowed, not optional-chained: an unregistered seam would make every
     // assertion below pass for the wrong reason.

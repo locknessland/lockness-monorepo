@@ -59,8 +59,11 @@ const joinFrames = (c: { readonly received: string[] }) =>
 Deno.test('#323/FR-009 a throwing socket does not silence the subscribers after it', async () => {
     const m = new ChannelManager<User>({ authorize })
     const first = conn('c1', 1)
+    m.register(first)
     const deaf = conn('c2', 2, { deaf: true })
+    m.register(deaf)
     const last = conn('c3', 3)
+    m.register(last)
 
     // Iteration follows Set insertion order, so `last` sits AFTER the socket
     // that throws — which is the only arrangement that can observe the abort.
@@ -69,6 +72,7 @@ Deno.test('#323/FR-009 a throwing socket does not silence the subscribers after 
     assertEquals((await m.subscribe(last, 'presence-room')).ok, true)
 
     const newcomer = conn('c4', 4)
+    m.register(newcomer)
     const result = await m.subscribe(newcomer, 'presence-room')
 
     assertEquals(result.ok, true, 'the join itself must still succeed')
@@ -82,11 +86,13 @@ Deno.test('#323/FR-009 a throwing socket does not silence the subscribers after 
 Deno.test('#323/FR-009 a throwing socket does not fail the join it is announcing', async () => {
     const m = new ChannelManager<User>({ authorize })
     const deaf = conn('c1', 1, { deaf: true })
+    m.register(deaf)
     assertEquals((await m.subscribe(deaf, 'presence-room')).ok, true)
 
     // The join is committed by the time the announcement runs; a socket that
     // cannot hear it must not turn a completed join into a rejection.
     const newcomer = conn('c2', 2)
+    m.register(newcomer)
     const result = await m.subscribe(newcomer, 'presence-room')
     assertEquals(result.ok, true)
     assertEquals(

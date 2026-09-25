@@ -112,9 +112,13 @@ Deno.test("#332 a leave from a room that still holds SOMEONE ELSE reports 'left'
     const { driver, roster } = recordingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const rosterReadsBefore = rosterReadCount()
-    await m.subscribe(conn('c1', 1), ROOM)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    await m.subscribe(c1, ROOM)
     assertRosterRead(rosterReadsBefore)
-    await m.subscribe(conn('c2', 2), ROOM)
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    await m.subscribe(c2, ROOM)
 
     assertEquals(
         await m.unsubscribe('c1', ROOM),
@@ -136,6 +140,7 @@ Deno.test('#332 the three outcomes are distinguishable', async () => {
     const { driver, commands } = recordingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const holder = conn('c1', 1)
+    m.register(holder)
     await m.subscribe(holder, ROOM)
 
     assertEquals(await m.unsubscribe('c1', ROOM), 'left')
@@ -172,7 +177,9 @@ Deno.test('#332 the outcome is the same on a channel with no roster', async () =
     // a side effect of the roster path.
     const { driver } = recordingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
-    await m.subscribe(conn('c1', 1), PRIVATE)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    await m.subscribe(c1, PRIVATE)
 
     assertEquals(await m.unsubscribe('c1', PRIVATE), 'left')
     assertEquals(await m.unsubscribe('c1', PRIVATE), 'not-subscribed')
@@ -182,8 +189,12 @@ Deno.test('#332 the outcome is the same on a channel with no roster', async () =
 Deno.test('#332 disconnect reports whether it owned the socket', async () => {
     const { driver, roster, commands } = recordingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
-    await m.subscribe(conn('c1', 1), ROOM)
-    await m.subscribe(conn('c2', 2), ROOM)
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    await m.subscribe(c1, ROOM)
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    await m.subscribe(c2, ROOM)
 
     const before = commands.length
     assertEquals(

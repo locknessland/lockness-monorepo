@@ -133,6 +133,7 @@ Deno.test('#337 WITNESS: an in-flight clear for an older revocation does not era
     try {
         // 1. B owns c1 in ROOM.
         const victim = conn('c1')
+        b.manager.register(victim)
         assertEquals((await b.manager.subscribe(victim, ROOM)).ok, true)
 
         // 2. A revokes it. The frame reaches B, B applies with 'left', and B's
@@ -253,6 +254,7 @@ Deno.test('#337 two records for one pair: ONE kick, both cleared, and no kick on
     const b = instance(redis)
     try {
         const victim = conn('c1')
+        b.manager.register(victim)
         await b.manager.subscribe(victim, ROOM)
         for (let i = 0; i < 2; i++) {
             a.bus.dropNextControl()
@@ -318,6 +320,7 @@ Deno.test('#337 a revoke-channel frame with NO revocation id is dropped', async 
     }
     const m = new ChannelManager<User>({ driver, authorize: () => true })
     const victim = conn('c1')
+    m.register(victim)
     await m.subscribe(victim, ROOM)
     assert(deliver !== undefined, 'the control seam was registered')
     const send = deliver as (control: ControlMessage) => void

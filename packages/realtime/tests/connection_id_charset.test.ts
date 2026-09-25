@@ -81,7 +81,9 @@ Deno.test('#304 subscribing with an out-of-charset id throws too', async () => {
     const m = new ChannelManager<User>({ authorize: () => true })
     let threw = false
     try {
-        await m.subscribe(conn('user@example.com'), 'presence-room')
+        const userExampleCom = conn('user@example.com')
+        m.register(userExampleCom)
+        await m.subscribe(userExampleCom, 'presence-room')
     } catch {
         threw = true
     }
@@ -97,6 +99,7 @@ Deno.test('#304 an ordinary id is accepted by both sites', async () => {
     assertEquals(m.connectionCount, 1)
 
     const other = conn('svc:worker-3.a_b-1')
+    m.register(other)
     const result = await m.subscribe(other, 'presence-room')
     assertEquals(result.ok, true)
     assertEquals(m.connectionCount, 2)
@@ -242,7 +245,9 @@ Deno.test('#304 subscribe rejects before the authorizer runs', async () => {
 
     let threw = false
     try {
-        await m.subscribe(conn('user@example.com'), 'private-billing')
+        const userExampleCom = conn('user@example.com')
+        m.register(userExampleCom)
+        await m.subscribe(userExampleCom, 'private-billing')
     } catch {
         threw = true
     }

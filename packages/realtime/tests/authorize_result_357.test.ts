@@ -391,16 +391,12 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     driver: backend.driver,
                     authorize: (() => value()) as unknown as Authorizer<User>,
                 })
-                const onPresence = await outcome(
-                    m,
-                    conn('on-presence', SUSPECT),
-                    PRESENCE,
-                )
-                const onPrivate = await outcome(
-                    m,
-                    conn('on-private', SUSPECT),
-                    PRIVATE,
-                )
+                const presenceConn = conn('on-presence', SUSPECT)
+                m.register(presenceConn)
+                const privateConn = conn('on-private', SUSPECT)
+                m.register(privateConn)
+                const onPresence = await outcome(m, presenceConn, PRESENCE)
+                const onPrivate = await outcome(m, privateConn, PRIVATE)
                 assertEquals(
                     onPresence,
                     expected,
@@ -447,6 +443,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     authorize,
                 })
                 const c = conn('c1', SUSPECT)
+                m.register(c)
                 const publishesBefore = backend.controlPublishes()
                 const result = await m.subscribe(c, PRIVATE)
                 await settle()
@@ -472,7 +469,9 @@ for (const [backendName, makeBackend] of BACKENDS) {
                 // CONTROL, on the same three instruments: the same authorizer
                 // on a PRESENCE channel seats its member, and each reading
                 // moves — so each zero above is a reading, not a blind spot.
-                const seated = await m.subscribe(conn('p1', SUSPECT), PRESENCE)
+                const p1 = conn('p1', SUSPECT)
+                m.register(p1)
+                const seated = await m.subscribe(p1, PRESENCE)
                 await settle()
                 assert(
                     seated.here !== undefined,
@@ -509,6 +508,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
                 authorize: suspectAuthorizer(() => KV_MISS),
             })
             const c = conn('c1', SUSPECT)
+            m.register(c)
             assertEquals((await m.subscribe(c, 'news')).ok, true)
             // CONTROL: the cap really is full for this connection.
             await assertRejects(
@@ -526,6 +526,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
             )
 
             const observer = conn('observer', OBSERVER)
+            m.register(observer)
             assertEquals((await m.subscribe(observer, PRIVATE)).ok, true)
             const before = c.received.length
             m.broadcast(PRIVATE, 'secret', { n: 1 })
@@ -553,6 +554,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     >,
             })
             const c = conn('c1', SUSPECT)
+            m.register(c)
             assertEquals((await m.subscribe(c, PRIVATE)).ok, true)
 
             state.broken = true
@@ -595,10 +597,9 @@ for (const [backendName, makeBackend] of BACKENDS) {
                 driver: backend.driver,
                 authorize: () => proxy,
             })
-            assertEquals(
-                (await m.subscribe(conn('c1', SUSPECT), PRIVATE)).ok,
-                true,
-            )
+            const c = conn('c1', SUSPECT)
+            m.register(c)
+            assertEquals((await m.subscribe(c, PRIVATE)).ok, true)
             assertEquals(counts, { ownKeys: 1, id: 1, info: 1 })
         } finally {
             await backend.close()
@@ -635,8 +636,10 @@ Deno.test(`#357 (f) ${PRIVATE}: a KV miss names \`key\`, never echoes its conten
         driver: new MemoryBroadcastDriver(),
         authorize: suspectAuthorizer(() => KV_SENTINEL_MISS),
     })
+    const c = conn('c1', SUSPECT)
+    m.register(c)
     const error = await assertRejects(
-        () => m.subscribe(conn('c1', SUSPECT), PRIVATE),
+        () => m.subscribe(c, PRIVATE),
         PresenceMemberShapeError,
     )
     assert(error.message.includes('"key"'), `names key. Got: ${error.message}`)
@@ -677,7 +680,9 @@ Deno.test('#357 (g) a public channel admits without calling the authorizer, even
             return KV_MISS
         }) as unknown as Authorizer<User>,
     })
-    assertEquals((await m.subscribe(conn('c1', SUSPECT), 'news')).ok, true)
+    const c = conn('c1', SUSPECT)
+    m.register(c)
+    assertEquals((await m.subscribe(c, 'news')).ok, true)
     assertEquals(calls, 0)
 })
 
