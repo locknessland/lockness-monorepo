@@ -34,6 +34,14 @@
  * reaches the chain's final handler, a marked ERROR line P8 (ii) asserts
  * absent. P8 (iv) remains, as the pin that `close()` resolves.
  *
+ * **M18 is attributed to P14, not P8 (iii)** (#386, the #360 review's item 1).
+ * M18 bundles the reorder with M12's own edit (the #369 fallback removed), and
+ * M12 alone already fails P8 (iii) — on a marked-line assertion, whatever the
+ * order is — so a kill there never proved the order was what P8 (iii)
+ * exercised. P14 has one assertion, the sweep's re-arm count, under the same
+ * throwing handler and throwing `console.warn`; a kill there is the order and
+ * nothing else.
+ *
  * Every row was proven LIVE by the harness run that recorded it: the mutant
  * ran and turned its named witness red (`KILLED`, attributed).
  *
@@ -374,7 +382,9 @@ const MUTATIONS: Mutation[] = [
             ],
             [WARN_BODY, BARE_WARN],
         ],
-        killedBy: '#360 P8 (iii)',
+        // M18 bundles M12's edit, which alone already fails P8 (iii): see the
+        // header. P14 asserts nothing but the re-arm.
+        killedBy: '#360 P14 ',
     },
     {
         label: "M19 — the sweep chain's final .catch removed (A1)",

@@ -33,6 +33,15 @@
  * Red on `f697c100` (before #360): the file does not compile — `PassSample`,
  * `onPassComplete` and the three markers do not exist. P11 and P13 are pins.
  *
+ * **P14 is not in the original FR-015 list** (#386, the #360 review's item 1).
+ * It asserts nothing but the sweep's re-arm order, under the same throwing
+ * handler and throwing `console.warn` as P8 (iii), because P8 (iii) alone
+ * cannot attribute a kill to the order: M12 (the #369 fallback removed) fails
+ * P8 (iii) on its own, on a marked-line assertion, whatever the order is — so
+ * M18, which bundles M12 with the reorder, was killed by P8 (iii) for a
+ * reason the order never had to hold. P14 has one assertion, so a kill there
+ * is order and only order.
+ *
  * @module @lockness/realtime/tests/pass_sample_360
  */
 
@@ -907,6 +916,28 @@ Deno.test('#360 P8 (v) (ii) a thenable that rejects three times is ONE WARN', as
     })
 })
 
+Deno.test("#360 P14 the sweep's next pass is armed before its sample is taken, even when the handler and console.warn both throw", async () => {
+    await withClock(async ({ time, logs }) => {
+        const f = fleet()
+        f.driver.onPassComplete((s) => {
+            f.samples.push(s)
+            throw new Error('handler down (#360 P14)')
+        })
+        await f.startSweep()
+        logs.failWarn(true)
+        await advance(time, 3 * INTERVAL)
+        logs.failWarn(false)
+        await settle()
+        assert(
+            f.sweeps().length >= 2,
+            'the sweep loop re-arms even though the sample and its own WARN ' +
+                'both threw — proves the re-arm order alone, independent of ' +
+                'what the throw is logged as',
+        )
+        await f.driver.close()
+    })
+})
+
 Deno.test('#360 P12 (ii) a ghost released while console.warn throws: failed, one marked line, and the loop goes on', async () => {
     await withClock(async ({ time, logs, escaped }) => {
         const f = fleet()
@@ -962,7 +993,7 @@ Deno.test('#360 P11 no handler: both loops run five passes, and no pass-sample l
     })
 })
 
-Deno.test("#360 P13 #362's suite runs unchanged, and green", async () => {
+Deno.test("#360 P13 #362's suite is still green", async () => {
     const suite = new URL(
         './revocation_pass_bound_362.test.ts',
         import.meta.url,
