@@ -1664,6 +1664,20 @@ The fix, for either refusal, is to **lower the interval or raise the TTL**. The
 defaults (`10000` ms against `300` s) pass both. This paragraph is the one
 statement of both relations; other sections link here.
 
+**A record lives at least `revocationTtlSeconds`, and up to the fleet's longest
+live TTL**
+([#380](https://github.com/locknessland/lockness-monorepo/issues/380)). Each
+Redis instance keeps an entry for its own TTL in a small broker key,
+`<prefix>__revocation-floor`, refreshed by every revocation pass. A durable
+revocation record is then kept for the longest TTL among the instances that have
+run a pass within their own TTL — so one instance configured with a shorter TTL
+can no longer shorten the records a longer-interval peer still needs, and
+lowering one instance's TTL no longer shortens records while a longer-TTL peer
+is running. When that key cannot be read, a record is kept for the maximum TTL
+(2 147 483 s) instead, with one WARN. The design, and what it does not cover,
+are in [ADR 013](adr/013-realtime-revocation-ttl-floor.md). This paragraph is
+the one operator statement of it; other sections link here.
+
 <a id="what-the-roster-asks-of-redis"></a>
 
 **What the roster asks of Redis:**
@@ -1818,8 +1832,9 @@ unlike a plain channel leave, which only unsubscribes.
 The durable record is what closes the reliability gap: if the `evict` control
 message is lost while the owning socket is between reconnects, the record keeps
 the connection revoked and the owning instance recovers the missed evict. It
-self-expires after `revocationTtlSeconds` (default `300`) so the revocation set
-never grows without bound.
+self-expires after at least `revocationTtlSeconds` (default `300`; see
+[the revocation timing](#revocation-timing) for how long exactly) so the
+revocation set never grows without bound.
 
 The methods behind it are `markRevocation(revocation)`, `listRevocations()` and
 `clearRevocation(revocation)` — optional members of the `BroadcastDriver` port,
@@ -2021,14 +2036,15 @@ failures within `revocationTtlSeconds` of the last clean pass's start. A **clean
 pass** is one whose re-check reported no failed apply and no malformed tally
 (#384); every other pass that ends leaves the deadline armed, and tells it so
 (`passEnded`), so an expiry after it is `MISSED` — see
-[item 23](#23-only-a-clean-revocation-pass-re-arms-the-deadline).
-`revocationTtlSeconds` is assumed **uniform across the fleet**: a record lives
-for its writer's TTL, so a peer configured with a shorter one writes records
-this instance's checks do not cover (ADR
-[011](adr/011-realtime-revocation-bound-is-checked.md) §5). An injected command
-port must settle every command, as the `RedisCommandClient` JSDoc in the same
-file states; one that never settles stalls the re-check, which is then reported,
-not recovered.
+[item 23](#23-only-a-clean-revocation-pass-re-arms-the-deadline). Across the
+fleet, the longest live `revocationTtlSeconds` is **enforced**, not assumed: a
+peer configured with a shorter one no longer writes records that expire before
+this instance's pass (see [the revocation timing](#revocation-timing), and ADR
+[013](adr/013-realtime-revocation-ttl-floor.md)). That holds once every writer
+runs this release; an older writer's records still live for its own TTL. An
+injected command port must settle every command, as the `RedisCommandClient`
+JSDoc in the same file states; one that never settles stalls the re-check, which
+is then reported, not recovered.
 
 <a id="measuring-passes"></a>**Measuring the passes** (#360). Register
 `driver.onPassComplete(handler)` on the Redis driver and it hands you one frozen
@@ -2250,7 +2266,7 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Twenty-three items. Seventeen are breaking changes — the driver revocation seam,
+Twenty-four items. Seventeen are breaking changes — the driver revocation seam,
 the presence snapshot a subscribe returns, the driver roster seam, presence
 frames announced per member rather than per connection, an authorizer result
 outside its contract now throwing, a presence member id that is not a string or
@@ -2264,12 +2280,13 @@ requiring `register`, an id held by a live connection now refused, a refused
 socket no longer getting your `onClose`, and a revocation re-check handler type
 a driver's narrowly typed slot no longer holds — plus two widened return types,
 one new control kind, one additive wire field and one additive getter. Item 16
-changes no behaviour: it corrects earlier guidance. Item 19 is observable, not
-breaking: a malformed sweep reply now logs a WARN. Item 23 also changes what the
-deadline reports: a revocation pass with a failed apply no longer re-arms it.
-**No migration step, and one new Redis key family.** Before you deploy, read
-items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22 and
-23 — and items 2 and 7 if you wrote your own driver.
+changes no behaviour: it corrects earlier guidance. Items 19 and 24 are
+observable, not breaking: a malformed sweep reply now logs a WARN, and a
+revocation record now lives up to the fleet's longest live TTL. Item 23 also
+changes what the deadline reports: a revocation pass with a failed apply no
+longer re-arms it. **No migration step, and two new Redis keys.** Before you
+deploy, read items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+21, 22, 23 and 24 — and items 2 and 7 if you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2395,6 +2412,10 @@ the upgraded owner.
 
 The bounded roster read (item 7) adds no key: it reads the same presence hash
 with a new read-only script. The presence hash itself keeps its layout.
+
+One more key, `<prefix>__revocation-floor`, carries its own TTL and needs no
+step either — see
+[item 24](#24-a-revocation-record-now-outlives-the-fleets-longest-live-ttl).
 
 **A roster slot `0.3.0` wrote, with no holders hash, needs nothing either.** A
 `0.4.0` release or sweep deletes it without announcing a `left`; a `0.4.0` hold
@@ -3135,6 +3156,40 @@ apply and no malformed tally.
 
 No wire change and no data migration. If `MISSED` starts appearing, the WARNs
 before it name the revocation that keeps failing.
+
+### 24. A revocation record now outlives the fleet's longest live TTL
+
+**Before**, a durable revocation record lived for its **writer's**
+`revocationTtlSeconds`, and the TTL was assumed uniform across the fleet
+([#380](https://github.com/locknessland/lockness-monorepo/issues/380)). A peer
+configured with a shorter TTL — mid-rollout, a per-service override, a canary —
+wrote records that expired before a longer-interval peer's next pass, so a
+revocation whose control frame was lost was never applied there, and nothing
+said so.
+
+**After**, a record lives at least its writer's TTL and up to the longest TTL
+among the instances still running revocation passes. What that means for tuning
+is stated once, in [the revocation timing](#revocation-timing). What you will
+observe:
+
+- **One new key**, `<prefix>__revocation-floor`: a sorted set with one member
+  per distinct TTL in the fleet, carrying its own TTL (the longest member's TTL
+  plus 60 s), so it disappears on its own when the fleet stops.
+- **One more read per revocation.** `markRevocation` reads that key before it
+  writes the record; revocation passes refresh it with no extra round trip, and
+  each instance writes it once at startup.
+- **Three new WARNs**: the startup write failed (it is retried within seconds);
+  the key held members that are not a TTL (a count, never the content); the key
+  could not be read.
+- **A key that cannot be read fails closed.** The record is kept for the maximum
+  TTL, about 24.8 days, rather than a shorter one. That grows the revocation
+  index until such records are applied or expire; marks are rare, and a
+  channel-scoped record is cleared once its owner applies it.
+- **Protection starts once every instance runs this release.** An older writer's
+  records still live for its own TTL, exactly as before, and an older reap never
+  removes anything live.
+
+No wire change, and no migration step.
 
 ## Upgrading to v0.3.0
 

@@ -29,7 +29,10 @@ app.get(
   constructor refuses a `presence.reconcileIntervalMs` / `revocationTtlSeconds`
   pair it could not keep the lost-revocation bound with — see
   [the revocation timing](../../docs/realtime.md#revocation-timing) — and one
-  WARN per episode says so when no revocation pass completes in time.
+  WARN per episode says so when no revocation pass completes in time. Across the
+  fleet, a record outlives the longest live TTL
+  ([#380](https://github.com/locknessland/lockness-monorepo/issues/380), same
+  link).
 - **A WebSocket handler** over `upgradeWebSocket` with `onOpen` / `onMessage` /
   `onClose` / `onError` hooks, each receiving a typed `Connection` (a
   per-connection transport id that must be **unguessable and never reused**,

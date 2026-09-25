@@ -124,6 +124,21 @@ of what the re-check's counts mean.
   deadline's own timer callback, in the #369 shape. The boot relation between
   `reconcileIntervalMs` and `revocationTtlSeconds` is stated once, in the
   configuration paragraph of `docs/realtime.md`.
+- **A revocation record outlives the fleet's longest live TTL through the
+  revocation floor**
+  ([#380](https://github.com/locknessland/lockness-monorepo/issues/380), ADR
+  [013](../../docs/adr/013-realtime-revocation-ttl-floor.md)). **Never decode
+  the floor in Lua**: `decodeRevocationFloor` is the one decoder, and the mark
+  script does not change. **Never let a floor entry or an unreadable floor fail
+  a mark**: a bad member is skipped and counted, and an unreadable floor marks
+  at `MAX_REVOCATION_TTL_SECONDS` (fail closed); only the `EVAL` fails a mark.
+  **Never write the floor outside `FLOOR_WRITE`**, whose JSDoc names its only
+  two callers (the reap and the announce). **Never announce outside the
+  first-registration gate**, and **never put the index key on the announce**: it
+  is one-key so no reap predicate can match it (`tests/revocation_wire.ts` is
+  the test-side home of both shapes). Witness:
+  `revocation_ttl_floor_380.test.ts`; battery
+  `tests/mutations/revocation_ttl_floor_380.ts`.
 - **The local presence view is deduplicated in ONE place, `#localRoster`, and
   nowhere else**
   ([#343](https://github.com/locknessland/lockness-monorepo/issues/343)). The
@@ -652,7 +667,12 @@ of what the re-check's counts mean.
   - the instance set (`SMEMBERS` in `#reconcile`) → unbounded, small by
     construction (one entry per running instance);
   - the revocation index → `REVOCATION_SCAN_COUNT` (paged, #359); the reap
-    answers one integer.
+    answers one integer;
+  - the revocation floor (`ZRANGEBYSCORE` in `markRevocation`, #380) →
+    unbounded, small by construction (one member per distinct live TTL);
+    `MAX_REPLY_BYTES` is the backstop, and an oversized reply is a read failure,
+    so the mark fails closed at `MAX_REVOCATION_TTL_SECONDS`. Never a `LIMIT`:
+    truncation fails open.
 - **A lapsed-but-alive instance re-asserts its slots, and the pieces live in
   fixed homes**
   ([#349](https://github.com/locknessland/lockness-monorepo/issues/349),
@@ -989,15 +1009,16 @@ of what the re-check's counts mean.
   ([#391](https://github.com/locknessland/lockness-monorepo/issues/391)). The
   last line of a chain that has no caller left must not throw either. A log sink
   that refuses the ERROR as well would otherwise turn the fallback into the very
-  unhandled rejection (or uncaught timer exception) it exists to stop. Seven
-  sinks go through the helper in `marked_fallback.ts`: `reportError`'s #369 line
-  and its default line, the Redis revocation and sweep chains' last `.catch`,
-  `#warnPassSample`, the deadline's `#write`, and `#dispatchRevocation`. The
-  helper tries `console.error` first, so a patched app console is respected.
-  Then it writes the same bytes and a newline to `Deno.stderr.writeSync`. Its
-  final catch drops the line on purpose: no channel is left, and a re-throw
-  would kill the process. A new sink of this kind calls the helper and gets a
-  row in the witness table. Writing
+  unhandled rejection (or uncaught timer exception) it exists to stop. Every
+  such sink goes through the helper in `marked_fallback.ts` — among them
+  `reportError`'s #369 line and its default line, the Redis revocation and sweep
+  chains' last `.catch`, `#warnPassSample`, the deadline's `#write`,
+  `#dispatchRevocation` and `#warnFloor` (#380); `git grep writeMarkedFallback`
+  is the count, not this list. The helper tries `console.error` first, so a
+  patched app console is respected. Then it writes the same bytes and a newline
+  to `Deno.stderr.writeSync`. Its final catch drops the line on purpose: no
+  channel is left, and a re-throw would kill the process. A new sink of this
+  kind calls the helper and gets a row in the witness table. Writing
   `try { console.warn } catch { console.error(MARKER …) }` inline is the defect.
   Witness: `marked_fallback_sinks_391.test.ts` (one row per sink) and
   `marked_fallback_391.test.ts`, battery
@@ -1091,6 +1112,7 @@ of what the re-check's counts mean.
 - `packages/realtime/tests/revocation_retry.test.ts`
 - `packages/realtime/tests/revocation_seam_332.test.ts`
 - `packages/realtime/tests/revocation_tally_384.test.ts`
+- `packages/realtime/tests/revocation_ttl_floor_380.test.ts`
 - `packages/realtime/tests/revoke_channel_idless_340.test.ts`
 - `packages/realtime/tests/roster_atomicity_323.test.ts`
 - `packages/realtime/tests/roster_control_atomicity.test.ts`
@@ -1143,6 +1165,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/revocation_pass_bound_362.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`
 - `packages/realtime/tests/mutations/revocation_tally_384.ts`
+- `packages/realtime/tests/mutations/revocation_ttl_floor_380.ts`
 - `packages/realtime/tests/mutations/revoke_channel_idless_340.ts`
 - `packages/realtime/tests/mutations/roster_read_barrier_333.ts`
 - `packages/realtime/tests/mutations/roster_sync_330.ts`

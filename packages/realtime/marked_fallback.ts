@@ -2,7 +2,7 @@
  * @fileoverview The one home of the marked fallback line (#369, #391) —
  * internal to `@lockness/realtime`, never re-exported from `mod.ts`.
  *
- * Seven sinks in this package end a chain that has no caller left to hand a
+ * Several sinks in this package end a chain that has no caller left to hand a
  * failure to: a WARN that could not be written, an `onError` hook that threw,
  * a pass chain's last `.catch`. Each writes ONE marked line instead, and on
  * Deno a throw from that line would be the very unhandled rejection (or
