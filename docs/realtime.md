@@ -67,6 +67,14 @@ your application, and the line names it so you can fix it.
 
 When `onError` works, the handler writes nothing: your hook is the report.
 
+Neither line can escape on its own either
+([#391](https://github.com/locknessland/lockness-monorepo/issues/391)). If
+`console.error` throws (a patched console, a logger transport that refuses the
+line), the handler writes the same line to stderr instead. It drops the line
+only when stderr refuses it too. The package's other last-resort lines work the
+same way: the Redis driver's pass and sweep failures, the enforcement deadline,
+and a control-frame revocation.
+
 ## Channels
 
 Channel kind is derived from the name: `presence-*`, `private-*`, else public.

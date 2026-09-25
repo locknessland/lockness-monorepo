@@ -79,6 +79,7 @@ Anything not listed is internal and free to change.
 | How much one roster read ingests (`readRoster`, `total`, cap)    | `driver.ts`, `drivers/{memory,redis}.ts` |
 | When a broken revocation guarantee is reported (one deadline)    | `drivers/enforcement_deadline.ts`        |
 | What a completed pass reports (`onPassComplete`, `PassSample`)   | `drivers/redis.ts`                       |
+| A last-resort log line that must never throw (#391)              | `marked_fallback.ts`                     |
 
 `onPassComplete` is the Redis driver's measurement seam (#360, ADR
 [012](../../docs/adr/012-measurements-reach-the-app-through-a-seam.md)): one
@@ -951,12 +952,30 @@ field means.
   in the #369 shape, with one `REVOCATION_APPLY_LOG_FAILED` ERROR line and no
   re-throw. Witness: `apply_revocation_376.test.ts`, battery
   `tests/mutations/apply_revocation_376.ts`.
+- **A marked fallback line is written with `writeMarkedFallback`, never an
+  inline `console.error`**
+  ([#391](https://github.com/locknessland/lockness-monorepo/issues/391)). The
+  last line of a chain that has no caller left must not throw either. A log sink
+  that refuses the ERROR as well would otherwise turn the fallback into the very
+  unhandled rejection (or uncaught timer exception) it exists to stop. Seven
+  sinks go through the helper in `marked_fallback.ts`: `reportError`'s #369 line
+  and its default line, the Redis revocation and sweep chains' last `.catch`,
+  `#warnPassSample`, the deadline's `#write`, and `#dispatchRevocation`. The
+  helper tries `console.error` first, so a patched app console is respected.
+  Then it writes the same bytes and a newline to `Deno.stderr.writeSync`. Its
+  final catch drops the line on purpose: no channel is left, and a re-throw
+  would kill the process. A new sink of this kind calls the helper and gets a
+  row in the witness table. Writing
+  `try { console.warn } catch { console.error(MARKER …) }` inline is the defect.
+  Witness: `marked_fallback_sinks_391.test.ts` (one row per sink) and
+  `marked_fallback_391.test.ts`, battery
+  `tests/mutations/marked_fallback_391.ts`.
 
 ## Tests
 
 <!-- generated:tests -->
 
-86 test files for 22 source files:
+88 test files for 24 source files:
 
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
@@ -998,6 +1017,8 @@ field means.
 - `packages/realtime/tests/log_encoding_291.test.ts`
 - `packages/realtime/tests/manager.test.ts`
 - `packages/realtime/tests/manager_debt_353.test.ts`
+- `packages/realtime/tests/marked_fallback_391.test.ts`
+- `packages/realtime/tests/marked_fallback_sinks_391.test.ts`
 - `packages/realtime/tests/member_info_bound_326.test.ts`
 - `packages/realtime/tests/memory_driver.test.ts`
 - `packages/realtime/tests/mixed_fleet_332.test.ts`
@@ -1045,7 +1066,7 @@ field means.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-39 mutation batteries — **`deno test` does not run these.** Each is an
+40 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1063,6 +1084,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/live_conformance_285.ts`
 - `packages/realtime/tests/mutations/log_encoding_291.ts`
 - `packages/realtime/tests/mutations/manager_debt_353.ts`
+- `packages/realtime/tests/mutations/marked_fallback_391.ts`
 - `packages/realtime/tests/mutations/pass_sample_360.ts`
 - `packages/realtime/tests/mutations/prefix_288.ts`
 - `packages/realtime/tests/mutations/presence_eviction_334.ts`
@@ -1104,7 +1126,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 86 test files directly —
+Then, specific to this package: run its 88 test files directly —
 
 ```bash
 deno test -A packages/realtime/
