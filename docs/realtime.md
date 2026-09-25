@@ -2298,10 +2298,13 @@ control kind, one additive wire field and one additive getter. Item 16 changes
 no behaviour: it corrects earlier guidance. Items 19 and 24 are observable, not
 breaking: a malformed sweep reply now logs a WARN, and a revocation record now
 lives up to the fleet's longest live TTL. Item 23 also changes what the deadline
-reports: a revocation pass with a failed apply no longer re-arms it. **No
-migration step, and two new Redis keys.** Before you deploy, read items 1, 3, 5,
-6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 and 25 — and
-items 2 and 7 if you wrote your own driver.
+reports: a revocation pass with a failed apply no longer re-arms it. The release
+also adds `onPassComplete` and its `PassSample` — additive, no item of its own —
+which reports the duration and page count of every ghost sweep and revocation
+pass; see [Measuring the passes](#measuring-passes). **No migration step, and
+two new Redis keys.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11,
+12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24 and 25 — and items 2 and 7 if
+you wrote your own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 

@@ -126,7 +126,9 @@ application through a seam, and the application records it on a meter from
     what it does not, is defined once, on `PassSample.outcome` in
     `packages/realtime/drivers/redis.ts`.
 
-  At most 12 combinations exist, whatever the fleet size.
+  At most 8 combinations exist, whatever the fleet size: the sweep's trigger is
+  always `timer` (2 outcomes), and the revocation pass takes all three triggers
+  (3 × 2 outcomes) — 2 + 6.
 - **The two counters are added to only when the sample carries counts**
   (`sample.failures !== undefined`): every sweep sample does, and a revocation
   sample does when its re-check reported a tally (#384). What an attempt and a
@@ -136,7 +138,8 @@ application through a seam, and the application records it on a meter from
   - `lockness.realtime.pass.duration`, in seconds:
     `0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60`. The range
     covers ADR 009's revisit trigger (a revocation pass above 10% of a 10 s
-    interval, 1 s) and ADR 008's (a sweep longer than the liveness TTL).
+    interval — `reconcileIntervalMs`'s default — 1 s) and ADR 008's (a sweep
+    longer than the liveness TTL).
   - `lockness.realtime.pass.pages`: `1, 2, 5, 10, 20, 50, 100, 200, 500, 1000`.
 
 #### Recipe: the realtime pass instruments

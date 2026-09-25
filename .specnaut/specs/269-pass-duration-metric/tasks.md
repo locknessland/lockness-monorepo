@@ -36,7 +36,8 @@ but never called), the behavioural state is:
   Every one of them expects a sample or a WARN that no code produces yet.
 - **Pins, green before and after:** P11 (no handler, no new line) and P13 (#362's suite, unchanged).
 - **Vacuously green on the skeleton, meaningful only once samples exist:** P7 (i, ii) (no sample after `close()`) and
-  P8 (iv) (`close()` resolves). They are not counted as reds. Their power is proven by M9 (P7) and M13 (P8 (iv)).
+  P8 (iv) (`close()` resolves). They are not counted as reds. Their power is proven by M9 (P7) and M13 (P8 (ii),
+  measured — see `tests/mutations/pass_sample_360.ts`'s header, not this plan's original P8 (iv)).
 - **P4 (iv)** is red for two reasons. There is no sample, and on `main` a malformed `SMEMBERS` reply is read as
   `?? []`, so it produces no "roster reconcile failed" WARN. It stays red after US1 until T019.
 
