@@ -388,6 +388,14 @@ worst-case runtime.
 
 - With no lock configured, `onOneServer` is inert and every replica runs the
   task.
+- **The `'redis'` driver needs `@lockness/redis` installed in the application**
+  (`deno add jsr:@lockness/redis`), and a `redis` connection in the config.
+  Without the package, boot prints
+  `@lockness/redis not found - skipping
+  scheduler lock setup` and carries on
+  with **no lock installed**. Without the `redis` block, it installs no lock and
+  says nothing. Either way every replica runs every `onOneServer` task. The
+  `'deno-kv'` driver needs no extra package.
 - If the lock store is unreachable, the occurrence is **skipped** on that
   replica and a warning is logged — never run everywhere.
 - If releasing a claim fails, a warning is logged and the claim expires with its
