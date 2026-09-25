@@ -29,8 +29,14 @@
  *   premise reverted (R8). K18 `passEnded()` a no-op (R9).
  * - **Sweep.** K13 the failure not counted (S1). K14 the failure counted
  *   after the WARN (S1b). K15 `attempts` counted in `#reconcile` for every
- *   instance it reads — the live ones and this instance included — instead of
- *   in `#sweepInstance` (S1). K16 `renewed` counted as a failure (S3).
+ *   peer it probes, live ones included, instead of in `#sweepInstance` (S1,
+ *   whose live peer is what kills it). K16 `renewed` counted as a failure
+ *   (S3).
+ * - **Review additions.** K23 the decoder's `failed < 0` check dropped (R3b,
+ *   `failed below zero`). K24 `passSucceeded` no longer forgets a pass that
+ *   ended (R10: fail, clean, stall reads `MISSED`). K25 the malformed WARN as
+ *   a bare `console.warn` (R3c). K26 the resolved value rendered into the
+ *   malformed WARN (R3b). K25 and K26 are row 5a's two rejected shapes.
  *
  * Every row was proven LIVE by the harness run that recorded it: the suite is
  * green on the pristine source, the mutant is the only change, and it turned
@@ -66,9 +72,13 @@ const REVOKE_CATCH_TAIL =
     '            )\n' +
     '            return false\n'
 
-/** The wrapper's catch tail in `#recheckRevocations`. */
-const WRAPPER_CATCH_TAIL = '                        renderError(error),\n' +
-    '                )\n' +
+/**
+ * The wrapper's failure count in `#recheckRevocations`, above its WARN.
+ * Re-anchored in the #384 review fix, which moved the count above the WARN.
+ */
+const WRAPPER_CATCH_COUNT =
+    '                // Counted BEFORE the WARN, as the sweep counts: a sink that\n' +
+    '                // throws cannot skip it.\n' +
     '                failed++\n'
 
 /** The wrapper's attempt count. */
@@ -114,6 +124,16 @@ const CLEAN = "                const clean = outcome === 'ok' &&\n" +
     '                    pass.malformed !== true &&\n' +
     '                    (pass.failures ?? 0) === 0\n'
 
+/** The malformed WARN's #391-shaped write. */
+const MALFORMED_WRITE = '        try {\n' +
+    '            console.warn(line)\n' +
+    '        } catch (sink) {\n' +
+    '            writeMarkedFallback(REVOCATION_LOG_FAILED, line, {\n' +
+    "                label: 'sink failure',\n" +
+    '                error: sink,\n' +
+    '            })\n' +
+    '        }\n'
+
 /** The malformed WARN's one call. */
 const WARN_MALFORMED = '                this.#warnMalformedTally(trigger)\n'
 
@@ -136,9 +156,9 @@ const SWEEP_FAILED_WARN_TAIL =
     '                    renderError(end.failed),\n' +
     '            )\n'
 
-/** The top of `#reconcile`'s instance loop. */
-const RECONCILE_LOOP = "                if (this.#closing) return 'closed'\n" +
-    '                const id = asBulk(raw)\n'
+/** `#reconcile`'s self-skip: every instance after it is probed. */
+const RECONCILE_SELF_SKIP =
+    '                if (!id || id === this.instanceId) continue\n'
 
 const MUTATIONS: Mutation[] = [
     // --- Manager ------------------------------------------------------------
@@ -163,10 +183,7 @@ const MUTATIONS: Mutation[] = [
     {
         label: "K3 — the apply wrapper's catch does not count a failure",
         file: MANAGER,
-        edits: [[
-            WRAPPER_CATCH_TAIL,
-            WRAPPER_CATCH_TAIL.replace('                failed++\n', ''),
-        ]],
+        edits: [[WRAPPER_CATCH_COUNT, '']],
         killedBy: '#384 T4 ',
     },
     {
@@ -354,15 +371,15 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#384 S1b ',
     },
     {
-        label: "K15 — attempts counted in #reconcile's loop for every instance",
+        label: "K15 — attempts counted in #reconcile's loop for every peer " +
+            'it probes, live ones included',
         file: REDIS,
         edits: [
             [SWEEP_ATTEMPT, ''],
             [
-                RECONCILE_LOOP,
-                "                if (this.#closing) return 'closed'\n" +
-                '                if (this.#sweepPass) this.#sweepPass.attempts++\n' +
-                '                const id = asBulk(raw)\n',
+                RECONCILE_SELF_SKIP,
+                RECONCILE_SELF_SKIP +
+                '                if (this.#sweepPass) this.#sweepPass.attempts++\n',
             ],
         ],
         killedBy: '#384 S1 ',
@@ -376,6 +393,62 @@ const MUTATIONS: Mutation[] = [
             '            if (this.#sweepPass) this.#sweepPass.failures++\n',
         ]],
         killedBy: '#384 S3 ',
+    },
+    // --- Review additions -----------------------------------------------------
+    {
+        label: "K23 — the decoder's failed < 0 check dropped",
+        file: REDIS,
+        edits: [[
+            RANGE,
+            '        if (counts.failed > counts.attempted) {\n',
+        ]],
+        killedBy: '#384 R3b ',
+    },
+    {
+        label: 'K24 — passSucceeded does not forget a pass that ended',
+        file: DEADLINE,
+        edits: [[
+            '    ): void {\n' +
+            '        this.#ended = false\n' +
+            '        const previous = this.#previousReadAt\n',
+            '    ): void {\n' +
+            '        const previous = this.#previousReadAt\n',
+        ]],
+        killedBy: '#384 R10 ',
+    },
+    {
+        label: 'K25 — the malformed WARN as a bare console.warn (row 5a)',
+        file: REDIS,
+        edits: [[MALFORMED_WRITE, '        console.warn(line)\n']],
+        killedBy: '#384 R3c ',
+    },
+    {
+        label:
+            'K26 — the resolved value rendered into the malformed WARN (row 5a)',
+        file: REDIS,
+        edits: [
+            [
+                DECODE,
+                '            const value = await this.revocationHandler()\n' +
+                '            const tally = decodeRevocationTally(value)\n',
+            ],
+            [
+                WARN_MALFORMED,
+                '                this.#warnMalformedTally(trigger, value)\n',
+            ],
+            [
+                "    #warnMalformedTally(trigger: PassSample['trigger']): void {\n",
+                '    #warnMalformedTally(\n' +
+                "        trigger: PassSample['trigger'],\n" +
+                '        value?: unknown,\n' +
+                '    ): void {\n',
+            ],
+            [
+                "            'packages/realtime/driver.ts).'\n",
+                "            'packages/realtime/driver.ts). ' + String(JSON.stringify(value))\n",
+            ],
+        ],
+        killedBy: '#384 R3b ',
     },
 ]
 

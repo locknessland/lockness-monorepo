@@ -44,6 +44,7 @@ import {
     REVOCATION_DEADLINE_MISSED,
     REVOCATION_DEADLINE_SKEWED,
     REVOCATION_DEADLINE_STALLED,
+    REVOCATION_LOG_FAILED,
 } from '../drivers/enforcement_deadline.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
@@ -127,6 +128,8 @@ function captureLogs() {
         events,
         /** WARN lines starting with `prefix`. */
         warned: (prefix: string) => warns.filter((l) => l.startsWith(prefix)),
+        /** ERROR lines starting with `prefix`. */
+        errored: (prefix: string) => errors.filter((l) => l.startsWith(prefix)),
         /** Every WARN line starting with a deadline constant. */
         deadlineLines: () =>
             warns.filter((l) =>
@@ -450,6 +453,8 @@ const INTERVAL = 1_000
 const TTL = 10
 const DEAD = 'instance-dead'
 const DEAD_TOO = 'instance-dead-too'
+/** A peer whose liveness key is present. */
+const LIVE = 'instance-live'
 
 /** A liveness probe. */
 const isExists: CommandMatch = (args) => args[0] === 'EXISTS'
@@ -658,6 +663,7 @@ Deno.test('#384 R3b a tally-shaped value with bad counts is one WARN per pass, n
         ['a fractional count', () => ({ attempted: 1.5, failed: 0 })],
         ['a string count', () => ({ attempted: '4', failed: 0 })],
         ['a missing count', () => ({ attempted: 1 })],
+        ['failed below zero', () => ({ attempted: 1, failed: -1 })],
         ['a getter that throws', () => ({
             get attempted(): number {
                 throw new Error('injected: the getter threw (#384)')
@@ -698,6 +704,15 @@ Deno.test('#384 R3b a tally-shaped value with bad counts is one WARN per pass, n
                     samples.length,
                     'one WARN per pass',
                 )
+                // Row 5a: the line names the trigger and the contract, never
+                // the value the handler resolved.
+                for (const line of logs.warned(REVOCATION_TALLY_MALFORMED)) {
+                    assert(
+                        !line.includes('"attempted"'),
+                        `value leaked: ${line}`,
+                    )
+                    assert(!line.includes('"failed"'), `value leaked: ${line}`)
+                }
                 const order = logs.events
                     .filter((e) =>
                         e === 'call' ||
@@ -734,6 +749,27 @@ Deno.test('#384 R3b a tally-shaped value with bad counts is one WARN per pass, n
 // ---------------------------------------------------------------------------
 // US2 — only a clean pass re-arms the deadline
 // ---------------------------------------------------------------------------
+
+Deno.test('#384 R3c a sink that refuses the malformed WARN writes one marked line per pass, and the pass stays ok', async () => {
+    await withClock(async ({ time, logs }) => {
+        const f = fleet()
+        f.record()
+        f.listen(() => ({ attempted: 1, failed: 2 }))
+        // Row 5a's #391 shape: the sink refuses THIS line only.
+        logs.refuseWarn((line) => line.startsWith(REVOCATION_TALLY_MALFORMED))
+        await advance(time, 3 * INTERVAL)
+        const samples = f.revocations()
+        assert(samples.length >= 3, 'precondition: passes ran')
+        for (const sample of samples) assertEquals(sample.outcome, 'ok')
+        const marked = logs.errored(REVOCATION_LOG_FAILED)
+        assertEquals(marked.length, samples.length, 'one marked line per pass')
+        for (const line of marked) {
+            assert(line.includes(REVOCATION_TALLY_MALFORMED), line)
+        }
+        assertEquals(logs.warned('realtime: revocation reconcile failed'), [])
+        await f.driver.close()
+    })
+})
 
 Deno.test('#384 R4 a pass whose every apply failed never re-arms: one MISSED at the TTL, and one only', async () => {
     await withClock(async ({ time, logs }) => {
@@ -843,17 +879,43 @@ Deno.test('#384 R9 an expiry during a healthy pass, after passes with failures, 
     })
 })
 
+Deno.test('#384 R10 a failing pass, then a clean pass, then a stall: the clean pass forgets the failure, and the stall is STALLED', async () => {
+    await withClock(async ({ time, logs }) => {
+        const f = fleet()
+        let calls = 0
+        // 1 s: a failure (passEnded). 2 s: clean (re-arms to 12 s, and must
+        // forget the failure). 3 s: never settles, so it is in flight at 12 s.
+        f.listen(() => {
+            calls++
+            if (calls === 1) return { attempted: 1, failed: 1 }
+            if (calls === 2) return { attempted: 1, failed: 0 }
+            return new Promise<never>(() => {})
+        })
+        await advance(time, 2 * INTERVAL + TTL * 1000 - 1)
+        assertEquals(logs.deadlineLines(), [])
+        await advance(time, 1)
+        assertEquals(calls, 3, 'precondition: the third pass is in flight')
+        assertEquals(logs.warned(REVOCATION_DEADLINE_MISSED), [])
+        assertEquals(logs.warned(REVOCATION_DEADLINE_STALLED).length, 1)
+        await f.driver.close()
+    })
+})
+
 // ---------------------------------------------------------------------------
 // US4 — every ghost sweep counts the dead instances it swept
 // ---------------------------------------------------------------------------
 
-Deno.test('#384 S1 two dead instances, one of whose release throws: two attempts, one failure, ok', async () => {
+Deno.test('#384 S1 two dead instances, one of whose release throws, and a live peer: two attempts, one failure, ok', async () => {
     await withClock(async ({ time }) => {
         const f = fleet()
         f.record()
         await f.startSweep()
         await plantHold(f.redis, '1', DEAD)
         await plantHold(f.redis, '2', DEAD_TOO)
+        // A live peer: the sweep reads it and probes it, and never sweeps it,
+        // so it is not an attempt.
+        await f.redis.command('SADD', INSTANCES_KEY, LIVE)
+        await f.redis.command('SET', ALIVE_KEY(LIVE), '1', 'EX', '30')
         f.port.failFrom(isRelease(DEAD))
         await advance(time, INTERVAL)
         assertEquals(f.sweeps().length, 1)
