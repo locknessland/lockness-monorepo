@@ -51,7 +51,8 @@ const REGISTER_THEN_ADD = '                try {\n' +
     '                }\n' +
     "                // After the register succeeded, before the app's hook: a\n" +
     '                // refused socket never reaches this line, so it never gets\n' +
-    "                // the app's onClose either.\n" +
+    "                // the app's onClose either — and an app onOpen that throws\n" +
+    '                // or closes the socket still gets its onClose (#404 W4).\n' +
     '                opened.add(conn)\n'
 
 const MUTATIONS: Mutation[] = [
