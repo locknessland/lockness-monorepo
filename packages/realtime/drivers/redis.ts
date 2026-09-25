@@ -1332,18 +1332,62 @@ export const REVOCATION_FLOOR_REFUSED =
     'strings'
 
 /**
- * Decode the revocation floor read (#380). SKELETON — returns the own TTL.
+ * Decode the revocation floor read (#380) into the TTL a mark writes its
+ * record at: the largest of `ownTtl` and every floor member.
+ *
+ * **The single home of what a floor reply means.**
+ * - A reply that is not an array of bulk strings throws
+ *   {@link REVOCATION_FLOOR_REFUSED}, which never carries the reply. The mark
+ *   treats that as an unreadable floor and fails closed.
+ * - A member that does not match {@link EPOCH_SECONDS} (`1e3`, `0x10`, ` 5`,
+ *   `5.5`, `inf`, the empty string, `012`) is **skipped and counted**, never
+ *   thrown: something other than this driver may have written it, and a throw
+ *   would degrade every mark for as long as it stays.
+ * - A member that matches is clamped to `[1, MAX_REVOCATION_TTL_SECONDS]`, so
+ *   no floor content can score a record past the longest lifetime a driver
+ *   accepts.
+ *
+ * No clock is consulted: an entry that has lapsed but was not yet pruned only
+ * lengthens a record, which fails closed. Pure — it writes no WARN; the mark
+ * reports the skip count after its write. Exported for the test suite only;
+ * `mod.ts` does not re-export it.
  *
  * @param reply - The `ZRANGEBYSCORE <floor> -inf +inf` reply.
  * @param ownTtl - This driver's own `revocationTtlSeconds`.
- * @returns The effective TTL and the count of skipped members.
+ * @returns `ttl`, the effective TTL, and `skipped`, the members that are not a
+ *   TTL in seconds.
+ * @throws {Error} {@link REVOCATION_FLOOR_REFUSED}, for a reply that is not an
+ *   array of bulk strings.
+ * @example
+ * ```ts
+ * decodeRevocationFloor({
+ *     type: 'array',
+ *     value: [{ type: 'bulk', value: '300' }, { type: 'bulk', value: '1e3' }],
+ * }, 10) // { ttl: 300, skipped: 1 }
+ * ```
  */
 export function decodeRevocationFloor(
     reply: unknown,
     ownTtl: number,
 ): { ttl: number; skipped: number } {
-    void reply
-    return { ttl: ownTtl, skipped: 0 }
+    const members = asArray(reply)
+    if (members === undefined) throw new Error(REVOCATION_FLOOR_REFUSED)
+    let ttl = ownTtl
+    let skipped = 0
+    for (const item of members) {
+        const member = asBulk(item)
+        if (member === undefined) throw new Error(REVOCATION_FLOOR_REFUSED)
+        if (!EPOCH_SECONDS.test(member)) {
+            skipped++
+            continue
+        }
+        const clamped = Math.min(
+            Math.max(Number(member), 1),
+            MAX_REVOCATION_TTL_SECONDS,
+        )
+        ttl = Math.max(ttl, clamped)
+    }
+    return { ttl, skipped }
 }
 
 /**
@@ -3301,14 +3345,25 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      *   anyway and re-throws, so the caller learns durability was lost.
      */
     async markRevocation(revocation: Revocation): Promise<void> {
+        const member = this.#encodeRevocation(revocation)
+        const floor = decodeRevocationFloor(
+            await this.command.command(
+                'ZRANGEBYSCORE',
+                this.revocationFloorKey,
+                '-inf',
+                '+inf',
+            ),
+            this.revocationTtlSeconds,
+        )
+        const eff = floor.ttl
         await this.command.command(
             'EVAL',
             MARK_REVOKED_SCRIPT,
             '1',
             this.revocationIndexKey,
-            String(this.revocationTtlSeconds),
-            this.#encodeRevocation(revocation),
-            String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),
+            String(eff),
+            member,
+            String(eff + INDEX_TTL_SLACK_SECONDS),
         )
     }
 

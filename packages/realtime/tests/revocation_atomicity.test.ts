@@ -87,20 +87,28 @@ Deno.test('#276 race 2: recording a revocation has no window for a reap to step 
     // Count the commands `markRevoked` issues. The old shape issued SADD then
     // SET — two round-trips, and between them the id was enumerable with no
     // marker, so any concurrent reap deleted it. One operation has no between.
+    //
+    // Since #380 the mark first READS the revocation floor, which writes
+    // nothing — so the record itself is still ONE write, and there is still no
+    // window between two writes for a reap to step into.
     const issued: string[] = []
     const counting = (...args: string[]): Promise<unknown> => {
-        issued.push(args[0].toUpperCase())
+        issued.push(
+            `${args[0].toUpperCase()} ${
+                args[0] === 'EVAL' ? args[3] : args[1]
+            }`,
+        )
         return redis.command(...args)
     }
     const a = driverOn(redis, counting)
     try {
         await a.markRevocation({ target: 'y' })
         assertEquals(
-            issued.length,
-            1,
-            `markRevoked must be ONE operation, issued: ${issued.join(', ')}`,
+            issued,
+            ['ZRANGEBYSCORE app:rt__revocation-floor', `EVAL ${INDEX}`],
+            'markRevoked must be ONE write — the floor read, then one EVAL — ' +
+                `issued: ${issued.join(', ')}`,
         )
-        assertEquals(issued[0], 'EVAL')
         assertEquals(await revokedIds(a), ['y'])
     } finally {
         await a.close()
