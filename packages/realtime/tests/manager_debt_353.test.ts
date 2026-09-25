@@ -33,7 +33,7 @@
  *
  * **Every "writes nothing" row reads four instruments, each shown to move
  * first (#351).** An admitted observer joins the same channel before the
- * refused subscribe, and that join must move `connectionCount`, put the
+ * refused subscribe, and that join must move the channel's membership, put the
  * observer on the roster and — on a presence channel over the fake Redis —
  * publish one control frame. Only then are the refusal's zeros read, and the
  * delivery half is paired with a broadcast the observer does receive. The
@@ -41,12 +41,11 @@
  * `authorize_result_347.test.ts` pins: an admitted private subscribe publishes
  * nothing, and the memory driver has no control plane to count.
  *
- * **The member invariant.** `subscribe` threw "a presence admission reached
- * the join without a member" AFTER `connections.set`. It is unreachable on the
- * shipped code — `admitPresenceMember` always returns a member — so the last
- * test here is a mutation witness: vacuous as written, it is what battery row
- * M1 of `tests/mutations/manager_debt_353.ts` kills when the invariant is made
- * to fire and moved back below the write.
+ * **The member invariant.** `subscribe` once threw "a presence admission
+ * reached the join without a member" after it had written the connection's
+ * binding. Since #370 `subscribe` writes no binding at all, so the last test
+ * here pins that directly, and battery row M1 (the invariant moved below the
+ * caps) is recorded as an equivalent mutant.
  *
  * @module @lockness/realtime/tests/manager_debt_353
  */
@@ -55,6 +54,7 @@ import { assert, assertEquals, assertRejects } from '@std/assert'
 import {
     type Authorizer,
     AuthorizeResultError,
+    ChannelLimitError,
     ChannelManager,
     MemoryBroadcastDriver,
     type PresenceMember,
@@ -169,6 +169,16 @@ function answering(value: () => unknown): Authorizer<User> {
 }
 
 /**
+ * How many connections this instance holds on `channel` — the membership a
+ * refused subscribe must not write (#370 review: `connectionCount` moves only
+ * on `register` now, so it can no longer tell a refusal from an admission).
+ */
+function membersOn(m: ChannelManager<User>, channel: string): number {
+    return (m as unknown as { subscriptions: Map<string, Set<string>> })
+        .subscriptions.get(channel)?.size ?? 0
+}
+
+/**
  * An authorizer that answers `value` for the suspect and a contract-valid
  * admission for the observer, cast the way plain JS reaches the manager.
  */
@@ -264,23 +274,23 @@ async function assertRefusalWritesNothing(
         driver: backend.driver,
         authorize: suspectAuthorizer(value),
     })
-    const connectionsAtStart = m.connectionCount
     const publishesAtStart = backend.controlPublishes()
-    // Both sockets are registered at open (#370): only `register` binds a
-    // connection, so a subscribe never moves `connectionCount` itself.
+    // Both sockets are registered at open (#370). The refusal is read on the
+    // channel's membership, which only a subscribe moves.
     const observer = conn('observer', OBSERVER)
     m.register(observer)
     const suspect = conn('suspect', SUSPECT)
     m.register(suspect)
+    const membersAtStart = membersOn(m, channel)
     assertEquals((await m.subscribe(observer, channel)).ok, true)
-    const connectionsBefore = m.connectionCount
+    const membersBefore = membersOn(m, channel)
     const publishesBefore = backend.controlPublishes()
     // POSITIVE CONTROLS (#351): each instrument the refusal is read with
     // registers an admission.
     assertEquals(
-        connectionsBefore,
-        connectionsAtStart + 2,
-        'CONTROL: registering at open moves connectionCount',
+        membersBefore,
+        membersAtStart + 1,
+        'CONTROL: an admitted subscribe moves the membership',
     )
     if (channel === PRESENCE) {
         assertEquals(
@@ -300,9 +310,9 @@ async function assertRefusalWritesNothing(
     await refuse(() => m.subscribe(suspect, channel))
 
     assertEquals(
-        m.connectionCount,
-        connectionsBefore,
-        'the refusal neither bound nor released a connection',
+        membersOn(m, channel),
+        membersBefore,
+        'no membership was written for the suspect',
     )
     if (channel === PRESENCE) {
         assertEquals(
@@ -762,37 +772,37 @@ Deno.test('#353 a departure a driver reports with a value it cannot inspect is d
 
 // --- The member invariant precedes every write -------------------------------
 
-Deno.test('#353 whatever a presence subscribe throws, it throws before `connections` is written (battery M1 witness)', async () => {
-    // VACUOUS ON THE SHIPPED CODE, by construction: the admission always
-    // yields a member, so this subscribe succeeds and only the CONTROL below
-    // runs — this test alone cannot fail for a misordered invariant. What
-    // protects the ordering is battery row M1 of
-    // `tests/mutations/manager_debt_353.ts`, which makes the invariant fire
-    // and moves it back below `connections.set`; that mutant fails here. M1
-    // runs under `deno task mutate realtime` (every battery under
-    // `packages/realtime/tests/mutations/` is discovered). Delete this test
-    // and M1 goes with it.
+Deno.test('#353 a presence subscribe writes no binding of its own, admitted or refused (#370)', async () => {
+    // What #353's ordering protected — a throwing subscribe leaving a
+    // `connections` entry behind — can no longer happen: since #370 only
+    // `register` binds. This pins that from both sides. The battery's M1 (the
+    // member invariant moved below the caps) is recorded as an equivalent
+    // mutant for the same reason; see its row.
     const m = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize: (user) => user ? { id: user.id } : false,
+        maxWatchedChannels: 1,
+        maxChannelsPerConnection: 1,
+        anonymousHostingShare: 1,
     })
-    let thrown: unknown = undefined
-    try {
-        const c1 = conn('c1', 1)
-        m.register(c1)
-        await m.subscribe(c1, PRESENCE)
-    } catch (error) {
-        thrown = error
-    }
-    if (thrown === undefined) {
-        assertEquals(m.connectionCount, 1, 'CONTROL: the join is tracked')
-        return
-    }
+    const c1 = conn('c1', 1)
+    m.register(c1)
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    assertEquals(m.connectionCount, 2, 'CONTROL: registering binds')
+
+    assert((await m.subscribe(c1, PRESENCE)).ok, 'the admitted join')
+    assertEquals(m.connectionCount, 2, 'an admitted join binds nothing more')
+
+    await assertRejects(
+        () => m.subscribe(c2, `${PRESENCE}-2`),
+        ChannelLimitError,
+    )
+    assertEquals(m.connectionCount, 2, 'a refused join binds nothing more')
+    await m.disconnect(c2)
     assertEquals(
         m.connectionCount,
-        0,
-        `a throwing presence subscribe left a \`connections\` entry: ${
-            (thrown as Error).message
-        }`,
+        1,
+        'CONTROL: the count moves when a binding is released',
     )
 })

@@ -25,7 +25,7 @@
  * connection got nothing" cannot pass because nothing was delivered at all.
  *
  * **Every "nothing happened" counter is paired with a positive control (#351).**
- * `connectionCount` and the control-publish count are each read before the
+ * The channel's membership and the control-publish count are each read before the
  * observer's admitted subscribe and shown to MOVE on it, in the same row, so a
  * counter that cannot register the event cannot pass for one that registered
  * none. The control-publish zero is asserted on presence rows only: an admitted
@@ -136,6 +136,16 @@ const BACKENDS: ReadonlyArray<readonly [string, () => Backend]> = [
 ]
 
 /**
+ * How many connections this instance holds on `channel` — the membership a
+ * refused subscribe must not write (#370 review: `connectionCount` moves only
+ * on `register` now, so it can no longer tell a refusal from an admission).
+ */
+function membersOn(m: ChannelManager<User>, channel: string): number {
+    return (m as unknown as { subscriptions: Map<string, Set<string>> })
+        .subscriptions.get(channel)?.size ?? 0
+}
+
+/**
  * An authorizer that answers `value` for the suspect and a contract-valid
  * admission for everyone else, cast the way a plain-JS app or an `any`-typed
  * query result reaches the manager.
@@ -216,27 +226,27 @@ for (const [backendName, makeBackend] of BACKENDS) {
                         driver: backend.driver,
                         authorize: suspectAuthorizer(value),
                     })
-                    const connectionsAtStart = m.connectionCount
                     const publishesAtStart = backend.controlPublishes()
-                    // Both sockets are registered at open (#370): only
-                    // `register` binds a connection, so a subscribe — admitted
-                    // or refused — never moves `connectionCount` itself.
+                    // Both sockets are registered at open (#370). The
+                    // refusal is read on the channel's membership, which only
+                    // a subscribe moves.
                     const observer = conn('observer', OBSERVER)
                     m.register(observer)
                     const suspect = conn('suspect', SUSPECT)
                     m.register(suspect)
+                    const membersAtStart = membersOn(m, channel)
                     assertEquals(
                         (await m.subscribe(observer, channel)).ok,
                         true,
                     )
-                    const connectionsBefore = m.connectionCount
+                    const membersBefore = membersOn(m, channel)
                     const publishesBefore = backend.controlPublishes()
                     // POSITIVE CONTROLS (#351): the instruments the refusal
                     // is read with can register an admission at all.
                     assertEquals(
-                        connectionsBefore,
-                        connectionsAtStart + 2,
-                        'CONTROL: registering at open moves connectionCount',
+                        membersBefore,
+                        membersAtStart + 1,
+                        'CONTROL: an admitted subscribe moves the membership',
                     )
                     if (
                         channel === PRESENCE && publishesAtStart !== undefined
@@ -266,9 +276,9 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     )
 
                     assertEquals(
-                        m.connectionCount,
-                        connectionsBefore,
-                        'the refusal neither bound nor released a connection',
+                        membersOn(m, channel),
+                        membersBefore,
+                        'no membership was written for the suspect',
                     )
                     if (channel === PRESENCE) {
                         assertEquals(

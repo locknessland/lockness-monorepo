@@ -13,12 +13,15 @@
  * rethrowing (M7), the key read hoisted above its try (M8, the `ownKeys`
  * trap) and a field read hoisted above it (M9, the `get` trap).
  *
- * **M1 needs a precondition mutant.** The invariant is unreachable on the
- * shipped code — `admitPresenceMember` always returns a member — so the row
- * also drops the `member =` assignment to make it fire, then moves the check
- * below the write. Its witness is vacuous on real code by design. Proven live
- * on 2026-09-23: with the forcing edit ALONE (the check still above the
- * write), that witness passes — the row measures the ORDERING, not the throw.
+ * **M1 is an equivalent mutant since #370**, recorded rather than deleted. It
+ * used to force the invariant to fire (dropping the admitted member) and move
+ * it below `subscribe`'s `connections` write, so the witness saw a binding
+ * left behind by a throwing subscribe. #370 deleted that write: nothing is
+ * written between the invariant's place and the join, so moving the check
+ * below the caps changes no outcome the shipped code can reach — the invariant
+ * never fires there (`admitPresenceMember` always returns a member), and a
+ * kept forcing edit would be the only thing a witness could see (#370 review).
+ * The row is now the bare move, and it SURVIVES by design.
  *
  * Runs under the shared harness: green baseline before anything is mutated, an
  * atomic per-file lock, anchors matched exactly once (a stale anchor reports
@@ -52,19 +55,9 @@ const INVARIANT =
 
 const MUTATIONS: Mutation[] = [
     {
-        label:
-            'M1 — the member invariant back BELOW `#checkChannelCaps` (forced to fire)',
+        label: 'M1 — the member invariant back BELOW `#checkChannelCaps`',
         file: MANAGER,
         edits: [
-            // The precondition: the admission's result is dropped, so a
-            // presence join reaches the invariant without a member.
-            // RE-ANCHORED by #357: the presence seat now reads the result of
-            // the every-kind admission above it. The source moved; the
-            // precondition is the same.
-            [
-                '                member = returned ?? admitPresenceMember(\n',
-                '                void returned\n                admitPresenceMember(\n',
-            ],
             [INVARIANT, ''],
             // RE-ANCHORED by #370: the `connections` write below the caps is
             // gone, so the invariant goes back below the caps check itself.
@@ -78,7 +71,13 @@ const MUTATIONS: Mutation[] = [
                 '\n        // `member` is set on a presence admission',
             ],
         ],
-        killedBy: 'whatever a presence subscribe throws',
+        killedBy: '(none — equivalent)',
+        expectSurvival:
+            '(none — equivalent) — since #370 nothing is written between the ' +
+            "invariant's place and the join, so its position relative to the " +
+            'caps check decides no reachable outcome: the invariant never ' +
+            'fires on the shipped code, and a presence subscribe that passes ' +
+            'the caps reaches the same join either way.',
     },
     {
         label: "M2 — the classifier's catch rethrows (the pre-#353 TypeError)",

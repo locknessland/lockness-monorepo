@@ -20,7 +20,7 @@
  * it throws. `true` is the one value whose EFFECT differs (presence seats it
  * as the connection id); its outcome is `ok` on both.
  *
- * Every refusal row reads state, not only the thrown class: `connectionCount`
+ * Every refusal row reads state, not only the thrown class: the membership
  * with a positive control that moves it (#351), and delivery with an observer
  * admitted by `true` that does receive the broadcast — on a real
  * {@link MemoryBroadcastDriver} and a {@link RedisBroadcastDriver} over the
@@ -183,6 +183,16 @@ function suspectAuthorizer(value: () => unknown): Authorizer<User> {
         >
 }
 
+/**
+ * How many connections this instance holds on `channel` — the membership a
+ * refused subscribe must not write (#370 review: `connectionCount` moves only
+ * on `register` now, so it can no longer tell a refusal from an admission).
+ */
+function membersOn(m: ChannelManager<User>, channel: string): number {
+    return (m as unknown as { subscriptions: Map<string, Set<string>> })
+        .subscriptions.get(channel)?.size ?? 0
+}
+
 /** `ok`, `denied`, or the name of what `subscribe` threw. */
 async function outcome(
     manager: ChannelManager<User>,
@@ -283,19 +293,20 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     driver: backend.driver,
                     authorize: suspectAuthorizer(value),
                 })
-                const atStart = m.connectionCount
-                // Both sockets are registered at open (#370): only `register`
-                // binds a connection, so a subscribe never moves the count.
+                // Both sockets are registered at open (#370). The refusal is
+                // read on the channel's membership, which only a subscribe
+                // moves.
                 const observer = conn('observer', OBSERVER)
                 m.register(observer)
                 const suspect = conn('suspect', SUSPECT)
                 m.register(suspect)
+                const atStart = membersOn(m, PRIVATE)
                 assertEquals((await m.subscribe(observer, PRIVATE)).ok, true)
-                const before = m.connectionCount
+                const before = membersOn(m, PRIVATE)
                 assertEquals(
                     before,
-                    atStart + 2,
-                    'CONTROL: registering at open moves connectionCount',
+                    atStart + 1,
+                    'CONTROL: an admitted subscribe moves the membership',
                 )
 
                 const error = await assertRejects(
@@ -313,9 +324,9 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     )
                 }
                 assertEquals(
-                    m.connectionCount,
+                    membersOn(m, PRIVATE),
                     before,
-                    'the refusal neither bound nor released a connection',
+                    'no membership was written for the suspect',
                 )
 
                 const observerFrames = observer.received.length
