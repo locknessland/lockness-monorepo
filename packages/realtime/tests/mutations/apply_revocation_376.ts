@@ -9,12 +9,16 @@
  *   rejects the apply, and on Deno that terminates the process.
  * - M2: the rejection interpolated with `String()` instead of `renderError`,
  *   so a CR/LF in the sink's failure reaches the log raw and can forge a line.
+ * - M3: only the `revoke-channel` call site back to a bare `void`, the `evict`
+ *   site left contained — a regression one call site at a time.
  *
  * The witness each row dies on — the assertion that fails, not only the test:
  *
  * - M1: `no rejection reaches the runtime`. The throwing sink's error is
  *   recorded by the `unhandledrejection` listener.
  * - M2: `no raw "\r" survives`.
+ * - M3: `no rejection reaches the runtime`, in W2 — the only witness that
+ *   drives a `revoke-channel` frame.
  *
  * Each is named again on its row below.
  *
@@ -67,6 +71,23 @@ const MUTATIONS: Mutation[] = [
         ]],
         // Witness: `no raw "\r" survives` — String() keeps the CR/LF.
         killedBy: '#376 W3 the sink failure is rendered, not interpolated raw',
+    },
+    {
+        label: 'M3 — only the revoke-channel call site back to a bare void',
+        file: MANAGER,
+        edits: [[
+            '                this.#dispatchRevocation({\n' +
+            '                    target: control.target,\n' +
+            '                    channel: control.channel,\n',
+            '                void this.#applyRevocation({\n' +
+            '                    target: control.target,\n' +
+            '                    channel: control.channel,\n',
+        ]],
+        // Witness: `no rejection reaches the runtime`, in W2 — the clear
+        // failure's throwing WARN escapes the revoke-channel apply. W1 and W3
+        // drive `evict` only, so W2 is the one witness that sees this site.
+        killedBy:
+            '#376 W2 revoke-channel: a throwing WARN sink on a failed clear never escapes',
     },
 ]
 

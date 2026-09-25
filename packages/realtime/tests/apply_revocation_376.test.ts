@@ -261,3 +261,13 @@ Deno.test('#376 CONTROL: a working WARN sink writes the WARN and no marked line'
         assertEquals(marked(errors), [], 'no marked ERROR line')
     })
 })
+
+Deno.test('#376 CONTROL: the watcher records a real unhandled rejection', async () => {
+    // Without this, every `escaped` assertion above could pass because the
+    // listener never fires, not because nothing escaped.
+    await watchingEscapes(async (escaped) => {
+        void Promise.reject(new Error('deliberately unhandled'))
+        await settle()
+        assertEquals(escaped.length, 1, 'the watcher saw the escape')
+    })
+})
