@@ -15,6 +15,9 @@
  * - M3 the gate asks `has` instead of `delete`: a second close runs it again.
  * - M4 the `add` moved above `register`: a refused socket is recorded as
  *   opened before its `register` throws.
+ * - M5 the `add` moved below the app's `onOpen`: an app hook that throws
+ *   leaves an admitted socket unrecorded, so its close skips the app's
+ *   `onClose` (#404 review, MEDIUM).
  *
  * Every row was proven LIVE: the harness ran the mutant and its named witness
  * went red, attributed. Every `killedBy` ends in a space, so `W1 ` is not a
@@ -59,7 +62,7 @@ const MUTATIONS: Mutation[] = [
             GATED,
             '                    await userHooks.onClose?.(conn, code, reason)\n',
         ]],
-        killedBy: '#404 W1 ',
+        killedBy: '#404 W1 (i) ',
     },
     {
         label: 'M2 — the gate asks #isOwner instead of the set',
@@ -92,7 +95,19 @@ const MUTATIONS: Mutation[] = [
             '                    throw error\n' +
             '                }\n',
         ]],
-        killedBy: '#404 W1 ',
+        killedBy: '#404 W1 (i) ',
+    },
+    {
+        label: "M5 — the add moved below the app's onOpen",
+        file: MANAGER,
+        edits: [[
+            '                opened.add(conn)\n' +
+            '                return userHooks.onOpen?.(conn)\n',
+            '                const result = userHooks.onOpen?.(conn)\n' +
+            '                opened.add(conn)\n' +
+            '                return result\n',
+        ]],
+        killedBy: '#404 W4 ',
     },
 ]
 

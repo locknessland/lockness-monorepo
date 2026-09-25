@@ -23,7 +23,12 @@
 
 import { assert, assertEquals, assertThrows } from '@std/assert'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
-import { ChannelManager, ConnectionIdInUseError } from '../manager.ts'
+import {
+    ChannelManager,
+    ConnectionDisconnectedError,
+    ConnectionIdError,
+    ConnectionIdInUseError,
+} from '../manager.ts'
 import type { Connection, WebSocketHooks } from '../types.ts'
 
 const PRIVATE = 'private-x'
@@ -65,8 +70,10 @@ const heard = (c: Recording, event: string) =>
  * A custom transport driving `handlerHooks`, whose app keeps the counter the
  * issue names — `n++` on open, `n--` on close — and, on close, leaves
  * `private-x` by id: the id-form verb a refused socket must never reach.
+ *
+ * @param opens - Run by the app's `onOpen` after its increment — W4 throws.
  */
-function fixture() {
+function fixture(opens: () => void = () => {}) {
     const manager = new ChannelManager<User>({
         driver: new MemoryBroadcastDriver(),
         authorize: () => true,
@@ -75,6 +82,7 @@ function fixture() {
     const user: WebSocketHooks<User> = {
         onOpen: () => {
             app.n++
+            opens()
         },
         onClose: async (c) => {
             app.closes++
@@ -85,7 +93,7 @@ function fixture() {
     return { manager, app, hooks: manager.handlerHooks(user) }
 }
 
-Deno.test("#404 W1 a refused socket's close runs no app hook — the counter holds and the live owner keeps its channel", async () => {
+Deno.test("#404 W1 (i) an id-in-use socket's close runs no app hook — the counter holds and the live owner keeps its channel", async () => {
     const { manager, app, hooks } = fixture()
     const a = conn('c1', { id: 1 })
     await hooks.onOpen?.(a)
@@ -104,6 +112,32 @@ Deno.test("#404 W1 a refused socket's close runs no app hook — the counter hol
     manager.broadcast(PRIVATE, 'still', 1)
     await tick()
     assertEquals(heard(a, 'still'), 1, 'A still receives')
+})
+
+Deno.test('#404 W1 (ii) a socket refused for an unusable id runs no app hook on close', async () => {
+    const { app, hooks } = fixture()
+    const bad = conn('not a usable id', { id: 3 })
+    assertThrows(() => hooks.onOpen?.(bad), ConnectionIdError)
+    await hooks.onClose?.(bad, 1011, '')
+
+    assertEquals(app.closes, 0, "the app's onClose never ran")
+    assertEquals(app.n, 0, 'CONTROL: its onOpen never ran either')
+})
+
+Deno.test('#404 W1 (iii) a socket refused as disconnected runs no app hook on its later close', async () => {
+    // A opens and closes, which retires it; the same object presented again
+    // is refused with ConnectionDisconnectedError and must not count as opened.
+    const { app, hooks } = fixture()
+    const a = conn('c1', { id: 1 })
+    await hooks.onOpen?.(a)
+    await hooks.onClose?.(a, 1000, '')
+    assertEquals(app.closes, 1, 'CONTROL: the first open was paired')
+
+    assertThrows(() => hooks.onOpen?.(a), ConnectionDisconnectedError)
+    await hooks.onClose?.(a, 1011, '')
+
+    assertEquals(app.closes, 1, 'the refused re-open got no close')
+    assertEquals(app.n, 0)
 })
 
 Deno.test("#404 W2 an evicted socket's close still runs the app hook, once", async () => {
@@ -128,4 +162,20 @@ Deno.test('#404 W3 a second close of the same socket runs the app hook no more',
 
     assertEquals(app.closes, 1, 'one open, one close')
     assertEquals(app.n, 0)
+})
+
+Deno.test('#404 W4 an app onOpen that throws still gets its onClose, once', async () => {
+    // The socket was admitted: `register` succeeded before the app's hook
+    // threw, so the pairing is already recorded and the close must run the
+    // hook — which is what lets a counter incremented first in onOpen balance.
+    const { app, hooks } = fixture(() => {
+        throw new Error('app onOpen failed')
+    })
+    const a = conn('c1', { id: 1 })
+    assertThrows(() => hooks.onOpen?.(a), Error, 'app onOpen failed')
+
+    await hooks.onClose?.(a, 1011, '')
+
+    assertEquals(app.closes, 1, "the admitted socket's close ran the hook")
+    assertEquals(app.n, 0, 'the counter balances')
 })
