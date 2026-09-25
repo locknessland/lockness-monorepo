@@ -941,13 +941,24 @@ field means.
   app's handler is the app's problem" reopens the crash on all four paths.
   Witness: `websocket_close_guard_369.test.ts`, battery
   `tests/mutations/websocket_close_guard_369.ts`.
+- **A control-frame revocation is applied through `#dispatchRevocation`, never a
+  bare `void this.#applyRevocation(…)`**
+  ([#376](https://github.com/locknessland/lockness-monorepo/issues/376)).
+  `#applyRevocation` contains every failure but its own WARN: a `console.warn`
+  that throws inside its catch rejects the apply, and the `evict` /
+  `revoke-channel` switch has no caller to receive that. Any peer publishing one
+  of those frames could then terminate the process. The dispatch ends the chain
+  in the #369 shape, with one `REVOCATION_APPLY_LOG_FAILED` ERROR line and no
+  re-throw. Witness: `apply_revocation_376.test.ts`, battery
+  `tests/mutations/apply_revocation_376.ts`.
 
 ## Tests
 
 <!-- generated:tests -->
 
-85 test files for 22 source files:
+86 test files for 22 source files:
 
+- `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
 - `packages/realtime/tests/authorize_result_347.test.ts`
 - `packages/realtime/tests/authorize_result_357.test.ts`
@@ -1034,12 +1045,13 @@ field means.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-38 mutation batteries — **`deno test` does not run these.** Each is an
+39 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
 [testing.md](../../docs/testing.md#mutation-batteries).
 
+- `packages/realtime/tests/mutations/apply_revocation_376.ts`
 - `packages/realtime/tests/mutations/authorize_result_347.ts`
 - `packages/realtime/tests/mutations/authorize_result_357.ts`
 - `packages/realtime/tests/mutations/channel_name_314.ts`
@@ -1093,7 +1105,7 @@ deno task deps:analyze     # cycles, declaration drift, tier policy
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 85 test files directly —
+Then, specific to this package: run its 86 test files directly —
 
 ```bash
 deno test -A packages/realtime/
