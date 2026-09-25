@@ -272,6 +272,7 @@ Deno.test('#370 W1 an unregistered subscribe racing its own disconnect is refuse
     await tick()
 
     assertInstanceOf(outcome, ConnectionNotRegisteredError)
+    assert(!outcome.message.includes('c1'), 'the message carries no id (S3)')
     assertEquals(spy.calls, 0, 'the authorizer never ran')
     assertNothingNames(manager, 'c1')
     assertEquals(manager.connectionCount, 0, 'no zombie is counted')
@@ -370,6 +371,38 @@ Deno.test('#370 W5 once the holder itself disconnects, the id is free and B is a
     manager.broadcast(PRIVATE, 'after', 1)
     await tick()
     assertEquals(eventsNamed(b, 'after').length, 1, 'B hears its own channel')
+})
+
+Deno.test('#370 W15 a refused presence join takes no roster hold and announces no joined', async () => {
+    const { manager, driver, o } = await liveHolder()
+    const heldBefore = driver.readRoster(ROOM, 1_000, []).members.length
+    const framesBefore = o.received.length
+    const b = conn('c1', MALLORY)
+    await assertRejects(
+        () => manager.subscribe(b, ROOM),
+        ConnectionIdInUseError,
+    )
+    await tick()
+    assertEquals(
+        driver.readRoster(ROOM, 1_000, []).members.length,
+        heldBefore,
+        'no roster hold was taken for B',
+    )
+    assertEquals(o.received.length, framesBefore, 'no frame reached the room')
+
+    // CONTROL: an admitted join moves both readings.
+    const c3 = conn('c3', { id: 4, name: 'carol' })
+    manager.register(c3)
+    assert((await manager.subscribe(c3, ROOM)).ok)
+    await tick()
+    assertEquals(
+        driver.readRoster(ROOM, 1_000, []).members.length,
+        heldBefore + 1,
+    )
+    assert(
+        o.received.some((f) => f.type === 'presence' && f.action === 'joined'),
+        'CONTROL: the room hears an admitted join',
+    )
 })
 
 Deno.test('#370 W6 the same object registered twice is a no-op', async () => {

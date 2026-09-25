@@ -26,7 +26,12 @@
  */
 
 import { assert, assertEquals } from '@std/assert'
-import { ChannelManager, ConnectionNotRegisteredError } from '../manager.ts'
+import {
+    ChannelManager,
+    ConnectionDisconnectedError,
+    ConnectionIdInUseError,
+    ConnectionNotRegisteredError,
+} from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
@@ -127,10 +132,11 @@ const authorize = (identity: User | null): PresenceMember | false =>
 /**
  * Drive a join that is going to fail, and hand back the rejection.
  *
- * A lifecycle refusal is re-thrown, never handed back: a connection nobody
- * registered is refused before the join this file is about ever runs (#370),
- * and returning that refusal would let every "the join must reject" pass
- * without the roster write having been attempted at all.
+ * A lifecycle refusal is re-thrown, never handed back: an admission error —
+ * a connection nobody registered, one already torn down, or one whose id
+ * another object holds — is raised before the join this file is about ever
+ * runs (#361, #363, #370), and returning it would let every "the join must
+ * reject" pass without the roster write having been attempted at all.
  */
 async function failingJoin(
     m: ChannelManager<User>,
@@ -140,7 +146,11 @@ async function failingJoin(
         await m.subscribe(c, CHANNEL)
         return null
     } catch (error) {
-        if (error instanceof ConnectionNotRegisteredError) throw error
+        if (
+            error instanceof ConnectionNotRegisteredError ||
+            error instanceof ConnectionIdInUseError ||
+            error instanceof ConnectionDisconnectedError
+        ) throw error
         return error
     }
 }

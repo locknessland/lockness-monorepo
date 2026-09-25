@@ -309,7 +309,12 @@ Deno.test('#327 a reconnect re-binds the socket, and frames follow the NEW one',
     // still holds it, and binds by `register` once the old close has torn the
     // dropped one down. Get that wrong and a second socket takes over the
     // first one's channels, or frames keep going to a dead socket.
-    const { driver } = countingDriver()
+    //
+    // THE RE-JOIN BRANCH STILL RUNS (#370 review): a reconnecting client
+    // re-issues its whole channel set, and a blip makes it re-issue it twice.
+    // The second subscribe below is a real re-join — `c1` is already a member
+    // — and must take the early exit: no roster write, still answered `ok`.
+    const { driver, calls } = countingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const dropped = conn('c1', 1)
     m.register(dropped)
@@ -326,6 +331,15 @@ Deno.test('#327 a reconnect re-binds the socket, and frames follow the NEW one',
     m.register(reconnected)
     const again = await m.subscribe(reconnected, CHANNEL)
     assertEquals(again.ok, true, 'the reconnect is answered, not refused')
+
+    const holdsBefore = calls.holdMember
+    const rejoin = await m.subscribe(reconnected, CHANNEL)
+    assertEquals(rejoin.ok, true, 'the re-join is answered, not refused')
+    assertEquals(
+        calls.holdMember,
+        holdsBefore,
+        'the second subscribe took the re-join exit: no roster write',
+    )
 
     const c2 = conn('c2', 2)
     m.register(c2)

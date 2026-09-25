@@ -103,8 +103,10 @@ Deno.test('#304 an ordinary id is accepted by both sites', async () => {
 
     const other = conn('svc:worker-3.a_b-1')
     m.register(other)
+    assertEquals(m.connectionCount, 2, 'the register site accepted it')
     const result = await m.subscribe(other, 'presence-room')
-    assertEquals(result.ok, true)
+    assertEquals(result.ok, true, 'and so did the subscribe site')
+    // Only `register` binds (#370): the subscribe moved no count.
     assertEquals(m.connectionCount, 2)
 })
 
