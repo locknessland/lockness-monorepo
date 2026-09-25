@@ -18,6 +18,8 @@
  *   `void`ed.
  * - E6 the Redis heartbeat's WARN, run from a `setInterval` callback that
  *   discards the promise.
+ * - E7 (#380) the Redis floor announce's WARN: `onRevocationReconcile`
+ *   `void`s the announce.
  *
  * **One table, one row per path.** Each row drives a real path with
  * `console.warn`, `console.error` AND `Deno.stderr.writeSync` all throwing,

@@ -448,8 +448,15 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'M21 — a malformed pair skipped without being counted',
         file: REDIS,
+        // Anchored on the page decoder's own score test: since #380 the floor
+        // decoder skips and counts with the same two lines. Re-anchored, never
+        // deleted — the source moved, the guard remains.
         edits: [[
+            '            !EPOCH_SECONDS.test(score)\n' +
+            '        ) {\n' +
             '            skipped++\n            continue\n',
+            '            !EPOCH_SECONDS.test(score)\n' +
+            '        ) {\n' +
             '            continue\n',
         ]],
         killedBy: '#359 R12 through listRevocations',

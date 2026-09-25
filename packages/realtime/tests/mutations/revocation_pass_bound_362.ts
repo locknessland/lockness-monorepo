@@ -245,8 +245,11 @@ const MUTATIONS: Mutation[] = [
         label: "N22 the TTL's upper bound dropped",
         file: REDIS,
         edits: [[
+            // Re-anchored by #380, which hoisted the constructor's local to the
+            // module constant MAX_REVOCATION_TTL_SECONDS: the source moved, the
+            // guard remains.
             '            this.revocationTtlSeconds < 1 ||\n' +
-            '            this.revocationTtlSeconds > maxRevocationTtlSeconds\n',
+            '            this.revocationTtlSeconds > MAX_REVOCATION_TTL_SECONDS\n',
             '            this.revocationTtlSeconds < 1\n',
         ]],
         killedBy: '#362 B6 ',
@@ -255,8 +258,8 @@ const MUTATIONS: Mutation[] = [
         label: "N23 the TTL's upper bound off by one (>=)",
         file: REDIS,
         edits: [[
-            '            this.revocationTtlSeconds > maxRevocationTtlSeconds\n',
-            '            this.revocationTtlSeconds >= maxRevocationTtlSeconds\n',
+            '            this.revocationTtlSeconds > MAX_REVOCATION_TTL_SECONDS\n',
+            '            this.revocationTtlSeconds >= MAX_REVOCATION_TTL_SECONDS\n',
         ]],
         killedBy: '#362 B6 ',
     },

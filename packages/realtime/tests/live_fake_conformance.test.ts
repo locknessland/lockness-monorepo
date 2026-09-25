@@ -2085,3 +2085,120 @@ Deno.test({
         }
     },
 })
+
+/**
+ * #380 WC: the revocation floor one driver leaves behind, read raw on each
+ * backend — its members, each score's distance from `now`, and the key's own
+ * TTL. Both backends are read through `ZSCAN` (the fake refuses
+ * `ZRANGEBYSCORE … WITHSCORES`, whose reply shape it does not model), and the
+ * key TTL through `TTL` on the broker and `expiryOf` on the fake.
+ */
+async function floorState(
+    client: { command(...args: string[]): Promise<unknown> },
+    key: string,
+    keyTtl: () => Promise<number>,
+): Promise<{ members: string[]; lapsesIn: number[]; keyTtl: number }> {
+    const now = Math.floor(Date.now() / 1000)
+    const { pairs } = await zscanAll(client, key, '100')
+    return {
+        members: [...pairs.keys()].sort(),
+        lapsesIn: [...pairs.values()].map((score) => Number(score) - now),
+        keyTtl: await keyTtl(),
+    }
+}
+
+/** Assert one backend's floor: exactly `{ 300 }`, lapsing ~300 s out, TTL ~360 s. */
+function assertFloor(
+    label: string,
+    state: { members: string[]; lapsesIn: number[]; keyTtl: number },
+): void {
+    assertEquals(state.members, ['300'], `${label}: the floor's members`)
+    const [lapse] = state.lapsesIn
+    assert(lapse >= 298 && lapse <= 301, `${label}: entry lapses in ${lapse}s`)
+    assert(
+        state.keyTtl >= 358 && state.keyTtl <= 360,
+        `${label}: the floor key's own TTL is ${state.keyTtl}s`,
+    )
+}
+
+for (
+    const [row, drive] of [
+        [
+            'a: one reap',
+            (driver: RedisBroadcastDriver) =>
+                driver.listRevocations().then(() => {}),
+        ],
+        [
+            'b: the announce',
+            (driver: RedisBroadcastDriver) => {
+                driver.onRevocationReconcile(() => {})
+                return Promise.resolve()
+            },
+        ],
+    ] as const
+) {
+    Deno.test({
+        name:
+            `#380 WC ${row} writes the same revocation floor, fake against broker`,
+        ignore: !LIVE_BROKER,
+        async fn() {
+            const config = brokerConfig()
+            await preflight(config)
+            const live = new RedisClient(config)
+            const fake = new FakeRedis()
+            const nothing = { psubscribe: () => {} }
+            const onLive = new RedisBroadcastDriver(live, nothing, {
+                prefix: `${NS}-wc380-live`,
+                revocationTtlSeconds: 300,
+            })
+            const onFake = new RedisBroadcastDriver(
+                { command: fake.command },
+                nothing,
+                { prefix: `${NS}-wc380-fake`, revocationTtlSeconds: 300 },
+            )
+            const liveKey = `${NS}-wc380-live__revocation-floor`
+            const fakeKey = `${NS}-wc380-fake__revocation-floor`
+            try {
+                await drive(onLive)
+                await drive(onFake)
+                await waitFor(
+                    async () =>
+                        (await zscanAll(live, liveKey, '100')).pairs.size > 0 &&
+                        fake.zcard(fakeKey) > 0,
+                    'the floor entry lands on both backends',
+                )
+                const onBroker = await floorState(
+                    live,
+                    liveKey,
+                    async () =>
+                        Number(
+                            (await live.command('TTL', liveKey) as {
+                                value: number
+                            }).value,
+                        ),
+                )
+                const onFakeSide = await floorState(
+                    { command: fake.command },
+                    fakeKey,
+                    () =>
+                        Promise.resolve(
+                            (fake.expiryOf(fakeKey) ?? -1) -
+                                Math.floor(Date.now() / 1000),
+                        ),
+                )
+                assertFloor('broker', onBroker)
+                assertFloor('fake', onFakeSide)
+                assertEquals(
+                    onFakeSide.members,
+                    onBroker.members,
+                    'the fake and the broker disagree on the floor',
+                )
+            } finally {
+                await onLive.close()
+                await onFake.close()
+                await teardown(live, NS)
+                await live.close()
+            }
+        },
+    })
+}
