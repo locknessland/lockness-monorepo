@@ -11,12 +11,12 @@
  * internal, and not exported from `mod.ts`.
  *
  * **What it judges.** Only the guarantee, never a performance value: a
- * record lives `revocationTtlSeconds`, so the guarantee is broken exactly
- * when no pass has completed without failures within one TTL of the START of
- * the last clean pass. The deadline is armed from that start, re-armed only
- * by a clean pass, and never by any other (#384): which pass is clean is the
- * driver's decision, made at its pass's end site. Every other pass that
- * settles says so, verdict-free, through
+ * record lives at least `revocationTtlSeconds`, so the guarantee is broken
+ * exactly when no pass has completed without failures within one TTL of the
+ * START of the last clean pass. The deadline is armed from that start,
+ * re-armed only by a clean pass, and never by any other (#384): which pass is
+ * clean is the driver's decision, made at its pass's end site. Every other
+ * pass that settles says so, verdict-free, through
  * {@link EnforcementDeadline.passEnded}, so an expiry after it is `MISSED` and
  * never blames a pass that is merely in flight.
  *

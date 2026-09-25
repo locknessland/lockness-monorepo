@@ -116,6 +116,11 @@ const INDEX_TTL_SLACK_SECONDS = 60
  * refuses it and the key would simply never expire. That is a real trap — it
  * looks like a working guard and silently bounds nothing (#276 review cycle 2).
  *
+ * **`ARGV[1]` is the effective TTL** (#380), not necessarily the writer's own:
+ * the mark reads the revocation floor first and passes the largest of its own
+ * TTL and every floor entry, or the maximum TTL when the floor cannot be read.
+ * The script itself does not know the floor exists.
+ *
  * `KEYS[1]` index key · `ARGV[1]` ttl seconds · `ARGV[2]` connection id ·
  * `ARGV[3]` the index key's own TTL.
  */
@@ -872,9 +877,11 @@ export interface RedisBroadcastDriverOptions {
     presence?: RedisPresenceOptions
     /**
      * The TTL (seconds) of a durable revocation marker (FR-014). A marker
-     * lingers this long so a socket that reconnects within the window is still
-     * revoked; after it, the marker self-expires so the set never grows without
-     * bound.
+     * lingers **at least** this long so a socket that reconnects within the
+     * window is still revoked; after it, the marker self-expires so the set
+     * never grows without bound. Since #380 a marker lives up to the longest
+     * TTL among the instances still passing — see "Revocation timing" in
+     * `docs/realtime.md`.
      * @default 300
      */
     revocationTtlSeconds?: number
@@ -3371,11 +3378,21 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * index, the same script, the same extend-only discipline. No new key, no
      * migration, no dual-write. Two revocations of one pair are two members.
      *
+     * **Two round trips since #380, one write.** The mark first reads the
+     * revocation floor and scores the record at the largest of its own
+     * `revocationTtlSeconds` and every floor entry
+     * ({@link decodeRevocationFloor}), so a record outlives the longest TTL
+     * among the instances still passing. A floor that cannot be read fails
+     * **closed**: the record is written at {@link MAX_REVOCATION_TTL_SECONDS}.
+     * Any floor WARN is written after the record, through a helper that never
+     * throws.
+     *
      * @param revocation - What is revoked: a whole connection, or a connection
      *   in one channel.
-     * @throws {Error} If the write fails, or if either half of the record is
-     *   outside the supported charset. `ChannelManager` applies the revocation
-     *   anyway and re-throws, so the caller learns durability was lost.
+     * @throws {Error} If the record's `EVAL` fails, or if either half of the
+     *   record is outside the supported charset — never for the floor read.
+     *   `ChannelManager` applies the revocation anyway and re-throws, so the
+     *   caller learns durability was lost.
      */
     async markRevocation(revocation: Revocation): Promise<void> {
         const member = this.#encodeRevocation(revocation)
@@ -3631,6 +3648,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * than restating it. **A pass with a failure is not a success** (#384):
      * which passes re-arm the deadline is decided at the pass's end site, in
      * {@link #startRevocationPass}.
+     *
+     * **The first registration also announces the floor entry** (#380): one
+     * {@link #announceFloor}, under the same gate as the deadline arm, retried
+     * until it lands, a pass completes, or {@link close} begins.
      *
      * @param handler - Called with no arguments on each revocation pass;
      *   resolves to the re-check's {@link RevocationTally}, or to nothing
