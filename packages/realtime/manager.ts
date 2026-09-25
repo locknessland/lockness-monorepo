@@ -539,13 +539,13 @@ export class ConnectionIdInUseError extends Error {
  *
  * @example
  * ```ts
- * import { ChannelManager } from '@lockness/realtime'
+ * import { ChannelManager, type WebSocketHooks } from '@lockness/realtime'
  *
  * const manager = new ChannelManager()
- * const hooks = {
+ * const hooks: WebSocketHooks = {
  *     // Register at open, with the object this socket keeps for its life.
  *     onOpen: (conn) => manager.register(conn),
- *     onClose: (conn) => manager.disconnect(conn),
+ *     onClose: async (conn) => void (await manager.disconnect(conn)),
  * }
  * ```
  */
@@ -1570,9 +1570,11 @@ export class ChannelManager<Identity = unknown> {
      * spelling of that question in this class.
      *
      * Its askers: `disconnect`'s object form, before it retires or tears down
-     * anything; `disconnect`'s `finally`, before it forgets the binding and
-     * its reverse index; and `handlerHooks`' `onMessage`, before any app code
-     * runs. Synchronous, so it adds nothing to the #323 turn.
+     * anything; `disconnect`'s loop, before each channel's leave, so a
+     * teardown whose object was replaced mid-loop stops; `disconnect`'s
+     * `finally`, before it forgets the binding and its reverse index; and
+     * `handlerHooks`' `onMessage`, before any app code runs. Synchronous, so
+     * it adds nothing to the #323 turn.
      *
      * @param connection - The connection object to test.
      * @returns `true` when the binding under its id is this very object.
@@ -2901,11 +2903,13 @@ export class ChannelManager<Identity = unknown> {
      * acts on whoever holds the id when it runs, which is what `evict` needs
      * and what a late close must not do.
      *
-     * **The teardown forgets only its own object.** Its `finally` deletes the
-     * binding and the reverse index only while the object it tore down still
-     * owns the id, so a teardown whose object was replaced while it ran — an
-     * evict, then a fast reconnect under the same id — leaves the new binding
-     * and its channels alone.
+     * **The teardown acts only while its object owns the id.** Each channel's
+     * leave is keyed by id, so the loop stops as soon as the object it is
+     * tearing down no longer owns the id, and the `finally` deletes the binding
+     * and the reverse index only while it still does. A teardown whose object
+     * was replaced while it ran — an evict, then a fast reconnect under the
+     * same id — therefore leaves the new binding, its index and its channels
+     * alone, including a channel both objects held.
      *
      * One channel's failure never aborts the rest: the first failure is
      * re-thrown after every channel was tried and the connection forgotten,
@@ -2964,6 +2968,14 @@ export class ChannelManager<Identity = unknown> {
             for (
                 const channel of [...this.#channelsByClient.get(clientId) ?? []]
             ) {
+                // STOP ONCE THE OBJECT NO LONGER OWNS THE ID (#363). Every
+                // leave below is keyed by id, so after an await in which a
+                // racing teardown forgot this object and a new one registered
+                // under the id, the rest of this copy would strip the NEW
+                // owner of any channel both held. The remaining leaves are
+                // skipped: the teardown that forgot this object already left
+                // them.
+                if (bound !== undefined && !this.#isOwner(bound)) break
                 // ONE CHANNEL'S TEARDOWN CANNOT ABORT THE REST.
                 //
                 // `unsubscribe` awaits two rejectable calls — the driver's

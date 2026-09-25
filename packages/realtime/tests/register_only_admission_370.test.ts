@@ -431,6 +431,11 @@ Deno.test("#370 W11 the refused socket's own close leaves the holder bound, subs
     const b = conn('c1', MALLORY)
     assertThrows(() => hooks.onOpen?.(b), ConnectionIdInUseError)
 
+    assertEquals(
+        await manager.disconnect(b),
+        'not-owned',
+        'the object form refuses a socket that does not own its id',
+    )
     await hooks.onClose?.(b, 1000, '')
 
     assertStrictEquals(state(manager).connections.get('c1'), a)
@@ -453,6 +458,11 @@ Deno.test('#370 W12 (i) a late close of an evicted socket leaves its re-register
     await hooks.onOpen?.(a1)
     assert((await manager.subscribe(a1, 'news')).ok)
 
+    assertEquals(
+        await manager.disconnect(a0),
+        'not-owned',
+        'the evicted object no longer owns its id',
+    )
     await hooks.onClose?.(a0, 4403, 'evicted') // the old socket's late close
 
     assertStrictEquals(state(manager).connections.get('c1'), a1)
@@ -494,6 +504,49 @@ Deno.test('#370 W12 (ii) a teardown whose object was replaced while it ran leave
     // The reverse index still lists A1's channel: tearing A1 down reaches it.
     assertEquals(await manager.disconnect(a1), 'disconnected')
     assert(driver.unwatched.includes('weather'), "A1's channel was indexed")
+})
+
+Deno.test('#370 W14 a teardown whose object was replaced stops its loop — the new owner keeps a channel the old one also held', async () => {
+    // W12 (ii) pins the `finally`; this pins the loop (#370 review, MEDIUM).
+    // A0 holds `news` and `sports`. Its own close starts a teardown that
+    // stalls on `news`'s unwatch; an evict racing it tears A0 down and
+    // settles; A1 registers under the same id and joins `sports` — a channel
+    // still in the stalled teardown's copy. When that teardown resumes it must
+    // not leave `sports` for the id, because the id is A1's now.
+    const driver = new RecordingDriver()
+    const manager = managerOver(driver, new SpyAuthorizer())
+    const hooks = manager.handlerHooks()
+    const a0 = conn('c1', ALICE)
+    await hooks.onOpen?.(a0)
+    assert((await manager.subscribe(a0, 'news')).ok)
+    assert((await manager.subscribe(a0, 'sports')).ok)
+
+    driver.gateFirstUnwatch()
+    const closing = settled(
+        Promise.resolve().then(() => hooks.onClose?.(a0, 1000, '')),
+    )
+    await driver.unwatching
+    await manager.evict('c1')
+
+    const a1 = conn('c1', ALICE)
+    await hooks.onOpen?.(a1)
+    assert((await manager.subscribe(a1, 'sports')).ok)
+    // CONTROL: A1 hears `sports` before the stalled teardown resumes.
+    manager.broadcast('sports', 'before', 1)
+    await tick()
+    assertEquals(eventsNamed(a1, 'before').length, 1, 'CONTROL: A1 receives')
+
+    driver.openUnwatch()
+    assertEquals(await closing, 'resolved')
+
+    assertStrictEquals(state(manager).connections.get('c1'), a1)
+    assert(
+        state(manager).subscriptions.get('sports')?.has('c1'),
+        "A1 still holds `sports`: the old teardown did not leave it for A1's id",
+    )
+    manager.broadcast('sports', 'after', 1)
+    await tick()
+    assertEquals(eventsNamed(a1, 'after').length, 1, 'A1 still receives')
 })
 
 Deno.test("#370 W13 handlerHooks runs the app's onMessage only for the socket that owns its id", async () => {
