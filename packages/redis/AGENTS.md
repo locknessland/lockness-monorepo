@@ -216,7 +216,7 @@ Anything not listed is internal and free to change.
 - `packages/redis/tests/resp.test.ts`
 - `packages/redis/tests/subscriber.test.ts`
 
-3 mutation batteries — **`deno test` does not run these.** Each is an executable
+4 mutation batteries — **`deno test` does not run these.** Each is an executable
 that mutates a source file and re-runs the suites that should notice. Run them
 with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -225,6 +225,7 @@ with `deno task mutate` (all of them, one at a time) or
 - `packages/redis/tests/mutations/per_channel_record_295.ts`
 - `packages/redis/tests/mutations/reconnect_intent_290.ts`
 - `packages/redis/tests/mutations/subscribe_hardening_248.ts`
+- `packages/redis/tests/mutations/unsubscribe_discard_372.ts`
 
 <!-- /generated:tests -->
 
