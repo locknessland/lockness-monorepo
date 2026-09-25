@@ -6,7 +6,7 @@
  * The decisions live in these homes, all in `manager.ts`: `#assertAdmissible`
  * (clause 1 retired, clause 2 any different holder); `#assertBound`
  * (`subscribe`'s decider: admissible, then registered); `#isOwner` and its
- * three askers — `disconnect`'s object form, `disconnect`'s `finally`, and
+ * askers — `disconnect`'s object form, its loop, its `finally`, and
  * `handlerHooks.onMessage`; and `handlerHooks.onClose` passing the object.
  *
  * - M1 `#assertBound`'s unregistered throw removed.
@@ -23,11 +23,13 @@
  * - M11 `disconnect`'s `finally` guard removed.
  * - M12 `handlerHooks.onMessage`'s owner gate removed.
  * - M13 `handlerHooks.onClose` passes the id.
+ * - M14 `disconnect`'s loop no longer stops once its object lost the id
+ *   (#370 review).
  *
  * M8 and M9 are equivalent mutants; the reasons are `#assertBound`'s JSDoc and
  * are not restated here. Every other row was proven LIVE: the harness ran the
  * mutant and its named witness went red, attributed. Every `killedBy` ends in
- * a space, so `W1 ` is not a prefix of `W11`–`W13`.
+ * a space, so `W1 ` is not a prefix of `W11`–`W15`.
  *
  * ```bash
  * deno task mutate register_only_admission_370
@@ -206,6 +208,16 @@ const MUTATIONS: Mutation[] = [
             '                    await this.disconnect(conn.id)\n',
         ]],
         killedBy: '#370 W11 ',
+    },
+    {
+        label:
+            "M14 — disconnect's loop no longer stops once its object lost the id",
+        file: MANAGER,
+        edits: [[
+            '                if (bound !== undefined && !this.#isOwner(bound)) break\n',
+            '',
+        ]],
+        killedBy: '#370 W14 ',
     },
 ]
 
