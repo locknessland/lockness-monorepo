@@ -64,21 +64,24 @@ greps for all of these.
 
 ## Phase 1: Setup — rebase and baseline
 
-- [ ] T001 Rebase `271-revocation-ttl-floor` onto `origin/main` (`git fetch origin && git rebase origin/main`).
+- [x] T001 Rebase `271-revocation-ttl-floor` onto `origin/main` (`git fetch origin && git rebase origin/main`).
   - Confirm that the plan's anchors still hold:
     `git diff 32baca7b -- packages/realtime/drivers packages/realtime/tests/mutations packages/realtime/tests/fake_redis.ts packages/redis/tests/lua_eval.ts`
     must be empty.
   - If it is not empty, re-locate every §4 anchor and every line cited in D1–D5 before the first edit.
-- [ ] T002 **Baseline before the first edit.** Run the whole realtime suite, `deno test -A packages/realtime/`, and save
+- [x] T002 **Baseline before the first edit.** Run the whole realtime suite, `deno test -A packages/realtime/`, and save
   the output to the scratchpad. It must be green. T016, T031 and T055 compare against it.
-- [ ] T003 **Battery baseline.** Run `deno task mutate realtime` and save the output.
+- [x] T003 **Battery baseline.** Run `deno task mutate realtime` and save the output.
   - The live-broker batteries (`live_conformance_285`, `self_skip_310`, `sweep_parse_316`) may report `PARTIAL`
     without a broker, but only if each is named in the saved output.
   - Every other battery must be clean. T043 compares against this run.
+  - _Done:_ T001 anchor diff empty. T002 realtime suite: 1012 passed, 0 failed,
+    37 ignored. T003: 41 batteries, 38 clean, 0 failed, 3 `PARTIAL` (no broker):
+    `live_conformance_285`, `self_skip_310`, `sweep_parse_316`.
 
 ## Phase 2: Foundational — the wire helper, every red witness, then the skeleton
 
-- [ ] T004 New file `packages/realtime/tests/revocation_wire.ts` (FR-014). **Row 9's test-side home.** It has a
+- [x] T004 New file `packages/realtime/tests/revocation_wire.ts` (FR-014). **Row 9's test-side home.** It has a
   `@fileoverview` and exports:
   - `isReap(args, index)`: numkeys `'2'`, the index at `args[3]`, the floor at `args[4]`, length 7;
   - `isAnnounce(args, floor)`: numkeys `'1'`, the floor at `args[3]`, length 6.
@@ -86,7 +89,7 @@ greps for all of these.
   Neither matches the other, nor the mark's `EVAL` (numkeys `'1'`, the **index** at `args[3]`). Neither reads script
   text. The helper has the **new** shape from the start. The three suites that keep a local `isReap` are migrated in
   T010, in the same commit as the reap change.
-- [ ] T005 New file `packages/realtime/tests/revocation_ttl_floor_380.test.ts`, with its harnesses (FR-013):
+- [x] T005 New file `packages/realtime/tests/revocation_ttl_floor_380.test.ts`, with its harnesses (FR-013):
   - a `driver({ interval, ttl, port? })` builder over one shared FakeRedis;
   - a recording port that records each command **at issue**, and can reject a command matched by a predicate once,
     or from a given point on;
@@ -97,7 +100,7 @@ greps for all of these.
   - F10's **old-release literals**: the mark and reap call forms and script texts copied from `32baca7b` as frozen
     constants. A comment says they are pins of the old release, **not oracles** for the new code (A6);
   - waits use gate promises, never fixed microtask counts.
-- [ ] T006 Write F1–F15, with every sub-case, in `revocation_ttl_floor_380.test.ts`, exactly as in the plan's §4 table:
+- [x] T006 Write F1–F15, with every sub-case, in `revocation_ttl_floor_380.test.ts`, exactly as in the plan's §4 table:
   - F1: two raw drivers, R's handler captures `listRevocations`, no control frame is sent, and the broker clock and
     FakeTime advance 59 s;
   - F4 (v): `issued(isReap)` is 0 until the first pass, then 1, and the announce is matched only by `isAnnounce`;
@@ -125,12 +128,12 @@ greps for all of these.
 **Goal:** a record lives at least as long as the longest live reader's TTL.
 **Independent test:** F1, F3, F7, F11 and F12 pass, and every migrated suite stays green.
 
-- [ ] T007 [US1] Add the private getter `revocationFloorKey` to `redis.ts`, returning
+- [x] T007 [US1] Add the private getter `revocationFloorKey` to `redis.ts`, returning
   `` `${this.prefix}${RESERVED_SEPARATOR_LEAD}revocation-floor` `` (FR-001). **Row 4's home.**
   - It goes directly below `revocationIndexKey` (`:2209-2211`).
   - Its JSDoc records the member (a TTL in seconds), the score (that entry's expiry, in broker seconds) and the key's
     own TTL (D3).
-- [ ] T008 [US1] Add the module constant `FLOOR_WRITE` to `redis.ts`, over **bound locals** `floor`, `ttl`, `keyTtl`
+- [x] T008 [US1] Add the module constant `FLOOR_WRITE` to `redis.ts`, over **bound locals** `floor`, `ttl`, `keyTtl`
   and `t`, never over `KEYS`/`ARGV` (FR-002). **Row 5's home**, and **row 6's home** in its JSDoc. Its four lines:
   - `ZADD floor GT t + ttl ttl`
   - `ZREMRANGEBYSCORE floor -inf t`
@@ -139,7 +142,7 @@ greps for all of these.
 
   The JSDoc names its **only two callers**, `REAP_REVOKED_SCRIPT` and `ANNOUNCE_FLOOR_SCRIPT`. It says why each line
   is there, and links `MARK_REVOKED_SCRIPT`'s JSDoc for `NX`-then-`GT` rather than restating it.
-- [ ] T009 [US1] Splice `FLOOR_WRITE` into `REAP_REVOKED_SCRIPT` in `redis.ts` (FR-003):
+- [x] T009 [US1] Splice `FLOOR_WRITE` into `REAP_REVOKED_SCRIPT` in `redis.ts` (FR-003):
   - `local t = TIME[1]`;
   - the existing index `ZREMRANGEBYSCORE`, byte-identical;
   - `local floor = KEYS[2]`, `local ttl = ARGV[1]`, `local keyTtl = ARGV[2]`;
@@ -149,7 +152,7 @@ greps for all of these.
   Its JSDoc says the floor write rides on the reap, and that the reap is still the pass's only **index** delete. Then
   change `listRevocations`' call to `EVAL REAP_REVOKED_SCRIPT 2 <index> <floor> <ownTtl> <ownTtl + INDEX_TTL_SLACK_SECONDS>`.
   **Row 9's production home** (the reap call site). `decodeReapReply` is untouched.
-- [ ] T010 [US1] **The suite migration that T009 forces**, in the **same commit** as T009 (FR-014, FR-015). **Only
+- [x] T010 [US1] **The suite migration that T009 forces**, in the **same commit** as T009 (FR-014, FR-015). **Only
   the predicate's definition moves; no assertion changes.**
   - `packages/realtime/tests/revocation_paging_359.test.ts:142`: delete the local `isReap`, and import it from
     `./revocation_wire.ts` bound to `INDEX`. Its dependents (`reaps()`, `hold`, `failOnce`: 30 lines in 11 tests) keep
@@ -169,7 +172,7 @@ greps for all of these.
   - `packages/realtime/tests/recording_ports.ts:15-19`: correct the "ten names" header comment.
 
   Run the four edited suites green before committing T009–T010.
-- [ ] T011 [US1] Implement `decodeRevocationFloor` in `redis.ts`, beside `decodeRevocationPage` (FR-009). **Row 2's
+- [x] T011 [US1] Implement `decodeRevocationFloor` in `redis.ts`, beside `decodeRevocationPage` (FR-009). **Row 2's
   home.** **Row 3** (it reads `MAX_REVOCATION_TTL_SECONDS`).
   - A reply that is not an array of bulk strings throws `REVOCATION_FLOOR_REFUSED`, which never carries the reply.
   - A member that fails `EPOCH_SECONDS` is skipped and counted. `EPOCH_SECONDS` is used as is: not renamed, copied or
@@ -177,7 +180,7 @@ greps for all of these.
   - A member that passes is clamped to `[1, MAX_REVOCATION_TTL_SECONDS]`.
   - It returns `ttl = max(ownTtl, every clamped member)` and `skipped`.
   - It is pure: it writes no WARN. Its JSDoc carries `@param`, `@returns`, `@throws` and `@example`.
-- [ ] T012 [US1] `markRevocation` becomes two round trips in `redis.ts` (FR-008). **Row 1's home** (`eff`), and
+- [x] T012 [US1] `markRevocation` becomes two round trips in `redis.ts` (FR-008). **Row 1's home** (`eff`), and
   **row 13** (`MARK_REVOKED_SCRIPT` unchanged).
   1. `ZRANGEBYSCORE <floor> -inf +inf`, no options, then `decodeRevocationFloor(reply, this.revocationTtlSeconds)`.
   2. `EVAL MARK_REVOKED_SCRIPT 1 <index> <eff> <member> <eff + INDEX_TTL_SLACK_SECONDS>`.
@@ -187,7 +190,7 @@ greps for all of these.
 
   **In the same commit**, change `packages/realtime/tests/revocation_atomicity.test.ts:96-103` from "exactly one
   `EVAL`" to "one `ZRANGEBYSCORE` of the floor, then one `EVAL`". It is changed, not weakened.
-- [ ] T013 [US1] Run the witness file: **F1, F3, F7, F11 and F12 must be green**, and F2 and F10 stay green. Then run
+- [x] T013 [US1] Run the witness file: **F1, F3, F7, F11 and F12 must be green**, and F2 and F10 stay green. Then run
   `revocation_atomicity.test.ts`, `prefix_anchoring.test.ts` and the three migrated suites green.
 
 ## Phase 4: US2 — a uniform fleet sees nothing new (P1)
@@ -195,18 +198,23 @@ greps for all of these.
 **Goal:** a fleet with one TTL behaves exactly as before.
 **Independent test:** F2 passes, and the whole suite matches the T002 baseline apart from the planned edits.
 
-- [ ] T014 [US2] Run F2: two TTL-300 drivers score `t + 300` exactly, and the index key TTL is in `[300, 360]`.
-- [ ] T015 [US2] Confirm `live_fake_conformance.test.ts`'s "#285 the revocation scripts agree" score window
+- [x] T014 [US2] Run F2: two TTL-300 drivers score `t + 300` exactly, and the index key TTL is in `[300, 360]`.
+- [x] T015 [US2] Confirm `live_fake_conformance.test.ts`'s "#285 the revocation scripts agree" score window
   (`:711-729`, `[now+240, now+360]`) still holds on the fake. Every driver there uses TTL 300, so `eff = 300`.
-- [ ] T016 [US2] Compare the whole realtime suite with T002. Any suite that newly logs a `REVOCATION_FLOOR_*` line is
+- [x] T016 [US2] Compare the whole realtime suite with T002. Any suite that newly logs a `REVOCATION_FLOOR_*` line is
   **examined, never silenced**. Record each one, and the reason, in this task when you tick it.
+  - _Done:_ 1039 passed, 0 failed, 37 ignored (baseline + 26 witnesses + the #395 E7 row). The only new
+    `REVOCATION_FLOOR_*` lines are three `REVOCATION_FLOOR_ANNOUNCE_FAILED` WARNs from
+    `driver_redis_live.test.ts`: its loopback RESP server (`packages/redis/tests/fake_server.ts`) answers every
+    `EVAL` with `ERR unknown command`, so each manager's first announce is refused, WARNed once, and its retry is
+    cleared by `close()`. Expected; not silenced.
 
 ## Phase 5: US3 — a stopped long-TTL reader stops lengthening records (P2)
 
 **Goal:** the floor tracks live readers only, and extend-only writes hold on both halves.
 **Independent test:** F8 and F9 (i, ii) pass.
 
-- [ ] T017 [US3] Run F8 and F9 (i, ii) green. `FLOOR_WRITE`'s prune, `GT`, `NX` and `GT` lines (T008) are what they
+- [x] T017 [US3] Run F8 and F9 (i, ii) green. `FLOOR_WRITE`'s prune, `GT`, `NX` and `GT` lines (T008) are what they
   exercise. No code change is expected. If one fails, the fix belongs in `FLOOR_WRITE` (**row 5**) and nowhere else.
 
 ## Phase 6: US4 — a corrupt or unreadable floor never blocks a revocation (P2)
@@ -215,34 +223,37 @@ greps for all of these.
 `EVAL` and is contained.
 **Independent test:** F6, F14 (i–iii) and F15 pass.
 
-- [ ] T018 [US4] Add `#warnFloor(line: string): void` to `redis.ts` (FR-010, S2). **Row 11's home.** It is the #391
+- [x] T018 [US4] Add `#warnFloor(line: string): void` to `redis.ts` (FR-010, S2). **Row 11's home.** It is the #391
   shape:
   - `console.warn(line)` inside a `try`;
   - on a throw, one `writeMarkedFallback(REVOCATION_FLOOR_LOG_FAILED, …)` line with both halves;
   - it never throws.
-- [ ] T019 [US4] The **fail-closed read** in `markRevocation` (FR-008, S3). **Row 10's home.**
+- [x] T019 [US4] The **fail-closed read** in `markRevocation` (FR-008, S3). **Row 10's home.**
   - The floor read and the decode sit in one `try`.
   - On **any** failure (the command rejects, or the decoder throws), `eff = MAX_REVOCATION_TTL_SECONDS`, and the
     failure is kept for the WARN.
   - Only a failed `EVAL` fails the mark. There is no re-throw of the read, no fallback to the own TTL, no retry of the
     read and no `LIMIT`.
-- [ ] T020 [US4] Write the WARNs **after the `EVAL` resolves**, through `#warnFloor` only (FR-010). **Row 11.**
+- [x] T020 [US4] Write the WARNs **after the `EVAL` resolves**, through `#warnFloor` only (FR-010). **Row 11.**
   - `REVOCATION_FLOOR_SKIPPED <count>` when `skipped > 0`. It carries the count, never a member.
   - `REVOCATION_FLOOR_READ_FAILED` plus `renderError(failure)` after a failed read.
   - A WARN never changes the mark's outcome.
-- [ ] T021 [US4] Run the witness file: **F6, F14 (i–iii) and F15 must be green**, and F1–F3, F7, F11 and F12 stay
+- [x] T021 [US4] Run the witness file: **F6, F14 (i–iii) and F15 must be green**, and F1–F3, F7, F11 and F12 stay
   green. Then run `revocation_retry.test.ts`, which answers every command `null`. The mark now decodes `null` as a
   refusal and marks at MAX. Record the result in this task.
+  - _Done:_ `revocation_retry.test.ts` green, unchanged: its marks decode `null` as a refused floor and mark at the
+    maximum TTL. F14 (i) drives `WRONGTYPE` as the command client's rejection of the `ZRANGEBYSCORE` (FakeRedis does
+    not type-check a zset read, and `fake_redis.ts` stays untouched per FR-012).
 
 ## Phase 7: US5 — a reader whose first announce fails is still covered (P2)
 
 **Goal:** the first registration announces the floor entry, retried until it lands, and nothing escapes.
 **Independent test:** F4 (i–v), F5 (i–iv) and F13 (i, ii) pass.
 
-- [ ] T022 [US5] Add `ANNOUNCE_FLOOR_SCRIPT` to `redis.ts` (FR-004): `local t = TIME[1]`, then `local floor = KEYS[1]`,
+- [x] T022 [US5] Add `ANNOUNCE_FLOOR_SCRIPT` to `redis.ts` (FR-004): `local t = TIME[1]`, then `local floor = KEYS[1]`,
   `local ttl = ARGV[1]`, `local keyTtl = ARGV[2]`, then `FLOOR_WRITE`, with no `return`. **Row 5** and **row 6** (the
   second of `FLOOR_WRITE`'s two callers). Its JSDoc says it never carries the index key (**row 9**).
-- [ ] T023 [US5] Add `async #announceFloor(): Promise<void>` to `redis.ts` (FR-005, S1, S5). **Row 8's home.**
+- [x] T023 [US5] Add `async #announceFloor(): Promise<void>` to `redis.ts` (FR-005, S1, S5). **Row 8's home.**
   - `try { await this.command.command('EVAL', ANNOUNCE_FLOOR_SCRIPT, '1', floor, String(ttl), String(ttl + slack)) }`.
     A synchronous throw from an injected port lands in the same `catch`.
   - On failure: one `#warnFloor(\`${REVOCATION_FLOOR_ANNOUNCE_FAILED} ${renderError(error)}\`)`, then schedule a
@@ -253,16 +264,16 @@ greps for all of these.
     - It stops at the first successful announce, the first completed reap (`#lastReadAt !== undefined`), or
       `#closing`.
   - Nothing escapes; there is no bare `.catch(() => {})`.
-- [ ] T024 [US5] In `onRevocationReconcile` in `redis.ts`, inside the existing `if (first && !this.#closing) {` block
+- [x] T024 [US5] In `onRevocationReconcile` in `redis.ts`, inside the existing `if (first && !this.#closing) {` block
   and **after** the deadline arm, add `void this.#announceFloor()` (FR-005, FR-006). **Row 7's home.**
   - The gate line and the arm line stay byte-identical (#362 N32, N17).
   - `onRevocationReconcile` stays synchronous and still registers `onReconnect` after the block.
-- [ ] T025 [US5] In `close()` in `redis.ts`, clear `#announceRetry` beside the other timers. Every anchored block in
+- [x] T025 [US5] In `close()` in `redis.ts`, clear `#announceRetry` beside the other timers. Every anchored block in
   `close()` stays byte-identical.
-- [ ] T026 [US5] Add the announce's `.catch` as one row of `SINKS` in
+- [x] T026 [US5] Add the announce's `.catch` as one row of `SINKS` in
   `packages/realtime/tests/escaping_sinks_395.test.ts` (FR-016, A3). `marked_fallback_sinks_391.test.ts` is **not**
   edited.
-- [ ] T027 [US5] Run the witness file: **F4 (i–v), F5 (i–iv) and F13 (i, ii) must be green**, and every earlier
+- [x] T027 [US5] Run the witness file: **F4 (i–v), F5 (i–iv) and F13 (i, ii) must be green**, and every earlier
   witness stays green. Then run `escaping_sinks_395.test.ts`, `lapse_rehold_349.test.ts` (W15b) and
   `revocation_atomicity.test.ts` (HIGH-2, which rejects every `EVAL` from construction) green. The announce carries
   no index key, so the `args.includes(INDEX)` predicates cannot match it.
@@ -272,9 +283,9 @@ greps for all of these.
 **Goal:** an old writer or reap is never shortened or deleted early, and nothing fails open.
 **Independent test:** F10 passes, before and after.
 
-- [ ] T028 [US6] Run F10 on the finished tree. It must still be green with the frozen `32baca7b` literals, and it was
+- [x] T028 [US6] Run F10 on the finished tree. It must still be green with the frozen `32baca7b` literals, and it was
   green in T006.
-- [ ] T029 [US6] Run `mixed_fleet_332.test.ts` and `revocation_encoding_332.test.ts` green. The record format is
+- [x] T029 [US6] Run `mixed_fleet_332.test.ts` and `revocation_encoding_332.test.ts` green. The record format is
   unchanged (**row 13**).
 
 ## Phase 9: US7 — an operator reads what a TTL now means (P3)
@@ -282,7 +293,7 @@ greps for all of these.
 **Goal:** the option's JSDoc and the one operator statement say "at least".
 **Independent test:** reading the two answers US7.
 
-- [ ] T030 [P] [US7] JSDoc in `redis.ts` (FR-020):
+- [x] T030 [P] [US7] JSDoc in `redis.ts` (FR-020):
   - the `revocationTtlSeconds` option (`:803-809`): a marker lingers **at least** this long, up to the longest live
     reader's TTL, and it links the timing paragraph;
   - `MARK_REVOKED_SCRIPT` (`:103-106`) and `REAP_REVOKED_SCRIPT`;
@@ -291,34 +302,34 @@ greps for all of these.
 
   Also, in `packages/realtime/drivers/enforcement_deadline.ts:14`, "lives `revocationTtlSeconds`" becomes "at least".
   The bound's one home (`onRevocationReconcile`) is **not** restated.
-- [ ] T031 [US7] Run the whole realtime suite and compare it with T002.
+- [x] T031 [US7] Run the whole realtime suite and compare it with T002.
 
 ## Phase 10: Batteries — the new battery, the re-anchors and the blast radius
 
-- [ ] T032 New battery `packages/realtime/tests/mutations/revocation_ttl_floor_380.ts` (FR-017). SUITES is
+- [x] T032 New battery `packages/realtime/tests/mutations/revocation_ttl_floor_380.ts` (FR-017). SUITES is
   `revocation_ttl_floor_380.test.ts`, plus `prefix_anchoring.test.ts` for N19. There are **28 rows, N1–N28**, as in
   the plan's §4.
   - Each row names its `killedBy` witness with a trailing space.
   - Every anchor is unique in today's source. Where a line repeats, the anchor carries a neighbouring line.
-- [ ] T033 [P] **The floor rows N1–N8** (the mark's `eff`, `min`/`max`, the index EXPIRE, the grammar, the clamp, the
+- [x] T033 [P] **The floor rows N1–N8** (the mark's `eff`, `min`/`max`, the index EXPIRE, the grammar, the clamp, the
   skip count, the skip-vs-throw choice, and the decoder's refusal): run each alone. Each must be `KILLED` by its
   named witness (F1, F7, F6 or F12).
-- [ ] T034 [P] **The write rows N9–N13 and N20** (`FLOOR_WRITE` in the reap, `GT`, the prune, `NX`, `GT` on
+- [x] T034 [P] **The write rows N9–N13 and N20** (`FLOOR_WRITE` in the reap, `GT`, the prune, `NX`, `GT` on
   `EXPIRE`, the key TTL's slack) → F3, F9 (i), F8, F3, F9 (ii) and F3. Prove each live.
-- [ ] T035 [P] **The announce rows N14–N18 and N21** (removed, every registration, out of the `#closing` gate, `catch`
+- [x] T035 [P] **The announce rows N14–N18 and N21** (removed, every registration, out of the `#closing` gate, `catch`
   removed, `#warnFloor`'s `try` removed, the two-key form) → F4 (i), F4 (ii), F4 (iii), F5 (i), F5 (ii) / F15 and
   F4 (v). Prove each live.
   - N17 must turn F5 (i) red through an **escaped rejection**, not merely a missing line.
-- [ ] T036 [P] **The retry rows N22–N24** (retry removed; `close()` does not clear it or it ignores `#closing`; first
+- [x] T036 [P] **The retry rows N22–N24** (retry removed; `close()` does not clear it or it ignores `#closing`; first
   step 5 000 ms) → F13 (i), F13 (ii) and F13 (i)'s step assertion. Prove each live.
-- [ ] T037 [P] **The fail-closed and order rows N25–N28** (read failure re-thrown; falls back to the own TTL; WARN
+- [x] T037 [P] **The fail-closed and order rows N25–N28** (read failure re-thrown; falls back to the own TTL; WARN
   before the `EVAL`; a non-async announce) → F14 (i, ii), F14 (i, ii), F6 (order) and F5 (iv). Prove each live.
   - N28 must turn F5 (iv) red through a synchronous throw out of `onRevocationReconcile`.
-- [ ] T038 [P] **N19** (`revocationFloorKey` without `RESERVED_SEPARATOR_LEAD`) → `prefix_anchoring.test.ts` FR-004
+- [x] T038 [P] **N19** (`revocationFloorKey` without `RESERVED_SEPARATOR_LEAD`) → `prefix_anchoring.test.ts` FR-004
   source and SC-001. Prove it live.
-- [ ] T039 Run the whole new battery, `deno task mutate revocation_ttl_floor_380`. Every row must be `KILLED` and
+- [x] T039 Run the whole new battery, `deno task mutate revocation_ttl_floor_380`. Every row must be `KILLED` and
   attributed. Save the output.
-- [ ] T040 **Re-anchor #359** in `packages/realtime/tests/mutations/revocation_paging_359.ts` (FR-019). **Never delete
+- [x] T040 **Re-anchor #359** in `packages/realtime/tests/mutations/revocation_paging_359.ts` (FR-019). **Never delete
   a row.**
   - The `REAP` constant (`:80-87`) moves to the two-key call form:
     `'EVAL', REAP_REVOKED_SCRIPT, '2', this.revocationIndexKey, this.revocationFloorKey, String(this.revocationTtlSeconds), String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS)`,
@@ -370,7 +381,7 @@ greps for all of these.
   - `markRevocation`, `#announceFloor`, `#warnFloor` and `#announceRetry`.
 
   Nothing quotes an anchor line.
-- [ ] T047 [P] **ADR.** Run `ls docs/adr` and take the next free number: 013 today. Write
+- [x] T047 [P] **ADR.** Run `ls docs/adr` and take the next free number: 013 today. Write
   `docs/adr/<NNN>-realtime-revocation-ttl-floor.md` (FR-020, D7). **Row 16's home.** It records:
   - the question;
   - the floor key, its write, its read, its lifetime, the announce and its retry, and the fail-closed read with its
@@ -391,7 +402,7 @@ greps for all of these.
   - the residue (plan §9).
 
   It links the bound's one home rather than restating it.
-- [ ] T048 [P] **ADR 011 amendment**, in `docs/adr/011-realtime-revocation-bound-is-checked.md`:
+- [x] T048 [P] **ADR 011 amendment**, in `docs/adr/011-realtime-revocation-bound-is-checked.md`:
   - the `**Status:**` line gains "amended by ADR <NNN>" (A5);
   - §5 gains `> **Amended by [ADR <NNN>](<NNN>-realtime-revocation-ttl-floor.md)**`.
 
