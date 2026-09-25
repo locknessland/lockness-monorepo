@@ -170,7 +170,8 @@ Deno.test('onOneServer - an unreachable lock store skips the occurrence, and say
     assertStringIncludes(warnings[0].message, 'lock store is unreachable')
     assertEquals(warnings[0].fields, {
         task: 'nightly',
-        error: 'lock store down',
+        error: 'Error',
+        message: 'lock store down',
     })
 })
 

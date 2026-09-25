@@ -539,9 +539,10 @@ export class Scheduler {
             } catch (error) {
                 // Lock store unreachable: skip (never split-brain), but make it
                 // observable — a fleet-wide miss must not look like a lost race.
+                const { name: errorName, message } = flatten(error)
                 this.#warn(
                     'Scheduled task skipped: the distributed lock store is unreachable.',
-                    { task: name, error: flatten(error).message },
+                    { task: name, error: errorName, message },
                 )
                 return
             }
