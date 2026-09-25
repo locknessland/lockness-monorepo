@@ -29,7 +29,8 @@
  * - M11 a registration appends instead of replacing: a manager built twice on
  *   one driver announces every swept departure twice (A6).
  * - M12 `close()` keeps the handler: a sweep in flight when the driver closes
- *   still reports its departure (A6). Equivalent since #355 (see the row).
+ *   still reports its departure (A6). Was `expectSurvival` since #355;
+ *   re-proven a real kill since #368 (see the row).
  * - M13 the member rule's key check back to a COUNT (`<= 2`), the #348
  *   original: a driver-reported `{ id, smuggled }` passes the manager's
  *   departure check and the room hears `smuggled` in a `left` frame (S3).
@@ -52,6 +53,15 @@
  * handler call) and M10 (the slot-binding check) follow them, each re-proven
  * live, M9 still killed by W8.
  *
+ * **#368 disproved M12's `expectSurvival` reasoning, and corrects it here
+ * rather than erasing it.** The row's original claim — `close()` cannot
+ * return before the pass has stopped, so a kept handler has no caller left
+ * — held only while the wait was unbounded. Past the new TTL budget
+ * (`drivers/close_drain.ts`) `close()` returns anyway, and a release still
+ * in flight settles AFTER it: the handler being dropped is what makes that
+ * settlement announce nothing (`close_drain_368.test.ts` W1). M12 is a real
+ * kill again, by that same witness.
+ *
  * ```bash
  * deno task mutate presence_sweep_departure_348
  * ```
@@ -70,6 +80,8 @@ const SUITES = [
         .pathname,
     // M7's witness: the release decoder's row, #348 FR-004a, now #355 WD.
     new URL('../roster_holders_345.test.ts', import.meta.url).pathname,
+    // M12's witness since #368: a release settling past the drain's budget.
+    new URL('../close_drain_368.test.ts', import.meta.url).pathname,
 ]
 
 // The sweep's one release call. Re-anchored for #355: it passes the liveness
@@ -234,29 +246,21 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#348 A6 the departure handler',
     },
     {
+        // Re-anchored for #368 (the comment above the drop gained a second
+        // line) and no longer `expectSurvival`: see the fileoverview's
+        // correction note.
         label: 'M12 — close() keeps the departure handler',
         file: REDIS,
         edits: [[
-            '        // A closed driver reports no departure either (#348).\n' +
+            '        // A closed driver reports no departure either (#348) — dropped here\n' +
+            '        // whether or not the drain above expired.\n' +
             '        this.#departureHandler = undefined\n',
-            '        // A closed driver reports no departure either (#348).\n',
+            '        // A closed driver reports no departure either (#348) — dropped here\n' +
+            '        // whether or not the drain above expired.\n',
         ]],
-        killedBy: '#348 A6 the departure handler',
-        expectSurvival:
-            'Equivalent since #355. `close()` now awaits the pass in flight ' +
-            'before it drops the handler; the pass stops at its next write ' +
-            'once `#closing` is set (before each page read and each ' +
-            'release, before the deregistration, before the next instance), ' +
-            'and `#armReconcile` ' +
-            'never arms while closing — so once `close()` resolves nothing ' +
-            'can call the departure handler, dropped or not. Falsified by a ' +
-            'second sweep entry point that neither awaits `#reconcilePass` ' +
-            'nor reads `#closing` (a reconnect-triggered pass, say), or by ' +
-            'a `#closing` check that moves between a release reply and the ' +
-            'handler call. Since #349 `close()` also closes the lapse run ' +
-            'and awaits it before it drops handlers; a lapse run writes ' +
-            "holds through the owner's slot tails and never calls the " +
-            'departure handler, so it adds no caller.',
+        // #368's own witness holds a release past the drain's budget on
+        // purpose, so it is the one that now depends on this drop.
+        killedBy: '#368 W1 ',
     },
     {
         label: 'M13 — the member key rule back to a count: { id, smuggled } ' +
