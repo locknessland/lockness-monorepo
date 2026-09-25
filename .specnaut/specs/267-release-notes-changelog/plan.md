@@ -323,9 +323,15 @@ deleted from `main`
   The allowlist alone does not guarantee the prompt: `edit * --notes-file *` also matches a line
   that appends `--draft=false` (R7). The guarantee is a `permissions.ask` block in
   `.claude/settings.json` holding `Bash(gh release edit *--draft*)`, `Bash(gh release create *)`
-  and `Bash(gh run rerun *)`. Ask rules are checked after deny and before allow, so a promote in
-  any spelling of `--draft`, a create, and a rerun of `publish.yml` always prompt, even under
-  `/ship`'s `allowed-tools` (S1, F9). `gh release delete` prompts because nothing allows it.
+  and `Bash(gh run rerun *)`. Ask rules are checked after deny and before allow. So a promote
+  whose command line contains the text `--draft`, a `gh release create` typed as its own command,
+  and a rerun of `publish.yml` are meant to prompt, even under `/ship`'s `allowed-tools` (S1, F9).
+  Three limits are open until the maintainer's live probe (F9, #382):
+  - that ask beats a skill's `allowed-tools` is checked only by the rules' presence (S2);
+  - a quote-split flag (`--dr''aft=false`) may escape the ask rule;
+  - the create inside `release-github.sh` is never seen by it.
+
+  `gh release delete` prompts because nothing allows it.
 - **FR-021**: A grep check, in the spirit of FR-016: across `.claude/`, `docs/`, `scripts/` and
   `AGENTS.md`, excluding `.claude/worktrees/` and `.specnaut/`,
   - `--draft=false` appears only in `ship/SKILL.md` step 3(e), and never on a line that also
@@ -373,7 +379,7 @@ deleted from `main`
 | 8. The content check runs before the tag: `--check` in `/ship`'s pre-flight, with render mode re-running the same functions | when: `ship/SKILL.md` pre-flight (FR-017); what: `scripts/release_notes.ts` | a separate checker; a check only after the tag push; render and check with diverging logic |
 | 9. A release is cut only through `/ship`, which owns the order and the one consent act | `.claude/skills/ship/SKILL.md` (`:10`) | `AGENTS.md:193–197` and the runbook restating steps (they point); an override in the vendored `release-version.md`; a direct `release-github.sh` run documented anywhere |
 | 10. The wrapper is invoked exactly as `release-github.sh --draft v<X.Y.Z>` | `ship/SKILL.md` step 3(a) | any other invocation in docs, runbook or scripts (FR-021 greps for it) |
-| 11. Creating the draft is not publishing. `gh release edit v<X.Y.Z> --draft=false`, after a selection and a re-fetch that matches, is the one publish act; the `permissions.ask` rule makes it prompt | `ship/SKILL.md` ⛔ section and step 3(e); the prompt is guaranteed by the `permissions.ask` block in `.claude/settings.json` (asks, does not decide), which `ship/SKILL.md:5` `allowed-tools` cannot override | `--draft=false` anywhere else (FR-021); `gh release *` restored in `allowed-tools`; an ask rule removed or moved to allow; promotion from the GitHub UI; consent inherited by a retry |
+| 11. Creating the draft is not publishing. `gh release edit v<X.Y.Z> --draft=false`, after a selection and a re-fetch that matches, is the one publish act; the `permissions.ask` rule makes it prompt | `ship/SKILL.md` ⛔ section and step 3(e); the prompt comes from the `permissions.ask` block in `.claude/settings.json` (asks, does not decide), which `ship/SKILL.md:5` `allowed-tools` should not override (unverified until the live probe, F9) | `--draft=false` anywhere else (FR-021); `gh release *` restored in `allowed-tools`; an ask rule removed or moved to allow; promotion from the GitHub UI; consent inherited by a retry |
 | 12. Retry and freshness: stop if a Release existed before (a); re-ask when (e)'s re-fetch differs from (d) | `ship/SKILL.md` step 3 (a0), (e) | an idempotent "continue from the existing draft" path; consent reused after a failure |
 | 13. `@lockness/upgrade` sends readers to the Releases list | `packages/upgrade/mod.ts:112` (unchanged; maintainer decision 2026-09-23) | `/releases/tag/v<target>`; a `CHANGELOG.md` URL |
 
@@ -553,7 +559,18 @@ What F9 does not solve:
 - a session run with permissions bypassed, where no ask rule fires;
 - `gh api` calls that promote or create a Release;
 - rewriting the notes of a Release that is already published: `edit … --notes-file` on it passes
-  silently, and the edit is public at once.
+  silently, and the edit is public at once;
+- a quote-split spelling of the flag (`--dr''aft=false`): the shell hands `gh` the same flag, but
+  the command text may not match `*--draft*`, while an appended `--notes-file` still matches the
+  allow entry (#382);
+- the create in step 3(a): it runs inside `release-github.sh`, so `Bash(gh release create *)`
+  never sees it. The draft rests on the exact 3(a) command and the (a′) check (#382);
+- that an ask rule wins over a skill's `allowed-tools` is taken from the documented order and
+  checked only by the rules' presence (S2). It stays unverified until the maintainer runs the live
+  probe: with `/ship` active and permissions not bypassed, `gh release edit v0.0.0-probe`, a tag
+  with no Release so the command fails harmlessly once past the permission check, with
+  `--notes-file` and the promote flag, spelled plainly and quote-split. Each run must prompt.
+  If one does not, the fallback is a `PreToolUse` hook that returns `"ask"` (#382).
 
 ## 11. Security audit
 

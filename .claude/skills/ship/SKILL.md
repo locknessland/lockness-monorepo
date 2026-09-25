@@ -311,13 +311,40 @@ ask again. Otherwise run, alone:
 gh release edit v<X.Y.Z> --draft=false
 ```
 
-This **is** the publish. It raises its own permission prompt as well: the
-`permissions.ask` rule `Bash(gh release edit *--draft*)` in
-`.claude/settings.json` is checked before any allow, so the
-`--notes-file` entry in `allowed-tools` cannot pre-approve a promote, in any
-spelling of `--draft`. The same block asks on `gh release create` and on
-`gh run rerun`, which closes the gap where `Bash(gh run *)` pre-approved
-re-running a failed `publish.yml`.
+This **is** the publish. It is meant to raise a permission prompt of its own.
+`.claude/settings.json` holds a `permissions.ask` rule,
+`Bash(gh release edit *--draft*)`. Ask rules are checked before allow rules, so
+the `--notes-file` entry in `allowed-tools` should not pre-approve a promote
+whose command line contains the text `--draft`. The same block asks on a
+`gh release create` typed as a command of its own, and on `gh run rerun`. That
+closes the gap where `Bash(gh run *)` pre-approved re-running a failed
+`publish.yml`.
+
+**What the ask block does not guarantee.** These are the residue of [#382], and
+they stay open until the live probe below has run:
+
+- **That ask beats `allowed-tools` is unverified.** It rests on the permission
+  model's documented order. The repo checks only that the three rules exist
+  (fixture S2). No run has yet shown the prompt firing with `/ship` active.
+- **The rule matches text, not the flag.** A spelling that splits the flag with
+  quotes, such as `--dr''aft=false`, reaches `gh` as the same flag. It may not
+  match the ask rule, yet still match the `--notes-file` allow entry when it is
+  appended to a notes line. This skill never writes that shape, but nothing
+  refuses it at run time.
+- **The ask rule never sees the create in (a).** `/ship` creates the draft
+  inside `release-github.sh`, so the command checked is the `bash` call to the
+  wrapper, not `gh release create`. What keeps (a) a draft is the exact
+  command, with `--draft`, and the check in (a′).
+
+**The live probe (maintainer, once, open).** Run it in a session whose
+permissions are not bypassed, with `/ship` active. Run `gh release edit` on
+`v0.0.0-probe` with `--notes-file /dev/null` and the promote flag, twice: once
+spelled plainly, once quote-split as above. **No Release may exist for that
+tag.** The permission check happens before the command runs, and the command
+then fails on the missing Release. A tag that has a Release would be published
+the moment a prompt fails to fire. Each run must raise a permission prompt. If one does not, the fallback is a `PreToolUse` hook that
+returns `"ask"`, tracked as its own item. Record the result by rewriting this
+section, and drop each residual the probe closes.
 
 **Retry rules.**
 
@@ -395,3 +422,4 @@ The rationale, its cost and when to revisit it live in
 [#122]: https://github.com/locknessland/lockness-monorepo/issues/122
 [#311]: https://github.com/locknessland/lockness-monorepo/issues/311
 [#134]: https://github.com/locknessland/lockness-monorepo/issues/134
+[#382]: https://github.com/locknessland/lockness-monorepo/issues/382
