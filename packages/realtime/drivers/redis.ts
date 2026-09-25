@@ -71,6 +71,7 @@ import { ControlReplayWindow } from '../control_replay_window.ts'
 import { writeMarkedFallback } from '../marked_fallback.ts'
 import { LapseRun } from './lapse_run.ts'
 import { RosterMaintenanceRun } from './roster_maintenance_run.ts'
+import { awaitCloseDrain, type CloseDrainPending } from './close_drain.ts'
 import {
     EnforcementDeadline,
     REVOCATION_LOG_FAILED,
@@ -519,9 +520,17 @@ interface Closeable {
  * bound the port owns. `RedisClient` meets it through its read timeout
  * (`READ_TIMEOUT_MS` in `@lockness/redis`). Because commands are serialised, a
  * command that never settles stalls every command queued behind it: the
- * revocation re-check, the ghost sweep, the heartbeat and `close()`. The
- * driver does not cancel a command; a revocation pass stalled this way is
- * reported once by the enforcement deadline, and is not recovered.
+ * revocation re-check, the ghost sweep and the heartbeat. The driver does not
+ * cancel a command; a revocation pass stalled this way is reported once by
+ * the enforcement deadline, and is not recovered.
+ *
+ * **`close()` no longer stalls on it** (#368). It still waits for its
+ * ghost-sweep pass, then its lapse run, then its owed-release drain (#371),
+ * but bounded at one liveness TTL through {@link awaitCloseDrain} — a port
+ * that violates this contract makes `close()` log one WARN and carry on with
+ * its teardown, never hang. A command left stalled on such a port is still
+ * never cancelled; it settles, if ever, on the port's own terms, after
+ * `close()` has already returned.
  */
 export interface RedisCommandClient {
     /**
@@ -1493,6 +1502,27 @@ export const PASS_SAMPLE_LOG_FAILED =
  */
 export const SWEEP_LOG_FAILED =
     'realtime: a ghost-sweep log line could not be written (#360):'
+
+/**
+ * The WARN {@link RedisBroadcastDriver.close} writes once when its bounded
+ * drain expires (#368): it waited one liveness TTL for the ghost-sweep pass,
+ * then the lapse run, and at least one was still pending. Followed by which
+ * one(s), the sweep pass's age where known, and the budget — never a member,
+ * channel or instance id. Exported for the test suite only.
+ */
+export const CLOSE_DRAIN_EXPIRED =
+    "realtime: close()'s drain EXPIRED (#368): the bounded wait for work " +
+    'already in flight ran out and teardown continued anyway'
+
+/**
+ * The marker that starts the one ERROR line written when the
+ * {@link CLOSE_DRAIN_EXPIRED} WARN could not be, because `console.warn`
+ * threw (#369 shape, #391): a marked `console.error` line instead, through
+ * {@link writeMarkedFallback}, which never throws. Exported for the test
+ * suite only.
+ */
+export const CLOSE_LOG_FAILED =
+    "realtime: close()'s drain WARN could not be logged (#368):"
 
 /**
  * The marker that starts the one ERROR line written when the control
@@ -4824,36 +4854,47 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * revokes nothing (FR-007). It also drops the departure handler
      * ({@link onRosterDeparture}), on both construction paths.
      *
-     * **It waits for a ghost-sweep pass in flight** (#355), in this order:
-     * mark the driver closing, clear every timer, drop the revocation handler
-     * — synchronously, so a reconnect during the wait runs nothing and arms no
-     * retry — then await the pass, then drop the departure handler, then close
-     * the owned connections. The pass stops at its next write, so what it
-     * already released still has its departure announced, and once this
-     * resolves the driver issues no sweep command. The wait is bounded by the
-     * command client: up to two broker round trips plus one departure-handler
-     * call (about a minute at `fromConfig`'s 30 s command timeout). A
-     * heartbeat command already in flight is not awaited.
+     * **It waits for the ghost-sweep pass, then the lapse run** (#355, #349),
+     * in this order: mark the driver closing, clear every timer, drop the
+     * revocation handler — synchronously, so a reconnect during the wait runs
+     * nothing and arms no retry — then {@link awaitCloseDrain} both against
+     * ONE shared expiry, then drop the departure handler, then close the
+     * owned connections.
+     *
+     * **The wait is bounded at one liveness TTL** (#368):
+     * `Math.min(livenessTtlSeconds * 1000, MAX_TIMER_MS)`. Past that, this
+     * instance's own heartbeat has stopped, so a peer's sweep is already
+     * entitled to treat it as dead — a stalled wait behaves exactly like a
+     * crash, which is the failure the sweep exists to survive. A command on
+     * the port is never cancelled and the sweep slot is never freed early;
+     * past the budget this writes ONE WARN
+     * ({@link CLOSE_DRAIN_EXPIRED}) naming what was still pending, and
+     * teardown carries on regardless. The pass stops at its next write, so a
+     * release that settles within the budget still has its departure
+     * announced; one that settles later finds the departure handler already
+     * dropped and announces nothing. Once this resolves the driver issues no
+     * further sweep command.
      *
      * **It also stops the lapse run** (#349): right after the timers it
      * closes {@link onRosterLapse}'s run and aborts its signal, synchronously,
-     * so a beat reply arriving later starts nothing; after the sweep pass it
-     * waits for the run in flight. That wait is at most one slot write plus
-     * whatever is queued ahead of it on that slot, or the revocation re-check
-     * in flight (the run's first step, which the signal cannot cut short).
-     * That re-check stops before its next reap or page read (#359), so it
-     * adds at most the one command in flight — **but** when that command is
-     * the LAST page, the read returns normally and the manager's apply phase
-     * (leaves, roster writes, clears) runs while this waits. Each command is
-     * at most 30 s on the built-in client, unbounded on an injected port whose
-     * commands never settle. It then drops the departure handler and the
-     * {@link onControlRefused} handler, and closes the owned connections.
+     * so a beat reply arriving later starts nothing; it is then awaited by
+     * the same bounded drain, after the sweep pass. That wait is at most one
+     * slot write plus whatever is queued ahead of it on that slot, or the
+     * revocation re-check in flight (the run's first step, which the signal
+     * cannot cut short) — unless the shared budget runs out first. That
+     * re-check stops before its next reap or page read (#359), so it adds at
+     * most the one command in flight — **but** when that command is the LAST
+     * page, the read returns normally and the manager's apply phase (leaves,
+     * roster writes, clears) runs while this waits. It then drops the
+     * departure handler and the {@link onControlRefused} handler, and closes
+     * the owned connections — whether or not the drain expired.
      *
      * **It also stops the owed-release drain** (#371), the same shape right
      * beside the lapse run: marked closed synchronously, so no new drain
-     * starts once `close()` has begun, then awaited after the sweep pass, on
-     * its own line. It has no signal to abort — a drain in flight simply
-     * finishes.
+     * starts once `close()` has begun, then awaited by the same bounded drain
+     * as the sweep pass and the lapse run, last of the three. It has no
+     * signal to abort — a drain in flight simply finishes, or is reported
+     * still pending at the shared budget like the other two.
      *
      * **It does not await a revocation pass** (#359 FR-013). A timer- or
      * reconnect-triggered pass in flight completes the command in flight,
@@ -4866,14 +4907,62 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * the owned connections, not awaited. Every such action only removes
      * access, so a pass cut off there grants nothing.
      *
-     * @returns Resolves once the sweep pass in flight has stopped and every
-     *   owned connection is closed.
+     * @returns Resolves once the bounded drain has settled — the sweep pass,
+     *   the lapse run and the owed-release drain each either finished or gave
+     *   up at the TTL budget — and every owned connection is closed.
      * @example
      * ```ts
      * const driver = RedisBroadcastDriver.fromConfig({ hostname: 'localhost' })
      * await driver.close()
      * ```
      */
+    /**
+     * Write the one WARN {@link close}'s bounded drain logs when it expires
+     * (#368), in the #369 shape: `console.warn` first, a marked
+     * `console.error` line through {@link writeMarkedFallback} when that
+     * throws. Names what was still pending — the sweep pass, with its age
+     * read from {@link #sweepPass} when known, and/or the lapse run, and/or
+     * the owed-release drain (#371) — and the budget. Points at the
+     * {@link RedisCommandClient} contract and at the handlers this instance
+     * drops regardless. Carries no member, channel or instance id.
+     *
+     * @param pending - Which of the three the drain reports as still
+     *   pending.
+     * @param budgetMs - The budget the drain was armed with.
+     */
+    #warnCloseDrainExpired(
+        pending: CloseDrainPending,
+        budgetMs: number,
+    ): void {
+        const pieces: string[] = []
+        if (pending.sweepPass) {
+            pieces.push(
+                this.#sweepPass === undefined
+                    ? 'the ghost sweep pass'
+                    : `the ghost sweep pass (age ${
+                        this.#passClock() - this.#sweepPass.startedAt
+                    }ms)`,
+            )
+        }
+        if (pending.lapseRun) pieces.push('the lapse run')
+        if (pending.maintenanceDrain) pieces.push('the owed-release drain')
+        const text = `${CLOSE_DRAIN_EXPIRED} — still pending: ` +
+            `${pieces.join(' and ')}. Budget ${budgetMs}ms ` +
+            '(livenessTtlSeconds). A command on the port never settled: ' +
+            'every command settles is the RedisCommandClient contract, and ' +
+            'the driver does not cancel one. The departure, lapse-run and ' +
+            'roster-maintenance handlers are dropped, and the owned ' +
+            'connections are still closed, regardless.'
+        try {
+            console.warn(text)
+        } catch (failure) {
+            writeMarkedFallback(CLOSE_LOG_FAILED, text, {
+                label: 'sink failure',
+                error: failure,
+            })
+        }
+    }
+
     async close(): Promise<void> {
         this.#closing = true
         if (this.heartbeatTimer !== undefined) {
@@ -4921,13 +5010,27 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         this.revocationHandler = undefined
         // The pass stops at its next write once `#closing` is set; a release
         // already in flight still reports its departure, so the handler is
-        // dropped only AFTER it.
-        await this.#reconcilePass
-        // The slot write in flight settles before the ports can close (#349).
-        await stopped
-        // The owed-release drain in flight, if any, settles too (#371).
-        await maintenanceStopped
-        // A closed driver reports no departure either (#348).
+        // dropped only AFTER the drain below. Bounded at one liveness TTL
+        // (#368): past that, this instance's own heartbeat has stopped, so a
+        // peer's sweep is already entitled to treat it as dead, and a wait
+        // that is still stalled is reported once and teardown goes on
+        // regardless — never a second timer, and never a freed sweep slot.
+        // The owed-release drain (#371) shares that same one budget.
+        const budgetMs = Math.min(
+            this.livenessTtlSeconds * 1000,
+            MAX_TIMER_MS,
+        )
+        const pending = await awaitCloseDrain(
+            budgetMs,
+            this.#reconcilePass,
+            stopped,
+            maintenanceStopped,
+        )
+        if (pending.sweepPass || pending.lapseRun || pending.maintenanceDrain) {
+            this.#warnCloseDrainExpired(pending, budgetMs)
+        }
+        // A closed driver reports no departure either (#348) — dropped here
+        // whether or not the drain above expired.
         this.#departureHandler = undefined
         // Nor a refusal (#349 FR-006a): every hook this driver holds is
         // dropped by its own shutdown.
