@@ -9,16 +9,23 @@
  * dry-ran green while `install.ts` imported an undeclared `@lockness/cli`.
  *
  * This check copies each package's publishable files, alone, next to its own
- * `deno.json` and outside the workspace, then type-checks its exports. Two
- * outcomes are distinguished, and only one is a failure:
+ * `deno.json` and outside the workspace, then type-checks its exports. It is
+ * the **one owner of declaration integrity**: `deps:analyze` does not check
+ * declarations (#388). It **fails closed** — exactly one failure is tolerated,
+ * and anything it does not recognise is a failure:
  *
  * | Message | Meaning | Verdict |
  * | :------ | :------ | :------ |
  * | `TS2307 … not a dependency and not in import map` | the manifest is missing the dependency | **fail** |
- * | `Could not find version … that matches` | declared, but that version is not on JSR yet | pass |
+ * | `Cannot find module 'file:…'` | a file the exports reach is missing from `publish.include` | **fail** |
+ * | `Could not find version of '@lockness/…' that matches`, and no other error | declared, but that lockstep version is not on JSR yet | pass |
+ * | anything else | unrecognised | **fail** |
  *
- * The second is the expected state for an unreleased version and must not be
- * confused with the first.
+ * The tolerated case is the expected state for an unreleased version and must
+ * not be confused with the first. It is limited to `@lockness/*`: a third-party
+ * version that does not exist is a real fault, not a pre-release state.
+ *
+ * It resolves against JSR, so it needs network access.
  *
  * It also asks JSR whether each package **exists in the registry**. A package
  * must be created there before anything can be published to it, and
@@ -240,6 +247,129 @@ export function selectPublishedFiles(
     })
 }
 
+/** A tolerated pre-release condition: a lockstep version not on JSR yet. */
+const PRE_RELEASE =
+    /^error: Could not find version of '@lockness\/[a-z0-9-]+' that matches specified version constraint '[^']+'$/
+
+/**
+ * Remove ANSI colour sequences, so matching does not depend on whether the
+ * child decided it was writing to a terminal.
+ *
+ * @param text - Raw process output.
+ * @returns The text without escape sequences.
+ */
+function stripAnsi(text: string): string {
+    // deno-lint-ignore no-control-regex
+    return text.replace(/\x1b\[[0-9;]*m/g, '')
+}
+
+/**
+ * Classify one package's `deno check` outcome. **Fails closed**: a failed run
+ * passes only when every error it reports is the one recognised pre-release
+ * condition — a `@lockness/*` version not published yet.
+ *
+ * @param name - Short package name.
+ * @param success - Whether `deno check` exited 0.
+ * @param rawOutput - Its stderr and stdout, concatenated.
+ * @returns The verdict for that package.
+ * @example
+ * ```ts
+ * classifyCheck('core', false, 'error: Type checking failed.').ok   // false
+ * classifyCheck('core', true, '').ok                                // true
+ * ```
+ */
+export function classifyCheck(
+    name: string,
+    success: boolean,
+    rawOutput: string,
+): Result {
+    const output = stripAnsi(rawOutput)
+
+    // The failure this check exists for: an import the manifest never declared.
+    const undeclared = [
+        ...output.matchAll(
+            /Import "([^"]+)" not a dependency and not in import map/g,
+        ),
+    ].map((m) => m[1])
+
+    if (undeclared.length > 0) {
+        return {
+            name,
+            ok: false,
+            detail: `undeclared: ${[...new Set(undeclared)].join(', ')}`,
+        }
+    }
+
+    // A local file the exports reach but `publish.include` never listed: the
+    // allowlist is incomplete, so the file was not staged and `deno check`
+    // fails to load it. A real publish failure — distinct from the tolerated
+    // "version not on JSR yet" below, which names a JSR specifier, not a
+    // `file:` URL.
+    const missingLocal = [
+        ...output.matchAll(/Cannot find module ['"](file:[^'"]+)['"]/g),
+    ].map((m) => m[1].split('/').pop() ?? m[1])
+    if (missingLocal.length > 0) {
+        return {
+            name,
+            ok: false,
+            detail: `missing from publish.include: ${
+                [...new Set(missingLocal)].join(', ')
+            }`,
+        }
+    }
+
+    if (success) return { name, ok: true, detail: 'resolves' }
+
+    // Fail closed. `deno check` failed, so pass ONLY when every error line is
+    // the recognised pre-release condition. A type error, a missing third-party
+    // version, a network failure, a crash — anything else is red. This used to
+    // be the other way round, and a failure it did not recognise read green.
+    const errors = output.split('\n')
+        .map((line) => line.trim())
+        .filter((line) => /^error:|\[ERROR\]/.test(line))
+    if (errors.length > 0 && errors.every((line) => PRE_RELEASE.test(line))) {
+        return {
+            name,
+            ok: true,
+            detail:
+                'declared; some @lockness versions not on JSR yet (expected pre-release)',
+        }
+    }
+    const first = errors[0] ??
+        output.split('\n').map((l) => l.trim()).find((l) => l !== '') ??
+        'deno check failed with no output'
+    return { name, ok: false, detail: `unrecognised failure: ${first}` }
+}
+
+/**
+ * The verdict for a whole run over the resolution results.
+ *
+ * @param results - One result per package.
+ * @returns The exit code, and the lines to print — the success line appears
+ *   only when the code is `0`, so the log can never contradict the exit status.
+ * @example
+ * ```ts
+ * resolutionVerdict([{ name: 'core', ok: false, detail: 'x' }]).code   // 1
+ * ```
+ */
+export function resolutionVerdict(
+    results: Result[],
+): { code: 0 | 1; lines: string[] } {
+    const failed = results.filter((r) => !r.ok)
+    if (failed.length > 0) {
+        return {
+            code: 1,
+            lines: [
+                `\n❌ ${failed.length} package(s) do not resolve standalone: ${
+                    failed.map((r) => r.name).join(', ')
+                }`,
+                "   Fix each ❌ above. An undeclared import is declared in that package's own deno.json.",
+            ],
+        }
+    }
+    return { code: 0, lines: ['\n✅ Every package resolves standalone'] }
+}
+
 /**
  * Check one package in isolation.
  *
@@ -290,45 +420,7 @@ async function checkPackage(name: string, scratch: string): Promise<Result> {
     const output = new TextDecoder().decode(result.stderr) +
         new TextDecoder().decode(result.stdout)
 
-    // The only failure this check owns: an import the manifest never declared.
-    const undeclared = [
-        ...output.matchAll(
-            /Import "([^"]+)" not a dependency and not in import map/g,
-        ),
-    ].map((m) => m[1])
-
-    if (undeclared.length > 0) {
-        return {
-            name,
-            ok: false,
-            detail: `undeclared: ${[...new Set(undeclared)].join(', ')}`,
-        }
-    }
-
-    // A local file the exports reach but `publish.include` never listed: the
-    // allowlist is incomplete, so the file was not staged and `deno check`
-    // fails to load it. This is a real publish failure — distinct from the
-    // tolerated "version not on JSR yet" below, which names a JSR specifier,
-    // not a `file:` URL.
-    const missingLocal = [
-        ...output.matchAll(/Cannot find module ['"](file:[^'"]+)['"]/g),
-    ].map((m) => m[1].split('/').pop() ?? m[1])
-    if (missingLocal.length > 0) {
-        return {
-            name,
-            ok: false,
-            detail: `missing from publish.include: ${
-                [...new Set(missingLocal)].join(', ')
-            }`,
-        }
-    }
-
-    if (result.success) return { name, ok: true, detail: 'resolves' }
-    return {
-        name,
-        ok: true,
-        detail: 'declared; some versions not on JSR yet (expected pre-release)',
-    }
+    return classifyCheck(name, result.success, output)
 }
 
 /**
@@ -403,12 +495,16 @@ async function main(): Promise<void> {
     // that has never been created on JSR is only a problem at publish time, and
     // failing every push over it would block unrelated work. Hence the flag —
     // `publish.yml` passes it, CI and the pre-push hook do not.
+    const verdict = resolutionVerdict(results)
     if (!Deno.args.includes('--registry')) {
-        console.log(
-            '\n✅ Every package resolves standalone (registry existence not checked; pass --registry)',
-        )
-        const resolutionFailed = results.filter((r) => !r.ok)
-        if (resolutionFailed.length > 0) Deno.exit(1)
+        // The success line only on the path that exits 0: it used to print
+        // before `Deno.exit(1)`, so a red run read green in the log (#388).
+        if (verdict.code !== 0) {
+            for (const line of verdict.lines) console.error(line)
+            Deno.exit(verdict.code)
+        }
+        for (const line of verdict.lines) console.log(line)
+        console.log('   (registry existence not checked; pass --registry)')
         return
     }
 
@@ -444,15 +540,11 @@ async function main(): Promise<void> {
         Deno.exit(1)
     }
 
-    const failed = results.filter((r) => !r.ok)
-    if (failed.length > 0) {
-        console.error(
-            `\n❌ ${failed.length} package(s) would ship a manifest a consumer cannot resolve.`,
-        )
-        console.error("   Declare the import in that package's own deno.json.")
-        Deno.exit(1)
+    if (verdict.code !== 0) {
+        for (const line of verdict.lines) console.error(line)
+        Deno.exit(verdict.code)
     }
-    console.log('\n✅ Every package resolves standalone')
+    for (const line of verdict.lines) console.log(line)
 }
 
 if (import.meta.main) {
