@@ -12,7 +12,12 @@
  * @module @lockness/redis/tests/subscriber
  */
 
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import {
+    assert,
+    assertEquals,
+    assertRejects,
+    assertStringIncludes,
+} from '@std/assert'
 import { RedisSubscribeConnection } from '../subscriber.ts'
 import { RespFramingError } from '../resp.ts'
 import { type FakeServer, startFakeServer } from './fake_server.ts'
@@ -3937,4 +3942,237 @@ Deno.test('#295/FR-015: a watch does not reset the keepalive clock', async () =>
             writable: true,
         })
     }
+})
+
+/**
+ * Wrap the real `Deno.connect` so the first write whose bytes contain
+ * `matchText` is intercepted instead of reaching the live socket (#372).
+ *
+ * `'reject'` fails that write at once, as a real `RespFramingError` or a raw
+ * conn error would. `'hold'` suspends it on a promise the test settles later —
+ * the shape needed to race an UNRELATED fault onto the same socket before the
+ * held write's rejection is observed, proving the `ABANDONED_WRITE` guard.
+ *
+ * Every OTHER write and read is forwarded to a real socket dialled against the
+ * fake server, so `PSUBSCRIBE`/`PUNSUBSCRIBE` acknowledgements and pushed
+ * `pmessage` frames behave exactly as they do against a real broker.
+ */
+function interceptWrite(
+    real: typeof Deno.connect,
+    matchText: string,
+    mode: 'reject' | 'hold',
+): { restore: () => void; settle: () => void; armed: () => boolean } {
+    let armed = true
+    let settleFn: (() => void) | undefined
+    const decoder = new TextDecoder()
+    Object.defineProperty(Deno, 'connect', {
+        // The overload set of `Deno.connect` is awkward to restate here, and
+        // this file's own `connection.test.ts` already accepts the same
+        // `any` for the identical reason (`withConnectStub`).
+        // deno-lint-ignore no-explicit-any
+        value: async (options: any): Promise<Deno.Conn> => {
+            const inner = await real(options)
+            return {
+                read: (p: Uint8Array) => inner.read(p),
+                write: (p: Uint8Array) => {
+                    if (armed && decoder.decode(p).includes(matchText)) {
+                        armed = false
+                        if (mode === 'reject') {
+                            return Promise.reject(
+                                new Error('simulated write failure'),
+                            )
+                        }
+                        return new Promise<number>((_resolve, reject) => {
+                            settleFn = () =>
+                                reject(new Error('simulated write failure'))
+                        })
+                    }
+                    return inner.write(p)
+                },
+                close: () => inner.close(),
+                localAddr: inner.localAddr,
+                remoteAddr: inner.remoteAddr,
+            } as unknown as Deno.Conn
+        },
+        configurable: true,
+        writable: true,
+    })
+    return {
+        restore: () => {
+            Object.defineProperty(Deno, 'connect', {
+                value: real,
+                configurable: true,
+                writable: true,
+            })
+        },
+        settle: () => settleFn?.(),
+        armed: () => armed,
+    }
+}
+
+Deno.test('#372: a failed unsubscribeOne write discards the socket and reconnects without re-subscribing the retired pattern', async () => {
+    const server = await startFakeServer()
+    const real = Deno.connect
+    const fault = interceptWrite(real, 'PUNSUBSCRIBE', 'reject')
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        retryBaseMs: 5,
+        retryMaxMs: 10,
+    })
+    const kept: Array<[string, string]> = []
+    const warnings = await captureWarnings(async () => {
+        try {
+            sub.psubscribe('keep:*', (t, p) => kept.push([t, p]))
+            sub.psubscribe('drop:*', () => {})
+            await waitFor(
+                () =>
+                    psubscribeCount(server, 'keep:*') >= 1 &&
+                    psubscribeCount(server, 'drop:*') >= 1,
+                'both patterns subscribed',
+            )
+            const acceptsBefore = server.accepts()
+            await assertRejects(
+                () => sub.unsubscribeOne('drop:*'),
+                Error,
+                'simulated write failure',
+            )
+            await waitFor(
+                () => server.accepts() > acceptsBefore,
+                'the failed unsubscribe write triggered a reconnect',
+            )
+            await waitFor(
+                () => psubscribeCount(server, 'keep:*') >= 2,
+                'the surviving pattern is re-issued after the reconnect',
+            )
+            server.publish('keep:*', 'keep:room', '{"event":"after"}')
+            await waitFor(
+                () => kept.length >= 1,
+                'delivery resumes for the surviving pattern after the reconnect',
+            )
+            assertEquals(
+                psubscribeCount(server, 'drop:*'),
+                1,
+                'the retired pattern must never be re-subscribed',
+            )
+        } finally {
+            fault.restore()
+            await sub.close()
+            server.stop()
+        }
+    })
+    assert(
+        warnings.some((m) => m.includes('retrying')),
+        'the recovery from the failed write is logged, never silent',
+    )
+})
+
+Deno.test('#372: a failed unsubscribeOne on a delivering socket still fires onReconnect once healed', async () => {
+    const server = await startFakeServer()
+    const real = Deno.connect
+    const fault = interceptWrite(real, 'PUNSUBSCRIBE', 'reject')
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        retryBaseMs: 5,
+        retryMaxMs: 10,
+    })
+    let fires = 0
+    sub.onReconnect(() => {
+        fires++
+    })
+    await captureWarnings(async () => {
+        try {
+            sub.psubscribe('keep:*', () => {})
+            sub.psubscribe('drop:*', () => {})
+            await waitFor(
+                () =>
+                    psubscribeCount(server, 'keep:*') >= 1 &&
+                    psubscribeCount(server, 'drop:*') >= 1,
+                'both patterns subscribed',
+            )
+            // The socket is DELIVERING (the read loop is up) when the write
+            // fails, so the outage this discard opens must be reported as a
+            // reconnect once it heals — the same fact `#activate`'s catch
+            // reports through `wasDelivering`.
+            await sub.unsubscribeOne('drop:*').catch(() => {})
+            await waitFor(
+                () => fires >= 1,
+                'onReconnect fired once the write failure healed',
+            )
+            assertEquals(fires, 1, 'fired exactly once for one outage')
+        } finally {
+            fault.restore()
+            await sub.close()
+            server.stop()
+        }
+    })
+})
+
+Deno.test('#372: an abandoned unsubscribe write does not re-discard a live replacement generation', async () => {
+    const server = await startFakeServer()
+    const real = Deno.connect
+    const fault = interceptWrite(real, 'PUNSUBSCRIBE', 'hold')
+    const sub = new RedisSubscribeConnection({
+        hostname: '127.0.0.1',
+        port: server.port,
+        retryBaseMs: 5,
+        retryMaxMs: 10,
+    })
+    const kept: Array<[string, string]> = []
+    const warnings = await captureWarnings(async () => {
+        try {
+            sub.psubscribe('keep:*', (t, p) => kept.push([t, p]))
+            sub.psubscribe('drop:*', () => {})
+            await waitFor(
+                () =>
+                    psubscribeCount(server, 'keep:*') >= 1 &&
+                    psubscribeCount(server, 'drop:*') >= 1,
+                'both patterns subscribed',
+            )
+            const rejecting = sub.unsubscribeOne('drop:*')
+            await waitFor(
+                () => !fault.armed(),
+                'the PUNSUBSCRIBE write is pending, held by the test',
+            )
+            // Race an UNRELATED fault onto the SAME socket: the read loop
+            // discards it and reconnects onto a brand-new generation before
+            // the held write's rejection is ever observed.
+            const acceptsBefore = server.accepts()
+            server.dropConnections()
+            await waitFor(
+                () => server.accepts() > acceptsBefore,
+                'a new generation replaced the old one',
+            )
+            await waitFor(
+                () => psubscribeCount(server, 'keep:*') >= 2,
+                'the new generation re-issued the surviving pattern',
+            )
+            const acceptsAfterReconnect = server.accepts()
+            // NOW let the stale write settle. It must change nothing on the
+            // live (replacement) generation.
+            fault.settle()
+            await rejecting.catch(() => {})
+            await new Promise((resolve) => setTimeout(resolve, 50))
+            assertEquals(
+                server.accepts(),
+                acceptsAfterReconnect,
+                'the abandoned write must not dial again',
+            )
+            server.publish('keep:*', 'keep:room', '{"event":"still-live"}')
+            await waitFor(
+                () => kept.length >= 1,
+                'the untouched live generation still delivers',
+            )
+        } finally {
+            fault.restore()
+            await sub.close()
+            server.stop()
+        }
+    })
+    assert(
+        !warnings.some((m) => m.includes('retrying')),
+        'the abandoned write must not arm a retry of its own — the reconnect ' +
+            'that already superseded it owns recovery',
+    )
 })
