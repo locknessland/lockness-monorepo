@@ -197,27 +197,105 @@ Deno.test('a foreign hook is refused and nothing is written', async () => {
     }
 })
 
-Deno.test('a hook this installer wrote, marked or legacy, is replaced', async () => {
-    const { root, main } = await fixture()
-    try {
-        const dir = join(main, '.git', 'hooks')
-        // The pre-#388 pre-push, which carries no marker.
-        await Deno.writeTextFile(
-            join(dir, 'pre-push'),
-            '#!/bin/bash\n# Pre-push: runs `deno task gate`, the quality gate.\nexec deno task gate\n',
-        )
-        await Deno.writeTextFile(join(dir, 'pre-commit'), hooks['pre-commit'])
-        await installHooks(dir)
-        assertEquals(
-            await Deno.readTextFile(join(dir, 'pre-push')),
-            hooks['pre-push'],
-        )
-        for (const content of Object.values(hooks)) {
-            assert(content.includes(HOOK_MARKER))
-            assert(isLocknessHook(content))
+/**
+ * Hooks earlier versions of this installer really wrote, byte for byte,
+ * evaluated from the template literals at those commits: `pre-385` from
+ * 113737e1..5a5d69e3, `pre-388` from the #385 version up to this change.
+ */
+const LEGACY_FIXTURES = ['pre-385', 'pre-388'].flatMap((era) =>
+    ['pre-commit', 'pre-push'].map((name) => ({ era, name }))
+)
+
+/**
+ * Read one legacy hook fixture.
+ *
+ * @param era - `pre-385` or `pre-388`.
+ * @param name - The hook name.
+ * @returns The hook's exact historic content.
+ */
+function legacyHook(era: string, name: string): Promise<string> {
+    return Deno.readTextFile(
+        new URL(
+            `../tests/fixtures/install_hooks/${era}.${name}`,
+            import.meta.url,
+        ),
+    )
+}
+
+for (const { era, name } of LEGACY_FIXTURES) {
+    Deno.test(`the ${era} ${name} this installer wrote is recognised and replaced`, async () => {
+        const { root, main } = await fixture()
+        try {
+            const dir = join(main, '.git', 'hooks')
+            const old = await legacyHook(era, name)
+            assertEquals(
+                old.includes(HOOK_MARKER),
+                false,
+                'fixture has a marker',
+            )
+            assert(isLocknessHook(old), `${era} ${name} is not recognised`)
+            await Deno.writeTextFile(join(dir, name), old)
+            await installHooks(dir)
+            assertEquals(await Deno.readTextFile(join(dir, name)), hooks[name])
+        } finally {
+            await Deno.remove(root, { recursive: true })
         }
-        assertEquals(isLocknessHook('#!/bin/sh\nnpx husky run\n'), false)
+    })
+}
+
+Deno.test('the current hooks are marked, and a foreign one is not recognised', () => {
+    for (const content of Object.values(hooks)) {
+        assert(content.includes(HOOK_MARKER))
+        assert(isLocknessHook(content))
+    }
+    assertEquals(isLocknessHook('#!/bin/sh\nnpx husky run\n'), false)
+})
+
+/**
+ * Assert that installing over an unreadable `pre-push` refuses and writes
+ * nothing.
+ *
+ * @param place - Puts something unreadable at the given hook path.
+ */
+async function assertRefusesUnreadable(
+    place: (hookPath: string) => Promise<void>,
+): Promise<void> {
+    const { root, main } = await fixture()
+    const dir = join(main, '.git', 'hooks')
+    const hookPath = join(dir, 'pre-push')
+    try {
+        await place(hookPath)
+        let message = ''
+        try {
+            await installHooks(dir)
+        } catch (error) {
+            message = (error as Error).message
+        }
+        assertStringIncludes(message, 'cannot read the existing hook')
+        const wrote = await Deno.stat(join(dir, 'pre-commit'))
+            .then(() => true, () => false)
+        assertEquals(wrote, false, 'pre-commit was written despite the refusal')
     } finally {
+        await Deno.chmod(hookPath, 0o644).catch(() => {})
         await Deno.remove(root, { recursive: true })
     }
+}
+
+Deno.test({
+    name: 'a writable but unreadable hook is refused, not overwritten',
+    // root reads a mode-000 file anyway, so the case cannot be staged there.
+    ignore: Deno.uid() === 0,
+    fn: async () => {
+        let content = ''
+        await assertRefusesUnreadable(async (hookPath) => {
+            content = '#!/bin/sh\necho "a hook nobody can read"\n'
+            await Deno.writeTextFile(hookPath, content)
+            await Deno.chmod(hookPath, 0o200) // write-only
+        })
+        assert(content !== '')
+    },
+})
+
+Deno.test('a directory where a hook should be is refused', async () => {
+    await assertRefusesUnreadable((hookPath) => Deno.mkdir(hookPath))
 })

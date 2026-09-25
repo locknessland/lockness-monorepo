@@ -1,0 +1,3 @@
+#!/bin/bash
+# Pre-push: runs `deno task gate`, the quality gate defined in deno.jsonc.
+exec deno task gate

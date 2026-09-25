@@ -1,0 +1,30 @@
+#!/bin/bash
+# Pre-push: the full quality gate. Last thing between a broken tree and origin.
+#
+# Steps 4 and 5 are cheap and catch classes of damage the others cannot see:
+# a new import cycle, an import missing from its own package's deno.json (which
+# resolves inside the workspace and breaks for a JSR consumer), and a package
+# brief whose generated blocks no longer match the code.
+set -e
+
+echo "🚀 Running pre-push checks..."
+
+echo "  ✓ Formatting..."
+deno fmt --check
+
+echo "  ✓ Linting..."
+deno lint
+
+echo "  ✓ Type checking..."
+deno check
+
+echo "  ✓ Dependency integrity..."
+deno task deps:analyze
+
+echo "  ✓ Agent briefs..."
+deno task agents:brief --check
+
+echo "  ✓ Running tests..."
+deno task test
+
+echo "✅ Pre-push checks passed!"
