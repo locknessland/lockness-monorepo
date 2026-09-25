@@ -25,6 +25,18 @@
  */
 
 import { renderError } from '@lockness/contract'
+import { writeMarkedFallback } from '../marked_fallback.ts'
+
+/**
+ * The marker that starts the one ERROR line written when a failed run's WARN
+ * could not be, because `console.warn` threw (#395). Nothing awaits a run, so
+ * that throw would reach the runtime as an unhandled rejection. The line
+ * carries the run's failure and the sink's, each rendered; the marker is the
+ * fixed prefix, so an error text cannot forge it. Exported for the test suite
+ * only.
+ */
+export const LAPSE_RUN_LOG_FAILED =
+    'realtime: a lapse-run failure could not be logged (#395):'
 
 /** The lapse handler: writes this process's holds again, stopping on `signal`. */
 export type LapseHandler = (signal: AbortSignal) => void | Promise<void>
@@ -93,17 +105,28 @@ export class LapseRun {
 
     /**
      * One run, contained: a handler that throws synchronously or rejects is one
-     * WARN, carrying no member id or channel, then `onFailure`. Never rejects.
+     * WARN, carrying no member id or channel, then `onFailure`. Never rejects,
+     * not even when the WARN itself throws: that is one
+     * {@link LAPSE_RUN_LOG_FAILED} line instead (#395).
      */
     async #invoke(handler: LapseHandler): Promise<void> {
         try {
             await handler(this.#abort.signal)
         } catch (error) {
-            console.warn(
-                "realtime: re-asserting this instance's presence holds after " +
-                    'a liveness lapse failed — the next successful heartbeat ' +
-                    `retries: ${renderError(error)}`,
-            )
+            try {
+                console.warn(
+                    "realtime: re-asserting this instance's presence holds " +
+                        'after a liveness lapse failed — the next successful ' +
+                        `heartbeat retries: ${renderError(error)}`,
+                )
+            } catch (sink) {
+                // #395: `trigger()` never awaits this run, so a throwing sink
+                // would escape as an unhandled rejection. One marked line.
+                writeMarkedFallback(LAPSE_RUN_LOG_FAILED, error, {
+                    label: 'sink failure',
+                    error: sink,
+                })
+            }
             this.#onFailure()
         }
     }

@@ -1275,6 +1275,26 @@ export const SWEEP_LOG_FAILED =
     'realtime: a ghost-sweep log line could not be written (#360):'
 
 /**
+ * The marker that starts the one ERROR line written when the control
+ * subscription's WARN could not be, because `console.warn` threw (#395). The
+ * subscription's promise is `void`ed, so that throw would reach the runtime as
+ * an unhandled rejection. The line carries the subscription's failure and the
+ * sink's, each rendered. Exported for the test suite only.
+ */
+export const CONTROL_SUBSCRIBE_LOG_FAILED =
+    'realtime: a control-subscription failure could not be logged (#395):'
+
+/**
+ * The marker that starts the one ERROR line written when a failed heartbeat's
+ * WARN could not be, because `console.warn` threw (#395). The interval
+ * discards the heartbeat's promise, so that throw would reach the runtime as
+ * an unhandled rejection. The line carries the beat's failure and the sink's,
+ * each rendered. Exported for the test suite only.
+ */
+export const HEARTBEAT_LOG_FAILED =
+    'realtime: a heartbeat failure could not be logged (#395):'
+
+/**
  * What one heartbeat's `SET <alive key> 1 EX <ttl> GET` reported (#349):
  * `continuous` — the key existed, so this renewal extended it; `lapsed` — the
  * key had expired or was deleted, so this write re-created it, and a peer may
@@ -2342,14 +2362,22 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 sub.subscribeOne(this.controlTopic, deliver, {
                     priority: true,
                 }),
-            ).catch((error) =>
-                console.warn(
-                    'realtime: the control subscription could not be issued ' +
-                        `— the driver's own retry is what restores it: ${
-                            renderError(error)
-                        }`,
-                )
-            )
+            ).catch((error: unknown) => {
+                try {
+                    console.warn(
+                        'realtime: the control subscription could not be ' +
+                            "issued — the driver's own retry is what restores " +
+                            `it: ${renderError(error)}`,
+                    )
+                } catch (sink) {
+                    // #395: this promise is `void`ed, so a throwing sink would
+                    // escape as an unhandled rejection. One marked line.
+                    writeMarkedFallback(CONTROL_SUBSCRIBE_LOG_FAILED, error, {
+                        label: 'sink failure',
+                        error: sink,
+                    })
+                }
+            })
             return
         }
         this.subscriber.psubscribe(this.controlTopic, deliver)
@@ -3707,11 +3735,21 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             failure ??= { error }
         }
         if (failure) {
-            console.warn(
-                `realtime: instance-liveness heartbeat failed: ${
-                    renderError(failure.error)
-                }`,
-            )
+            try {
+                console.warn(
+                    `realtime: instance-liveness heartbeat failed: ${
+                        renderError(failure.error)
+                    }`,
+                )
+            } catch (sink) {
+                // #395: the interval discards this promise, so a throwing sink
+                // would escape as an unhandled rejection — and would skip the
+                // lapse decision below. One marked line, then on.
+                writeMarkedFallback(HEARTBEAT_LOG_FAILED, failure.error, {
+                    label: 'sink failure',
+                    error: sink,
+                })
+            }
         }
         // The lapse decision, once, reading `#holdIssued` NOW (#349 FR-004,
         // A4): read when the beat was issued, it would miss a hold that

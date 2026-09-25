@@ -88,6 +88,15 @@ export const REVOCATION_APPLY_LOG_FAILED =
     'realtime: a control-frame revocation log line could not be written (#376):'
 
 /**
+ * The marker that starts the default `onPublishError` line: a broadcast's
+ * publish failed and the caller supplied no sink. The error is rendered after
+ * it. `broadcast` discards the publish promise, so the line is written by
+ * `writeMarkedFallback`, which never throws (#395). Exported for the test
+ * suite only — not re-exported from `mod.ts`.
+ */
+export const PUBLISH_FAILED = 'realtime: broadcast publish failed:'
+
+/**
  * Refuse a cap that is not a positive integer, at construction.
  *
  * @param option - The option's name, so the message names what to fix.
@@ -1115,14 +1124,11 @@ export class ChannelManager<Identity = unknown> {
         this.authorize = options.authorize
         this.encode = options.encode ?? ((frame) => JSON.stringify(frame))
         this.onPublishError = options.onPublishError ??
-            ((error) =>
-                console.error(
-                    // The framework's DEFAULT sink, so it is the framework's job
-                    // to make it safe. A caller who supplies their own owns what
-                    // it prints; this one must not hand an unrendered error —
-                    // and its stack — to a log store.
-                    `realtime: broadcast publish failed: ${renderError(error)}`,
-                ))
+            // The framework's DEFAULT sink, so it is the framework's job to
+            // make it safe: the error is rendered, never handed with its stack
+            // to a log store, and the line never throws — `broadcast` discards
+            // the publish promise, so a throw here would escape (#395).
+            ((error) => writeMarkedFallback(PUBLISH_FAILED, error))
         // `??`, never `||`: a supplied 0 must reach the assertion below rather
         // than be silently repaired into the default. A cap that repairs itself
         // is the shape the plan's decision table forbids.
