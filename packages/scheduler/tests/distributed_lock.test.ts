@@ -277,6 +277,69 @@ Deno.test('onOneServer - a release rejecting with an unprintable value is still 
     assertEquals(warnings[0].fields.message, '<unprintable>')
 })
 
+/** Rejection values built to make reading them throw, or lie about their type. */
+function hostileRejections(): Array<[string, () => unknown]> {
+    const boom = () => {
+        throw new Error('hostile read')
+    }
+    return [
+        [
+            'an Error whose `name` getter throws',
+            () => Object.defineProperty(new Error('x'), 'name', { get: boom }),
+        ],
+        [
+            'an Error whose `message` getter throws',
+            () =>
+                Object.defineProperty(new Error('x'), 'message', { get: boom }),
+        ],
+        [
+            'a Proxy whose getPrototypeOf trap throws',
+            () => new Proxy({}, { getPrototypeOf: boom }),
+        ],
+        ['a revoked Proxy', () => {
+            const { proxy, revoke } = Proxy.revocable({}, {})
+            revoke()
+            return proxy
+        }],
+        [
+            'an Error whose `name` is not a string',
+            () => Object.defineProperty(new Error('x'), 'name', { value: 42 }),
+        ],
+    ]
+}
+
+Deno.test('onOneServer - a release rejecting with a hostile value is contained and reported once', async (t) => {
+    // `flatten` runs in a catch inside the run's `finally`, and on the cron
+    // path the run is `void`ed: a throw from it is an unhandled rejection that
+    // kills the process. Every read of the rejection value is hostile input.
+    for (const [label, make] of hostileRejections()) {
+        await t.step(label, async () => {
+            const { reporter, warnings } = recordingReporter()
+            const s = new Scheduler(reporter, {
+                acquire: () => Promise.resolve(true),
+                release: () => Promise.reject(make()),
+            })
+            let ran = 0
+            s.register({
+                expression: everyMinute,
+                body: () => {
+                    ran++
+                },
+                options: { name: 'nightly', onOneServer: true },
+            })
+
+            await s.runNow('nightly') // resolves: nothing escaped
+
+            assertEquals(ran, 1)
+            assertEquals(s.getStats().tasks[0].failureCount, 0)
+            assertEquals(warnings.length, 1, 'exactly one warning')
+            assertEquals(warnings[0].fields.task, 'nightly')
+            assertEquals(warnings[0].fields.error, 'Error')
+            assertEquals(warnings[0].fields.message, '<unprintable>')
+        })
+    }
+})
+
 Deno.test('onOneServer - a failed release with no reporter falls back to console.warn', async () => {
     // Without a reporter the scheduler used to say nothing at all — on this
     // path and on the three other warnings it emits. A rejection that is not

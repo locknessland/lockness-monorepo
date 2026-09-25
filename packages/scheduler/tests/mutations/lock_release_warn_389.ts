@@ -72,21 +72,43 @@ const MUTATIONS: Mutation[] = [
         // Review finding: `String()` throws on a value with no usable
         // `toString`. Unguarded, that throw leaves the release catch from
         // inside `finally` and rejects a run that succeeded.
-        label: 'the String() guard is removed — an unprintable rejection ' +
-            'escapes the release catch',
+        label: 'the String() call is moved out of the guard — an ' +
+            'unprintable rejection escapes the release catch',
         file: SCHEDULER,
         edits: [[
-            '    let message: string\n' +
             '    try {\n' +
-            '        message = String(caught)\n' +
-            '    } catch (_unprintable) {\n' +
-            '        // Not swallowed: the placeholder IS the report of this failure, and it\n' +
-            '        // reaches the log line the caller is about to write.\n' +
-            '        message = UNPRINTABLE\n' +
-            '    }\n',
-            '    const message = String(caught)\n',
+            '        if (!(caught instanceof Error)) {\n' +
+            "            return { name: 'Error', message: String(caught) }\n" +
+            '        }\n',
+            '    if (!(caught instanceof Error)) {\n' +
+            "        return { name: 'Error', message: String(caught) }\n" +
+            '    }\n' +
+            '    try {\n',
         ]],
         killedBy: 'unprintable value is still contained and reported once',
+    },
+    {
+        // Second review finding: guarding `String()` alone was not total. An
+        // Error's `name` and `message` may be throwing getters, and reading
+        // them outside the `try` lets that throw leave `finally` — on the cron
+        // path, an unhandled rejection that kills the process.
+        label: 'the name/message reads are moved out of the try — a ' +
+            'throwing getter escapes the release catch',
+        file: SCHEDULER,
+        edits: [
+            [
+                '    try {\n' +
+                '        if (!(caught instanceof Error)) {\n',
+                '    const { name, message } = caught as Error\n' +
+                '    try {\n' +
+                '        if (!(caught instanceof Error)) {\n',
+            ],
+            [
+                '        const { name, message } = caught\n',
+                '',
+            ],
+        ],
+        killedBy: 'a hostile value is contained and reported once',
     },
     {
         // Review finding: a reporter REPLACES the console. Without the
