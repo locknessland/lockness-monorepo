@@ -610,6 +610,7 @@ import type {
     ControlMessage,
     PresenceCapableDriver,
     RevocationStoreDriver,
+    RevocationTally,
     RosterDeparture,
     RosterWindow,
 } from './driver.ts'
@@ -3150,9 +3151,20 @@ export class ChannelManager<Identity = unknown> {
      * failure to tear down is logged at WARN, never
      * swallowed — the socket is closed regardless.
      *
+     * **The hard-close is outside the `try`, on purpose** (#384). A
+     * `Connection.close` that throws leaves the socket open AND still owned,
+     * so the durable record reaches it again on every pass: that failure must
+     * reach the caller, where the revocation re-check counts it, rather than
+     * become a WARN that reads like the contained teardown failure below.
+     *
      * @param clientId - The owned connection id to revoke.
+     * @returns `true` once `disconnect` fulfilled — `'disconnected'`, or
+     *   `'not-owned'` when nothing is left to tear down here — and `false`
+     *   when the teardown threw, after its WARN (#384). `evict` and the
+     *   control-frame path drop it; the revocation re-check counts it.
+     * @throws Whatever the connection's `close` threw.
      */
-    private async revokeLocal(clientId: string): Promise<void> {
+    private async revokeLocal(clientId: string): Promise<boolean> {
         // Hard-close first so delivery stops immediately, even before the async
         // roster teardown settles (Q2 — safe even if `authorize()` lags).
         this.connections.get(clientId)?.close(4403, 'evicted')
@@ -3163,7 +3175,9 @@ export class ChannelManager<Identity = unknown> {
                 `realtime: evict teardown for ${safeForLog(clientId)} failed ` +
                     `after hard-close: ${renderError(error)}`,
             )
+            return false
         }
+        return true
     }
 
     /**
@@ -3449,27 +3463,39 @@ export class ChannelManager<Identity = unknown> {
      * {@link #dispatchRevocation} (#376), the reconcile inside its own `try`
      * (#349).
      *
+     * **Whether the apply completed is decided here and nowhere else**
+     * (#384): the connection scope reports {@link revokeLocal}'s answer, and
+     * a hard-close that threw reaches the catch; the channel scope completed
+     * once its leave resolved, **whatever its clear did** — the revocation
+     * was applied, and only the record outlives it. What a failure means to
+     * an operator is {@link RevocationTally}'s to say.
+     *
      * @param revocation - A whole-connection revocation, or every channel
      *   revocation of one pair, to apply to a socket this instance owns.
+     * @returns `true` when the apply completed, `false` from the catch, after
+     *   its WARN. {@link #dispatchRevocation} drops it; the revocation
+     *   re-check counts it.
+     * @throws Only what its own WARN throws.
      */
     async #applyRevocation(
         revocation: ConnectionRevocation | ChannelRevocationGroup,
-    ): Promise<void> {
+    ): Promise<boolean> {
         try {
             if (revocation.channel === undefined) {
                 // Connection scope. The record is NOT cleared: it becomes moot
                 // the instant the socket dies, so it is left to its TTL — which
                 // is what `evict` has always done.
-                await this.revokeLocal(revocation.target)
-                return
+                return await this.revokeLocal(revocation.target)
             }
             await this.#revokeChannelLocal(revocation)
+            return true
         } catch (error) {
             console.warn(
                 `realtime: applying a revocation for ${
                     safeForLog(revocation.target)
                 } failed: ${renderError(error)}`,
             )
+            return false
         }
     }
 
@@ -3514,10 +3540,11 @@ export class ChannelManager<Identity = unknown> {
      * so a rejected run never stops the next. No coalescing: the callers are
      * each one at a time, so the tail is at most two deep.
      *
-     * @returns Settles once this call's run has settled.
+     * @returns This call's run's {@link RevocationTally}, once it settled —
+     *   what the driver's pass handler resolves to (#384).
      * @throws Whatever this call's run throws.
      */
-    private reconcileRevocations(): Promise<void> {
+    private reconcileRevocations(): Promise<RevocationTally> {
         const run = this.#revocationTail.then(() => this.#recheckRevocations())
         // The tail must always settle so the next run starts; `run` still
         // rejects to this caller, so nothing is swallowed.
@@ -3551,19 +3578,32 @@ export class ChannelManager<Identity = unknown> {
      * the same place, starving each revocation listed behind it. Each is
      * applied inside its own `try`, and a throw is one WARN naming no target
      * and no member.
+     *
+     * **The tally is counted in the `apply` wrapper and nowhere else**
+     * (#384): one attempt per call — so a pair is one, and a record the
+     * ownership check below drops is never attempted — and one failure per
+     * call whose apply reported `false` or threw. What the counts mean is
+     * {@link RevocationTally}'s to say.
+     *
+     * @returns How many applies this run attempted, and how many failed.
+     * @throws Whatever the index read throws: there is no tally then.
      */
-    async #recheckRevocations(): Promise<void> {
+    async #recheckRevocations(): Promise<RevocationTally> {
+        let attempted = 0
+        let failed = 0
         const apply = async (
             revocation: ConnectionRevocation | ChannelRevocationGroup,
         ): Promise<void> => {
+            attempted++
             try {
-                await this.#applyRevocation(revocation)
+                if (!await this.#applyRevocation(revocation)) failed++
             } catch (error) {
                 console.warn(
                     'realtime: a durable revocation could not be applied — ' +
                         'the reconcile goes on with the next one: ' +
                         renderError(error),
                 )
+                failed++
             }
         }
         // The driver is ASKED which targets are local, so it can drop foreign
@@ -3600,6 +3640,7 @@ export class ChannelManager<Identity = unknown> {
         for (const group of groups.values()) {
             await apply(group)
         }
+        return { attempted, failed }
     }
 
     /**

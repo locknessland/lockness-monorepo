@@ -670,9 +670,23 @@ export interface BroadcastDriver {
      * Its registration follows the hooks' shared lifecycle
      * ({@link BroadcastDriver}).
      *
-     * @param handler - Called with no arguments on each reconcile tick.
+     * **The handler may resolve to a {@link RevocationTally}** (#384): how
+     * many applies the re-check attempted and how many failed. A driver may
+     * report it — the Redis driver puts it on its pass sample and re-arms its
+     * enforcement deadline only after a pass with no failure — and may ignore
+     * it. Resolving to nothing is conforming: the handler an application
+     * registered before #384 changes nothing. The driver still calls it with
+     * no argument.
+     *
+     * @param handler - Called with no arguments on each reconcile tick;
+     *   resolves to the re-check's tally, or to nothing.
      */
-    onRevocationReconcile?(handler: () => void | Promise<void>): void
+    onRevocationReconcile?(
+        handler: () =>
+            | RevocationTally
+            | void
+            | Promise<RevocationTally | void>,
+    ): void
     /**
      * OPTIONAL (#348). Register the handler the driver calls for every roster
      * slot it empties while releasing **another process's** hold — on Redis,

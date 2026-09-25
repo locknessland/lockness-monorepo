@@ -114,7 +114,7 @@ function twoInstances(options: { dropControl?: boolean } = {}) {
     const index = new Map<string, Revocation>()
     const controlHandlers: ((control: ControlMessage) => void)[] = []
     const messageHandlers: ((message: BroadcastMessage) => void)[] = []
-    const reconcilers: (() => void | Promise<void>)[] = []
+    const reconcilers: (() => unknown)[] = []
 
     const driverFor = (index_: number): BroadcastDriver => ({
         publish(message) {
@@ -508,7 +508,7 @@ Deno.test('#332 a failed CLEAR is reported to a caller and swallowed where there
     // driver does with its own tick.
     const failure = new Error('clear failed')
     const live: Revocation[] = []
-    let reconcile: (() => void | Promise<void>) | undefined
+    let reconcile: (() => unknown) | undefined
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
@@ -578,7 +578,7 @@ Deno.test('#332 a revoke that found nothing to remove KEEPS its durable record',
     // `evict` never had this: its records go to the TTL, so its backstop
     // survives an apply that found nothing.
     const live = new Map<string, Revocation>()
-    let reconcile: (() => void | Promise<void>) | undefined
+    let reconcile: (() => unknown) | undefined
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
@@ -718,7 +718,7 @@ Deno.test('#332 the reconcile applies a record ONLY to a socket this instance ow
         ]
     ) live.set(key(r), r)
 
-    let reconcile: (() => void | Promise<void>) | undefined
+    let reconcile: (() => unknown) | undefined
     const driver: BroadcastDriver = {
         publish: () => {},
         onMessage: () => {},
