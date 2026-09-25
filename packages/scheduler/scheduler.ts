@@ -32,6 +32,17 @@ export const NAME_PATTERN = /^[A-Za-z0-9._:-]{1,64}$/
 /** The most retries a schedule may declare. */
 export const MAX_RETRIES = 10
 
+/**
+ * An error reduced to its name and message, the way `task_runner.ts` logs one.
+ *
+ * A lock adapter may reject with anything, and the raw object must never reach
+ * a log line: a driver error's stack or `cause` can carry a connection string.
+ */
+function flatten(caught: unknown): { name: string; message: string } {
+    const error = caught instanceof Error ? caught : new Error(String(caught))
+    return { name: error.name, message: error.message }
+}
+
 /** One registered task, as the scheduler holds it. */
 interface Task {
     readonly name: string
@@ -484,7 +495,7 @@ export class Scheduler {
         // live runs, each holding whatever resource it opened.
         if (task.running && (task.options.overlap ?? 'skip') === 'skip') {
             task.skippedCount++
-            this.#reporter?.warn(
+            this.#warn(
                 'Scheduled task skipped: the previous run is still in flight.',
                 {
                     task: name,
@@ -510,9 +521,9 @@ export class Scheduler {
             } catch (error) {
                 // Lock store unreachable: skip (never split-brain), but make it
                 // observable — a fleet-wide miss must not look like a lost race.
-                this.#reporter?.warn(
+                this.#warn(
                     'Scheduled task skipped: the distributed lock store is unreachable.',
-                    { task: name, error: (error as Error).message },
+                    { task: name, error: flatten(error).message },
                 )
                 return
             }
@@ -544,7 +555,7 @@ export class Scheduler {
                     if (task.generation !== generation) {
                         // Reported, not dropped: a retry policy that quietly
                         // stops retrying looks exactly like one that succeeded.
-                        this.#reporter?.warn(
+                        this.#warn(
                             'Scheduled task retry chain abandoned: the next occurrence arrived first.',
                             { task: name },
                         )
@@ -567,15 +578,41 @@ export class Scheduler {
 
             // Release this replica's own claim (owner-checked in the adapter).
             // Best-effort: a failed release is covered by the lock's TTL, so it
-            // is swallowed rather than masking the task's own outcome.
+            // never masks the task's own outcome — the run already counted, and
+            // `failureCount` / `lastError` describe the task, not the lock. It
+            // is warned about, not swallowed: a release that keeps failing
+            // leaves every claim to expire on its TTL, and nothing else says so.
             if (claimed !== undefined && this.#lock !== undefined) {
                 try {
                     await this.#lock.release(name, claimed)
-                } catch {
-                    // TTL expiry is the backstop; nothing to do here.
+                } catch (error) {
+                    const { name: errorName, message } = flatten(error)
+                    this.#warn(
+                        'Scheduled task lock release failed; the claim stands until its TTL expires.',
+                        {
+                            task: name,
+                            occurrence: claimed.toISOString(),
+                            error: errorName,
+                            message,
+                        },
+                    )
                 }
             }
         }
+    }
+
+    /**
+     * Report through the injected reporter, or `console.warn`.
+     *
+     * Shaped like `TimerRegistry`'s own: a scheduler constructed without a
+     * reporter must still say something, or every warning it emits is lost.
+     */
+    #warn(message: string, fields: Record<string, unknown>): void {
+        if (this.#reporter) {
+            this.#reporter.warn(message, fields)
+            return
+        }
+        console.warn(`⚠️  ${message}`, fields)
     }
 }
 
