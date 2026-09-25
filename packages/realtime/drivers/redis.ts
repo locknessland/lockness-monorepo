@@ -1908,9 +1908,18 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * for it so far across every dead instance. A Temporary Field — set only
      * while a sweep is in flight — kept for parity with
      * {@link #revocationPass}, so both passes count pages the same way.
-     * Stored and cleared by {@link #armReconcile} alone.
+     * Stored and cleared by {@link #armReconcile} alone. Since #384 it also
+     * counts the dead instances {@link #sweepInstance} was called for, and
+     * how many of those sweeps failed.
      */
-    #sweepPass?: { readonly startedAt: number; pages: number }
+    #sweepPass?: {
+        readonly startedAt: number
+        pages: number
+        /** Dead instances swept so far (#384). */
+        attempts: number
+        /** Of those, the sweeps that threw (#384). */
+        failures: number
+    }
     /**
      * The owning instance's departure announcer (#348), registered by the
      * manager via {@link onRosterDeparture}. ONE handler: re-registration
@@ -3857,7 +3866,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         if (this.#closing) return
         this.reconcileTimer = setTimeout(() => {
             this.reconcileTimer = undefined
-            const pass = { startedAt: this.#passClock(), pages: 0 }
+            const pass = {
+                startedAt: this.#passClock(),
+                pages: 0,
+                attempts: 0,
+                failures: 0,
+            }
             this.#sweepPass = pass
             let outcome: PassOutcome = 'failed'
             this.#reconcilePass = this.#reconcile()
@@ -3874,6 +3888,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                         pass.startedAt,
                         endedAt,
                         pass.pages,
+                        pass.attempts,
+                        pass.failures,
                     )
                 })
                 .catch((error: unknown) => {
@@ -4104,9 +4120,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * a compile error — and a throw becomes the `failed` end here, so an exit
      * added later can neither skip the line nor write a second one.
      *
+     * **It counts the sweep's attempts and failures, and nothing else does**
+     * (#384): one attempt as its first statement, and one failure as the
+     * first statement of the failed branch, before that branch's WARN. What
+     * the two counts mean is {@link PassSample}'s to say.
+     *
      * @param deadId - The instance whose liveness lapsed.
      */
     async #sweepInstance(deadId: string): Promise<void> {
+        if (this.#sweepPass) this.#sweepPass.attempts++
         const count: SweepCount = { released: 0, emptied: 0 }
         let end: SweepEnd
         try {
@@ -4117,6 +4139,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         const id = safeForLog(deadId)
         const { released, emptied } = count
         if (typeof end === 'object') {
+            // Counted BEFORE the WARN, so a sink that throws cannot skip it.
+            if (this.#sweepPass) this.#sweepPass.failures++
             console.warn(
                 `realtime: sweep of dead instance ${id} failed after ` +
                     `${released} hold(s) released (${emptied} emptied): ` +
