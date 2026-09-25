@@ -1,6 +1,7 @@
 # ADR 011 — The Redis revocation bound is checked: at boot, and at runtime
 
-**Status:** Accepted **Date:** 2026-09-24 **Owner:** architect **Affects:**
+**Status:** Accepted, amended by [ADR 013](013-realtime-revocation-ttl-floor.md)
+**Date:** 2026-09-24 **Owner:** architect **Affects:**
 `packages/realtime/drivers/redis.ts`,
 `packages/realtime/drivers/enforcement_deadline.ts`, `docs/realtime.md`,
 `packages/realtime/AGENTS.md`
@@ -195,6 +196,10 @@ Rejected by #384, when a pass with a failure stopped counting as a success:
   trip.
 
 ## 5. The fleet
+
+> **Amended by [ADR 013](013-realtime-revocation-ttl-floor.md)** (#380): the
+> fleet's longest live TTL is now **enforced** by a revocation floor, not
+> assumed.
 
 A record lives for its **writer's** TTL, extended upward by `ZADD … GT`. Both
 checks use **this** instance's TTL, so a peer configured with a shorter one
