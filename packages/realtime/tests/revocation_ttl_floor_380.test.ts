@@ -690,6 +690,10 @@ Deno.test('#380 F5 (i) a rejected announce writes one WARN and nothing escapes',
             })
             r.onRevocationReconcile(() => {})
             await settle()
+            // The escape first: a removed `catch` is red HERE, through the
+            // rejection itself, not merely through the WARN it no longer
+            // writes.
+            assertEquals(escaped, [], 'no rejection reaches the runtime')
             const warns = f.logs.warns(REVOCATION_FLOOR_ANNOUNCE_FAILED)
             assertEquals(warns.length, 1, 'one WARN')
             assert(warns[0].includes('announce refused (#380)'), warns[0])

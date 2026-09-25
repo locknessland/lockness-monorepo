@@ -204,6 +204,27 @@ const REAP_REVOKED_SCRIPT: string = [
 ].join('\n')
 
 /**
+ * Announce one instance's entry in the revocation floor at its first
+ * registration (#380), before any revocation pass has run — the second and
+ * last caller of {@link FLOOR_WRITE}. The reap refreshes the entry from then
+ * on; a mark written in the interval before a new reader's first reap is
+ * therefore already scored at that reader's TTL.
+ *
+ * **It never carries the index key** (A2): called as `EVAL <script> 1 <floor>
+ * <ttl> <ttl + slack>`, it differs from the reap in numkeys and in shape, so
+ * nothing that picks out the reap can pick up the announce. It returns
+ * nothing. `KEYS[1]` floor key · `ARGV[1]` this instance's
+ * `revocationTtlSeconds` · `ARGV[2]` the floor key's own TTL.
+ */
+const ANNOUNCE_FLOOR_SCRIPT: string = [
+    "local t = redis.call('TIME')[1]",
+    'local floor = KEYS[1]',
+    'local ttl = ARGV[1]',
+    'local keyTtl = ARGV[2]',
+    FLOOR_WRITE,
+].join('\n')
+
+/**
  * The delimiter between the names inside one index member: a channel-scoped
  * record is `"<target> <channel> <id>"` (#332, #337), a whole-connection one is
  * the bare `target`.
@@ -1656,6 +1677,13 @@ const DEFAULT_RECONCILE_INTERVAL_MS = 10_000
  * failure it answers is usually a broker that just refused a command.
  */
 const RECONCILE_RETRY_MS = 1_000
+/**
+ * The first backoff step of a failed floor announce's retry, in milliseconds
+ * (#380 S1). It doubles on each failure, capped at `reconcileIntervalMs`. It
+ * is below 2 s so that a reader whose first announce failed is back on the
+ * floor within seconds, not after its first pass.
+ */
+const FLOOR_ANNOUNCE_RETRY_MS = 1_000
 const DEFAULT_REVOCATION_TTL_SECONDS = 300
 /**
  * What one completed background pass of the Redis driver reports to the
@@ -2035,6 +2063,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * keeps failing costs one extra round-trip per outage rather than a loop.
      */
     private revocationRetryTimer?: ReturnType<typeof setTimeout>
+    /**
+     * The ONE pending retry of a failed floor announce (#380), armed by
+     * {@link #announceFloor} alone and cleared by {@link close}. Unref'd.
+     */
+    #announceRetry?: ReturnType<typeof setTimeout>
     private sweepStarted = false
     /**
      * The owning instance's revocation re-check (S1/FR-014). Registered by the
@@ -3624,6 +3657,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         // re-registering during a failure run cannot postpone a due WARN.
         if (first && !this.#closing) {
             this.#deadline.arm(this.revocationTtlSeconds * 1000)
+            // The floor announce (#380): the same gate, so a re-registration
+            // or a registration after close() announces nothing.
+            void this.#announceFloor(FLOOR_ANNOUNCE_RETRY_MS)
         }
         // The SECOND trigger (#271): the subscribe socket coming back is the
         // routine moment an `evict` frame was lost, so re-check immediately
@@ -3637,6 +3673,53 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         this.subscriber.onReconnect?.(() =>
             this.#startRevocationPass('reconnect')
         )
+    }
+
+    /**
+     * Write this instance's floor entry once, before its first revocation
+     * pass (#380 FR-005) — {@link ANNOUNCE_FLOOR_SCRIPT}, which never carries
+     * the index key.
+     *
+     * **`async`, and it never rejects** (S5): the command is awaited inside
+     * the `try`, so a port that throws synchronously lands in the same
+     * `catch` as one that rejects, and {@link onRevocationReconcile} — which
+     * `void`s it — still registers its reconnect trigger.
+     *
+     * **A failure is retried** (S1): one WARN through {@link #warnFloor},
+     * then one unref'd timer ({@link #announceRetry}) re-sends the idempotent
+     * announce after `backoffMs`, doubling each time and capped at
+     * `reconcileIntervalMs`. The retry stops at the first successful
+     * announce, once a reap has completed (it wrote the entry itself), or
+     * once {@link close} has begun — asked before every re-arm and again when
+     * the timer fires (the #355 gate).
+     *
+     * @param backoffMs - The delay before the retry a failure arms.
+     * @returns Resolves once this attempt has settled; never rejects.
+     */
+    async #announceFloor(backoffMs: number): Promise<void> {
+        try {
+            await this.command.command(
+                'EVAL',
+                ANNOUNCE_FLOOR_SCRIPT,
+                '1',
+                this.revocationFloorKey,
+                String(this.revocationTtlSeconds),
+                String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),
+            )
+        } catch (error) {
+            this.#warnFloor(
+                `${REVOCATION_FLOOR_ANNOUNCE_FAILED} ${renderError(error)}`,
+            )
+            if (this.#closing || this.#lastReadAt !== undefined) return
+            const delay = Math.min(backoffMs, this.reconcileIntervalMs)
+            const id = setTimeout(() => {
+                this.#announceRetry = undefined
+                if (this.#closing || this.#lastReadAt !== undefined) return
+                void this.#announceFloor(delay * 2)
+            }, delay)
+            Deno.unrefTimer(id)
+            this.#announceRetry = id
+        }
     }
 
     /**
@@ -4713,6 +4796,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         if (this.revocationRetryTimer !== undefined) {
             clearTimeout(this.revocationRetryTimer)
             this.revocationRetryTimer = undefined
+        }
+        // Nor a floor announce retry (#380).
+        if (this.#announceRetry !== undefined) {
+            clearTimeout(this.#announceRetry)
+            this.#announceRetry = undefined
         }
         // The enforcement deadline goes with the other timers (#362); a pass
         // that ends after this re-arms nothing, because its end site asks

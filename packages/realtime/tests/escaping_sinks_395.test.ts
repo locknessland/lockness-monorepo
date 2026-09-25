@@ -40,6 +40,7 @@ import {
     CONTROL_SUBSCRIBE_LOG_FAILED,
     HEARTBEAT_LOG_FAILED,
     RedisBroadcastDriver,
+    REVOCATION_FLOOR_LOG_FAILED,
 } from '../drivers/redis.ts'
 import { LAPSE_RUN_LOG_FAILED, LapseRun } from '../drivers/lapse_run.ts'
 import type { BroadcastDriver } from '../driver.ts'
@@ -277,6 +278,29 @@ const SINKS: SinkRow[] = [
                     }
                 },
             }
+        },
+    },
+    {
+        // #380: the floor announce is `void`ed by `onRevocationReconcile`, so
+        // a throw from its WARN would be a rejection nobody handles.
+        name: "the redis floor announce's WARN (the announce is refused)",
+        marker: REVOCATION_FLOOR_LOG_FAILED,
+        subject: 'announce refused (#380)',
+        arm: () => {
+            const redis = new FakeRedis()
+            const command: CommandFn = (...args) =>
+                args[0] === 'EVAL' && args[2] === '1' &&
+                    args[3] === `${PREFIX}__revocation-floor`
+                    ? Promise.reject(new Error('announce refused (#380)'))
+                    : redis.command(...args)
+            const driver = redisDriver(redis, command)
+            return Promise.resolve({
+                fire: () => {
+                    driver.onRevocationReconcile(() => {})
+                    return Promise.resolve()
+                },
+                dispose: () => driver.close(),
+            })
         },
     },
 ]
