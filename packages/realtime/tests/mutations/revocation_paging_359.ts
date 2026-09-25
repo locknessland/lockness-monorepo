@@ -76,13 +76,20 @@ const SUITES = [
     new URL('../revocation_paging_359.test.ts', import.meta.url).pathname,
 ]
 
-/** The reap, from `listRevocations`' first `now` to the reply's decode. */
+/**
+ * The reap, from `listRevocations`' first `now` to the reply's decode — in
+ * its two-key form since #380 (index, then the revocation floor it also
+ * refreshes). Re-anchored, never deleted: the source moved, the guard remains.
+ */
 const REAP = '        const t = decodeReapReply(\n' +
     '            await this.command.command(\n' +
     "                'EVAL',\n" +
     '                REAP_REVOKED_SCRIPT,\n' +
-    "                '1',\n" +
+    "                '2',\n" +
     '                this.revocationIndexKey,\n' +
+    '                this.revocationFloorKey,\n' +
+    '                String(this.revocationTtlSeconds),\n' +
+    '                String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),\n' +
     '            ),\n' +
     '        )\n'
 
@@ -242,8 +249,14 @@ const MUTATIONS: Mutation[] = [
                 '                await this.command.command(\n' +
                 "                    'EVAL',\n" +
                 '                    REAP_REVOKED_SCRIPT,\n' +
-                "                    '1',\n" +
+                "                    '2',\n" +
                 '                    this.revocationIndexKey,\n' +
+                '                    this.revocationFloorKey,\n' +
+                '                    String(this.revocationTtlSeconds),\n' +
+                '                    String(\n' +
+                '                        this.revocationTtlSeconds +\n' +
+                '                            INDEX_TTL_SLACK_SECONDS,\n' +
+                '                    ),\n' +
                 '                ),\n' +
                 '            )\n' +
                 SKIP_SUM,
