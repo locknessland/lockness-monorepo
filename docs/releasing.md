@@ -159,6 +159,8 @@ home because it exists for every version by construction — publishing it is wh
 triggers `publish.yml` — and because shipped code and docs already point there:
 `@lockness/upgrade` prints the Releases list, and the README and the docs index
 link it. A second file would be a second copy, free to drift from the first.
+Releases are not in git, so moving the repository has to carry them explicitly —
+see [Migrating the repository](#migrating-the-repository).
 
 **A breaking change is recorded once, in the guide of the package that owns it,
 in the same PR as the change.** It is a `### N.` item under
@@ -191,6 +193,38 @@ recorded two. Nothing that can be derived is typed at that moment any more.
 missed — unless a commit in the release range marks it (`type!:` or a
 `BREAKING CHANGE` footer), in which case the Release refuses to say "no breaking
 change is recorded". An unmarked, unrecorded change ships unlisted.
+
+## Migrating the repository
+
+Releases are not in git. A clone, a push to a new remote or a mirror does not
+carry them, and this project already lost its `0.1.x` release history that way
+(see [Version history](#version-history)). Since the GitHub Release is the only
+changelog, a move to another host or organisation runs these steps before the
+old repository is retired. Every command here only reads the old repository:
+none creates, edits or publishes a Release.
+
+1. **Export every Release body**, one JSON file per tag, into a directory
+   outside the working tree:
+
+   ```bash
+   repo=locknessland/lockness-monorepo
+   gh release list --repo "$repo" --limit 1000 --json tagName --jq '.[].tagName' |
+     while read -r tag; do
+       gh release view "$tag" --repo "$repo" \
+         --json tagName,name,body,publishedAt,isDraft,isPrerelease \
+         > "<export-dir>/$tag.json"
+     done
+   ```
+
+2. **Move the tags with them.** A body without its tag breaks every
+   `blob/v<X.Y.Z>/…` link it carries. The tags travel with the git history
+   (`git push <new-remote> --tags`, or a mirror push); check that the new host
+   lists every `v*` tag the export has a file for.
+
+3. **Keep the export alongside the tags, then restore it on the new host** — one
+   Release per exported tag, its body copied verbatim, created only once that
+   tag exists there. Publishing a Release triggers `publish.yml`, so the restore
+   happens before that workflow is enabled on the new host, or as drafts.
 
 ## Before any release
 
