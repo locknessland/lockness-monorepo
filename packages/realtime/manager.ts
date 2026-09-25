@@ -1334,6 +1334,13 @@ export class ChannelManager<Identity = unknown> {
      * its id — one `onOpen` refused, or one whose id was re-registered after
      * an evict — tears down nothing that belongs to the socket that does.
      *
+     * **Your `onClose` runs exactly once for each socket whose `onOpen` ran**
+     * (#404) — evicted ones included, refused ones never. If your transport
+     * reuses ids, an evicted socket's id may already be someone else's, so
+     * still never act on `conn.id` there. The pairing is a weak set of the
+     * admitted objects, cleared on close; it answers "did this socket open?"
+     * and never "who owns this id?".
+     *
      * **`onMessage` runs the app's hook only for the socket that owns its id**
      * (#363). A frame from a socket `onOpen` refused, or from one already torn
      * down, is dropped before any app code runs — so an app that calls
@@ -1353,6 +1360,12 @@ export class ChannelManager<Identity = unknown> {
     handlerHooks(
         userHooks: WebSocketHooks<Identity> = {},
     ): WebSocketHooks<Identity> {
+        // PAIRS OPEN WITH CLOSE, AND NOTHING ELSE (#404): the sockets whose
+        // app `onOpen` is about to run, each cleared by its first close. Never
+        // asked who owns an id — `#isOwner` is the one authority on that
+        // (#370 plan, row 17). Weak, so a transport that never closes a socket
+        // leaks nothing here.
+        const opened = new WeakSet<Connection<Identity>>()
         return {
             onOpen: (conn) => {
                 // CLOSE FIRST, then rethrow. `guard()` in websocket.ts catches
@@ -1370,6 +1383,10 @@ export class ChannelManager<Identity = unknown> {
                     conn.close(1011, 'unusable connection id')
                     throw error
                 }
+                // After the register succeeded, before the app's hook: a
+                // refused socket never reaches this line, so it never gets
+                // the app's onClose either.
+                opened.add(conn)
                 return userHooks.onOpen?.(conn)
             },
             onMessage: (conn, data) => {
@@ -1390,7 +1407,12 @@ export class ChannelManager<Identity = unknown> {
                 let appFailed = false
                 let appError: unknown
                 try {
-                    await userHooks.onClose?.(conn, code, reason)
+                    // Once per opened socket (#404): never for one `register`
+                    // refused, never twice. An evicted socket was opened, so
+                    // it still gets its hook — ownership is not the question.
+                    if (opened.delete(conn)) {
+                        await userHooks.onClose?.(conn, code, reason)
+                    }
                 } catch (error) {
                     appFailed = true
                     appError = error
