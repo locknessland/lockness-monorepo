@@ -89,9 +89,11 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'the default publish sink back to passing the error object',
         file: MANAGER,
+        // Re-anchored by #395: the default line is written through
+        // `writeMarkedFallback`; the mutant puts the object form back.
         edits: [[
-            '`realtime: broadcast publish failed: ${renderError(error)}`,',
-            "'realtime: broadcast publish failed',\n                    error,",
+            '            ((error) => writeMarkedFallback(PUBLISH_FAILED, error))\n',
+            '            ((error) => console.error(PUBLISH_FAILED, error))\n',
         ]],
         killedBy: 'the default onPublishError renders the error',
     },

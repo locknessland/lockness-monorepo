@@ -22,8 +22,9 @@
  * **One table, one row per path.** Each row drives a real path with
  * `console.warn`, `console.error` AND `Deno.stderr.writeSync` all throwing,
  * then asserts that nothing throws synchronously, that no rejection reaches
- * the runtime, and that the `console.error` stub was reached, so the row got
- * to the fallback rather than passing because nothing failed.
+ * the runtime, and that the site's OWN marked line was attempted, so the row
+ * reached its fallback rather than passing because nothing failed, or because
+ * another site's fallback ran.
  *
  * Red on `8a7600d3` (before #395): all six rows, on `no rejection reaches the
  * runtime`, except E4, which throws out of `broadcast` itself (`no synchronous
@@ -34,9 +35,13 @@
 
 import { assert, assertEquals } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
-import { ChannelManager } from '../manager.ts'
-import { RedisBroadcastDriver } from '../drivers/redis.ts'
-import { LapseRun } from '../drivers/lapse_run.ts'
+import { ChannelManager, PUBLISH_FAILED } from '../manager.ts'
+import {
+    CONTROL_SUBSCRIBE_LOG_FAILED,
+    HEARTBEAT_LOG_FAILED,
+    RedisBroadcastDriver,
+} from '../drivers/redis.ts'
+import { LAPSE_RUN_LOG_FAILED, LapseRun } from '../drivers/lapse_run.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
@@ -69,6 +74,10 @@ interface Armed {
 /** One path to a sink: its name, and how to build a fixture that reaches it. */
 interface SinkRow {
     name: string
+    /** The marker the row's ERROR line must start with: its own site's. */
+    marker: string
+    /** Words the line's subject, before any `; sink failure`, must carry. */
+    subject?: string
     /** Build the fixture. Runs with the real log channels. */
     arm: () => Promise<Armed>
 }
@@ -179,6 +188,7 @@ async function reassertRow(): Promise<Armed> {
 const SINKS: SinkRow[] = [
     {
         name: "LapseRun.#invoke's WARN (the handler rejects)",
+        marker: LAPSE_RUN_LOG_FAILED,
         arm: () => {
             const lapse = new LapseRun(() => {})
             lapse.register(() =>
@@ -195,10 +205,15 @@ const SINKS: SinkRow[] = [
     },
     {
         name: "the manager's #reassertRoster WARN, reaching LapseRun.#invoke",
+        marker: LAPSE_RUN_LOG_FAILED,
+        // The run failed BECAUSE #reassertRoster's own WARN threw: that throw
+        // is the subject the lapse-run line reports.
+        subject: 'warn sink down',
         arm: reassertRow,
     },
     {
         name: 'the default onPublishError (the publish rejects)',
+        marker: PUBLISH_FAILED,
         arm: () =>
             publishRow(() =>
                 Promise.reject(new Error('publish refused (#395)'))
@@ -206,6 +221,7 @@ const SINKS: SinkRow[] = [
     },
     {
         name: 'the default onPublishError (the publish throws)',
+        marker: PUBLISH_FAILED,
         arm: () =>
             publishRow(() => {
                 throw new Error('publish refused (#395)')
@@ -213,6 +229,7 @@ const SINKS: SinkRow[] = [
     },
     {
         name: 'the redis control subscription (subscribeOne rejects)',
+        marker: CONTROL_SUBSCRIBE_LOG_FAILED,
         arm: () => {
             const redis = new FakeRedis()
             const inner = redis.subscriberFor()
@@ -233,6 +250,7 @@ const SINKS: SinkRow[] = [
     },
     {
         name: "the redis heartbeat's WARN (the liveness write is refused)",
+        marker: HEARTBEAT_LOG_FAILED,
         arm: async () => {
             const time = new FakeTime(START)
             const redis = new FakeRedis()
@@ -267,7 +285,7 @@ for (const [index, row] of SINKS.entries()) {
         await watchingEscapes(async (escaped) => {
             const armed = await row.arm()
             let thrown: unknown = undefined
-            let errorCalls = 0
+            let lines: readonly string[] = []
             try {
                 using channels = everyChannelThrows()
                 try {
@@ -276,16 +294,32 @@ for (const [index, row] of SINKS.entries()) {
                 } catch (error) {
                     thrown = error
                 }
-                errorCalls = channels.errorCalls()
+                lines = [...channels.errorLines()]
             } finally {
                 await armed.dispose()
             }
             assertEquals(thrown, undefined, 'no synchronous throw')
             assertEquals(escaped, [], 'no rejection reaches the runtime')
-            assert(
-                errorCalls >= 1,
-                'the console.error stub was reached: the fallback ran',
+            const marked = lines.filter((line) =>
+                line.startsWith(`${row.marker} `)
             )
+            assert(
+                marked.length >= 1,
+                `the site's own marked line was attempted: ${
+                    JSON.stringify(lines)
+                }`,
+            )
+            if (row.subject !== undefined) {
+                const subject = row.subject
+                assert(
+                    marked.some((line) =>
+                        line.split('; sink failure')[0].includes(subject)
+                    ),
+                    `its subject carries "${subject}": ${
+                        JSON.stringify(marked)
+                    }`,
+                )
+            }
         })
     })
 }
