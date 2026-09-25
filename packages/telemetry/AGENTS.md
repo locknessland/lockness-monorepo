@@ -45,6 +45,7 @@ application installs it, or the feature stays off.
 | Kind      | Exports                                                                     |
 | :-------- | :-------------------------------------------------------------------------- |
 | function  | `buildAttributes`, `getMeter`, `telemetryMiddleware`, `toRecordedException` |
+| interface | `Meter`                                                                     |
 | typeAlias | `AttributeValue`                                                            |
 
 Anything not listed is internal and free to change.
