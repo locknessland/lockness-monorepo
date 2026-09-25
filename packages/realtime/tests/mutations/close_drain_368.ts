@@ -174,7 +174,11 @@ const MUTATIONS: Mutation[] = [
             '        }\n',
             '        console.warn(text)\n',
         ]],
-        killedBy: '#368 W6 ',
+        // W6's throwing console.warn now escapes `close()` as an unhandled
+        // rejection — an uncaught error the harness attributes to the whole
+        // module, never to one Deno.test name (harness.ts's own rule: a kill
+        // with no name is still a kill).
+        killedBy: '(uncaught error)',
     },
     {
         label: 'N10 — the owned-connection close skipped on expiry',
