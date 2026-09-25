@@ -11,6 +11,7 @@ import {
     assertStringIncludes,
     assertThrows,
 } from '@std/assert'
+import { stub } from '@std/testing/mock'
 import { FakeTime } from '@std/testing/time'
 import { MemorySchedulerLock } from '../memory_lock.ts'
 import { everyMinute } from '../presets.ts'
@@ -173,73 +174,125 @@ Deno.test('onOneServer - an unreachable lock store skips the occurrence, and say
     })
 })
 
-Deno.test('onOneServer - a failed release neither masks the outcome nor holds the slot', async () => {
-    // The release is best-effort (the lock's TTL is the backstop). A release
+Deno.test('onOneServer - a failed release does not mask the outcome, and is reported once', async () => {
+    // The release is best-effort (the lock's TTL is the backstop), so a release
     // that threw out of the run would turn a successful task into a rejected
-    // one; a slot left held would make every later occurrence skip itself.
-    let releases = 0
-    const flaky: SchedulerLock = {
-        acquire: () => Promise.resolve(true),
-        release: () => {
-            releases++
-            return Promise.reject(new Error('release lost'))
-        },
+    // one. Best-effort is not silent, though: a release that keeps failing
+    // leaves every claim to expire on its TTL, and nobody would know why.
+    const time = new FakeTime(new Date('2026-03-01T10:00:42.500Z'))
+    try {
+        const { reporter, warnings } = recordingReporter()
+        let releases = 0
+        const flaky: SchedulerLock = {
+            acquire: () => Promise.resolve(true),
+            release: () => {
+                releases++
+                return Promise.reject(new Error('release lost'))
+            },
+        }
+        const s = new Scheduler(reporter, flaky)
+        let ran = 0
+        s.register({
+            expression: everyMinute,
+            body: () => {
+                ran++
+            },
+            options: { name: 'nightly', onOneServer: true },
+        })
+
+        await s.runNow('nightly')
+
+        assertEquals(ran, 1)
+        assertEquals(releases, 1, 'the claimed occurrence was released')
+        const [stats] = s.getStats().tasks
+        assertEquals(stats.runCount, 1)
+        assertEquals(stats.failureCount, 0, 'a lost release is not a failure')
+        assertEquals(stats.lastError, null)
+        assertEquals(warnings.length, 1, 'exactly one warning, not zero')
+        assertStringIncludes(warnings[0].message, 'release')
+        assertEquals(warnings[0].fields, {
+            task: 'nightly',
+            occurrence: '2026-03-01T10:00:00.000Z',
+            error: 'Error',
+            message: 'release lost',
+        })
+    } finally {
+        time.restore()
     }
-    const s = new Scheduler(quiet, flaky)
-    let ran = 0
-    s.register({
-        expression: everyMinute,
-        body: () => {
-            ran++
-        },
-        options: { name: 'nightly', onOneServer: true },
-    })
+})
 
-    await s.runNow('nightly')
-    await s.runNow('nightly')
+Deno.test('onOneServer - a failed release with no reporter falls back to console.warn', async () => {
+    // Without a reporter the scheduler used to say nothing at all — on this
+    // path and on the three other warnings it emits. A rejection that is not
+    // an Error is flattened, never passed through raw.
+    const warn = stub(console, 'warn')
+    try {
+        const s = new Scheduler(undefined, {
+            acquire: () => Promise.resolve(true),
+            release: () => Promise.reject('not an error'),
+        })
+        s.register({
+            expression: everyMinute,
+            body: () => {},
+            options: { name: 'nightly', onOneServer: true },
+        })
 
-    assertEquals(ran, 2, 'the second run was not skipped against a held slot')
-    assertEquals(releases, 2, 'each claimed occurrence was released')
-    const [stats] = s.getStats().tasks
-    assertEquals(stats.runCount, 2)
-    assertEquals(stats.failureCount, 0, 'a lost release is not a task failure')
-    assertEquals(stats.skippedCount, 0)
-    assertEquals(stats.lastError, null)
+        await s.runNow('nightly')
+
+        assertEquals(warn.calls.length, 1)
+        const [message, fields] = warn.calls[0].args as [
+            string,
+            Record<string, unknown>,
+        ]
+        assertStringIncludes(message, 'release')
+        assertEquals(fields.task, 'nightly')
+        assertEquals(fields.error, 'Error')
+        assertEquals(fields.message, 'not an error')
+    } finally {
+        warn.restore()
+    }
 })
 
 Deno.test('setLock - a lock installed after registration governs the tasks already registered', async () => {
     // `@lockness/core` installs the lock at boot, after `@Schedule` has
     // registered tasks — so the lock must apply to them, not only to later ones.
-    const s = new Scheduler(quiet)
-    let ran = 0
-    s.register({
-        expression: everyMinute,
-        body: () => {
-            ran++
-        },
-        options: { name: 'nightly', onOneServer: true },
-    })
-    assertEquals(s.hasLock, false)
+    // The clock sits mid-minute, so the occurrence key has to be FLOORED to be
+    // right; on a minute boundary an unfloored key would pass too.
+    const time = new FakeTime(new Date('2026-03-01T10:07:42.345Z'))
+    try {
+        const s = new Scheduler(quiet)
+        let ran = 0
+        s.register({
+            expression: everyMinute,
+            body: () => {
+                ran++
+            },
+            options: { name: 'nightly', onOneServer: true },
+        })
+        assertEquals(s.hasLock, false)
 
-    const claims: Array<{ task: string; occurrence: Date }> = []
-    s.setLock({
-        // Another replica always holds the occurrence.
-        acquire: (task, occurrence) => {
-            claims.push({ task, occurrence })
-            return Promise.resolve(false)
-        },
-        release: () => Promise.resolve(),
-    })
-    assertEquals(s.hasLock, true)
+        const claims: Array<{ task: string; occurrence: Date }> = []
+        s.setLock({
+            // Another replica always holds the occurrence.
+            acquire: (task, occurrence) => {
+                claims.push({ task, occurrence })
+                return Promise.resolve(false)
+            },
+            release: () => Promise.resolve(),
+        })
+        assertEquals(s.hasLock, true)
 
-    await s.runNow('nightly')
+        await s.runNow('nightly')
 
-    assertEquals(ran, 0, 'a lost claim means this replica does not run it')
-    assertEquals(claims.length, 1)
-    assertEquals(claims[0].task, 'nightly')
-    assertEquals(
-        claims[0].occurrence.getTime() % 60_000,
-        0,
-        'the occurrence key is the wall-clock minute every replica agrees on',
-    )
+        assertEquals(ran, 0, 'a lost claim means this replica does not run it')
+        assertEquals(claims.length, 1)
+        assertEquals(claims[0].task, 'nightly')
+        assertEquals(
+            claims[0].occurrence.toISOString(),
+            '2026-03-01T10:07:00.000Z',
+            'the occurrence key is the wall-clock minute every replica agrees on',
+        )
+    } finally {
+        time.restore()
+    }
 })

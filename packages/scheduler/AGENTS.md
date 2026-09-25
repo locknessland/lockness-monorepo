@@ -93,6 +93,14 @@ Anything not listed is internal and free to change.
 - `packages/scheduler/tests/task_runner.test.ts`
 - `packages/scheduler/tests/timer_registry.test.ts`
 
+1 mutation battery — **`deno test` does not run these.** Each is an executable
+that mutates a source file and re-runs the suites that should notice. Run them
+with `deno task mutate` (all of them, one at a time) or
+`deno task mutate <name>` (one); nightly CI runs the full sweep. See
+[testing.md](../../docs/testing.md#mutation-batteries).
+
+- `packages/scheduler/tests/mutations/lock_release_warn_389.ts`
+
 <!-- /generated:tests -->
 
 ## Before you call it done

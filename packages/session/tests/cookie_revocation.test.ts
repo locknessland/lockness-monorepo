@@ -272,18 +272,20 @@ Deno.test('cookie revocation - destroy() suppresses the trailing re-seal (no log
     )
 })
 
-Deno.test('cookie revocation - without absoluteLifetime, destroy fails loud and writes no entry', async () => {
+Deno.test('cookie revocation - without absoluteLifetime, destroy fails loud and leaves the cookie in place', async () => {
     // The core boot gate refuses `revocation` without `absoluteLifetime`; a
     // caller that bypasses it (a direct `configureSession`) must get an error,
     // not a revocation entry with a NaN TTL — the store would drop it silently
     // and the "revoked" cookie would keep authenticating.
-    const ttls: number[] = []
+    //
+    // No store write can be observed here: the throw happens while `revoke`'s
+    // own arguments are evaluated, so `revoke` is never entered either way.
+    // What CAN regress is the cookie. A destroy that deleted it before failing
+    // would log the browser out while the session stayed unrevoked — a logout
+    // that looks like it worked, which is the failure fail-loud exists to stop.
     const store: RevocationStore = {
         isRevoked: () => Promise.resolve(false),
-        revoke: (_jti, ttl) => {
-            ttls.push(ttl)
-            return Promise.resolve()
-        },
+        revoke: () => Promise.resolve(),
         revokeUser: () => Promise.resolve(),
         userRevokedSince: () => Promise.resolve(null),
         close: () => Promise.resolve(),
@@ -300,10 +302,15 @@ Deno.test('cookie revocation - without absoluteLifetime, destroy fails loud and 
     const driver = new CookieSessionDriver(ctx, uncapped, store)
 
     assertEquals(await driver.read('x'), { user: 'frank' })
+    assertEquals(ctx.res.headers.getSetCookie(), [], 'baseline: no cookie set')
     await assertRejects(
         () => driver.destroy('x'),
         Error,
         'session revocation requires absoluteLifetime',
     )
-    assertEquals(ttls, [], 'no revocation entry was written without a horizon')
+    assertEquals(
+        ctx.res.headers.getSetCookie(),
+        [],
+        'a destroy that failed to revoke must not delete the cookie either',
+    )
 })
