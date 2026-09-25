@@ -12,7 +12,8 @@
  *
  * Ids: `R` render and composition, `P` parser and CommonMark, `G` guard, `N`
  * near-miss, `Z` empty scan and "none recorded", `D` double compose, `E` stderr
- * hygiene. Each name ends its id with a space, so `R1 ` never prefixes `R10 `.
+ * hygiene, `L` the scan filter, `S` the real task as a subprocess. Each name
+ * ends its id with a space, so `R1 ` never prefixes `R10 `.
  *
  * @module tests/release_notes_test
  */
@@ -22,16 +23,20 @@ import {
     assertEquals,
     assertFalse,
     assertStringIncludes,
+    assertThrows,
 } from '@std/assert'
 import { parse as parseJsonc } from '@std/jsonc'
 import { dirname, join } from '@std/path'
 import {
     BREAKING_HEADING,
+    composeBody,
     CONTINUITY_LINE,
     listScanned,
     main,
+    NoneRecordedContradicted,
     parseUpgradeSections,
     type RunResult,
+    writeResult,
 } from '../scripts/release_notes.ts'
 
 const BLOB = 'https://github.com/locknessland/lockness-monorepo/blob'
@@ -441,6 +446,23 @@ Deno.test('#364 P7 the section ends at the next level-2 or level-1 heading', () 
     ])
 })
 
+Deno.test('#382 P14 a setext level-2 or level-1 heading ends the section too', () => {
+    const text = doc(
+        guide('0.4.0', ['1. A']),
+        'Another section\n---\n\n### Not an item\n',
+        guide('0.3.0', ['1. B']),
+        'A level-1 heading\n===\n\n### Not an item either\n',
+    )
+
+    const parsed = parseUpgradeSections(text, 'docs/g.md')
+
+    assertEquals(parsed.sections, [
+        { path: 'docs/g.md', version: '0.4.0', titles: ['1. A'] },
+        { path: 'docs/g.md', version: '0.3.0', titles: ['1. B'] },
+    ])
+    assertEquals(parsed.nearMisses, [])
+})
+
 Deno.test('#364 P8 a fence that closes gives the lines after it back to the parser', () => {
     const cases: readonly (readonly [string, string])[] = [
         ['backtick fence', fence('```', 'code\n')],
@@ -498,6 +520,9 @@ Deno.test('#364 P10 a setext upgrade heading is reported as a near-miss', () => 
 Deno.test('#364 P11 prose followed by a thematic break is not a setext near-miss', () => {
     const text = doc(
         'Some prose about upgrading.\n\n---\n',
+        // Prose that reads as a near-miss: only the blank line keeps the
+        // `---` below it from underlining it into a setext heading (#382).
+        'Upgrading to v0.4.0 is covered below.\n\n---\n',
         '- Upgrading to v0.4.0 is covered below\n---\n',
     )
 
@@ -602,6 +627,11 @@ Deno.test('#364 E3 an absolute path inside an unexpected error is made relative'
         await commit(repo, { 'docs/g.md': '# G\n' })
         // A tracked symlink to nowhere: git lists it, reading it fails, and
         // the runtime's error message names the absolute path it tried.
+        // Two outside facts carry this fixture: the filesystem must support
+        // symlinks, and Deno's `NotFound` message must keep naming the path
+        // it tried. If either changes, no absolute path reaches stderr and
+        // the relativize assertions below pass vacuously; the
+        // `./docs/link.md` assertion is the one that would then fail.
         await Deno.symlink('missing-target.md', join(repo.dir, 'docs/link.md'))
         await commit(repo, {})
         const real = await Deno.realPath(repo.root)
@@ -654,6 +684,67 @@ Deno.test('#364 E5 an unknown flag or a stray argument is exit 2 with usage', as
             assertStringIncludes(result.stderr, 'usage:')
         }
     })
+})
+
+/** A stream that keeps, decoded, everything written to it. */
+function sink(): {
+    readonly written: string[]
+    write(bytes: Uint8Array): Promise<number>
+} {
+    const written: string[] = []
+    return {
+        written,
+        write: (bytes) => {
+            written.push(new TextDecoder().decode(bytes))
+            return Promise.resolve(bytes.length)
+        },
+    }
+}
+
+Deno.test('#382 E6 a closed stdout pipe is exit 2, with no stack and no path', async () => {
+    const stderr = sink()
+    const stdout = {
+        write: (): Promise<number> =>
+            Promise.reject(
+                new Deno.errors.BrokenPipe(
+                    'Broken pipe (os error 32): /abs/root/scripts/release_notes.ts',
+                ),
+            ),
+    }
+
+    const code = await writeResult(
+        {
+            code: 0,
+            stdout: 'the body',
+            stderr: 'release:notes: scanned 1 files',
+        },
+        { stdout, stderr },
+    )
+
+    const text = stderr.written.join('')
+    assertEquals(code, 2)
+    assertStringIncludes(text, 'release:notes: scanned 1 files\n')
+    assertStringIncludes(text, 'BrokenPipe')
+    assertFalse(text.includes('/abs/root'), text)
+    assertFalse(text.includes('    at '), 'no stack trace')
+})
+
+Deno.test('#382 E7 writeResult writes stderr, then stdout, and returns the code', async () => {
+    const stdout = sink()
+    const stderr = sink()
+
+    const refused = await writeResult(
+        { code: 1, stdout: '', stderr: 'release:notes: refused' },
+        { stdout, stderr },
+    )
+    const emitted = await writeResult(
+        { code: 0, stdout: 'the body', stderr: '' },
+        { stdout, stderr },
+    )
+
+    assertEquals([refused, emitted], [1, 0])
+    assertEquals(stderr.written.join(''), 'release:notes: refused\n')
+    assertEquals(stdout.written.join(''), 'the body')
 })
 
 // ─── S: the real task, as a subprocess ───────────────────────────────────────
@@ -740,6 +831,7 @@ Deno.test('#364 S1 the real task: exit 0 on a clean tree, 1 on a near-miss, 2 on
             assertEquals(result.stdout, '')
             assertFalse(result.stderr.includes(repo.root), result.stderr)
             assertFalse(result.stderr.includes(real), result.stderr)
+            assertFalse(result.stderr.includes('    at '), 'no stack trace')
         }
     })
 })
@@ -1169,6 +1261,38 @@ Deno.test('#364 Z8 a hyphenated BREAKING-CHANGE footer refuses "none recorded"',
         assertEquals(result.stdout, '')
         assertStringIncludes(result.stderr, 'fix: tighten a bound')
     })
+})
+
+Deno.test('#382 Z9 composeBody throws NoneRecordedContradicted, naming each marked commit', () => {
+    const commits = [
+        { sha: 'abc1234', subject: 'feat!: drop the old API' },
+        { sha: 'def5678', subject: 'fix: tighten a bound' },
+    ]
+    // A section for another version is not a section for this release.
+    const other = [{ path: 'docs/g.md', version: '0.3.0', titles: ['1. A'] }]
+
+    const error = assertThrows(
+        () => composeBody('0.4.0', other, '', 'log\n', commits),
+        NoneRecordedContradicted,
+    )
+
+    assertEquals(error.name, 'NoneRecordedContradicted')
+    assertEquals(error.version, '0.4.0')
+    assertEquals(error.commits, commits)
+    assertStringIncludes(error.message, '"## Upgrading to v0.4.0"')
+    assertStringIncludes(error.message, '\n  abc1234 feat!: drop the old API\n')
+    assertStringIncludes(error.message, '\n  def5678 fix: tighten a bound\n')
+})
+
+Deno.test('#382 Z10 composeBody lets marked commits through when the release has its own section', () => {
+    const own = [{ path: 'docs/g.md', version: '0.4.0', titles: ['1. A'] }]
+
+    const body = composeBody('0.4.0', own, '', '', [
+        { sha: 'abc1234', subject: 'feat!: drop the old API' },
+    ])
+
+    assertFalse(body.includes(NONE), body)
+    assertStringIncludes(body, '- 1. A\n')
 })
 
 Deno.test('#364 R10 a whitespace-only --notes file means no Notes heading', async () => {
