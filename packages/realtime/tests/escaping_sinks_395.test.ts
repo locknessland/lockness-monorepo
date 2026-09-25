@@ -167,6 +167,7 @@ async function reassertRow(): Promise<Armed> {
         send: () => {},
         close: () => {},
     } as unknown as Connection<User>
+    manager.register(member)
     assertEquals((await manager.subscribe(member, 'presence-room')).ok, true)
     await time.runMicrotasks()
     return {
