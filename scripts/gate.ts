@@ -126,46 +126,81 @@ export async function runGate(
     return { code: 0 }
 }
 
+/** Whether this process runs inside GitHub Actions. */
+function inActions(): boolean {
+    return Deno.env.get('GITHUB_ACTIONS') === 'true'
+}
+
 /**
  * Execute one step as a `deno` child process, inheriting stdio.
  *
  * In GitHub Actions each step is folded into its own log group, so CI keeps a
- * per-step view even though the workflow calls the gate as one step.
+ * per-step view even though the workflow calls the gate as one step. The group
+ * is closed whatever happens, and a step that cannot even be started is a
+ * failure that names the step — never an exception that leaves the log
+ * unattributed.
  *
  * @param step - The step to run.
- * @returns The child's exit code.
+ * @returns The child's exit code, or `1` when it could not be started.
  */
 async function spawnStep(step: GateStep): Promise<number> {
-    const actions = Deno.env.get('GITHUB_ACTIONS') === 'true'
+    const actions = inActions()
     if (actions) console.log(`::group::gate: ${step.label}`)
     else console.log(`\n▶ gate: ${step.label}`)
-    const status = await new Deno.Command(Deno.execPath(), {
-        args: step.args,
-        stdin: 'inherit',
-        stdout: 'inherit',
-        stderr: 'inherit',
-    }).spawn().status
-    if (actions) console.log('::endgroup::')
-    return status.code
+    try {
+        const status = await new Deno.Command(Deno.execPath(), {
+            args: step.args,
+            stdin: 'inherit',
+            stdout: 'inherit',
+            stderr: 'inherit',
+        }).spawn().status
+        return status.code
+    } catch (error) {
+        console.error(
+            `❌ gate: step "${step.label}" could not be started: ${error}`,
+        )
+        return 1
+    } finally {
+        if (actions) console.log('::endgroup::')
+    }
 }
 
-if (import.meta.main) {
+/**
+ * Run the gate and decide its exit code. Everything but the final
+ * `Deno.exit` lives here, so the verdict is testable in-process.
+ *
+ * @param args - The command-line arguments.
+ * @param run - Executes one step; defaults to spawning `deno`.
+ * @returns `0` when every step passed, `2` on an unknown argument, otherwise
+ *   the failing step's exit code (never `0`).
+ * @example
+ * ```ts
+ * Deno.exit(await main(Deno.args))
+ * ```
+ */
+export async function main(
+    args: string[],
+    run: (step: GateStep) => Promise<number> = spawnStep,
+): Promise<number> {
     let options: GateOptions
     try {
-        options = parseGateArgs(Deno.args)
+        options = parseGateArgs(args)
     } catch (error) {
         console.error(`❌ gate: ${(error as Error).message}`)
-        Deno.exit(2)
+        return 2
     }
-    const outcome = await runGate(gateSteps(options), spawnStep)
+    const outcome = await runGate(gateSteps(options), run)
     if (outcome.failed !== undefined) {
         const message =
             `gate failed at "${outcome.failed.label}" (exit ${outcome.code})`
-        if (Deno.env.get('GITHUB_ACTIONS') === 'true') {
-            console.log(`::error::${message}`)
-        }
+        if (inActions()) console.log(`::error::${message}`)
         console.error(`\n❌ ${message}`)
-        Deno.exit(outcome.code)
+        return outcome.code
     }
     console.log('\n✅ gate passed')
+    return 0
+}
+
+if (import.meta.main) {
+    Deno.exit(await main(Deno.args))
 }
