@@ -40,24 +40,27 @@ shared increment to every member and rewrites the cross-package `jsr:`
 constraints in place — the lockstep model, natively. `scripts/bump-native.ts` is
 a thin wrapper that maps our interface (`--patch` / `--minor` / `--major`, a
 bare `patch` / `minor` / `major` keyword, or an absolute `X.Y.Z` that is one
-clean step from the current version) onto it. Adopting it (issue #162) retired
-most of the hand-rolled `scripts/bump.ts`, which had a latent bug — it dropped
-the subpath from a versioned specifier, collapsing `@lockness/hono/jsx-runtime`
-onto the base export.
+clean step from the current version) onto it, and writes the root's own
+`version` itself, which the native command does not (#324). Adopting it (issue
+#162) retired most of the hand-rolled `scripts/bump.ts`, which had a latent bug
+— it dropped the subpath from a versioned specifier, collapsing
+`@lockness/hono/jsx-runtime` onto the base export.
 
 `scripts/bump.ts` survives as `deno task bump:legacy`, its subpath bug fixed,
 for the two things native cannot do: set an arbitrary version in one jump, and
 serve as a fallback while `deno bump-version` is still flagged experimental.
 Neither tool touches stub files — no stub carries a version pin today.
 
-Why lockstep, and not per-package semver:
+### Why lockstep, and not per-package semver
 
-| Reason                                            | Detail                                                                                                              |
-| :------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------ |
-| The graph is dense                                | 252 measured cross-package references. Independent versions mean resolving a compatibility matrix on every change.  |
-| JSR has no `peerDependencies`                     | There is no way to express "these must match".                                                                      |
-| `@lockness/core` re-exports most of the workspace | Mismatched versions give a consumer two copies of `@lockness/container`, therefore **two DI registries**.           |
-| `@lockness/upgrade`                               | It rewrites a project's specifiers to the latest published versions, which only makes sense if they are consistent. |
+This is the one home of the rationale; the `/ship` skill points here.
+
+| Reason                                            | Detail                                                                                                                                                      |
+| :------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The graph is dense                                | 252 measured cross-package references. Independent versions mean resolving a compatibility matrix on every change.                                          |
+| JSR has no `peerDependencies`                     | There is no way to express "these must match".                                                                                                              |
+| `@lockness/core` re-exports most of the workspace | Mismatched versions give a consumer two copies of `@lockness/container`, therefore **two DI registries** — a class of bug lockstep removes by construction. |
+| `@lockness/upgrade`                               | It rewrites a project's specifiers to the latest published versions, which only makes sense if they are consistent.                                         |
 
 The cost is real and worth naming: `@lockness/mail` goes `0.2.0 → 0.3.0` with no
 changes, so **per-package semver carries no information**. The resolution is to
@@ -68,7 +71,8 @@ breaking changes in one place, its GitHub Release (see
 semver story while they share a number; that is the category error, not the
 lockstep.
 
-Revisit only when a package gains an independent consumer base. None has one.
+**Revisit when, and only when, a package gains an independent consumer base.**
+None has one today.
 
 ## How specifiers are written
 

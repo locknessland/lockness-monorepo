@@ -1,6 +1,6 @@
 ---
 name: ship
-description: One-shot release of the Lockness framework — push behind the full gate, bump every package in lockstep, tag, draft the GitHub Release with a body composed by release:notes, and publish it only on the user's selected consent, which triggers the JSR publish workflow. Owns the step order and the one consent act; delegates each step's mechanics to the tool that already owns it (/git, /specnaut tag-version, release:notes). Encodes the standing decisions — why versioning is lockstep, and why publishing needs explicit consent every time. Use on "/ship", "release", "publie", "sors une version", "tag and release".
+description: One-shot release of the Lockness framework — push behind the full gate, bump every package in lockstep, tag, draft the GitHub Release with a body composed by release:notes, and publish it only on the user's selected consent, which triggers the JSR publish workflow. Owns the step order and the one consent act; delegates each step's mechanics to the tool that already owns it (/git, /specnaut tag-version, release:notes). Encodes the standing decision that publishing needs explicit consent every time; the lockstep rationale lives in docs/releasing.md. Use on "/ship", "release", "publie", "sors une version", "tag and release".
 argument-hint: [patch|minor|major] [--dry-run]
 allowed-tools: Bash(git status *) Bash(git log *) Bash(git tag *) Bash(git rev-parse *) Bash(gh release view *) Bash(gh release list *) Bash(gh release edit * --notes-file *) Bash(gh run *) Bash(deno task *) Read Grep Glob Skill
 ---
@@ -374,33 +374,10 @@ mirror's history and erases the release list. It is for an initial import.
 
 If a package was added this cycle, `--create` makes its mirror first.
 
-## Why versioning is lockstep — and when to revisit
+## Why versioning is lockstep
 
-Every package moves to the same version on every release, even the ones with no
-changes. `scripts/bump-native.ts` implements it, behind `deno task bump` — it
-delegates the members to `deno bump-version --workspace` and writes the root's
-own `version` itself, which the native command does not (#324). `scripts/bump.ts`
-is the legacy path, reachable as `deno task bump:legacy`. This is deliberate:
-
-1. **The graph is dense** — 252 measured cross-package references. Independent
-   versioning means resolving a compatibility matrix on every change, and JSR
-   has no `peerDependencies` to express "these must match".
-2. **`@lockness/core` re-exports most of the workspace.** Mismatched versions
-   give a consumer two copies of `@lockness/container`, therefore **two DI
-   registries** — a class of bug lockstep removes by construction.
-3. **`@lockness/upgrade`** rewrites a project's specifiers to the latest
-   published versions. That only makes sense if they are consistent.
-
-The known cost is real: `@lockness/mail` goes `0.2.0 → 0.3.0` with no changes,
-so **per-package semver means nothing**. The resolution is to read the version
-at the *framework* level — one number is one framework release, a breaking
-change anywhere is major for everyone, and release history lives where
-[`docs/releasing.md` § Release history](../../../docs/releasing.md#release-history)
-says. Do not try to give each package an honest semver story
-while they share a number; that is the category error, not the lockstep.
-
-**Revisit when, and only when, a package gains an independent consumer base.**
-None has one today.
+The rationale, its cost and when to revisit it live in
+[`docs/releasing.md` § Why lockstep](../../../docs/releasing.md#why-lockstep-and-not-per-package-semver).
 
 ## Hard rules
 

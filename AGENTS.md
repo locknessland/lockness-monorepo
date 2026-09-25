@@ -196,8 +196,10 @@ Two skills own the mechanics that sit either side of those workflows:
   owns the step order and the one consent act, and delegates each step's
   mechanics to the tool that already owns it. `/specnaut release-version` and
   `release-github.sh` are never run on their own. It also holds the standing
-  decisions — why versioning is lockstep, and why a JSR publish needs the user's
-  explicit consent every single time. Skill at `.claude/skills/ship/SKILL.md`.
+  decision that a JSR publish needs the user's explicit consent every single
+  time; why versioning is lockstep lives in
+  [releasing.md](docs/releasing.md#why-lockstep-and-not-per-package-semver).
+  Skill at `.claude/skills/ship/SKILL.md`.
 
 Two complementary workflows coexist:
 
