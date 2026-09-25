@@ -654,7 +654,9 @@ export interface RedisPresenceOptions {
     livenessTtlSeconds?: number
     /**
      * How often (ms) this instance refreshes its own liveness key. Must be well
-     * under `livenessTtlSeconds * 1000`.
+     * under `livenessTtlSeconds * 1000`: the constructor refuses an interval
+     * above half of it (#293), and one above 2 147 483 647 ms, the longest
+     * delay a single timer can hold (#381) — a longer one fires after 1 ms.
      * @default 5000
      */
     heartbeatIntervalMs?: number
@@ -1844,7 +1846,9 @@ type PassOutcome = PassSample['outcome'] | 'closed'
  * on Deno 2.9.6: a delay of 2^31 ms or more is replaced by 1 ms, with a
  * `TimeoutOverflowWarning`. A timing past this ceiling is therefore the hot
  * loop again, not a slow timer, so the constructor refuses a revocation TTL
- * whose deadline could not fit one timer, rather than chunking the wait.
+ * whose deadline could not fit one timer, rather than chunking the wait — and
+ * a heartbeat interval above it (#381), which the #293 relation alone admits
+ * whenever the liveness TTL is large.
  */
 const MAX_TIMER_MS = 2 ** 31 - 1
 /**
@@ -2268,6 +2272,22 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     'window a healthy instance races its own liveness-key ' +
                     'expiry, and its peers sweep its presence members out of ' +
                     'every roster while it is still serving those sockets.',
+            )
+        }
+        // THE RELATION IS NOT A CEILING (#381). `livenessTtlSeconds` has no
+        // upper bound, so a large TTL admits an interval no timer can hold, and
+        // Deno replaces such a delay with 1 ms: the heartbeat then renews the
+        // liveness key every millisecond, the opposite of what a long interval
+        // asked for. `> MAX_TIMER_MS`, not `>=`: the ceiling itself still waits.
+        if (this.heartbeatIntervalMs > MAX_TIMER_MS) {
+            throw new Error(
+                'realtime: presence.heartbeatIntervalMs is above the timer ' +
+                    `ceiling of ${MAX_TIMER_MS}ms (#381) — got ` +
+                    `heartbeatIntervalMs=${this.heartbeatIntervalMs}ms and ` +
+                    `livenessTtlSeconds=${this.livenessTtlSeconds}s. A longer ` +
+                    'delay does not wait longer: it fires after 1 ms, so the ' +
+                    'heartbeat would renew the liveness key back to back ' +
+                    'against the broker. Lower the interval.',
             )
         }
         this.reconcileIntervalMs = options.presence?.reconcileIntervalMs ??
