@@ -15,6 +15,8 @@
 
 import { type Meter, metrics } from '@opentelemetry/api'
 
+export type { Meter }
+
 /**
  * Get the OpenTelemetry meter named `name`, from whatever meter provider is
  * installed.

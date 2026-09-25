@@ -23,5 +23,5 @@ export {
     buildAttributes,
     toRecordedException,
 } from './attributes.ts'
-export { getMeter } from './meter.ts'
+export { getMeter, type Meter } from './meter.ts'
 export { telemetryMiddleware } from './middleware.ts'
