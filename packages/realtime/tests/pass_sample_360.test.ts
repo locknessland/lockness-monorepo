@@ -52,6 +52,7 @@ import {
     FakeRedis,
     serializedCommands,
 } from './fake_redis.ts'
+import { isReap as isReapOf } from './revocation_wire.ts'
 
 /**
  * The real `setTimeout`, captured before any FakeTime exists: P9 drains on it,
@@ -87,10 +88,8 @@ const RECONCILE_FAILED = 'realtime: roster reconcile failed'
 // Matchers
 // ---------------------------------------------------------------------------
 
-/** The reap: the one `EVAL` naming the index with no operand after it. */
-const isReap: CommandMatch = (args) =>
-    args[0] === 'EVAL' && args[2] === '1' && args[3] === INDEX &&
-    args.length === 4
+/** The reap, as `revocation_wire.ts` defines it, bound to this index. */
+const isReap: CommandMatch = (args) => isReapOf(args, INDEX)
 
 /** A page read of the revocation index. */
 const isZscan: CommandMatch = (args) => args[0] === 'ZSCAN' && args[1] === INDEX

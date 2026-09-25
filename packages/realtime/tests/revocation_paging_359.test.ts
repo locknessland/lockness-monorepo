@@ -75,6 +75,7 @@ import {
     FakeRedis,
     serializedCommands,
 } from './fake_redis.ts'
+import { isReap as isReapOf } from './revocation_wire.ts'
 
 const START = new Date('2026-09-23T10:00:00Z')
 /** The fake broker's `TIME`, pinned: every planted score is relative to it. */
@@ -138,10 +139,8 @@ async function plant(
 const scoped = (target: string, channel: string, id: string) =>
     `${target} ${channel} ${id}`
 
-/** The reap: the one `EVAL` naming the index with no operand after it. */
-const isReap: CommandMatch = (args) =>
-    args[0] === 'EVAL' && args[2] === '1' && args[3] === INDEX &&
-    args.length === 4
+/** The reap, as `revocation_wire.ts` defines it, bound to this index. */
+const isReap: CommandMatch = (args) => isReapOf(args, INDEX)
 
 /** A page read of the index. */
 const isPageRead: CommandMatch = (args) =>

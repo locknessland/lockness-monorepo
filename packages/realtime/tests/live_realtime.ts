@@ -68,6 +68,7 @@ export function keys(prefix: string): {
     presence: (channel: string) => string
     instances: string
     revocations: string
+    revocationFloor: string
     ownedPattern: string
     alivePattern: string
     controlTopic: string
@@ -78,6 +79,8 @@ export function keys(prefix: string): {
         presence: (channel: string) => `${prefix}__presence:${channel}`,
         instances: `${prefix}__instances`,
         revocations: `${prefix}__revocations`,
+        // The revocation floor (#380): one member per distinct live TTL.
+        revocationFloor: `${prefix}__revocation-floor`,
         // The owning instance id is `crypto.randomUUID()` inside the driver and
         // is not reachable from here, so these two are patterns, not names.
         ownedPattern: `${prefix}__owned:*`,

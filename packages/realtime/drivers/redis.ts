@@ -127,6 +127,42 @@ const MARK_REVOKED_SCRIPT: string = [
 ].join('\n')
 
 /**
+ * Write one instance's entry in the revocation floor (#380) — **the only Lua
+ * that writes the floor**, a fragment spliced into exactly two scripts:
+ * {@link REAP_REVOKED_SCRIPT} (every revocation pass refreshes the entry) and
+ * {@link ANNOUNCE_FLOOR_SCRIPT} (the first registration writes it before any
+ * pass has run). Nothing else writes the floor: not the mark, not
+ * `close()`, not the heartbeat, not the ghost sweep.
+ *
+ * The floor is a sorted set whose member is a TTL in seconds and whose score
+ * is the broker second that entry lapses. A mark reads every member and
+ * scores its record at the largest one, so a record outlives the longest TTL
+ * among the instances still passing.
+ *
+ * It runs over **bound locals**, never `KEYS`/`ARGV`, because its two callers
+ * bind them from different positions — the reap carries the index key first,
+ * the announce carries only the floor (A2). Each caller binds `t` (the
+ * broker's `TIME`), `floor` (the key), `ttl` (the caller's own
+ * `revocationTtlSeconds`) and `keyTtl` (the key's own TTL, `ttl` plus the
+ * index's slack).
+ *
+ * - `ZADD … GT` writes the entry at `t + ttl`, and never pulls an existing
+ *   entry for the same TTL back in (a broker clock that steps back).
+ * - `ZREMRANGEBYSCORE … -inf t` prunes every entry that has lapsed, so an
+ *   instance that stopped passing drops out of the floor one TTL after its
+ *   last write, and records return to their writer's own TTL.
+ * - `EXPIRE … NX` then `EXPIRE … GT` arm and extend the key's own TTL, so a
+ *   fleet that stops leaves no floor behind. Why it takes both calls is
+ *   {@link MARK_REVOKED_SCRIPT}'s JSDoc.
+ */
+const FLOOR_WRITE: string = [
+    "redis.call('ZADD', floor, 'GT', t + ttl, ttl)",
+    "redis.call('ZREMRANGEBYSCORE', floor, '-inf', t)",
+    "redis.call('EXPIRE', floor, keyTtl, 'NX')",
+    "redis.call('EXPIRE', floor, keyTtl, 'GT')",
+].join('\n')
+
+/**
  * Reap expired revocations and answer the `now` it reaped against — the
  * revocation pass's ONLY delete, and its one `now` (#359).
  *
@@ -145,13 +181,25 @@ const MARK_REVOKED_SCRIPT: string = [
  * another instance's reap removes mid-pass had expired at that reap's `now`.
  *
  * The `ZREMRANGEBYSCORE` is a bare call statement, not a returned value: the
- * reply is `t` alone. Called as `EVAL <script> 1 <index>`, no `ARGV`.
+ * reply is `t` alone.
  *
- * `KEYS[1]` index key.
+ * **The floor write rides on the reap** (#380): after the index delete, the
+ * script refreshes this instance's entry in the revocation floor through
+ * {@link FLOOR_WRITE}, against the same `t`, so a reader that keeps passing
+ * keeps its TTL on the floor with no extra round trip. The reap is still the
+ * pass's only delete of the INDEX; the floor write prunes only floor entries.
+ *
+ * Called as `EVAL <script> 2 <index> <floor> <ttl> <ttl + slack>`:
+ * `KEYS[1]` index key · `KEYS[2]` floor key · `ARGV[1]` this instance's
+ * `revocationTtlSeconds` · `ARGV[2]` the floor key's own TTL.
  */
 const REAP_REVOKED_SCRIPT: string = [
     "local t = redis.call('TIME')[1]",
     "redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', t)",
+    'local floor = KEYS[2]',
+    'local ttl = ARGV[1]',
+    'local keyTtl = ARGV[2]',
+    FLOOR_WRITE,
     'return t',
 ].join('\n')
 
@@ -2419,6 +2467,21 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     }
 
     /**
+     * The revocation floor (#380): a sorted set, member = one live reader's
+     * `revocationTtlSeconds`, **score = the epoch second (broker `TIME`) that
+     * entry lapses**. Written only through {@link FLOOR_WRITE} — by every reap
+     * and by the first registration's announce — and read by every mark.
+     *
+     * **The key carries its own TTL**: its longest entry's TTL plus the index's
+     * slack, armed and extended by the same two-call discipline as the index.
+     * A fleet that stops leaves no floor behind, and a lapsed entry can never
+     * inflate a later mark for longer than one of those TTLs.
+     */
+    private get revocationFloorKey(): string {
+        return `${this.prefix}${RESERVED_SEPARATOR_LEAD}revocation-floor`
+    }
+
+    /**
      * Publish a message to the channel's Redis topic.
      *
      * @param message - The message to broadcast.
@@ -3306,8 +3369,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             await this.command.command(
                 'EVAL',
                 REAP_REVOKED_SCRIPT,
-                '1',
+                '2',
                 this.revocationIndexKey,
+                this.revocationFloorKey,
+                String(this.revocationTtlSeconds),
+                String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),
             ),
         )
         const live = new Map<string, Revocation>()

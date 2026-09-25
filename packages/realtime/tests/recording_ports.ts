@@ -13,11 +13,11 @@
  *
  * **Why the port and not the broker.** Containment — "every name the driver
  * derives sits under its prefix" — has to be observed somewhere that sees every
- * derived name. A keyspace scan does not: five of the driver's ten names never
- * become a key at all (two `PUBLISH`/`PSUBSCRIBE` arguments, the subscribe
- * pattern itself, and two keys `drivers/redis.ts:889` documents as read and
- * never written). Both dependencies are constructor-injected, so the port sees
- * all ten — and needs no broker to do it.
+ * derived name. A keyspace scan does not: several of the driver's names never
+ * become a key at all (the `PUBLISH` and `PSUBSCRIBE` arguments, and the
+ * subscribe patterns themselves), and a scan sees a key only while it exists.
+ * Both dependencies are constructor-injected, so the port sees every name —
+ * `prefix_anchoring.test.ts` pins the roster — and needs no broker to do it.
  *
  * @module @lockness/realtime/tests/recording_ports
  */

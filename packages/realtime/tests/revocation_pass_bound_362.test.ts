@@ -54,6 +54,7 @@ import {
     FakeRedis,
     serializedCommands,
 } from './fake_redis.ts'
+import { isReap as isReapOf } from './revocation_wire.ts'
 
 /**
  * The real `setTimeout`, captured before any FakeTime exists. D6 drains on it
@@ -182,10 +183,8 @@ Deno.test('#362 B6 a fractional or timer-overflowing TTL and a sub-millisecond i
 // D — the enforcement deadline
 // ---------------------------------------------------------------------------
 
-/** The reap: the one `EVAL` naming the index with no operand after it. */
-const isReap: CommandMatch = (args) =>
-    args[0] === 'EVAL' && args[2] === '1' && args[3] === INDEX &&
-    args.length === 4
+/** The reap, as `revocation_wire.ts` defines it, bound to this index. */
+const isReap: CommandMatch = (args) => isReapOf(args, INDEX)
 
 /** A page read of the index. */
 const isPageRead: CommandMatch = (args) =>

@@ -165,6 +165,9 @@ const PREFIX_MEMBERS: readonly string[] = [
     'aliveKey',
     'instancesKey',
     'revocationIndexKey',
+    // The revocation floor (#380), driven by the reap, the announce and the
+    // mark's floor read.
+    'revocationFloorKey',
 ]
 
 /**
@@ -213,19 +216,23 @@ const CANNED = {
     HGETALL: { type: 'array', value: [] },
     ZRANGEBYSCORE: { type: 'array', value: [] },
     // Keyed on the DECLARED KEY COUNT (`EVAL <script> <numkeys> …`) and the
-    // operand count, never on the script text — a reply chosen by searching
+    // KEY POSITION, never on the script text — a reply chosen by searching
     // the source breaks on a reformat Lua cannot see. The hold and release
     // scripts declare 4 keys and the deregistration script 3 (#345, #355);
-    // all three accept the integer 0 through their strict decoders. A 1-key
-    // script with NO operand after its key is the revocation reap (#359),
-    // which answers the Redis second as a digit bulk. Every other 1-key
-    // script — the roster read (#341) and the revocation mark — gets the
-    // roster read's `{ HLEN, sample, selves }` shape.
+    // all three accept the integer 0 through their strict decoders. The one
+    // 2-key script is the revocation reap (#359, #380: index, then floor),
+    // which answers the Redis second as a digit bulk. A 1-key script whose
+    // key is the revocation floor is the floor announce (#380), which answers
+    // nil. Every other 1-key script — the roster read (#341) and the
+    // revocation mark — gets the roster read's `{ HLEN, sample, selves }`
+    // shape.
     EVAL: (args: string[]) =>
         Number(args[2]) >= 3
             ? { type: 'integer', value: 0 }
-            : Number(args[2]) === 1 && args.length === 4
+            : Number(args[2]) === 2
             ? { type: 'bulk', value: '1757000000' }
+            : args[3].endsWith('__revocation-floor')
+            ? { type: 'nil' }
             : {
                 type: 'array',
                 value: [
@@ -399,6 +406,7 @@ Deno.test('SC-001: every prefix-derived name is anchored', async () => {
             'alpha__instances',
             'alpha__owned:<id>',
             'alpha__presence:presence-room',
+            'alpha__revocation-floor',
             'alpha__revocations',
         ],
         'the differential captured a different set of derived names than the ' +
@@ -463,6 +471,7 @@ Deno.test('FR-006: every pinned member is actually driven by the exercise', asyn
         aliveKey: 'alpha__alive:',
         instancesKey: 'alpha__instances',
         revocationIndexKey: 'alpha__revocations',
+        revocationFloorKey: 'alpha__revocation-floor',
     }
     // `eventPattern` is checked SEPARATELY, and the reason is the point of
     // splitting it from `topic` at all: the two produce the same bytes today,
