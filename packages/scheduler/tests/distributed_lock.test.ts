@@ -175,12 +175,37 @@ Deno.test('onOneServer - an unreachable lock store skips the occurrence, and say
     })
 })
 
+Deno.test('onOneServer - an unreachable store rejecting with a non-Error is flattened the same way', async () => {
+    // Same shape as the release warning: `error` is a name, `message` the text.
+    const { reporter, warnings } = recordingReporter()
+    const s = new Scheduler(reporter, {
+        acquire: () => Promise.reject('store gone'),
+        release: () => Promise.resolve(),
+    })
+    s.register({
+        expression: everyMinute,
+        body: () => {},
+        options: { name: 'nightly', onOneServer: true },
+    })
+
+    await s.runNow('nightly')
+
+    assertEquals(warnings.length, 1)
+    assertEquals(warnings[0].fields, {
+        task: 'nightly',
+        error: 'Error',
+        message: 'store gone',
+    })
+})
+
 Deno.test('onOneServer - a failed release does not mask the outcome, and is reported once', async () => {
     // The release is best-effort (the lock's TTL is the backstop), so a release
     // that threw out of the run would turn a successful task into a rejected
     // one. Best-effort is not silent, though: a release that keeps failing
     // leaves every claim to expire on its TTL, and nobody would know why.
     const time = new FakeTime(new Date('2026-03-01T10:00:42.500Z'))
+    // A reporter replaces the console; it does not echo to it as well.
+    const consoleWarn = stub(console, 'warn')
     try {
         const { reporter, warnings } = recordingReporter()
         let releases = 0
@@ -217,9 +242,39 @@ Deno.test('onOneServer - a failed release does not mask the outcome, and is repo
             error: 'Error',
             message: 'release lost',
         })
+        assertEquals(consoleWarn.calls.length, 0, 'the reporter replaced it')
     } finally {
+        consoleWarn.restore()
         time.restore()
     }
+})
+
+Deno.test('onOneServer - a release rejecting with an unprintable value is still contained and reported once', async () => {
+    // `String()` throws on a value with no usable `toString`. Unguarded, that
+    // throw would leave the release catch — inside `finally` — and turn a
+    // successful run into a rejected one.
+    const { reporter, warnings } = recordingReporter()
+    const s = new Scheduler(reporter, {
+        acquire: () => Promise.resolve(true),
+        release: () => Promise.reject(Object.create(null)),
+    })
+    let ran = 0
+    s.register({
+        expression: everyMinute,
+        body: () => {
+            ran++
+        },
+        options: { name: 'nightly', onOneServer: true },
+    })
+
+    await s.runNow('nightly') // resolves: nothing escaped
+
+    assertEquals(ran, 1)
+    assertEquals(s.getStats().tasks[0].failureCount, 0)
+    assertEquals(warnings.length, 1, 'exactly one warning')
+    assertEquals(warnings[0].fields.task, 'nightly')
+    assertEquals(warnings[0].fields.error, 'Error')
+    assertEquals(warnings[0].fields.message, '<unprintable>')
 })
 
 Deno.test('onOneServer - a failed release with no reporter falls back to console.warn', async () => {

@@ -68,6 +68,41 @@ const MUTATIONS: Mutation[] = [
         killedBy: 'a failed release does not mask the outcome, and is ' +
             'reported once',
     },
+    {
+        // Review finding: `String()` throws on a value with no usable
+        // `toString`. Unguarded, that throw leaves the release catch from
+        // inside `finally` and rejects a run that succeeded.
+        label: 'the String() guard is removed — an unprintable rejection ' +
+            'escapes the release catch',
+        file: SCHEDULER,
+        edits: [[
+            '    let message: string\n' +
+            '    try {\n' +
+            '        message = String(caught)\n' +
+            '    } catch (_unprintable) {\n' +
+            '        // Not swallowed: the placeholder IS the report of this failure, and it\n' +
+            '        // reaches the log line the caller is about to write.\n' +
+            '        message = UNPRINTABLE\n' +
+            '    }\n',
+            '    const message = String(caught)\n',
+        ]],
+        killedBy: 'unprintable value is still contained and reported once',
+    },
+    {
+        // Review finding: a reporter REPLACES the console. Without the
+        // `return`, every warning is written twice — once to the
+        // application's logger, once to stdout around it.
+        label: "the reporter branch's return is deleted — the console " +
+            'echoes every reported warning',
+        file: SCHEDULER,
+        edits: [[
+            '            this.#reporter.warn(message, fields)\n' +
+            '            return\n',
+            '            this.#reporter.warn(message, fields)\n',
+        ]],
+        killedBy: 'a failed release does not mask the outcome, and is ' +
+            'reported once',
+    },
 ]
 
 if (import.meta.main) {
