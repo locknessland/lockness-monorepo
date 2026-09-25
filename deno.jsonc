@@ -75,9 +75,10 @@
         "jsr:link": "deno run --allow-net=api.jsr.io --allow-read --allow-env scripts/jsr_link_repos.ts",
         "mirror": "deno run --allow-read --allow-run --allow-env scripts/mirror_packages.ts",
         "release:notes": "deno run --allow-read --allow-run=git scripts/release_notes.ts",
-        // The one versioned quality gate: the pre-push hook and the /git push
-        // procedure both run exactly this, so the step list lives here only.
-        "gate": "deno fmt --check && deno lint && deno check && deno task deps:analyze && deno task agents:brief --check && deno task docs:coverage && deno task publish:check && deno task test",
+        // The one versioned quality gate: the pre-push hook, the /git push
+        // procedure and CI all run exactly this. The ordered step list lives in
+        // scripts/gate.ts only; `deno task gate --leaks` is CI's variant.
+        "gate": "deno run -A scripts/gate.ts",
         "hooks:install": "deno run -A scripts/install_hooks.ts",
         "init": "deno run -Ar packages/init/mod.ts _lockness_app",
         "ui": "deno run -Ar packages/ui/mod.ts"
