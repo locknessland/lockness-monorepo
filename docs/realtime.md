@@ -551,8 +551,12 @@ miss:
 **If you wire your own transport without `handlerHooks`**, one gap is yours to
 close: never run application code for a socket whose `register` was refused — in
 particular never call `unsubscribe(conn.id, …)` for it, which acts on the id and
-so on whoever holds it. `handlerHooks` closes that gap for you: its `onMessage`
-runs your hook only for the socket that owns its id.
+so on whoever holds it. `handlerHooks` narrows that gap for you: its `onMessage`
+runs your hook only for the socket that owns its id. **Your `onClose` still runs
+for every socket**, a refused or evicted one included — so on `handlerHooks`
+too, never act on `conn.id` there; ask `disconnect(conn)`'s outcome instead. Why
+the manager enforces these rules the way it does is
+[ADR 010](adr/010-realtime-disconnect-retires-the-connection-object.md).
 
 **Your ids owe it two rules.** `manager.evict(id)` names a connection id in a
 frame that crosses the bus, so **a connection id must be unguessable and never
@@ -1880,9 +1884,10 @@ that has legitimately re-subscribed, once per tick, until it expires.
 
 ### The local tier reports what it did
 
-`unsubscribe` and `disconnect` take a **connection id**, which makes them look
-like they reach across the fleet. They do not: they act only on sockets _this_
-instance owns. They now say so rather than resolving silently.
+`unsubscribe` takes a **connection id**, and `disconnect` takes the **connection
+object** you registered or an id, which makes them look like they reach across
+the fleet. They do not: they act only on sockets _this_ instance owns. They now
+say so rather than resolving silently.
 
 ```ts
 await manager.unsubscribe(clientId, channel)
@@ -1891,8 +1896,16 @@ await manager.unsubscribe(clientId, channel)
 // 'not-owned'      — the socket lives on another instance. Nothing was removed
 //                    and nothing was announced; use revokeChannel
 
-await manager.disconnect(clientId) // 'disconnected' | 'not-owned'
+await manager.disconnect(conn) // 'disconnected' | 'not-owned'
+// 'not-owned' from the object form also means: this object does not own its
+//              id here — a socket `register` refused, or one torn down and
+//              replaced under the same id. Nothing was retired or removed.
+await manager.disconnect(clientId) // the id form, for server code such as evict
 ```
+
+Pass the object from a socket's close hook. The id form acts on whoever holds
+the id when it runs, which is what server-side revocation needs and what a
+socket's own close must not do (item 21).
 
 > **These are server-side values.** Do not relay them to a client, and do not
 > take `clientId` from a client frame — pass `connection.id` from a socket you
@@ -2438,7 +2451,10 @@ old `OutboundFrame` union — which gained `{ type: 'unsubscribed' }`, because
 that frame goes through your encoder like every other. See
 [The local tier reports what it did](#the-local-tier-reports-what-it-did).
 
-`'not-owned'` means _use `revokeChannel`_.
+`'not-owned'` from `unsubscribe` or the id form of `disconnect` means _the
+socket lives elsewhere — use `revokeChannel`_. From `disconnect(conn)`, the
+object form added by item 21, it can also mean _this object does not own its id
+here_; nothing was touched, and nothing needs revoking.
 
 ### 5. Expect a MAC WARN from `0.3.0` instances during the deploy
 
@@ -3014,6 +3030,12 @@ manager.register(b) // ConnectionIdInUseError
   neither it nor `ConnectionNotRegisteredError` puts the id in its message.
 
 Apps on `handlerHooks` with framework ids see no change.
+
+> **A subclass that overrides `disconnect(clientId: string)` still compiles**,
+> and it now receives the connection **object** from `handlerHooks.onClose`.
+> Widen the override to `disconnect(target: string | Connection<Identity>)` and
+> pass the object form through to `super.disconnect(target)`; an override that
+> reads `target` as a string will key its own work on `[object Object]`.
 
 ## Upgrading to v0.3.0
 

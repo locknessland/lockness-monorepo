@@ -243,9 +243,9 @@ gone. Three deciders, and only these, compare a binding to an object:
   instruction to register. Its JSDoc holds why two mutations of `subscribe` are
   equivalent (the post-site's registration clause is unreachable while the
   `finally` below is guarded; re-adding the write stores what is there).
-- **`#isOwner`** — `connections.get(id) === object`. Its three askers are
-  `disconnect`'s object form, `disconnect`'s `finally`, and
-  `handlerHooks.onMessage`.
+- **`#isOwner`** — `connections.get(id) === object`. Its askers are
+  `disconnect`'s object form, `disconnect`'s loop (before each leave),
+  `disconnect`'s `finally`, and `handlerHooks.onMessage`.
 
 ### Owner-scoped teardown
 
@@ -256,6 +256,9 @@ gone. Three deciders, and only these, compare a binding to an object:
   the socket `register` refused, or an evicted socket whose id was
   re-registered;
 - **the id form** is unchanged. `evict` (through `revokeLocal`) keeps it;
+- **the loop** stops before a leave once the torn-down object no longer owns the
+  id: each leave is keyed by id, so the rest of its copy would strip the new
+  owner of any channel both held (added by the #370 review);
 - **the `finally`** deletes the binding and the reverse index only while the
   torn-down object still owns the id, so a teardown whose object was replaced
   while it ran leaves the new binding alone.
@@ -305,7 +308,10 @@ the id in its message.
   They should pass `conn`; deprecating the id form for app callers is backlog.
 - **Two overlapping teardowns of one object** mid-loop on a shared channel. It
   needs this record's retirement restructured to one teardown per object; the
-  guarded `finally` pins only the binding.
+  owner checks above cover only the case where the object was replaced.
+- **The app's own `onClose` still runs for a refused or evicted socket**, on
+  `handlerHooks` too: skipping it would need a record of refused sockets (row 17
+  rejects one) or would drop the close hook for every evicted socket.
 - **A custom transport that does not use `handlerHooks`** can still run app code
   for a socket that does not own its id. It must gate on `disconnect(conn)`'s
   outcome and never call `unsubscribe(conn.id, …)` for a refused socket.
