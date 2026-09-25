@@ -1245,6 +1245,24 @@ export const REVOCATION_PAIRS_SKIPPED =
     'pass:'
 
 /**
+ * The words that start the one WARN a revocation pass writes when its
+ * re-check handler resolved a value that claims to be a
+ * {@link RevocationTally} and is not one (#384): a count missing, not a safe
+ * integer, negative, or `failed` above `attempted`, or a count that threw
+ * while being read. Followed by the pass's trigger and the contract — never
+ * by the value.
+ *
+ * At most one per pass, written where the value is decoded and nowhere else.
+ * The pass stays `ok` (the enumeration completed), reports no counts, and is
+ * **not clean**, so it does not re-arm the enforcement deadline: a handler
+ * reporting counts no one can trust must not keep the guarantee looking kept.
+ * A value that is not tally-shaped at all is no tally, and writes nothing.
+ * Exported for the test suite only.
+ */
+export const REVOCATION_TALLY_MALFORMED =
+    'realtime: the revocation re-check resolved a malformed tally (#384):'
+
+/**
  * The words that start the one WARN written when an
  * {@link RedisBroadcastDriver.onPassComplete} handler throws, or the promise
  * it returned rejects (#360) — followed by the rendered failure. The pass
@@ -1501,6 +1519,10 @@ export interface PassSample {
      *   ahead of this pass's own handler, whose time is in `durationMs` too.
      */
     readonly pages: number
+    /** How many units the pass attempted (#384). */
+    readonly attempts?: number
+    /** How many of those failed (#384). */
+    readonly failures?: number
 }
 /**
  * How one background pass ended (#362; widened to the ghost sweep by #360):

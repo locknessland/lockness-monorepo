@@ -210,6 +210,9 @@ export class EnforcementDeadline {
         this.arm(this.#ttlMs - (endedAt - startedAt))
     }
 
+    /** Record that a pass settled without being clean (#384). */
+    passEnded(): void {}
+
     /**
      * Clear the pending timer, and drop any line decided but not yet
      * written. Not terminal: whether a timer may be armed again is the

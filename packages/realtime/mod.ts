@@ -50,6 +50,7 @@ export type {
     PresenceCapableDriver,
     Revocation,
     RevocationStoreDriver,
+    RevocationTally,
     RosterDeparture,
     RosterHold,
     RosterRelease,

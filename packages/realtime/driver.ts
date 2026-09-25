@@ -359,6 +359,54 @@ export interface RosterDeparture {
 }
 
 /**
+ * What one revocation re-check did (#384): how many applies it attempted, and
+ * how many of those failed. A handler registered through
+ * {@link BroadcastDriver.onRevocationReconcile} may resolve to one, and a
+ * driver may report it; the Redis driver puts it on its pass sample.
+ *
+ * **The one home of what the two counts mean.** Documentation elsewhere links
+ * here rather than restating it.
+ *
+ * - **One unit is one apply**: one connection revocation, or **one channel
+ *   pair** — every record of one `(target, channel)` pair is settled by ONE
+ *   leave (#337), so a pair with three stored ids is one unit, not three. A
+ *   count of stored ids would multiply one leave's failure by N, which no
+ *   operator can act on.
+ * - **Only a record for a socket this instance owns is attempted.** A record
+ *   the ownership check drops names no socket here, so it is neither
+ *   attempted nor failed.
+ * - **A failure is an apply that threw**, the hard-close and the teardown of a
+ *   connection revocation included. It does not mean the socket stayed
+ *   subscribed: an apply that resolves without effect counts as done. A
+ *   record that could not be CLEARED after its leave succeeded is not a
+ *   failure either — the revocation was applied, and only the record outlives
+ *   it.
+ *
+ * Both counts are safe integers with `0 ≤ failed ≤ attempted`. A value that
+ * claims to be a tally and breaks that is refused by the Redis driver, which
+ * warns once per pass and reports no counts.
+ *
+ * @example
+ * ```ts
+ * driver.onRevocationReconcile?.(async (): Promise<RevocationTally> => {
+ *     let attempted = 0
+ *     let failed = 0
+ *     for (const revocation of await localRevocations()) {
+ *         attempted++
+ *         if (!await apply(revocation)) failed++
+ *     }
+ *     return { attempted, failed }
+ * })
+ * ```
+ */
+export interface RevocationTally {
+    /** How many applies this re-check attempted. */
+    readonly attempted: number
+    /** How many of those threw. */
+    readonly failed: number
+}
+
+/**
  * A broadcast transport. `publish` emits a message; every instance's
  * `onMessage` handler (registered once) receives it and re-resolves local
  * delivery. The memory driver loops back in-process; the Redis driver fans out
