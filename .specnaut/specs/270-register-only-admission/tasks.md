@@ -59,17 +59,17 @@ A second match makes a row `DEAD`. T056 greps for these.
 
 ## Phase 1: Setup — rebase, baselines and the measured migration list
 
-- [ ] T001 Rebase `270-register-only-admission` onto `origin/main`.
+- [x] T001 Rebase `270-register-only-admission` onto `origin/main`.
   - Record whether #376 has landed: `grep -c '#dispatchRevocation' packages/realtime/manager.ts`.
   - If it has, re-run the plan's anchor dump for `revoke_channel_idless_340` and the new `apply_revocation_376`.
     Confirm that neither anchors in `register`, `subscribe`, `#assertAdmissible`, `disconnect` or `handlerHooks`. Add
     any row that does to T043's list before going on.
-- [ ] T002 **Suite baseline.** Run `deno test -A packages/realtime/` and save the output to the scratchpad. It must be
+- [x] T002 **Suite baseline.** Run `deno test -A packages/realtime/` and save the output to the scratchpad. It must be
   green. T017, T030 and T058 compare against it.
-- [ ] T003 **Battery baseline.** Run `deno task mutate realtime` and save the output.
+- [x] T003 **Battery baseline.** Run `deno task mutate realtime` and save the output.
   - The live-broker batteries (`live_conformance_285`, `self_skip_310`, `sweep_parse_316`) may report `PARTIAL` only
     if each is named in the saved output. Every other battery must be clean.
-- [ ] T004 **The migration list, re-measured** (plan D1, FR-013).
+- [x] T004 **The migration list, re-measured** (plan D1, FR-013).
   - Apply the three disposition edits to a scratch copy of `packages/realtime/manager.ts`: clause 2 widened, a
     `#assertBound` at both `subscribe` sites (with a plain `Error` for the class), and `subscribe`'s
     `connections.set` deleted.
@@ -90,34 +90,40 @@ A second match makes a row `DEAD`. T056 greps for these.
   that asserts `connectionCount` grew from a `subscribe`. **Leave it unchanged here**, and add it to T016's list.
 - `packages/realtime/manager.ts` is not edited in this phase.
 
-- [ ] T005 [P] Migrate `packages/realtime/tests/authorize_result_357.test.ts` (84 failing in the probe).
-- [ ] T006 [P] Migrate `packages/realtime/tests/authorize_result_347.test.ts` (55).
-- [ ] T007 [P] Migrate `packages/realtime/tests/presence_member_id_type_346.test.ts` (47).
-- [ ] T008 [P] Migrate `packages/realtime/tests/manager_debt_353.test.ts` (34).
-- [ ] T009 [P] Migrate `packages/realtime/tests/lapse_rehold_349.test.ts` (28) and
+- [x] T005 [P] Migrate `packages/realtime/tests/authorize_result_357.test.ts` (84 failing in the probe).
+- [x] T006 [P] Migrate `packages/realtime/tests/authorize_result_347.test.ts` (55).
+- [x] T007 [P] Migrate `packages/realtime/tests/presence_member_id_type_346.test.ts` (47).
+- [x] T008 [P] Migrate `packages/realtime/tests/manager_debt_353.test.ts` (34).
+- [x] T009 [P] Migrate `packages/realtime/tests/lapse_rehold_349.test.ts` (28) and
   `packages/realtime/tests/presence_member_admission_350.test.ts` (28).
-- [ ] T010 [P] Migrate `packages/realtime/tests/presence_member_frozen_354.test.ts` (18) and
+- [x] T010 [P] Migrate `packages/realtime/tests/presence_member_frozen_354.test.ts` (18) and
   `packages/realtime/tests/channel_watch_295.test.ts` (16).
-- [ ] T011 [P] Migrate `packages/realtime/tests/revocation_paging_359.test.ts` (13) and
+- [x] T011 [P] Migrate `packages/realtime/tests/revocation_paging_359.test.ts` (13) and
   `packages/realtime/tests/channel_revoke_332.test.ts` (10).
-- [ ] T012 [P] Migrate `packages/realtime/tests/disconnect_admission_361.test.ts` (12: W1, W2, W4, W5 and the eight W6
+- [x] T012 [P] Migrate `packages/realtime/tests/disconnect_admission_361.test.ts` (12: W1, W2, W4, W5 and the eight W6
   cases; plan D3). Register first. Their assertions do not change.
-- [ ] T013 [P] Migrate the 5–9 group in `packages/realtime/tests/`: `presence_sweep_departure_348`, `churn_cost_329`,
+- [x] T013 [P] Migrate the 5–9 group in `packages/realtime/tests/`: `presence_sweep_departure_348`, `churn_cost_329`,
   `presence_join_compensation_323`, `presence_local_member_343`, `presence_member_transitions_344`,
   `presence_rejoin_327` and `presence_snapshot_bound_339` (`.test.ts`).
-- [ ] T014 [P] Migrate the 2–4 group in `packages/realtime/tests/`: `channels`, `leave_outcome_332`, `presence`,
+- [x] T014 [P] Migrate the 2–4 group in `packages/realtime/tests/`: `channels`, `leave_outcome_332`, `presence`,
   `presence_eviction_334`, `revoke_channel_idless_340`, `subscribe_unsubscribe_race_330`, `authorize_denial_331`,
   `driver_redis`, `driver_redis_live`, `member_info_bound_326`, `revocation_clear_race_337`, `emit_isolation_323`,
   `presence_cap_concurrency_323` and `presence_read_bound_341` (`.test.ts`).
   - `driver_redis_live`'s broker-only tests are migrated the same way, and run under
     `LOCKNESS_REDIS_INTEGRATION=1` where a broker is available.
-- [ ] T015 [P] Migrate the 1-each group in `packages/realtime/tests/`: `connection_id_charset`, `control_auth`,
+- [x] T015 [P] Migrate the 1-each group in `packages/realtime/tests/`: `connection_id_charset`, `control_auth`,
   `deliver_local_reauth`, `disconnect_propagation`, `eviction_control`, `eviction_durable`, `eviction_reconnect`,
   `log_encoding_291`, `mixed_fleet_332`, `presence_authoritative`, `presence_join_rosterless_342` and
   `roster_holders_345` (`.test.ts`), plus any file T004 added.
-- [ ] T016 **The premise list.** Name, by file and test, every test left unchanged under the phase rule. Record the
+- [x] T016 **The premise list.** Name, by file and test, every test left unchanged under the phase rule. Record the
   list in this task when you tick it. Phase 9 rewrites exactly these tests.
-- [ ] T017 **The proof, then commit 1.**
+  - **Recorded (re-measured at `587bb7ca`):** the probe failed 453 tests in 45 files before the migration (#376's
+    `apply_revocation_376` joined the list). After it, exactly 146 premise tests remained: `authorize_result_347` 45,
+    `manager_debt_353` 32, `presence_member_id_type_346` 32, `authorize_result_357` 26 (the 24 `(a)` rows and the 2
+    `(e) { id: 7, info: new Date(0) }` rows), `presence_member_admission_350` 10, and `presence_rejoin_327`'s
+    "a reconnect re-binds the socket". One more surfaced at T040: `churn_cost_329`'s "the decision that there is no
+    framework meter is ANCHORED", which pinned `onMessage: userHooks.onMessage,` verbatim.
+- [x] T017 **The proof, then commit 1.**
   - `git diff origin/main -- packages/realtime/manager.ts` is empty.
   - `deno test -A packages/realtime/` is green, with the same count as T002.
   - Re-run T004's probe on the migrated tree. The only failures are exactly T016's premise list. That proves the
@@ -127,24 +133,24 @@ A second match makes a row `DEAD`. T056 greps for these.
 
 ## Phase 3: Foundational — every witness, red, then the class
 
-- [ ] T018 New file `packages/realtime/tests/register_only_admission_370.test.ts` with its harnesses:
+- [x] T018 New file `packages/realtime/tests/register_only_admission_370.test.ts` with its harnesses:
   - a spy authorizer that counts its calls, and a gated authorizer that admits or denies on command;
   - a `MemoryBroadcastDriver` subclass with a recording watch pair and a gated `unwatchChannel`, for W12 (ii);
   - a fake transport `Connection` whose `close` records its `(code, reason)` and whose `send` records frames;
   - `handlerHooks` driven directly, for W7, W11, W12 and W13.
 
   Waits use the gates' promises. There are no fixed microtask counts. No shared helper module is created.
-- [ ] T019 Write W1–W9 and W11–W13 in `packages/realtime/tests/register_only_admission_370.test.ts`, exactly as in the
+- [x] T019 Write W1–W9 and W11–W13 in `packages/realtime/tests/register_only_admission_370.test.ts`, exactly as in the
   plan's §4 table.
   - W4's positive control (A receives) and W5's (B receives after its own authorized subscribe) are kept, so that
     "receives nothing" cannot pass on a broken broadcast.
   - W4 also asserts that the error message contains neither the id nor `disconnect` (S3).
   - **W7 uses `assertThrows`**, not `assertRejects`: `onOpen` throws synchronously (plan A8).
   - W12 (ii) gates the two teardowns so that the first settles and A1 registers while the second is still suspended.
-- [ ] T020 Add **`#361 W13`** (the post-site before the caps) to
+- [x] T020 Add **`#361 W13`** (the post-site before the caps) to
   `packages/realtime/tests/disconnect_admission_361.test.ts` (plan A3). It is a pin: run it green on the current
   tree.
-- [ ] T021 Add `ConnectionNotRegisteredError` to `packages/realtime/manager.ts`, after `ConnectionIdInUseError`.
+- [x] T021 Add `ConnectionNotRegisteredError` to `packages/realtime/manager.ts`, after `ConnectionIdInUseError`.
   **Row 6's home.**
   - It takes **no id**, and its constant message carries none (S3). The message: never registered, nothing was
     subscribed, call `register` from the transport's open hook. It must not contain a sibling's message text.
@@ -160,7 +166,7 @@ A second match makes a row `DEAD`. T056 greps for these.
 **Goal:** `register` is the only writer, and `subscribe` refuses an unregistered object before its authorizer.
 **Independent test:** W1, W2 and W9 pass.
 
-- [ ] T022 [US1] Add `#assertBound(connection)` below `#assertAdmissible` in `packages/realtime/manager.ts`. **Row 3's
+- [x] T022 [US1] Add `#assertBound(connection)` below `#assertAdmissible` in `packages/realtime/manager.ts`. **Row 3's
   home, and row 7b's** (admissibility first, then registration).
   - Its body is `this.#assertAdmissible(connection)`, then
     `if (!this.connections.has(connection.id)) throw new ConnectionNotRegisteredError()`.
@@ -169,22 +175,22 @@ A second match makes a row `DEAD`. T056 greps for these.
       owner's binding** (T033);
     - M9: restoring `subscribe`'s write is equivalent;
     - it is `subscribe`'s decider.
-- [ ] T023 [US1] In `subscribe`, in `packages/realtime/manager.ts`, replace both `this.#assertAdmissible(connection)`
+- [x] T023 [US1] In `subscribe`, in `packages/realtime/manager.ts`, replace both `this.#assertAdmissible(connection)`
   calls with `this.#assertBound(connection)`. **Row 4** (its home is `#assertAdmissible`'s JSDoc, updated in T027) and
   **row 7a** (statement order).
   - The pre-site stays directly after `const kind = channelKind(channel)`.
   - The post-site stays between the #347 invariant and `// BEFORE any membership mutation`, with its two comment lines
     above it byte-identical.
-- [ ] T024 [US1] Delete `subscribe`'s `this.connections.set(connection.id, connection)` in
+- [x] T024 [US1] Delete `subscribe`'s `this.connections.set(connection.id, connection)` in
   `packages/realtime/manager.ts` (FR-001). **Row 1's home is `register`**, whose line stays untouched. **Row 8:** no
   write before a refusal.
   - Afterwards, `grep -n 'connections.set' packages/realtime/manager.ts` finds exactly one line, in `register`.
-- [ ] T025 [US1] Correct `subscribe`'s comments about the deleted write in `packages/realtime/manager.ts` (FR-008).
+- [x] T025 [US1] Correct `subscribe`'s comments about the deleted write in `packages/realtime/manager.ts` (FR-008).
   That includes the #353 invariant's "above the caps and `connections.set` … would leave a `connections` entry
   behind". Quote no anchor line (FR-012).
   - Add `@throws {ConnectionNotRegisteredError}` to `subscribe`: raised at the pre-site, always before the
     authorizer.
-- [ ] T026 [US1] Run the witness file. **W1, W2 and W9 must be green.** Run the realtime suite. The only failures
+- [x] T026 [US1] Run the witness file. **W1, W2 and W9 must be green.** Run the realtime suite. The only failures
   allowed are T016's premise list and the witnesses of later phases.
 
 ## Phase 5: US2 — a second object under a live id is refused (P1)
@@ -192,22 +198,22 @@ A second match makes a row `DEAD`. T056 greps for these.
 **Goal:** clause 2 refuses any different holder, live or retiring, and the refusal names no id.
 **Independent test:** W3, W4, W6 and W8 pass, and `#361` W8 stays green.
 
-- [ ] T027 [US2] Widen `#assertAdmissible`'s clause 2 in `packages/realtime/manager.ts` to
+- [x] T027 [US2] Widen `#assertAdmissible`'s clause 2 in `packages/realtime/manager.ts` to
   `bound !== undefined && bound !== connection` (FR-002). **Row 2's home, and row 5's** (same-object re-registration
   is a no-op).
   - Clause 1 is unchanged and stays first.
   - `grep -c 'this.#retired' packages/realtime/manager.ts` prints **2**: clause 1 and `disconnect`'s `add`.
   - Rewrite `#assertAdmissible`'s JSDoc. It is **row 4's home**: it lists the askers (`register` → `#assertAdmissible`;
     `subscribe` → `#assertBound`, twice) and says the same object re-registering passes.
-- [ ] T028 [US2] Widen `ConnectionIdInUseError` in `packages/realtime/manager.ts` (FR-011). **Row 6.**
+- [x] T028 [US2] Widen `ConnectionIdInUseError` in `packages/realtime/manager.ts` (FR-011). **Row 6.**
   - Its constructor takes no argument, and its constant message carries no id (S3). It says a different connection
     object already holds this id, and that ids are minted per socket and never reused.
   - Its JSDoc states the live-or-retiring rule, drops "#363 may widen it", and links to ADR 010 §7.
   - Update its two `throw` sites to the no-argument form.
-- [ ] T029 [US2] Update `register`'s JSDoc in `packages/realtime/manager.ts`. **Row 9's home for duty 1** (call it from
+- [x] T029 [US2] Update `register`'s JSDoc in `packages/realtime/manager.ts`. **Row 9's home for duty 1** (call it from
   the open hook). Replace the "escapes" paragraph (D6), and widen `@throws {ConnectionIdInUseError}` to any different
   holder. `register`'s body is unchanged (row 7b: admission before the charset, unobservable).
-- [ ] T030 [US2] Run the witness file. **W3, W4, W6 and W8 must be green.** `#361` W8 stays green unmodified. Then run
+- [x] T030 [US2] Run the witness file. **W3, W4, W6 and W8 must be green.** `#361` W8 stays green unmodified. Then run
   the realtime suite and compare it with T002.
 
 ## Phase 6: US3 — the refused socket's close, and a late close, harm no one else (P1)
@@ -216,10 +222,10 @@ A second match makes a row `DEAD`. T056 greps for these.
 `onMessage`.
 **Independent test:** W5, W11, W12 (i and ii) and W13 pass.
 
-- [ ] T031 [US3] Add `#isOwner(connection: Connection<Identity>): boolean` in `packages/realtime/manager.ts`, beside
+- [x] T031 [US3] Add `#isOwner(connection: Connection<Identity>): boolean` in `packages/realtime/manager.ts`, beside
   `#assertBound`. It returns `this.connections.get(connection.id) === connection`. **Row 17's home.** Its JSDoc names
   its three askers (T032, T033, T034).
-- [ ] T032 [US3] Widen `disconnect` to `disconnect(target: string | Connection<Identity>)` in
+- [x] T032 [US3] Widen `disconnect` to `disconnect(target: string | Connection<Identity>)` in
   `packages/realtime/manager.ts` (FR-009a). **Row 16's home.**
   - **The object form** asks `this.#isOwner(target)` first. If the object is not the owner, it returns `'not-owned'`
     **before** retiring, copying or awaiting anything. If it is, the teardown runs for `target.id` with
@@ -227,18 +233,18 @@ A second match makes a row `DEAD`. T056 greps for these.
   - **The id form** is unchanged. `revokeLocal` keeps `this.disconnect(clientId)`.
   - The retirement stays at the entry, from the same read as `owned`.
   - The JSDoc is **row 9's home for duty 3**: call `disconnect(conn)` with the registered object at close.
-- [ ] T033 [US3] Guard `disconnect`'s `finally` in `packages/realtime/manager.ts` (FR-009b). **Row 16.**
+- [x] T033 [US3] Guard `disconnect`'s `finally` in `packages/realtime/manager.ts` (FR-009b). **Row 16.**
   - It deletes from `#channelsByClient` and `connections` only when `bound !== undefined && this.#isOwner(bound)`.
   - The per-channel collector and its flag are unchanged.
   - No binding is compared to an object outside `#assertAdmissible`, `#assertBound` and `#isOwner` (row 17).
-- [ ] T034 [US3] Update `handlerHooks` in `packages/realtime/manager.ts` (FR-009c). **Row 10's home.**
+- [x] T034 [US3] Update `handlerHooks` in `packages/realtime/manager.ts` (FR-009c). **Row 10's home.**
   - `onClose`: `await this.disconnect(conn)`, the object form. The #361 collector is otherwise unchanged.
   - `onMessage`: a wrapper that runs `userHooks.onMessage?.(conn, data)` only when `this.#isOwner(conn)`, and
     otherwise drops the frame **without a log line**.
   - `onOpen` is unchanged, including `conn.close(1011, 'unusable connection id')` (D5).
   - Update `handlerHooks`' JSDoc: `onClose` passes the object, and `onMessage` is owner-gated.
   - `websocket.ts` is not touched.
-- [ ] T035 [US3] Run the witness file. **W5, W11, W12 (i and ii) and W13 must be green.** Then run the realtime suite.
+- [x] T035 [US3] Run the witness file. **W5, W11, W12 (i and ii) and W13 must be green.** Then run the realtime suite.
   The 23 existing id-form `disconnect(…)` test calls stay green unchanged.
 
 ## Phase 7: US4 — the framework path and same-object re-registration behave as today (P2)
@@ -246,18 +252,18 @@ A second match makes a row `DEAD`. T056 greps for these.
 **Goal:** apps on `handlerHooks` with framework ids see no change.
 **Independent test:** W6, `#361` W11 and `#361 W13` pass, and the migrated suite is green.
 
-- [ ] T036 [US4] Confirm without code changes:
+- [x] T036 [US4] Confirm without code changes:
   - W6 (same object twice) is green;
   - `#361` W11 (`buildEvents` presents one object per socket) is green;
   - `#361 W13` (the post-site before the caps) is still green.
 
   If any is red, the fix is misplaced (T023, T027 or T034). Fix that, never the witness.
-- [ ] T037 [US4] Update the `Connection` JSDoc in `packages/realtime/types.ts` (FR-017). **Row 9's home for duty 2.**
+- [x] T037 [US4] Update the `Connection` JSDoc in `packages/realtime/types.ts` (FR-017). **Row 9's home for duty 2.**
   - Replace the "escapes that refusal" sentence (D6) with the enforced rule: a different object is refused while the
     owner is bound.
   - `Connection.id`: the server mints the id per socket, never from client input and never from a user or session key
     (S2).
-- [ ] T038 [US4] Give the `ChannelManager` class `@example` in `packages/realtime/manager.ts` its missing
+- [x] T038 [US4] Give the `ChannelManager` class `@example` in `packages/realtime/manager.ts` its missing
   `manager.register(conn)` (D7).
 
 ## Phase 8: US5 — a custom transport that reuses ids hears about it (P2)
@@ -265,10 +271,10 @@ A second match makes a row `DEAD`. T056 greps for these.
 **Goal:** a second socket under a live id gets a synchronous refusal and a `1011`, and the first is untouched.
 **Independent test:** W7 passes.
 
-- [ ] T039 [US5] Run W7. It goes green through T027: clause 2 now refuses the live holder's id, and `onOpen`'s close
+- [x] T039 [US5] Run W7. It goes green through T027: clause 2 now refuses the live holder's id, and `onOpen`'s close
   path is unchanged.
   - Confirm that the close reason is exactly `'unusable connection id'` (D5), and that the app's `onOpen` ran once.
-- [ ] T040 **Commit 2.** Run `deno fmt`, `deno lint` and
+- [x] T040 **Commit 2.** Run `deno fmt`, `deno lint` and
   `deno check packages/realtime/mod.ts packages/realtime/tests/register_only_admission_370.test.ts`.
   - Every witness is green. The suite's only failures are exactly T016's premise list.
   - Commit T018–T039 as `fix(370,363): register is the only way in, and teardown acts only on the owner`, with no
@@ -276,16 +282,20 @@ A second match makes a row `DEAD`. T056 greps for these.
 
 ## Phase 9: the premise tests (commit 3, `test(370)`)
 
-- [ ] T041 Rewrite each test on T016's list, in its own file, to the new outcome. An example: a subscribe on an
+- [x] T041 Rewrite each test on T016's list, in its own file, to the new outcome. An example: a subscribe on an
   unregistered object now throws `ConnectionNotRegisteredError` and leaves `connectionCount` unchanged.
   - A test's intent is kept. Only its premise changes.
   - List each rewritten test by name here when you tick it.
-- [ ] T042 Run `deno test -A packages/realtime/`: it is fully green. Commit as
+  - **Rewritten (147):** the T016 list plus `churn_cost_329`'s anchored-decision test, which now pins the one
+    `onMessage` wrapper (the ownership gate) verbatim. A follow-up `test(370)` commit restored two
+    `connection_id_charset` rows the migration had pointed at `register` instead of `subscribe`; the
+    `connection_id_304` battery's subscribe-guard row caught it.
+- [x] T042 Run `deno test -A packages/realtime/`: it is fully green. Commit as
   `test(370): rewrite the tests that relied on implicit registration`.
 
 ## Phase 10: Batteries (commit 4, `test(370)`)
 
-- [ ] T043 New battery `packages/realtime/tests/mutations/register_only_admission_370.ts` (FR-015). `SUITES` is
+- [x] T043 New battery `packages/realtime/tests/mutations/register_only_admission_370.ts` (FR-015). `SUITES` is
   `register_only_admission_370.test.ts` plus `disconnect_admission_361.test.ts`. Each row anchors on text that matches
   **once**:
 
@@ -308,7 +318,7 @@ A second match makes a row `DEAD`. T056 greps for these.
   - **M8 and M9 reasons** point to `#assertBound`'s JSDoc (row 14), and do not restate it.
   - **Every killed row is proven live.** It must be `KILLED` by its named witness, run against the mutated source. A
     kill from a type error or from a different test does not count; fix the anchor or the mutant.
-- [ ] T044 [P] Re-anchor the rows whose anchor included the deleted `connections.set` (plan §4):
+- [x] T044 [P] Re-anchor the rows whose anchor included the deleted `connections.set` (plan §4):
   - `packages/realtime/tests/mutations/authorize_result_347.ts` M7: the `#checkChannelCaps(…)` block alone; drop
     "and the `connections` write" from its label;
   - `packages/realtime/tests/mutations/authorize_result_357.ts` M5 and
@@ -318,7 +328,7 @@ A second match makes a row `DEAD`. T056 greps for these.
     the killer.
 
   Re-prove each row live.
-- [ ] T045 [P] Re-anchor the #361 rows in `packages/realtime/tests/mutations/disconnect_admission_361.ts`:
+- [x] T045 [P] Re-anchor the #361 rows in `packages/realtime/tests/mutations/disconnect_admission_361.ts`:
   - N1, N2 and N10: only the method name changes, to `#assertBound`; the killers are unchanged;
   - N4: rewritten as "the post-site moved below `#checkChannelCaps`", `killedBy: '#361 W13 '` (plan D3);
   - N8: re-anchored on `if (bound !== undefined && bound !== connection) {` plus its `throw`; killed by `#361` W8;
@@ -326,7 +336,7 @@ A second match makes a row `DEAD`. T056 greps for these.
   - **N9 is re-verified**: `throw new ConnectionIdInUseError(` occurs once, and its `to` line drops the argument.
 
   Update the battery's header list. Re-prove each row live.
-- [ ] T046 Re-run each battery holding an **unchanged adjacent row**, and confirm each row is `KILLED`:
+- [x] T046 Re-run each battery holding an **unchanged adjacent row**, and confirm each row is `KILLED`:
   - `authorize_result_357` M1 and M7;
   - `presence_member_306`;
   - `channel_name_314` ×2;
@@ -335,15 +345,15 @@ A second match makes a row `DEAD`. T056 greps for these.
 
   A `DEAD MUTANT` is **repaired, never deleted**, and only after checking that T023, T024 and T027 kept the anchors
   byte-identical.
-- [ ] T047 If #376 has landed (T001), re-run `apply_revocation_376` and `revoke_channel_idless_340`, which must be
+- [x] T047 If #376 has landed (T001), re-run `apply_revocation_376` and `revoke_channel_idless_340`, which must be
   clean.
-- [ ] T048 Run `deno task mutate realtime` and compare it with T003. The new battery is added, and every battery is
+- [x] T048 Run `deno task mutate realtime` and compare it with T003. The new battery is added, and every battery is
   clean, except the named live-broker batteries, which may report `PARTIAL`. Commit as
   `test(370): prove every admission and teardown guard live`.
 
 ## Phase 11: Docs (commit 5, `docs(370,363)`), hygiene and the gate
 
-- [ ] T049 [P] Amend ADR 010 in `docs/adr/010-realtime-disconnect-retires-the-connection-object.md` (FR-018). **Rows 12
+- [x] T049 [P] Amend ADR 010 in `docs/adr/010-realtime-disconnect-retires-the-connection-object.md` (FR-018). **Rows 12
   and 13's home, and row 6's no-base reason.**
   - Header: "Amended by" names #370 and #363 with the date.
   - New **§7, "Amendment — `register` is the only way in, and teardown is owner-scoped"**:
@@ -360,7 +370,7 @@ A second match makes a row `DEAD`. T056 greps for these.
   - §4's "Making `register` mandatory" gains a closing line: #370 reverses it, and why. The original text is kept.
   - §5: bullets 1–3 are marked resolved, and 4–7 are unchanged.
   - §6 gains: `register` is the only writer of `connections`, and a teardown acts only on its owner.
-- [ ] T050 [P] `docs/realtime.md`, the lifecycle section (`:503–551`) and the examples. **Row 9's user-facing home.**
+- [x] T050 [P] `docs/realtime.md`, the lifecycle section (`:503–551`) and the examples. **Row 9's user-facing home.**
   - Replace the "reaches only … escapes it" sentences (D6) with the enforced rules.
   - Duty 3 reads "call `disconnect(conn)` with the registered object", and points to `disconnect`'s JSDoc.
   - Widen the "while a teardown is still running" paragraph to any holder.
@@ -368,16 +378,16 @@ A second match makes a row `DEAD`. T056 greps for these.
     `unsubscribe(conn.id, …)`, for a socket that was refused (plan §9, S1).
   - `:24` becomes `onClose: (conn) => manager.disconnect(conn)`.
   - The § *Channels* snippet (`:74–91`) gains `manager.register(conn)` (D7).
-- [ ] T051 `docs/realtime.md` § *Upgrading to v0.4.0*: correct **item 17's** `ConnectionIdInUseError` bullet to "a
+- [x] T051 `docs/realtime.md` § *Upgrading to v0.4.0*: correct **item 17's** `ConnectionIdInUseError` bullet to "a
   different object holds this id, live or being torn down". **Row 11.** This runs after T050, because it edits the
   same file.
-- [ ] T052 `docs/realtime.md`: add **item 20, "`subscribe` requires `register`"**, numbered at landing (see the
+- [x] T052 `docs/realtime.md`: add **item 20, "`subscribe` requires `register`"**, numbered at landing (see the
   header). **Row 11's home.**
   - A before/after: `ConnectionNotRegisteredError`, thrown before the authorizer.
   - The fix: call `register(conn)` from your open hook. **`handlerHooks` is the zero-work path.**
   - `connectionCount` counts only registered connections.
   - It points to the lifecycle section, and does not restate the duties.
-- [ ] T053 `docs/realtime.md`: add **item 21, "An id held by a live connection is refused"**, numbered at landing.
+- [x] T053 `docs/realtime.md`: add **item 21, "An id held by a live connection is refused"**, numbered at landing.
   **Row 11's home.**
   - A before/after for `register` and `subscribe`, and the `1011` from `handlerHooks.onOpen`.
   - The server mints the id per socket (`crypto.randomUUID()`), never from client input or a user or session key.
@@ -390,10 +400,10 @@ A second match makes a row `DEAD`. T056 greps for these.
   - **The intro:** "Nineteen items. Thirteen are breaking changes — …" becomes "Twenty-one items. Fifteen are
     breaking changes — …" (or the landing re-check's numbers), adding the two to the list. Add 20 and 21 to the "read
     items …" list.
-- [ ] T054 [P] `packages/realtime/README.md`: in the "A disconnected connection is refused at admission" bullet, widen
+- [x] T054 [P] `packages/realtime/README.md`: in the "A disconnected connection is refused at admission" bullet, widen
   the `ConnectionIdInUseError` sentence, and add one sentence each on `ConnectionNotRegisteredError` and
   `disconnect(conn)`, linking to items 20 and 21 (FR-019). No second bullet.
-- [ ] T055 [P] `packages/realtime/AGENTS.md` (FR-020).
+- [x] T055 [P] `packages/realtime/AGENTS.md` (FR-020).
   - Add `ConnectionNotRegisteredError` to the class row (`:56`).
   - The pitfall "Retirement is never an ownership reader's business" gains:
     - `register` is the only writer of `connections`;
@@ -404,7 +414,7 @@ A second match makes a row `DEAD`. T056 greps for these.
     - never call `#assertAdmissible` from `subscribe`, or `#assertBound` from `register`.
   - Add `register_only_admission_370` to its witness and battery lists.
   - Run `deno task agents:brief` to regenerate the *Tests* list.
-- [ ] T056 Hygiene greps, each checked by its count:
+- [x] T056 Hygiene greps, each checked by its count:
   - `grep -n 'connections.set' packages/realtime/manager.ts` finds one line, in `register` (row 1);
   - `grep -c 'this.#retired' packages/realtime/manager.ts` prints `2` (row 2);
   - `grep -c '#assertBound(connection)'` prints `2`, and `grep -c '#assertAdmissible(connection)'` prints `2`
@@ -412,7 +422,7 @@ A second match makes a row `DEAD`. T056 greps for these.
   - `grep -nE 'connections\.get\([^)]*\) ===' packages/realtime/manager.ts` finds only `#isOwner` (row 17);
   - neither `ConnectionNotRegisteredError` nor `ConnectionIdInUseError` interpolates an id (S3);
   - each FR-012 anchor line in the header still matches the count its battery expects.
-- [ ] T057 Commit T049–T055 as `docs(370,363): register-only admission and owner-scoped teardown`.
+- [x] T057 Commit T049–T055 as `docs(370,363): register-only admission and owner-scoped teardown`.
 - [ ] T058 **The full gate, judged by exit status only**, never by a pipe's: `deno task gate`, then
   `deno task mutate realtime`.
   - Name any `PARTIAL` battery (the live-broker ones), and run them live where a broker is available
