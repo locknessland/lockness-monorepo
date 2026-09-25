@@ -12,13 +12,14 @@
  * budget cannot hang the battery — the assertion after a bounded number of
  * ticks simply reads `closed` as still `false`.
  *
- * W4 and W8 exercise `awaitCloseDrain` directly: W4 is a fast unit check of
- * its own contract (the timer is cleared, the result names nothing pending)
- * that a driver-level test cannot isolate from the driver's OTHER timers; W8
- * is the one witness that needs a REAL timer, because ref/unref only differs
- * from unref when nothing else keeps the event loop alive — which a
- * FakeTime test, and a full driver with its own heartbeat and sweep timers,
- * both fail to isolate.
+ * W4 exercises `awaitCloseDrain` directly, a fast unit check of its own
+ * contract (the timer is cleared, the result names nothing pending) that a
+ * driver-level test cannot isolate from the driver's OTHER timers. W8 spawns
+ * `fixtures/close_drain_ref_probe.ts` as its own process, because ref and
+ * unref only diverge when nothing else keeps the event loop alive AND
+ * nothing at the top level is still awaiting the call — measured, not
+ * assumed: a same-process test that awaits `awaitCloseDrain` directly
+ * settles a ref'd OR an unref'd timer alike, so it cannot tell them apart.
  *
  * @module @lockness/realtime/tests/close_drain_368
  */
@@ -534,25 +535,33 @@ Deno.test('#368 W7 a liveness TTL of 2 s gives a budget of 2 s, not the default 
 // returns
 // ---------------------------------------------------------------------------
 
-Deno.test('#368 W8 a real-timer stall that holds no I/O still lets awaitCloseDrain settle', async () => {
-    // A plain unresolved Promise holds no timer and no other handle: only a
-    // REF'D `setTimeout` inside awaitCloseDrain can ever make this resolve.
-    // An unref'd timer is not guaranteed to fire when nothing else keeps the
-    // event loop alive, which a FakeTime test cannot distinguish.
-    const stalledForever = new Promise<void>(() => {})
-    const settled = awaitCloseDrain(20, stalledForever, Promise.resolve())
-    const timedOut = Symbol('timed out')
-    let guardId: ReturnType<typeof setTimeout> | undefined
-    const guard = new Promise((resolve) => {
-        guardId = setTimeout(() => resolve(timedOut), 5_000)
-    })
-    try {
-        const result = await Promise.race([settled, guard])
-        assert(
-            result !== timedOut,
-            'awaitCloseDrain settled within its budget',
-        )
-    } finally {
-        clearTimeout(guardId)
-    }
+Deno.test("#368 W8 the drain's timer is ref'd: a caller that does not await close() still sees it settle", async () => {
+    // Measured (#368 grooming): a directly `await`ed call settles a ref'd OR
+    // an unref'd timer alike, because the top-level module has not finished
+    // either way — a FakeTime test, and a same-process real-timer test that
+    // awaits the call directly, cannot tell them apart. The divergence needs
+    // the shape a caller that does not hold the process open on `close()`
+    // actually has, so this spawns the fixture as its OWN process: nothing
+    // else runs there, and `run()` inside it is deliberately not awaited. A
+    // ref'd timer still lets Deno finish it and print `settled`; an unref'd
+    // one leaves Deno nothing to wait for once the top level returns, and it
+    // never prints.
+    const probe = new URL(
+        './fixtures/close_drain_ref_probe.ts',
+        import.meta.url,
+    )
+    const run = await new Deno.Command(Deno.execPath(), {
+        args: ['run', '--allow-all', probe.pathname],
+        stdout: 'piped',
+        stderr: 'piped',
+    }).output()
+    const out = new TextDecoder().decode(run.stdout)
+    const err = new TextDecoder().decode(run.stderr)
+    assertEquals(run.code, 0, `the probe process exited clean: ${err}`)
+    assertStringIncludes(out, 'main returned')
+    assertStringIncludes(
+        out,
+        'settled',
+        "the ref'd timer let the unawaited call finish and print",
+    )
 })
