@@ -99,7 +99,8 @@ binding under hard rule #11 (2026-09-25). The fold makes these changes:
   "amended by ADR 013" (A5). ADR 012 exists, so the number is 013, unless another ADR lands first.
 - **D8 (upgrade item 22).** `docs/realtime.md` § *Upgrading to v0.4.0* holds 19 items on
   `32baca7b` and will hold 21 once #370 lands. This item is **22, unless another item lands
-  first**, assigned at landing. It is **observable, not breaking**. _Upheld._
+  first**, assigned at landing. It is **observable, not breaking**. _Upheld._ _Landed as
+  **item 24**: #404 took 22 and #384 took 23 first; the intro's breaking count is unchanged._
 
 ---
 
@@ -790,7 +791,8 @@ Both are the prevention the disposition and the S3 ruling chose. They are record
 - **D4:** the floor is the tenth prefix-deriving member; the bounded-read list is
   `packages/realtime/AGENTS.md:614-622`.
 - **D7:** a new ADR 013 amends ADR 011 §5 and its Status line. Numbers are assigned at landing.
-- **D8:** item 22, unless another item lands first. It is observable, not breaking.
+- **D8:** item 22, unless another item lands first (landed as item 24). It is observable, not
+  breaking.
 - The retry schedule is 1 000 ms, doubling, capped at `reconcileIntervalMs`. The ruling fixes only
   "capped, first step < 2 s"; the rest is an implementation choice the review may tighten.
 - The announce sits inside the existing first-registration block, after the deadline arm, so #362's

@@ -478,7 +478,11 @@ greps for all of these.
     `revocation_ttl_floor_380` battery: N1–N28 all `KILLED`, attributed. Re-anchored, never deleted: #359 M1's
     `REAP` and M7 (two-key reap), #359 M21 (the floor decoder repeats `skipped++`/`continue`), #362 N22/N23 (the
     hoisted `MAX_REVOCATION_TTL_SECONDS`). #362 N17/N32 killed unchanged. Live run: no broker (T044). ADR 013; the
-    upgrade item is **23**, because #404 took 22. `deno.lock` untouched.
+    upgrade item is **24**, because #404 took 22 and #384 took 23. `deno.lock` untouched.
+  - _Review folds (0 CRITICAL, 0 HIGH, 1 MEDIUM, 10 LOW):_ F16 pins the announce backoff (1, 2, 4 s, then
+    capped); battery rows N29–N33 (doubling, cap, the two retry stop checks, the read-failed WARN's order), each
+    `KILLED` and attributed. Deferred to the backlog: a wrong-typed floor key halting passes (ADR 013 §4), and the
+    WC a/b live rows.
 
 ## Dependencies
 
