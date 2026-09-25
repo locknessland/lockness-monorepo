@@ -53,6 +53,7 @@ import {
     type ControlRefusal,
     MAX_ROSTER_READ_SELF_IDS,
     type Revocation,
+    type RevocationTally,
     type RosterDeparture,
     type RosterHold,
     type RosterRelease,
@@ -970,6 +971,57 @@ function decodeDeregisterReply(reply: unknown): DeregisterOutcome {
 }
 
 /**
+ * What the revocation re-check handler resolved to, decoded (#384) — **the
+ * one place that decision is made**, and it never throws. Exactly one of:
+ *
+ * - `undefined` — **no tally**: `undefined`, or any value that is not
+ *   tally-shaped (not a non-null object carrying an `attempted` or a `failed`
+ *   property). Today's behaviour, and silent: a handler that compiles as
+ *   `() => void` can still resolve a stray value, and that is not a breach;
+ * - `'malformed'` — a tally-shaped value whose counts are bad: either one
+ *   missing, not a safe integer, negative, or `failed` above `attempted`, or
+ *   a read that threw (a getter, a proxy trap);
+ * - a {@link RevocationTally} — a fresh frozen copy of the two counts.
+ *
+ * Every read sits inside this function's own `try`, so a hostile value can
+ * neither fail the pass nor reach its caller's catch.
+ *
+ * @param value - What the handler resolved to.
+ * @returns The tally, `'malformed'`, or `undefined` for no tally.
+ * @example
+ * ```ts
+ * decodeRevocationTally({ attempted: 4, failed: 1 }) // { attempted: 4, failed: 1 }
+ * decodeRevocationTally({ attempted: 1, failed: 2 }) // 'malformed'
+ * decodeRevocationTally('x') // undefined
+ * ```
+ */
+function decodeRevocationTally(
+    value: unknown,
+): RevocationTally | 'malformed' | undefined {
+    if (typeof value !== 'object' || value === null) return undefined
+    try {
+        if (!('attempted' in value) && !('failed' in value)) return undefined
+        const { attempted, failed } = value as {
+            attempted?: unknown
+            failed?: unknown
+        }
+        if (!Number.isSafeInteger(attempted)) return 'malformed'
+        if (!Number.isSafeInteger(failed)) return 'malformed'
+        const counts = {
+            attempted: attempted as number,
+            failed: failed as number,
+        }
+        if (counts.failed < 0 || counts.failed > counts.attempted) {
+            return 'malformed'
+        }
+        return Object.freeze(counts)
+    } catch {
+        // Not silent: `'malformed'` is what the caller WARNs on, once per pass.
+        return 'malformed'
+    }
+}
+
+/**
  * A canonical SCAN-family cursor (#358 S1): `0`, or at most 20 decimal digits
  * with no leading zero. Kept as a string — a cursor is opaque and may exceed
  * 2^53.
@@ -1483,9 +1535,9 @@ export interface PassSample {
      * How the pass ended.
      *
      * `ok` means **the enumeration completed — not that every record was
-     * applied**. A failure confined to one record (one dead instance's
-     * release, one revocation's apply) is reported only as its own named WARN,
-     * and the pass is still `ok`; no sample counts such failures.
+     * applied**. A failure confined to one unit (one dead instance's sweep,
+     * one revocation's apply) is reported as its own named WARN and counted in
+     * {@link failures}, and the pass is still `ok`.
      *
      * `failed` means the pass itself stopped. For the sweep: the instance-set
      * read or a liveness probe threw, or answered a reply that does not
@@ -1519,10 +1571,59 @@ export interface PassSample {
      *   ahead of this pass's own handler, whose time is in `durationMs` too.
      */
     readonly pages: number
-    /** How many units the pass attempted (#384). */
+    /**
+     * How many units the pass attempted (#384). **The one home of what the
+     * counts mean, per pass**; documentation elsewhere links here.
+     *
+     * - `sweep`: one dead instance the sweep was called for — an instance
+     *   whose liveness key was gone when probed. A live instance is not
+     *   attempted. `0` when none was dead.
+     * - `revocation`: one apply, as {@link RevocationTally.attempted}
+     *   defines it — a connection revocation or a channel pair, for a socket
+     *   this instance owns.
+     *
+     * **Present on every sweep sample** — a failed sweep reports what it
+     * reached — and **on a revocation sample whose handler resolved a valid
+     * tally**. Absent (no key at all, never `undefined`) otherwise: a handler
+     * that resolved nothing or a value that is not tally-shaped, a malformed
+     * tally ({@link REVOCATION_TALLY_MALFORMED}), or a handler that threw.
+     * `attempts` and {@link failures} are always present together.
+     */
     readonly attempts?: number
-    /** How many of those failed (#384). */
+    /**
+     * How many of the {@link attempts} failed (#384); present exactly when
+     * `attempts` is.
+     *
+     * - `sweep`: one dead instance whose sweep threw — its one "failed" WARN.
+     *   An instance that renewed its liveness while being swept, or whose
+     *   sweep was cut short by `close()` or left unfinished, is attempted and
+     *   not failed.
+     * - `revocation`: {@link RevocationTally.failed} — an apply that threw.
+     *
+     * A failure means the unit threw, not that the socket stayed subscribed.
+     * **A revocation pass with a failure is not clean**: it does not re-arm
+     * the enforcement deadline ({@link RedisBroadcastDriver.onRevocationReconcile}).
+     */
     readonly failures?: number
+}
+/**
+ * One revocation pass in flight, as {@link RedisBroadcastDriver} records it
+ * (#359, #360, #362, #384): its trigger and start, then what it learns while
+ * it runs — its pages, and what its handler resolved to (the counts of a
+ * valid tally, or the mark of a malformed one). Built once at the pass's
+ * start; read by its end site from that closure.
+ */
+interface RevocationPassRecord {
+    readonly trigger: 'timer' | 'reconnect' | 'reconnect-retry'
+    readonly startedAt: number
+    /** The `ZSCAN` pages read for this pass so far. */
+    pages: number
+    /** A valid tally's `attempted`, once the handler resolved one. */
+    attempts?: number
+    /** A valid tally's `failed`, once the handler resolved one. */
+    failures?: number
+    /** Set when the handler resolved a malformed tally: the pass is not clean. */
+    malformed?: true
 }
 /**
  * How one background pass ended (#362; widened to the ghost sweep by #360):
@@ -1750,11 +1851,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * nothing awaits a pass; the enforcement deadline reads this record when
      * it expires, to name the pass that has not settled.
      */
-    #revocationPass?: {
-        readonly trigger: 'timer' | 'reconnect' | 'reconnect-retry'
-        readonly startedAt: number
-        pages: number
-    }
+    #revocationPass?: RevocationPassRecord
     /**
      * The one trailing pass a reconnect or retry recorded while a pass was in
      * flight (#359): one slot, not a queue, and `reconnect` wins over
@@ -1777,8 +1874,12 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * {@link revocationTimer} — deliberately independent of the presence
      * ghost-sweep, which only starts once this instance hosts a presence member,
      * so a presence-free deployment still recovers a lost evict (FR-014).
+     * What it resolves to is decoded by {@link decodeRevocationTally} (#384).
      */
-    private revocationHandler?: () => void | Promise<void>
+    private revocationHandler?: () =>
+        | RevocationTally
+        | void
+        | Promise<RevocationTally | void>
     /**
      * The revocation enforcement deadline (#362): says so, once per episode,
      * when no pass has completed within `revocationTtlSeconds` of the last
@@ -2465,9 +2566,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * @param handler - Called once per completed pass, with its sample.
      * @example
      * ```ts
-     * const failures = { sweep: 0, revocation: 0 }
+     * const failed = { sweep: 0, revocation: 0 }
+     * const unitFailures = { sweep: 0, revocation: 0 }
      * driver.onPassComplete((sample) => {
-     *     if (sample.outcome === 'failed') failures[sample.pass]++
+     *     if (sample.outcome === 'failed') failed[sample.pass]++
+     *     unitFailures[sample.pass] += sample.failures ?? 0
      * })
      * ```
      */
@@ -2503,8 +2606,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * @param trigger - What started it.
      * @param outcome - How it ended.
      * @param startedAt - Its start, on {@link #passClock}.
+     * **The counts ride the same rule** (#384): `attempts` and `failures` come
+     * from the start site's record, never from a field, and the sample
+     * carries both keys only when both are defined — otherwise neither, not
+     * `undefined` values. What they mean is {@link PassSample}'s to say.
+     *
      * @param endedAt - Its end, on {@link #passClock}.
      * @param pages - The pages it read.
+     * @param attempts - The units it attempted, when known.
+     * @param failures - How many of those failed, when known.
      */
     #emitPassSample(
         pass: PassSample['pass'],
@@ -2513,6 +2623,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         startedAt: number,
         endedAt: number,
         pages: number,
+        attempts?: number,
+        failures?: number,
     ): void {
         if (this.#closing) return
         const handler = this.#passCompleteHandler
@@ -2523,6 +2635,9 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             outcome,
             durationMs: Math.max(0, endedAt - startedAt),
             pages,
+            ...(attempts !== undefined && failures !== undefined
+                ? { attempts, failures }
+                : {}),
         })
         try {
             const returned: unknown = handler(sample)
@@ -3233,11 +3348,20 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * refuses an interval above half of `revocationTtlSeconds`, and at runtime,
      * where the enforcement deadline says so when no pass completes within one
      * TTL of the last success's start. Other documentation links here rather
-     * than restating it.
+     * than restating it. **A pass with a failure is not a success** (#384):
+     * which passes re-arm the deadline is decided at the pass's end site, in
+     * {@link #startRevocationPass}.
      *
-     * @param handler - Called with no arguments on each revocation pass.
+     * @param handler - Called with no arguments on each revocation pass;
+     *   resolves to the re-check's {@link RevocationTally}, or to nothing
+     *   ({@link BroadcastDriver.onRevocationReconcile}).
      */
-    onRevocationReconcile(handler: () => void | Promise<void>): void {
+    onRevocationReconcile(
+        handler: () =>
+            | RevocationTally
+            | void
+            | Promise<RevocationTally | void>,
+    ): void {
         const first = this.revocationHandler === undefined
         this.revocationHandler = handler
         // Re-registration replaces the pending timer rather than stacking one;
@@ -3347,7 +3471,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             return
         }
         const startedAt = this.#passClock()
-        const pass = { trigger, startedAt, pages: 0 }
+        const pass: RevocationPassRecord = { trigger, startedAt, pages: 0 }
         this.#revocationPass = pass
         let outcome: PassOutcome = 'failed'
         this.#runRevocationReconcile(trigger)
@@ -3373,6 +3497,8 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                     startedAt,
                     endedAt,
                     pass.pages,
+                    pass.attempts,
+                    pass.failures,
                 )
             })
             .catch((error: unknown) => {
@@ -3416,7 +3542,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     ): Promise<PassOutcome> {
         if (!this.revocationHandler) return 'closed'
         try {
-            await this.revocationHandler()
+            const tally = decodeRevocationTally(await this.revocationHandler())
+            const pass = this.#revocationPass
+            if (tally === 'malformed') {
+                if (pass) pass.malformed = true
+                this.#warnMalformedTally(trigger)
+            } else if (tally !== undefined && pass) {
+                pass.attempts = tally.attempted
+                pass.failures = tally.failed
+            }
             return 'ok'
         } catch (error) {
             console.warn(
@@ -3442,6 +3576,34 @@ export class RedisBroadcastDriver implements BroadcastDriver {
             Deno.unrefTimer(id)
             this.revocationRetryTimer = id
             return 'failed'
+        }
+    }
+
+    /**
+     * Write the one {@link REVOCATION_TALLY_MALFORMED} WARN of a pass whose
+     * handler resolved a malformed tally (#384) — **its one write site**,
+     * called only by {@link #runRevocationReconcile}, where the value is
+     * decoded, and so before the pass's end site starts any trailing pass. It
+     * names the trigger and the contract, never the value. In the #391 shape:
+     * a `console.warn` that throws becomes one marked
+     * {@link REVOCATION_LOG_FAILED} line, which never throws past itself, so
+     * a refusing sink can neither fail the pass nor escape it.
+     *
+     * @param trigger - What started the pass.
+     */
+    #warnMalformedTally(trigger: PassSample['trigger']): void {
+        const line = `${REVOCATION_TALLY_MALFORMED} the ${trigger} pass ` +
+            'reports no counts and does not re-arm the enforcement deadline. ' +
+            'A handler resolving { attempted, failed } owes two safe ' +
+            'integers with 0 <= failed <= attempted (RevocationTally in ' +
+            'packages/realtime/driver.ts).'
+        try {
+            console.warn(line)
+        } catch (sink) {
+            writeMarkedFallback(REVOCATION_LOG_FAILED, line, {
+                label: 'sink failure',
+                error: sink,
+            })
         }
     }
 
