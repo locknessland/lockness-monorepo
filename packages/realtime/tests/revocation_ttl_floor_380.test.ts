@@ -838,6 +838,39 @@ Deno.test('#380 F13 (ii) close() stops the announce retry: no announce after it,
     })
 })
 
+Deno.test('#380 F16 a failing announce is retried 1 s, 2 s, then doubling until reconcileIntervalMs caps the gap', async () => {
+    await withFixture(async (f) => {
+        // Every announce is refused; the issue instant of each is recorded on
+        // the fake clock, so the gaps ARE the backoff schedule.
+        const issuedAt: number[] = []
+        const r = f.driver({
+            interval: 5_000,
+            ttl: 300,
+            command: (...args) => {
+                if (announce(args)) {
+                    issuedAt.push(Date.now())
+                    return Promise.reject(new Error('announce refused (#380)'))
+                }
+                return f.redis.command(...args)
+            },
+        })
+        // A handler that never reads, so no completed pass stops the retry.
+        r.onRevocationReconcile(() => {})
+        await advance(f.time, 20_000)
+        const gaps = issuedAt.slice(1).map((at, i) => at - issuedAt[i])
+        assertEquals(
+            gaps,
+            [1_000, 2_000, 4_000, 5_000, 5_000],
+            'first step 1 s, doubling, capped at reconcileIntervalMs (5 s)',
+        )
+        assertEquals(
+            f.logs.warns(REVOCATION_FLOOR_ANNOUNCE_FAILED).length,
+            issuedAt.length,
+            'one WARN per failed attempt, retries included',
+        )
+    })
+})
+
 // ---------------------------------------------------------------------------
 // US6 — an upgrade in progress is no worse than today
 // ---------------------------------------------------------------------------

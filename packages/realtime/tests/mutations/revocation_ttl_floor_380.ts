@@ -12,7 +12,7 @@
  * retry; `#warnFloor`; and `close()`'s clear of the retry timer.
  *
  * Each row drops one clause a refactor could drop while the rest of the suite
- * stays green. N1–N18 and N20–N28 are killed by
+ * stays green. N1–N18 and N20–N33 are killed by
  * `revocation_ttl_floor_380.test.ts`; N19 by `prefix_anchoring.test.ts`.
  * `killedBy` strings end in a space where a shorter witness id is a prefix of
  * a longer one (`F1 ` vs `F10`–`F15`).
@@ -49,6 +49,15 @@ const CLAMP = '        const clamped = Math.min(\n' +
 /** The skip WARN after the mark's EVAL. */
 const SKIP_WARN = '        if (skipped > 0) {\n' +
     '            this.#warnFloor(`${REVOCATION_FLOOR_SKIPPED} ${skipped}`)\n' +
+    '        }\n'
+
+/** The read-failed WARN after the mark's EVAL. */
+const READ_FAILED_WARN = '        if (unreadable !== undefined) {\n' +
+    '            this.#warnFloor(\n' +
+    '                `${REVOCATION_FLOOR_READ_FAILED} ${\n' +
+    '                    renderError(unreadable.error)\n' +
+    '                }`,\n' +
+    '            )\n' +
     '        }\n'
 
 /** The head of the mark's EVAL. */
@@ -400,6 +409,59 @@ const MUTATIONS: Mutation[] = [
             ],
         ],
         killedBy: '#380 F5 (iv)',
+    },
+    // Review folds (#380 review, 2026-09-25): the backoff, the retry's stop
+    // checks, and the read-failed WARN's order each get a row.
+    {
+        label: 'N29 the retry backoff does not double',
+        file: REDIS,
+        edits: [[
+            '                void this.#announceFloor(delay * 2)\n',
+            '                void this.#announceFloor(delay)\n',
+        ]],
+        killedBy: '#380 F16 ',
+    },
+    {
+        label: 'N30 the retry backoff is not capped at reconcileIntervalMs',
+        file: REDIS,
+        edits: [[
+            '            const delay = Math.min(backoffMs, this.reconcileIntervalMs)\n',
+            '            const delay = backoffMs\n',
+        ]],
+        killedBy: '#380 F16 ',
+    },
+    {
+        label: 'N31 a completed pass does not stop the pending retry',
+        file: REDIS,
+        edits: [[
+            '                this.#announceRetry = undefined\n' +
+            '                if (this.#closing || this.#lastReadAt !== undefined) return\n',
+            '                this.#announceRetry = undefined\n' +
+            '                if (this.#closing) return\n',
+        ]],
+        killedBy: '#380 F5 (iii)',
+    },
+    {
+        label: 'N32 a failure after close() still arms a retry',
+        file: REDIS,
+        edits: [[
+            '            )\n' +
+            '            if (this.#closing || this.#lastReadAt !== undefined) return\n' +
+            '            const delay',
+            '            )\n' +
+            '            if (this.#lastReadAt !== undefined) return\n' +
+            '            const delay',
+        ]],
+        killedBy: '#380 F13 (ii)',
+    },
+    {
+        label: 'N33 the read-failed WARN written before the EVAL',
+        file: REDIS,
+        edits: [[READ_FAILED_WARN, ''], [
+            MARK_EVAL,
+            READ_FAILED_WARN + MARK_EVAL,
+        ]],
+        killedBy: '#380 F14 (i)',
     },
 ]
 

@@ -49,6 +49,7 @@ import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
 import { type CommandFn, FakeRedis } from './fake_redis.ts'
+import { isAnnounce } from './revocation_wire.ts'
 import {
     everyChannelThrows,
     settle,
@@ -291,8 +292,7 @@ const SINKS: SinkRow[] = [
         arm: () => {
             const redis = new FakeRedis()
             const command: CommandFn = (...args) =>
-                args[0] === 'EVAL' && args[2] === '1' &&
-                    args[3] === `${PREFIX}__revocation-floor`
+                isAnnounce(args, `${PREFIX}__revocation-floor`)
                     ? Promise.reject(new Error('announce refused (#380)'))
                     : redis.command(...args)
             const driver = redisDriver(redis, command)

@@ -8,7 +8,7 @@
  * because no channel is left and a re-throw would terminate the process.
  *
  * Each row is run twice: with a second half (`; sink failure: …`) and
- * without, because the seven sinks use both shapes.
+ * without, because the package's sinks use both shapes.
  *
  * @module @lockness/realtime/tests/marked_fallback_391
  */

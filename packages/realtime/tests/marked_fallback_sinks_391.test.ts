@@ -2,7 +2,10 @@
  * @fileoverview #391 — no marked-fallback sink throws past itself, even when
  * every log channel it has refuses the line.
  *
- * Seven sinks in this package end a chain that has no caller left: the #369
+ * #391 found seven sinks in this package that end a chain with no caller
+ * left, and this table has one row for each; #395 and #380 added more, whose
+ * rows live in `escaping_sinks_395.test.ts` (`git grep writeMarkedFallback`
+ * is the current count). Each is the #369
  * shape, `try { console.warn } catch { console.error(MARKER …) }`, or a
  * chain's last `.catch` writing one marked line. Before #391 none of them
  * guarded its own `console.error`, so a log sink that refused the ERROR as

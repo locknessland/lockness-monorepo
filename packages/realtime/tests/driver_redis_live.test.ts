@@ -25,7 +25,10 @@
 
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
-import { RedisBroadcastDriver } from '../drivers/redis.ts'
+import {
+    RedisBroadcastDriver,
+    REVOCATION_FLOOR_ANNOUNCE_FAILED,
+} from '../drivers/redis.ts'
 import type { Connection } from '../types.ts'
 // The redis package's loopback RESP fake with a pub/sub push + force-drop seam
 // (#268 foundation). A test-only helper, so a relative reach into the sibling
@@ -81,19 +84,55 @@ function psubscribeCount(server: FakeServer, channel: string): number {
     ).length
 }
 
-/** Run `body` with `console.warn` captured; restores it even if `body` throws. */
-async function captureWarnings(body: () => Promise<void>): Promise<string[]> {
+/**
+ * Run `body` with `console.warn` captured; restores it even if `body` throws.
+ * `body` receives the live list, so it can wait on a line as it lands.
+ */
+async function captureWarnings(
+    body: (messages: readonly string[]) => Promise<void>,
+): Promise<string[]> {
     const messages: string[] = []
     const real = console.warn
     console.warn = (...args: unknown[]) => {
         messages.push(args.map((a) => String(a)).join(' '))
     }
     try {
-        await body()
+        await body(messages)
     } finally {
         console.warn = real
     }
     return messages
+}
+
+/** Whether a WARN line is the #380 floor announce's failure. */
+const isAnnounceFailure = (line: string): boolean =>
+    line.startsWith(REVOCATION_FLOOR_ANNOUNCE_FAILED)
+
+/**
+ * Count the #380 announce-failed WARNs from here on, and keep them off the
+ * console; every other line passes through.
+ *
+ * The loopback server answers every `EVAL` with `ERR unknown command`, so the
+ * first announce of each manager-backed driver is refused, exactly once per
+ * driver. Each test pins that count exactly, so a new source of the WARN
+ * fails it rather than adding one more line to the output. The retry would
+ * add another after 1 s; every driver here is closed well before that, and
+ * `close()` clears the retry timer.
+ */
+function countAnnounceFailures(): { count(): number; restore(): void } {
+    const previous = console.warn
+    let count = 0
+    console.warn = (...args: unknown[]) => {
+        if (isAnnounceFailure(args.map((a) => String(a)).join(' '))) {
+            count++
+            return
+        }
+        previous(...args)
+    }
+    return {
+        count: () => count,
+        restore: () => void (console.warn = previous),
+    }
 }
 
 function fakeConn(id: string, identity: User | null): Connection<User> {
@@ -115,6 +154,7 @@ const sentOf = (c: Connection<User>) =>
 Deno.test("SC-001: a broadcast reaches an authorized subscriber on a second instance over a real pub/sub socket, re-bounded by B's local authorization (S6)", async () => {
     const server = await startFakeServer()
     const config = { hostname: '127.0.0.1', port: server.port }
+    const announces = countAnnounceFailures()
     // Two independent instances, each with its OWN real subscribe socket.
     const driverA = RedisBroadcastDriver.fromConfig(config, { prefix: PREFIX })
     const driverB = RedisBroadcastDriver.fromConfig(config, { prefix: PREFIX })
@@ -167,22 +207,36 @@ Deno.test("SC-001: a broadcast reaches an authorized subscriber on a second inst
             () => sentOf(subA).length >= 1,
             "the publishing instance's subscriber received it too",
         )
+        await waitFor(
+            () => announces.count() >= 2,
+            "each instance's first floor announce was refused and WARNed",
+        )
     } finally {
         await driverA.close()
         await driverB.close()
         server.stop()
+        announces.restore()
     }
+    assertEquals(
+        announces.count(),
+        2,
+        'exactly one announce-failed WARN per instance (#380)',
+    )
 })
 
 Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded reader before fan-out, and delivery self-heals', async () => {
     const server = await startFakeServer()
     const config = { hostname: '127.0.0.1', port: server.port }
+    const announces = countAnnounceFailures()
     const driver = RedisBroadcastDriver.fromConfig(config, { prefix: PREFIX })
     const manager = new ChannelManager<User>({
         driver,
         authorize: () => true,
     })
-    const warnings = await captureWarnings(async () => {
+    // The announce WARN lands in either list, depending on when it arrives.
+    const announceFailures = (seen: readonly string[]) =>
+        announces.count() + seen.filter(isAnnounceFailure).length
+    const warnings = await captureWarnings(async (seen) => {
         try {
             const sub = fakeConn('c1', { id: 1 })
             manager.register(sub)
@@ -225,11 +279,20 @@ Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded
             // Only the valid message, never the oversized one.
             assertEquals(sentOf(sub).length, 1)
             assertEquals(JSON.parse(sentOf(sub)[0]).event, 'ok')
+            await waitFor(
+                () => announceFailures(seen) >= 1,
+                "the instance's first floor announce was refused and WARNed",
+            )
         } finally {
             await driver.close()
             server.stop()
         }
-    })
+    }).finally(() => announces.restore())
+    assertEquals(
+        announceFailures(warnings),
+        1,
+        'exactly one announce-failed WARN for the one instance (#380)',
+    )
     assert(
         warnings.some((m) => m.toLowerCase().includes('reconnect')),
         'the oversized-frame fault reconnected and was logged at WARN, never silent',
@@ -244,6 +307,7 @@ Deno.test('FR-007: on the fromConfig path, close() leaves nothing that a later s
     // `closed` flag and the driver's cleared revocation handler. The
     // injected-port sibling in `eviction_reconnect.test.ts` covers the path where
     // only the second exists.
+    const announces = countAnnounceFailures()
     const driver = RedisBroadcastDriver.fromConfig(config, { prefix: PREFIX })
     let reconciles = 0
     const manager = new ChannelManager<User>({
@@ -260,6 +324,12 @@ Deno.test('FR-007: on the fromConfig path, close() leaves nothing that a later s
         await waitFor(
             () => psubscribeCount(server, PATTERN) >= 1,
             'the real subscribe socket is up',
+        )
+        // The manager's registration announced; the direct re-registration
+        // above it did not (first registration only).
+        await waitFor(
+            () => announces.count() >= 1,
+            "the driver's first floor announce was refused and WARNed",
         )
 
         await driver.close()
@@ -284,5 +354,11 @@ Deno.test('FR-007: on the fromConfig path, close() leaves nothing that a later s
     } finally {
         await driver.close()
         server.stop()
+        announces.restore()
     }
+    assertEquals(
+        announces.count(),
+        1,
+        'exactly one announce-failed WARN for the one driver (#380)',
+    )
 })
