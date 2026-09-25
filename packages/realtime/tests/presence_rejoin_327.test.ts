@@ -35,8 +35,8 @@
  * @module @lockness/realtime/tests/presence_rejoin_327
  */
 
-import { assertEquals } from '@std/assert'
-import { ChannelManager } from '../manager.ts'
+import { assertEquals, assertThrows } from '@std/assert'
+import { ChannelManager, ConnectionIdInUseError } from '../manager.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { PresenceMember } from '../channel.ts'
 import type { Connection } from '../types.ts'
@@ -303,21 +303,33 @@ Deno.test('#327 a re-join DISCARDS its payload rather than broadcasting an updat
 
 Deno.test('#327 a reconnect re-binds the socket, and frames follow the NEW one', async () => {
     // The case the whole disposition exists to protect: a client whose socket
-    // dropped re-subscribes to everything it held. The re-join returns early
-    // — so this pins that `connections.set` (which re-binds the id to the new
-    // socket) runs BEFORE the guard returns, not inside the branch it skips.
-    // Get that wrong and every reconnect is answered `ok` while the frames
-    // keep going to a dead socket.
+    // dropped re-subscribes to everything it held — and the frames must
+    // follow the new socket, never the dead one. Since #370/#363 a subscribe
+    // never re-binds an id: the new socket is refused while the dropped one
+    // still holds it, and binds by `register` once the old close has torn the
+    // dropped one down. Get that wrong and a second socket takes over the
+    // first one's channels, or frames keep going to a dead socket.
     const { driver } = countingDriver()
     const m = new ChannelManager<User>({ driver, authorize })
     const dropped = conn('c1', 1)
+    m.register(dropped)
     await m.subscribe(dropped, CHANNEL)
 
     const reconnected = conn('c1', 1)
+    assertThrows(
+        () => m.register(reconnected),
+        ConnectionIdInUseError,
+        undefined,
+        'not while the dropped socket still holds the id',
+    )
+    await m.disconnect(dropped) // the old socket's close
+    m.register(reconnected)
     const again = await m.subscribe(reconnected, CHANNEL)
     assertEquals(again.ok, true, 'the reconnect is answered, not refused')
 
-    await m.subscribe(conn('c2', 2), CHANNEL)
+    const c2 = conn('c2', 2)
+    m.register(c2)
+    await m.subscribe(c2, CHANNEL)
 
     assertEquals(
         reconnected.received.filter((f) => f.action === 'joined').length,

@@ -284,16 +284,20 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     authorize: suspectAuthorizer(value),
                 })
                 const atStart = m.connectionCount
+                // Both sockets are registered at open (#370): only `register`
+                // binds a connection, so a subscribe never moves the count.
                 const observer = conn('observer', OBSERVER)
+                m.register(observer)
+                const suspect = conn('suspect', SUSPECT)
+                m.register(suspect)
                 assertEquals((await m.subscribe(observer, PRIVATE)).ok, true)
                 const before = m.connectionCount
                 assertEquals(
                     before,
-                    atStart + 1,
-                    'CONTROL: an admitted subscribe moves connectionCount',
+                    atStart + 2,
+                    'CONTROL: registering at open moves connectionCount',
                 )
 
-                const suspect = conn('suspect', SUSPECT)
                 const error = await assertRejects(
                     () => m.subscribe(suspect, PRIVATE),
                     Error,
@@ -311,7 +315,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
                 assertEquals(
                     m.connectionCount,
                     before,
-                    'no `connections` entry was written for the suspect',
+                    'the refusal neither bound nor released a connection',
                 )
 
                 const observerFrames = observer.received.length
@@ -614,15 +618,21 @@ for (const [backendName, makeBackend] of BACKENDS) {
                 authorize: () =>
                     ({ id: 7, info: new Date(0) }) as unknown as PresenceMember,
             })
+            const c1 = conn('c1', SUSPECT)
+            m.register(c1)
             const error = await assertRejects(
-                () => m.subscribe(conn('c1', SUSPECT), PRIVATE),
+                () => m.subscribe(c1, PRIVATE),
                 PresenceMemberShapeError,
             )
             assert(
                 error.message.includes('of type string'),
                 `the parsed info's type is named. Got: ${error.message}`,
             )
-            assertEquals(m.connectionCount, 0)
+            assertEquals(
+                m.connectionCount,
+                1,
+                'only the registration is counted; the refusal bound nothing',
+            )
         } finally {
             await backend.close()
         }

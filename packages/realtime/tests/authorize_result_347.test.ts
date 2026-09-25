@@ -218,7 +218,13 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     })
                     const connectionsAtStart = m.connectionCount
                     const publishesAtStart = backend.controlPublishes()
+                    // Both sockets are registered at open (#370): only
+                    // `register` binds a connection, so a subscribe — admitted
+                    // or refused — never moves `connectionCount` itself.
                     const observer = conn('observer', OBSERVER)
+                    m.register(observer)
+                    const suspect = conn('suspect', SUSPECT)
+                    m.register(suspect)
                     assertEquals(
                         (await m.subscribe(observer, channel)).ok,
                         true,
@@ -229,8 +235,8 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     // is read with can register an admission at all.
                     assertEquals(
                         connectionsBefore,
-                        connectionsAtStart + 1,
-                        'CONTROL: an admitted subscribe moves connectionCount',
+                        connectionsAtStart + 2,
+                        'CONTROL: registering at open moves connectionCount',
                     )
                     if (
                         channel === PRESENCE && publishesAtStart !== undefined
@@ -242,7 +248,6 @@ for (const [backendName, makeBackend] of BACKENDS) {
                         )
                     }
 
-                    const suspect = conn('suspect', SUSPECT)
                     // The class argument is what rules out an accidental
                     // `TypeError` (a Symbol in a template literal): any other
                     // class fails the row here.
@@ -263,7 +268,7 @@ for (const [backendName, makeBackend] of BACKENDS) {
                     assertEquals(
                         m.connectionCount,
                         connectionsBefore,
-                        'no `connections` entry was written for the suspect',
+                        'the refusal neither bound nor released a connection',
                     )
                     if (channel === PRESENCE) {
                         assertEquals(
@@ -403,11 +408,14 @@ Deno.test('#347 `false` still denies with { ok: false }, on both kinds', async (
     for (const channel of [PRIVATE, PRESENCE]) {
         const driver = new MemoryBroadcastDriver()
         const m = new ChannelManager<User>({ driver, authorize: () => false })
+        const c1 = conn('c1', SUSPECT)
+        m.register(c1)
+        assertEquals((await m.subscribe(c1, channel)).ok, false)
         assertEquals(
-            (await m.subscribe(conn('c1', SUSPECT), channel)).ok,
-            false,
+            m.connectionCount,
+            1,
+            'only the registration is counted; the denial bound nothing more',
         )
-        assertEquals(m.connectionCount, 0)
     }
 })
 

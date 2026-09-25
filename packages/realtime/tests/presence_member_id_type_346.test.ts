@@ -284,7 +284,9 @@ for (const [pathName, makePath] of PATHS) {
             try {
                 const [onA, onB] = path.managers
                 const alice = conn('alice', 1)
+                onA.register(alice)
                 const bob = conn('bob', 2)
+                onB.register(bob)
                 // Before #346 both joins answered ok and Bob's `here` listed
                 // ONE entry, total 1 — two people merged under `String(id)`.
                 await quietly(() =>
@@ -302,7 +304,13 @@ for (const [pathName, makePath] of PATHS) {
                         0,
                         'the local presence map is unchanged',
                     )
-                    assertEquals(m.connectionCount, 0, 'no connection tracked')
+                    // Only the registrations at open are counted (#370).
+                    const registered = (m === onA ? 1 : 0) + (m === onB ? 1 : 0)
+                    assertEquals(
+                        m.connectionCount,
+                        registered,
+                        'no connection beyond the registrations',
+                    )
                 }
                 const roster = await path.roster()
                 if (roster !== undefined) {
@@ -318,6 +326,7 @@ for (const [pathName, makePath] of PATHS) {
                 // read HERE, not taken as 0: only Carol's own join may move
                 // it, not a read above that an over-broad counter caught.
                 const carol = conn('carol', CAROL)
+                onA.register(carol)
                 const before = path.writes()
                 const joined = await quietly(() => onA.subscribe(carol, ROOM))
                 assertEquals(joined.ok, true, 'CONTROL: a valid id joins')
@@ -437,8 +446,10 @@ for (const [name, id, fragment] of REFUSED) {
         // `assertRejects` with the class: a `TypeError` (a Symbol in a
         // template literal, `String()` on a null-prototype object) or the
         // #326 size error (`JSON.stringify` on a bigint) fails the row.
-        await assertRefused(() => m.subscribe(conn('c1', 1), ROOM), fragment)
-        assertEquals(m.connectionCount, 0)
+        const c1 = conn('c1', 1)
+        m.register(c1)
+        await assertRefused(() => m.subscribe(c1, ROOM), fragment)
+        assertEquals(m.connectionCount, 1, 'only the registration is counted')
         assertEquals(presenceOf(m).get(ROOM)?.size ?? 0, 0)
         assertEquals((await driver.readRoster(ROOM, 1_000, [])).members, [])
     })

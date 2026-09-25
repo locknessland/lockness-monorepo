@@ -281,8 +281,8 @@ async function assertNothingJoined(room: Room, memberId: string | number) {
     assertEquals(room.writes(), 0, 'no roster write, no publish')
     assertEquals(
         room.joinOn.connectionCount,
-        1,
-        'only the observer is tracked',
+        2,
+        'only the observer and the joiner, each registered at open (#370)',
     )
     assertEquals(
         presenceOf(room.joinOn).get(room.channel)?.has('joiner') ?? false,
@@ -318,6 +318,7 @@ for (const kind of KINDS) {
         )
         try {
             const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
             const error = await assertRejects(
                 () => room.joinOn.subscribe(joiner, room.channel),
                 PresenceMemberShapeError,
@@ -484,9 +485,10 @@ for (const kind of KINDS) {
             () => flippingId([LONG_ID, 'ok'], reads),
         )
         try {
+            const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
             await assertRejects(
-                () =>
-                    room.joinOn.subscribe(conn('joiner', JOINER), room.channel),
+                () => room.joinOn.subscribe(joiner, room.channel),
                 PresenceMemberIdError,
             )
             await assertNothingJoined(room, 'ok')
@@ -716,9 +718,10 @@ for (const [name, info, label] of REFUSED_INFO) {
             () => ({ id: 'u1', info: info() }),
         )
         try {
+            const joiner = conn('joiner', JOINER)
+            room.joinOn.register(joiner)
             const error = await assertRejects(
-                () =>
-                    room.joinOn.subscribe(conn('joiner', JOINER), room.channel),
+                () => room.joinOn.subscribe(joiner, room.channel),
                 PresenceMemberShapeError,
             )
             assert(

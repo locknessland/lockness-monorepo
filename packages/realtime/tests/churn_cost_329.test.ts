@@ -464,14 +464,22 @@ Deno.test('#329 the decision that there is no framework meter is ANCHORED, not m
     // AND THE CODE THE DOCSTRING DESCRIBES. The marker alone pins the prose:
     // wrap `onMessage` in a meter, leave the paragraph untouched, and the
     // assertion above still passes while the decision has been reversed. This
-    // is the plan's §5 enforcement grep, executable.
+    // is the plan's §5 enforcement grep, executable. Since #363 the hook has
+    // ONE wrapper — the ownership gate — and this pins that it is exactly
+    // that: the gate, then the app's hook, and nothing in between.
     assertStringIncludes(
-        source.slice(start, start + 2000),
-        'onMessage: userHooks.onMessage,',
-        '`handlerHooks` must pass `onMessage` through UNWRAPPED. `onOpen` and ' +
-            '`onClose` are composed and this one deliberately is not — ' +
-            'composing it is how a churn budget arrives in the framework by ' +
-            'the back door, and it would charge the five non-client paths ' +
-            'into `unsubscribe`',
+        source.slice(start, start + 2500),
+        '            onMessage: (conn, data) => {\n' +
+            '                // Only the owner reaches app code (#363): a refused or retired\n' +
+            '                // socket shares an id with, at most, a socket it must not act\n' +
+            '                // for. Dropped without a log line — one per frame would flood.\n' +
+            '                if (!this.#isOwner(conn)) return\n' +
+            '                return userHooks.onMessage?.(conn, data)\n' +
+            '            },\n',
+        '`handlerHooks` must pass `onMessage` through UNMETERED — its only ' +
+            'wrapper is the #363 ownership gate. `onOpen` and `onClose` are ' +
+            'composed and this one deliberately is not — composing a budget in ' +
+            'is how a churn meter arrives in the framework by the back door, ' +
+            'and it would charge the five non-client paths into `unsubscribe`',
     )
 })

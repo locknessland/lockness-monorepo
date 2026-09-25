@@ -266,7 +266,12 @@ async function assertRefusalWritesNothing(
     })
     const connectionsAtStart = m.connectionCount
     const publishesAtStart = backend.controlPublishes()
+    // Both sockets are registered at open (#370): only `register` binds a
+    // connection, so a subscribe never moves `connectionCount` itself.
     const observer = conn('observer', OBSERVER)
+    m.register(observer)
+    const suspect = conn('suspect', SUSPECT)
+    m.register(suspect)
     assertEquals((await m.subscribe(observer, channel)).ok, true)
     const connectionsBefore = m.connectionCount
     const publishesBefore = backend.controlPublishes()
@@ -274,8 +279,8 @@ async function assertRefusalWritesNothing(
     // registers an admission.
     assertEquals(
         connectionsBefore,
-        connectionsAtStart + 1,
-        'CONTROL: an admitted subscribe moves connectionCount',
+        connectionsAtStart + 2,
+        'CONTROL: registering at open moves connectionCount',
     )
     if (channel === PRESENCE) {
         assertEquals(
@@ -292,10 +297,13 @@ async function assertRefusalWritesNothing(
         }
     }
 
-    const suspect = conn('suspect', SUSPECT)
     await refuse(() => m.subscribe(suspect, channel))
 
-    assertEquals(m.connectionCount, connectionsBefore, 'no `connections` entry')
+    assertEquals(
+        m.connectionCount,
+        connectionsBefore,
+        'the refusal neither bound nor released a connection',
+    )
     if (channel === PRESENCE) {
         assertEquals(
             await rosterIds(backend.driver, channel),
