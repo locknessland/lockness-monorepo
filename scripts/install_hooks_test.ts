@@ -13,7 +13,24 @@
 import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import { join } from '@std/path'
 import { gitEnvFromCwd } from '@mutations/harness.ts'
-import { hooks, resolveHooksDir } from './install_hooks.ts'
+import {
+    HOOK_MARKER,
+    hooks,
+    installHooks,
+    isLocknessHook,
+    resolveHooksDir,
+} from './install_hooks.ts'
+
+/**
+ * A git environment isolated from the host: no inherited `GIT_*`, and neither
+ * the global nor the system config — so a host `core.hooksPath`, signing key
+ * or init template cannot change what a fixture does.
+ */
+const HERMETIC: Record<string, string> = {
+    ...gitEnvFromCwd(),
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+}
 
 /**
  * Run git in `cwd` with no inherited `GIT_*` variables, failing loudly.
@@ -34,7 +51,7 @@ async function git(cwd: string, ...args: string[]): Promise<void> {
         ],
         cwd,
         clearEnv: true,
-        env: gitEnvFromCwd(),
+        env: HERMETIC,
         stdout: 'piped',
         stderr: 'piped',
     }).output()
@@ -71,11 +88,14 @@ Deno.test('the main checkout and a linked worktree share one hooks dir', async (
     const { root, main, worktree } = await fixture()
     try {
         const expected = join(main, '.git', 'hooks')
-        assertEquals(await Deno.realPath(await resolveHooksDir(main)), expected)
+        assertEquals(
+            await Deno.realPath(await resolveHooksDir(main, HERMETIC)),
+            expected,
+        )
         // In the linked worktree `.git` is a FILE — the old installer refused.
         assert((await Deno.stat(join(worktree, '.git'))).isFile)
         assertEquals(
-            await Deno.realPath(await resolveHooksDir(worktree)),
+            await Deno.realPath(await resolveHooksDir(worktree, HERMETIC)),
             expected,
         )
     } finally {
@@ -88,7 +108,7 @@ Deno.test('outside a repository the resolver throws', async () => {
     try {
         let threw = false
         try {
-            await resolveHooksDir(dir)
+            await resolveHooksDir(dir, HERMETIC)
         } catch (error) {
             threw = true
             assertStringIncludes(
@@ -134,6 +154,69 @@ Deno.test('installing from a worktree writes the shared hooks, and an inherited 
             assertEquals(leaked, false, `${name} was written to the decoy`)
         }
         assertStringIncludes(hooks['pre-push'], 'deno task gate')
+    } finally {
+        await Deno.remove(root, { recursive: true })
+    }
+})
+
+Deno.test('a set core.hooksPath is refused: the hooks would never run', async () => {
+    const { root, main } = await fixture()
+    try {
+        await git(main, 'config', 'core.hooksPath', '.githooks')
+        let message = ''
+        try {
+            await resolveHooksDir(main, HERMETIC)
+        } catch (error) {
+            message = (error as Error).message
+        }
+        assertStringIncludes(message, 'core.hooksPath is set (.githooks)')
+    } finally {
+        await Deno.remove(root, { recursive: true })
+    }
+})
+
+Deno.test('a foreign hook is refused and nothing is written', async () => {
+    const { root, main } = await fixture()
+    try {
+        const dir = join(main, '.git', 'hooks')
+        const foreign = '#!/bin/sh\necho "somebody else\'s hook"\n'
+        await Deno.writeTextFile(join(dir, 'pre-push'), foreign)
+        let message = ''
+        try {
+            await installHooks(dir)
+        } catch (error) {
+            message = (error as Error).message
+        }
+        assertStringIncludes(message, 'refusing to overwrite')
+        assertEquals(await Deno.readTextFile(join(dir, 'pre-push')), foreign)
+        const wrote = await Deno.stat(join(dir, 'pre-commit'))
+            .then(() => true, () => false)
+        assertEquals(wrote, false, 'pre-commit was written despite the refusal')
+    } finally {
+        await Deno.remove(root, { recursive: true })
+    }
+})
+
+Deno.test('a hook this installer wrote, marked or legacy, is replaced', async () => {
+    const { root, main } = await fixture()
+    try {
+        const dir = join(main, '.git', 'hooks')
+        // The pre-#388 pre-push, which carries no marker.
+        await Deno.writeTextFile(
+            join(dir, 'pre-push'),
+            '#!/bin/bash\n# Pre-push: runs `deno task gate`, the quality gate.\nexec deno task gate\n',
+        )
+        await Deno.writeTextFile(join(dir, 'pre-commit'), hooks['pre-commit'])
+        await installHooks(dir)
+        assertEquals(
+            await Deno.readTextFile(join(dir, 'pre-push')),
+            hooks['pre-push'],
+        )
+        for (const content of Object.values(hooks)) {
+            assert(content.includes(HOOK_MARKER))
+            assert(isLocknessHook(content))
+        }
+        assertEquals(isLocknessHook('#!/bin/sh\nnpx husky run\n'), false)
     } finally {
         await Deno.remove(root, { recursive: true })
     }

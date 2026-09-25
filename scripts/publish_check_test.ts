@@ -182,8 +182,19 @@ Deno.test('publish:check EXITS NON-ZERO on an unpublishable member', async () =>
 
 // ---- Fail closed (#388) ---------------------------------------------------
 
-const PRE_RELEASE_LINE =
-    "error: Could not find version of '@lockness/core' that matches specified version constraint '^9.9.9'"
+/**
+ * A REAL `deno check` failure for a `@lockness/*` version not on JSR, captured
+ * from a child process piped exactly as `publish:check` pipes it (Deno 2.9.6).
+ * It is kept byte for byte — ANSI colour included, since `deno` colours even a
+ * piped stream — with only the fixture's temp path normalised. A hand-typed
+ * literal would only prove the regex matches what someone thought Deno says.
+ */
+const PRE_RELEASE_OUTPUT = await Deno.readTextFile(
+    new URL(
+        '../tests/fixtures/publish_check/pre_release_deno_check.txt',
+        import.meta.url,
+    ),
+)
 
 Deno.test('fail closed: an unrecognised deno check failure is red', () => {
     // A type error is not a pre-release condition. This exact shape used to
@@ -202,36 +213,32 @@ Deno.test('fail closed: a failure with no output at all is red', () => {
     assertEquals(classifyCheck('core', false, '').ok, false)
 })
 
-Deno.test('the recognised pre-release condition passes', () => {
-    const result = classifyCheck(
-        'core',
-        false,
-        `Download https://jsr.io/@lockness/core/meta.json\n${PRE_RELEASE_LINE}\n` +
-            '    at file:///tmp/x/mod.ts:1:8\n',
-    )
+Deno.test('the captured pre-release output passes', () => {
+    assertStringIncludes(PRE_RELEASE_OUTPUT, '\x1b[', 'fixture lost its colour')
+    const result = classifyCheck('core', false, PRE_RELEASE_OUTPUT)
     assertEquals(result.ok, true, result.detail)
 })
 
-Deno.test('the pre-release condition is recognised through ANSI colour', () => {
-    const coloured = `\x1b[1m\x1b[31merror\x1b[0m: Could not find version of ` +
-        `'@lockness/core' that matches specified version constraint '^9.9.9'`
-    assertEquals(classifyCheck('core', false, coloured).ok, true)
-})
-
-Deno.test('a missing third-party version is not a pre-release state', () => {
+Deno.test('the captured pre-release line does not launder a type error', () => {
     const result = classifyCheck(
         'core',
         false,
-        "error: Could not find version of '@std/path' that matches specified version constraint '^99.0.0'",
+        `${PRE_RELEASE_OUTPUT}error: Type checking failed.\n`,
     )
     assertEquals(result.ok, false)
 })
 
-Deno.test('a pre-release line does not launder another error', () => {
+Deno.test('a missing third-party version is not a pre-release state', () => {
+    // The captured output with only the package name swapped.
+    const thirdParty = PRE_RELEASE_OUTPUT.replace(
+        "'@lockness/core'",
+        "'@std/path'",
+    )
+    assert(thirdParty !== PRE_RELEASE_OUTPUT, 'the swap did not apply')
     const result = classifyCheck(
         'core',
         false,
-        `${PRE_RELEASE_LINE}\nerror: Type checking failed.`,
+        thirdParty,
     )
     assertEquals(result.ok, false)
 })
