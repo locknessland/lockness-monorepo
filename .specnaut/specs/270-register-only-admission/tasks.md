@@ -423,13 +423,16 @@ A second match makes a row `DEAD`. T056 greps for these.
   - neither `ConnectionNotRegisteredError` nor `ConnectionIdInUseError` interpolates an id (S3);
   - each FR-012 anchor line in the header still matches the count its battery expects.
 - [x] T057 Commit T049–T055 as `docs(370,363): register-only admission and owner-scoped teardown`.
-- [ ] T058 **The full gate, judged by exit status only**, never by a pipe's: `deno task gate`, then
+- [x] T058 **The full gate, judged by exit status only**, never by a pipe's: `deno task gate`, then
   `deno task mutate realtime`.
   - Name any `PARTIAL` battery (the live-broker ones), and run them live where a broker is available
     (`LOCKNESS_REDIS_INTEGRATION=1`).
   - Confirm that `git diff --stat origin/main -- deno.lock` is empty, and that `git worktree list` shows no leftover
     worktree.
   - Record the pass and fail counts and the battery totals here when you tick it.
+  - **Recorded, after the rebase onto #391:** `deno task gate` exit 0 (3101 passed, 0 failed, 42 ignored);
+    `deno task mutate realtime` exit 0 — 41 batteries, 38 clean, 0 failed, 3 PARTIAL (`live_conformance_285`,
+    `self_skip_310`, `sweep_parse_316`: no live broker). `deno.lock` untouched.
 
 ## Dependencies
 
