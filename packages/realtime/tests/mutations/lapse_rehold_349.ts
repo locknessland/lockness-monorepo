@@ -610,7 +610,9 @@ const LAPSE_RUN_ROWS: Mutation[] = [
         // It used to die as `(uncaught error)`: WS2's `finally` removed its
         // `unhandledrejection` listener in the same turn as the failing
         // assertion, before the event was dispatched, so the rejection took
-        // the whole file down. The listener now outlives one macrotask.
+        // the whole file down. The listener now outlives one macrotask — a
+        // contract of the shared `watchingEscapes` since #374, pinned by
+        // `escape_watcher.test.ts`.
         killedBy: '#349 WS2',
     },
 ]
