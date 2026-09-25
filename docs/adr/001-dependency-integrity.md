@@ -128,6 +128,22 @@ generator.
 `dynamic` flags, which is exactly the taxonomy above minus the `soft` row. It
 also gets multi-line export clauses and type-position imports right for free.
 
+**Amendment (#388, 2026-09-25) — check B is removed.** Two faults, both
+structural. It counted an import-map alias's _value_
+(`"hono": "jsr:@lockness/hono"`) as a declaration of `@lockness/hono`, but Deno
+resolves a bare specifier by the map's _key_, so the import it passed was still
+undeclared. And it only inspected `@lockness/*` imports, so it could never see a
+missing `@std/*` or third-party declaration — the `@std/fs` half of #385 went
+through it. Making it correct would mean reimplementing import-map matching, the
+hand-rolled re-implementation of what Deno already ships that D1 rejects, and
+the result would duplicate `deno task publish:check`, which resolves each
+package alone outside the workspace and sees every dependency. So check B was
+deleted, not repaired. **`publish:check` is the one owner of declaration
+integrity**, and it fails closed: only a `@lockness/*` version not yet on JSR is
+tolerated. `deps:analyze` keeps checks A and C; the letters are kept so older
+logs still line up. D2's reasoning — an undeclared dependency is an error — now
+holds through `publish:check`.
+
 ### 5.3 The policy file
 
 One home, machine-read, repo root: **`deps.policy.jsonc`**.

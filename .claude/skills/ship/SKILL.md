@@ -182,9 +182,11 @@ else.
 ### 3 and 4. Manifests and resolution — already guarded
 
 Every real import must be declared in its own package's `deno.json`, and each
-package must resolve standalone outside the workspace. `deno task deps:analyze`
-(check B) and `deno task publish:check` enforce both, and `publish.yml` runs
-them before `deno publish`. Nothing to do by hand.
+package must resolve standalone outside the workspace. `deno task publish:check`
+enforces both — it is the one owner of declarations, and it fails closed — and
+`publish.yml` runs it with `--registry` before `deno publish`. `deps:analyze`
+guards cycles and tier policy only; it does not check declarations (#388).
+Nothing to do by hand.
 
 ### Verify the state before starting
 
@@ -404,8 +406,9 @@ None has one today.
 
 - **Explicit consent for every publish.** No exceptions, no inheritance from a
   previous release.
-- **Never publish with `deps:analyze` red.** Check B failing means at least one
-  package ships a manifest a consumer cannot resolve.
+- **Never publish with `publish:check` red.** A red package ships a manifest a
+  consumer cannot resolve, or fails in a way the check does not recognise —
+  and it fails closed, so both are a stop.
 - **Never hand-edit `deno.lock`** or a version field. `deno task bump` owns
   them.
 - **One category per commit** still applies to everything this skill produces.

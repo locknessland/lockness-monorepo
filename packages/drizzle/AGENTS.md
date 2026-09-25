@@ -14,7 +14,7 @@ User-facing documentation: [README.md](README.md) ·
   member _name_, so dropping the declaration still works locally and ships a
   package a JSR consumer cannot resolve —
   `TS2307: Import "@lockness/cli" not a dependency and not in import map`.
-  `deno task deps:analyze` check B is what catches it.
+  `deno task publish:check` is what catches it.
 
 ## Dependency contract
 

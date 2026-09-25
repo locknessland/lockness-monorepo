@@ -10,16 +10,18 @@ Run from the repository root:
 deno task gate
 ```
 
-The step list lives in one place, the `gate` task in `deno.jsonc`. The
-pre-push hook runs that same task, so there is no second copy here to drift.
-Read the task for the steps; do not re-type them by hand, and do not skip one
-because the diff "is only docs". A docs-only diff can still stale a generated
-block.
+The step list lives in one place, `scripts/gate.ts`, behind the `gate` task in
+`deno.jsonc`. The pre-push hook and CI run that same task (CI as
+`deno task gate --leaks`), so there is no second copy here to drift. Read the
+script for the steps; do not re-type them by hand, and do not skip one because
+the diff "is only docs". A docs-only diff can still stale a generated block.
+
+The gate needs the network: `publish:check` resolves every package against JSR,
+so an offline push fails inside the gate.
 
 **The gate must be able to fail.** Never pipe it into something that swallows
 its exit code, and never append `|| true`. Judge it by its exit status, never by
-printed text: `publish:check` prints its success line before it can still exit
-1.
+printed text.
 
 ### Reading a GitHub Actions run
 
@@ -83,9 +85,11 @@ out", which reads like success. Run the files instead.
 
 ### The pre-push hook
 
-`deno task hooks:install` writes `.git/hooks/pre-push`, which runs
-`deno task gate`. It
-is the last thing between a broken tree and origin.
+`deno task hooks:install` writes the `pre-push` hook, which runs
+`deno task gate`. It is the last thing between a broken tree and origin. Hooks
+are shared by every worktree, so the installer writes into the repository's
+common hooks directory whether it runs from the main checkout or a linked
+worktree.
 
 **Never `git push --no-verify.`** If the hook is in the way, the answer is to fix
 what it found. If it is genuinely wrong, fix the hook in its own `ci:` commit.

@@ -20,15 +20,12 @@ unstaged formatting drift in `docs/` or other files from a previous commit on
 
 ### `.github/workflows/test.yml`
 
-Runs on PRs targeting `main` or `develop`. Steps:
-
-1. Checkout code.
-2. Setup Deno v2.x.
-3. Cache `~/.deno` and `~/.cache/deno`.
-4. `deno lint`
-5. `deno check`
-6. `deno fmt`
-7. `deno task test`
+Runs on pushes and PRs targeting `main` or `develop`. The `test` job (OS ×
+Deno matrix) checks out, sets up Deno, restores the cache, and runs
+`deno task gate --leaks` — the same versioned gate as the pre-push hook, whose
+step list lives in `scripts/gate.ts` only. Never re-list the steps in the
+workflow. Separate jobs: live Redis, coverage, starter kits, and the nightly
+mutation batteries.
 
 ### `.github/workflows/publish.yml`
 
@@ -95,7 +92,7 @@ release mechanism predates the migration.
 | `scripts/bump-native.ts`                            | **the** version rewrite — `deno bump-version --workspace`, plus the root's own `version` (#324) |
 | `scripts/bump.ts`                                   | `deno task bump:legacy` — arbitrary version jumps; exports `updateRootJsonc`   |
 | `.github/workflows/publish.yml`                     | JSR publish triggered by `release: published`                                 |
-| `.github/workflows/test.yml`                        | PR gate: fmt/lint/check/test                                                  |
+| `.github/workflows/test.yml`                        | PR gate: `deno task gate --leaks`, plus coverage / live-broker / kits jobs    |
 | `.claude/skills/specnaut/phases/tag-version.md`     | `/specnaut tag-version` skill contract                                        |
 | `.claude/skills/specnaut/phases/release-version.md` | `/specnaut release-version` skill contract (vendored; never run on its own here) |
 

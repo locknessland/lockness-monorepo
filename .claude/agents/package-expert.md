@@ -69,7 +69,7 @@ Two that bite hardest in package work:
 - **A bare `@lockness/x` import must be declared in this package's own
   `deno.json`.** Inside the workspace it resolves by workspace member *name*, so
   an undeclared import works locally and ships a package a JSR consumer cannot
-  resolve. Check B of the dependency analyser is what catches it.
+  resolve. `deno task publish:check` is what catches it.
 - **The whole workspace ships on one version.** Renaming an exported symbol is a
   breaking change for every importer at once.
 

@@ -64,8 +64,8 @@ blockers, not preferences.
    pinned** (`"@lockness/cli": "jsr:@lockness/cli@^0.2.0"`). Inside the
    workspace a bare specifier resolves by workspace member _name_, so an
    undeclared import works locally and ships a package a consumer cannot
-   resolve. `deno task deps:analyze` and `deno task publish:check` enforce it.
-   See [releasing.md](docs/releasing.md).
+   resolve. `deno task publish:check` enforces it — it is the one check that
+   owns declarations. See [releasing.md](docs/releasing.md).
 3. **No `any` in exported APIs.** Use `unknown` + type guards when a type is
    genuinely uncertain. Exception requires a
    `// deno-lint-ignore no-explicit-any` comment with justification.
@@ -73,8 +73,10 @@ blockers, not preferences.
    `bg-[--my-var]` (brackets). Brackets are for arbitrary literal values like
    `px-[0.75rem]`, not for variable references.
 5. **Pre-completion gate on every code change.** Before declaring a code task
-   done, run `deno fmt && deno lint && deno check <files> && deno task test`. If
-   any step fails, fix and re-run — do not declare done with red checks.
+   done, run `deno fmt`, then `deno task gate` — the one versioned gate, the
+   same one the pre-push hook and CI run; its step list lives in
+   `scripts/gate.ts` only. Judge it by its exit status. If it fails, fix and
+   re-run — do not declare done with red checks.
 6. **Never modify `deno.lock` manually.** It is generated. If a dependency
    change requires it, run the relevant `deno cache` or `deno task` command.
 7. **JSDoc on public APIs.** Every exported class, method, function, interface,
@@ -666,8 +668,7 @@ Hard rule #4 above: parentheses for CSS variables, brackets for literal values.
 
 ## ⚙️ Development Workflow
 
-The pre-completion quality gate
-(`deno fmt && deno lint && deno check && deno task test`) is hard rule #5 above.
+The pre-completion quality gate (`deno task gate`) is hard rule #5 above.
 
 ### Dev mode (multi-terminal)
 

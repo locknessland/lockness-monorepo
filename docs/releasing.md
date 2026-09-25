@@ -86,14 +86,18 @@ a package a consumer cannot resolve:
 TS2307: Import "@lockness/cli" not a dependency and not in import map
 ```
 
-Two checks hold the line, and both must be green before a release:
+One check holds the line, and it must be green before a release:
+`deno task publish:check`. It copies each package out of the workspace and
+type-checks it alone, so an undeclared import of any kind — `@lockness/*`,
+`@std/*` or third-party — fails there; it is what caught `@lockness/cli`
+importing an undeclared `@std/jsonc`. It fails closed: the only failure it
+tolerates is a `@lockness/*` version that is not on JSR yet, and anything it
+does not recognise is red. It resolves against JSR, so it needs the network.
 
-- `deno task deps:analyze` — check B: every `@lockness/*` import is declared by
-  the package that makes it.
-- `deno task publish:check` — copies each package out of the workspace and
-  type-checks it alone. This is the only check that sees non-`@lockness`
-  dependencies; it is what caught `@lockness/cli` importing an undeclared
-  `@std/jsonc`.
+`deno task deps:analyze` does **not** check declarations. It had a "check B"
+that claimed to, and it was removed (#388): it read an import-map alias's
+_value_ as a declaration while Deno resolves by _key_, and it only saw
+`@lockness/*` imports — so it could not have caught the `@std/fs` half of #385.
 
 ## Read-only package mirrors
 
@@ -187,14 +191,16 @@ change is recorded". An unmarked, unrecorded change ships unlisted.
 ## Before any release
 
 ```bash
-deno fmt --check && deno lint && deno check
-deno task deps:analyze
-deno task agents:brief --check
-deno task publish:check
-deno task test
+deno task gate
 ```
 
-`publish.yml` runs the same battery before it publishes. It is not a formality:
+That is the one versioned gate — the pre-push hook and CI's `test` job run the
+same task, and its step list lives in `scripts/gate.ts` only, so there is no
+copy here to drift. Judge it by its exit status.
+
+`publish.yml` runs its own pre-publish battery, adding
+`publish:check
+--registry`, before it publishes. It is not a formality:
 `deno publish --dry-run` passes inside the workspace even for a package whose
 manifest a consumer cannot resolve, so the dry run is **not** evidence.
 
