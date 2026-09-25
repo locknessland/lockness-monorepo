@@ -21,7 +21,7 @@
  */
 
 import { assert, assertEquals, assertThrows } from '@std/assert'
-import { ChannelManager } from '../manager.ts'
+import { ChannelManager, ConnectionIdError } from '../manager.ts'
 import { isValidName } from '../protocol.ts'
 import type { BroadcastDriver } from '../driver.ts'
 import type { Connection } from '../types.ts'
@@ -76,18 +76,21 @@ Deno.test('#304 registering a connection with an out-of-charset id throws', () =
 })
 
 Deno.test('#304 subscribing with an out-of-charset id throws too', async () => {
-    // The second registration site. `subscribe` writes the connection into the
-    // same map, so guarding only `register` would leave a way in.
+    // The second boundary. Since #370 `subscribe` no longer binds anything —
+    // `register` is the only way in — but it still names the id defect FIRST,
+    // ahead of the admission refusals, so a transport that skipped `register`
+    // with an unusable id is told what is actually wrong with it.
     const m = new ChannelManager<User>({ authorize: () => true })
-    let threw = false
+    let threw: unknown
     try {
-        const userExampleCom = conn('user@example.com')
-        m.register(userExampleCom)
-        await m.subscribe(userExampleCom, 'presence-room')
-    } catch {
-        threw = true
+        await m.subscribe(conn('user@example.com'), 'presence-room')
+    } catch (error) {
+        threw = error
     }
-    assertEquals(threw, true, 'subscribe accepted an out-of-charset id')
+    assert(
+        threw instanceof ConnectionIdError,
+        `subscribe names the id defect first. Got: ${threw}`,
+    )
     assertEquals(m.connectionCount, 0, 'the connection was tracked anyway')
 })
 
@@ -243,19 +246,18 @@ Deno.test('#304 subscribe rejects before the authorizer runs', async () => {
         },
     })
 
-    let threw = false
+    // Never registered, on purpose: `register` would refuse the id first, and
+    // this row is about `subscribe`'s own boundary (#370 left it first).
+    let threw: unknown
     try {
-        const userExampleCom = conn('user@example.com')
-        m.register(userExampleCom)
-        await m.subscribe(userExampleCom, 'private-billing')
-    } catch {
-        threw = true
+        await m.subscribe(conn('user@example.com'), 'private-billing')
+    } catch (error) {
+        threw = error
     }
 
-    assertEquals(
-        threw,
-        true,
-        'a denied private channel swallowed the id defect',
+    assert(
+        threw instanceof ConnectionIdError,
+        `a denied private channel swallowed the id defect. Got: ${threw}`,
     )
     assertEquals(authorizerRan, false, 'the authorizer ran on an unusable id')
 })
