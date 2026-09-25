@@ -53,7 +53,7 @@ application installs it, or the feature stays off.
 
 | Kind      | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | :-------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| class     | `AuthorizeResultError`, `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionDisconnectedError`, `ConnectionIdError`, `ConnectionIdInUseError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberShapeError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                                                           |
+| class     | `AuthorizeResultError`, `ChannelLimitError`, `ChannelManager`, `ChannelNameError`, `ConnectionDisconnectedError`, `ConnectionIdError`, `ConnectionIdInUseError`, `ConnectionNotRegisteredError`, `MemoryBroadcastDriver`, `PresenceMemberIdError`, `PresenceMemberShapeError`, `PresenceMemberSizeError`, `ProtocolError`, `RedisBroadcastDriver`, `RevocationScopeError`, `WSContext`                                                                                                                                                                                                           |
 | function  | `channelKind`, `createWebSocketHandler`, `decodeClientMessage`, `encodeServerMessage`, `forwardEvent`, `isBroadcastable`, `isValidName`, `startBroadcasting`                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | interface | `AnyEventPayload`, `BroadcastBridgeOptions`, `BroadcastDriver`, `BroadcastMessage`, `Broadcastable`, `ChannelManagerOptions`, `ChannelRevocation`, `Connection`, `ConnectionRevocation`, `ControlMessage`, `ControlRefusal`, `DispatcherLike`, `PassSample`, `PresenceCapableDriver`, `PresenceMember`, `PresenceSnapshot`, `RealtimeControlConfig`, `RedisBroadcastDriverOptions`, `RedisCommandClient`, `RedisSubscriber`, `RevocationStoreDriver`, `RosterDeparture`, `RosterHold`, `RosterRelease`, `RosterWindow`, `Socket`, `SubscribeResult`, `WebSocketHandlerOptions`, `WebSocketHooks` |
 | typeAlias | `AuthorizeResult`, `Authorizer`, `ChannelKind`, `ChannelLimitScope`, `ClientMessage`, `DisconnectOutcome`, `LeaveOutcome`, `OutboundFrame`, `RedisBroadcastConnectionConfig`, `Revocation`, `RevokeChannelOutcome`, `ServerMessage`, `WSMessageReceive`                                                                                                                                                                                                                                                                                                                                          |
@@ -611,6 +611,19 @@ field means.
   from `connections` at `disconnect`'s entry. Witness:
   `disconnect_admission_361.test.ts`; battery
   `tests/mutations/disconnect_admission_361.ts`.
+- **`register` is the only writer of `connections`, and a teardown acts only on
+  its owner**
+  ([#370](https://github.com/locknessland/lockness-monorepo/issues/370),
+  [#363](https://github.com/locknessland/lockness-monorepo/issues/363)). The
+  rules are the JSDoc of `#assertAdmissible`, `#assertBound` and `#isOwner` in
+  `manager.ts`, and why is ADR 010 §7; read those, do not restate them. The
+  pitfalls: re-adding a `connections` write anywhere but `register`; narrowing
+  clause 2 back to a retiring holder; comparing a binding to an object outside
+  those three deciders (`handlerHooks` and `disconnect` ask `#isOwner`); calling
+  `#assertAdmissible` from `subscribe` or `#assertBound` from `register`; and
+  making `handlerHooks.onClose` pass `conn.id`. Witness:
+  `register_only_admission_370.test.ts`; battery
+  `tests/mutations/register_only_admission_370.ts`.
 - **Every realtime reply that grows with a collection has a named bound** — the
   inventory for `MAX_REPLY_BYTES`'s rule (`@lockness/redis`, `resp.ts`: the
   caller bounds the reply; the cap is a backstop that costs the whole socket).
@@ -1049,6 +1062,7 @@ field means.
 - `packages/realtime/tests/protocol.test.ts`
 - `packages/realtime/tests/reconcile_single_pass_355.test.ts`
 - `packages/realtime/tests/redis_broker_integration.test.ts`
+- `packages/realtime/tests/register_only_admission_370.test.ts`
 - `packages/realtime/tests/revocation_atomicity.test.ts`
 - `packages/realtime/tests/revocation_clear_race_337.test.ts`
 - `packages/realtime/tests/revocation_encoding_332.test.ts`
@@ -1102,6 +1116,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/presence_snapshot_339.ts`
 - `packages/realtime/tests/mutations/presence_sweep_departure_348.ts`
 - `packages/realtime/tests/mutations/reconcile_single_pass_355.ts`
+- `packages/realtime/tests/mutations/register_only_admission_370.ts`
 - `packages/realtime/tests/mutations/revocation_paging_359.ts`
 - `packages/realtime/tests/mutations/revocation_pass_bound_362.ts`
 - `packages/realtime/tests/mutations/revocation_retry_308.ts`

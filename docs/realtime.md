@@ -21,7 +21,7 @@ app.get(
         hooks: {
             onOpen: (conn) => manager.register(conn),
             onMessage: (conn, data) => handleFrame(conn, data),
-            onClose: (conn) => manager.disconnect(conn.id),
+            onClose: (conn) => manager.disconnect(conn),
         },
     }),
 )
@@ -94,6 +94,7 @@ const manager = new ChannelManager({
     },
 })
 
+manager.register(conn) // once, from the socket's open hook
 await manager.subscribe(conn, 'private-orders') // rejected if unauthorized
 manager.broadcast('private-orders', 'created', { id: 1 })
 ```
@@ -520,28 +521,47 @@ your own ids or wire your own transport.
    not lazily, and not from the first `subscribe`.
 2. **Present that same object for the socket's whole life.** Do not build a
    fresh `Connection` per frame.
-3. **Call `disconnect` when the socket closes.**
+3. **Call `disconnect(conn)` when the socket closes, with the object you
+   registered** — not `disconnect(conn.id)`. `disconnect`'s JSDoc is the
+   reference.
 
-A `disconnect` retires the connection **object** it was given: from then on
-`register` and `subscribe` refuse that object with
-`ConnectionDisconnectedError`, before the authorizer runs and before anything is
-written. That refusal is what keeps a `subscribe` racing the close from leaving
-a membership, a cap slot, a broker watch and a roster entry that nothing would
-ever tear down. It reaches only what the three duties make reachable. A
-connection first seen by a `subscribe` racing its own `disconnect`, or a fresh
-object built per call after the teardown, escapes it — and strands exactly that
-state.
+**The manager enforces all three**
+([#370](https://github.com/locknessland/lockness-monorepo/issues/370),
+[#363](https://github.com/locknessland/lockness-monorepo/issues/363)). Each
+refusal lands before the authorizer runs and before anything is written — no
+membership, cap slot, broker watch or roster entry is left for a teardown to
+miss:
 
-While a teardown is still running, a **different** object presenting the same id
-is refused with `ConnectionIdInUseError`. That is the first id rule below being
-broken, not a race to wait out.
+- `subscribe` refuses an object `register` never bound with
+  `ConnectionNotRegisteredError`. `register` is the only way a connection is
+  bound, so a first `subscribe` racing its own close can no longer strand a
+  connection nothing will disconnect.
+- A `disconnect` retires the connection **object** it was given: from then on
+  `register` and `subscribe` refuse that object with
+  `ConnectionDisconnectedError`.
+- While one object holds an id — live, or still being torn down — `register` and
+  `subscribe` refuse a **different** object under that id with
+  `ConnectionIdInUseError`. That is the first id rule below being broken, not a
+  race to wait out. The same object registered twice is a no-op.
+- `disconnect(conn)` acts only when `conn` is the object that owns its id; any
+  other object gets `'not-owned'` and touches nothing. A teardown also forgets
+  the binding only while its own object still owns it, so a late close after an
+  evict and a fast reconnect leaves the new socket alone.
+
+**If you wire your own transport without `handlerHooks`**, one gap is yours to
+close: never run application code for a socket whose `register` was refused — in
+particular never call `unsubscribe(conn.id, …)` for it, which acts on the id and
+so on whoever holds it. `handlerHooks` closes that gap for you: its `onMessage`
+runs your hook only for the socket that owns its id.
 
 **Your ids owe it two rules.** `manager.evict(id)` names a connection id in a
 frame that crosses the bus, so **a connection id must be unguessable and never
 reused**. The framework's own WebSocket upgrade generates one per connection; if
 you wire your own transport, generate a fresh `crypto.randomUUID()` rather than
 passing a user id or a session id. A stable, guessable id makes a captured
-eviction frame a repeatable weapon against whoever currently holds it.
+eviction frame a repeatable weapon against whoever currently holds it — and, now
+that a held id is refused, lets whoever registers it first lock its owner out
+(item 21).
 
 **It must also stay inside the charset the control plane can carry**: letters,
 digits and `:` `.` `_` `-`, at most 200 characters. `crypto.randomUUID()`
@@ -2203,7 +2223,7 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Nineteen items. Thirteen are breaking changes — the driver revocation seam, the
+Twenty-one items. Fifteen are breaking changes — the driver revocation seam, the
 presence snapshot a subscribe returns, the driver roster seam, presence frames
 announced per member rather than per connection, an authorizer result outside
 its contract now throwing, a presence member id that is not a string or a finite
@@ -2211,14 +2231,15 @@ number now throwing, a presence member that is not exactly `{ id, info }` now
 throwing, presence members now read-only, an object result on a private channel
 now checked as a presence member, no connection receiving `joined` or `left` for
 its own member id, a presence member over its byte bound now throwing, a
-disconnected connection now refused at admission, and a Redis revocation timing
-the driver cannot enforce now refused at boot — plus two widened return types,
+disconnected connection now refused at admission, a Redis revocation timing the
+driver cannot enforce now refused at boot, `subscribe` now requiring `register`,
+and an id held by a live connection now refused — plus two widened return types,
 one new control kind, one additive wire field and one additive getter. Item 16
 changes no behaviour: it corrects earlier guidance. Item 19 is observable, not
 breaking: a malformed sweep reply now logs a WARN. **No migration step, and one
 new Redis key family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11,
-12, 13, 14, 15, 16, 17, 18 and 19 — and items 2 and 7 if you wrote your own
-driver.
+12, 13, 14, 15, 16, 17, 18, 19, 20 and 21 — and items 2 and 7 if you wrote your
+own driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -2829,9 +2850,9 @@ from `@lockness/realtime`, handled differently:
 - **`ConnectionDisconnectedError`**: this connection object was disconnected.
   The socket is gone and no retry can succeed. Catch it with `instanceof` and
   drop the frame.
-- **`ConnectionIdInUseError`**: a _different_ object presented an id that is
-  still being torn down. That breaks the id contract, so it is neither retried
-  nor dropped silently — fix the transport that minted the id.
+- **`ConnectionIdInUseError`**: a _different_ object holds this id, live or
+  being torn down (widened by item 21). That breaks the id contract, so it is
+  neither retried nor dropped silently — fix the transport that minted the id.
 
 ```ts
 // Before: resolved { ok: true } for a socket that had already closed.
@@ -2922,6 +2943,77 @@ it.
 
 Not breaking: no configuration or code change is needed. No wire change, and no
 migration step.
+
+### 20. `subscribe` requires `register`
+
+**Before**, `subscribe` bound a connection it had never seen
+([#370](https://github.com/locknessland/lockness-monorepo/issues/370)). A first
+`subscribe` whose authorizer was still pending when the socket closed found
+nothing for `disconnect` to retire, then bound the connection anyway: a
+membership, cap slots and a count that no teardown would ever reach. A client
+repeating that exhausted the watched-channel caps for everyone else.
+
+**After**, `register` is the only way a connection is bound. `subscribe` throws
+`ConnectionNotRegisteredError` for an object `register` never bound — **before
+the authorizer runs**, and before anything is written.
+
+```ts
+// Before: the first subscribe bound the connection itself.
+await manager.subscribe(conn, 'private-orders')
+
+// After: register once, from the socket's open hook, then subscribe.
+hooks.onOpen = (conn) => manager.register(conn)
+await manager.subscribe(conn, 'private-orders')
+```
+
+**`handlerHooks` is the zero-work path**: it registers in `onOpen` for you, and
+an app on it changes nothing. `connectionCount` now counts only registered
+connections. The duties this enforces are stated once, in
+[Your connection ids and your transport's lifecycle](#your-connection-ids-and-your-transports-lifecycle).
+
+### 21. An id held by a live connection is refused
+
+**Before**, a different connection object presented under the id of a live one
+took its binding over
+([#363](https://github.com/locknessland/lockness-monorepo/issues/363)): every
+channel the first object held — private and presence included — was delivered to
+the second, whose own authorizer never ran for them. And `disconnect(id)` tore
+down whoever held the id when it ran, so the refused socket's own close, or an
+old socket's late close after an evict and a fast reconnect, tore down the live
+holder.
+
+**After**, `register` and `subscribe` throw `ConnectionIdInUseError` for a
+different object under an id another object holds, **live or being torn down**,
+before the authorizer runs. On `handlerHooks`, `onOpen` closes such a socket
+with `1011 'unusable connection id'`, skips your `onOpen`, and throws — the same
+close every `register` refusal gets.
+
+```ts
+// Before: B silently took over A's channels.
+manager.register(a) // id 'c1'
+manager.register(b) // also 'c1' — now B receives A's private frames
+
+// After: the second register throws; A keeps its channels.
+manager.register(b) // ConnectionIdInUseError
+```
+
+- **The server mints the id, per socket** — `crypto.randomUUID()`, never from
+  client input, and never from a user or session key. A guessable or shared id
+  now has two consequences: **lockout** (whoever registers a known id first
+  keeps its owner out) and **disclosure** (a refusal tells the caller that id is
+  live, which leaks who is online).
+- **`evict(id)` recovers a leaked binding**, whoever holds it.
+- **`disconnect(conn)` is owner-scoped.** Pass the object from your close hook:
+  it acts only for the object that owns its id, and returns `'not-owned'` for
+  any other. `disconnect(conn.id)` still acts on whoever holds the id — so a
+  refused socket's close would still tear down the live one.
+- **`handlerHooks.onMessage` skips frames from a socket that does not own its
+  id** — a refused socket, or one already torn down. Your hook is not called for
+  them.
+- **The `ConnectionIdInUseError` constructor now takes no argument**, and
+  neither it nor `ConnectionNotRegisteredError` puts the id in its message.
+
+Apps on `handlerHooks` with framework ids see no change.
 
 ## Upgrading to v0.3.0
 

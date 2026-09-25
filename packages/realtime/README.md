@@ -133,8 +133,15 @@ app.get(
   `ConnectionDisconnectedError` for it — before the authorizer where they can,
   and always before anything is written — so a subscribe racing the socket's
   close no longer strands a membership. A different object presenting an id
-  still being torn down gets `ConnectionIdInUseError`. See
-  [item 17 of Upgrading to v0.4.0](../../docs/realtime.md#17-a-disconnected-connection-is-refused-at-admission).
+  another object holds — live or still being torn down — gets
+  `ConnectionIdInUseError`. `subscribe` on an object `register` never bound
+  throws `ConnectionNotRegisteredError`, before the authorizer; `handlerHooks`
+  registers for you. Pass the registered object to `disconnect(conn)` from your
+  close hook: it acts only for the object that owns its id. See items
+  [17](../../docs/realtime.md#17-a-disconnected-connection-is-refused-at-admission),
+  [20](../../docs/realtime.md#20-subscribe-requires-register) and
+  [21](../../docs/realtime.md#21-an-id-held-by-a-live-connection-is-refused) of
+  Upgrading to v0.4.0.
 - **The local verbs report.** `unsubscribe` and `disconnect` take a connection
   id but act only on sockets this instance owns, and they now say which:
   `'left'` / `'not-subscribed'` / `'not-owned'`. Server-side values — never

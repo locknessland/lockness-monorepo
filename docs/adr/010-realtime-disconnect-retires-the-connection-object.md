@@ -1,8 +1,9 @@
 # ADR 010 — A disconnect retires the connection object, and a retired one is refused at admission
 
 **Status:** Accepted **Date:** 2026-09-23 **Owner:** architect **Amended by:**
-[#363](https://github.com/locknessland/lockness-monorepo/issues/363), when it
-lands **Affects:** `packages/realtime/manager.ts`, `packages/realtime/mod.ts`,
+[#370](https://github.com/locknessland/lockness-monorepo/issues/370) and
+[#363](https://github.com/locknessland/lockness-monorepo/issues/363), 2026-09-25
+(§7) **Affects:** `packages/realtime/manager.ts`, `packages/realtime/mod.ts`,
 `packages/realtime/types.ts`, `docs/realtime.md`, `packages/realtime/AGENTS.md`
 
 ---
@@ -76,6 +77,9 @@ turn it shares with the caps, the registration and the join's adds. Every
 refusal lands before any write — nothing is taken, watched, held or announced,
 so nothing is ever undone.
 
+> **Amended by §7.** `subscribe` now asks `#assertBound` at both sites, which
+> asks this decider first and then whether the object is registered.
+
 ### Two refusal types, one predicate
 
 - **This object was retired** → `ConnectionDisconnectedError`. The socket is
@@ -87,6 +91,10 @@ so nothing is ever undone.
 
 One class could not carry both: "no retry will help, drop the frame" is true of
 the first and false of the second.
+
+> **Amended by §7.** Clause 2 now refuses any different holder, live or
+> retiring, and a third refusal, `ConnectionNotRegisteredError`, joins these
+> two.
 
 ### Precedence
 
@@ -133,6 +141,11 @@ duty in `register`'s JSDoc, and the user-facing statement in `docs/realtime.md`
 § _Your connection ids and your transport's lifecycle_. `handlerHooks` and
 `buildEvents` meet all three: `buildEvents` creates one object per socket.
 
+> **Amended by §7.** The three duties are now enforced rather than assumed:
+> `subscribe` refuses an unregistered object, a different object under a held id
+> is refused, and duty 3 reads "call `disconnect(conn)` with the registered
+> object" — its home is `disconnect`'s JSDoc.
+
 ---
 
 ## 4. Rejected, and what each would have cost
@@ -150,7 +163,11 @@ duty in `register`'s JSDoc, and the user-facing statement in `docs/realtime.md`
   `connections`. A breaking change to most callers of `subscribe`, and it still
   misses window (a) unless `disconnect` deletes at entry, which moves every
   ownership reader. Implicit registration deserves retiring on its own merits,
-  separately.
+  separately. _Reversed by
+  [#370](https://github.com/locknessland/lockness-monorepo/issues/370) (§7):_
+  retirement is keyed by object, so the window-(a) case is already refused by
+  clause 1 and no delete at entry is needed; the breaking change was accepted to
+  close an availability hole.
 - **Refuse-and-undo.** A transient cap slot other subscribers can observe, a
   watch then an unwatch at the broker, and a cluster-wide `joined` then `left`.
   Every refusal in `subscribe` sits above the writes so nothing needs undoing.
@@ -166,16 +183,16 @@ duty in `register`'s JSDoc, and the user-facing statement in `docs/realtime.md`
 
 ## 5. What this does not solve
 
-- **An unregistered connection's first `subscribe` racing `disconnect(id)`.**
-  Nothing was registered, so nothing is retired; the subscribe registers and
-  joins a socket nobody will disconnect. It breaks duty 1 and is unreachable
-  through `handlerHooks`. Retiring implicit registration is its fix.
-- **A transport building a fresh `Connection` per call** is covered only while
-  the id is still bound (window (a)). It breaks duty 2.
-- **A different object under the id of a live, non-retiring connection** is not
-  refused —
-  [#363](https://github.com/locknessland/lockness-monorepo/issues/363), which
-  amends this record.
+- ~~**An unregistered connection's first `subscribe` racing
+  `disconnect(id)`.**~~ **Resolved by
+  [#370](https://github.com/locknessland/lockness-monorepo/issues/370) (§7):**
+  `subscribe` refuses an object `register` never bound, before its authorizer.
+- ~~**A transport building a fresh `Connection` per call**~~ **Resolved by
+  [#363](https://github.com/locknessland/lockness-monorepo/issues/363) (§7):** a
+  different object under a held id is refused at any time.
+- ~~**A different object under the id of a live, non-retiring connection**~~
+  **Resolved by
+  [#363](https://github.com/locknessland/lockness-monorepo/issues/363) (§7).**
 - **`websocket.ts` ran the composed `onClose` outside its error guard**, so a
   rejection from it was unhandled. Resolved separately by
   [#369](https://github.com/locknessland/lockness-monorepo/issues/369): the
@@ -195,3 +212,104 @@ duty in `register`'s JSDoc, and the user-facing statement in `docs/realtime.md`
 Retirement is keyed by object, is terminal, and is not a spelling of ownership.
 Never consult it in the revocation decider or any other ownership reader, never
 re-key it by id, and never delete from `connections` at `disconnect`'s entry.
+
+Since §7: `register` is the only writer of `connections`, and a teardown the
+framework runs acts only on the object that owns the id.
+
+---
+
+## 7. Amendment — `register` is the only way in, and teardown is owner-scoped
+
+_[#370](https://github.com/locknessland/lockness-monorepo/issues/370) and
+[#363](https://github.com/locknessland/lockness-monorepo/issues/363),
+2026-09-25. The design is the `architect-expert` disposition of that date, as
+amended by its plan audits._
+
+### The owner rule
+
+Every id has at most **one owner object**: the object `register` bound under it.
+`register` is the only writer of `connections`; `subscribe`'s implicit write is
+gone. Three deciders, and only these, compare a binding to an object:
+
+- **`#assertAdmissible`** — clause 1 (this object was retired) is unchanged and
+  first. **Clause 2 is widened**: from "the id is bound to a retired object" to
+  "the id is bound to a **different** object", live or retiring. The same object
+  presenting itself again passes, which makes a second `register` of one object
+  a no-op. `register` asks it first, before the id charset — an order nobody can
+  observe, because a bound id was already usable.
+- **`#assertBound`** — `subscribe`'s decider, asked at both of #361's sites:
+  admissibility **first**, then "is it registered". A retired object whose id is
+  already unbound therefore hears `ConnectionDisconnectedError`, not an
+  instruction to register. Its JSDoc holds why two mutations of `subscribe` are
+  equivalent (the post-site's registration clause is unreachable while the
+  `finally` below is guarded; re-adding the write stores what is there).
+- **`#isOwner`** — `connections.get(id) === object`. Its three askers are
+  `disconnect`'s object form, `disconnect`'s `finally`, and
+  `handlerHooks.onMessage`.
+
+### Owner-scoped teardown
+
+`disconnect(target: string | Connection)`:
+
+- **the object form** asks `#isOwner` first and returns `'not-owned'` before
+  retiring, copying or awaiting anything when the object does not own its id —
+  the socket `register` refused, or an evicted socket whose id was
+  re-registered;
+- **the id form** is unchanged. `evict` (through `revokeLocal`) keeps it;
+- **the `finally`** deletes the binding and the reverse index only while the
+  torn-down object still owns the id, so a teardown whose object was replaced
+  while it ran leaves the new binding alone.
+
+`handlerHooks.onClose` passes the object. `handlerHooks.onMessage` runs the
+app's hook only for the owner and drops any other frame without a log line — a
+line per frame from a socket with no owner would be a flooding vector. `onOpen`
+still answers every `register` refusal with `1011 'unusable connection id'`: no
+new client-visible text, and a distinct reason would tell a client whether an id
+is live.
+
+### Why three refusal classes and no base class
+
+`ConnectionDisconnectedError` (drop the frame: the socket is gone),
+`ConnectionIdInUseError` (mint a fresh id per socket) and
+`ConnectionNotRegisteredError` (call `register` from the open hook) each call
+for a **different remedy**. A shared base class would invite one `catch` for all
+three, which is exactly the handling none of them should get; a `reason` field
+is ignored by every caller that checks only the class. Each class's JSDoc states
+its own remedy and links here. Neither `ConnectionIdInUseError` (whose
+constructor now takes no argument) nor `ConnectionNotRegisteredError` carries
+the id in its message.
+
+### Rejected, with their costs
+
+- **(a) Implicit registration under the same checks** (#370 option b). It needs
+  an id-keyed tombstone (§4) and keeps two entry points to one map.
+- **(b) Deprecate first** (#370 option c). It keeps an availability hole open in
+  a published package for a release cycle.
+- **(c) Last registration wins** (#363 option b). An async `register`, and any
+  stable id becomes a way to kill someone else's socket.
+- **(d) A no-op old `disconnect`.** The second object still receives the first
+  one's channels.
+- **(e) `subscribe(id, channel)`.** A forgeable string replaces an unforgeable
+  object as the thing admission is decided on.
+- **(f) An `onClose`-only guard.** It protects only the framework path, and
+  reads a binding outside the deciders.
+- **(g) An object-only `disconnect`.** It breaks `revokeLocal` and every id-form
+  caller.
+- **(h) Deferring the teardown fix.** #363 would close while still reproducible
+  through the refused socket's own close.
+
+### What this does not solve
+
+- **Apps that call `disconnect(conn.id)` from their own close hook** keep
+  id-keyed teardown, so a refused socket's close still tears down the holder.
+  They should pass `conn`; deprecating the id form for app callers is backlog.
+- **Two overlapping teardowns of one object** mid-loop on a shared channel. It
+  needs this record's retirement restructured to one teardown per object; the
+  guarded `finally` pins only the binding.
+- **A custom transport that does not use `handlerHooks`** can still run app code
+  for a socket that does not own its id. It must gate on `disconnect(conn)`'s
+  outcome and never call `unsubscribe(conn.id, …)` for a refused socket.
+- **A registered socket that is never disconnected** still leaks (duty 3).
+- **An id is reusable once its teardown completes**, by design; `evict(id)`
+  recovers a leaked binding. A cross-instance id collision is not detected.
+- **§5's other bullets** are unchanged.
