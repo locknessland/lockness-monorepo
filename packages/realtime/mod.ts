@@ -76,8 +76,11 @@ export {
     // sibling and closes the same gap for it. #347's `AuthorizeResultError`
     // is exported for the same reason: an authorizer returning a value
     // outside its contract is a bug no retry fixes. A lifecycle refusal that
-    // reaches the shared `onError` hook needs `instanceof` too (#361): the
-    // two below tell a socket that is gone from an id reused by a second one.
+    // reaches the shared `onError` hook needs `instanceof` too (#361, #370):
+    // the three lifecycle refusals below tell a socket that is gone
+    // (`ConnectionDisconnectedError`), an id held by a different object
+    // (`ConnectionIdInUseError`) and a socket never registered
+    // (`ConnectionNotRegisteredError`) apart.
     AuthorizeResultError,
     CHANNEL_LIMIT_SCOPES,
     ChannelLimitError,
@@ -88,6 +91,7 @@ export {
     ConnectionDisconnectedError,
     ConnectionIdError,
     ConnectionIdInUseError,
+    ConnectionNotRegisteredError,
     type DisconnectOutcome,
     type LeaveOutcome,
     MAX_CHANNELS_PER_CONNECTION,

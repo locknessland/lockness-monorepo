@@ -41,6 +41,7 @@ import {
 } from '@std/assert'
 import { MemoryBroadcastDriver } from '../drivers/memory.ts'
 import {
+    ChannelLimitError,
     ChannelManager,
     type ChannelManagerOptions,
     ConnectionDisconnectedError,
@@ -840,4 +841,36 @@ Deno.test('#361 W12 (ii) when the disconnect fails too, the rejection is still t
     assertStrictEquals(outcome, APP)
     assertEquals(warnings.having(CLOSE_DISCONNECT_FAILED).length, 1)
     assertEquals(manager.connectionCount, 0)
+})
+
+Deno.test('#361 W13 the post-site sits above the caps: a disconnect during the authorizer is ConnectionDisconnectedError, not ChannelLimitError', async () => {
+    // Moved here from the #370 witness file (A3): the #361 battery runs only
+    // this suite, and its row for "the post-site moved below the caps" dies on
+    // this test. A full instance makes the order observable — below the caps,
+    // the refusal a retired connection hears would be the cap's.
+    const driver = new RecordingDriver()
+    const spy = new SpyAuthorizer()
+    const manager = managerOver(driver, spy, {
+        maxWatchedChannels: 1,
+        maxChannelsPerConnection: 1,
+        anonymousHostingShare: 1,
+    })
+    const c2 = conn('c2', 2)
+    manager.register(c2)
+    assert((await manager.subscribe(c2, 'news')).ok, 'the one slot is taken')
+    const c1 = conn('c1', 1)
+    manager.register(c1)
+
+    spy.gateNext('private-y')
+    const subscribing = settled(manager.subscribe(c1, 'private-y'))
+    await spy.reached
+    await manager.disconnect('c1')
+    spy.admit()
+    const outcome = await subscribing
+
+    assert(
+        outcome instanceof ConnectionDisconnectedError,
+        `the lifecycle refusal, not the cap's. Got: ${outcome}`,
+    )
+    assert(!(outcome instanceof ChannelLimitError))
 })

@@ -424,7 +424,9 @@ export class ConnectionIdError extends Error {
  * `register` has no result to carry it at all.
  *
  * No client is left to answer and no retry can succeed, so the one right
- * handling is to drop the frame.
+ * handling is to drop the frame. It is one of three lifecycle refusals, with
+ * {@link ConnectionIdInUseError} and {@link ConnectionNotRegisteredError}, and
+ * shares no base class with them — ADR 010 §7 records why.
  *
  * @example
  * ```ts
@@ -464,19 +466,27 @@ export class ConnectionDisconnectedError extends Error {
 }
 
 /**
- * A different connection object presented an id still bound to a connection
- * that is being disconnected (#361).
+ * A different connection object presented an id another object already holds
+ * (#361, widened by #363).
  *
  * `ChannelManager` raises it from `register` and `subscribe`, before anything
- * is written, while the teardown of the connection that holds the id is still
- * running. The {@link Connection.id} contract forbids reusing an id, so this is
- * a breach of that contract in the caller's transport, not a race to wait out.
+ * is written and before any authorizer runs, whenever the id is bound to a
+ * DIFFERENT object — live, or still being torn down. The {@link Connection.id}
+ * contract forbids reusing an id, so this is a breach of that contract in the
+ * caller's transport, not a race to wait out. Before #363 only a retiring
+ * holder was refused, and a second object under a live id took over every
+ * channel the first one held.
  *
- * A sibling of {@link ConnectionDisconnectedError} and not the same class,
- * because the two call for different handling: that one means *this* socket
- * has gone, this one means two sockets were given one id. The refusal holds
- * only while the id is still bound to the retiring connection; #363 may widen
- * it to an id bound to a live connection.
+ * The same object registered twice is not refused: re-registration is a no-op.
+ *
+ * A sibling of {@link ConnectionDisconnectedError} and
+ * {@link ConnectionNotRegisteredError}, with no base class shared between the
+ * three, because each calls for a different remedy: that one means *this*
+ * socket has gone, this one means two sockets were given one id — mint a fresh
+ * id per socket. ADR 010 §7
+ * (`docs/adr/010-realtime-disconnect-retires-the-connection-object.md`) records
+ * why. The message carries no connection id: a refusal that echoed it would be
+ * one more place an id reaches a log.
  *
  * @example
  * ```ts
@@ -496,17 +506,59 @@ export class ConnectionIdInUseError extends Error {
     /** Always `'ConnectionIdInUseError'`, for logs and `onError`. */
     override readonly name = 'ConnectionIdInUseError'
 
-    /**
-     * Build the refusal, naming the id through `safeForLog`.
-     *
-     * @param id - The id the second object presented, encoded before it
-     *   reaches the message.
-     */
-    constructor(id: string) {
+    /** Build the refusal. It takes no id, and its message names none. */
+    constructor() {
         super(
-            `realtime: a different connection object presented id ` +
-                `${safeForLog(id)}, which is still bound to a connection ` +
-                'being disconnected. A connection id must never be reused.',
+            'realtime: a different connection object already holds this ' +
+                'connection id. Mint a fresh id per socket; an id is never ' +
+                'reused, not even across a reconnect.',
+        )
+    }
+}
+
+/**
+ * A connection that was never registered was presented to `subscribe` (#370).
+ *
+ * `register` is the only way a connection object becomes bound to its id, so
+ * `subscribe` admits only an object `register` bound. It raises this at its
+ * first check — before the authorizer runs, and before anything is written: no
+ * slot is taken, no channel is watched, no roster entry is held and nothing is
+ * counted. Before #370 `subscribe` bound the object itself, and a first
+ * subscribe that outlived its socket's close bound a connection no
+ * `disconnect` would ever reach.
+ *
+ * **The remedy is to register at open.** Call `manager.register(conn)` from the
+ * transport's open hook, with the object the socket will present for its whole
+ * life. {@link ChannelManager.handlerHooks} does that for you, which is the
+ * zero-work path: an application on it never sees this error.
+ *
+ * It is the third lifecycle refusal beside {@link ConnectionDisconnectedError}
+ * and {@link ConnectionIdInUseError}, with no base class shared between them:
+ * ADR 010 §7 (`docs/adr/010-realtime-disconnect-retires-the-connection-object.md`)
+ * records why. The message carries no connection id.
+ *
+ * @example
+ * ```ts
+ * import { ChannelManager } from '@lockness/realtime'
+ *
+ * const manager = new ChannelManager()
+ * const hooks = {
+ *     // Register at open, with the object this socket keeps for its life.
+ *     onOpen: (conn) => manager.register(conn),
+ *     onClose: (conn) => manager.disconnect(conn),
+ * }
+ * ```
+ */
+export class ConnectionNotRegisteredError extends Error {
+    /** Always `'ConnectionNotRegisteredError'`, for logs and `onError`. */
+    override readonly name = 'ConnectionNotRegisteredError'
+
+    /** Build the refusal. It takes no id, and its message names none. */
+    constructor() {
+        super(
+            'realtime: this connection was never registered, so nothing was ' +
+                "subscribed. Call `register` from the transport's open hook, " +
+                'or use `handlerHooks`, which registers for you.',
         )
     }
 }
@@ -990,6 +1042,7 @@ export interface ChannelManagerOptions<Identity = unknown> {
  * @example
  * ```ts
  * const manager = new ChannelManager({ authorize: (id, ch) => id != null })
+ * manager.register(conn) // from the transport's open hook
  * await manager.subscribe(conn, 'private-orders')
  * manager.broadcast('private-orders', 'created', { id: 1 })
  * ```
@@ -1232,9 +1285,11 @@ export class ChannelManager<Identity = unknown> {
      * app wire cannot leave ghost presence members or dead-socket references.
      *
      * **VERB RATE IS THE APPLICATION'S** (#329). `onOpen` and `onClose` below
-     * are composed; `onMessage` is passed through untouched. That is a
-     * decision, not an omission, and this is the one place it is recorded — so
-     * read it before wrapping that line.
+     * are composed; `onMessage` is passed through unmetered — its one wrapper
+     * is the ownership gate described further down (#363), which counts
+     * nothing and refuses nothing an owner sends. That is a decision, not an
+     * omission, and this is the one place it is recorded — so read it before
+     * adding anything to that wrapper.
      *
      * **The framework has no charge target a reconnect does not rotate.**
      * `Connection.id` is minted per socket and by contract never reused, so a
@@ -1275,6 +1330,17 @@ export class ChannelManager<Identity = unknown> {
      * and the teardown runs whatever it did — so the connection is torn down
      * and retired even when the app's hook throws. The app's error is then
      * what the close rejects with; a teardown failure after it is one WARN.
+     * It passes the connection OBJECT (#363), so a socket that does not own
+     * its id — one `onOpen` refused, or one whose id was re-registered after
+     * an evict — tears down nothing that belongs to the socket that does.
+     *
+     * **`onMessage` runs the app's hook only for the socket that owns its id**
+     * (#363). A frame from a socket `onOpen` refused, or from one already torn
+     * down, is dropped before any app code runs — so an app that calls
+     * `unsubscribe(conn.id, …)` there cannot strip the live holder. The drop
+     * logs nothing: the socket has no owner to answer, and a line per frame
+     * would be a flooding vector. Apart from that gate the hook is passed
+     * through as it is.
      *
      * @param userHooks - The app's own hooks (run alongside the teardown).
      * @returns Hooks to pass to `createWebSocketHandler`.
@@ -1306,7 +1372,13 @@ export class ChannelManager<Identity = unknown> {
                 }
                 return userHooks.onOpen?.(conn)
             },
-            onMessage: userHooks.onMessage,
+            onMessage: (conn, data) => {
+                // Only the owner reaches app code (#363): a refused or retired
+                // socket shares an id with, at most, a socket it must not act
+                // for. Dropped without a log line — one per frame would flood.
+                if (!this.#isOwner(conn)) return
+                return userHooks.onMessage?.(conn, data)
+            },
             onError: userHooks.onError,
             onClose: async (conn, code, reason) => {
                 // THE TEARDOWN RUNS WHATEVER THE APP'S HOOK DID (#361). An app
@@ -1324,7 +1396,7 @@ export class ChannelManager<Identity = unknown> {
                     appError = error
                 }
                 try {
-                    await this.disconnect(conn.id)
+                    await this.disconnect(conn)
                 } catch (error) {
                     if (!appFailed) throw error
                     console.warn(
@@ -1403,63 +1475,133 @@ export class ChannelManager<Identity = unknown> {
     }
 
     /**
-     * Refuse a connection that may no longer be admitted (#361) — the one
-     * reader of {@link #retired}, and the one decider its three askers share.
+     * Refuse a connection that may no longer be admitted (#361, widened by
+     * #363) — the one reader of {@link #retired}, and the admission rule every
+     * asker shares.
      *
-     * The askers, and why each exists:
+     * **Who asks, and what each asks** (the single home of that list):
      *
-     * - **`register`, first.** A transport re-registering a socket it already
-     *   closed would otherwise re-add a zombie that `connectionCount` counts.
-     * - **`subscribe`, before the authorizer.** A retired connection's
-     *   authorizer — a database read, an audit write — never runs, and no cap
-     *   or anonymous share is spent on it (windows (b) and (c)).
-     * - **`subscribe`, after the authorizer's result is classified**, in the
-     *   synchronous turn it shares with the caps, `connections` and the join's
-     *   adds. The disconnect may have begun while the authorizer ran (window
-     *   (a)); refusing here, before every write, is what leaves nothing to
-     *   undo. Below the denial `return` and every result check, so a denial is
-     *   still a denial and a defect is still a defect.
+     * - **`register` asks this method directly, first**, before the id
+     *   charset. A transport re-registering a socket it already closed would
+     *   otherwise re-add a zombie that `connectionCount` counts, and a second
+     *   object under a held id would otherwise take the binding over.
+     * - **`subscribe` asks {@link #assertBound}, twice** — which asks this
+     *   method first and then whether the object is registered:
+     *   - **before the authorizer**, so a retired, foreign or unregistered
+     *     connection's authorizer — a database read, an audit write — never
+     *     runs, and no cap or anonymous share is spent on it (windows (b) and
+     *     (c));
+     *   - **after the authorizer's result is classified**, in the synchronous
+     *     turn it shares with the caps and the join's adds. The disconnect may
+     *     have begun while the authorizer ran (window (a)); refusing here,
+     *     before every write, is what leaves nothing to undo. Below the denial
+     *     `return` and every result check, so a denial is still a denial and a
+     *     defect is still a defect.
+     *
+     * No other site asks: `register` never asks {@link #assertBound} (it is
+     * what binds), and `subscribe` never asks this method directly (it must
+     * also refuse an object nothing registered).
      *
      * One predicate, two clauses, two classes — because the two call for
      * different handling:
      *
      * 1. **This object was retired** — its socket is gone, and no retry helps.
-     * 2. **A different object presents an id still bound to a retired one** —
-     *    the `Connection.id` contract is breached. The clause reads the
-     *    binding, so it holds only while the teardown runs and retains
-     *    nothing.
+     * 2. **A different object holds its id** — live, or still being torn down
+     *    (#363). The `Connection.id` contract is breached. The same object
+     *    presenting itself again passes, which is what makes a second
+     *    `register` of one object a no-op. The clause reads the binding, so it
+     *    retains nothing once the id is released.
      *
      * @param connection - The connection being admitted.
      * @throws {ConnectionDisconnectedError} If this object was retired.
-     * @throws {ConnectionIdInUseError} If its id is bound to a retired object.
+     * @throws {ConnectionIdInUseError} If a different object holds its id.
      */
     #assertAdmissible(connection: Connection<Identity>): void {
         if (this.#retired.has(connection)) {
             throw new ConnectionDisconnectedError(connection.id)
         }
         const bound = this.connections.get(connection.id)
-        if (bound !== undefined && this.#retired.has(bound)) {
-            throw new ConnectionIdInUseError(connection.id)
+        if (bound !== undefined && bound !== connection) {
+            throw new ConnectionIdInUseError()
         }
     }
 
     /**
-     * Register a live connection.
+     * Refuse a connection `subscribe` may not act for (#370) — `subscribe`'s
+     * decider, asked at both of its checks.
+     *
+     * **Admissibility first, then registration.** A retired object whose id
+     * is already unbound is a socket that has gone, and it hears
+     * {@link ConnectionDisconnectedError}; only an admissible object that
+     * nothing bound hears {@link ConnectionNotRegisteredError}. The other order
+     * would tell a closed socket to go and register.
+     *
+     * **Why two mutations of `subscribe` are equivalent** (the reasons the
+     * #370 battery's two survival rows point to):
+     *
+     * - **The registration clause is unreachable at the post-check** while
+     *   `disconnect` deletes only its owner's binding. An object that passed
+     *   the pre-check was bound; between the two checks only a `disconnect`
+     *   can unbind it, and every `disconnect` that unbinds this object
+     *   retires it first — so the admissibility clause refuses it before the
+     *   registration clause is read. Asking {@link #assertAdmissible} alone
+     *   there is therefore equivalent. It stops being equivalent the moment a
+     *   teardown can delete a binding it does not own, which is what the
+     *   owner guard in `disconnect`'s `finally` prevents.
+     * - **Writing the binding back inside `subscribe`**, below the caps, is
+     *   equivalent too: both checks have just established that this very
+     *   object is the one bound under its id, so the write stores what is
+     *   already there.
+     *
+     * @param connection - The connection being subscribed.
+     * @throws {ConnectionDisconnectedError} If this object was retired.
+     * @throws {ConnectionIdInUseError} If a different object holds its id.
+     * @throws {ConnectionNotRegisteredError} If nothing registered it.
+     */
+    #assertBound(connection: Connection<Identity>): void {
+        this.#assertAdmissible(connection)
+        if (!this.connections.has(connection.id)) {
+            throw new ConnectionNotRegisteredError()
+        }
+    }
+
+    /**
+     * Whether `connection` is the object that owns its id (#363) — the one
+     * spelling of that question in this class.
+     *
+     * Its askers: `disconnect`'s object form, before it retires or tears down
+     * anything; `disconnect`'s `finally`, before it forgets the binding and
+     * its reverse index; and `handlerHooks`' `onMessage`, before any app code
+     * runs. Synchronous, so it adds nothing to the #323 turn.
+     *
+     * @param connection - The connection object to test.
+     * @returns `true` when the binding under its id is this very object.
+     */
+    #isOwner(connection: Connection<Identity>): boolean {
+        return this.connections.get(connection.id) === connection
+    }
+
+    /**
+     * Register a live connection — the only way a connection object becomes
+     * bound to its id (#370).
      *
      * **A transport must call this from its open hook** (#361), with the
      * connection object it will present for the socket's whole life — the
      * first of the three lifecycle duties `docs/realtime.md` states
      * (§ *Your connection ids and your transport's lifecycle*); the
-     * same-object duty is {@link Connection}'s. A connection first seen by a
-     * `subscribe` racing its own `disconnect` was never registered, so there
-     * is nothing to retire and its membership is stranded. `handlerHooks`
-     * registers from `onOpen` for you.
+     * same-object duty is {@link Connection}'s. It is enforced: `subscribe`
+     * refuses an object this method never bound with
+     * {@link ConnectionNotRegisteredError}, before its authorizer runs.
+     * `handlerHooks` registers from `onOpen` for you.
+     *
+     * Registering the same object twice is a no-op. A different object under
+     * an id another object holds — live or still being torn down — is refused.
      *
      * @param connection - The connection to track.
      * @throws {ConnectionDisconnectedError} If a `disconnect` has already
      *   begun for this object.
-     * @throws {ConnectionIdInUseError} If a different object under the same
-     *   id is still being disconnected.
+     * @throws {ConnectionIdInUseError} If a different object holds the same
+     *   id, live or still being disconnected.
      * @throws {ConnectionIdError} If `connection.id` is outside the supported
      *   charset.
      */
@@ -1553,6 +1695,14 @@ export class ChannelManager<Identity = unknown> {
      *   channel kind (#357); `{}` is the usual private-channel cause.
      * @throws {PresenceMemberSizeError} If an object result serializes past
      *   the configured byte bound (#326), on either channel kind (#357).
+     * @throws {ConnectionNotRegisteredError} If `register` never bound this
+     *   connection object (#370). Raised at the first check, always before
+     *   the authorizer runs and before anything is written.
+     * @throws {ConnectionIdInUseError} If a different object holds this
+     *   connection's id, live or still being torn down (#363). Raised before
+     *   the authorizer runs.
+     * @throws {ConnectionDisconnectedError} If a `disconnect` has begun for
+     *   this object — before the authorizer, or while it ran (#361).
      * @throws {ChannelLimitError} If the join would take this instance or this
      *   connection past a watched-channel cap, or past the share reserved for
      *   connections with no identity. Raised only AFTER authorization, so an
@@ -1631,7 +1781,7 @@ export class ChannelManager<Identity = unknown> {
         // that can never work spends that side effect on nothing.
         this.#assertUsableChannel(channel)
         const kind = channelKind(channel)
-        this.#assertAdmissible(connection)
+        this.#assertBound(connection)
 
         let member: PresenceMember | undefined
         if (kind !== 'public') {
@@ -1692,10 +1842,10 @@ export class ChannelManager<Identity = unknown> {
         // invisible listener. Every presence admission now carries a member
         // (the `admitPresenceMember` admission above), so reaching here
         // without one is a bug in this method, and it must not degrade into
-        // that listener. Checked HERE, above the caps and `connections.set`
-        // (#353): it is a refusal like the others, and a refusal after the
-        // write would leave a `connections` entry behind — the partial write
-        // #306 and #347 ordered everything else to avoid.
+        // that listener. Checked HERE, above the caps and every write (#353):
+        // it is a refusal like the others, and a refusal after a write would
+        // leave that write behind — the partial write #306 and #347 ordered
+        // everything else to avoid.
         if (kind === 'presence' && member === undefined) {
             throw new Error(
                 'realtime: a presence admission reached the join without ' +
@@ -1704,7 +1854,7 @@ export class ChannelManager<Identity = unknown> {
         }
         // The post-check (#361): the disconnect may have begun while the
         // authorizer ran. No await from here to the join's adds.
-        this.#assertAdmissible(connection)
+        this.#assertBound(connection)
 
         // BEFORE any membership mutation, and after authorization: an
         // unauthorized subscribe is denied on its own terms, and a cap breach
@@ -1714,7 +1864,6 @@ export class ChannelManager<Identity = unknown> {
             connection.id,
             connection.identity !== null,
         )
-        this.connections.set(connection.id, connection)
 
         // `member` is set on a presence admission and nowhere else, and the
         // invariant above guarantees it there, so it IS the presence
@@ -2742,20 +2891,54 @@ export class ChannelManager<Identity = unknown> {
      * The connection stays in `connections` — still owned — until the teardown
      * ends. An id this instance does not own retires nothing.
      *
+     * **Pass the connection object from your close hook** (#363) — the third
+     * of the transport lifecycle duties `docs/realtime.md` states, and the one
+     * this JSDoc is the home of: call `disconnect(conn)` when the socket
+     * closes, with the object you registered. The object form acts only for
+     * the object that owns the id: any other object — a socket `register`
+     * refused, or one whose id was re-registered after an evict — gets
+     * `'not-owned'` before anything is retired, copied or awaited. The id form
+     * acts on whoever holds the id when it runs, which is what `evict` needs
+     * and what a late close must not do.
+     *
+     * **The teardown forgets only its own object.** Its `finally` deletes the
+     * binding and the reverse index only while the object it tore down still
+     * owns the id, so a teardown whose object was replaced while it ran — an
+     * evict, then a fast reconnect under the same id — leaves the new binding
+     * and its channels alone.
+     *
      * One channel's failure never aborts the rest: the first failure is
      * re-thrown after every channel was tried and the connection forgotten,
      * later ones are WARNed, and a failure is recorded by a flag, so a
      * rejection carrying `undefined` is re-thrown too.
      *
-     * @param clientId - The connection id.
+     * @param target - The registered connection object (from a close hook),
+     *   or a connection id (the form `evict` uses).
      * @returns `'disconnected'` when this instance owned the socket and tore it
-     *   down, `'not-owned'` when the socket lives elsewhere and nothing local
-     *   was touched.
+     *   down, `'not-owned'` when the socket lives elsewhere, or when the object
+     *   passed is not the one that owns its id — nothing local was touched.
      * @throws Whatever the first channel teardown threw — unchanged; the
      *   connection is still forgotten, and the outcome is not reported in that
      *   case because the throw is the report.
+     * @example
+     * ```ts
+     * const hooks = {
+     *     onOpen: (conn) => manager.register(conn),
+     *     // The object you registered, not `conn.id`.
+     *     onClose: (conn) => manager.disconnect(conn),
+     * }
+     * ```
      */
-    async disconnect(clientId: string): Promise<DisconnectOutcome> {
+    async disconnect(
+        target: string | Connection<Identity>,
+    ): Promise<DisconnectOutcome> {
+        // THE OBJECT FORM ACTS ONLY FOR THE OWNER (#363), asked before
+        // anything is retired, copied or awaited: a socket that does not own
+        // its id must not tear down the one that does.
+        if (typeof target !== 'string' && !this.#isOwner(target)) {
+            return 'not-owned'
+        }
+        const clientId = typeof target === 'string' ? target : target.id
         // RETIRED FIRST, before any await, from the same read that decides
         // `owned` (#361). This turn also copies the reverse index below, so a
         // join that committed before it is in the copy and torn down, and a
@@ -2821,9 +3004,14 @@ export class ChannelManager<Identity = unknown> {
             }
         } finally {
             // IN A `finally`: forgetting the connection is the one part of a
-            // disconnect that must happen whatever else did not.
-            this.#channelsByClient.delete(clientId)
-            this.connections.delete(clientId)
+            // disconnect that must happen whatever else did not — and ONLY
+            // while the object this call tore down still owns the id (#363). A
+            // different object registered under it while the loop ran (an
+            // evict, then a fast reconnect) keeps its binding and its index.
+            if (bound !== undefined && this.#isOwner(bound)) {
+                this.#channelsByClient.delete(clientId)
+                this.connections.delete(clientId)
+            }
         }
         // AFTER the teardown completed and the connection was forgotten. The
         // caller still learns the disconnect was not clean; what it no longer

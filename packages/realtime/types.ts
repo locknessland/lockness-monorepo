@@ -113,13 +113,16 @@ export interface RealtimeControlConfig {
  * **One object per socket, for the socket's whole life** (#361). A transport
  * that wires its own hooks must present the very object it passed to
  * `ChannelManager.register` on every later call for that socket, and never
- * build a fresh `Connection` per frame. A `disconnect` retires the object it
- * was given, and `register` and `subscribe` refuse a retired object with
- * `ConnectionDisconnectedError`; a fresh object built after the teardown is
- * unknown to the manager and escapes that refusal. `buildEvents` creates one
- * object per socket, so `handlerHooks` meets this for you. The other two
- * lifecycle duties — register at open, disconnect at close — are
- * `ChannelManager.register`'s and `disconnect`'s to state.
+ * build a fresh `Connection` per frame. The manager enforces it (#363): while
+ * the object it registered holds an id, `register` and `subscribe` refuse a
+ * different object under that id with `ConnectionIdInUseError`, before any
+ * authorizer runs; a retired object is refused with
+ * `ConnectionDisconnectedError`; and an object `register` never bound is
+ * refused by `subscribe` with `ConnectionNotRegisteredError` (#370).
+ * `buildEvents` creates one object per socket, so `handlerHooks` meets this for
+ * you. The other two lifecycle duties — register at open, disconnect at close
+ * with the registered object — are `ChannelManager.register`'s and
+ * `disconnect`'s to state.
  *
  * @typeParam Identity - The app's identity shape (e.g. a user id or record).
  */
@@ -130,7 +133,11 @@ export interface Connection<Identity = unknown> {
      * **It must be unguessable and never reused.** The framework's own upgrade
      * path generates `crypto.randomUUID()`, but an application wiring its own
      * transport supplies this itself, and "stable" has been read as an
-     * invitation to pass a user id or a session id. It is not.
+     * invitation to pass a user id or a session id. It is not. **The server
+     * mints it, per socket** — never from client input, and never from a user
+     * or session key (#363). An id another socket can guess or share is one it
+     * can register first, which locks its owner out; and since a live id is
+     * refused, a refusal tells the caller that id is online.
      *
      * The reason is the control plane. `manager.evict(id)` travels between
      * instances as a signed frame naming this id, and an id that is guessable
