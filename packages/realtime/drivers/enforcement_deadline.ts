@@ -1,7 +1,7 @@
 /**
  * @fileoverview The revocation enforcement deadline (#362): one timer that
- * says so, once, when no revocation pass has completed within
- * `revocationTtlSeconds` of the last success's start.
+ * says so, once, when no revocation pass has completed without failures
+ * within `revocationTtlSeconds` of the last clean pass's start (#384).
  *
  * The Redis driver promises that a revocation whose one-shot control frame
  * was lost is still applied within a bound — the one home of that bound is
@@ -12,9 +12,13 @@
  *
  * **What it judges.** Only the guarantee, never a performance value: a
  * record lives `revocationTtlSeconds`, so the guarantee is broken exactly
- * when no pass has completed within one TTL of the START of the last
- * success. The deadline is armed from that start, re-armed only by a
- * successful pass, and never by a failed one.
+ * when no pass has completed without failures within one TTL of the START of
+ * the last clean pass. The deadline is armed from that start, re-armed only
+ * by a clean pass, and never by any other (#384): which pass is clean is the
+ * driver's decision, made at its pass's end site. Every other pass that
+ * settles says so, verdict-free, through
+ * {@link EnforcementDeadline.passEnded}, so an expiry after it is `MISSED` and
+ * never blames a pass that is merely in flight.
  *
  * **What it never does.** It never frees the pass slot, never starts or
  * abandons a pass, never re-arms on EXPIRY (a stall of any length is ONE
@@ -35,24 +39,26 @@
 import { writeMarkedFallback } from '../marked_fallback.ts'
 
 /**
- * The WARN written when the deadline expires with a pass still in flight. It
- * is followed by the pass's trigger and age, and points at the command port's
- * contract, because a pass that outlives a TTL is almost always a command
- * that never settled.
+ * The WARN written when the deadline expires with a pass still in flight and
+ * no pass ended since the last clean one. It is followed by the pass's
+ * trigger and age, and points at the command port's contract, because a pass
+ * that outlives a TTL is almost always a command that never settled.
  */
 export const REVOCATION_DEADLINE_STALLED =
     'realtime: revocation deadline STALLED (#362): no revocation pass ' +
-    "completed within revocationTtlSeconds of the last success's start, and " +
-    'the pass in flight has not settled'
+    'completed without failures within revocationTtlSeconds of the last ' +
+    "clean pass's start, and the pass in flight has not settled"
 
 /**
- * The WARN written when the deadline expires with no pass in flight, and by
- * every overdue arm. Passes are failing (their own WARNs precede it), or are
+ * The WARN written when the deadline expires with no pass in flight, or after
+ * a pass ended that was not clean (#384), and by every overdue arm. Passes are
+ * failing, or completing with failures (their own WARNs precede it), or are
  * slower than the bound allows.
  */
 export const REVOCATION_DEADLINE_MISSED =
     'realtime: revocation deadline MISSED (#362): no revocation pass ' +
-    "completed within revocationTtlSeconds of the last success's start"
+    'completed without failures within revocationTtlSeconds of the last ' +
+    "clean pass's start"
 
 /**
  * The WARN written when the broker's clock advanced by at least one TTL
@@ -97,8 +103,8 @@ export interface EnforcementDeadlineOptions {
 }
 
 /**
- * The revocation enforcement deadline: one timer, re-armed by a successful
- * pass, anchored at that pass's start, and writing at most one line per
+ * The revocation enforcement deadline: one timer, re-armed by a clean pass,
+ * anchored at that pass's start, and writing at most one line per
  * episode. An expiry never re-arms it; a carried line is followed by the arm
  * it was carried through.
  *
@@ -130,6 +136,13 @@ export class EnforcementDeadline {
     #unwritten: string[] = []
     /** The reap time of the previous successful pass, in broker seconds. */
     #previousReadAt?: number
+    /**
+     * Whether a pass settled without being clean since the last clean one
+     * (#384). Set by {@link passEnded}; cleared by {@link passSucceeded} and
+     * {@link close}. An expiry while it is set writes `MISSED`, even with a
+     * pass in flight.
+     */
+    #ended = false
 
     /**
      * Build a deadline; nothing is armed until {@link arm}.
@@ -195,6 +208,7 @@ export class EnforcementDeadline {
         endedAt: number,
         readAt: number | undefined,
     ): void {
+        this.#ended = false
         const previous = this.#previousReadAt
         this.#previousReadAt = readAt
         if (
@@ -210,8 +224,23 @@ export class EnforcementDeadline {
         this.arm(this.#ttlMs - (endedAt - startedAt))
     }
 
-    /** Record that a pass settled without being clean (#384). */
-    passEnded(): void {}
+    /**
+     * Record that a pass settled without being clean (#384) — failed, or
+     * completed with a failure or a malformed tally. **Verdict-free**: it
+     * never arms, re-arms or writes. Which pass is clean is the driver's
+     * decision, at its pass's end site. It only records that the window was
+     * broken by a pass that ENDED, so an expiry after it writes `MISSED`
+     * rather than naming the pass then in flight as `STALLED` and blaming the
+     * command port. {@link passSucceeded} and {@link close} forget it.
+     *
+     * @example
+     * ```ts
+     * deadline.passEnded() // a pass completed with failures
+     * ```
+     */
+    passEnded(): void {
+        this.#ended = true
+    }
 
     /**
      * Clear the pending timer, and drop any line decided but not yet
@@ -221,12 +250,17 @@ export class EnforcementDeadline {
     close(): void {
         this.#clearTimer()
         this.#unwritten = []
+        this.#ended = false
     }
 
-    /** The line a timer that expired on its own writes, decided now. */
+    /**
+     * The line a timer that expired on its own writes, decided now: `MISSED`
+     * when no pass is in flight, or when a pass ended since the last clean
+     * one (#384); `STALLED`, naming the pass in flight, otherwise.
+     */
     #expired(): string {
         const pass = this.#inFlight()
-        if (pass === undefined) return this.#missed()
+        if (pass === undefined || this.#ended) return this.#missed()
         return `${REVOCATION_DEADLINE_STALLED} — trigger ${pass.trigger}, ` +
             `age ${this.#now() - pass.startedAt}ms. A command on the port ` +
             'never settled: every command settles is the RedisCommandClient ' +
@@ -235,8 +269,9 @@ export class EnforcementDeadline {
 
     /** The `MISSED` line. */
     #missed(): string {
-        return `${REVOCATION_DEADLINE_MISSED} — passes are failing (see the ` +
-            'WARNs before this) or slower than the bound allows, so a ' +
+        return `${REVOCATION_DEADLINE_MISSED} — passes are failing or are ` +
+            'completing with failures (see the WARNs before this), or are ' +
+            'slower than the bound allows, so a ' +
             'revocation whose control frame was lost may expire unapplied. ' +
             SEE
     }

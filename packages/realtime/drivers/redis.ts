@@ -3347,7 +3347,7 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * #362 the bound is checked**: statically at boot, where the constructor
      * refuses an interval above half of `revocationTtlSeconds`, and at runtime,
      * where the enforcement deadline says so when no pass completes within one
-     * TTL of the last success's start. Other documentation links here rather
+     * TTL of the last clean pass's start. Other documentation links here rather
      * than restating it. **A pass with a failure is not a success** (#384):
      * which passes re-arm the deadline is decided at the pass's end site, in
      * {@link #startRevocationPass}.
@@ -3444,10 +3444,17 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * registration arms it one TTL out; here, the start records the pass
      * `{ trigger, startedAt }` on {@link #passClock}, and the end — which
      * stays a `finally` and never logs — reads `endedAt`, frees the slot,
-     * takes the rerun or arms the timer, and LAST, for an `ok` pass while
-     * {@link close} has not begun, calls `passSucceeded(startedAt, endedAt,`
-     * {@link #lastReadAt}`)`; a failed or closed pass leaves the deadline
-     * alone. {@link close} clears it. **The deadline never frees the slot**:
+     * takes the rerun or arms the timer, and LAST, while {@link close} has
+     * not begun, tells the deadline how the pass ended.
+     *
+     * **Which pass is clean is decided here, and nowhere else** (#384): an
+     * `ok` pass whose record carries no malformed tally and no failure — a
+     * pass with no tally counts as none. A clean pass calls
+     * `passSucceeded(startedAt, endedAt,` {@link #lastReadAt}`)`, which
+     * re-arms; **every other settled pass** — `failed`, or `ok` with a
+     * failure or a malformed tally — calls `passEnded()`, which re-arms
+     * nothing and makes an expiry after it `MISSED`. A `closed` pass, or any
+     * pass once `close()` began, calls neither. {@link close} clears it. **The deadline never frees the slot**:
      * a pass whose command never settles holds it forever, and is reported,
      * not abandoned. An outcome that is never recorded (the pass rejected)
      * counts as failed, and the chain's last handler writes one marked ERROR
@@ -3483,12 +3490,17 @@ export class RedisBroadcastDriver implements BroadcastDriver {
                 this.#revocationRerun = undefined
                 if (rerun !== undefined) this.#startRevocationPass(rerun)
                 else this.#armRevocationReconcile()
-                if (outcome === 'ok' && !this.#closing) {
+                const clean = outcome === 'ok' &&
+                    pass.malformed !== true &&
+                    (pass.failures ?? 0) === 0
+                if (clean && !this.#closing) {
                     this.#deadline.passSucceeded(
                         startedAt,
                         endedAt,
                         this.#lastReadAt,
                     )
+                } else if (!this.#closing) {
+                    this.#deadline.passEnded()
                 }
                 this.#emitPassSample(
                     'revocation',
