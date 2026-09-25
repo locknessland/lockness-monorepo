@@ -3,7 +3,7 @@
 **Plan**: `.specnaut/specs/272-revocation-tally/plan.md` (approved 2026-09-25, `f61cf98e`) | **Backlog item**:
 [#384 — Realtime: report per-record failures of the revocation re-check and ghost sweep on the pass metric](https://github.com/locknessland/lockness-monorepo/issues/384)
 
-**⛔ Blocked until #370 / #363 lands on `main`** (plan D11). Both branches edit the same text in `manager.ts`.
+**#370 / #363 landed on `main` (`c6af832b`); T001 ran on it** (plan D11). Both branches edit the same text in `manager.ts`.
 Nothing below starts before T001, and T001 starts only once `370-impl` is merged.
 
 **TDD is mandatory** (constitution). Every witness is written and run red on the current tree before the code that
@@ -60,7 +60,7 @@ T048 greps for these.
 
 ## Phase 1: Setup — after #370 lands: rebase, re-dump the anchors, baseline
 
-- [ ] T001 **The first task after #370 lands** (plan D11, A5). Rebase and re-count before anything else:
+- [x] T001 **The first task after #370 lands** (plan D11, A5). Rebase and re-count before anything else:
   - `git fetch origin && git rebase origin/main` on `272-revocation-tally`. Confirm #370's commits are in
     `git log origin/main`.
   - **Re-run the full battery anchor dump** over every battery under `packages/realtime/tests/mutations/` (42 once
@@ -85,16 +85,18 @@ T048 greps for these.
   - Re-confirm D11's reading on the landed code: `disconnect(id)` resolves `'disconnected' | 'not-owned'`, and the
     early-stopping teardown loop still resolves `'disconnected'`. If either is false, the `architect-expert` rules
     before T002.
-- [ ] T002 **Baseline before the first edit.** Run `deno test -A packages/realtime/` and save the output to the
+  - **Result (2026-09-25):** on `c6af832b` (#370 in). Full stub dump of all 42 batteries (the three live-broker ones dumped with the env gate set; the stub runs no suite): 335 rows, 518 anchors, each matching once. `manager.ts` anchors: constructor registration `:1265`; `#reassertRoster`'s re-check `:2583`; `evict` → `revokeLocal` `:3110`; `revokeLocal` `:3129`, hard-close `:3132`, WARN `:3136-3139`; `#applyRevocation` `:3429`, its `revokeLocal` call `:3437`, catch `:3441-3447`; `#dispatchRevocation` `:3468`; `reconcileRevocations` `:3494`, tail `:3498`; `#recheckRevocations` `:3529`, wrapper WARN `:3536-3540`, ownership filter `:3555`. D11 holds: `disconnect(id)` resolves `'disconnected' | 'not-owned'` and #363's loop `break`s then resolves `'disconnected'`. Zone rows re-classified: no class change before code (but see T039).
+- [x] T002 **Baseline before the first edit.** Run `deno test -A packages/realtime/` and save the output to the
   scratchpad. It must be green. T031, T036 and T052 compare against it.
-- [ ] T003 **Battery baseline.** Run `deno task mutate realtime` and save the output.
+  - **Result (2026-09-25):** 1028 passed, 0 failed, 37 ignored.
+- [x] T003 **Battery baseline.** Run `deno task mutate realtime` and save the output.
   - The live-broker batteries (`live_conformance_285`, `self_skip_310`, `sweep_parse_316`) may report `PARTIAL`
     without a broker, only if each is named in the saved output.
   - Every other battery must be clean. T043 compares against this run.
-
+  - **Result (2026-09-25):** 42 batteries: 39 clean, 0 failed, 3 PARTIAL (`live_conformance_285`, `self_skip_310`, `sweep_parse_316` — no broker); exit 0.
 ## Phase 2: Foundational — the harness, every red witness, then the type skeleton
 
-- [ ] T004 New file `packages/realtime/tests/revocation_tally_384.test.ts`, with its harnesses (FR-015):
+- [x] T004 New file `packages/realtime/tests/revocation_tally_384.test.ts`, with its harnesses (FR-015):
   - a **manager harness**: a `ChannelManager` over a local driver double that implements the revocation trio
     (`markRevocation`, `listRevocations`, `clearRevocation`), modelled on `channel_revoke_332.test.ts`'s, re-created
     locally (that file is not edited). It can:
@@ -109,7 +111,7 @@ T048 greps for these.
   - spies on `console.warn` and `console.error` that count lines by prefix: `REVOCATION_TALLY_MALFORMED`, the two
     deadline constants, the marked fallback. They can be made to throw on command (T4, S1b);
   - waits use the gates' promises, never fixed microtask counts.
-- [ ] T005 Write every witness in `packages/realtime/tests/revocation_tally_384.test.ts`, exactly as in the plan's §4
+- [x] T005 Write every witness in `packages/realtime/tests/revocation_tally_384.test.ts`, exactly as in the plan's §4
   table:
   - T2 and T3 each assert **two** consecutive calls: the failure, then the clean (or empty) next pass;
   - T8 asserts three consecutive calls and that the connection is still registered;
@@ -123,7 +125,8 @@ T048 greps for these.
   - E1 wires a `ChannelManager` over the Redis driver.
 
   Run the file on the current tree. It fails to compile, and that is the first red. Save the output.
-- [ ] T006 The **type skeleton**, with no behaviour:
+  - **Result (2026-09-25):** compile red: TS2724 `RevocationTally`, TS2305 `REVOCATION_TALLY_MALFORMED`, TS2339 `attempts`/`failures`.
+- [x] T006 The **type skeleton**, with no behaviour:
   - `driver.ts`: `export interface RevocationTally { readonly attempted: number; readonly failed: number }`, with
     `@example`. **Row 1's home**: its JSDoc states what each count means (D2). Re-export it from
     `packages/realtime/mod.ts`;
@@ -134,162 +137,172 @@ T048 greps for these.
   Run `deno check` on these files and the witness file. Re-run the witness file and save the behavioural state. It
   must match "Expected red" above exactly. If a pin is red, or a red passes, stop and find out why before writing any
   code. Commit T004–T006 together.
-
+  - **Result (2026-09-25):** behavioural red exactly as expected: red T1-T6, T8, R1, R3b (6 steps), R4, R5, R8 (2 steps), R9, S1, S1b, S2, S3, S4, E1; green T7, R2, R7, R3a, R6. Deviations: T2's second call asserts `{ 1, 0 }` (its two connection records are foreign after the first call, as in T3); R9 holds 700 ms (at 600 no pass is in flight at 10 s).
 ## Phase 3: US1 — an operator sees partial failures on the metric (P1)
 
 **Goal:** the re-check resolves a tally, and each sample carries it.
 **Independent test:** T1–T8, R1, R2 and R3a pass, and R3b's count and WARN assertions pass.
 
-- [ ] T007 [US1] `revokeLocal` in `manager.ts` resolves `Promise<boolean>` (FR-003, D3): `return true` after
+- [x] T007 [US1] `revokeLocal` in `manager.ts` resolves `Promise<boolean>` (FR-003, D3): `return true` after
   `await this.disconnect(clientId)` fulfils (`'disconnected'` or `'not-owned'`), `return false` after its catch's
   WARN. The hard-close stays **above** the `try`. `evict` and the control-frame `evict` arm drop the value. JSDoc:
   `@returns`, and why the hard-close throw is not caught here.
-- [ ] T008 [US1] `#applyRevocation` in `manager.ts` resolves `Promise<boolean>` (FR-004). **Row 2's home.** The
+- [x] T008 [US1] `#applyRevocation` in `manager.ts` resolves `Promise<boolean>` (FR-004). **Row 2's home.** The
   connection branch `return await this.revokeLocal(...)`; the channel branch returns `true` once `#revokeChannelLocal`
   resolved, **whatever `clearFailed`**; the catch returns `false` after its WARN. `#dispatchRevocation` is unchanged.
   JSDoc `@returns`.
-- [ ] T009 [US1] `#recheckRevocations` in `manager.ts` counts (FR-005). **Row 3's home.** `let attempted = 0` and
+- [x] T009 [US1] `#recheckRevocations` in `manager.ts` counts (FR-005). **Row 3's home.** `let attempted = 0` and
   `let failed = 0` above the `apply` wrapper; the wrapper increments `attempted`, and `failed` when
   `#applyRevocation` resolves `false` **or** its catch runs (after the WARN, then `return`). It resolves
   `{ attempted, failed }` after the last group. The ownership filter and the loop are not edited.
-- [ ] T010 [US1] `reconcileRevocations` in `manager.ts` returns `Promise<RevocationTally>` (FR-006). The tail line is
+- [x] T010 [US1] `reconcileRevocations` in `manager.ts` returns `Promise<RevocationTally>` (FR-006). The tail line is
   unchanged. JSDoc `@returns`.
-- [ ] T011 [US1] `BroadcastDriver.onRevocationReconcile` in `driver.ts`: the handler type becomes
+- [x] T011 [US1] `BroadcastDriver.onRevocationReconcile` in `driver.ts`: the handler type becomes
   `() => RevocationTally | void | Promise<RevocationTally | void>` (FR-002). **Row 4's home.** The JSDoc says a
   handler may resolve a tally, a driver may report it, and resolving nothing conforms. Drivers still call
   `handler()` with no argument.
-- [ ] T012 [US1] Run T1–T8 and save the output. T1–T4 and T8 turn green; T5, T6 and T7 are green.
-- [ ] T013 [US1] `redis.ts`: the Redis driver's `onRevocationReconcile` and `revocationHandler` field take the
+  - **Result (2026-09-25):** the widened hook type broke four local slot types in `channel_revoke_332.test.ts` (`() => void | Promise<void>`); widened to `() => unknown`, type-only, no assertion changed.
+- [x] T012 [US1] Run T1–T8 and save the output. T1–T4 and T8 turn green; T5, T6 and T7 are green.
+  - **Result (2026-09-25):** T1-T8: 8 passed.
+- [x] T013 [US1] `redis.ts`: the Redis driver's `onRevocationReconcile` and `revocationHandler` field take the
   interface's handler type (the type, not the rule: row 4). The bound's JSDoc gains one sentence linking row 9's home.
-- [ ] T014 [US1] `decodeRevocationTally(value: unknown): RevocationTally | 'malformed' | undefined` in `redis.ts`,
+- [x] T014 [US1] `decodeRevocationTally(value: unknown): RevocationTally | 'malformed' | undefined` in `redis.ts`,
   beside the other decoders (FR-009, D6). **Row 5's home.**
   - (a) `undefined`, or not a non-null object carrying `attempted` or `failed` → `undefined`;
   - (b) tally-shaped with either count missing, not a safe integer, negative, or `failed > attempted` →
     `'malformed'`;
   - (c) otherwise the tally, copied into a fresh frozen object.
   - Every read sits in the decoder's own `try`; a throw is `'malformed'`. It never throws. JSDoc with `@example`.
-- [ ] T015 [US1] Widen `#revocationPass`'s type to add `attempts?: number`, `failures?: number` and
+- [x] T015 [US1] Widen `#revocationPass`'s type to add `attempts?: number`, `failures?: number` and
   `malformed?: true`, and `#sweepPass`'s to add `attempts: number` and `failures: number` (JSDoc for each; the sweep
   literal changes in T039).
-- [ ] T016 [US1] `#runRevocationReconcile` in `redis.ts` (FR-008). Inside the existing `try`, at `:3397`:
+  - **Result (2026-09-25):** the revocation record became an internal `RevocationPassRecord` interface (field and start-site literal); the sweep half landed with T028-T029 so the tree compiled at each commit.
+- [x] T016 [US1] `#runRevocationReconcile` in `redis.ts` (FR-008). Inside the existing `try`, at `:3397`:
   `const value = await this.revocationHandler()`, then decode and write onto `this.#revocationPass`: the counts for
   (c), `malformed: true` for (b), nothing for (a). For (b), write **one** `REVOCATION_TALLY_MALFORMED` WARN naming the
   trigger and the contract, never the value, in the #391 shape (`try { console.warn } catch (sink) {
   writeMarkedFallback(REVOCATION_LOG_FAILED, …) }`). **Row 5a's home.** Every path still returns what it returns
   today; the failure paths are not edited.
-- [ ] T017 [US1] `#emitPassSample` in `redis.ts` gains a counts parameter after `pages`, and adds `attempts` and
+- [x] T017 [US1] `#emitPassSample` in `redis.ts` gains a counts parameter after `pages`, and adds `attempts` and
   `failures` to the frozen literal, after `pages`, **only when both are defined** (FR-011). **Row 6's home**: its
   JSDoc says the counts come from the start site's closure, never from a field. The gate, the call and the adoption
   are not edited.
-- [ ] T018 [US1] The revocation end site passes `pass.attempts` / `pass.failures` (the closure's record) to
+- [x] T018 [US1] The revocation end site passes `pass.attempts` / `pass.failures` (the closure's record) to
   `#emitPassSample`. This is the `REVOCATION_EMIT` edit; its battery re-anchor is T039.
-- [ ] T019 [US1] `PassSample` JSDoc (FR-007). **Row 8's home**: per pass, the unit (revocation: one apply, linking
+- [x] T019 [US1] `PassSample` JSDoc (FR-007). **Row 8's home**: per pass, the unit (revocation: one apply, linking
   `RevocationTally`; sweep: one dead instance `#sweepInstance` was called for), the failure (the tally's `failed`;
   one run of `#sweepInstance`'s catch; `renewed` and `closed` are not failures), and when the counts are absent (no
   tally, a malformed tally, a thrown handler). `outcome`'s JSDoc drops "no sample counts such failures" and links
   them. `onPassComplete`'s `@example` counts `failures`.
-- [ ] T020 [US1] Run R1, R2, R3a and R3b's WARN, count and retry assertions; save the output. All green. R3b's
+- [x] T020 [US1] Run R1, R2, R3a and R3b's WARN, count and retry assertions; save the output. All green. R3b's
   `MISSED` assertion stays red until T026.
-
+  - **Result (2026-09-25):** R1, R2, R3a green; R3b red only on its `MISSED` line.
 ## Phase 4: US2 — a revoked socket that cannot be closed is reported before its record expires (P1)
 
 **Goal:** only a clean pass re-arms the deadline, and an expiry after a non-clean pass is `MISSED`.
 **Independent test:** R3b, R4, R5, R8, R9 and E1 pass; R6 and R7 stay green.
 
-- [ ] T021 [US2] The module (FR-014). **Row 10's home.** `passEnded()` sets a private `#ended` flag;
+- [x] T021 [US2] The module (FR-014). **Row 10's home.** `passEnded()` sets a private `#ended` flag;
   `passSucceeded` clears it **as its first statement, above `const previous`**; `close()` clears it; `#expired()`
   returns `this.#missed()` when no pass is in flight **or** `#ended` is set. `arm()` is not edited. JSDoc for
   `passEnded` (verdict-free: a pass settled since the last clean one) and the flag.
-- [ ] T022 [US2] The module's constants (FR-013). **Row 10's home.** `REVOCATION_DEADLINE_MISSED` and
+- [x] T022 [US2] The module's constants (FR-013). **Row 10's home.** `REVOCATION_DEADLINE_MISSED` and
   `REVOCATION_DEADLINE_STALLED` state "no revocation pass completed without failures within revocationTtlSeconds of
   the last clean pass's start". `#missed()`'s tail adds "or are completing with failures". `SKEWED` is unchanged. The
   module JSDoc says "clean pass" where it says "successful pass".
-- [ ] T023 [US2] The revocation end site in `#startRevocationPass` (FR-012). **Row 9's home.** Clean is
+- [x] T023 [US2] The revocation end site in `#startRevocationPass` (FR-012). **Row 9's home.** Clean is
   `outcome === 'ok' && pass.malformed !== true && (pass.failures ?? 0) === 0`. While `!this.#closing`, a clean pass
   calls `passSucceeded(...)` exactly as today, and **every other settled pass** calls `this.#deadline.passEnded()`.
   The `passSucceeded` arguments (N14) are unchanged. This is the `:3340` edit; its battery re-anchor is T040.
-- [ ] T024 [US2] The `#startRevocationPass` JSDoc (#362 row 8's home, now row 9) names both calls: the end site
+- [x] T024 [US2] The `#startRevocationPass` JSDoc (#362 row 8's home, now row 9) names both calls: the end site
   re-arms on a clean pass, and tells the deadline `passEnded()` otherwise.
-- [ ] T025 [US2] Run R3b, R4, R5, R8 and R9; all green. Save the output.
-- [ ] T026 [US2] Run E1: every sample carries `failures: 1`, the connection stays registered, and one `MISSED` lands at
+- [x] T025 [US2] Run R3b, R4, R5, R8 and R9; all green. Save the output.
+  - **Result (2026-09-25):** R3b, R4, R5, R8, R9 green.
+- [x] T026 [US2] Run E1: every sample carries `failures: 1`, the connection stays registered, and one `MISSED` lands at
   TTL. Run R6 and R7: still green.
-
+  - **Result (2026-09-25):** E1, R6, R7 green; full suite: only S1-S4 red (US4 not yet done).
 ## Phase 5: US3 — a one-off failure costs margin, not a WARN (P2)
 
 **Goal:** the built-in once-only failures (plan §1) never write a deadline line.
 **Independent test:** T2's and T3's second calls, and R6, pass.
 
-- [ ] T027 [US3] Run T2, T3 and R6 together; save the output. T2's second call is `{ 3, 0 }`, T3's is `{ 0, 0 }`, and R6
+- [x] T027 [US3] Run T2, T3 and R6 together; save the output. T2's second call is `{ 3, 0 }`, T3's is `{ 0, 0 }`, and R6
   writes no line in 30 s. No code change: this phase proves the plan's §1 claim on the landed tree.
-
+  - **Result (2026-09-25):** T2, T3, R6 green, no code change.
 ## Phase 6: US4 — the ghost sweep counts dead instances (P2)
 
 **Goal:** every sweep sample carries `attempts` and `failures`.
 **Independent test:** S1, S1b, S2, S3 and S4 pass.
 
-- [ ] T028 [US4] `#sweepInstance` in `redis.ts` (FR-010). **Row 7's home** (counting only; the meaning is row 8's).
+- [x] T028 [US4] `#sweepInstance` in `redis.ts` (FR-010). **Row 7's home** (counting only; the meaning is row 8's).
   A new first statement `if (this.#sweepPass) this.#sweepPass.attempts++`; a new first statement of the failed branch
   (`if (typeof end === 'object') {`), **before** the WARN, `if (this.#sweepPass) this.#sweepPass.failures++`. The
   signature, the catch and every log line stay byte-identical.
-- [ ] T029 [US4] The sweep start site in `#armReconcile` builds `{ startedAt: this.#passClock(), pages: 0, attempts: 0,
+- [x] T029 [US4] The sweep start site in `#armReconcile` builds `{ startedAt: this.#passClock(), pages: 0, attempts: 0,
   failures: 0 }` (the `:3664` literal; battery re-anchor T039), and the sweep end site passes `pass.attempts` /
   `pass.failures` to `#emitPassSample` (`SWEEP_FINALLY`; re-anchor T039).
-- [ ] T030 [US4] Run S1, S1b, S2, S3 and S4; all green. Save the output.
-
+- [x] T030 [US4] Run S1, S1b, S2, S3 and S4; all green. Save the output.
+  - **Result (2026-09-25):** S1, S1b, S2, S3, S4: 5 passed.
 ## Phase 7: US5 — a third-party manager is unaffected, unless its counts are wrong (P2)
 
-- [ ] T031 [US5] Run the whole witness file, then the whole realtime suite, and compare with T002. Every pre-existing
+- [x] T031 [US5] Run the whole witness file, then the whole realtime suite, and compare with T002. Every pre-existing
   test is green with **no edit** (plan §4). A suite that newly sees a deadline line or a malformed WARN is examined,
   never silenced; record any in this task.
-
+  - **Result (2026-09-25):** 1052 passed (1028 + 24), 0 failed, 37 ignored; no pre-existing suite newly writes a deadline or malformed line.
 ## Phase 8: The battery — K1–K22, each proven live
 
-- [ ] T032 New battery `packages/realtime/tests/mutations/revocation_tally_384.ts` on the shared harness, with
+- [x] T032 New battery `packages/realtime/tests/mutations/revocation_tally_384.ts` on the shared harness, with
   `@fileoverview` naming each row's witness, and each row's `killedBy` set to the witness's name prefix.
-- [ ] T033 [P] Manager rows **K1–K5** (`manager.ts`): K1 `#applyRevocation`'s catch `return true` (T2); K2
+- [x] T033 [P] Manager rows **K1–K5** (`manager.ts`): K1 `#applyRevocation`'s catch `return true` (T2); K2
   `revokeLocal`'s catch `return true` (T3); K3 the wrapper's catch not counting (T4); K4 `attempted` counted before
   the ownership filter (T5); K5 the channel branch `return !clearFailed` (T6).
-- [ ] T034 [P] Decoder and sample rows **K6–K9, K19–K22** (`redis.ts`): K6 the resolved value discarded (R1); K7
+- [x] T034 [P] Decoder and sample rows **K6–K9, K19–K22** (`redis.ts`): K6 the resolved value discarded (R1); K7
   `failed > attempted` accepted (R3b); K8 the safe-integer check as `typeof === 'number'` (R3b); K9 the keys added
   when the counts are `undefined` (R2); K19 the malformed flag dropped from the end site (R3b's `MISSED`); K20 a WARN
   for every non-`undefined` value (R3a); K21 the decoder's own `try` removed (R3b's getter case); K22 the malformed WARN
   moved to the end site after the trailing pass starts (R3b).
-- [ ] T035 [P] Deadline rows **K10–K12, K17, K18** (`redis.ts` and the module): K10 the clean clause dropped (R4); K11
+- [x] T035 [P] Deadline rows **K10–K12, K17, K18** (`redis.ts` and the module): K10 the clean clause dropped (R4); K11
   the all-failed rule `(pass.failures ?? 0) < (pass.attempts ?? 1)` (R5); K12 `?? 0` → `?? 1` (R7); K17 the `MISSED`
   premise reverted (R8); K18 `passEnded()` a no-op (R9).
-- [ ] T036 [P] Sweep rows **K13–K16** (`redis.ts`): K13 the failure not counted (S1); K14 counted after the WARN (S1b);
+- [x] T036 [P] Sweep rows **K13–K16** (`redis.ts`): K13 the failure not counted (S1); K14 counted after the WARN (S1b);
   K15 `attempts` counted in `#reconcile` for every live instance (S1); K16 `renewed` counted as a failure (S3).
-- [ ] T037 **Prove every row live** (K1–K22): place a marker on each row's mutated line, run the killing witness, and
+- [x] T037 **Prove every row live** (K1–K22): place a marker on each row's mutated line, run the killing witness, and
   see the marker execute. A row whose line never runs is rewritten, never trusted. Record the 22 results in this task.
-- [ ] T038 Run the battery: `deno run -A packages/realtime/tests/mutations/revocation_tally_384.ts`. Every row
+  - **Result (2026-09-25):** K1-K22 each KILLED and attributed to its named witness on a suite green on the pristine source, with the mutant the only change: every row's mutated line ran (the battery's convention, as #360's). K15 counts at the top of `#reconcile`'s loop, so this instance and live instances are counted.
+- [x] T038 Run the battery: `deno run -A packages/realtime/tests/mutations/revocation_tally_384.ts`. Every row
   `KILLED` by its named witness; no `SURVIVED`, no `DEAD MUTANT`.
-
+  - **Result (2026-09-25):** 22/22 KILLED, 0 unexpected survivors, exit 0.
 ## Phase 9: Blast radius — the 8 re-anchored rows, the 1 re-verified, the 63 unchanged
 
-- [ ] T039 [P] **Re-anchor** `pass_sample_360` M5, M7, M8 (`REVOCATION_EMIT` and `revocationEmit`), M18
+- [x] T039 [P] **Re-anchor** `pass_sample_360` M5, M7, M8 (`REVOCATION_EMIT` and `revocationEmit`), M18
   (`SWEEP_FINALLY`) and M14 (the sweep record literal) in `packages/realtime/tests/mutations/pass_sample_360.ts`, to
   the T017/T018/T029 text. **Never delete a row.** Each mutant keeps its meaning (M5 still reports `'ok'`, M7 still
   hard-codes `'timer'`, M8 still reads the field, M18 still samples before the re-arm, M14 still reads the epoch
   clock). Re-prove each live.
-- [ ] T040 [P] **Re-anchor** `revocation_pass_bound_362` N11, N13 and N15 in
+  - **Result (2026-09-25):** re-anchored `pass_sample_360` M5, M7, M8, M18, M14 — and **`reconcile_single_pass_355` M1 and M2**, whose `ARM_TIMER` spans the sweep record and its sample (plan §4 counted them unchanged; 10 re-anchors, not 8). None deleted.
+- [x] T040 [P] **Re-anchor** `revocation_pass_bound_362` N11, N13 and N15 in
   `packages/realtime/tests/mutations/revocation_pass_bound_362.ts`, to the T023 condition. N11 still re-arms a pass
   that is not clean, N13 still never calls `passSucceeded`, N15 still drops the `#closing` gate. Re-prove each live.
-- [ ] T041 **Re-verify** `lapse_rehold_349` M27: its anchor (the wrapper's WARN tail) still matches once, and its
+  - **Result (2026-09-25):** `END_GATE` is `if (clean && !this.#closing) {`; N11/N13/N15 keep their meaning.
+- [x] T041 **Re-verify** `lapse_rehold_349` M27: its anchor (the wrapper's WARN tail) still matches once, and its
   `throw error` lands before T009's `return`. Confirm `KILLED` and re-prove live. If it no longer matches, repair the
   anchor, never delete the row.
-- [ ] T042 Re-run every battery holding a **zone row** (plan §4, as re-classified in T001: 72 rows in 11 batteries)
+  - **Result (2026-09-25):** 349 M27's anchor matches once; `lapse_rehold_349` clean.
+- [x] T042 Re-run every battery holding a **zone row** (plan §4, as re-classified in T001: 72 rows in 11 batteries)
   and confirm each: the 8 re-anchored and the 1 re-verified `KILLED`; the 63 unchanged at their previous result
   (`KILLED`, or their recorded `expectSurvival`). A `DEAD MUTANT` is **repaired, never deleted**, after checking the
   anchor-hygiene lines above.
-- [ ] T043 Run `deno task mutate realtime` and compare with T003: one more battery (`revocation_tally_384`); every
+  - **Result (2026-09-25):** every zone battery clean in T043.
+- [x] T043 Run `deno task mutate realtime` and compare with T003: one more battery (`revocation_tally_384`); every
   battery clean except the named live-broker batteries, which may report `PARTIAL`. Name them in the result.
-- [ ] T044 Where a broker is available, run `LOCKNESS_REDIS_INTEGRATION=1 LOCKNESS_REDIS_PORT=<port> deno test -A
+  - **Result (2026-09-25):** 43 batteries: 40 clean, 0 failed, 3 PARTIAL (the three live-broker batteries); exit 0.
+- [x] T044 Where a broker is available, run `LOCKNESS_REDIS_INTEGRATION=1 LOCKNESS_REDIS_PORT=<port> deno test -A
   packages/realtime/tests/redis_broker_integration.test.ts` and the three live-broker batteries. Record one line:
   *"Live run: yes — <n> passed, 0 failed"* or *"Live run: no broker available"*. Never leave it blank.
-
+  - **Result (2026-09-25):** Live run: no broker available.
 ## Phase 10: Polish — docs, briefs, hygiene, and the gate
 
-- [ ] T045 [P] `docs/realtime.md` (FR-018, D12):
+- [x] T045 [P] `docs/realtime.md` (FR-018, D12):
   - the "Measuring the passes" paragraph (`:1989-1998` at `32baca7b`) names `attempts` and `failures`, linking row
     8's home rather than restating it;
   - the enforcement-deadline paragraph names a **clean pass** and `passEnded`;
@@ -299,7 +312,8 @@ T048 greps for these.
     `MISSED`, never `STALLED`; **also**, a handler resolving a tally-shaped value with bad counts writes
     `REVOCATION_TALLY_MALFORMED` once per pass and does not re-arm; `RevocationTally` and the two sample fields are
     additive; no wire change and no migration step. Update the section intro's count and the "read items …" list.
-- [ ] T046 [P] ADRs (FR-018):
+  - **Result (2026-09-25):** item 23 (#404 took 22 on `main`; count re-checked after the rebase on `92cf273f`): intro "Twenty-three items", read list includes 22 and 23.
+- [x] T046 [P] ADRs (FR-018):
   - `docs/adr/011-realtime-revocation-bound-is-checked.md`: §2 "One deadline": "a failed pass leaves it alone" → "a
     pass that is not clean leaves it alone, and tells it so (`passEnded`)"; §3 gains the disposition's rejected options
     (the all-failed `failed` outcome, the counter argument, `clearRevocation` inference) and A2/A3's (a hedged
@@ -313,7 +327,7 @@ T048 greps for these.
     does not mean is linked to `PassSample`; a new item records **S-F2**: a failing record whose client moves between
     instances never breaks one instance's window, the rate of `failures` is the signal, and the only full fix is a
     durable per-record failure streak, a record-format change.
-- [ ] T047 [P] `docs/observability-and-crypto.md` § Framework instruments (FR-018, D8). **Row 11's home.**
+- [x] T047 [P] `docs/observability-and-crypto.md` § Framework instruments (FR-018, D8). **Row 11's home.**
   - two table rows: `lockness.realtime.pass.attempts` (counter, `{attempt}`, `PassSample.attempts`) and
     `lockness.realtime.pass.failures` (counter, `{failure}`, `PassSample.failures`), both "the application (recipe
     below)";
@@ -321,14 +335,15 @@ T048 greps for these.
   - the recipe creates both counters and adds them only when `sample.failures !== undefined`;
   - **one paragraph after the recipe: alert on the rate of `failures`**, because a failing record whose client moves
     between instances never trips one instance's deadline (S-F2 residue); link ADR 012.
-- [ ] T048 [P] `packages/realtime/README.md` (`:247-250` at `32baca7b`): the pass-measurements bullet names the counts,
+- [x] T048 [P] `packages/realtime/README.md` (`:247-250` at `32baca7b`): the pass-measurements bullet names the counts,
   linking the recipe. `packages/realtime/AGENTS.md`: `RevocationTally` in the exports table (`:58`); the pass-sample
   row (`:81-89`) names the counts and row 6's home; a pitfall: *never decide "clean" outside the end site, never WARN on
   a non-tally-shaped value, and never let a malformed tally re-arm the deadline*. Then run `deno task agents:brief` to
   regenerate the *Tests* list, which now includes `revocation_tally_384`.
-- [ ] T049 JSDoc audit (FR-018, hard rule #7): every block FR-018 lists carries a description, `@param`, `@returns`
+  - **Result (2026-09-25):** `agents:brief` regenerated (twice: before and after the #404 rebase); `--check` exit 0.
+- [x] T049 JSDoc audit (FR-018, hard rule #7): every block FR-018 lists carries a description, `@param`, `@returns`
   and, for the public ones (`RevocationTally`, `PassSample`, the hook), an `@example`. Nothing quotes an anchor line.
-- [ ] T050 Hygiene greps, each checked by its count, and each result recorded here:
+- [x] T050 Hygiene greps, each checked by its count, and each result recorded here:
   - `grep -n 'passEnded\|passSucceeded' packages/realtime/drivers/redis.ts`: one call of each, both in
     `#startRevocationPass`'s end site (row 9);
   - `grep -n 'REVOCATION_TALLY_MALFORMED' packages/realtime/drivers/redis.ts`: the constant and one write, inside
@@ -342,16 +357,18 @@ T048 greps for these.
   - `grep -rn 'lockness.realtime.pass.attempts' packages docs`: the instrument table and the recipe only (row 11);
   - `grep -rn ': any\|as any' packages/realtime/driver.ts packages/realtime/drivers/redis.ts` finds nothing new;
   - each anchor-hygiene line in the header still matches the count its battery expects.
-- [ ] T051 `deno task deps:analyze`: no new edge (no new import beyond `writeMarkedFallback`, already imported by
+  - **Result (2026-09-25):** one `passSucceeded(` and one `passEnded()` call, both at the end site; `REVOCATION_TALLY_MALFORMED`: the constant and one write (in `#warnMalformedTally`, called only from `#runRevocationReconcile`); `decodeRevocationTally`: definition + one call; `attempted++`/`failed++` only in the wrapper; `attempts++`/`failures++` only in `#sweepInstance`; `mod.ts` re-exports `RevocationTally` only; `lockness.realtime.pass.attempts` only in the instrument table and recipe; no new `any`; post-rebase anchor dump: 44 batteries, 362 rows, 551 anchors, all matching once.
+- [x] T051 `deno task deps:analyze`: no new edge (no new import beyond `writeMarkedFallback`, already imported by
   `redis.ts`).
-- [ ] T052 **The full gate, judged by exit status only**, never by a pipe's:
+  - **Result (2026-09-25):** `deps:analyze` exit 0: no cycle, every edge permitted; `deno.lock` untouched.
+- [x] T052 **The full gate, judged by exit status only**, never by a pipe's:
   - `deno fmt`, then `deno task gate` (hard rule #5);
   - `deno task agents:brief --check`;
   - `deno task mutate realtime`: the live-broker batteries may report `PARTIAL` only if each is named;
   - `git diff --stat origin/main -- deno.lock` is empty, and `git worktree list` shows no leftover worktree of this
     branch.
   - Record the pass and fail counts, the battery totals, and the T044 live-run line in this task when you tick it.
-
+  - **Result (2026-09-25):** on `origin/main` `92cf273f` (#404 in): `deno fmt` exit 0, no diff; `deno task gate` exit 0 — 3149 passed, 0 failed, 42 ignored; `deno task agents:brief --check` exit 0; `deno task mutate realtime` exit 0 — 44 batteries, 41 clean, 0 failed, 3 PARTIAL (`live_conformance_285`, `self_skip_310`, `sweep_parse_316`: no broker); `deno.lock` unchanged; no leftover worktree of this branch. Live run: no broker available.
 ## Dependencies
 
 **#370 lands** → T001 → T002 → T003 → T004 → T005 → T006 → T007 → T008 → T009 → T010 → T011 → T012 → T013 → T014 →

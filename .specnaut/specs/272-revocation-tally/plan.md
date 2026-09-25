@@ -441,6 +441,7 @@ provisional until then.
   - `lapse_rehold_349` (4): M19, M20, M21, M33 — `#reassertRoster` is untouched;
   - `channel_revoke_332` (2), `log_encoding_291` (2: `revokeLocal`'s WARN, above FR-003's return),
     `apply_revocation_376` (1: M1, the `.catch` on a `Promise<boolean>`), `sweep_paging_358` (1: M9).
+- **Amended at implementation (2026-09-25, T039):** `reconcile_single_pass_355` M1 and M2 anchor the whole `#armReconcile` callback (`ARM_TIMER`), which now holds the sweep record's counts and the sample's count arguments, so they were re-anchored too: **10 re-anchored rows, not 8**. Both keep their mutants and stay KILLED.
 - **Nothing anchors** in `#expired()` (`enforcement_deadline.ts:224-226`) or `close()`, the two
   other sites FR-014 edits.
 
