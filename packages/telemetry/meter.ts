@@ -15,6 +15,21 @@
 
 import { type Meter, metrics } from '@opentelemetry/api'
 
+/**
+ * The OpenTelemetry meter {@link getMeter} returns, re-exported so an
+ * application can type a meter it passes around without importing
+ * `@opentelemetry/api` itself.
+ *
+ * @example
+ * ```typescript
+ * import { getMeter, type Meter } from '@lockness/telemetry'
+ *
+ * function jobCounter(meter: Meter) {
+ *     return meter.createCounter('my_app.jobs', { unit: '{job}' })
+ * }
+ * jobCounter(getMeter('my-app')).add(1)
+ * ```
+ */
 export type { Meter }
 
 /**

@@ -599,7 +599,11 @@ space. `REVOCATION_SCAN_COUNT` and `OWNED_SCAN_COUNT` are both 100 (`:201`, `:14
   value. A mutant that moved it past a statement able to throw would be a
   different mutant (an ordering-vs-exception one), not this rule, and none of
   `#armReconcile`, `#startRevocationPass`(rerun) or the field resets can
-  throw.
+  throw. The read cannot move past the revocation site's
+  `#deadline.passSucceeded(startedAt, endedAt, …)` / `passEnded()` call at
+  all: `passSucceeded` takes `endedAt` as an argument, so the stretch a
+  mutant can reorder ends there, and a rerun's own `#passClock()` read
+  returns the same FakeTime value.
 
 **Blast radius: existing battery rows.** Counted on `main` at `f697c100`.
 
