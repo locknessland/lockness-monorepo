@@ -337,9 +337,9 @@ greps for all of these.
   - M1's replacement keeps its one-reply read and needs no key change. Confirm that it still compiles as a mutant.
   - M7's replacement text (`:244-249`) re-sends the reap in the **two-key** form.
   - Re-prove M1 and M7 live against `revocation_paging_359.test.ts`.
-- [ ] T041 **Re-verify the held rows.** #362 N17 (the arm line) and N32 (`if (first && !this.#closing) {`) must be
+- [x] T041 **Re-verify the held rows.** #362 N17 (the arm line) and N32 (`if (first && !this.#closing) {`) must be
   `KILLED` unchanged. If either is `DEAD`, T024 broke the byte-identity; repair T024, never the row.
-- [ ] T042 Re-run every battery whose witness went red during the migration, and confirm each is clean:
+- [x] T042 Re-run every battery whose witness went red during the migration, and confirm each is clean:
   - `revocation_paging_359`;
   - `pass_sample_360`;
   - `revocation_pass_bound_362`;
@@ -348,13 +348,13 @@ greps for all of these.
   - `live_conformance_285`: its Lua and fake rows are unaffected, because `MARK_REVOKED_SCRIPT` is unchanged.
 
   A `DEAD MUTANT` is **repaired, never deleted**, under "the source moved, the guard remains" (`docs/testing.md`).
-- [ ] T043 Run `deno task mutate realtime` and compare it with T003. There must be one more battery
+- [x] T043 Run `deno task mutate realtime` and compare it with T003. There must be one more battery
   (`revocation_ttl_floor_380`). Every battery is clean, except the named live-broker batteries, which may report
   `PARTIAL` without a broker. Name them in the result.
 
 ## Phase 11: Live parity
 
-- [ ] T044 Add two rows to `packages/realtime/tests/live_fake_conformance.test.ts`, `ignore: !LIVE_BROKER` like their
+- [x] T044 Add two rows to `packages/realtime/tests/live_fake_conformance.test.ts`, `ignore: !LIVE_BROKER` like their
   neighbours (FR-018):
   - **WC a:** after one reap on a live broker and on the fake, the floor reads back the same members and scores
     (`ZRANGEBYSCORE … -inf +inf WITHSCORES`, read raw by the **test only**) and the same key TTL band;
@@ -366,14 +366,15 @@ greps for all of these.
   - *"Live run: no broker available — WC a and WC b are unverified live; the default gate ignores them."*
 
   Never leave it blank, and never claim a live pass from a run that ignored the suite.
+  - _Live run: no broker available — WC a and WC b are unverified live; the default gate ignores them._
 
 ## Phase 12: Polish — rebase, ADR, docs, the brief, and the gate
 
-- [ ] T045 **Rebase again** onto `origin/main` before any docs task, because #370 may have landed.
+- [x] T045 **Rebase again** onto `origin/main` before any docs task, because #370 may have landed.
   - `git diff <T001 base> -- packages/realtime/drivers` must still be empty apart from this branch's own changes.
   - Resolve an `AGENTS.md` conflict in a generated list with `deno task agents:brief`, never by hand.
   - Re-run the realtime suite green after the rebase.
-- [ ] T046 [P] JSDoc audit (FR-020, hard rule #7). Confirm each of these carries a description, `@param`, `@returns`,
+- [x] T046 [P] JSDoc audit (FR-020, hard rule #7). Confirm each of these carries a description, `@param`, `@returns`,
   `@throws` and `@example` where they apply:
   - `revocationFloorKey`, `FLOOR_WRITE` (its two callers), `ANNOUNCE_FLOOR_SCRIPT`;
   - `decodeRevocationFloor` and `MAX_REVOCATION_TTL_SECONDS`;
@@ -407,7 +408,7 @@ greps for all of these.
   - §5 gains `> **Amended by [ADR <NNN>](<NNN>-realtime-revocation-ttl-floor.md)**`.
 
   Its body is **not** rewritten.
-- [ ] T049 [P] `docs/realtime.md`, the operator statement and the prose that records a state:
+- [x] T049 [P] `docs/realtime.md`, the operator statement and the prose that records a state:
   - **the revocation-timing paragraph** (`#revocation-timing`, `:1617-1636`) gains the **one operator statement** of
     the floor. **Row 15's home.** A record lives at least the writer's `revocationTtlSeconds`, up to the longest TTL
     among the instances that have reaped within their own TTL. One instance can no longer shorten records on its own.
@@ -417,7 +418,7 @@ greps for all of these.
     live TTL is **enforced** by the floor (ADR <NNN>), and it keeps the mixed-release caveat.
 
   None of them restates the statement; they link it.
-- [ ] T050 `docs/realtime.md` § *Upgrading to v0.4.0*: add the new item. This runs after T049, because it edits the
+- [x] T050 `docs/realtime.md` § *Upgrading to v0.4.0*: add the new item. This runs after T049, because it edits the
   same file.
   - First, count the `### <n>.` headings: 19 on `32baca7b`, and 21 once #370 lands. The new item is **22**, unless
     another item has landed.
@@ -433,9 +434,9 @@ greps for all of these.
   - **The intro** gets the new count. "One new Redis key family" becomes "two new Redis keys", and the item is named
     among the observable ones.
   - **Item 3** gains one line linking the new item.
-- [ ] T051 [P] Add one clause to the #362 bullet in `packages/realtime/README.md`, linking the timing paragraph.
+- [x] T051 [P] Add one clause to the #362 bullet in `packages/realtime/README.md`, linking the timing paragraph.
   Nothing is restated (row 15).
-- [ ] T052 [P] Update `packages/realtime/AGENTS.md`:
+- [x] T052 [P] Update `packages/realtime/AGENTS.md`:
   - the **bounded-read inventory** (`:614-622`, S4) gains: *revocation floor → unbounded, small by construction (one
     member per distinct live TTL); `MAX_REPLY_BYTES` is the backstop; an oversized reply is a read failure → MAX
     TTL*. **Row 14's home;**
@@ -447,7 +448,7 @@ greps for all of these.
     `revocation_wire.ts`.
 
   In `packages/realtime/marked_fallback.ts:5`, reword "Seven sinks in this package …" so it names no number.
-- [ ] T053 Hygiene greps, each checked by its count:
+- [x] T053 Hygiene greps, each checked by its count:
   - `grep -c 'revocation-floor' packages/realtime/drivers/redis.ts` finds the getter only, not a literal at a call
     site (row 4);
   - `grep -n "'ZADD', floor" packages/realtime/drivers/redis.ts` finds `FLOOR_WRITE` only (row 5);
@@ -462,8 +463,8 @@ greps for all of these.
     `#announceFloor`, only in `#warnFloor` (row 11);
   - the anchor-hygiene lines in the header each still match the count their battery expects;
   - `grep -n 'Seven\|seven sinks' packages/realtime/marked_fallback.ts packages/realtime/AGENTS.md` prints nothing.
-- [ ] T054 `deno task deps:analyze` shows no new edge (`renderError` and `writeMarkedFallback` are already imported).
-- [ ] T055 **The full gate, judged by exit status only**, never by a pipe's:
+- [x] T054 `deno task deps:analyze` shows no new edge (`renderError` and `writeMarkedFallback` are already imported).
+- [x] T055 **The full gate, judged by exit status only**, never by a pipe's:
   - `deno fmt`, then `deno task gate`;
   - `deno task agents:brief --check`;
   - `deno task mutate realtime`: the live-broker batteries may report `PARTIAL` only if each is named, as
@@ -471,6 +472,13 @@ greps for all of these.
   - Confirm that `git diff --stat origin/main -- deno.lock` is empty, and that `git worktree list` shows no leftover
     worktree of this branch.
   - Record the pass and fail counts, the battery totals, and the T044 live-run line in this task when you tick it.
+  - _Done, on `origin/main` `92cf273f` (#370, #404 landed):_ `deno task gate` exit 0 — 3152 passed, 0 failed, 44
+    ignored. `deno task agents:brief --check` clean. `deno task mutate realtime` exit 0 — 44 batteries, 41 clean,
+    0 failed, 3 `PARTIAL` (no broker): `live_conformance_285`, `self_skip_310`, `sweep_parse_316`. The new
+    `revocation_ttl_floor_380` battery: N1–N28 all `KILLED`, attributed. Re-anchored, never deleted: #359 M1's
+    `REAP` and M7 (two-key reap), #359 M21 (the floor decoder repeats `skipped++`/`continue`), #362 N22/N23 (the
+    hoisted `MAX_REVOCATION_TTL_SECONDS`). #362 N17/N32 killed unchanged. Live run: no broker (T044). ADR 013; the
+    upgrade item is **23**, because #404 took 22. `deno.lock` untouched.
 
 ## Dependencies
 
