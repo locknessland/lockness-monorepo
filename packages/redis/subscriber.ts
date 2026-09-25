@@ -729,11 +729,19 @@ export class RedisSubscribeConnection {
      * removal alone is sufficient, because the next activation issues from that
      * set.
      *
+     * **On a failed write this socket is discarded and a reconnect is
+     * scheduled — the same treatment every other write on this connection
+     * already gets** (#372). `writeFrame` may leave bytes on the wire on
+     * rejection (`resp.ts`'s own `@throws`), so the desync is never left open:
+     * the rejection still reaches the caller, and the reconnect re-issues only
+     * the patterns still wanted, never the one this call just retired.
+     *
      * @param pattern - The pattern to stop receiving.
      * @returns Resolves once the frame has reached the socket, or at once when
      *   no socket is live.
      * @throws {Error} If called after {@link close}, or if the frame could not
-     *   be written.
+     *   be written — the socket is discarded and a retry is scheduled either
+     *   way.
      * @example
      * ```typescript
      * await sub.punsubscribe('app__event:orders')
@@ -749,11 +757,32 @@ export class RedisSubscribeConnection {
         this.#priority.delete(name)
         const generation = this.#generation
         if (!generation) return Promise.resolve()
+        const conn = generation.conn
         // CO-TURN: retire, then enqueue, with nothing awaited between them.
         // `#write` reaches the queue synchronously, so the erasure and its frame
         // are ordered together on the chain.
         generation.retire(name)
-        return this.#write(generation.conn, encodeCommand([verb, name]))
+        return this.#write(conn, encodeCommand([verb, name])).catch(
+            (error: unknown) => {
+                // GATED ON IDENTITY, exactly as `#discardSocket` and
+                // `#scheduleRetry` already require of every other caller. A
+                // rejection here can be `ABANDONED_WRITE` — this generation
+                // already superseded by its own reconnect — and that reconnect
+                // already owns the discard and the retry; repeating either one
+                // would tear down, or arm a spurious retry against, a LIVE
+                // replacement generation that never wrote this frame.
+                if (this.#generation?.conn === conn) {
+                    // Read BEFORE the discard, which nulls `loopConn` when it
+                    // matches — the same ordering `#activate`'s catch uses for
+                    // `wasDelivering`, and for the same reason: discarding
+                    // first would make this always read false.
+                    const wasDelivering = this.loopConn === conn
+                    this.#discardSocket(conn)
+                    this.#scheduleRetry(wasDelivering, error)
+                }
+                throw error
+            },
+        )
     }
 
     /**
