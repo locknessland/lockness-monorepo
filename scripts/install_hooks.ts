@@ -12,15 +12,33 @@
  * or from another worktree's shell, `GIT_DIR` and friends would otherwise point
  * the query at a different repository than the one the installer runs in.
  *
+ * It refuses, rather than reports a success that would not hold, in two cases:
+ * `core.hooksPath` is set (git would never run hooks from the common dir), or a
+ * hook it would replace was not written by this installer (it would be lost).
+ *
  * @module
  */
 
 import { isAbsolute, join, resolve } from '@std/path'
 import { gitEnvFromCwd } from '@mutations/harness.ts'
 
+/** The line that marks a hook as written by this installer. */
+export const HOOK_MARKER =
+    '# Installed by `deno task hooks:install` (Lockness).'
+
+/**
+ * Openings of hooks this installer wrote before {@link HOOK_MARKER} existed,
+ * so an existing Lockness install is upgraded rather than refused.
+ */
+const LEGACY_OPENINGS = [
+    '#!/bin/bash\n# Pre-commit: type-check, lint, and format THE STAGED FILES',
+    '#!/bin/bash\n# Pre-push: runs `deno task gate`',
+]
+
 /** The hook scripts, by hook name. */
 export const hooks: Record<string, string> = {
     'pre-commit': `#!/bin/bash
+${HOOK_MARKER}
 # Pre-commit: type-check, lint, and format THE STAGED FILES, then re-stage them.
 #
 # The previous version ran \`deno fmt\` and \`deno lint --fix\` across the whole
@@ -65,6 +83,7 @@ deno fmt --check
 echo "✅ Pre-commit checks passed!"
 `,
     'pre-push': `#!/bin/bash
+${HOOK_MARKER}
 # Pre-push: runs \`deno task gate\`, the quality gate defined in deno.jsonc.
 exec deno task gate
 `,
@@ -75,22 +94,31 @@ exec deno task gate
  * contains `cwd`.
  *
  * @param cwd - A directory inside the repository (main checkout or worktree).
+ * @param env - The environment for `git`; defaults to this process's without
+ *   its `GIT_*` variables.
  * @returns The absolute path of `<git common dir>/hooks`.
- * @throws {Error} When `cwd` is not inside a git repository.
+ * @throws {Error} When `cwd` is not inside a git repository, or when
+ *   `core.hooksPath` is set — git would then never run hooks from there.
  * @example
  * ```ts
  * await resolveHooksDir('/repo/.claude/worktrees/agent-x')   // '/repo/.git/hooks'
  * ```
  */
-export async function resolveHooksDir(cwd: string): Promise<string> {
-    const run = await new Deno.Command('git', {
-        args: ['rev-parse', '--git-common-dir'],
-        cwd,
-        clearEnv: true,
-        env: gitEnvFromCwd(),
-        stdout: 'piped',
-        stderr: 'piped',
-    }).output()
+export async function resolveHooksDir(
+    cwd: string,
+    env: Record<string, string> = gitEnvFromCwd(),
+): Promise<string> {
+    const git = (args: string[]) =>
+        new Deno.Command('git', {
+            args,
+            cwd,
+            clearEnv: true,
+            env,
+            stdout: 'piped',
+            stderr: 'piped',
+        }).output()
+
+    const run = await git(['rev-parse', '--git-common-dir'])
     if (!run.success) {
         const stderr = new TextDecoder().decode(run.stderr).trim()
         throw new Error(
@@ -101,14 +129,53 @@ export async function resolveHooksDir(cwd: string): Promise<string> {
     // Relative to `cwd` from the main checkout (`.git`), absolute from a
     // linked worktree. Normalise both.
     const absolute = isAbsolute(common) ? common : resolve(cwd, common)
-    return join(absolute, 'hooks')
+    const hooksDir = join(absolute, 'hooks')
+
+    // `git config --get` exits 1 when the key is unset; 0 means it is set.
+    const configured = await git(['config', '--get', 'core.hooksPath'])
+    if (configured.code === 0) {
+        const value = new TextDecoder().decode(configured.stdout).trim()
+        throw new Error(
+            `core.hooksPath is set (${value}), so git would never run hooks ` +
+                `installed in ${hooksDir}. Unset it with ` +
+                '`git config --unset core.hooksPath` and re-run.',
+        )
+    }
+    if (configured.code !== 1) {
+        throw new Error(
+            `git config --get core.hooksPath exited ${configured.code}: ${
+                new TextDecoder().decode(configured.stderr).trim()
+            }`,
+        )
+    }
+    return hooksDir
+}
+
+/**
+ * Whether an existing hook file was written by this installer.
+ *
+ * @param content - The hook's current content.
+ * @returns `true` when it is safe to overwrite.
+ * @example
+ * ```ts
+ * isLocknessHook(hooks['pre-push'])        // true
+ * isLocknessHook('#!/bin/sh\nhusky run')   // false
+ * ```
+ */
+export function isLocknessHook(content: string): boolean {
+    return content.includes(HOOK_MARKER) ||
+        LEGACY_OPENINGS.some((opening) => content.startsWith(opening))
 }
 
 /**
  * Write every hook into `hooksDir` and make it executable.
+ * Nothing is written unless every hook can be: a hook that exists and was not
+ * written by this installer makes the whole install refuse, so a foreign hook
+ * is never silently destroyed.
  *
  * @param hooksDir - The directory from {@link resolveHooksDir}.
  * @returns The paths written, in hook order.
+ * @throws {Error} When an existing hook was not written by this installer.
  * @example
  * ```ts
  * await installHooks(await resolveHooksDir(Deno.cwd()))
@@ -116,6 +183,23 @@ export async function resolveHooksDir(cwd: string): Promise<string> {
  */
 export async function installHooks(hooksDir: string): Promise<string[]> {
     await Deno.mkdir(hooksDir, { recursive: true })
+
+    const foreign: string[] = []
+    for (const name of Object.keys(hooks)) {
+        const hookPath = join(hooksDir, name)
+        const existing = await Deno.readTextFile(hookPath).catch(() => null)
+        if (existing !== null && !isLocknessHook(existing)) {
+            foreign.push(hookPath)
+        }
+    }
+    if (foreign.length > 0) {
+        throw new Error(
+            `refusing to overwrite hook(s) not written by this installer: ` +
+                `${foreign.join(', ')}. Move them aside (or merge them into ` +
+                'scripts/install_hooks.ts) and re-run. Nothing was written.',
+        )
+    }
+
     const written: string[] = []
     for (const [name, content] of Object.entries(hooks)) {
         const hookPath = join(hooksDir, name)
@@ -128,14 +212,16 @@ export async function installHooks(hooksDir: string): Promise<string[]> {
 
 if (import.meta.main) {
     let hooksDir: string
+    let written: string[]
     try {
         hooksDir = await resolveHooksDir(Deno.cwd())
+        written = await installHooks(hooksDir)
     } catch (error) {
-        console.error(`❌ ${(error as Error).message}. Run: git init`)
+        console.error(`❌ ${(error as Error).message}`)
         Deno.exit(1)
     }
 
-    for (const path of await installHooks(hooksDir)) {
+    for (const path of written) {
         console.log(`✅ Installed ${path.split('/').pop()} hook`)
     }
 
