@@ -624,6 +624,15 @@ field means.
   making `handlerHooks.onClose` pass `conn.id`. Witness:
   `register_only_admission_370.test.ts`; battery
   `tests/mutations/register_only_admission_370.ts`.
+- **`handlerHooks` runs the app's `onClose` once per socket whose `onOpen` ran**
+  ([#404](https://github.com/locknessland/lockness-monorepo/issues/404)) —
+  evicted ones included, refused ones never. The pairing is a closure-local
+  `WeakSet` of opened objects; its comment in `handlerHooks` and ADR 010 §7 hold
+  why. The pitfalls: gating that hook on `#isOwner` (an evicted socket loses its
+  hook); `has` instead of `delete` (a second close runs it again); the `add`
+  above `register` (a refused socket counts as opened); and asking the set who
+  owns an id. Witness: `onclose_pairing_404.test.ts`; battery
+  `tests/mutations/onclose_pairing_404.ts`.
 - **Every realtime reply that grows with a collection has a named bound** — the
   inventory for `MAX_REPLY_BYTES`'s rule (`@lockness/redis`, `resp.ts`: the
   caller bounds the reply; the cap is a backstop that costs the whole socket).
@@ -988,7 +997,7 @@ field means.
 
 <!-- generated:tests -->
 
-90 test files for 24 source files:
+91 test files for 24 source files:
 
 - `packages/realtime/tests/apply_revocation_376.test.ts`
 - `packages/realtime/tests/authorize_denial_331.test.ts`
@@ -1036,6 +1045,7 @@ field means.
 - `packages/realtime/tests/member_info_bound_326.test.ts`
 - `packages/realtime/tests/memory_driver.test.ts`
 - `packages/realtime/tests/mixed_fleet_332.test.ts`
+- `packages/realtime/tests/onclose_pairing_404.test.ts`
 - `packages/realtime/tests/origin.test.ts`
 - `packages/realtime/tests/pass_sample_360.test.ts`
 - `packages/realtime/tests/prefix_anchoring.test.ts`
@@ -1081,7 +1091,7 @@ field means.
 - `packages/realtime/tests/websocket.test.ts`
 - `packages/realtime/tests/websocket_close_guard_369.test.ts`
 
-42 mutation batteries — **`deno test` does not run these.** Each is an
+43 mutation batteries — **`deno test` does not run these.** Each is an
 executable that mutates a source file and re-runs the suites that should notice.
 Run them with `deno task mutate` (all of them, one at a time) or
 `deno task mutate <name>` (one); nightly CI runs the full sweep. See
@@ -1101,6 +1111,7 @@ Run them with `deno task mutate` (all of them, one at a time) or
 - `packages/realtime/tests/mutations/log_encoding_291.ts`
 - `packages/realtime/tests/mutations/manager_debt_353.ts`
 - `packages/realtime/tests/mutations/marked_fallback_391.ts`
+- `packages/realtime/tests/mutations/onclose_pairing_404.ts`
 - `packages/realtime/tests/mutations/pass_sample_360.ts`
 - `packages/realtime/tests/mutations/prefix_288.ts`
 - `packages/realtime/tests/mutations/presence_eviction_334.ts`
@@ -1143,7 +1154,7 @@ deno task gate             # the full gate, as the pre-push hook runs it
 deno task agents:brief     # refresh this file's generated blocks
 ```
 
-Then, specific to this package: run its 90 test files directly —
+Then, specific to this package: run its 91 test files directly —
 
 ```bash
 deno test -A packages/realtime/

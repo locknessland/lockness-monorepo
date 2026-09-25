@@ -551,11 +551,12 @@ miss:
 **If you wire your own transport without `handlerHooks`**, one gap is yours to
 close: never run application code for a socket whose `register` was refused — in
 particular never call `unsubscribe(conn.id, …)` for it, which acts on the id and
-so on whoever holds it. `handlerHooks` narrows that gap for you: its `onMessage`
-runs your hook only for the socket that owns its id. **Your `onClose` still runs
-for every socket**, a refused or evicted one included — so on `handlerHooks`
-too, never act on `conn.id` there; ask `disconnect(conn)`'s outcome instead. Why
-the manager enforces these rules the way it does is
+so on whoever holds it. `handlerHooks` closes that gap for you: its `onMessage`
+runs your hook only for the socket that owns its id, and **your `onClose` runs
+exactly once for each socket whose `onOpen` ran — evicted ones included, refused
+ones never.** If your transport reuses ids, an evicted socket's id may already
+be someone else's, so still never act on `conn.id` there. Why the manager
+enforces these rules the way it does is
 [ADR 010](adr/010-realtime-disconnect-retires-the-connection-object.md).
 
 **Your ids owe it two rules.** `manager.evict(id)` names a connection id in a
@@ -2236,7 +2237,7 @@ inject an out-of-charset name or reach an unauthorized local connection.
 
 ## Upgrading to v0.4.0
 
-Twenty-one items. Fifteen are breaking changes — the driver revocation seam, the
+Twenty-two items. Sixteen are breaking changes — the driver revocation seam, the
 presence snapshot a subscribe returns, the driver roster seam, presence frames
 announced per member rather than per connection, an authorizer result outside
 its contract now throwing, a presence member id that is not a string or a finite
@@ -2246,13 +2247,14 @@ now checked as a presence member, no connection receiving `joined` or `left` for
 its own member id, a presence member over its byte bound now throwing, a
 disconnected connection now refused at admission, a Redis revocation timing the
 driver cannot enforce now refused at boot, `subscribe` now requiring `register`,
-and an id held by a live connection now refused — plus two widened return types,
-one new control kind, one additive wire field and one additive getter. Item 16
-changes no behaviour: it corrects earlier guidance. Item 19 is observable, not
-breaking: a malformed sweep reply now logs a WARN. **No migration step, and one
-new Redis key family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11,
-12, 13, 14, 15, 16, 17, 18, 19, 20 and 21 — and items 2 and 7 if you wrote your
-own driver.
+an id held by a live connection now refused, and a refused socket no longer
+getting your `onClose` — plus two widened return types, one new control kind,
+one additive wire field and one additive getter. Item 16 changes no behaviour:
+it corrects earlier guidance. Item 19 is observable, not breaking: a malformed
+sweep reply now logs a WARN. **No migration step, and one new Redis key
+family.** Before you deploy, read items 1, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14,
+15, 16, 17, 18, 19, 20, 21 and 22 — and items 2 and 7 if you wrote your own
+driver.
 
 ### 1. Upgrade every instance before you rely on `revokeChannel`
 
@@ -3022,7 +3024,8 @@ manager.register(b) // ConnectionIdInUseError
 - **`disconnect(conn)` is owner-scoped.** Pass the object from your close hook:
   it acts only for the object that owns its id, and returns `'not-owned'` for
   any other. `disconnect(conn.id)` still acts on whoever holds the id — so a
-  refused socket's close would still tear down the live one.
+  refused socket's close would still tear down the live one, on a transport of
+  your own (on `handlerHooks`, see item 22).
 - **`handlerHooks.onMessage` skips frames from a socket that does not own its
   id** — a refused socket, or one already torn down. Your hook is not called for
   them.
@@ -3036,6 +3039,24 @@ Apps on `handlerHooks` with framework ids see no change.
 > Widen the override to `disconnect(target: string | Connection<Identity>)` and
 > pass the object form through to `super.disconnect(target)`; an override that
 > reads `target` as a string will key its own work on `[object Object]`.
+
+### 22. A refused socket no longer gets your `onClose`
+
+**Before**, `handlerHooks` ran your `onClose` for a socket whose `register` was
+refused ([#404](https://github.com/locknessland/lockness-monorepo/issues/404)) —
+on a custom transport that reuses connection ids, a second socket presenting a
+live id. An id-form verb there (`unsubscribe(conn.id, …)`,
+`disconnect(conn.id)`) landed on the live owner of that id, and a counter you
+keep in `onOpen` / `onClose` was decremented for a socket it never counted.
+
+**After**, your `onClose` runs exactly once for each socket whose `onOpen` ran —
+evicted ones included, refused ones never. A second close of the same socket
+runs it no more. The framework still disconnects on every close, and your
+`onError` still hears a refused socket.
+
+If your transport reuses ids, an evicted socket's id may already be someone
+else's, so still never act on `conn.id` in `onClose`. Apps on `handlerHooks`
+with framework ids see no change. No wire change, and no migration step.
 
 ## Upgrading to v0.3.0
 

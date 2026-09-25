@@ -304,14 +304,19 @@ the id in its message.
 ### What this does not solve
 
 - **Apps that call `disconnect(conn.id)` from their own close hook** keep
-  id-keyed teardown, so a refused socket's close still tears down the holder.
-  They should pass `conn`; deprecating the id form for app callers is backlog.
+  id-keyed teardown. On `handlerHooks` a refused socket no longer reaches that
+  hook (#404, below), but an evicted socket whose id was re-registered still
+  does, and its `disconnect(conn.id)` tears down the new holder. They should
+  pass `conn`; deprecating the id form for app callers is
+  [#392](https://github.com/locknessland/lockness-monorepo/issues/392). A custom
+  transport that does not use `handlerHooks` keeps the refused-socket case too.
 - **Two overlapping teardowns of one object** mid-loop on a shared channel. It
   needs this record's retirement restructured to one teardown per object; the
   owner checks above cover only the case where the object was replaced.
-- **The app's own `onClose` still runs for a refused or evicted socket**, on
-  `handlerHooks` too: skipping it would need a record of refused sockets (row 17
-  rejects one) or would drop the close hook for every evicted socket.
+- **The app's own `onClose` runs exactly once for each socket whose `onOpen`
+  ran** on `handlerHooks` — evicted ones included, refused ones never (#404,
+  below). It is still not an ownership signal: an evicted socket's id may
+  already be someone else's.
 - **A custom transport that does not use `handlerHooks`** can still run app code
   for a socket that does not own its id. It must gate on `disconnect(conn)`'s
   outcome and never call `unsubscribe(conn.id, …)` for a refused socket.
@@ -319,3 +324,46 @@ the id in its message.
 - **An id is reusable once its teardown completes**, by design; `evict(id)`
   recovers a leaked binding. A cross-instance id collision is not detected.
 - **§5's other bullets** are unchanged.
+
+### #404 — the app's `onClose` pairs with its `onOpen`
+
+_[#404](https://github.com/locknessland/lockness-monorepo/issues/404),
+2026-09-25. The design is the `architect-expert` disposition of that date._
+
+**The rule.** On `handlerHooks`, the app's `onClose` runs exactly once for each
+socket whose `onOpen` ran — evicted sockets included, refused sockets never.
+Before this, a socket `register` refused still got the app's `onClose`, so an
+id-form verb there (`unsubscribe(conn.id, …)`, `disconnect(conn.id)`) landed on
+the live owner of that id, and a per-identity counter kept in `onOpen` /
+`onClose` was decremented for a socket it never counted.
+
+**The home** is `handlerHooks`, and only there: a closure-local
+`WeakSet<Connection>` of the **admitted objects**, added to after `register`
+succeeds and before the app's `onOpen`, and cleared by the close — the app's
+hook runs only when `opened.delete(conn)` succeeds. It is not a record of
+refused sockets, the thing the earlier bullet said skipping the hook would need:
+a refused socket simply never enters it. It pairs open with close and is never
+asked who owns an id; `#isOwner` stays the one authority on that (row 17 of the
+#370 plan). `disconnect(conn)` still runs on every close (#361), `onMessage`
+keeps its owner gate, and `onError` stays ungated.
+
+**Rejected, with their costs:**
+
+- **(b) A public `owns(conn)`, or a flag on the connection.** A new public API
+  whose natural use is the wrong question: ownership drops the hook for every
+  evicted socket. A flag on the app's own `Connection` object is writable by the
+  app and becomes a second source of truth beside `connections`.
+- **(c) Skip the hook for non-owners** (`#isOwner` as the gate). An evicted
+  socket no longer owns its id, so it loses its close hook: the per-identity
+  counter is incremented on open and never decremented. This is the battery's
+  M2, killed by the evicted-socket witness.
+- **`#isOwner || #retired.has(conn)`.** It restores the evicted socket, but a
+  closed socket stays retired, so a second close runs the hook again; and it
+  makes two admission stores answer a lifecycle question, adding an asker the
+  owner rule does not list.
+
+**What it does not solve:** an evicted socket whose id was re-registered still
+runs the hook, and an id-form verb there hits the new holder (#392); a custom
+transport that does not use `handlerHooks`; an `onOpen` of the app's that throws
+still gets `onClose`, because the socket was admitted; a transport that calls
+`onOpen` twice for one object.
