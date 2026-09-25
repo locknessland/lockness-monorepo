@@ -1,6 +1,7 @@
 # ADR 011 — The Redis revocation bound is checked: at boot, and at runtime
 
 **Status:** Accepted, amended by [ADR 013](013-realtime-revocation-ttl-floor.md)
+and [ADR 014](014-realtime-bounded-close-drain.md) (§4, residue closed)
 **Date:** 2026-09-24 **Owner:** architect **Affects:**
 `packages/realtime/drivers/redis.ts`,
 `packages/realtime/drivers/enforcement_deadline.ts`, `docs/realtime.md`,
@@ -187,8 +188,10 @@ Rejected by #384, when a pass with a failure stopped counting as a success:
   unapplied, now with a WARN. Retention is a separate design.
 - **The stall itself.** After a command that never settles on a serialising
   port, no pass runs again. The contract is the fix and the WARN is the signal.
-- **`close()` still hangs on a stalled port**
-  ([#368](https://github.com/locknessland/lockness-monorepo/issues/368)).
+- ~~**`close()` still hangs on a stalled port**
+  ([#368](https://github.com/locknessland/lockness-monorepo/issues/368)).~~
+  **Closed by [ADR 014](014-realtime-bounded-close-drain.md)**: `close()` now
+  bounds its wait for the sweep pass and the lapse run at one liveness TTL.
 - **The #293 heartbeat overflows the same way** (a delay of 2^31 ms or more
   fires after 1 ms); it is tracked separately.
 - **A throwing `console.error` is fatal**, as in #369.

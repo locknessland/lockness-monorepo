@@ -2,9 +2,10 @@
 
 **Status:** Accepted, amended by
 [ADR 007](007-realtime-lapsed-instance-reasserts.md) (§5),
-[ADR 008](008-realtime-sweep-reads-owned-set-in-pages.md) (§2, §5, §6) and
-[ADR 009](009-realtime-revocation-recheck-reads-index-in-pages.md) (§2)
-**Date:** 2026-09-23 **Owner:** architect **Amends:**
+[ADR 008](008-realtime-sweep-reads-owned-set-in-pages.md) (§2, §5, §6),
+[ADR 009](009-realtime-revocation-recheck-reads-index-in-pages.md) (§2) and
+[ADR 014](014-realtime-bounded-close-drain.md) (§2, §5) **Date:** 2026-09-23
+**Owner:** architect **Amends:**
 [ADR 004](004-realtime-roster-slots-held-per-instance.md) §2, §5 and
 [ADR 005](005-realtime-swept-departures-announced.md) §2, §5 **Affects:**
 `packages/realtime/drivers/redis.ts`, `docs/realtime.md`,
@@ -77,6 +78,13 @@ still announced (ADR 005's order is unchanged).
 > `#closing` at **four** points: the top of each instance, **before each page
 > read**, before each release, and before the deregistration. A page read never
 > sits between a release reply and the departure handler either.
+
+> **Amended by [ADR 014](014-realtime-bounded-close-drain.md) (2026-09-25).**
+> The wait is now **bounded** at one liveness TTL
+> (`Math.min(livenessTtlSeconds * 1000, MAX_TIMER_MS)`), through
+> `awaitCloseDrain` (`drivers/close_drain.ts`). Past the budget `close()` writes
+> one WARN and drops the departure handler and closes the owned connections
+> regardless — it no longer waits unconditionally for the pass to stop.
 
 ### A sweep writes only while its target is dead — decided inside the write
 
@@ -184,6 +192,12 @@ line or write a second: exactly one WARN per swept instance, or none:
   reconcile interval **plus one pass**. `close()` can wait up to two broker
   round trips plus one departure-handler call (about a minute at `fromConfig`'s
   30 s command timeout).
+
+  > **Amended by [ADR 014](014-realtime-bounded-close-drain.md) (2026-09-25).**
+  > `close()`'s own wait is now bounded at one liveness TTL: past that it stops
+  > waiting and reports the stall with one WARN, whatever the command port's own
+  > latency. The crash `left` reaching **other** instances is unaffected — that
+  > residue is theirs, not `close()`'s.
 - **An unparsable owned entry** keeps a dead instance registered: it is re-read
   every pass and never deregistered.
 - **Mixed `0.3.0` / `0.4.0` fleet.** A `0.3.0` sweeper has no liveness check,

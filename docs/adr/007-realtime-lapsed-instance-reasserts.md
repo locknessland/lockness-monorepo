@@ -1,6 +1,7 @@
 # ADR 007 — A lapsed instance re-asserts its presence slots when it notices, and no connection hears presence about itself
 
-**Status:** Accepted **Date:** 2026-09-23 **Owner:** architect **Amends:**
+**Status:** Accepted, amended by [ADR 014](014-realtime-bounded-close-drain.md)
+(§5, S5) **Date:** 2026-09-23 **Owner:** architect **Amends:**
 [ADR 004](004-realtime-roster-slots-held-per-instance.md) §2, §5,
 [ADR 005](005-realtime-swept-departures-announced.md) §5 and
 [ADR 006](006-realtime-sweep-writes-only-while-dead.md) §5 **Affects:**
@@ -248,6 +249,12 @@ tab on the sweeper whose hold commits right behind the sweep's release.
   flight — the run's first step, which the signal cannot cut short. That is 30 s
   per command on the built-in client, unbounded on an injected port whose
   commands never settle.
+
+  > **Amended by [ADR 014](014-realtime-bounded-close-drain.md) (2026-09-25).**
+  > No longer unbounded: this wait shares `close()`'s one liveness-TTL budget
+  > with the sweep pass, through `awaitCloseDrain`. A port whose commands never
+  > settle now costs `close()` at most that one TTL, reported with one WARN, not
+  > an indefinite hang.
 
 **Residue.**
 
