@@ -121,30 +121,44 @@ interface Repo {
 /**
  * Run `git` in `cwd`, throwing with its stderr when it fails.
  *
- * Hermetic: the machine's system and global git config are ignored, so a
- * throwaway repository behaves the same wherever the suite runs. Only the
+ * Hermetic: the machine's system and global git config are ignored, and so
+ * are the user's other git files — HOME and XDG_CONFIG_HOME point at an empty
+ * dir, which drops the default global ignore file (`$XDG_CONFIG_HOME/git/ignore`
+ * or `~/.config/git/ignore`) that `GIT_CONFIG_GLOBAL` does not cover. A
+ * throwaway repository thus behaves the same wherever the suite runs. Only the
  * fixture opts out — the harness probe runs against the real working tree and
  * may need the global config (`safe.directory`, for one).
+ *
+ * @returns git's stdout.
  */
-async function git(cwd: string, ...args: string[]): Promise<void> {
-    const run = await new Deno.Command('git', {
-        args,
-        cwd,
-        clearEnv: true,
-        env: {
-            ...gitEnvFromCwd(),
-            GIT_CONFIG_NOSYSTEM: '1',
-            GIT_CONFIG_GLOBAL: '/dev/null',
-        },
-        stdout: 'piped',
-        stderr: 'piped',
-    }).output()
+async function git(cwd: string, ...args: string[]): Promise<string> {
+    const home = await Deno.makeTempDir({ prefix: 'lockness-377-git-home-' })
+    let run: Deno.CommandOutput
+    try {
+        run = await new Deno.Command('git', {
+            args,
+            cwd,
+            clearEnv: true,
+            env: {
+                ...gitEnvFromCwd(),
+                GIT_CONFIG_NOSYSTEM: '1',
+                GIT_CONFIG_GLOBAL: '/dev/null',
+                HOME: home,
+                XDG_CONFIG_HOME: home,
+            },
+            stdout: 'piped',
+            stderr: 'piped',
+        }).output()
+    } finally {
+        await Deno.remove(home, { recursive: true })
+    }
     if (!run.success) {
         throw new Error(
             `git ${args.join(' ')} failed in the fixture:\n` +
                 new TextDecoder().decode(run.stderr),
         )
     }
+    return new TextDecoder().decode(run.stdout)
 }
 
 /**
@@ -342,25 +356,29 @@ Deno.test('#356 a git fixture and probe ignore an inherited GIT_DIR, as under a 
 })
 
 Deno.test('#377 a git fixture ignores the global git config of the machine running it', async () => {
-    // A global excludes file that ignores the subject makes `git add` refuse
-    // it: a fixture reading global config would pass on one machine and fail
-    // on another. Deno.env.set is process-wide, safe only because test files
-    // run one at a time (`deno task test` has no `--parallel`).
+    // git's default global ignore file ignoring the subject makes `git add`
+    // refuse it: a fixture reading the user's git files would pass on one
+    // machine and fail on another. Deno.env.set is process-wide, safe only
+    // because test files run one at a time (`deno task test` has no
+    // `--parallel`).
     const home = await Deno.makeTempDir({ prefix: 'lockness-377-home-' })
-    const prior = Deno.env.get('HOME')
+    const prior = {
+        HOME: Deno.env.get('HOME'),
+        XDG_CONFIG_HOME: Deno.env.get('XDG_CONFIG_HOME'),
+    }
     try {
-        await Deno.writeTextFile(`${home}/ignore`, 'subject.ts\n')
-        await Deno.writeTextFile(
-            `${home}/.gitconfig`,
-            `[core]\n\texcludesFile = ${home}/ignore\n`,
-        )
+        await Deno.mkdir(`${home}/.config/git`, { recursive: true })
+        await Deno.writeTextFile(`${home}/.config/git/ignore`, 'subject.ts\n')
         Deno.env.set('HOME', home)
-        await withRepo(async ({ subject }) => {
-            assertEquals(await Deno.readTextFile(subject), PRISTINE)
+        Deno.env.set('XDG_CONFIG_HOME', `${home}/.config`)
+        await withRepo(async ({ dir }) => {
+            assertEquals(await git(dir, 'ls-files'), 'subject.ts\n')
         })
     } finally {
-        if (prior === undefined) Deno.env.delete('HOME')
-        else Deno.env.set('HOME', prior)
+        for (const [key, value] of Object.entries(prior)) {
+            if (value === undefined) Deno.env.delete(key)
+            else Deno.env.set(key, value)
+        }
         await Deno.remove(home, { recursive: true })
     }
 })
