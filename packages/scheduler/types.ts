@@ -65,9 +65,24 @@ export interface SchedulerReporter {
 /**
  * A cross-instance lock, so that only one replica runs a given occurrence.
  *
- * **Declared and unimplemented in v1.** The port exists now so that distributed
- * locking arrives later as an added adapter rather than as a breaking change to
- * every `@Schedule` call site.
+ * Consulted only for tasks marked {@link ScheduleOptions.onOneServer}. This
+ * package ships `MemorySchedulerLock`, the in-process adapter (correct for
+ * one replica, and the test vehicle); the distributed Redis and Deno KV
+ * adapters live in `@lockness/core`, which builds one from the kernel's
+ * `schedulerLock` configuration and installs it with `Scheduler#setLock`. Keeping
+ * them out of this package is what keeps it dependency-free.
+ *
+ * An occurrence is keyed by its wall-clock minute, so every replica firing in
+ * that minute contends for the same claim. An adapter owns the claim's TTL and
+ * must be owner-checked: `release` deletes a claim only while it is still this
+ * holder's, so a claim that expired and was re-acquired elsewhere survives.
+ *
+ * @example
+ * ```ts
+ * import { MemorySchedulerLock, Scheduler } from '@lockness/scheduler'
+ *
+ * const s = new Scheduler(undefined, new MemorySchedulerLock({ ttlMs: 60_000 }))
+ * ```
  */
 export interface SchedulerLock {
     /**
@@ -78,7 +93,15 @@ export interface SchedulerLock {
      * @returns `true` when this instance may run it.
      */
     acquire(task: string, occurrence: Date): Promise<boolean>
-    /** Release a claim. */
+    /**
+     * Release this holder's claim, if it still holds it.
+     *
+     * Best-effort from the scheduler's side: a rejection is warned about and
+     * never fails the task, and the claim is left to expire with its TTL.
+     *
+     * @param task - The task's resolved name.
+     * @param occurrence - The instant that was claimed.
+     */
     release(task: string, occurrence: Date): Promise<void>
 }
 

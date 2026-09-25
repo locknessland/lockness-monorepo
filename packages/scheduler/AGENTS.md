@@ -9,8 +9,10 @@ state is **in-process only**, and the package holds no HTTP surface.
 - **Times are UTC only.** A local-time expression silently fires at the wrong
   hour; there is no timezone handling and adding one is a design change, not a
   patch.
-- **State is in-process only.** Two replicas each fire every task. The `lock`
-  port is declared and unimplemented — do not assume it does anything.
+- **State is in-process only.** Two replicas each fire every task, unless the
+  task is `onOneServer` AND a `SchedulerLock` is installed (#219). This package
+  ships only `MemorySchedulerLock`; the Redis and Deno KV adapters live in
+  `packages/core/scheduler/locks.ts`, so this package stays dependency-free.
 - **Every timer goes through `timer_registry.ts`.** It is the only place allowed
   to call `setTimeout` / `clearTimeout` / `Deno.unrefTimer`, because it is where
   the 24-day cap and the 1 000 ms floor live.
@@ -76,7 +78,9 @@ Anything not listed is internal and free to change.
   exist until the DI container constructs the class.
 - **A promise cannot be cancelled.** `timeout` passes an `AbortSignal`; a task
   that ignores it keeps running. `overlap: 'skip'` is what bounds concurrency.
-- **Single node.** Two replicas each fire every task. Reserve the `lock` port.
+- **A lock release runs after the outcome is recorded.** It is in the run's
+  `finally`, so a release that rejects is warned about and never touches
+  `failureCount` or `lastError` — the claim is left to its TTL.
 
 ## Tests
 

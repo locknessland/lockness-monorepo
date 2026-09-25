@@ -120,17 +120,18 @@ twice a year is a worse surprise than one stated timezone.
 async digest(signal: AbortSignal) { … }
 ```
 
-| Option       | Default            | Meaning                                                      |
-| :----------- | :----------------- | :----------------------------------------------------------- |
-| `name`       | `ClassName.method` | Identity. Must match `[A-Za-z0-9._:-]{1,64}`                 |
-| `timeout`    | none               | Milliseconds before the run is aborted                       |
-| `retries`    | `0`                | **Additional** attempts — `2` means three executions at most |
-| `retryDelay` | `1000`             | Milliseconds between attempts. Must be > 0                   |
-| `overlap`    | `'skip'`           | What an occurrence does while a run is in flight             |
-| `runOnStart` | `false`            | Run once at boot, then follow the calendar                   |
-| `enabled`    | `true`             | `false` registers without scheduling. Terminal               |
-| `onError`    | none               | Called after each failed attempt                             |
-| `onSuccess`  | none               | Called after a successful run                                |
+| Option        | Default            | Meaning                                                      |
+| :------------ | :----------------- | :----------------------------------------------------------- |
+| `name`        | `ClassName.method` | Identity. Must match `[A-Za-z0-9._:-]{1,64}`                 |
+| `timeout`     | none               | Milliseconds before the run is aborted                       |
+| `retries`     | `0`                | **Additional** attempts — `2` means three executions at most |
+| `retryDelay`  | `1000`             | Milliseconds between attempts. Must be > 0                   |
+| `overlap`     | `'skip'`           | What an occurrence does while a run is in flight             |
+| `runOnStart`  | `false`            | Run once at boot, then follow the calendar                   |
+| `enabled`     | `true`             | `false` registers without scheduling. Terminal               |
+| `onOneServer` | `false`            | One replica per occurrence, given a lock — see below         |
+| `onError`     | none               | Called after each failed attempt                             |
+| `onSuccess`   | none               | Called after a successful run                                |
 
 Every numeric bound is checked **at decoration time**, so a mistake fails where
 it was written. `retryDelay: 0` with a large `retries` is a hot loop, not a
@@ -368,16 +369,36 @@ twice. This is not a degraded limit — it is wrong data in other people's
 accounts, and it is the ordinary outcome of horizontal scaling, of a rolling
 deploy's overlap window, and of region fan-out on Deno Deploy.
 
-There is no distributed lock in this version. Until there is, pick one:
+To run a task on one replica only, mark it `onOneServer` and configure a lock in
+the kernel:
+
+```ts
+@Kernel({ schedulerLock: { driver: 'redis', redis: { hostname: 'localhost' } } })
+```
+
+```ts
+@Schedule('0 3 * * *', { name: 'invoices', onOneServer: true })
+```
+
+The lock (`'redis'` or `'deno-kv'`) claims each occurrence by its wall-clock
+minute, and only the replica that wins the claim runs it. The guarantee is
+**at-most-once within the lock's TTL** (`ttlMs`, default five minutes): a task
+that runs longer than the TTL can still run twice, so size the TTL above its
+worst-case runtime.
+
+- With no lock configured, `onOneServer` is inert and every replica runs the
+  task.
+- If the lock store is unreachable, the occurrence is **skipped** on that
+  replica and a warning is logged — never run everywhere.
+- If releasing a claim fails, a warning is logged and the claim expires with its
+  TTL. The task's own result is unaffected.
+
+Tasks that are not `onOneServer` still need one of:
 
 - Run the scheduler on exactly one replica, with `SCHEDULER_ENABLED=0` on the
   rest.
 - Make every scheduled body idempotent on its own — an advisory lock, a unique
   constraint, an "already done today" check.
-
-The `lock?: SchedulerLock` port on the `Scheduler` constructor is declared and
-unimplemented, reserved so that a distributed lock arrives later as an adapter
-rather than as a change to every `@Schedule` call site.
 
 ## Testing
 
