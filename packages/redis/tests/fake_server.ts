@@ -44,6 +44,35 @@ export interface FakeServer {
      */
     bytesRead(): number
     /**
+     * Resolve the next time ANY connection's read loop drains new bytes off the
+     * wire — settled from INSIDE that loop, on the same turn as the `read()`
+     * that produced them, never by polling (#416).
+     *
+     * This is the "mid-write" signal a fixed real-time sleep used to guess at:
+     * the old FR-020 test waited a bare 1ms hoping the dial had resolved but a
+     * multi-megabyte write had not, which is a window sized for one machine and
+     * wrong on a slower or more loaded one. A poll has the same flaw one layer
+     * down — a `setTimeout`-spaced check can still land after a small transfer
+     * has already finished, which is why this resolves from the read loop
+     * itself instead of from a timer a test drives.
+     *
+     * **Why the caller can trust "mid-write" from this alone**: the read loop
+     * hands `conn.read()` a fixed 4 KB buffer, so a multi-megabyte frame takes
+     * thousands of completed reads to drain — the first one this resolves for
+     * carries only that one chunk. A caller that still wants a hard guarantee
+     * (not merely "very likely") compares {@link FakeServer.bytesRead} against
+     * the payload's known encoded size once this settles, which is what
+     * `subscriber.test.ts`'s FR-020 does.
+     *
+     * One-shot per call: each invocation arms a fresh watcher counted from THAT
+     * moment, so a caller that awaits it after traffic has already been
+     * flowing is not handed a stale resolution from bytes that arrived before
+     * it asked.
+     *
+     * @returns Resolves once at least one new byte has been read.
+     */
+    nextByteRead(): Promise<void>
+    /**
      * Push an unbidden `pmessage` frame to every live connection, as Redis does
      * for a pattern subscriber. The client dispatches it only if it holds a
      * handler for `pattern`.
@@ -270,6 +299,8 @@ export function startFakeServer(): Promise<FakeServer> {
     const conns = new Set<Deno.Conn>()
     /** Flush callbacks, one per live connection, used by `unmute()`. */
     const pending = new Set<() => Promise<void>>()
+    /** Resolvers armed by {@link FakeServer.nextByteRead}, fired on the next read. */
+    let byteWatchers: Array<() => void> = []
     let accepts = 0
     let closed = false
     let muted = false
@@ -360,6 +391,16 @@ export function startFakeServer(): Promise<FakeServer> {
                     if (n === null) break
                     append(buf, n)
                     bytesRead += n
+                    // Fired the instant `bytesRead` reflects THIS read, before
+                    // the loop goes back for the next one — see
+                    // {@link FakeServer.nextByteRead}'s doc for why that
+                    // ordering is what makes "mid-write" provable rather than
+                    // merely likely.
+                    if (byteWatchers.length > 0) {
+                        const watchers = byteWatchers
+                        byteWatchers = []
+                        for (const resolve of watchers) resolve()
+                    }
                     const { commands } = parseCommands(received())
                     // Commands are LOGGED even while muted — a muted broker
                     // still receives; it just does not answer. Tests assert on
@@ -420,6 +461,10 @@ export function startFakeServer(): Promise<FakeServer> {
         commandLog,
         accepts: () => accepts,
         bytesRead: () => bytesRead,
+        nextByteRead: () =>
+            new Promise((resolve) => {
+                byteWatchers.push(resolve)
+            }),
         publish: (pattern: string, topic: string, payload: string) => {
             const frame = respFrame(['pmessage', pattern, topic, payload])
             for (const conn of conns) {

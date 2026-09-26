@@ -20,7 +20,7 @@ import {
 } from '@std/assert'
 import { FakeTime } from '@std/testing/time'
 import { RedisSubscribeConnection } from '../subscriber.ts'
-import { RespFramingError } from '../resp.ts'
+import { encodeCommand, RespFramingError } from '../resp.ts'
 import { type FakeServer, startFakeServer } from './fake_server.ts'
 
 /**
@@ -42,11 +42,23 @@ import { type FakeServer, startFakeServer } from './fake_server.ts'
  * what it is testing.
  *
  * **Exactly one site in this file was on the wrong side**, and it is the
- * oversized-frame test. Two other sites push large payloads and are correctly
+ * oversized-frame test. One other site pushes a large payload and is correctly
  * on this side: the `closeAfter('AUTH')` retry test writes a megabyte only so
- * the write cannot finish before the RST, and waits for the retry WARNING; the
- * close-during-write test never waits for arrival at all. Both gate events. Do
- * not convert them.
+ * the write cannot finish before the RST, and waits for the retry WARNING —
+ * that gates an event. Do not convert it.
+ *
+ * **The close-during-write test (FR-020) used to wait on neither gate** — a
+ * fixed 1ms real-time sleep, guessed to be "long enough for the dial to
+ * resolve, short enough that the writes are still going" (#416). Neither
+ * helper above fits it either: `waitFor`'s deadline still races a fast
+ * machine that finishes all four writes inside one 5ms poll tick, and
+ * `waitWhileAdvancing` waits for the transfer to finish, which is the one
+ * moment this test must NOT reach. It needs a THIRD shape — "stop me at the
+ * first sign of progress" — which is {@link FakeServer.nextByteRead}: it
+ * settles from inside the fake server's read loop, with no polling interval
+ * to lose the race in, and the test then asserts the byte count it woke up to
+ * is still short of the total so a coincidence that closes the window is
+ * caught rather than silently accepted.
  */
 async function waitFor(
     cond: () => boolean,
@@ -1957,12 +1969,37 @@ Deno.test('FR-020: close() during an in-flight activation leaves no timer armed'
         })
         // Eight megabytes, and several of them: the write has to still be in
         // flight when close() lands, and a single megabyte finished first.
-        for (let i = 0; i < 4; i++) {
-            sub.psubscribe(`p${i}` + 'm'.repeat(8 * 1024 * 1024), () => {})
+        const patterns = Array.from(
+            { length: 4 },
+            (_, i) => `p${i}` + 'm'.repeat(8 * 1024 * 1024),
+        )
+        const totalBytes = patterns
+            .map((p) => encodeCommand(['PSUBSCRIBE', p]).byteLength)
+            .reduce((a, b) => a + b, 0)
+        for (const pattern of patterns) {
+            sub.psubscribe(pattern, () => {})
         }
-        // Long enough for the dial to resolve, short enough that the writes are
-        // still going.
-        await new Promise((r) => setTimeout(r, 1))
+        // THE OBSERVABLE, replacing a fixed real-time guess (#416): armed
+        // before any of the four writes can possibly have started (dialling
+        // is inherently async, so nothing reaches the wire before this line
+        // yields), it settles the instant the fake server's read loop drains
+        // its FIRST chunk — no polling interval to lose the race in.
+        await server.nextByteRead()
+        // AND VERIFIED, not merely hoped: the read loop hands `conn.read()` a
+        // fixed 4 KB buffer, so draining all ~32 MB of these four frames takes
+        // thousands of completed reads — the first one is a near-certainty to
+        // land far short of the total. This assertion is what turns "far
+        // short, almost always" into "still in flight, provably" for THIS run:
+        // if a signal ever fires only once every byte is already through, that
+        // is the vacuous case the AC forbids silently passing, so it fails
+        // loudly here instead of letting `close()` race nothing.
+        const readAtSignal = server.bytesRead()
+        assert(
+            readAtSignal > 0 && readAtSignal < totalBytes,
+            `nextByteRead() settled at ${readAtSignal}/${totalBytes} bytes — ` +
+                'that is not mid-write, so this run cannot prove close() ' +
+                'interrupted an in-flight activation',
+        )
         await sub.close()
         await new Promise((r) => setTimeout(r, FAST.keepaliveMs * 3))
         for (const id of armed) {
