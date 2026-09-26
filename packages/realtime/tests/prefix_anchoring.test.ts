@@ -218,21 +218,53 @@ const CANNED = {
     // Keyed on the DECLARED KEY COUNT (`EVAL <script> <numkeys> …`) and the
     // KEY POSITION, never on the script text — a reply chosen by searching
     // the source breaks on a reformat Lua cannot see. The hold and release
-    // scripts declare 4 keys and the deregistration script 3 (#345, #355);
-    // all three accept the integer 0 through their strict decoders. The one
-    // 2-key script is the revocation reap (#359, #380: index, then floor),
-    // which answers `{t, indexKind, floorKind}` (#405, widened #411: a digit
-    // bulk, then each key's prior Redis type — `zset` for both here, healthy
-    // keys, so nothing heals). Of the 1-key scripts: the floor announce
-    // (#380) is picked out by its key ending `__revocation-floor` and answers
-    // `kind` alone since #405 (`zset`, same reasoning); the revocation mark is
+    // scripts each declare 4 keys and the deregistration script 3 (#345,
+    // #355), and #414 widened each to its OWN reply shape — no longer a
+    // shared bare `0` — so the two 4-key scripts must be told apart. Their
+    // 4th KEY differs by NAME, not by counting: the hold's is the one
+    // fleet-wide instances key, ending `__instances`; the release's is a
+    // per-instance liveness key, which never ends that way. `{arrived,
+    // ownedKind, instancesKind}` for the hold (#414: healthy `set` kinds,
+    // `arrived: false`); `{value, ownedKind}` for the release (#414: `0`,
+    // absent, a healthy `set`); `{code, instancesKind}` for the
+    // deregistration (#414: `0`, deregistered, a healthy `set`) — every
+    // decoder still accepts its own shape. The one 2-key script is the
+    // revocation reap (#359, #380: index, then floor), which answers
+    // `{t, indexKind, floorKind}` (#405, widened #411: a digit bulk, then
+    // each key's prior Redis type — `zset` for both here, healthy keys, so
+    // nothing heals). Of the 1-key scripts: the floor announce (#380) is
+    // picked out by its key ending `__revocation-floor` and answers `kind`
+    // alone since #405 (`zset`, same reasoning); the revocation mark is
     // picked out by its key ending `__revocations` and answers `{indexKind}`
     // since #411 (`zset`, same reasoning); every other 1-key script — the
     // roster read (#341) — gets the roster read's `{ HLEN, sample, selves }`
     // shape.
     EVAL: (args: string[]) =>
-        Number(args[2]) >= 3
-            ? { type: 'integer', value: 0 }
+        Number(args[2]) === 4
+            ? (args[6].endsWith('__instances')
+                ? {
+                    type: 'array',
+                    value: [
+                        { type: 'integer', value: 0 },
+                        { type: 'bulk', value: 'set' },
+                        { type: 'bulk', value: 'set' },
+                    ],
+                }
+                : {
+                    type: 'array',
+                    value: [
+                        { type: 'integer', value: 0 },
+                        { type: 'bulk', value: 'set' },
+                    ],
+                })
+            : Number(args[2]) === 3
+            ? {
+                type: 'array',
+                value: [
+                    { type: 'integer', value: 0 },
+                    { type: 'bulk', value: 'set' },
+                ],
+            }
             : Number(args[2]) === 2
             ? {
                 type: 'array',

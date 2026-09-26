@@ -1426,6 +1426,16 @@ async function observeReleases(
     return { releases, stored }
 }
 
+/**
+ * A `{value, kind}` pair as {@link RELEASE_MEMBER_SCRIPT} /
+ * {@link DEREGISTER_INSTANCE_SCRIPT} answer since #414 — every outcome but
+ * *refused* widened to carry the owned/instances set's prior Redis type
+ * alongside its original value.
+ */
+function pairReply(value: RespReply, kind: string): RespReply {
+    return { type: 'array', value: [value, { type: 'bulk', value: kind }] }
+}
+
 /** The FR-010 reply contract, asserted on one backend's observed releases. */
 function assertReleaseReplies(
     backend: string,
@@ -1438,12 +1448,17 @@ function assertReleaseReplies(
     assertEquals(
         seen.releases,
         [
-            { type: 'integer', value: KEPT },
-            seen.stored,
-            { type: 'integer', value: 0 },
+            pairReply({ type: 'integer', value: KEPT }, 'set'),
+            pairReply(seen.stored!, 'set'),
+            // B's own owned set is empty and gone by its final, non-holder
+            // release (B already released its one entry above) — a real
+            // broker drops an emptied set, so `TYPE` reads `none` here, not
+            // `set`. Measured against the fake, not assumed.
+            pairReply({ type: 'integer', value: 0 }, 'none'),
         ],
         `${backend}: KEPT while a holder remains (#355), the released entry ` +
-            'byte for byte when the slot empties, 0 for a non-holder',
+            'byte for byte when the slot empties, 0 for a non-holder — each ' +
+            "paired with the owned set's prior kind (#414)",
     )
 }
 
@@ -1643,7 +1658,7 @@ const SWEEP_SCENARIOS: {
             endsOn: 'deregister',
         },
         releases: ['bulk', `integer:${KEPT}`, 'integer:0'],
-        deregistrations: [{ type: 'integer', value: 0 }],
+        deregistrations: [pairReply({ type: 'integer', value: 0 }, 'set')],
     },
     {
         scenario: {
@@ -1667,7 +1682,9 @@ const SWEEP_SCENARIOS: {
             endsOn: 'deregister',
         },
         releases: ['bulk'],
-        deregistrations: [{ type: 'integer', value: REFUSED }],
+        deregistrations: [
+            pairReply({ type: 'integer', value: REFUSED }, 'none'),
+        ],
     },
     {
         scenario: {
@@ -1679,12 +1696,19 @@ const SWEEP_SCENARIOS: {
             endsOn: 'deregister',
         },
         releases: ['bulk'],
-        deregistrations: [{ type: 'integer', value: KEPT }],
+        deregistrations: [pairReply({ type: 'integer', value: KEPT }, 'none')],
     },
 ]
 
-/** A release reply as a comparable kind: `bulk`, or `integer:<n>`. */
+/**
+ * A release reply as a comparable kind: `bulk`, or `integer:<n>` — unwrapping
+ * the `{value, ownedKind}` pair every non-refused outcome carries since
+ * #414, since only `value` (the first element) decides the kind here.
+ */
 function replyKind(reply: RespReply): string {
+    if (reply.type === 'array' && reply.value.length === 2) {
+        return replyKind(reply.value[0])
+    }
     if (reply.type === 'integer') return `integer:${reply.value}`
     if (reply.type === 'bulk' && reply.value.length > 0) return 'bulk'
     return `unexpected:${reply.type}`

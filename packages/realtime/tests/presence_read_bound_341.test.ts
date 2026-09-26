@@ -64,12 +64,23 @@ const SECRET = 's'.repeat(32)
  * `{"member":<4 096>,"owner":"<36>"}` — 4 154 bytes — so 4 160; K of them is
  * 416 000. The joiner's own entry from `HMGET` adds 4 154 (a field is not
  * echoed there). The instance-liveness `SET … GET` answers nil on its first
- * write, which carries no payload (#349; its `OK` added 2 before). Nothing
- * else the subscribe issues replies with a payload.
+ * write, which carries no payload (#349; its `OK` added 2 before).
+ *
+ * **+7 bytes since #414**: the join's `holdMember` widened
+ * `HOLD_MEMBER_SCRIPT`'s reply to `{arrived, ownedKind, instancesKind}` — an
+ * integer (no payload) plus two bulk strings naming each self-healing key's
+ * prior Redis type. Both are brand new on a fresh `FakeRedis`, so
+ * `ownedKind` reads `'none'` (4 bytes) — nothing has touched this instance's
+ * owned set yet. `instancesKind` reads `'set'` (3 bytes), not `'none'`: the
+ * SAME `holdMember` call's `#ensureSweepStarted()` runs the boot heartbeat
+ * FIRST, whose own raw `SADD` on the instances key already exists by the
+ * time the script's own `INSTANCES_HEAL` reads its `TYPE` moments later, in
+ * the same counted window. `4 + 3 = 7`. Nothing else the subscribe issues
+ * replies with a payload.
  */
-const PINNED_DEFAULT_BYTES = 420_154
-/** The same arithmetic at K = 10: 41 600 + 4 154. */
-const PINNED_K10_BYTES = 45_754
+const PINNED_DEFAULT_BYTES = 420_161
+/** The same arithmetic at K = 10: 41 600 + 4 154 + 7. */
+const PINNED_K10_BYTES = 45_761
 
 /** A fixed-width member id: `u00001` … `u10000`. */
 const idOf = (n: number) => `u${String(n).padStart(5, '0')}`
