@@ -117,9 +117,11 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#345 W1 A and B hold 7, A releases',
     },
     {
+        // Re-anchored for #414: the instances key is bound to a local
+        // (`instances`) rather than spelled `KEYS[4]` at the SADD site.
         label: '#345 hold skips registering its instance (SADD instances)',
         file: REDIS,
-        edits: [['    "redis.call(\'SADD\', KEYS[4], ARGV[2])",\n', '']],
+        edits: [['    "redis.call(\'SADD\', instances, ARGV[2])",\n', '']],
         // Registration is left to the heartbeat alone: an instance whose
         // heartbeat never landed holds slots no sweep can ever find.
         killedBy:
@@ -192,13 +194,34 @@ const MUTATIONS: Mutation[] = [
     },
     // ── the decoder ────────────────────────────────────────────────────────
     {
+        // Re-anchored for #414: the reply widened to {arrived, ownedKind,
+        // instancesKind}, so the strict comparisons are now two compound
+        // conditions rather than two bare ones. FR-004a's third row (a
+        // well-formed triple with `arrived` outside 0/1) is what reaches
+        // this exact line under the mutant; the first two rows never do.
         label: '#345 the transition decoder reads any truthy reply as true',
         file: REDIS,
         edits: [[
-            '    if (value === 1) return true\n' +
-            '    if (value === 0) return false\n',
-            '    if (value) return true\n' +
-            '    if (!value) return false\n',
+            '    if (\n' +
+            '        arrived === 1 && ownedKind !== undefined && instancesKind !== undefined\n' +
+            '    ) {\n' +
+            '        return { arrived: true, ownedKind, instancesKind }\n' +
+            '    }\n' +
+            '    if (\n' +
+            '        arrived === 0 && ownedKind !== undefined && instancesKind !== undefined\n' +
+            '    ) {\n' +
+            '        return { arrived: false, ownedKind, instancesKind }\n' +
+            '    }\n',
+            '    if (\n' +
+            '        arrived && ownedKind !== undefined && instancesKind !== undefined\n' +
+            '    ) {\n' +
+            '        return { arrived: true, ownedKind, instancesKind }\n' +
+            '    }\n' +
+            '    if (\n' +
+            '        !arrived && ownedKind !== undefined && instancesKind !== undefined\n' +
+            '    ) {\n' +
+            '        return { arrived: false, ownedKind, instancesKind }\n' +
+            '    }\n',
         ]],
         // An integer 2, an error string or an array reads as an arrival (or as
         // nothing) instead of throwing — and the manager announces from it.

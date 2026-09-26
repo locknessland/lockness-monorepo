@@ -117,16 +117,17 @@ const MUTATIONS: Mutation[] = [
         file: REDIS,
         // Re-anchored for #355: the script's tail no longer answers 0 while a
         // holder remains, it answers KEPT — rewritten as that reply carrying
-        // the releaser's entry instead.
+        // the releaser's entry instead. Re-anchored again for #414: the
+        // reply widened to {value, ownedKind}.
         edits: [[
             "    'if mine == false then',\n" +
-            "    '  return 0',\n" +
+            "    '  return {0, ownedKind}',\n" +
             "    'end',\n" +
-            '    `return ${KEPT}`,\n',
+            '    `return {${KEPT}, ownedKind}`,\n',
             "    'if mine == false then',\n" +
-            "    '  return 0',\n" +
+            "    '  return {0, ownedKind}',\n" +
             "    'end',\n" +
-            "    'return mine',\n",
+            "    'return {mine, ownedKind}',\n",
         ]],
         // B still holds 7: sweeping A would announce a member who is present.
         killedBy: '#348 W2',
@@ -192,9 +193,12 @@ const MUTATIONS: Mutation[] = [
         file: REDIS,
         // Re-anchored for #355: the decoder's bulk branch now builds the
         // *emptied* outcome, and the #348 FR-004a test became #355 WD.
+        // Re-anchored again for #414: the outcome also carries `ownedKind`.
         edits: [[
-            "    if (entry) return { kind: 'emptied', entry }\n",
-            "    if (entry !== undefined) return { kind: 'emptied', entry }\n",
+            "    if (entry) return { kind: 'emptied', entry, ownedKind }\n",
+            '    if (entry !== undefined) {\n' +
+            "        return { kind: 'emptied', entry, ownedKind }\n" +
+            '    }\n',
         ]],
         killedBy: '#355 WD a release reply is one of four outcomes',
     },

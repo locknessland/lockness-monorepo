@@ -170,16 +170,18 @@ const TRANSITION_ROWS: Mutation[] = [
             "#344 the arrival's joined carries the earliest local connection's entry",
     },
     {
+        // Re-anchored for #414: the reply widened to
+        // {arrived, ownedKind, instancesKind}.
         label: '#344 M3 the hold script drops `n == 1`',
         file: REDIS,
         edits: [[
             "    'if added == 1 then',\n" +
             "    '  if n == 1 then',\n" +
-            "    '    return 1',\n" +
+            "    '    return {1, ownedKind, instancesKind}',\n" +
             "    '  end',\n" +
             "    'end',\n",
             "    'if added == 1 then',\n" +
-            "    '    return 1',\n" +
+            "    '    return {1, ownedKind, instancesKind}',\n" +
             "    'end',\n",
         ]],
         // Every instance's first hold reads as an arrival: member 7 on two
@@ -187,11 +189,12 @@ const TRANSITION_ROWS: Mutation[] = [
         killedBy: '#344 W5 member 7 on two instances: one presence-join',
     },
     {
+        // Re-anchored for #414: the reply widened to {value, ownedKind}.
         label: '#344 M4 the release script reports a non-holder as a departure',
         file: REDIS,
         edits: [[
             "    '  if mine == false then',\n" +
-            "    '    return 0',\n" +
+            "    '    return {0, ownedKind}',\n" +
             "    '  end',\n",
             '',
         ]],

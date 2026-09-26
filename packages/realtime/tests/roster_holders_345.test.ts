@@ -436,7 +436,11 @@ Deno.test('#345 W8 one instance holding 7 and 8 releases 8 — 7 is still there'
 Deno.test('#345 FR-004a a hold reply other than the integer 0 or 1 throws', async () => {
     // The manager announces `joined` from this bit, so a reply the script
     // never produces must fail loudly rather than read as a transition (an
-    // integer 2) or as none (an array).
+    // integer 2) or as none (an array). The third row is well-FORMED (#414's
+    // {arrived, ownedKind, instancesKind} triple, shape-valid) with `arrived`
+    // outside 0/1 — the only row that reaches the decoder's truthy-vs-strict
+    // comparison at all; the first two never get that far; a shape all three
+    // share.
     const redis = new FakeRedis()
     const time = new FakeTime(new Date('2026-09-15T10:00:00Z'))
     try {
@@ -444,6 +448,14 @@ Deno.test('#345 FR-004a a hold reply other than the integer 0 or 1 throws', asyn
             const reply of [
                 { type: 'integer', value: 2 },
                 { type: 'array', value: [] },
+                {
+                    type: 'array',
+                    value: [
+                        { type: 'integer', value: 2 },
+                        { type: 'bulk', value: 'set' },
+                        { type: 'bulk', value: 'set' },
+                    ],
+                },
             ]
         ) {
             const odd: CommandFn = (...args) =>
@@ -472,7 +484,11 @@ const MARKER = 'reply-bytes-marker'
 
 /**
  * Replies neither script ever produces. The pre-#348 integer 1 above all: a
- * new code must never reuse it, or this row would silently reverse.
+ * new code must never reuse it, or this row would silently reverse. The last
+ * row is well-FORMED since #414 (a genuine `{value, kind}` pair) with an
+ * EMPTY bulk as its value — the one shape that reaches the decoder's
+ * `entry` truthy-check at all; every row before it fails the outer shape
+ * check first.
  */
 const ODD_REPLIES: readonly unknown[] = [
     { type: 'integer', value: 1 },
@@ -480,6 +496,10 @@ const ODD_REPLIES: readonly unknown[] = [
     { type: 'array', value: [] },
     { type: 'bulk', value: '' },
     { type: 'array', value: [{ type: 'bulk', value: MARKER }] },
+    {
+        type: 'array',
+        value: [{ type: 'bulk', value: '' }, { type: 'bulk', value: 'set' }],
+    },
 ]
 
 Deno.test('#355 WD a release reply is one of four outcomes, a deregistration reply one of three, and anything else throws a message that never carries the reply', async () => {
