@@ -28,6 +28,23 @@
  * rejected alternatives and what this does not solve (a reporter that hangs
  * rather than throws).
  *
+ * **#410 — CR/LF-safe, on the architect-expert disposition.** An unencoded
+ * `\r`/`\n` in `message` or in a string-valued `fields` entry forges a second
+ * log line on any of the three channels, so {@link escapeControlChars} covers
+ * the C0/C1/DEL subset of `@lockness/contract`'s `safeForLog` table only —
+ * same escape spelling (`\xXX`), so a line reads the same way whether it came
+ * through this module or through `safeForLog`. Not the full table: no
+ * Unicode `Cf`/bidi handling, no DSN redaction. Neither is a new dependency:
+ * this package's `allow: []` ceiling has no room for an edge to
+ * `@lockness/contract` for either — see this file's own header above.
+ *
+ * **What this still does not solve** (unchanged from #394, plus two more):
+ * a reporter that hangs rather than throws; a Unicode bidi character in a
+ * field, which reorders a terminal line but does not forge one; and a
+ * non-string field value other than `BigInt` or a circular reference — those
+ * still fall to {@link renderLine}'s `JSON.stringify` catch exactly as they
+ * did before #410.
+ *
  * @module @lockness/scheduler/reporting
  */
 
@@ -35,6 +52,62 @@ import type { SchedulerReporter } from './types.ts'
 
 /** The two report levels a {@link SchedulerReporter} exposes. */
 export type ReportLevel = 'warn' | 'error'
+
+/**
+ * Escapes the C0 controls, DEL and the C1 range — the one subset of
+ * `@lockness/contract`'s `safeForLog` table this module needs, spelled the
+ * same way (`\xXX`) so a log line reads identically wherever it was encoded.
+ *
+ * **Deliberately narrower than `safeForLog`.** No Unicode `Cf`/bidi handling
+ * and no DSN redaction: `report()`'s `fields` are scheduler-internal (a task
+ * name, a delay in ms), not a request-derived value, so the forgery this
+ * closes is CR/LF turning one warning into two log lines — not bidi reordering
+ * or a leaked credential. Pulling in `safeForLog` itself is not available
+ * either way: `deps.policy.jsonc` sets this package's `allow: []`, and a new
+ * edge to `@lockness/contract` is not worth opening for a ten-line idiom (see
+ * this file's `@fileoverview` for the #394 precedent this follows).
+ *
+ * @param value - A message or field value about to reach `console` or
+ * `Deno.stderr`.
+ * @returns `value` with every C0/C1/DEL codepoint replaced by its `\xXX`
+ * escape. Everything else, `value` unchanged.
+ */
+function escapeControlChars(value: string): string {
+    let escaped = ''
+    for (const char of value) {
+        const code = char.codePointAt(0) ?? 0
+        const mustEscape = code < 0x20 || code === 0x7f ||
+            (code >= 0x80 && code <= 0x9f)
+        escaped += mustEscape
+            ? `\\x${code.toString(16).padStart(2, '0')}`
+            : char
+    }
+    return escaped
+}
+
+/**
+ * Escapes every string-valued entry of `fields`, leaving every other value —
+ * a number, a `BigInt`, a circular object — untouched.
+ *
+ * **Only for the console and stderr channels.** The reporter callback gets
+ * `fields` raw and structured: an application's own logger owns encoding for
+ * its own sink, and handing it a pre-stringified transcript would cost it the
+ * structured value it asked for.
+ *
+ * @param fields - The line's structured half.
+ * @returns A shallow copy of `fields` with its string values escaped.
+ */
+function escapeStringFields(
+    fields: Record<string, unknown>,
+): Record<string, unknown> {
+    const escaped: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(fields)) {
+        escaped[key] = typeof value === 'string'
+            ? escapeControlChars(value)
+            : value
+    }
+    return escaped
+}
 
 /**
  * Render a fallback line for the stderr channel, and never throw.
@@ -69,11 +142,24 @@ function renderLine(
  * for {@link TimerRegistry}'s clamp warning, entirely outside a promise) has
  * no handler to receive a re-throw.
  *
+ * **#410 — encoding, and who gets what.** `message` is run through
+ * {@link escapeControlChars} unconditionally, once, at the top — before the
+ * reporter is even tried — so every channel, including the reporter callback,
+ * sees a CR/LF-safe message and a forged warning cannot masquerade as a
+ * second log line. `fields` is different: it is escaped (its string values
+ * only; a `BigInt`, a number, a nested object pass through untouched) for the
+ * `console` and stderr/{@link renderLine} channels, but the reporter receives
+ * it raw and structured — the application's own logger owns how it encodes
+ * its own sink, and a pre-stringified transcript would cost it the value it
+ * asked for.
+ *
  * @param reporter - Where the caller would prefer this to land. `undefined`
  * skips straight to `console`.
  * @param level - Which method to call, on the reporter and on `console`.
- * @param message - The line's message half.
- * @param fields - The line's structured half.
+ * @param message - The line's message half. Encoded before any channel sees
+ * it.
+ * @param fields - The line's structured half. Raw for `reporter`; encoded
+ * (string values only) for `console` and `Deno.stderr`.
  * @returns Nothing: it cannot fail, only fail to be seen.
  *
  * @example
@@ -91,6 +177,7 @@ export function report(
     message: string,
     fields: Record<string, unknown>,
 ): void {
+    message = escapeControlChars(message)
     try {
         if (reporter) {
             reporter[level](message, fields)
@@ -99,6 +186,7 @@ export function report(
     } catch {
         // The reporter threw: fall through to console.
     }
+    fields = escapeStringFields(fields)
     try {
         console[level](`⚠️  ${message}`, fields)
         return
