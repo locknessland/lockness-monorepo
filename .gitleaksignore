@@ -4,7 +4,11 @@
 # - .github/rules/**: lines copied verbatim from the public Hono docs
 #   (an example JWT and an example env file).
 # - packages/mail/llms.txt: a sequential placeholder API key in a docs example.
+# - packages/realtime/tests/presence_roster_wrong_type_414.test.ts: the fixture
+#   value 'corrupted-by-414' written to a Redis key by a wrong-type test; the
+#   rule matches the `key, '<value>'` argument shape.
 8ecb9177c2e90fb85990eb9bada45b154a823a21:.github/rules/getting-started/cloudflare-workers.md:generic-api-key:332
 8ecb9177c2e90fb85990eb9bada45b154a823a21:.github/rules/helpers/jwt.md:generic-api-key:115
 8ecb9177c2e90fb85990eb9bada45b154a823a21:.github/rules/helpers/jwt.md:jwt:116
 371607f29c7c7b0102f1239a1a59a39995671e8a:packages/mail/llms.txt:generic-api-key:256
+d59348d561e658027dd9cc29d89d03ad146658d0:packages/realtime/tests/presence_roster_wrong_type_414.test.ts:generic-api-key:127
