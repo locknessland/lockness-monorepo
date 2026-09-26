@@ -1166,7 +1166,8 @@ export class ChannelManager<Identity = unknown> {
      */
     readonly #channelsByClient = new Map<string, Set<string>>()
     /**
-     * The connection objects a `disconnect` has begun for — **retired** (#361).
+     * The connection objects a `disconnect` has begun for — **retired** (#361)
+     * — mapped to that teardown's own settling promise (#393).
      *
      * This is the definition's one home
      * ([ADR 010](../../docs/adr/010-realtime-disconnect-retires-the-connection-object.md)
@@ -1183,9 +1184,19 @@ export class ChannelManager<Identity = unknown> {
      * - It is **not a spelling of ownership.** A retiring connection is still
      *   owned — `connections` answers that, for every reader that asks it —
      *   and is only no longer admissible. {@link #assertAdmissible} is the one
-     *   reader.
+     *   reader, and it still asks only `.has(connection)` — the value stored
+     *   alongside is {@link disconnect}'s own business.
+     * - **The value is the retiring teardown's promise, not a boolean.** A
+     *   second `disconnect` of an object already present here joins that
+     *   promise instead of running its own copy of the reverse-index loop
+     *   (#393) — one teardown per object, ever. Nothing removes an entry once
+     *   settled, rejected included: a later joiner sees the same outcome the
+     *   first caller did.
      */
-    readonly #retired = new WeakSet<Connection<Identity>>()
+    readonly #retired = new WeakMap<
+        Connection<Identity>,
+        Promise<DisconnectOutcome>
+    >()
     /** The driver's per-channel watch ops, or `undefined` — one guard (#295). */
     #watcher: ChannelWatchCapableDriver | undefined
     /**
@@ -3192,6 +3203,20 @@ export class ChannelManager<Identity = unknown> {
      * same id — therefore leaves the new binding, its index and its channels
      * alone, including a channel both objects held.
      *
+     * **One teardown per object, ever** (#393). A second call for an object
+     * already retiring — `evict`'s id form racing the transport's own close
+     * event with the object form, both entered while the object still owned
+     * the id — joins the first call's promise instead of computing its own
+     * copy of the reverse index and running a second, independent loop. Two
+     * independent loops each believed the id still theirs to finish, so a
+     * copy that reached the last of its channels only after the OTHER copy had
+     * already forgotten the id (making it free for a new registration) tore
+     * down whatever a fresh registration had since built there — a real
+     * teardown, not a no-op, because that copy had captured the channel before
+     * the other one ever touched it. Joining removes the second copy
+     * entirely: the id stays bound to the one retiring object until its own,
+     * single teardown ends.
+     *
      * One channel's failure never aborts the rest: the first failure is
      * re-thrown after every channel was tried and the connection forgotten,
      * later ones are WARNed, and a failure is recorded by a flag, so a
@@ -3204,7 +3229,8 @@ export class ChannelManager<Identity = unknown> {
      *   passed is not the one that owns its id — nothing local was touched.
      * @throws Whatever the first channel teardown threw — unchanged; the
      *   connection is still forgotten, and the outcome is not reported in that
-     *   case because the throw is the report.
+     *   case because the throw is the report. A second, joining call throws
+     *   the same rejection the first call did.
      * @example
      * ```ts
      * const hooks = {
@@ -3214,25 +3240,58 @@ export class ChannelManager<Identity = unknown> {
      * }
      * ```
      */
-    async disconnect(
+    disconnect(
         target: string | Connection<Identity>,
     ): Promise<DisconnectOutcome> {
         // THE OBJECT FORM ACTS ONLY FOR THE OWNER (#363), asked before
         // anything is retired, copied or awaited: a socket that does not own
         // its id must not tear down the one that does.
         if (typeof target !== 'string' && !this.#isOwner(target)) {
-            return 'not-owned'
+            return Promise.resolve('not-owned')
         }
         const clientId = typeof target === 'string' ? target : target.id
-        // RETIRED FIRST, before any await, from the same read that decides
-        // `owned` (#361). This turn also copies the reverse index below, so a
-        // join that committed before it is in the copy and torn down, and a
-        // join after it meets the retirement at admission — `subscribe`
-        // refuses a retired object before it writes anything. `owned` is
-        // sampled here because a value read after the loop could report
-        // `'not-owned'` for the connection this call just tore down.
+        // READ BEFORE ANY AWAIT, exactly as #361 always did: this is the one
+        // read every later decision in this call (and #teardown's) is taken
+        // from.
         const bound = this.connections.get(clientId)
-        if (bound) this.#retired.add(bound)
+        // JOIN, RATHER THAN RUN (#393): an object already retiring has a
+        // teardown in flight, keyed by the object itself — never by
+        // `clientId`, which a later registration would reuse for someone
+        // else entirely. No new snapshot, no new loop; this call's caller
+        // awaits (or throws with) exactly what the first caller does.
+        if (bound !== undefined) {
+            const joining = this.#retired.get(bound)
+            if (joining !== undefined) return joining
+        }
+        const teardown = this.#teardown(clientId, bound)
+        // RETIRED, synchronously, in the same turn that read `bound` above
+        // (the #361 rule, unchanged): `#teardown` already ran synchronously up
+        // to its own first await, so nothing has run between that read and
+        // this write that could have observed `bound` retiring with no entry
+        // here — a second, same-turn call for this very object still finds
+        // it and joins.
+        if (bound !== undefined) this.#retired.set(bound, teardown)
+        return teardown
+    }
+
+    /**
+     * The reverse-index loop and forgetting `finally` for one `disconnect`
+     * call, extracted so a second teardown of an already-retiring object can
+     * await this very run instead of executing a copy of its own (#393) —
+     * {@link disconnect} is the only caller, and the only writer of
+     * {@link #retired}.
+     *
+     * @param clientId - The id `disconnect` was called with.
+     * @param bound - The object `disconnect` read `connections` as holding
+     *   `clientId`, or `undefined` when this instance did not own it.
+     * @returns `'disconnected'` when `bound` was owned and torn down here,
+     *   `'not-owned'` otherwise.
+     * @throws Whatever the first channel's teardown threw — unchanged.
+     */
+    async #teardown(
+        clientId: string,
+        bound: Connection<Identity> | undefined,
+    ): Promise<DisconnectOutcome> {
         const owned = bound !== undefined
         // THIS CONNECTION'S channels, not every channel this instance has ever
         // hosted. The old loop walked `subscriptions.keys()` and called
