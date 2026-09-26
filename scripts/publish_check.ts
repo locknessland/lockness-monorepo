@@ -452,6 +452,46 @@ async function existsOnJsr(name: string): Promise<boolean | null> {
 }
 
 /**
+ * The verdict for the `--registry` existence check, decided from the counts
+ * gathered while probing each package with {@link existsOnJsr}.
+ *
+ * Split out from {@link main} so the branch that matters -- missing wins over
+ * merely unreachable, and an unreachable-only run is not a proven fault -- is
+ * unit-testable without a real JSR round trip (#397, finding 5).
+ *
+ * @param missing - Package names JSR has never seen.
+ * @param unreachable - How many probes could not reach the registry at all.
+ * @returns `code: 1` names every missing package and the URL to create it;
+ * `code: 0` otherwise (including when every probe was merely unreachable --
+ * inconclusive is not a proven fault, so it must not fail the run).
+ * @example
+ * ```ts
+ * registryVerdict(['scheduler'], 0).code   // 1
+ * registryVerdict([], 2).code              // 0 -- unreachable, not missing
+ * ```
+ */
+export function registryVerdict(
+    missing: string[],
+    unreachable: number,
+): { code: 0 | 1; lines: string[] } {
+    if (missing.length === 0 && unreachable === 0) {
+        return { code: 0, lines: ['  ✅ every package exists on JSR'] }
+    }
+    if (missing.length === 0) return { code: 0, lines: [] }
+    return {
+        code: 1,
+        lines: [
+            `\n❌ ${missing.length} package(s) must be created on JSR before any publish.`,
+            '   `deno publish` is atomic across the workspace — one missing',
+            '   package aborts all of them. Create each here:',
+            ...missing.map((name) =>
+                `   https://jsr.io/new?scope=lockness&package=${name}`
+            ),
+        ],
+    }
+}
+
+/**
  * Run the check for every package.
  */
 async function main(): Promise<void> {
@@ -521,24 +561,12 @@ async function main(): Promise<void> {
             console.log(`  ❌ ${name.padEnd(24)} does not exist on JSR`)
         }
     }
-    if (missing.length === 0 && unreachable === 0) {
-        console.log('  ✅ every package exists on JSR')
+    const registry = registryVerdict(missing, unreachable)
+    if (registry.code !== 0) {
+        for (const line of registry.lines) console.error(line)
+        Deno.exit(registry.code)
     }
-    if (missing.length > 0) {
-        console.error(
-            `\n❌ ${missing.length} package(s) must be created on JSR before any publish.`,
-        )
-        console.error(
-            '   `deno publish` is atomic across the workspace — one missing',
-        )
-        console.error('   package aborts all of them. Create each here:')
-        for (const name of missing) {
-            console.error(
-                `   https://jsr.io/new?scope=lockness&package=${name}`,
-            )
-        }
-        Deno.exit(1)
-    }
+    for (const line of registry.lines) console.log(line)
 
     if (verdict.code !== 0) {
         for (const line of verdict.lines) console.error(line)
