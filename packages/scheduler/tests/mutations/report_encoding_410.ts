@@ -48,7 +48,10 @@ const MUTATIONS: Mutation[] = [
     },
     {
         // The shared fields encoding is gone — a CR/LF-bearing field value
-        // now reaches console unescaped. Proven by the console-specific test.
+        // now reaches console and stderr unescaped. Both channels read the one
+        // reassigned `fields`, so this is one mutant, not two; the stderr
+        // test fails on it too, and the console test is the one it is
+        // attributed to.
         label: 'the field encoding is deleted — a CR/LF-bearing field ' +
             'reaches console unescaped',
         file: REPORTING,
@@ -58,20 +61,6 @@ const MUTATIONS: Mutation[] = [
         ]],
         killedBy:
             'a CR/LF-bearing field value is escaped before reaching console',
-    },
-    {
-        // The same deletion, proven by the stderr-specific test — the same
-        // shared encoding point guards both channels, and each has its own
-        // test that notices independently.
-        label: 'the field encoding is deleted — a CR/LF-bearing field ' +
-            'reaches stderr unescaped',
-        file: REPORTING,
-        edits: [[
-            '    fields = escapeStringFields(fields)\n',
-            '',
-        ]],
-        killedBy:
-            'a CR/LF-bearing field value is escaped before reaching stderr',
     },
     {
         // `fields` is encoded before it reaches the reporter, which is the
