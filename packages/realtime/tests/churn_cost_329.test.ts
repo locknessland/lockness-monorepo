@@ -468,6 +468,13 @@ Deno.test('#329 the decision that there is no framework meter is ANCHORED, not m
     // and `onClose` are composed and this one deliberately is not — composing
     // a budget in is how a churn meter arrives in the framework by the back
     // door, and it would charge the five non-client paths into `unsubscribe`.
+    //
+    // What this loop does NOT prove (#417): a counting-only meter that lets
+    // every call through while it accumulates state. That case is left to
+    // review on purpose. A private `#count++` is invisible to reflection, and
+    // a heap-growth probe would couple the gate to the GC. Spying on a meter
+    // seam would require the very seam this decision forbids. A syntactic pin
+    // on the wrapper is what #401 removed.
     const f = fleet()
     const c = conn('c1', 1)
     f.local.register(c)
