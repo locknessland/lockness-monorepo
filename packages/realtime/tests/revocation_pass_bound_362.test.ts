@@ -42,6 +42,7 @@ import {
 import { FakeTime } from '@std/testing/time'
 import { RedisBroadcastDriver } from '../drivers/redis.ts'
 import {
+    EnforcementDeadline,
     REVOCATION_DEADLINE_MISSED,
     REVOCATION_DEADLINE_SKEWED,
     REVOCATION_DEADLINE_STALLED,
@@ -459,6 +460,49 @@ Deno.test('#362 D4b an overdue arm writes MISSED even when a trailing pass start
     })
 })
 
+Deno.test('#362 D4c an overdue MISSED carry survives a trailing pass that succeeds before its flush timer (#383)', async () => {
+    await withClock(async (time, logs) => {
+        const { port, driver, listen, reconnect } = instance({
+            interval: 1_000,
+        })
+        listen()
+        await advance(time, 1_000) // s_prev = 1 s succeeds
+        const reply = port.hold(isReap)
+        await advance(time, 1_000) // s = 2 s, held
+        assert(await reachedNow(reply, time))
+        await reconnect() // recorded: the end site starts the trailing pass
+        await advance(time, 12_000) // past s_prev + TTL: STALLED, once
+        assertEquals(logs.count(REVOCATION_DEADLINE_STALLED), 1)
+        // The held pass is clean but overdue (it ran 12 s > TTL): its end
+        // site starts the trailing 'reconnect' pass FIRST, then decides
+        // MISSED now (arm(delayMs <= 0)) and queues it in #unwritten behind
+        // a 0 ms timer. The trailing pass is NOT held this time, so it
+        // completes in this SAME microtask drain — racing that 0 ms timer —
+        // and its own success calls passSucceeded again, which must carry
+        // the still-unwritten MISSED forward rather than lose it.
+        reply.release()
+        await time.runMicrotasks()
+        assertEquals(
+            logs.count(REVOCATION_DEADLINE_MISSED),
+            0,
+            'not flushed yet',
+        )
+        assertEquals(
+            logs.lines(REVOCATION_DEADLINE_STALLED)
+                .filter((l) => l.includes('trigger reconnect')),
+            [],
+        )
+        await time.tickAsync(0)
+        assertEquals(
+            logs.count(REVOCATION_DEADLINE_MISSED),
+            1,
+            'the carry survives the race',
+        )
+        assertEquals(logs.deadlineLines().length, 2)
+        await driver.close()
+    })
+})
+
 Deno.test('#362 D5 (i) close() during a pass that then succeeds arms nothing', async () => {
     await withClock(async (time, logs) => {
         const { port, driver, listen } = instance({ interval: 1_000 })
@@ -776,3 +820,44 @@ Deno.test('#362 D8 (iii) a reconnect pass whose sink also fails still runs the #
         }
     })
 })
+
+// ---------------------------------------------------------------------------
+// #383 item 6 — a direct EnforcementDeadline unit witness (no driver needed)
+// ---------------------------------------------------------------------------
+
+Deno.test(
+    "#383 (vi) passSucceeded arms ttlMs minus the pass's own elapsed time, not a full TTL",
+    async () => {
+        const time = new FakeTime(START)
+        const warn = console.warn
+        const warns: string[] = []
+        console.warn = (...parts: unknown[]) => void warns.push(parts.join(' '))
+        try {
+            const deadline = new EnforcementDeadline({
+                ttlMs: 10_000,
+                now: () => time.now,
+                inFlight: () => undefined,
+            })
+            deadline.arm(10_000)
+            // Under FakeTime the elapsed time between two calls is 0 unless
+            // real time is advanced in between — so a witness that calls
+            // passSucceeded right after arm() cannot tell a subtraction from
+            // no subtraction at all. Here the pass itself took 4 000 ms
+            // (startedAt=0, endedAt=4_000): without the subtraction the
+            // re-arm would wait a full 10 000 ms from THIS instant, and
+            // MISSED would fire 4 000 ms late.
+            deadline.passSucceeded(0, 4_000, undefined)
+            await time.tickAsync(5_999)
+            assertEquals(warns.length, 0, 'not armed for a full TTL')
+            await time.tickAsync(1)
+            assertEquals(
+                warns.length,
+                1,
+                "armed for ttlMs - the pass's own elapsed time (6 000ms)",
+            )
+        } finally {
+            console.warn = warn
+            time.restore()
+        }
+    },
+)
