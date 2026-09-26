@@ -3637,13 +3637,26 @@ export class ChannelManager<Identity = unknown> {
                         failed = true
                         failure = error
                     } else {
-                        console.warn(
-                            `realtime: tearing ${
-                                safeForLog(clientId)
-                            } out of ` +
-                                `${safeForLog(channel)} also failed: ` +
-                                renderError(error),
-                        )
+                        try {
+                            console.warn(
+                                `realtime: tearing ${
+                                    safeForLog(clientId)
+                                } out of ` +
+                                    `${safeForLog(channel)} also failed: ` +
+                                    renderError(error),
+                            )
+                        } catch (sink) {
+                            // #395 (security review LOW): a throwing sink
+                            // must not abort this loop — a later channel's
+                            // roster release, `left` announcement and cap
+                            // release must still run. One marked line
+                            // instead, which never throws (#391).
+                            writeMarkedFallback(
+                                TEARDOWN_CHANNEL_LOG_FAILED,
+                                error,
+                                { label: 'sink failure', error: sink },
+                            )
+                        }
                     }
                 }
             }
@@ -4239,11 +4252,25 @@ export class ChannelManager<Identity = unknown> {
                 // Counted BEFORE the WARN, as the sweep counts: a sink that
                 // throws cannot skip it.
                 failed++
-                console.warn(
-                    'realtime: a durable revocation could not be applied — ' +
-                        'the reconcile goes on with the next one: ' +
-                        renderError(error),
-                )
+                try {
+                    console.warn(
+                        'realtime: a durable revocation could not be applied — ' +
+                            'the reconcile goes on with the next one: ' +
+                            renderError(error),
+                    )
+                } catch (sink) {
+                    // #395 (security review HIGH): a throwing sink must not
+                    // abort this `apply` — the loop above awaits it one
+                    // revocation at a time, so an uncontained throw here would
+                    // escape past this closure and skip every revocation
+                    // still queued behind the failing one, breaking #349's
+                    // "one revocation that throws never stops the ones after
+                    // it". One marked line instead, which never throws (#391).
+                    writeMarkedFallback(RECHECK_REVOCATION_LOG_FAILED, error, {
+                        label: 'sink failure',
+                        error: sink,
+                    })
+                }
             }
         }
         // The driver is ASKED which targets are local, so it can drop foreign
@@ -4390,13 +4417,24 @@ export class ChannelManager<Identity = unknown> {
             try {
                 connection.send(encoded)
             } catch (error) {
-                console.warn(
-                    `realtime: a presence frame could not be delivered on ${
-                        safeForLog(channel)
-                    } — the socket is skipped and the fan-out continues: ${
-                        renderError(error)
-                    }`,
-                )
+                try {
+                    console.warn(
+                        `realtime: a presence frame could not be delivered on ${
+                            safeForLog(channel)
+                        } — the socket is skipped and the fan-out continues: ${
+                            renderError(error)
+                        }`,
+                    )
+                } catch (sink) {
+                    // #395 (security review LOW): a throwing sink must not
+                    // abort this fan-out — the remaining local sockets must
+                    // still receive the frame. One marked line instead, which
+                    // never throws (#391).
+                    writeMarkedFallback(EMIT_PRESENCE_LOG_FAILED, error, {
+                        label: 'sink failure',
+                        error: sink,
+                    })
+                }
             }
         }
     }
