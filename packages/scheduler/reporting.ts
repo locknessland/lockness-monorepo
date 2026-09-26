@@ -94,6 +94,14 @@ function escapeControlChars(value: string): string {
  * its own sink, and handing it a pre-stringified transcript would cost it the
  * structured value it asked for.
  *
+ * **Shallow on purpose.** A string nested inside an object or an array, or
+ * a control character in a key, is not escaped here: `console` (via
+ * `Deno.inspect`) and `JSON.stringify` in `renderLine` each render it as a
+ * literal `\r` / `\n` escape, so no raw line break reaches either channel.
+ * That guarantee belongs to those two formatters, not to this function; a
+ * channel that interpolated `fields` into a string directly would need this
+ * encoder to recurse first.
+ *
  * @param fields - The line's structured half.
  * @returns A shallow copy of `fields` with its string values escaped.
  */
