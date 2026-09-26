@@ -19,6 +19,7 @@
  */
 
 import { type Mutation, runBattery } from '@mutations/harness.ts'
+import { LIVE_BROKER } from '../../../redis/tests/live_broker.ts'
 
 const REDIS = new URL('../../drivers/redis.ts', import.meta.url)
 const SUITES = [
@@ -112,14 +113,40 @@ const MUTATIONS: Mutation[] = [
     },
 ]
 
+/**
+ * The `list` and `stream` rows are killed only against a live broker: the
+ * fake never models those Redis types, so without one their witnesses are
+ * `ignored`, Deno reports `ok`, and each row would print SURVIVED — a false
+ * coverage gap. Offline, this battery runs every other row, NAMES the rows
+ * it skipped, and exits 2, which `deno task mutate` reports as PARTIAL (the
+ * #248 convention).
+ */
+const NEEDS_BROKER = (m: Mutation) => (m.killedBy ?? '').includes('(live)')
+
 if (import.meta.main) {
-    Deno.exit(
-        await runBattery(
-                "#405 — a wrong-typed revocation floor self-heals inside FLOOR_WRITE's EVAL",
-                SUITES,
-                MUTATIONS,
-            ) > 0
-            ? 1
-            : 0,
+    const skipped = LIVE_BROKER ? [] : MUTATIONS.filter(NEEDS_BROKER)
+    const rows = LIVE_BROKER
+        ? MUTATIONS
+        : MUTATIONS.filter((m) => !NEEDS_BROKER(m))
+
+    const unresolved = await runBattery(
+        "#405 — a wrong-typed revocation floor self-heals inside FLOOR_WRITE's EVAL",
+        SUITES,
+        rows,
     )
+
+    if (skipped.length > 0) {
+        console.error(
+            `\nPARTIAL — ${skipped.length} row(s) NOT run, they need a live broker:`,
+        )
+        for (const m of skipped) console.error(`  - ${m.label}`)
+        console.error(
+            '\n  LOCKNESS_REDIS_INTEGRATION=1 LOCKNESS_REDIS_PORT=<port> \\\n' +
+                '    deno task mutate revocation_floor_wrong_type_405',
+        )
+    }
+
+    // Unresolved rows outrank partiality: a real red must not be reported as
+    // "could not run".
+    Deno.exit(unresolved > 0 ? 1 : skipped.length > 0 ? 2 : 0)
 }
