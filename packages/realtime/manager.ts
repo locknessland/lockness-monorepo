@@ -97,6 +97,19 @@ export const REVOCATION_APPLY_LOG_FAILED =
 export const PUBLISH_FAILED = 'realtime: broadcast publish failed:'
 
 /**
+ * The marker that starts the one ERROR line written when a #323 join
+ * compensation's own WARN could not be (#373): a `console.warn` that throws
+ * inside `#joinPresence`'s catch, for either the leave's failure or the
+ * reclaim's. That catch always ends by re-throwing the ORIGINAL roster
+ * error, so a throwing sink must not be allowed to replace it with a WARN
+ * line's own exception — the line carries the compensation failure and the
+ * sink's, each rendered. Exported for the test suite only — not re-exported
+ * from `mod.ts`.
+ */
+export const JOIN_COMPENSATION_LOG_FAILED =
+    'realtime: a #323 join-compensation failure could not be logged (#373):'
+
+/**
  * Refuse a cap that is not a positive integer, at construction.
  *
  * @param option - The option's name, so the message names what to fix.
@@ -922,6 +935,16 @@ type PresenceTransitionFrame =
  * a given room.
  */
 export type LeaveOutcome = 'left' | 'not-subscribed' | 'not-owned'
+
+/**
+ * What {@link ChannelManager}'s private `#collectLeaveOutcome` got from one
+ * `#leaveLocal` call — a rejection collected rather than thrown, so a caller
+ * can still run its own follow-up write. Internal: never a public return
+ * shape, unlike {@link LeaveOutcome}.
+ */
+type LocalLeaveOutcome =
+    | { readonly left: boolean; readonly failed: false }
+    | { readonly left: false; readonly failed: true; readonly error: unknown }
 
 /**
  * What {@link ChannelManager.disconnect} did.
@@ -2034,7 +2057,45 @@ export class ChannelManager<Identity = unknown> {
                 // membership is taken out, and it creates the entry it is
                 // undoing.
                 this.#forgetPresenceMember(channel, connection.id)
-                await this.#leaveLocal(channel, connection.id)
+                // COLLECTED, NOT AWAITED-THEN-THROWN (#373). The leave's own
+                // `unwatchChannel` round trip can reject on the 1→0
+                // transition, and a broker connection drop is exactly what
+                // ALSO loses the roster reply the `catch` above is reacting
+                // to — the two faults are correlated, not independent. An
+                // `await` here that let the leave's rejection propagate skips
+                // the reclaim below entirely and surfaces the unwatch failure
+                // in place of the roster failure that actually refused the
+                // join. `#collectLeaveOutcome` is the one helper this shares
+                // with `unsubscribe`'s #361 ordering, which runs its own
+                // roster release the same way: unconditionally, after
+                // collecting rather than awaiting-then-throwing the leave.
+                const leaveOutcome = await this.#collectLeaveOutcome(
+                    channel,
+                    connection.id,
+                )
+                if (leaveOutcome.failed) {
+                    // Reported, never thrown: the reclaim below still must
+                    // run, and the ORIGINAL roster error is still what this
+                    // branch ends on.
+                    try {
+                        console.warn(
+                            `realtime: the local leave during a #323 join ` +
+                                `compensation on ${safeForLog(channel)} ` +
+                                `failed, before the roster reclaim: ${
+                                    renderError(leaveOutcome.error)
+                                }`,
+                        )
+                    } catch (sink) {
+                        // The `throw error` below must survive a throwing
+                        // sink too — `writeMarkedFallback` never throws
+                        // (#391).
+                        writeMarkedFallback(
+                            JOIN_COMPENSATION_LOG_FAILED,
+                            leaveOutcome.error,
+                            { label: 'sink failure', error: sink },
+                        )
+                    }
+                }
                 // The write is atomic, but its REPLY can still be lost: a
                 // connection dropped after the script commits looks exactly
                 // like one that never ran. Ask for the removal rather than
@@ -2052,18 +2113,35 @@ export class ChannelManager<Identity = unknown> {
                 // A reclaim that finds a committed hold returns `gone` and
                 // announces a truthful `left` for a member no `joined` was
                 // sent for — the accepted cost of a reply lost after commit.
+                //
+                // RUNS UNCONDITIONALLY (#373), whether or not the leave above
+                // failed: a failed unwatch does not mean the local membership
+                // was not already removed, and this reclaim's desired state
+                // is read from that removal, not from the leave's outcome.
                 try {
                     await this.#syncRosterMember(channel, origin)
                 } catch (cleanupError) {
-                    console.warn(
-                        `realtime: could not reclaim a possibly-written ` +
-                            `roster entry on ${safeForLog(channel)} ` +
-                            `after a failed join; the ghost sweep is ` +
-                            `the remaining backstop: ${
-                                renderError(cleanupError)
-                            }`,
-                    )
+                    try {
+                        console.warn(
+                            `realtime: could not reclaim a possibly-written ` +
+                                `roster entry on ${safeForLog(channel)} ` +
+                                `after a failed join; the ghost sweep is ` +
+                                `the remaining backstop: ${
+                                    renderError(cleanupError)
+                                }`,
+                        )
+                    } catch (sink) {
+                        writeMarkedFallback(
+                            JOIN_COMPENSATION_LOG_FAILED,
+                            cleanupError,
+                            { label: 'sink failure', error: sink },
+                        )
+                    }
                 }
+                // ALWAYS THE ORIGINAL ERROR (#373): neither the leave's
+                // failure nor the reclaim's replaces it. Both are WARNed,
+                // never thrown, so the caller learns exactly what refused the
+                // join — not a symptom of the compensation that followed it.
                 throw error
             }
         }
@@ -2294,6 +2372,47 @@ export class ChannelManager<Identity = unknown> {
         this.subscriptions.delete(channel)
         await this.#watcher?.unwatchChannel(channel)
         return true
+    }
+
+    /**
+     * Await {@link #leaveLocal} once, collected rather than thrown — the
+     * caller decides what to do with a failure, instead of its rejection
+     * skipping whatever the caller meant to run next.
+     *
+     * **The one helper {@link unsubscribe} (#361) and {@link #joinPresence}'s
+     * #323 compensation (#373) share.** Both run a second roster write (a
+     * release, a reclaim) after the leave regardless of whether it rejected —
+     * the 1→0 transition's `unwatchChannel` round trip is exactly the call
+     * that can fail there, and a broker fault that fails it is the same fault
+     * likely to have caused the roster write these callers are compensating
+     * for in the first place. Letting the rejection propagate before either
+     * caller reaches its second write would skip that write instead of
+     * running it.
+     *
+     * **Awaited immediately, inside this method's own `try`.** A promise held
+     * aside and only awaited later, after other work runs first, is what Deno
+     * reports as an unhandled rejection if it settles rejected before that
+     * later `await` — collecting it here, in the same turn `#leaveLocal` is
+     * called, is what keeps this method's own return the only thing either
+     * caller awaits across that gap.
+     *
+     * @param channel - The channel to leave locally.
+     * @param clientId - The connection leaving it.
+     * @returns The leave's own result, or its rejection collected instead of
+     *   thrown.
+     */
+    async #collectLeaveOutcome(
+        channel: string,
+        clientId: string,
+    ): Promise<LocalLeaveOutcome> {
+        try {
+            return {
+                left: await this.#leaveLocal(channel, clientId),
+                failed: false,
+            }
+        } catch (error) {
+            return { left: false, failed: true, error }
+        }
     }
 
     /**
@@ -2854,17 +2973,10 @@ export class ChannelManager<Identity = unknown> {
         // subscribe racing a suspended leave read the member still here, took
         // the re-join guard and answered `ok` for a membership being removed.
         const member = this.#forgetPresenceMember(channel, clientId)
-        let left = false
-        // The failure is recorded by a FLAG, never by its value: a rejection
-        // may carry `undefined`.
-        let leaveFailed = false
-        let leaveError: unknown
-        try {
-            left = await this.#leaveLocal(channel, clientId)
-        } catch (error) {
-            leaveFailed = true
-            leaveError = error
-        }
+        // Collected through `#collectLeaveOutcome`, the one helper this
+        // shares with `#joinPresence`'s #323 compensation (#373) — a
+        // rejection here must not skip the release below.
+        const outcome = await this.#collectLeaveOutcome(channel, clientId)
         if (member) {
             // Released through the per-slot projection (#330), WHETHER OR NOT
             // the leave failed. The local delete above is what the projection
@@ -2878,7 +2990,7 @@ export class ChannelManager<Identity = unknown> {
             } catch (error) {
                 // The leave's failure came first and is the one re-thrown;
                 // this one is logged, naming the channel and never the member.
-                if (!leaveFailed) throw error
+                if (!outcome.failed) throw error
                 console.warn(
                     `realtime: releasing a presence member of ${
                         safeForLog(channel)
@@ -2888,10 +3000,10 @@ export class ChannelManager<Identity = unknown> {
                 )
             }
         }
-        if (leaveFailed) throw leaveError
+        if (outcome.failed) throw outcome.error
         // `left` first: something WAS removed, whatever `connections` says
         // about a socket that may already have been pruned around it.
-        return left ? 'left' : owned ? 'not-subscribed' : 'not-owned'
+        return outcome.left ? 'left' : owned ? 'not-subscribed' : 'not-owned'
     }
 
     /**
