@@ -93,6 +93,62 @@ prior wrong type on a heal. `listRevocations` and `#announceFloor` each WARN
 once through the existing `#warnFloor` when they see a heal, naming only the
 prior Redis type; the hot path never WARNs.
 
+### Self-heal extended to the index (#411)
+
+The revocation **index** is on the same shared bus as the floor, and the same
+class of writer with bus access can put a `string`, `list`, `set`, `hash` or
+`stream` there — which used to raise `WRONGTYPE` on `REAP_REVOKED_SCRIPT`'s
+`ZREMRANGEBYSCORE` or `MARK_REVOKED_SCRIPT`'s `ZADD` and abort the whole reap or
+mark, exactly the class of gap this record's §4 named out of scope for #405.
+`INDEX_HEAL` — the `FLOOR_WRITE`-shaped heal generalised to the index — is
+spliced into both scripts, before each one's own body: a `TYPE` read plus five
+type-gated `DEL` blocks, over the bound local `index` rather than `KEYS`/`ARGV`
+directly, the same discipline `FLOOR_WRITE` keeps for `floor`.
+
+**Why `DEL` is safe here, for a DIFFERENT reason than the floor's.** The floor's
+heal is safe because the floor is fully re-derivable — every entry is rewritten
+by the next reap or announce, so nothing is lost that was not already about to
+be recomputed. The index holds primary, non-derived revocation records, and has
+no such re-derivation — so the argument has to be narrower, and it is: **any
+command able to change a key's TYPE has already discarded the prior value,
+unconditionally, before Redis ever raises `WRONGTYPE`.** A `SET`,
+`RENAME … REPLACE`, `COPY … REPLACE` or `RESTORE … REPLACE` overwrites the value
+first; a WRONGTYPE-refusing write (`SADD`, `HSET`, `LPUSH`) never reaches far
+enough to matter. So the former zset is already gone, at the Redis layer, the
+instant `TYPE` disagrees — before any remedy here runs. Quarantining the key
+(renaming it aside) would therefore preserve nothing recoverable beyond the
+WARN's own "prior type" word, at the cost of an unbounded, un-TTL'd key an
+attacker can keep spawning under repeated corruption — a storage-growth vector
+bought for zero recoverability. Rebuilding from per-record keys is inapplicable,
+not merely rejected: every revocation is a member of this ONE sorted set; no
+per-record key is ever written, and manufacturing one now would double every
+mark's round trips.
+
+**The reap and the mark leave a healed index in different shapes**, because they
+write it differently. The reap only prunes the index (`ZREMRANGEBYSCORE`) — it
+never `ZADD`s — so a reap-side heal leaves the index ABSENT (`none`), not a
+fresh `zset`, until the next mark or a raw write; "usable again", not "a zset
+again", is the property that matters, and it holds either way. The mark writes
+the SAME key it heals, inside the SAME atomic `EVAL` (`ZADD` right after
+`INDEX_HEAL`'s `DEL`), so a mark-side heal IS a `zset` again immediately, in the
+very same round trip that recorded the revocation.
+
+Both scripts' replies widen again to carry the index's prior kind: the reap's
+`{t, kind}` (#405) becomes `{t, indexKind, floorKind}` (`decodeReapReply`
+widened to a triple, `kind` renamed `floorKind`); the mark, which returned
+nothing decoded before, now returns `{indexKind}` (`decodeMarkReply`, new).
+`listRevocations` and `markRevocation` each WARN once through the SAME
+`#warnFloor` sink (never a sibling) via the new `#warnIfIndexHealed`, naming
+only the prior Redis type — `REVOCATION_INDEX_WRONG_TYPE`, wording twin to
+`REVOCATION_FLOOR_WRONG_TYPE`.
+
+**Folded LOW, found alongside this fix**: `#announceFloor` used to read the
+announce's bare `kind` reply with `asBulk(reply)` directly — a non-bulk reply
+was read as `undefined` and the heal check was silently skipped, no throw and no
+WARN. `decodeAnnounceReply` now decodes it strictly, throwing on anything but a
+bulk string, so a decode failure lands in the announce's existing WARN+retry
+`catch` like any other failed attempt, rather than passing unnoticed.
+
 ### The announce, and its retry
 
 The announce shares the deadline arm's gate — first registration, `close()` not
@@ -212,8 +268,8 @@ and moves only where it is computed:
   intervened), but a real, bounded reopening of the narrower defect this record
   exists to close. Repeated corruption costs one WARN per pass, fleet-wide, for
   as long as it recurs — a log-volume concern under sustained abuse, not a
-  blackout. The wrong-typed revocation **index** and bus write access in general
-  are unaffected and stay out of scope (#405).
+  blackout. **The wrong-typed revocation index is no longer out of scope**: #411
+  closed it with the same self-heal shape — see below.
 - **A stalled reader drops out of the floor** one TTL after its last reap, when
   its ADR 011 deadline fires. The loss is reported, not prevented.
 - **Records outlive their writer's TTL**, which costs index size, paid in pages

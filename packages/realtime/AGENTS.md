@@ -148,19 +148,50 @@ of what the re-check's counts mean.
   corrupt key heals in the same pass that hit it, never a second round trip.
   **The `DEL` names the floor key ONLY — never the revocation index, and never
   generalise it to a second key "while we're in there".** The index is a
-  different structure with its own failure mode (out of scope, #405) and its own
-  sole delete, the reap's `ZREMRANGEBYSCORE`; widening this `DEL`'s reach would
-  let a floor heal destroy live revocations. **Never `pcall`, `else`, `~=` or
-  reassignment** in `FLOOR_WRITE`: the shared Lua evaluator
-  (`packages/redis/tests/lua_eval.ts`) proves all four unsupported, and it is
-  shared by `session`, `queue` and `core`'s scheduler locks — extending it
-  further for one driver's edge case is a second, weaker home. Both callers'
-  replies changed to carry `kind` (the reap's `{t, kind}`, the announce's bare
-  `kind`); `decodeReapReply` is the one decoder of the pair. Witness:
+  different structure with its own failure mode and, since #411, its OWN
+  separate heal fragment (`INDEX_HEAL`) and its own sole delete, the reap's
+  `ZREMRANGEBYSCORE`; widening this `DEL`'s reach would let a floor heal destroy
+  live revocations. **Never `pcall`, `else`, `~=` or reassignment** in
+  `FLOOR_WRITE`: the shared Lua evaluator (`packages/redis/tests/lua_eval.ts`)
+  proves all four unsupported, and it is shared by `session`, `queue` and
+  `core`'s scheduler locks — extending it further for one driver's edge case is
+  a second, weaker home. Both callers' replies changed to carry `kind` (the
+  reap's `{t, kind}`, the announce's bare `kind`; widened again by #411 below);
+  `decodeReapReply` is the one decoder of the pair. Witness:
   `revocation_floor_wrong_type_405.test.ts` (fake rows: `string`/`hash`/`set`;
   live-broker rows, gated on `LOCKNESS_REDIS_INTEGRATION`: `list`/`stream`,
   which the fake never models); battery
   `tests/mutations/revocation_floor_wrong_type_405.ts`.
+- **A wrong-typed INDEX key self-heals the SAME way, inside
+  `REAP_REVOKED_SCRIPT`'s and `MARK_REVOKED_SCRIPT`'s own atomic `EVAL`s,
+  through `INDEX_HEAL` — the `FLOOR_WRITE`-shaped fragment generalised to the
+  index** ([#411](https://github.com/locknessland/lockness-monorepo/issues/411),
+  ADR 013 §2/§4). `INDEX_HEAL` reads `redis.call('TYPE', index)['ok']` and
+  `DEL`s the index when it is anything but `zset`/`none`, spliced before the
+  reap's `ZREMRANGEBYSCORE` and before the mark's `ZADD` — so a corrupt index
+  heals in the same pass that hit it. **`DEL` is safe here for a DIFFERENT
+  reason than the floor's**: the floor is safe because it is fully re-derivable,
+  while the index holds primary, non-derived records and is safe because any
+  command able to change a key's TYPE has already discarded the prior value,
+  unconditionally, before Redis ever raises `WRONGTYPE` — the former zset is
+  already gone at the Redis layer the instant `TYPE` disagrees, before this heal
+  runs. **The reap never `ZADD`s the index, so a healed index is ABSENT
+  afterward, not a fresh `zset`** — unlike the floor, which the reap's
+  `FLOOR_WRITE` always rewrites in the same call; the mark DOES `ZADD` the same
+  key it heals, inside the same `EVAL`, so a mark-side heal IS a `zset` again
+  immediately. Both scripts' reply widened again: the reap's to
+  `{t, indexKind, floorKind}` (`decodeReapReply`, the pair from #405 widened to
+  a triple), the mark's to `{indexKind}` (new `decodeMarkReply`). The heal WARN
+  is `REVOCATION_INDEX_WRONG_TYPE`, wording twin to
+  `REVOCATION_FLOOR_WRONG_TYPE`, written through the SAME `#warnFloor` sink —
+  never a sibling — via the new `#warnIfIndexHealed`. **Folded LOW**:
+  `#announceFloor`'s bare `asBulk(reply)` is now the strict
+  `decodeAnnounceReply`, which throws on a non-bulk reply instead of silently
+  skipping the heal check — the failure lands in the announce's existing
+  WARN+retry `catch`. Witness: `revocation_index_wrong_type_411.test.ts` (fake
+  rows: `string`/`hash`/`set` × {reap, mark}; live-broker rows, gated on
+  `LOCKNESS_REDIS_INTEGRATION`: `list`/`stream` × {reap, mark}); battery
+  `tests/mutations/revocation_index_wrong_type_411.ts`.
 - **The local presence view is deduplicated in ONE place, `#localRoster`, and
   nowhere else**
   ([#343](https://github.com/locknessland/lockness-monorepo/issues/343)). The
@@ -703,8 +734,8 @@ of what the re-check's counts mean.
   - the instance set (`SMEMBERS` in `#reconcile`) → unbounded, small by
     construction (one entry per running instance);
   - the revocation index → `REVOCATION_SCAN_COUNT` (paged, #359); the reap
-    answers `{t, kind}` (#405: `t` the reaped second, `kind` the floor key's
-    prior Redis type), not one integer;
+    answers `{t, indexKind, floorKind}` (#405/#411: `t` the reaped second,
+    `indexKind` and `floorKind` each key's prior Redis type), not one integer;
   - the revocation floor (`ZRANGEBYSCORE` in `markRevocation`, #380) →
     unbounded, small by construction (one member per distinct live TTL);
     `MAX_REPLY_BYTES` is the backstop, and an oversized reply is a read failure,
