@@ -11,9 +11,15 @@
  * @module @lockness/session/tests/cookie_revocation
  */
 
-import { assertEquals, assertRejects } from '@std/assert'
+import {
+    assertEquals,
+    AssertionError,
+    assertRejects,
+    assertThrows,
+} from '@std/assert'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
+import { deleteCookie } from '@lockness/hono'
 import { drainDisposables } from '@lockness/contract/lifecycle/internal'
 import {
     configureSession,
@@ -312,5 +318,28 @@ Deno.test('cookie revocation - without absoluteLifetime, destroy fails loud and 
         ctx.res.headers.getSetCookie(),
         [],
         'a destroy that failed to revoke must not delete the cookie either',
+    )
+})
+
+Deno.test('cookie revocation - negative control: the no-cookie assertion fails when a cookie is present', async () => {
+    // #398: the assertion above (`getSetCookie()` is `[]`) previously had no
+    // direct proof that it CAN fail — only the #389 mutation battery showed
+    // that, by reordering `destroy()` so the cookie is deleted before the
+    // revocation throw. This reproduces that same observable state directly
+    // — a Set-Cookie header present — and confirms the identical assertion
+    // shape actually throws on it, instead of passing no matter what.
+    const ctx = await contextWith()
+    deleteCookie(ctx, REV_CONFIG.cookieName, {
+        path: REV_CONFIG.path,
+        domain: REV_CONFIG.domain,
+    })
+    assertThrows(
+        () =>
+            assertEquals(
+                ctx.res.headers.getSetCookie(),
+                [],
+                'a destroy that failed to revoke must not delete the cookie either',
+            ),
+        AssertionError,
     )
 })

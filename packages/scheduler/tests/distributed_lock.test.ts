@@ -309,9 +309,10 @@ function hostileRejections(): Array<[string, () => unknown]> {
 }
 
 Deno.test('onOneServer - a release rejecting with a hostile value is contained and reported once', async (t) => {
-    // `flatten` runs in a catch inside the run's `finally`, and on the cron
-    // path the run is `void`ed: a throw from it is an unhandled rejection that
-    // kills the process. Every read of the rejection value is hostile input.
+    // `normalizeError` (`errors.ts`, #398) runs in a catch inside the run's
+    // `finally`, and on the cron path the run is `void`ed: a throw from it is
+    // an unhandled rejection that kills the process. Every read of the
+    // rejection value is hostile input.
     for (const [label, make] of hostileRejections()) {
         await t.step(label, async () => {
             const { reporter, warnings } = recordingReporter()
@@ -344,6 +345,12 @@ Deno.test('onOneServer - a failed release with no reporter falls back to console
     // Without a reporter the scheduler used to say nothing at all — on this
     // path and on the three other warnings it emits. A rejection that is not
     // an Error is flattened, never passed through raw.
+    //
+    // #398: a failed release is best-effort — it must not mask the run's own
+    // outcome. `occurrence`, `failureCount` and `lastError` are what proves
+    // that (the run succeeded and the claim's absence is only warned about),
+    // not merely that SOME warning was logged.
+    const time = new FakeTime(new Date('2026-03-01T10:00:42.500Z'))
     const warn = stub(console, 'warn')
     try {
         const s = new Scheduler(undefined, {
@@ -365,10 +372,28 @@ Deno.test('onOneServer - a failed release with no reporter falls back to console
         ]
         assertStringIncludes(message, 'release')
         assertEquals(fields.task, 'nightly')
+        assertEquals(
+            fields.occurrence,
+            '2026-03-01T10:00:00.000Z',
+            'the floored occurrence the release claimed, not the raw clock',
+        )
         assertEquals(fields.error, 'Error')
         assertEquals(fields.message, 'not an error')
+
+        const [stats] = s.getStats().tasks
+        assertEquals(
+            stats.failureCount,
+            0,
+            'a lost release is not a failure — the run itself succeeded',
+        )
+        assertEquals(
+            stats.lastError,
+            null,
+            "the failed release must not be recorded as the run's error",
+        )
     } finally {
         warn.restore()
+        time.restore()
     }
 })
 
