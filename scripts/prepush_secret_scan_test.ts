@@ -12,15 +12,17 @@ import { assert, assertEquals } from '@std/assert'
 import { join } from '@std/path'
 import {
     commitCount,
+    createScanWorktree,
     isDelete,
     parseRefUpdates,
     readIgnoreAtBase,
     type RefUpdate,
+    removeScanWorktree,
     resolveBase,
     resolveRange,
     runPrepushScan,
     scanRange,
-    withIgnoreFileOverride,
+    writeBaseIgnoreFile,
 } from './prepush_secret_scan.ts'
 
 const ZERO = '0'.repeat(40)
@@ -403,72 +405,102 @@ Deno.test('readIgnoreAtBase returns null (keep the tip) when there is no base', 
     assertEquals(await readIgnoreAtBase(null, '.'), null)
 })
 
-Deno.test('withIgnoreFileOverride replaces .gitleaksignore for the call, then restores it', async () => {
-    await withTempDir('prepush-override-', async (dir) => {
-        await Deno.writeTextFile(join(dir, '.gitleaksignore'), 'original\n')
-        let seenDuringCall = ''
-        await withIgnoreFileOverride('replaced\n', dir, async () => {
-            seenDuringCall = await Deno.readTextFile(
-                join(dir, '.gitleaksignore'),
-            )
-        })
-        assertEquals(seenDuringCall, 'replaced\n')
-        assertEquals(
-            await Deno.readTextFile(join(dir, '.gitleaksignore')),
-            'original\n',
-            'did not restore the original .gitleaksignore',
-        )
-    })
-})
+Deno.test('createScanWorktree checks out local_sha in a disposable, detached worktree', async () => {
+    await withTempDir('prepush-worktree-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
+        const local = await git(dir, 'rev-parse', 'HEAD')
 
-Deno.test('withIgnoreFileOverride removes the file afterwards if it did not exist before', async () => {
-    await withTempDir('prepush-override-none-', async (dir) => {
-        await withIgnoreFileOverride('replaced\n', dir, async () => {
+        const worktreeDir = await createScanWorktree(local, dir)
+        try {
+            assertEquals(await git(worktreeDir, 'rev-parse', 'HEAD'), local)
             assertEquals(
-                await Deno.readTextFile(join(dir, '.gitleaksignore')),
-                'replaced\n',
+                await git(worktreeDir, 'rev-parse', '--abbrev-ref', 'HEAD'),
+                'HEAD',
+                'worktree HEAD was not detached',
             )
-        })
-        const stillThere = await Deno.stat(join(dir, '.gitleaksignore')).then(
-            () => true,
-            () => false,
-        )
-        assertEquals(stillThere, false, 'left a .gitleaksignore behind')
+        } finally {
+            await removeScanWorktree(worktreeDir, dir)
+        }
     })
 })
 
-Deno.test('withIgnoreFileOverride restores even when fn throws', async () => {
-    await withTempDir('prepush-override-throw-', async (dir) => {
-        await Deno.writeTextFile(join(dir, '.gitleaksignore'), 'original\n')
+Deno.test('removeScanWorktree leaves no worktree registered, even when the scan throws mid-way', async () => {
+    await withTempDir('prepush-worktree-throw-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
+        const local = await git(dir, 'rev-parse', 'HEAD')
+
+        let worktreeDir: string | null = null
         let threw = false
         try {
-            await withIgnoreFileOverride('replaced\n', dir, () => {
-                throw new Error('boom')
-            })
+            worktreeDir = await createScanWorktree(local, dir)
+            throw new Error('simulated crash mid-scan')
         } catch {
             threw = true
+        } finally {
+            if (worktreeDir) await removeScanWorktree(worktreeDir, dir)
         }
-        assert(threw, 'fn did not actually throw')
+        assert(threw, 'the simulated mid-scan failure did not actually throw')
+
+        const list = await git(dir, 'worktree', 'list', '--porcelain')
+        const registered = (list.match(/^worktree /gm) ?? []).length
         assertEquals(
-            await Deno.readTextFile(join(dir, '.gitleaksignore')),
-            'original\n',
+            registered,
+            1,
+            `only the main worktree should remain:\n${list}`,
+        )
+        assertEquals(
+            await git(dir, 'config', '--get', 'core.bare').catch(() => 'false'),
+            'false',
         )
     })
 })
 
-Deno.test('withIgnoreFileOverride is a no-op when content is null', async () => {
-    await withTempDir('prepush-override-null-', async (dir) => {
+Deno.test('writeBaseIgnoreFile writes base content into the worktree, never the developer tree', async () => {
+    await withTempDir('prepush-write-ignore-', async (dir) => {
+        await git(dir, 'init', '-q')
         await Deno.writeTextFile(join(dir, '.gitleaksignore'), 'tip\n')
-        const result = await withIgnoreFileOverride(
-            null,
-            dir,
-            () => Deno.readTextFile(join(dir, '.gitleaksignore')),
-        )
-        assertEquals(result, 'tip\n')
-        assertEquals(
-            await Deno.readTextFile(join(dir, '.gitleaksignore')),
-            'tip\n',
-        )
+        await git(dir, 'add', '.gitleaksignore')
+        await git(dir, 'commit', '-q', '-m', 'tip ignore')
+        const local = await git(dir, 'rev-parse', 'HEAD')
+
+        const worktreeDir = await createScanWorktree(local, dir)
+        try {
+            await writeBaseIgnoreFile('base\n', worktreeDir)
+            assertEquals(
+                await Deno.readTextFile(join(worktreeDir, '.gitleaksignore')),
+                'base\n',
+            )
+            assertEquals(
+                await Deno.readTextFile(join(dir, '.gitleaksignore')),
+                'tip\n',
+                'writeBaseIgnoreFile touched the developer tree',
+            )
+        } finally {
+            await removeScanWorktree(worktreeDir, dir)
+        }
+    })
+})
+
+Deno.test('writeBaseIgnoreFile with null content leaves the worktree checkout (the tip) untouched', async () => {
+    await withTempDir('prepush-write-ignore-null-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await Deno.writeTextFile(join(dir, '.gitleaksignore'), 'tip\n')
+        await git(dir, 'add', '.gitleaksignore')
+        await git(dir, 'commit', '-q', '-m', 'tip ignore')
+        const local = await git(dir, 'rev-parse', 'HEAD')
+
+        const worktreeDir = await createScanWorktree(local, dir)
+        try {
+            await writeBaseIgnoreFile(null, worktreeDir)
+            assertEquals(
+                await Deno.readTextFile(join(worktreeDir, '.gitleaksignore')),
+                'tip\n',
+            )
+        } finally {
+            await removeScanWorktree(worktreeDir, dir)
+        }
     })
 })
 
@@ -571,6 +603,62 @@ Deno.test('runPrepushScan honours a .gitleaksignore entry already present at the
                 l.includes(`origin/main..${local}`) && l.includes('clean')
             ),
             result.lines.join('\n'),
+        )
+    })
+})
+
+Deno.test('runPrepushScan never mutates the developer real .gitleaksignore, including an uncommitted edit', async () => {
+    await withTempDir('prepush-tree-untouched-', async (dir) => {
+        await git(dir, 'init', '-q')
+        await git(dir, 'commit', '-q', '--allow-empty', '-m', 'root')
+
+        // The base carries one suppression entry.
+        await Deno.writeTextFile(
+            join(dir, '.gitleaksignore'),
+            'base-entry\n',
+        )
+        await git(dir, 'add', '.gitleaksignore')
+        await git(dir, 'commit', '-q', '-m', 'base ignore')
+        const baseSha = await git(dir, 'rev-parse', 'HEAD')
+        await git(dir, 'update-ref', 'refs/remotes/origin/main', baseSha)
+
+        // The tip commits a DIFFERENT, committed version of the file...
+        await Deno.writeTextFile(
+            join(dir, '.gitleaksignore'),
+            'base-entry\ntip-entry\n',
+        )
+        await git(dir, 'add', '.gitleaksignore')
+        await git(dir, 'commit', '-q', '-m', 'tip ignore')
+        const local = await git(dir, 'rev-parse', 'HEAD')
+
+        // ...and the developer then makes an UNCOMMITTED edit on top, which
+        // must survive the scan byte-for-byte.
+        const uncommitted = 'base-entry\ntip-entry\nUNCOMMITTED-EDIT\n'
+        await Deno.writeTextFile(join(dir, '.gitleaksignore'), uncommitted)
+
+        const result = await runPrepushScan(
+            `refs/heads/new ${local} refs/heads/new ${ZERO}\n`,
+            dir,
+        )
+        assertEquals(result.ok, true, result.lines.join('\n'))
+        assertEquals(
+            await Deno.readTextFile(join(dir, '.gitleaksignore')),
+            uncommitted,
+            'the developer working tree .gitleaksignore was mutated by the scan',
+        )
+
+        // No worktree left registered, and the repo itself was never flipped
+        // to bare in the process.
+        const list = await git(dir, 'worktree', 'list', '--porcelain')
+        const registered = (list.match(/^worktree /gm) ?? []).length
+        assertEquals(
+            registered,
+            1,
+            `only the main worktree should remain:\n${list}`,
+        )
+        assertEquals(
+            await git(dir, 'config', '--get', 'core.bare').catch(() => 'false'),
+            'false',
         )
     })
 })
