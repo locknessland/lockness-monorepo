@@ -11,6 +11,7 @@ import { assert, assertEquals, assertStringIncludes } from '@std/assert'
 import {
     classifyCheck,
     publishabilityFault,
+    registryVerdict,
     resolutionVerdict,
     selectPublishedFiles,
 } from './publish_check.ts'
@@ -304,6 +305,16 @@ Deno.test({
                             .pathname,
                     ],
                     cwd: dir,
+                    // publish_check.ts stages its scratch copy in
+                    // `Deno.makeTempDir()` with no directory override, so it
+                    // lands wherever the host's TMPDIR points (#397). Pin it
+                    // to this fixture root, which carries its own minimal
+                    // `deno.jsonc`: `deno check`'s upward config search then
+                    // stops there instead of climbing past it to whatever the
+                    // host's ambient TMPDIR happens to sit inside -- which
+                    // could be a subdirectory of THIS repository, whose real
+                    // `deno.jsonc` would otherwise be picked up in its place.
+                    env: { TMPDIR: dir },
                     stdout: 'piped',
                     stderr: 'piped',
                 },
@@ -320,4 +331,39 @@ Deno.test({
             await Deno.remove(dir, { recursive: true }).catch(() => {})
         }
     },
+})
+
+// ---- --registry (#397, finding 5) -----------------------------------------
+//
+// `existsOnJsr` itself needs a real network round trip and is not tested here
+// (coordinated with #396, which owns `gate --registry`); `registryVerdict` is
+// the decision the network result feeds, and is what these cover directly.
+
+Deno.test('registryVerdict: every package present is a clean pass', () => {
+    const result = registryVerdict([], 0)
+    assertEquals(result.code, 0)
+    assert(result.lines.some((line) => line.includes('✅')))
+})
+
+Deno.test('registryVerdict: a missing package fails closed with a create URL', () => {
+    const result = registryVerdict(['scheduler'], 0)
+    assertEquals(result.code, 1)
+    const joined = result.lines.join('\n')
+    assertStringIncludes(joined, 'must be created on JSR')
+    assertStringIncludes(
+        joined,
+        'https://jsr.io/new?scope=lockness&package=scheduler',
+    )
+})
+
+Deno.test('registryVerdict: unreachable-only is inconclusive, not a fault', () => {
+    const result = registryVerdict([], 2)
+    assertEquals(result.code, 0)
+    assertEquals(result.lines, [])
+})
+
+Deno.test('registryVerdict: a missing package wins over a merely unreachable one', () => {
+    const result = registryVerdict(['queue'], 1)
+    assertEquals(result.code, 1)
+    assertStringIncludes(result.lines.join('\n'), 'queue')
 })
