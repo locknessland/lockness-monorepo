@@ -1,7 +1,7 @@
 /**
  * @fileoverview Unit tests for the gate runner in `scripts/gate.ts` (#388):
- * the step list, the `--leaks` variant, argument refusal, and stop-at-first-
- * failure.
+ * the step list, the `--leaks` and `--registry` variants, argument refusal,
+ * and stop-at-first-failure.
  *
  * @module
  */
@@ -48,9 +48,45 @@ Deno.test('--leaks swaps only the suite for test:leaks', () => {
     })
 })
 
+Deno.test('--registry reaches publish:check and no other step', () => {
+    const plain = gateSteps()
+    const registry = gateSteps({ registry: true })
+    const publishIndex = plain.findIndex((s) => s.label === 'publish:check')
+    // Every step but publish:check is untouched.
+    assertEquals(
+        registry.filter((_, i) => i !== publishIndex),
+        plain.filter((_, i) => i !== publishIndex),
+    )
+    // publish:check alone carries the flag.
+    assertEquals(registry[publishIndex], {
+        label: 'publish:check',
+        args: ['task', 'publish:check', '--registry'],
+    })
+})
+
+Deno.test('--leaks and --registry combine without interfering', () => {
+    const both = gateSteps({ leaks: true, registry: true })
+    assertEquals(both.at(-1), {
+        label: 'test:leaks',
+        args: ['task', 'test:leaks'],
+    })
+    assertEquals(
+        both.find((s) => s.label === 'publish:check'),
+        {
+            label: 'publish:check',
+            args: ['task', 'publish:check', '--registry'],
+        },
+    )
+})
+
 Deno.test('an unknown argument is refused, not ignored', () => {
     assertEquals(parseGateArgs([]), {})
     assertEquals(parseGateArgs(['--leaks']), { leaks: true })
+    assertEquals(parseGateArgs(['--registry']), { registry: true })
+    assertEquals(parseGateArgs(['--leaks', '--registry']), {
+        leaks: true,
+        registry: true,
+    })
     assertThrows(() => parseGateArgs(['--leak']), Error, '--leak')
 })
 
@@ -91,6 +127,24 @@ Deno.test('main returns 2 on an unknown argument without running a step', async 
 
 Deno.test('main returns 0 only when every step passes', async () => {
     assertEquals(await main(['--leaks'], () => Promise.resolve(0)), 0)
+})
+
+Deno.test('main with --registry runs publish:check with --registry and no other step gets it', async () => {
+    const seen: Record<string, string[]> = {}
+    const code = await main(['--registry'], (step) => {
+        seen[step.label] = step.args
+        return Promise.resolve(0)
+    })
+    assertEquals(code, 0)
+    assertEquals(seen['publish:check'], ['task', 'publish:check', '--registry'])
+    for (const [label, args] of Object.entries(seen)) {
+        if (label === 'publish:check') continue
+        assertEquals(
+            args.includes('--registry'),
+            false,
+            `${label} got --registry`,
+        )
+    }
 })
 
 /**
