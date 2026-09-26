@@ -33,6 +33,13 @@
  * - N13 `disconnect`'s collector back to `failure === undefined`.
  * - N13b `#revokeChannelLocal`'s clear collector back to
  *   `clearError === undefined`, its returned flag dropped.
+ * - N14 (#379) `handlerHooks.onClose`'s teardown-failure catch re-throws
+ *   unconditionally instead of WARNing: the app's error is displaced by the
+ *   teardown's. Killed only through `websocket_close_guard_369.test.ts`'s W4,
+ *   added to this battery's `SUITES` for it — the combined witness wires
+ *   `buildEvents` on top of `handlerHooks`, which this file's own suite does
+ *   not.
+ * - N15 (#379) the same catch's WARN dropped, the swallow kept.
  *
  * **Anchors.** Since #370 `subscribe` asks `#assertBound(connection)` at both
  * of its checks, and `#assertAdmissible(connection)` is asked by `register` and
@@ -65,6 +72,10 @@ import { type Mutation, runBattery } from '@mutations/harness.ts'
 const MANAGER = new URL('../../manager.ts', import.meta.url)
 const SUITES = [
     new URL('../disconnect_admission_361.test.ts', import.meta.url).pathname,
+    // #379's combined close-path witness (W4) lives here, not in this
+    // battery's own suite: it wires `buildEvents` on top of `handlerHooks`,
+    // which this file's suite does not.
+    new URL('../websocket_close_guard_369.test.ts', import.meta.url).pathname,
 ]
 
 /** The post-check, with the comment above it and the one below it. */
@@ -305,6 +316,51 @@ const MUTATIONS: Mutation[] = [
             ],
         ],
         killedBy: '#361 W6 (ii) revokeChannel clear',
+    },
+    {
+        label:
+            "N14 — the teardown failure re-thrown unconditionally, past the app's",
+        file: MANAGER,
+        edits: [[
+            '                } catch (error) {\n' +
+            '                    if (!appFailed) throw error\n' +
+            '                    console.warn(\n' +
+            '                        `realtime: disconnecting ${\n' +
+            '                            safeForLog(conn.id)\n' +
+            "                        } after the application's onClose threw also ` +\n" +
+            '                            `failed: ${renderError(error)}`,\n' +
+            '                    )\n' +
+            '                }\n',
+            '                } catch (error) {\n' +
+            '                    console.warn(\n' +
+            '                        `realtime: disconnecting ${\n' +
+            '                            safeForLog(conn.id)\n' +
+            "                        } after the application's onClose threw also ` +\n" +
+            '                            `failed: ${renderError(error)}`,\n' +
+            '                    )\n' +
+            '                    throw error\n' +
+            '                }\n',
+        ]],
+        killedBy: '#379 W4 ',
+    },
+    {
+        label: 'N15 — the teardown-failure WARN dropped',
+        file: MANAGER,
+        edits: [[
+            '                } catch (error) {\n' +
+            '                    if (!appFailed) throw error\n' +
+            '                    console.warn(\n' +
+            '                        `realtime: disconnecting ${\n' +
+            '                            safeForLog(conn.id)\n' +
+            "                        } after the application's onClose threw also ` +\n" +
+            '                            `failed: ${renderError(error)}`,\n' +
+            '                    )\n' +
+            '                }\n',
+            '                } catch (error) {\n' +
+            '                    if (!appFailed) throw error\n' +
+            '                }\n',
+        ]],
+        killedBy: '#379 W4 ',
     },
 ]
 
