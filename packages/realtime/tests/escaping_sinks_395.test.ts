@@ -350,3 +350,96 @@ for (const [index, row] of SINKS.entries()) {
         })
     })
 }
+
+/**
+ * #402: a contained WARN is not the end of the story — the work after it
+ * still has to run. E1 above only proves the run does not escape; it never
+ * checks that `onFailure` — the callback the Redis driver marks a lapse
+ * suspected from — still fires once the run's own WARN AND its marked
+ * fallback both failed.
+ */
+Deno.test('#395 LapseRun.#invoke: onFailure still runs after its own WARN is contained', async () => {
+    await watchingEscapes(async (escaped) => {
+        let onFailureRan = false
+        const lapse = new LapseRun(() => {
+            onFailureRan = true
+        })
+        lapse.register(() =>
+            Promise.reject(new Error('re-assert failed (#395)'))
+        )
+        let thrown: unknown = undefined
+        try {
+            using _channels = everyChannelThrows()
+            try {
+                lapse.trigger()
+                await settle()
+            } catch (error) {
+                thrown = error
+            }
+        } finally {
+            await lapse.close()
+        }
+        assertEquals(thrown, undefined, 'no synchronous throw')
+        assertEquals(escaped, [], 'no rejection reaches the runtime')
+        assert(
+            onFailureRan,
+            "onFailure ran even though its own run's WARN, and the " +
+                'marked fallback behind it, both failed',
+        )
+    })
+})
+
+/**
+ * #402: the heartbeat's lapse decision (`#lapseSuspected`, then
+ * `#lapse.trigger()` on the next successful beat) runs AFTER the WARN it
+ * writes when the liveness `SET` fails — E6 above only proves that WARN's
+ * own escape is contained, never that the decision behind it survived.
+ */
+Deno.test('#395 the redis heartbeat: the lapse decision still runs after its WARN is contained', async () => {
+    await watchingEscapes(async (escaped) => {
+        const time = new FakeTime(START)
+        const redis = new FakeRedis()
+        let refusing = false
+        const command: CommandFn = (...args) =>
+            refusing && args[0] === 'SET' &&
+                (args[1]?.startsWith(ALIVE_PREFIX) ?? false)
+                ? Promise.reject(new Error('liveness refused (#395)'))
+                : redis.command(...args)
+        const driver = redisDriver(redis, command)
+        let lapseTriggered = false
+        driver.onRosterLapse(() => {
+            lapseTriggered = true
+        })
+        // A hold starts the heartbeat's interval, and establishes the
+        // liveness key the refused beat below re-creates — the fixture #395
+        // E6 already relies on.
+        await driver.holdMember('presence-other', { id: 9 })
+        let thrown: unknown = undefined
+        try {
+            using _channels = everyChannelThrows()
+            try {
+                refusing = true
+                await oneBeat(time)
+            } catch (error) {
+                thrown = error
+            }
+        } finally {
+            // Channels restored here (scope exit); the driver stays open.
+        }
+        assertEquals(thrown, undefined, 'no synchronous throw')
+        assertEquals(escaped, [], 'no rejection reaches the runtime')
+        assert(
+            !lapseTriggered,
+            'not yet: a refused beat only marks the lapse suspected',
+        )
+        refusing = false
+        await oneBeat(time)
+        assert(
+            lapseTriggered,
+            'the lapse decision survived the contained WARN: the next ' +
+                'successful beat triggered a re-assert run',
+        )
+        await driver.close()
+        time.restore()
+    })
+})
