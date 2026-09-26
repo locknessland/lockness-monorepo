@@ -26,6 +26,7 @@
 import { assert, assertEquals } from '@std/assert'
 import { ChannelManager } from '../manager.ts'
 import {
+    FLOOR_ANNOUNCE_RETRY_MS,
     RedisBroadcastDriver,
     REVOCATION_FLOOR_ANNOUNCE_FAILED,
 } from '../drivers/redis.ts'
@@ -118,8 +119,8 @@ const isAnnounceFailure = (line: string): boolean =>
  * fails it rather than adding one more line to the output. The retry this
  * failure arms (`FLOOR_ANNOUNCE_RETRY_MS`, 1 s) never fires inside these
  * tests at all (#407): every test body runs under
- * {@link withSuppressedLongTimers}, which is what keeps this count from a
- * wall-clock margin rather than "the driver is closed within 1 s".
+ * {@link withSuppressedFloorAnnounceRetry}, which is what keeps this count
+ * from a wall-clock margin rather than "the driver is closed within 1 s".
  */
 function countAnnounceFailures(): { count(): number; restore(): void } {
     const previous = console.warn
@@ -139,38 +140,75 @@ function countAnnounceFailures(): { count(): number; restore(): void } {
 
 /**
  * The line between a real-time wait these tests still need and the #380
- * floor-announce retry {@link withSuppressedLongTimers} exists to neutralize
- * (#407).
+ * floor-announce retry {@link withSuppressedFloorAnnounceRetry} exists to
+ * neutralize (#407, narrowed #415).
  *
- * Above it: `FLOOR_ANNOUNCE_RETRY_MS` (1 s, `drivers/redis.ts`) and its
- * doublings. Below it: the subscribe socket's own reconnect backoff (250 ms
- * by default, `packages/redis/subscriber.ts`, exercised by the FR-019/SC-006
- * test below) and `waitFor`'s 5 ms poll — both stay real and wall-clock-bound
- * exactly as before #407, which is out of scope for this file (#407 only
- * targets the three #380 announce-count assertions).
- */
-const SUPPRESSED_TIMER_FLOOR_MS = 500
-
-/**
- * A delay {@link withSuppressedLongTimers} substitutes for anything at or
- * above {@link SUPPRESSED_TIMER_FLOOR_MS}: far longer than any of these
- * tests' own real lifetime, so nothing scheduled at it ever fires inside one,
- * and far short of the delay where `setTimeout` overflows or fires early.
+ * Above it: `FLOOR_ANNOUNCE_RETRY_MS` (1 s, `drivers/redis.ts`) — and ONLY
+ * that one timer, identified below by more than its delay. Below it: the
+ * subscribe socket's own reconnect backoff (250 ms by default,
+ * `packages/redis/subscriber.ts`, exercised by the FR-019/SC-006 test below)
+ * and `waitFor`'s 5 ms poll — both stay real and wall-clock-bound exactly as
+ * before #407. Also real since #415: `RECONCILE_RETRY_MS`'s reconnect retry
+ * and `#armReconcile`'s recurring pass timer (both `drivers/redis.ts`) — #407
+ * never meant to freeze those, and a floor on the delay alone did (#415).
  */
 const NEVER_FIRES_MS = 24 * 60 * 60 * 1000
 
 /**
- * Run `body` with every `setTimeout` scheduled at {@link SUPPRESSED_TIMER_FLOOR_MS}
- * or more silently pushed a day out, so it cannot fire inside `body` — no
- * matter how long `body` itself takes on a loaded machine (#407).
+ * The private field only {@link RedisBroadcastDriver}'s `#announceFloor`
+ * retry closure assigns (`this.#announceRetry = …`, `drivers/redis.ts`) —
+ * the fingerprint {@link isFloorAnnounceRetryHandler} looks for in a
+ * `setTimeout` handler's own source text.
  *
- * The #380 floor-announce retry is exactly this shape: on failure it WARNs
- * once, then arms one `setTimeout` at `FLOOR_ANNOUNCE_RETRY_MS` (1 s) to try
- * again. These tests want that failure's WARN, counted exactly — not the
- * retry's. "The driver is always closed within 1 s" is wall-clock margin, the
- * same shape earlier flaky gates in this repo took; this removes the margin
- * instead of widening it, so the count no longer depends on how fast the test
- * runs.
+ * **Coupling risk, read before touching `#announceFloor`:** this is coupled
+ * to that closure's literal source, not to its behavior. If the closure is
+ * refactored so it no longer assigns `this.#announceRetry` in its own body —
+ * renamed field, extracted helper, assignment hoisted elsewhere — this
+ * substring stops matching, `isFloorAnnounceRetryHandler` silently returns
+ * `false` for the real retry, and the retry goes back to being wall-clock-bound
+ * inside every test that wraps it (the exact regression #407 fixed). Nothing
+ * red-flags the file at that point except {@link withSuppressedFloorAnnounceRetry}'s
+ * own loud guard below — keep the two in sync, or drop the guard's `expectMatch`
+ * default the moment this fingerprint no longer fits the retry it names.
+ */
+const ANNOUNCE_RETRY_FIELD_FINGERPRINT = '#announceRetry'
+
+/**
+ * Whether `handler`'s own literal source text is `#announceFloor`'s retry
+ * closure (#415) — recognized by {@link ANNOUNCE_RETRY_FIELD_FINGERPRINT},
+ * the one private field only that closure assigns.
+ *
+ * `Function#toString` on a native (never transpiled-away) private field
+ * returns the closure's exact written source, so the substring survives
+ * minification-free test runs unmodified. Matching on the scheduled delay
+ * ALONE is not enough (#415): `RECONCILE_RETRY_MS`'s reconnect retry
+ * (`#runRevocationReconcile`, `drivers/redis.ts`) arms the identical 1000 ms
+ * through a bare `setTimeout` whose closure never touches this field.
+ *
+ * @param handler - The function passed to a `setTimeout` call. Typed to
+ *   accept `never` arguments (never `any`, rule #3) — this only ever reads
+ *   `.toString()`, so no call signature needs to line up with the real one.
+ * @returns Whether `handler` is `#announceFloor`'s retry closure.
+ */
+function isFloorAnnounceRetryHandler(
+    handler: (...args: never[]) => unknown,
+): boolean {
+    return handler.toString().includes(ANNOUNCE_RETRY_FIELD_FINGERPRINT)
+}
+
+/**
+ * Run `body` with `#announceFloor`'s floor-announce retry — and ONLY that
+ * timer — silently pushed a day out, so it cannot fire inside `body` no
+ * matter how long `body` itself takes on a loaded machine (#407, narrowed
+ * #415).
+ *
+ * A `setTimeout` is substituted when BOTH hold: its delay is exactly
+ * `FLOOR_ANNOUNCE_RETRY_MS` (1 s, `drivers/redis.ts`), AND its handler is
+ * {@link isFloorAnnounceRetryHandler}. Before #415 this matched on delay
+ * alone (`>= 500 ms`), which also neutralized `RECONCILE_RETRY_MS`'s
+ * reconnect retry and any future assertion inside `body` that itself armed a
+ * long timer — the exact hazard this issue closes. The heartbeat uses
+ * `setInterval`, never `setTimeout`, so it was already untouched either way.
  *
  * The substitution returns the REAL timer id every time, never a stand-in:
  * `clearTimeout` (bare, never patched here) and `Deno.unrefTimer`, both
@@ -179,31 +217,47 @@ const NEVER_FIRES_MS = 24 * 60 * 60 * 1000
  * `console.warn` capture happens independently via {@link countAnnounceFailures}
  * / {@link captureWarnings}; this helper only ever touches timing.
  *
- * @param floorMs - Delays at or above this are substituted; delays below pass
- *   through untouched (the reconnect backoff and `waitFor`'s poll interval).
+ * **The loud guard against the fingerprint rotting silently** (#415): unless
+ * `expectMatch` is `false`, this throws if `body` completed having never
+ * matched a single timer — the signal that either the fingerprint stopped
+ * naming the real closure (see {@link ANNOUNCE_RETRY_FIELD_FINGERPRINT}) or
+ * the test no longer exercises the retry it claims to neutralize. A caller
+ * that genuinely expects no match (proving the narrowing itself, never
+ * exercising a real driver) passes `expectMatch: false` explicitly, with a
+ * comment saying why.
+ *
  * @param body - The test body to run with the substitution installed.
+ * @param options - `expectMatch` (default `true`): whether `body` is expected
+ *   to arm the floor-announce retry at least once.
  * @returns `body`'s own result.
+ * @throws If `expectMatch` is `true` (the default) and `body` completed
+ *   without ever suppressing a matching timer.
  * @example
  * ```ts
- * await withSuppressedLongTimers(SUPPRESSED_TIMER_FLOOR_MS, async () => {
+ * await withSuppressedFloorAnnounceRetry(async () => {
  *   // ... drive a real driver here; its 1 s+ retry never fires ...
  * })
  * ```
  */
-async function withSuppressedLongTimers<T>(
-    floorMs: number,
+async function withSuppressedFloorAnnounceRetry<T>(
     body: () => Promise<T>,
+    options: { expectMatch?: boolean } = {},
 ): Promise<T> {
+    const expectMatch = options.expectMatch ?? true
     const realSetTimeout = globalThis.setTimeout
+    let suppressedCount = 0
     globalThis.setTimeout = (<Args extends unknown[]>(
         handler: (...args: Args) => void,
         timeout?: number,
         ...args: Args
     ): ReturnType<typeof setTimeout> => {
         const delay = timeout ?? 0
+        const isFloorAnnounceRetry = delay === FLOOR_ANNOUNCE_RETRY_MS &&
+            isFloorAnnounceRetryHandler(handler)
+        if (isFloorAnnounceRetry) suppressedCount++
         return realSetTimeout(
             handler,
-            delay >= floorMs ? NEVER_FIRES_MS : delay,
+            isFloorAnnounceRetry ? NEVER_FIRES_MS : delay,
             ...args,
         )
         // `unknown`, not `any` (rule #3): the declared global `setTimeout`
@@ -212,7 +266,20 @@ async function withSuppressedLongTimers<T>(
         // exact declared shape without introducing `any` in this file.
     }) as unknown as typeof setTimeout
     try {
-        return await body()
+        const result = await body()
+        if (expectMatch && suppressedCount === 0) {
+            throw new Error(
+                '#415: withSuppressedFloorAnnounceRetry matched no timer ' +
+                    'during this test body, but expectMatch was true (the ' +
+                    "default). Either #announceFloor's retry closure no " +
+                    'longer assigns `this.#announceRetry` in its own source ' +
+                    '(the fingerprint in ANNOUNCE_RETRY_FIELD_FINGERPRINT has ' +
+                    'rotted), or this test no longer exercises the retry it ' +
+                    'claims to neutralize. Fix the fingerprint, or pass ' +
+                    '{ expectMatch: false } if no match is genuinely expected.',
+            )
+        }
+        return result
     } finally {
         globalThis.setTimeout = realSetTimeout
     }
@@ -235,7 +302,7 @@ const sentOf = (c: Connection<User>) =>
     (c as unknown as { _sent: string[] })._sent
 
 Deno.test("SC-001: a broadcast reaches an authorized subscriber on a second instance over a real pub/sub socket, re-bounded by B's local authorization (S6)", async () => {
-    await withSuppressedLongTimers(SUPPRESSED_TIMER_FLOOR_MS, async () => {
+    await withSuppressedFloorAnnounceRetry(async () => {
         const server = await startFakeServer()
         const config = { hostname: '127.0.0.1', port: server.port }
         const announces = countAnnounceFailures()
@@ -314,7 +381,7 @@ Deno.test("SC-001: a broadcast reaches an authorized subscriber on a second inst
 })
 
 Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded reader before fan-out, and delivery self-heals', async () => {
-    await withSuppressedLongTimers(SUPPRESSED_TIMER_FLOOR_MS, async () => {
+    await withSuppressedFloorAnnounceRetry(async () => {
         const server = await startFakeServer()
         const config = { hostname: '127.0.0.1', port: server.port }
         const announces = countAnnounceFailures()
@@ -393,7 +460,7 @@ Deno.test('FR-019/SC-006: an oversized pushed payload is rejected by the bounded
 })
 
 Deno.test('FR-007: on the fromConfig path, close() leaves nothing that a later socket fault could revive', async () => {
-    await withSuppressedLongTimers(SUPPRESSED_TIMER_FLOOR_MS, async () => {
+    await withSuppressedFloorAnnounceRetry(async () => {
         const server = await startFakeServer()
         const config = { hostname: '127.0.0.1', port: server.port }
         // The OTHER construction path. Here `close()` owns and closes the subscribe
@@ -459,3 +526,54 @@ Deno.test('FR-007: on the fromConfig path, close() leaves nothing that a later s
         )
     })
 })
+
+Deno.test(
+    '#415: withSuppressedFloorAnnounceRetry passes through a non-floor-announce timer armed at FLOOR_ANNOUNCE_RETRY_MS — proof the narrowing is by handler, not delay alone',
+    async () => {
+        // A spy standing in for the REAL setTimeout: installed BEFORE the
+        // helper runs, so it is the `realSetTimeout` the helper captures and
+        // forwards to — exactly the delay the helper decided to hand it,
+        // without waiting for anything to actually fire.
+        const forwardedDelays: number[] = []
+        const spiedRealSetTimeout = globalThis.setTimeout
+        globalThis.setTimeout = (<Args extends unknown[]>(
+            handler: (...args: Args) => void,
+            timeout?: number,
+            ...args: Args
+        ): ReturnType<typeof setTimeout> => {
+            forwardedDelays.push(timeout ?? 0)
+            // Never actually scheduled: the id is cleared immediately below,
+            // so nothing here can outlive this test regardless of the delay
+            // the helper decided on.
+            return spiedRealSetTimeout(handler, 0, ...args)
+            // `unknown`, not `any` (rule #3): same bridge as the helper's own
+            // override, for the same reason.
+        }) as unknown as typeof setTimeout
+        try {
+            // `expectMatch: false` (documented on the helper): this body
+            // deliberately arms a timer that must NOT match the fingerprint,
+            // so the helper's own loud guard is told not to expect one.
+            await withSuppressedFloorAnnounceRetry(() => {
+                // A plain closure at the EXACT same delay as the real
+                // #announceFloor retry (`FLOOR_ANNOUNCE_RETRY_MS`), but one
+                // that never assigns `#announceRetry` — the shape
+                // `RECONCILE_RETRY_MS`'s reconnect retry takes in production.
+                const id = setTimeout(() => {}, FLOOR_ANNOUNCE_RETRY_MS)
+                clearTimeout(id)
+                return Promise.resolve()
+            }, { expectMatch: false })
+        } finally {
+            globalThis.setTimeout = spiedRealSetTimeout
+        }
+        assertEquals(
+            forwardedDelays,
+            [FLOOR_ANNOUNCE_RETRY_MS],
+            'a same-delay, non-#announceFloor timer must reach the real ' +
+                'setTimeout with its ORIGINAL delay — proof the narrowing ' +
+                "checks the handler's fingerprint, not the delay value alone " +
+                '(a mutant that matches on delay alone, or reverts to ' +
+                'suppress-all-≥500ms, forwards NEVER_FIRES_MS instead and ' +
+                'this assertion goes red)',
+        )
+    },
+)
