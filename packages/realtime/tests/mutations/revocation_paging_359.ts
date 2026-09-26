@@ -80,9 +80,10 @@ const SUITES = [
 /**
  * The reap, from `listRevocations`' first `now` to the reply's decode — in
  * its two-key form since #380 (index, then the revocation floor it also
- * refreshes). Re-anchored, never deleted: the source moved, the guard remains.
+ * refreshes), widened to the `{t, kind}` pair and the heal WARN since #405.
+ * Re-anchored, never deleted: the source moved, the guard remains.
  */
-const REAP = '        const t = decodeReapReply(\n' +
+const REAP = '        const { t, kind } = decodeReapReply(\n' +
     '            await this.command.command(\n' +
     "                'EVAL',\n" +
     '                REAP_REVOKED_SCRIPT,\n' +
@@ -92,7 +93,8 @@ const REAP = '        const t = decodeReapReply(\n' +
     '                String(this.revocationTtlSeconds),\n' +
     '                String(this.revocationTtlSeconds + INDEX_TTL_SLACK_SECONDS),\n' +
     '            ),\n' +
-    '        )\n'
+    '        )\n' +
+    '        this.#warnIfFloorHealed(kind)\n'
 
 /** The closing check before a page read, plus the read it guards. */
 const CLOSING_BEFORE_PAGE_READ =
@@ -242,11 +244,14 @@ const MUTATIONS: Mutation[] = [
         edits: [
             [
                 REAP,
-                REAP.replace('        const t = ', '        let t = '),
+                REAP.replace(
+                    '        const { t, kind } = ',
+                    '        let { t, kind } = ',
+                ),
             ],
             [
                 SKIP_SUM,
-                '            t = decodeReapReply(\n' +
+                '            ;({ t, kind } = decodeReapReply(\n' +
                 '                await this.command.command(\n' +
                 "                    'EVAL',\n" +
                 '                    REAP_REVOKED_SCRIPT,\n' +
@@ -259,7 +264,7 @@ const MUTATIONS: Mutation[] = [
                 '                            INDEX_TTL_SLACK_SECONDS,\n' +
                 '                    ),\n' +
                 '                ),\n' +
-                '            )\n' +
+                '            ))\n' +
                 SKIP_SUM,
             ],
         ],

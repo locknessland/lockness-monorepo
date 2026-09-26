@@ -69,9 +69,11 @@ const MARK_EVAL = '        await this.command.command(\n' +
 const ANNOUNCE_HEAD =
     '    async #announceFloor(backoffMs: number): Promise<void> {\n' +
     '        try {\n' +
-    '            await this.command.command(\n'
+    '            const reply = await this.command.command(\n'
 
 const ANNOUNCE_CATCH = '            )\n' +
+    '            const kind = asBulk(reply)\n' +
+    '            if (kind !== undefined) this.#warnIfFloorHealed(kind)\n' +
     '        } catch (error) {\n' +
     '            this.#warnFloor(\n' +
     '                `${REVOCATION_FLOOR_ANNOUNCE_FAILED} ${renderError(error)}`,\n' +
@@ -181,9 +183,9 @@ const MUTATIONS: Mutation[] = [
         edits: [[
             "    'local keyTtl = ARGV[2]',\n" +
             '    FLOOR_WRITE,\n' +
-            "    'return t',\n",
+            "    'return {t, kind}',\n",
             "    'local keyTtl = ARGV[2]',\n" +
-            "    'return t',\n",
+            "    'return {t, kind}',\n",
         ]],
         killedBy: '#380 F3 ',
     },
