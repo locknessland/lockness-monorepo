@@ -2124,6 +2124,47 @@ export const SWEEP_DEPARTURE_LOG_FAILED = markedFallbackMarker(
 )
 
 /**
+ * The marker that starts the one ERROR line written when
+ * `RedisBroadcastDriver`'s `#announceSwept` drops a swept slot's own WARN —
+ * "was not announced as left" — because `console.warn` threw (#419, the
+ * security review of #418 that found two more bare sites). Unlike
+ * {@link SWEEP_DEPARTURE_LOG_FAILED}, which guards the departure HANDLER's
+ * own failure, this guards `#announceSwept`'s own drop of an entry the
+ * handler never even sees: an owned entry whose channel fails
+ * {@link isValidName}, or whose decoded member id does not match the slot it
+ * was released from ({@link sameMemberId}). Both checks run BEFORE the
+ * handler is called, inside `#sweepPage`'s loop over one dead instance's
+ * owned slots, with nothing between here and there that catches a throw —
+ * so an unguarded `console.warn` failing here used to reject
+ * `#announceSwept` and abort that loop, skipping every remaining slot on the
+ * page (and any later page) for the SAME dead instance this pass, the
+ * identical #395 shape {@link SWEEP_DEPARTURE_LOG_FAILED} already guards one
+ * exit later. Exported for the test suite only.
+ */
+export const SWEEP_DROPPED_LOG_FAILED = markedFallbackMarker(
+    'realtime: a swept-member-dropped WARN could not be logged (#419):',
+)
+
+/**
+ * The marker that starts the one ERROR line written when
+ * `RedisBroadcastDriver`'s `#parseRosterValue` drops a malformed roster
+ * entry's own "skipped a malformed roster entry" WARN, because
+ * `console.warn` threw (#419). **The one decode of a roster entry** (#348),
+ * so this ONE guard covers all three of its call sites: `readRoster`'s
+ * sample loop, its selves loop, and `#announceSwept`'s own decode of a swept
+ * entry. None of the three wraps the call in a `try`, so an unguarded
+ * `console.warn` failing here escaped whichever of them called it —
+ * synchronously out of `readRoster`'s `for` loop, aborting it before a later
+ * sample or self is ever decoded, or out of `#announceSwept`, into
+ * `#sweepPage`'s loop with nothing there to catch it either, the same #395
+ * shape {@link SWEEP_DROPPED_LOG_FAILED} guards one call up. Exported for
+ * the test suite only.
+ */
+export const ROSTER_ENTRY_LOG_FAILED = markedFallbackMarker(
+    'realtime: a malformed-roster-entry WARN could not be logged (#419):',
+)
+
+/**
  * The marker that starts the one ERROR line written when `#sweepInstance`'s
  * "sweep of dead instance … failed" WARN could not be, because `console.warn`
  * threw (#418, security review of the same issue). `#sweepInstance`'s own
@@ -3690,8 +3731,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * {@link #warnReconcileFailed}, {@link #warnMalformedTally},
      * {@link #warnCloseDrainExpired}, the control subscription's `.catch` in
      * {@link onControl}, the failure branch of {@link #heartbeat}, `onMessage`'s
-     * `#deliver`, {@link #verifyAndDecode}, {@link #announceSwept},
-     * {@link #sweepInstance} and {@link #reconcile}'s own catch (#418) — so a
+     * `#deliver`, {@link #verifyAndDecode}, {@link #announceSwept} (both its
+     * handler catch and its own `dropped` drop, #419),
+     * {@link #parseRosterValue}'s `skipped` (#419), {@link #sweepInstance} and
+     * {@link #reconcile}'s own catch (#418) — so a
      * caller whose promise is `void`ed, whose callback runs on a bare
      * interval, or whose call site is a handler the `RedisSubscriber` port
      * invokes with no `try` of its own, never calls `console.warn` unguarded
@@ -4034,6 +4077,11 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * line a skipped entry logs, so a caller says what the skip cost through
      * `consequence` rather than with a WARN of its own.
      *
+     * **Never throws** (#419): the WARN goes through {@link #guardedWarn}
+     * ({@link ROSTER_ENTRY_LOG_FAILED}), so a throwing sink cannot escape
+     * this method and abort whichever caller's loop reached it —
+     * `readRoster`'s two loops, or `#announceSwept`'s single decode.
+     *
      * @param channel - The channel the entry was read from, for the WARN.
      * @param value - The stored entry, or `undefined` when there was none.
      * @param consequence - What skipping the entry costs this caller, appended
@@ -4046,7 +4094,15 @@ export class RedisBroadcastDriver implements BroadcastDriver {
     ): PresenceMember | undefined {
         if (value === undefined) return undefined
         const skipped = (reason: string) =>
-            console.warn(
+            // #419: `readRoster`'s two loops and `#announceSwept` all call
+            // this method with no `try` of their own — so an unguarded
+            // `console.warn` failing here escaped whichever of them called
+            // it, aborting a `for` loop (`readRoster`) or `#sweepPage`'s
+            // (through `#announceSwept`, the #418 T3 shape) before its
+            // remaining entries or slots were ever reached. One marked
+            // line, through #guardedWarn's shared #369 shape.
+            this.#guardedWarn(
+                ROSTER_ENTRY_LOG_FAILED,
                 `realtime: skipped a malformed roster entry on ${
                     safeForLog(channel)
                 }: ${reason}${consequence ? ` — ${consequence}` : ''}`,
@@ -5701,7 +5757,10 @@ export class RedisBroadcastDriver implements BroadcastDriver {
      * had its reply yet, and the `left` goes out before its `joined`. An await
      * here would hand that order to the race.
      *
-     * Never throws: every failure is one WARN.
+     * Never throws: every failure is one WARN, and since #419 every one of
+     * those WARNs — the drop, the decoder's own, and the handler-failure
+     * report — goes through {@link #guardedWarn}, so a throwing sink cannot
+     * escape here either.
      *
      * @param channel - The channel of the emptied slot, as its owned entry
      *   names it.
@@ -5716,7 +5775,16 @@ export class RedisBroadcastDriver implements BroadcastDriver {
         const handler = this.#departureHandler
         if (!handler) return
         const dropped = () =>
-            console.warn(
+            // #419: called BEFORE the departure handler ever runs, still
+            // inside #sweepPage's loop over one dead instance's owned slots
+            // with nothing between here and there that catches a throw — so
+            // an unguarded `console.warn` failing here would reject THIS
+            // call the same way an unguarded handler-catch WARN used to
+            // (#418 T3), skipping every remaining slot on the page (and
+            // every later page) for the SAME dead instance this pass. One
+            // marked line, through #guardedWarn's shared #369 shape.
+            this.#guardedWarn(
+                SWEEP_DROPPED_LOG_FAILED,
                 `realtime: a member swept from ${
                     safeForLog(channel)
                 } was not announced as left — its roster entry is ` +
