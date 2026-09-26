@@ -183,10 +183,11 @@ else.
 
 Every real import must be declared in its own package's `deno.json`, and each
 package must resolve standalone outside the workspace. `deno task publish:check`
-enforces both — it is the one owner of declarations, and it fails closed — and
-`publish.yml` runs it with `--registry` before `deno publish`. `deps:analyze`
-guards cycles and tier policy only; it does not check declarations (#388).
-Nothing to do by hand.
+enforces both — it is the one owner of declarations, and it fails closed.
+`publish.yml` runs the same versioned gate as everywhere else
+(`deno task gate --registry`, #396) before `deno publish`; `--registry` reaches
+that `publish:check` step only. `deps:analyze` guards cycles and tier policy
+only; it does not check declarations (#388). Nothing to do by hand.
 
 ### Verify the state before starting
 

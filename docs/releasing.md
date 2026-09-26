@@ -244,11 +244,11 @@ That is the one versioned gate — the pre-push hook and CI's `test` job run the
 same task, and its step list lives in `scripts/gate.ts` only, so there is no
 copy here to drift. Judge it by its exit status.
 
-`publish.yml` runs its own pre-publish battery, adding
-`publish:check
---registry`, before it publishes. It is not a formality:
-`deno publish --dry-run` passes inside the workspace even for a package whose
-manifest a consumer cannot resolve, so the dry run is **not** evidence.
+`publish.yml` runs that same versioned gate — `deno task gate --registry` —
+before it publishes (#396). `--registry` reaches the `publish:check` step only,
+and it is not a formality: `deno publish --dry-run` passes inside the workspace
+even for a package whose manifest a consumer cannot resolve, so the dry run is
+**not** evidence.
 
 ## Irreversibility
 
