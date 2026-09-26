@@ -1,7 +1,7 @@
 /**
  * @fileoverview #368's mutation battery — `close()` bounds its wait for the
- * ghost-sweep pass and the lapse run at one liveness TTL, through
- * `drivers/close_drain.ts`.
+ * ghost-sweep pass, the lapse run and the roster-maintenance drain (#371) at
+ * one liveness TTL, through `drivers/close_drain.ts`.
  *
  * The decisions spread over two homes: `close_drain.ts` (the one shared
  * timer, cleared once both works settle, ref'd on purpose) and `close()`
@@ -31,6 +31,9 @@
  *   instead of falling back to the marked line.
  * - N10 the owned-connection close skipped on expiry: `close()` never
  *   releases what it owns once the drain has given up.
+ * - N11 the roster-maintenance drain (#371) not shared with the budget: a
+ *   healthy stand-in passed instead of the real drain, so a stalled drain no
+ *   longer holds `close()` at all.
  *
  * `killedBy` strings end in a space (or a closing paren) so `#368 W1 ` never
  * matches `#368 W1b …`.
@@ -125,14 +128,16 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#368 W1 ',
     },
     {
+        // Re-anchored for #371: the guard now also reads
+        // `pending.maintenanceDrain`.
         label:
             "N6 — the sweep pass's bookkeeping (the slot) freed before the WARN reads it",
         file: REDIS,
         edits: [[
-            '        if (pending.sweepPass || pending.lapseRun) {\n' +
+            '        if (pending.sweepPass || pending.lapseRun || pending.maintenanceDrain) {\n' +
             '            this.#warnCloseDrainExpired(pending, budgetMs)\n' +
             '        }\n',
-            '        if (pending.sweepPass || pending.lapseRun) {\n' +
+            '        if (pending.sweepPass || pending.lapseRun || pending.maintenanceDrain) {\n' +
             '            this.#sweepPass = undefined\n' +
             '            this.#warnCloseDrainExpired(pending, budgetMs)\n' +
             '        }\n',
@@ -140,12 +145,22 @@ const MUTATIONS: Mutation[] = [
         killedBy: '#368 W1 ',
     },
     {
+        // Re-anchored for #371: the return is now a three-field object
+        // literal, not a one-line object expression.
         label: 'N7 — the timer not cleared',
         file: CLOSE_DRAIN,
         edits: [[
             '    clearTimeout(timer)\n' +
-            '    return { sweepPass: !sweepPassSettled, lapseRun: !lapseRunSettled }\n',
-            '    return { sweepPass: !sweepPassSettled, lapseRun: !lapseRunSettled }\n',
+            '    return {\n' +
+            '        sweepPass: !sweepPassSettled,\n' +
+            '        lapseRun: !lapseRunSettled,\n' +
+            '        maintenanceDrain: !maintenanceDrainSettled,\n' +
+            '    }\n',
+            '    return {\n' +
+            '        sweepPass: !sweepPassSettled,\n' +
+            '        lapseRun: !lapseRunSettled,\n' +
+            '        maintenanceDrain: !maintenanceDrainSettled,\n' +
+            '    }\n',
         ]],
         killedBy: '#368 W4 (i)',
     },
@@ -195,13 +210,23 @@ const MUTATIONS: Mutation[] = [
         ]],
         killedBy: '#368 W5 ',
     },
+    {
+        label:
+            'N11 — the roster-maintenance drain (#371) not shared with the budget',
+        file: REDIS,
+        edits: [[
+            '            maintenanceStopped,\n',
+            '            Promise.resolve(),\n',
+        ]],
+        killedBy: '#368 W9 ',
+    },
 ]
 
 if (import.meta.main) {
     Deno.exit(
         await runBattery(
-                "#368 — close()'s bounded drain of the sweep pass and the " +
-                    'lapse run',
+                "#368 — close()'s bounded drain of the sweep pass, the " +
+                    'lapse run and the roster-maintenance drain',
                 SUITES,
                 MUTATIONS,
             ) > 0
