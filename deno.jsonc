@@ -154,6 +154,11 @@
             // while deno fmt wants indentWidth 4 -- an endless tug of war on a
             // file the CLI owns and the lock does not even track.
             ".claude/settings.json",
+            // Claude Code's local, unversioned override file (gitignored).
+            // Never staged, but `deno fmt --check` still walks it, so an
+            // unformatted local override blocks every commit's pre-commit
+            // hook, not just this one.
+            ".claude/settings.local.json",
             ".claude/security-patterns.yaml",
             ".claude/claude-security-guidance.md"
         ]
@@ -166,7 +171,15 @@
         "_dist/",
         "_lockness_app/",
         ".claude/skills/*/assets/",
-        ".claude/skills/*/references/"
+        ".claude/skills/*/references/",
+        // Each concurrent agent worktree (`claude agents`, see AGENTS.md) is a
+        // full second checkout of the same module graph at a different path.
+        // Left unexcluded, `deno check` / `deno lint` / `deno task test`
+        // resolve the same specifier from two `file://` roots and report
+        // spurious duplicate-declaration errors that have nothing to do with
+        // either branch's own code -- reproduced with two otherwise-green
+        // worktrees present and zero errors with them absent.
+        ".claude/worktrees/"
     ],
     "lockness": {
         "packages": [
