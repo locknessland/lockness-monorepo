@@ -260,5 +260,5 @@ if (import.meta.main) {
     console.log(`\n🎉 Git hooks installed in ${hooksDir}`)
     console.log('\nHooks installed:')
     console.log('  • pre-commit: typecheck, lint, fmt staged files (re-staged)')
-    console.log('  • pre-push: deno task gate')
+    console.log('  • pre-push: deno task gate, then a ranged gitleaks scan')
 }
