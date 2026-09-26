@@ -31,6 +31,13 @@
  * mutant and its named witness went red, attributed. Every `killedBy` ends in
  * a space, so `W1 ` is not a prefix of `W11`–`W15`.
  *
+ * **M4 absorbs #361's N8 (#401).** `disconnect_admission_361.ts` carried a row
+ * mutating clause 2's per-field guards before #363 widened them into the one
+ * clause M4 mutates here; once widened, that row's edit was byte-identical to
+ * this one — same anchor, same deletion. `docs/testing.md`'s subsumption rule
+ * covers exactly this: the row is deleted there, not here, and its own
+ * paragraph is where the reason is recorded.
+ *
  * **Re-anchored for #393.** `disconnect` is no longer `async` (it delegates
  * to a private `#teardown` and returns or joins a promise), so its object-form
  * refusal reads `return Promise.resolve('not-owned')` — M10's anchor moved

@@ -24,7 +24,6 @@
  *   is now caught by the flag collector, so the forget after it still runs and
  *   W6 cannot see the order (measured: `MISATTRIBUTED` against W6).
  * - N7 the release skipped when the leave failed.
- * - N8 the bound-object clause removed from `#assertAdmissible`.
  * - N9 the split collapsed: clause 2 throws `ConnectionDisconnectedError`.
  * - N10 the post-check hoisted above the deny `return`, straight after the
  *   awaited authorizer: a denial becomes a throw.
@@ -45,11 +44,21 @@
  * of its checks, and `#assertAdmissible(connection)` is asked by `register` and
  * by `#assertBound` itself — each call appears twice, so every row that touches
  * one anchors on a neighbouring line as well. N1, N2 and N10 were re-anchored
- * on the new method name, N8 and N9 on the widened clause 2 (#363), and N12 on
+ * on the new method name, N9 on the widened clause 2 (#363), and N12 on
  * `onClose`'s object-form `disconnect(conn)`; their killers are unchanged.
  * N12's anchor and its replacement carry #404's open/close pairing, so the
  * mutant still changes only the order it names.
  * Every `killedBy` ends in a space, so `W1 ` is not a prefix of `W10`–`W13`.
+ *
+ * **Subsumed for #401.** N8 — "the bound-object clause removed from
+ * `#assertAdmissible`" — mutated per-field guards that #363 widened into the
+ * single clause 2 both this row and `register_only_admission_370.ts`'s M4 now
+ * mutate: same anchor, same edit, same deletion, byte for byte. That is the
+ * case `docs/testing.md`'s subsumption rule names — several per-field guards
+ * became one, so N8's row had nothing left to mutate that M4 does not already
+ * mutate. N8 is deleted; M4 covers it, and this paragraph is where the reason
+ * lives (N8 carried no `expectSurvival` text to carry forward — it was a real
+ * kill, not an equivalent mutant).
  * N6 and N7 were re-anchored again for #373: `unsubscribe`'s own flag-and-
  * try/catch leave collection moved into `#collectLeaveOutcome`, the helper it
  * now shares with `#joinPresence`'s compensation, so N6's `LEAVE` constant and
@@ -246,18 +255,6 @@ const MUTATIONS: Mutation[] = [
             '            // Released through the per-slot projection (#330), WHETHER OR NOT\n',
         ]],
         killedBy: '#361 W6 (i) ',
-    },
-    {
-        label: 'N8 — the bound-object clause removed from #assertAdmissible',
-        file: MANAGER,
-        edits: [[
-            '        const bound = this.connections.get(connection.id)\n' +
-            '        if (bound !== undefined && bound !== connection) {\n' +
-            '            throw new ConnectionIdInUseError()\n' +
-            '        }\n',
-            '',
-        ]],
-        killedBy: '#361 W8 ',
     },
     {
         label:
