@@ -124,8 +124,14 @@ const CLEAN = "                const clean = outcome === 'ok' &&\n" +
     '                    pass.malformed !== true &&\n' +
     '                    (pass.failures ?? 0) === 0\n'
 
-/** The malformed WARN's #391-shaped write. */
-const MALFORMED_WRITE = '        try {\n' +
+/**
+ * The malformed WARN's #391-shaped write. Prefixed with the `line`
+ * construction's last, distinctive segment: #383 added a second method
+ * (`#warnReconcileFailed`) with the identical try/catch shape, so the bare
+ * shape alone now matches twice.
+ */
+const MALFORMED_WRITE = "            'packages/realtime/driver.ts).'\n" +
+    '        try {\n' +
     '            console.warn(line)\n' +
     '        } catch (sink) {\n' +
     '            writeMarkedFallback(REVOCATION_LOG_FAILED, line, {\n' +
@@ -419,7 +425,11 @@ const MUTATIONS: Mutation[] = [
     {
         label: 'K25 — the malformed WARN as a bare console.warn (row 5a)',
         file: REDIS,
-        edits: [[MALFORMED_WRITE, '        console.warn(line)\n']],
+        edits: [[
+            MALFORMED_WRITE,
+            "            'packages/realtime/driver.ts).'\n" +
+            '        console.warn(line)\n',
+        ]],
         killedBy: '#384 R3c ',
     },
     {

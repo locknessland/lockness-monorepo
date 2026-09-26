@@ -24,6 +24,12 @@
  *
  * Each is named again on its row below.
  *
+ * **S3 now `SURVIVED*` (#383, 2026-09-26).** Item 2's `#warnReconcileFailed`
+ * self-guards `#runRevocationReconcile`'s own WARN, so nothing inside it can
+ * reject the promise past the outer `.catch` any more — S3's fixture (the
+ * handler throws, every channel throws) no longer reaches that `.catch` at
+ * all. Recorded on the row, not silently dropped.
+ *
  * Every row was proven LIVE before it was trusted: with the mutant applied,
  * the killing witness was run alone and the stack of the error it reported
  * was seen to pass through the row's mutated line. A row whose line never
@@ -137,6 +143,12 @@ const MUTATIONS: Mutation[] = [
         // Witness: `no rejection reaches the runtime` — the chain's .catch
         // handler throws, and nothing is after it.
         killedBy: '#391 S3 ',
+        expectSurvival:
+            'SURVIVES since #383 item 2: #warnReconcileFailed self-guards ' +
+            "#runRevocationReconcile's own WARN (S3's fixture is exactly a " +
+            'thrown handler with every channel throwing), so nothing inside ' +
+            'it can reject the promise past this outer .catch any more — ' +
+            'true defence-in-depth now, unreachable from this suite.',
     },
     {
         label:
