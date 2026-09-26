@@ -16,6 +16,7 @@
     },
     "imports": {
         "@lockness/contract": "jsr:@lockness/contract@^0.3.0",
+        "@lockness/deprecation-contracts": "jsr:@lockness/deprecation-contracts@^0.3.0",
         "@lockness/hono": "jsr:@lockness/hono@^0.3.0",
         "@lockness/redis": "jsr:@lockness/redis@^0.3.0",
         "@lockness/notification": "jsr:@lockness/notification@^0.3.0",

@@ -105,6 +105,8 @@
         // `hono` only for `upgradeWebSocket` (via `@lockness/hono/deno`) and the
         // `WSContext` type (`@lockness/hono/network`), and `redis` for the
         // cross-process broadcast driver (hard, lazy-connect — mirrors queue).
+        // `deprecation-contracts` (#392) is a zero-dependency foundation package
+        // (see its own entry above) — `disconnect`'s id-form notice.
         // `events` is a SOFT edge: the events→broadcast bridge soft-loads it,
         // typed by local structural interfaces (an `import type` would harden
         // the edge and fail this check). `@lockness/notification` is a dev/test
@@ -112,7 +114,7 @@
         // invisible to this scan, which excludes `tests/`.
         "realtime": {
             "tier": "implementation",
-            "allow": ["contract", "hono", "redis"],
+            "allow": ["contract", "deprecation-contracts", "hono", "redis"],
             "soft": ["events"]
         },
         "scheduler": { "tier": "implementation", "allow": [] },

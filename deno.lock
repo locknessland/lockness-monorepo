@@ -4754,6 +4754,7 @@
       "packages/realtime": {
         "dependencies": [
           "jsr:@lockness/contract@0.3",
+          "jsr:@lockness/deprecation-contracts@0.3",
           "jsr:@lockness/hono@0.3",
           "jsr:@lockness/notification@0.3",
           "jsr:@lockness/redis@0.3",
