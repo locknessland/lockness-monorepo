@@ -28,11 +28,16 @@
  * `--gitleaks-ignore-path` does NOT override an `.gitleaksignore` already
  * present in the scan's working directory — it only supplies a path to check
  * when the working directory has none. gitleaks reads the ignore file live
- * off disk (not a git blob), so this file overwrites the actual
- * `.gitleaksignore` in the working tree with the base's content for the
- * duration of one `gitleaks` invocation, and restores the original (or
- * removes the file if none existed) in a `finally` — the working tree is
- * never left mutated, including on a crash mid-scan.
+ * off disk (not a git blob), so the base's version cannot simply be handed to
+ * it via a flag; it has to be present on disk at the scan's root. The
+ * developer's actual working tree is never the scan's root: this script
+ * creates a disposable, detached `git worktree` (sharing the same object
+ * database, so the pushed range stays reachable), checked out at the push's
+ * `local_sha`, writes the base's `.gitleaksignore` content into THAT
+ * worktree, points `gitleaks` at it, and removes the worktree in a `finally`.
+ * A crash mid-scan (SIGINT, SIGKILL, a hard crash) leaves at worst a stray
+ * temp worktree — never a mutated developer tree — and the next run's
+ * `git worktree prune` sweeps it up.
  *
  * Fails closed, mirroring `.github/workflows/secret-scan.yml`: the installer
  * failing, gitleaks logging an ERR/FTL line, an unreadable report, a
@@ -44,10 +49,32 @@
  * @module
  */
 
+import { dirname } from '@std/path'
 import { install as installGitleaks } from './install_gitleaks.ts'
 
 /** All-zero placeholder git uses for "this ref does not exist yet/anymore". */
 const ZERO_SHA_RE = /^0+$/
+
+/**
+ * Environment variables git hooks export (`GIT_DIR`, `GIT_WORK_TREE`,
+ * `GIT_INDEX_FILE`) that would otherwise redirect a git subprocess at the
+ * hook's own repository/worktree instead of the `cwd` this script passes
+ * explicitly — most dangerous for `git worktree add`, which must operate on
+ * the disposable scan worktree, never the developer's checkout.
+ */
+const GIT_ENV_LEAK_KEYS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE']
+
+/**
+ * The current environment with {@link GIT_ENV_LEAK_KEYS} removed, for every
+ * `git` subprocess this script spawns.
+ *
+ * @returns A env record safe to hand to `Deno.Command` alongside `clearEnv`.
+ */
+function sanitizedGitEnv(): Record<string, string> {
+    const env = Deno.env.toObject()
+    for (const key of GIT_ENV_LEAK_KEYS) delete env[key]
+    return env
+}
 
 /** One line of pre-push stdin. */
 export interface RefUpdate {
@@ -101,6 +128,8 @@ async function git(args: string[], cwd: string): Promise<string | null> {
     const run = await new Deno.Command('git', {
         args,
         cwd,
+        clearEnv: true,
+        env: sanitizedGitEnv(),
         stdout: 'piped',
         stderr: 'piped',
     }).output()
@@ -179,34 +208,83 @@ export async function readIgnoreAtBase(
 }
 
 /**
- * Run `fn` with `cwd/.gitleaksignore` temporarily replaced by `content`, then
- * restore the original content — or remove the file if it did not exist
- * before — in a `finally`.
+ * Create a disposable, detached `git worktree` checked out at `localSha`, so
+ * the scan never runs against the developer's actual working tree. The
+ * worktree shares the calling repository's object database (`git worktree
+ * add` links it in, it is not a clone), so every commit in the range this
+ * push is about to send stays reachable from it.
  *
- * @param content - Replacement content, or `null` to leave the working
- *   tree's `.gitleaksignore` untouched (see {@link readIgnoreAtBase}).
- * @param cwd - The repository root.
- * @param fn - Runs with the substitution in place.
- * @returns Whatever `fn` returns.
+ * Runs `git worktree prune` first, sweeping up any stale registration left
+ * behind by an earlier crash (see {@link removeScanWorktree}).
+ *
+ * @param localSha - The pushed commit to check out (a ref update's
+ *   `localSha`).
+ * @param cwd - The repository root the worktree is added FROM (not the
+ *   worktree's own directory).
+ * @returns The new worktree's absolute directory.
+ * @throws {Error} When `git worktree add` fails.
  */
-export async function withIgnoreFileOverride<T>(
-    content: string | null,
+export async function createScanWorktree(
+    localSha: string,
     cwd: string,
-    fn: () => Promise<T>,
-): Promise<T> {
-    if (content === null) return await fn()
-    const path = `${cwd}/.gitleaksignore`
-    const original = await Deno.readTextFile(path).catch(() => null)
-    await Deno.writeTextFile(path, content)
-    try {
-        return await fn()
-    } finally {
-        if (original === null) {
-            await Deno.remove(path).catch(() => {})
-        } else {
-            await Deno.writeTextFile(path, original)
-        }
+): Promise<string> {
+    await git(['worktree', 'prune'], cwd)
+    const parent = await Deno.makeTempDir({
+        prefix: 'lockness-secret-scan-worktree-',
+    })
+    const worktreeDir = `${parent}/scan`
+    const added = await git(
+        ['worktree', 'add', '--detach', worktreeDir, localSha],
+        cwd,
+    )
+    if (added === null) {
+        await Deno.remove(parent, { recursive: true }).catch(() => {})
+        throw new Error(
+            `git worktree add failed for ${localSha} (scan cannot proceed)`,
+        )
     }
+    return worktreeDir
+}
+
+/**
+ * Remove a worktree created by {@link createScanWorktree}: `git worktree
+ * remove --force`, then `git worktree prune`, then delete the temp directory
+ * that held it. Called from a `finally`, so a crash mid-scan is the only way
+ * to skip it — leaving at worst a stale worktree registration, which the next
+ * run's `git worktree prune` (inside {@link createScanWorktree}) sweeps up.
+ * Never touches the developer's own working tree.
+ *
+ * @param worktreeDir - The directory returned by {@link createScanWorktree}.
+ * @param cwd - The repository root the worktree was added from.
+ */
+export async function removeScanWorktree(
+    worktreeDir: string,
+    cwd: string,
+): Promise<void> {
+    await git(['worktree', 'remove', '--force', worktreeDir], cwd)
+    await git(['worktree', 'prune'], cwd)
+    await Deno.remove(dirname(worktreeDir), { recursive: true }).catch(
+        () => {},
+    )
+}
+
+/**
+ * Write `content` as the scan worktree's `.gitleaksignore`, replacing
+ * whatever the worktree's checkout already carries (the tip's version, since
+ * the worktree is checked out at the push's own `local_sha`).
+ *
+ * @param content - The base's `.gitleaksignore` content (see {@link
+ *   readIgnoreAtBase}), or `null` to leave the worktree's checked-out (tip's)
+ *   file exactly as `git worktree add` produced it — the named residue of
+ *   the base-snapshot rule, for a rootless push with no base at all.
+ * @param worktreeDir - The directory from {@link createScanWorktree}.
+ */
+export async function writeBaseIgnoreFile(
+    content: string | null,
+    worktreeDir: string,
+): Promise<void> {
+    if (content === null) return
+    await Deno.writeTextFile(`${worktreeDir}/.gitleaksignore`, content)
 }
 
 /**
@@ -236,7 +314,10 @@ export interface ScanResult {
  * `secret-scan.yml`.
  *
  * @param range - A `git log`-compatible range, already known to be non-empty.
- * @param cwd - The repository root.
+ * @param cwd - The directory gitleaks scans from — the disposable worktree
+ *   from {@link createScanWorktree} in production use, a plain repository in
+ *   tests. Refs and objects are shared with the real repository the worktree
+ *   was added from, so `range` resolves the same either way.
  * @param gitleaksPath - Path of the verified gitleaks binary.
  * @param expectedCommits - The commit count from {@link commitCount}, used to
  *   tell a real "0 commits scanned" apart from an empty range.
@@ -270,6 +351,8 @@ export async function scanRange(
                 '.',
             ],
             cwd,
+            clearEnv: true,
+            env: sanitizedGitEnv(),
             stdout: 'piped',
             stderr: 'piped',
         }).output()
@@ -397,11 +480,24 @@ export async function runPrepushScan(
             continue
         }
         const ignoreContent = await readIgnoreAtBase(base, cwd)
-        const result = await withIgnoreFileOverride(
-            ignoreContent,
-            cwd,
-            () => scanRange(range, cwd, gitleaksPath, expected),
-        )
+
+        let worktreeDir: string | null = null
+        let result: ScanResult
+        try {
+            worktreeDir = await createScanWorktree(update.localSha, cwd)
+            await writeBaseIgnoreFile(ignoreContent, worktreeDir)
+            result = await scanRange(range, worktreeDir, gitleaksPath, expected)
+        } catch (error) {
+            result = {
+                ok: false,
+                reason: `could not scan from a disposable worktree: ${
+                    (error as Error).message
+                }`,
+            }
+        } finally {
+            if (worktreeDir) await removeScanWorktree(worktreeDir, cwd)
+        }
+
         if (result.ok) {
             lines.push(
                 `${update.localRef}: ${range} clean (${expected} commit(s))`,

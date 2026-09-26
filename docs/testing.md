@@ -652,13 +652,20 @@ app.use('*', actingAs(fakeUser({ id: 1, isAdmin: true })))
   push (or a same-branch PR) cannot suppress its own new secret by adding the
   fingerprint in a later commit of the same push — both the leak's commit and
   the tip would otherwise read the same (already-suppressed) file and pass.
-  Concretely, both the hook and the workflow temporarily overwrite the
-  checked-out `.gitleaksignore` with the base's version for the scan only
-  (gitleaks reads that file live off disk, not from a git blob — confirmed
-  against the real binary, since its own `--gitleaks-ignore-path` flag does NOT
-  override a file already present in the scan's working directory) and restore
-  the original content afterward. The base is `remote_sha` locally (or the
-  `origin/main` merge-base for a new branch), and
+  gitleaks reads that file live off disk, not from a git blob (confirmed against
+  the real binary, since its own `--gitleaks-ignore-path` flag does NOT override
+  a file already present in the scan's working directory), so the base's version
+  has to land on disk somewhere. The CI workflow does that in its own checkout,
+  which is disposable per job. The **local pre-push hook never touches the
+  developer's actual working tree** to do it: it creates a disposable, detached
+  `git worktree` (`git worktree add --detach`, sharing the real repository's
+  object database) checked out at the push's own `local_sha`, writes the base's
+  `.gitleaksignore` content into THAT worktree, runs gitleaks against it, and
+  removes the worktree afterward (`scripts/prepush_secret_scan.ts`'s
+  `createScanWorktree` / `removeScanWorktree`). A crash mid-scan leaves at worst
+  a stray temp worktree, swept up by the next run's `git worktree prune` — never
+  a mutated `.gitleaksignore` in the developer's tree. The base is `remote_sha`
+  locally (or the `origin/main` merge-base for a new branch), and
   `github.event.pull_request.base.sha` / `github.event.before` in CI. With no
   base at all (a rootless push, or `workflow_dispatch`), the tip's file is kept
   — the one named residue of this rule.
