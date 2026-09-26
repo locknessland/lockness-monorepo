@@ -10,6 +10,7 @@
  */
 
 import { nextRun } from './cron_parser.ts'
+import { report } from './reporting.ts'
 import { runTask, type TaskBody } from './task_runner.ts'
 import { TimerRegistry } from './timer_registry.ts'
 import type {
@@ -626,17 +627,16 @@ export class Scheduler {
     }
 
     /**
-     * Report through the injected reporter, or `console.warn`.
+     * Report through the injected reporter, falling back to `console.warn`
+     * and then `Deno.stderr` — see {@link report} (#394). A throwing reporter
+     * must not escape: this is called from inside the run's `finally`, where
+     * a throw becomes an unhandled rejection on the void'd cron path.
      *
      * Shaped like `TimerRegistry`'s own: a scheduler constructed without a
      * reporter must still say something, or every warning it emits is lost.
      */
     #warn(message: string, fields: Record<string, unknown>): void {
-        if (this.#reporter) {
-            this.#reporter.warn(message, fields)
-            return
-        }
-        console.warn(`⚠️  ${message}`, fields)
+        report(this.#reporter, 'warn', message, fields)
     }
 }
 

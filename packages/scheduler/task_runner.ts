@@ -9,6 +9,7 @@
  * @module @lockness/scheduler/task_runner
  */
 
+import { report as guardedReport } from './reporting.ts'
 import type {
     ScheduleOptions,
     SchedulerReporter,
@@ -186,7 +187,9 @@ function raceAbort(
  *
  * An `onError` that throws — a logging call to an unreachable sink is the usual
  * case — would otherwise escape the one catch this package permits and leave
- * the task un-rearmed and silently dead.
+ * the task un-rearmed and silently dead. The report itself is guarded too
+ * (#394, {@link guardedReport}): a reporter that throws on this call must not
+ * replace one failure with an unhandled one.
  */
 async function guard(
     fn: () => void | Promise<void> | undefined,
@@ -207,8 +210,7 @@ async function guard(
             error: error.name,
             message: error.message,
         }
-        if (reporter) reporter.error(message, fields)
-        else console.error(`⚠️  ${message}`, fields)
+        guardedReport(reporter, 'error', message, fields)
     }
 }
 
@@ -218,7 +220,9 @@ async function guard(
  * The line carries the task, the attempt, a run id and the error's **name and
  * message only** — never the raw error object. A driver error's stack carries
  * the failing statement and its bound parameters, and stdout is collected
- * somewhere with broader access than the database.
+ * somewhere with broader access than the database. The report itself is
+ * guarded (#394, {@link guardedReport}): a reporter that throws here must not
+ * turn one failed attempt into an unhandled one.
  */
 function report(
     reporter: SchedulerReporter | undefined,
@@ -234,6 +238,5 @@ function report(
         error: failure.error.name,
         message: failure.error.message,
     }
-    if (reporter) reporter.error(message, fields)
-    else console.error(`⚠️  ${message}`, fields)
+    guardedReport(reporter, 'error', message, fields)
 }

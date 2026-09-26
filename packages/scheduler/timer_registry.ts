@@ -9,6 +9,7 @@
  * @module @lockness/scheduler/timer_registry
  */
 
+import { report } from './reporting.ts'
 import type { SchedulerReporter } from './types.ts'
 
 /**
@@ -229,12 +230,14 @@ export class TimerRegistry {
         this.#entries.set(key, { handle, remaining: rest, fire })
     }
 
-    /** Report through the injected reporter, or `console.warn`. */
+    /**
+     * Report through the injected reporter, falling back to `console.warn`
+     * and then `Deno.stderr` — see {@link report} (#394). A throwing reporter
+     * must not escape: `arm()` reaches this synchronously from `register()`,
+     * outside any promise, where a throw is an uncaught exception rather than
+     * a rejection something could catch.
+     */
     #warn(message: string, fields: Record<string, unknown>): void {
-        if (this.#reporter) {
-            this.#reporter.warn(message, fields)
-            return
-        }
-        console.warn(`⚠️  ${message}`, fields)
+        report(this.#reporter, 'warn', message, fields)
     }
 }
